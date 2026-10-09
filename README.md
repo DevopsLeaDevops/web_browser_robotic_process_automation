@@ -11,6 +11,14 @@
 
 ## 快速開始
 
+一條命令裝好環境並跑完測試（macOS、Linux；Windows 用 `scripts\setup.ps1`），說明見 `docs/develop/quickstart.html`：
+
+```bash
+./scripts/setup.sh
+```
+
+或手動執行：
+
 ```bash
 uv sync                              # 安裝全部套件與開發工具
 uv run playwright install chromium   # 下載瀏覽器

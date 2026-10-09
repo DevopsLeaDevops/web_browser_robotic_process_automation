@@ -38,6 +38,7 @@ window.DOCS_NAV = {
     {
       "id": "develop", "name": "開發", "en": "DEVELOP",
       "pages": [
+        { "id": "quickstart", "name": "本機從零運行", "href": "develop/quickstart.html" },
         { "id": "setup", "name": "開發環境", "href": "develop/setup.html" },
         { "id": "macos", "name": "macOS 本機運行", "href": "develop/macos.html" },
         { "id": "conventions", "name": "開發規範", "href": "develop/conventions.html" },

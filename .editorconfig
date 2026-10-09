@@ -8,8 +8,12 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
-[*.{html,css,js,json,yaml,yml,toml}]
+[*.{html,css,js,json,yaml,yml,toml,sh}]
 indent_size = 2
+
+# Windows 內建的 PowerShell 5.1 讀取沒有 BOM 的腳本時用系統編碼，中文會變成亂碼
+[*.ps1]
+charset = utf-8-bom
 
 # 原樣收錄的設計包，不套用任何格式規則
 [docs/design-system/**]
