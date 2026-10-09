@@ -5,7 +5,7 @@ description = "命令列工具：rpa validate / run / record / generate / push"
 requires-python = ">=3.12"
 dependencies = [
   "rpa-core",
-  "click>=8.1",
+  "click>=8.5.0",
 ]
 
 [project.scripts]
