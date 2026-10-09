@@ -14,7 +14,7 @@
   <div class="heading">
     <div>
       <h1>開發環境</h1>
-      <p>從零到能跑測試，大約五分鐘。Windows、macOS、Linux 指令相同。第一次在 Mac 上設定，可照<a href="macos.html">macOS 本機運行</a>一步步做。</p>
+      <p>從零到能跑測試，大約五分鐘。Windows、macOS、Linux 指令相同。想一條命令裝好全部，用<a href="quickstart.html">本機從零運行</a>的一鍵腳本；第一次在 Mac 上設定，可照<a href="macos.html">macOS 本機運行</a>一步步做。</p>
     </div>
   </div>
 
@@ -58,6 +58,7 @@ uv run rpa --version</pre>
         <table class="wrap">
           <thead><tr><th>做什麼</th><th>命令</th></tr></thead>
           <tbody>
+            <tr><td>安裝或檢查整個環境</td><td><code>./scripts/setup.sh</code>（Windows：<code>scripts\setup.ps1</code>），見<a href="quickstart.html">本機從零運行</a></td></tr>
             <tr><td>跑全部測試</td><td><code>uv run pytest</code></td></tr>
             <tr><td>跳過需要瀏覽器的測試</td><td><code>uv run pytest -m "not browser"</code></td></tr>
             <tr><td>只檢查文檔</td><td><code>uv run pytest tests/docs</code></td></tr>
