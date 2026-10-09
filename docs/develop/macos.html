@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>macOS 本機運行 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="macos" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>macOS 本機運行</h1>
+      <p>在一台沒裝過開發工具的 Mac 上，從下載程式碼到跑通 CLI、測試與文檔站的逐步說明。第一次大約十分鐘，多半在等下載。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">目前是 M0（工程骨架）。「能運行」指的是：<code>rpa</code> 命令可以執行、全部測試通過、Playwright 能啟動 Chromium、文檔站能在瀏覽器開啟。校驗、執行、錄製場景等子命令會在後續里程碑加入，見<a href="../roadmap.html">路線圖</a>。</div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>全部命令</h2><span class="muted">熟悉的人照抄即可，逐步說明在下方</span></div>
+        <div class="panel-body">
+<pre class="source"># 1. Git（已經有就跳過）
+xcode-select --install
+
+# 2. uv（裝完開一個新的終端機視窗）
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 3. 下載程式碼
+mkdir -p ~/code &amp;&amp; cd ~/code
+git clone https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git
+cd web_browser_robotic_process_automation
+
+# 4. 安裝依賴與瀏覽器
+uv sync
+uv run playwright install chromium
+
+# 5. 確認能運行
+uv run rpa --version
+uv run pytest
+
+# 6. 開啟文檔站
+open docs/index.html</pre>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>前置需求</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>電腦</dt><dd>Apple 晶片（M 系列）或 Intel 的 Mac 都可以。建議使用仍在接收更新的 macOS 版本。</dd>
+            <dt>終端機</dt><dd>系統內建的「終端機」（應用程式 › 工具程式）。預設 shell 是 zsh，本頁命令都在 zsh 中執行。</dd>
+            <dt>網路</dt><dd>需要連得到 GitHub、PyPI 與 Playwright 的瀏覽器下載站。公司網路先看<a href="#faq">常見問題</a>。</dd>
+            <dt>磁碟空間</dt><dd>預留約 1 GB，給 Python、套件與 Chromium。</dd>
+            <dt>不需要</dt><dd>不用自己裝 Python、Homebrew 或 Node.js。Python 由 uv 自動下載；Node.js 到 M8 做前端時才需要。</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="git">
+      <div class="panel-header"><h2>1. 安裝 Git</h2></div>
+      <div class="panel-body">
+        <p>先確認是否已經有 Git：</p>
+<pre class="source">git --version</pre>
+        <p>印出版本號就跳到下一步。如果跳出要求安裝「命令列開發者工具」的視窗，或看到 <code>xcrun: error</code>，執行下面的命令，在彈出的視窗按「安裝」並等它完成。不需要安裝完整的 Xcode。</p>
+<pre class="source">xcode-select --install</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="uv">
+      <div class="panel-header"><h2>2. 安裝 uv</h2></div>
+      <div class="panel-body">
+        <p>uv 負責下載 Python、建立虛擬環境和安裝套件，專案要求 0.11 以上。以下二選一：</p>
+        <div class="two-col">
+          <div>
+            <h3>官方安裝腳本（建議）</h3>
+<pre class="source">curl -LsSf https://astral.sh/uv/install.sh | sh</pre>
+            <p class="muted">裝在 <code>~/.local/bin</code>，之後升級用 <code>uv self update</code>。</p>
+          </div>
+          <div>
+            <h3>已經在用 Homebrew</h3>
+<pre class="source">brew install uv</pre>
+            <p class="muted">之後升級用 <code>brew upgrade uv</code>。</p>
+          </div>
+        </div>
+        <p>裝完<strong>關掉終端機，再開一個新視窗</strong>讓 PATH 生效，然後確認版本：</p>
+<pre class="source">uv --version    # 例如 uv 0.11.x，需要 0.11 以上</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="clone">
+      <div class="panel-header"><h2>3. 下載程式碼</h2></div>
+      <div class="panel-body">
+        <p>放在你習慣的資料夾，這裡以家目錄下的 <code>code</code> 為例：</p>
+<pre class="source">mkdir -p ~/code &amp;&amp; cd ~/code
+git clone https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git
+cd web_browser_robotic_process_automation</pre>
+        <ul class="points">
+          <li>之後所有命令都在這個資料夾裡執行。</li>
+          <li>避開有 iCloud 同步的「桌面」與「文件」資料夾，<code>.venv</code> 裡的大量小檔案會被一直同步。</li>
+          <li>不建議下載 ZIP：沒有 Git 紀錄就無法用 <code>git pull</code> 更新，也無法安裝提交前檢查。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="install">
+      <div class="panel-header"><h2>4. 安裝依賴與瀏覽器</h2></div>
+      <div class="panel-body">
+<pre class="source"># 依 .python-version 準備 Python 3.13（沒有就自動下載），建立 .venv，安裝全部套件與開發工具
+uv sync
+
+# 下載 Playwright 使用的 Chromium
+uv run playwright install chromium</pre>
+        <dl class="spec-list">
+          <dt>.venv/</dt><dd>專案自己的虛擬環境，就在專案資料夾內。不需要手動啟用，<code>uv run</code> 會自動使用它。</dd>
+          <dt>Python</dt><dd>uv 下載的 Python 放在 <code>~/.local/share/uv/python</code>，不會動到系統的 Python。</dd>
+          <dt>Chromium</dt><dd>放在 <code>~/Library/Caches/ms-playwright</code>。macOS 不需要加 <code>--with-deps</code>，那是 Linux 用來安裝系統函式庫的。</dd>
+          <dt>uv.lock</dt><dd>第一次 <code>uv sync</code> 會產生鎖檔，<code>git status</code> 會看到它。怎麼處理見<a href="setup.html#faq">開發環境的常見問題</a>。</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="verify">
+      <div class="panel-header"><h2>5. 確認能運行</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>命令</th><th>預期結果</th></tr></thead>
+          <tbody>
+            <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.1.0（rpa-core 0.1.0）</code></td></tr>
+            <tr><td><code>uv run rpa -h</code></td><td>顯示用法與說明「瀏覽器自動化場景的生成、管理與執行工具。」M0 還沒有子命令。</td></tr>
+            <tr><td><code>uv run pytest</code></td><td>最後一行只有 <code>passed</code>，沒有 <code>failed</code>，也沒有 <code>skipped</code>。</td></tr>
+            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>1 passed</code>（其餘測試顯示為 deselected）。這是瀏覽器冒煙測試，跟 CI 一樣缺瀏覽器就失敗，而不是略過。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <div class="notice warn">如果 <code>uv run pytest</code> 顯示 <code>1 skipped</code>、原因是「Chromium 未安裝」，代表第 4 步的瀏覽器沒裝好，重新執行 <code>uv run playwright install chromium</code>。</div>
+        <p>不想每次都打 <code>uv run</code>，可以先啟用虛擬環境：<code>source .venv/bin/activate</code>，之後直接打 <code>rpa --version</code>、<code>pytest</code>；離開用 <code>deactivate</code>。</p>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="docs">
+        <div class="panel-header"><h2>6. 開啟文檔站</h2></div>
+        <div class="panel-body">
+<pre class="source"># 用預設瀏覽器直接開啟
+open docs/index.html
+
+# 或起一個本機伺服器，瀏覽 http://localhost:8000（Control-C 停止）
+uv run python -m http.server -d docs 8000</pre>
+          <p>macOS 沒有 <code>python</code> 命令。README 裡的 <code>python -m http.server</code> 請改用上面的 <code>uv run python</code>，或系統的 <code>python3</code>。</p>
+        </div>
+      </section>
+      <section class="panel" id="develop">
+        <div class="panel-header"><h2>7. 準備開發</h2><span class="badge">可選</span></div>
+        <div class="panel-body">
+<pre class="source"># 每次 git commit 前自動跑 ruff、pyright 與文檔檢查
+uv run pre-commit install</pre>
+          <ul class="points">
+            <li>第一次執行 pyright（包含提交時的檢查）會自動下載它需要的 Node.js 執行環境，要多等一下。</li>
+            <li>編輯器的 Python 直譯器選專案裡的 <code>.venv/bin/python</code>，型別檢查才找得到套件。</li>
+            <li>常用命令見<a href="setup.html">開發環境</a>，分支與提交規則見<a href="conventions.html">開發規範</a>。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="daily">
+      <div class="panel-header"><h2>之後每次使用</h2></div>
+      <div class="panel-body">
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+git pull        # 取得最新程式碼
+uv sync         # 依賴有變動才會安裝；沒變動幾秒內結束
+uv run pytest</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>常見問題</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>看到什麼</th><th>怎麼處理</th></tr></thead>
+          <tbody>
+            <tr><td><code>xcrun: error</code></td><td>macOS 大版本升級後常見，命令列開發者工具需要重裝：<code>xcode-select --install</code>。</td></tr>
+            <tr><td><code>command not found: uv</code></td><td>開一個新的終端機視窗。仍不行就執行 <code>source $HOME/.local/bin/env</code>，或用 <code>echo $PATH</code> 確認含有 <code>~/.local/bin</code>。</td></tr>
+            <tr><td><code>command not found: python</code></td><td>macOS 預設沒有這個命令。用 <code>uv run python</code>（專案的 Python 3.13）或 <code>python3</code>。</td></tr>
+            <tr><td>uv 版本太舊</td><td><code>uv sync</code> 提示需要 0.11 以上時：腳本安裝的執行 <code>uv self update</code>，Homebrew 安裝的執行 <code>brew upgrade uv</code>。</td></tr>
+            <tr><td>M 系列晶片卻顯示 <code>x86_64</code></td><td><code>uname -m</code> 應該印出 <code>arm64</code>。印出 <code>x86_64</code> 代表終端機是透過 Rosetta 開的：在 Finder 對「終端機」按「取得資訊」，取消勾選 Rosetta 那一項，重開終端機後執行 <code>rm -rf .venv &amp;&amp; uv sync</code>。</td></tr>
+            <tr><td><code>Address already in use</code></td><td>8000 埠被佔用，換一個埠號，例如 <code>uv run python -m http.server -d docs 8001</code>。</td></tr>
+            <tr><td><code>git pull</code> 說 uv.lock 會被覆蓋</td><td>鎖檔已經提交到 main。刪掉本機產生的那份再拉：<code>rm uv.lock &amp;&amp; git pull &amp;&amp; uv sync</code>。</td></tr>
+            <tr><td>公司網路、代理或鏡像</td><td>見<a href="setup.html#faq">開發環境的常見問題</a>（<code>UV_INDEX_URL</code>、<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）。</td></tr>
+            <tr><td>想整個重來</td><td>重建環境：<code>rm -rf .venv &amp;&amp; uv sync</code>。重裝瀏覽器：<code>rm -rf ~/Library/Caches/ms-playwright</code>，再執行 <code>uv run playwright install chromium</code>。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
