@@ -18,7 +18,7 @@ uv run pytest                        # 跑測試
 uv run rpa --version
 ```
 
-完整說明見 `docs/develop/setup.html`。
+完整說明見 `docs/develop/setup.html`；在 Mac 上從零開始的逐步說明見 `docs/develop/macos.html`。
 
 ## 目前進度
 
