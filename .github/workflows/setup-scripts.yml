@@ -27,6 +27,12 @@ env:
   # 從零開始的測試直接下載這次提交的腳本，跟文檔中的一行命令走同一條路
   SCRIPT_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha || github.sha }}/scripts
 
+defaults:
+  run:
+    # 明確指定 bash 才會開 pipefail；否則「setup.sh | tee」會把腳本的失敗吞掉。
+    # Windows 的步驟各自指定 shell: powershell。
+    shell: bash
+
 jobs:
   in-repo:
     name: 專案內執行（${{ matrix.os }}）
