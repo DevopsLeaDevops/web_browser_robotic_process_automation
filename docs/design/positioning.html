@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>產品定位 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="positioning" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>產品定位</h1>
+      <p>要解決什麼問題，以及整個平台圍繞的核心概念。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>要解決的問題</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>重複的人工操作。</strong>每天在內部系統登入、填表、查詢、匯出報表，耗人力又容易出錯。</li>
+            <li><strong>腳本只有開發者能寫。</strong>自動化腳本散落在個人電腦，難以共用，也沒人知道哪個版本是對的。</li>
+            <li><strong>頁面一改就壞。</strong>選擇器失效後很難看出壞在哪一步、為什麼壞。</li>
+            <li><strong>團隊共用缺少治理。</strong>沒有權限、稽核與憑證管理，帳號密碼常常直接寫在腳本裡。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>不在範圍內</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>桌面應用程式自動化：只處理瀏覽器內的操作。</li>
+            <li>破解驗證碼或繞過目標系統的安全機制。</li>
+            <li>大規模網頁爬取。</li>
+            <li>取代測試框架：可以做檢查，但定位是業務流程自動化。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>生成 → 管理 → 執行 → 回饋</h2><span class="muted">平台的主循環</span></div>
+      <div class="panel-body">
+        <div class="four-col">
+          <div><h3>1　生成</h3><ul class="points"><li>錄製使用者操作</li><li>用自然語言讓 AI 產生</li><li>由範本或子場景組合</li></ul></div>
+          <div><h3>2　管理</h3><ul class="points"><li>版本與差異比較</li><li>參數、標籤與專案</li><li>權限與稽核</li></ul></div>
+          <div><h3>3　執行</h3><ul class="points"><li>手動、排程或 API 觸發</li><li>多 worker 併發</li><li>重試與逾時控制</li></ul></div>
+          <div><h3>4　回饋</h3><ul class="points"><li>每一步的截圖與日誌</li><li>Playwright Trace 回放</li><li>失敗定位與選擇器自癒</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>核心概念</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>場景 Scenario</dt><dd>一段可重複執行的瀏覽器操作流程，以聲明式 DSL 描述。平台的核心資產，有版本。</dd>
+          <dt>步驟 Step</dt><dd>場景中的一個動作，例如開啟網址、點擊、填寫、抽取資料。每個步驟有穩定的 <code>id</code>。</dd>
+          <dt>定位器 Target</dt><dd>描述「要操作頁面上的哪個元素」，可以有多個候選，依優先順序嘗試。</dd>
+          <dt>參數 Param</dt><dd>執行時才給定的值，例如查詢月份；有型別與預設值。</dd>
+          <dt>Secret</dt><dd>帳號密碼等機密，場景只引用名稱，明文不會出現在場景、日誌或截圖說明中。</dd>
+          <dt>執行 Run</dt><dd>場景的一次執行，記錄觸發者、參數、每一步的結果與耗時。</dd>
+          <dt>產物 Artifact</dt><dd>執行產生的截圖、Trace、下載檔與抽取的資料。</dd>
+          <dt>專案 Project</dt><dd>權限隔離的單位。場景、Secrets、執行紀錄都屬於某個專案。</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

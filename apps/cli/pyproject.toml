@@ -1,0 +1,19 @@
+[project]
+name = "rpa-cli"
+version = "0.1.0"
+description = "命令列工具：rpa validate / run / record / generate / push"
+requires-python = ">=3.12"
+dependencies = [
+  "rpa-core",
+  "click>=8.1",
+]
+
+[project.scripts]
+rpa = "rpa_cli.main:cli"
+
+[tool.uv.sources]
+rpa-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0003 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0003" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0003：以 PostgreSQL 作為任務佇列</h1>
+      <p>執行任務與排程直接存放在 PostgreSQL，不另外引入 Redis。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-09</dd>
+        <dt>影響範圍</dt><dd>rpa-server、rpa-worker、部署（M7、M9）</dd>
+        <dt>相關</dt><dd><a href="../design/architecture.html">系統架構</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>多用戶共用需要多個 worker 併發執行、定時排程、失敗重試。平台本來就需要 PostgreSQL 存放場景與執行紀錄。</p>
+          <p>RPA 的瓶頸在瀏覽器本身：一次執行通常是數秒到數分鐘，任務量是每分鐘數十到數百筆，而不是每秒數千筆。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>使用 Procrastinate：以 PostgreSQL 為後端、原生 asyncio 的任務佇列，支援定時任務。</li>
+            <li>建立執行紀錄與入列任務放在同一個資料庫交易裡，不會出現有紀錄沒任務的情況。</li>
+            <li>worker 透過一層薄介面呼叫佇列，必要時可替換實作。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>部署少一個元件，備份與監控只需顧好 PostgreSQL。</li>
+            <li>任務與執行紀錄的一致性由交易保證。</li>
+            <li>與 Playwright async 執行模型相容。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>吞吐量上限低於專用訊息佇列；以本工程的規模足夠。</li>
+            <li>依賴單一函式庫，因此保留替換介面。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>Celery + Redis</td><td>成熟但多一個元件，asyncio 支援較弱。</td></tr>
+              <tr><td>arq（Redis）</td><td>asyncio 原生，但同樣需要 Redis。</td></tr>
+              <tr><td>自行實作 SKIP LOCKED 佇列</td><td>可行，但重試、排程、監控都要自己寫。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>技術選型 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="tech-stack" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>技術選型</h1>
+      <p>前端以外全部使用 Python。重要選擇另有決策紀錄說明背景與取捨。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>各層選型</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>層面</th><th>選型</th><th>備選</th><th>理由</th><th>起始</th></tr></thead>
+          <tbody>
+            <tr><td>瀏覽器驅動</td><td>Playwright for Python（async）</td><td>Selenium</td><td>多瀏覽器、自動等待、語意化定位（get_by_role）、Trace Viewer；async 讓一個 worker 同時跑多個瀏覽器上下文</td><td>M2</td></tr>
+            <tr><td>DSL 模型與校驗</td><td>Pydantic v2</td><td>marshmallow</td><td>判別聯合很適合「每種動作一個模型」；可直接導出 JSON Schema 給 AI 和前端<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
+            <tr><td>YAML 解析</td><td>ruamel.yaml</td><td>PyYAML</td><td>保留行號，校驗錯誤能指出檔案第幾行</td><td>M1</td></tr>
+            <tr><td>表達式 <code>{{ }}</code></td><td>Jinja2 沙箱環境</td><td>自行實作</td><td>成熟，可以限制場景能存取的內容，防止執行任意程式碼</td><td>M3</td></tr>
+            <tr><td>命令列</td><td>click</td><td>Typer、argparse</td><td>成熟穩定、子命令與測試工具完整</td><td>M0</td></tr>
+            <tr><td>後端 API</td><td>FastAPI</td><td>Django</td><td>與 DSL 共用同一套 Pydantic 模型，自動產生 OpenAPI<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>
+            <tr><td>資料庫</td><td>PostgreSQL + SQLAlchemy 2.0 + Alembic</td><td>—</td><td>多用戶共用需要正式的資料庫；單元測試用 SQLite</td><td>M7</td></tr>
+            <tr><td>任務佇列與排程</td><td>PostgreSQL 佇列（Procrastinate）</td><td>Celery + Redis</td><td>少一個元件，原生 asyncio，支援定時任務<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
+            <tr><td>產物存儲</td><td>MinIO（S3 相容）</td><td>共用磁碟</td><td>多個 worker 的截圖、Trace、下載檔需要集中存放；本機開發用本地目錄</td><td>M9</td></tr>
+            <tr><td>前端</td><td>React + TypeScript + Vite</td><td>NiceGUI、HTMX</td><td>步驟編輯器互動很多，純 Python 方案難做好<small><a href="../adr/0004-react-frontend.html">ADR 0004</a></small></td><td>M8</td></tr>
+            <tr><td>介面樣式</td><td>介面設計系統 v1.0</td><td>—</td><td>同事交付的視覺契約，文檔站與 Web UI 共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
+            <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支援多套件；ruff 一個工具處理 lint 與格式化</td><td>M0</td></tr>
+            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>倉庫在 GitHub；Python 3.12 / 3.13 兩個版本並行測試</td><td>M0</td></tr>
+            <tr><td>部署</td><td>Docker Compose</td><td>Kubernetes</td><td>起步夠用，之後可以遷移</td><td>M9</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>版本基準</h2><span class="muted">M0 設定</span></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>Python</dt><dd>3.12 以上（CI 測 3.12 與 3.13；本機預設 3.13，見 <code>.python-version</code>）</dd>
+          <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
+          <dt>型別檢查</dt><dd>pyright strict 模式，新程式碼一律完整標註型別</dd>
+          <dt>依賴鎖定</dt><dd><code>uv.lock</code> 提交後，CI 自動改用 <code>uv sync --locked</code></dd>
+          <dt>依賴更新</dt><dd>Dependabot 每週檢查 GitHub Actions 與 Python 依賴</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

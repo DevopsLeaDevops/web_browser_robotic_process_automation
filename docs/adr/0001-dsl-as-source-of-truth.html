@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0001 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0001" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0001：場景以聲明式 DSL 為唯一真實來源</h1>
+      <p>場景存成受 schema 約束的資料，而不是程式碼。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-09</dd>
+        <dt>影響範圍</dt><dd>rpa-core、所有生成方式、Web UI 編輯器、執行引擎</dd>
+        <dt>相關</dt><dd><a href="../design/dsl.html">場景 DSL（草案）</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>場景會由三種方式產生（錄製、AI、手動編輯），要在網頁上可視化編輯、比較版本，並交給多個 worker 執行。</p>
+          <p>如果場景直接存成 Playwright 腳本，編輯器很難可靠地解析和改寫它，AI 的輸出也無法在執行前驗證；腳本可以做任何事，審核和安全邊界都不清楚。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>場景以聲明式 DSL 描述：YAML 編寫、JSON 存儲。</li>
+            <li>DSL 以 Pydantic v2 模型定義，同一份定義導出 JSON Schema，供 AI 生成與前端使用。</li>
+            <li>DSL 帶有 <code>schemaVersion</code>，格式變更時提供遷移。</li>
+            <li>可以匯出成 Playwright 程式碼給開發者參考，但匯出結果不能回寫成場景。</li>
+            <li>DSL 表達不了的情況使用受控的 <code>script</code> 步驟。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>編輯器、版本比較、審核都直接處理結構化資料。</li>
+            <li>AI 的輸出能被校驗，錯誤可以精確回饋給模型修正。</li>
+            <li>執行層可替換，安全邊界由 DSL 決定。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>表達能力受限，需要逃生門，並在審核時標示。</li>
+            <li>要自行維護 DSL 規格與版本遷移。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>直接存 Playwright 腳本</td><td>無法可靠地可視化編輯，執行前無法校驗，安全邊界不清楚。</td></tr>
+              <tr><td>流程圖 JSON（低程式碼平台常見）</td><td>本質相同，但難以手寫和在 Git 中比較；YAML DSL 兼顧兩者。</td></tr>
+              <tr><td>採購現成 RPA 平台</td><td>授權成本高，生成與客製化受限。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0004 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0004" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0004：前端採用 React + TypeScript</h1>
+      <p>Python 為主的工程中，Web UI 是唯一的 TypeScript 部分。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-09</dd>
+        <dt>影響範圍</dt><dd>apps/web（M8）</dd>
+        <dt>相關</dt><dd><a href="0002-python-stack.html">ADR 0002</a>、<a href="0006-design-system.html">ADR 0006</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>管理介面最重要的頁面是步驟編輯器：拖拽排序、即時校驗、定位器候選切換，以及執行時逐步回放截圖。這類互動在純 Python 的 UI 框架裡很難做好。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>前端使用 React + TypeScript + Vite，放在 <code>apps/web</code>。</li>
+            <li>樣式沿用介面設計系統 v1.0 的 <code>portal.css</code> 與設計變數，不另選元件庫。</li>
+            <li>API 型別由 FastAPI 的 OpenAPI 生成，DSL 型別由 JSON Schema 生成，不手寫。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>生態成熟，複雜互動有現成方案。</li>
+            <li>型別由後端生成，前後端不會各說各話。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>團隊需要維護一份 TypeScript 程式碼；範圍嚴格限於 UI，業務邏輯都在後端。</li>
+            <li>CI 需要另外的 Node.js 工作流程（M8 加入）。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>NiceGUI、Streamlit</td><td>純 Python，但複雜互動與多用戶下的效能受限。</td></tr>
+              <tr><td>Jinja2 + HTMX</td><td>適合表單類頁面，不適合步驟編輯器。</td></tr>
+              <tr><td>Vue</td><td>同樣可行；React 的拖拽與編輯器相關套件較多。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

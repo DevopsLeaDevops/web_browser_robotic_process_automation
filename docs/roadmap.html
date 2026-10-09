@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>路線圖 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="design-system/assets/portal.css">
+<link rel="stylesheet" href="assets/docs.css">
+<script defer src="assets/nav.js"></script>
+<script defer src="assets/docs-shell.js"></script>
+</head>
+<body data-page="roadmap" data-root="">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>路線圖</h1>
+      <p>十個里程碑，每個都能獨立驗收。每一步：先說明設計 → 確認 → 寫程式與測試 → 開 PR → review 後合併。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>里程碑</h2><span class="muted">狀態隨每個 PR 更新</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>階段</th><th>名稱</th><th>內容</th><th>驗收方式</th><th>狀態</th></tr></thead>
+          <tbody>
+            <tr class="current"><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；設計文件與 ADR；納入介面設計系統 v1.0</td><td>CI 全綠；文檔連結檢查通過</td><td><span class="badge blue">進行中</span></td></tr>
+            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>核心動作（goto、click、fill、select、press、waitFor、expect、extract、screenshot）、定位器模型、YAML 載入與校驗</td><td><code>rpa validate</code> 能指出錯誤所在的檔案行號、步驟與欄位</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M2</span></td><td>Runner 與 CLI</td><td>無狀態執行引擎、步驟處理器註冊表、失敗截圖與 Trace；模擬內部系統的測試網站</td><td><code>rpa run</code> 對測試網站跑通</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M3</span></td><td>流程能力</td><td>變數與表達式、條件、迴圈、錯誤處理、子場景、資料驅動、Secrets、登入狀態重用</td><td>複雜範例場景通過</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M4</span></td><td>生成一：錄製</td><td>本機有頭瀏覽器錄製，輸出 DSL；定位器優先語意化，避開自動生成的 id</td><td>錄製後回放成功</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M5</span></td><td>生成二：AI</td><td>自然語言加頁面無障礙樹生成 DSL；校驗失敗自動修正；選擇器自癒</td><td>一句話描述即可生成可執行的場景</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M6</span></td><td>網站風格設計</td><td>視覺規範已由<a href="style/index.html">介面設計系統 v1.0</a> 交付；本階段改為以它製作核心頁面原型：登入、場景庫、步驟編輯器、執行詳情、使用者與權限管理</td><td>原型經你確認後才開始寫前端</td><td><span class="badge amber">部分交付</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>管理後端</td><td>認證、權限、專案、場景版本、Secrets 加密、稽核、REST API</td><td>API 測試通過</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M8</span></td><td>Web UI</td><td>依 M6 原型實作</td><td>在瀏覽器內完成「生成 → 執行 → 查看結果」閉環</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>營運能力</td><td>分散式 worker、排程、併發、重試、通知、Docker Compose 部署</td><td><code>docker compose up</code> 一鍵啟動</td><td><span class="badge">未開始</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>為什麼是這個順序</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>CLI 先於 UI。</strong>每個能力都能在沒有介面的情況下驗證，Web UI 只是在上面加一層。</li>
+            <li><strong>生成先於管理後端。</strong>生成是本工程的核心差異；M6 之前場景以 YAML 檔放在倉庫，Git 就是版本控制。</li>
+            <li><strong>原型先於後端。</strong>M6 的頁面原型決定 M7 的 API 需要提供哪些資料。</li>
+            <li><strong>Runner 從一開始就無狀態。</strong>只吃場景、參數與 Secrets，輸出結果與產物，到 M9 直接放進 worker。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>尚待決定</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>AI 模型</dt><dd>M5 前決定。需先確認內部系統的頁面內容能否送到外部 API；不行就接自架模型。</dd>
+            <dt>SSO 類型</dt><dd>M7 前確認公司使用 OIDC 還是 LDAP / AD。</dd>
+            <dt>部署環境</dt><dd>M9 前確認是單機 Docker Compose 還是 Kubernetes。</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

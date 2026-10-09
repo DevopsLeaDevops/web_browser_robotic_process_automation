@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0005 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0005" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0005：文檔以 HTML 撰寫並套用 Portal 樣式</h1>
+      <p>除非必要，不使用 Markdown；文檔本身就是一個可以直接部署的靜態網站。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-09</dd>
+        <dt>影響範圍</dt><dd>docs/ 下所有文檔</dd>
+        <dt>相關</dt><dd><a href="../develop/writing-docs.html">文檔與 ADR 寫作方式</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>專案負責人要求文檔易讀、易理解、重點突出，並且之後能直接做成文檔網站。Markdown 只能表達線性的文字，難以做出並排比較、狀態標籤、規格清單這類重點突出的版面。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>文檔以手寫 HTML 放在 <code>docs/</code>，套用介面設計系統的 <code>portal.css</code>。</li>
+            <li>導覽集中在 <code>docs/assets/nav.js</code>，由 <code>docs-shell.js</code> 產生；頁面只寫內容。</li>
+            <li>不使用靜態網站產生器，不需要建置，直接開檔或用任何靜態伺服器即可瀏覽。</li>
+            <li>只有倉庫根目錄的 <code>README.md</code> 保留 Markdown，因為 GitHub 首頁需要它。</li>
+            <li>CI 檢查每個頁面的結構、導覽登記與連結。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>離線可讀，風格與產品一致。</li>
+            <li><code>docs/</code> 原樣就能部署為文檔網站（GitHub Pages 或內部靜態伺服器）。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>手寫 HTML 比 Markdown 冗長；以頁面範本和自動檢查降低出錯機會。</li>
+            <li>在 GitHub 網頁上看到的是原始碼，需要部署或下載後瀏覽。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>Markdown</td><td>難以做出重點突出的版面，與要求不符。</td></tr>
+              <tr><td>Markdown + MkDocs 等產生器</td><td>寫作方便，但需要建置流程，風格難與產品一致。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

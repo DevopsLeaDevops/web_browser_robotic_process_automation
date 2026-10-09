@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "language": "zh-Hant",
+  "entry": "index.html",
+  "files": [
+    {
+      "path": "README.txt",
+      "sha256": "9c4c390b1cec81914ad5aa8bedfef04a026a29998532832b95ccf2daed3c126c"
+    },
+    {
+      "path": "assets/portal.css",
+      "sha256": "f99d1671c4bb3694bf319e3ecff2cfcb7d9a8dbfb941b2fd06cad92f3bfd0f5e"
+    },
+    {
+      "path": "assets/shell.js",
+      "sha256": "7fa8ca49ac1e717c767dadc9d826833b49cf7b38b32f20fb31a0c11c4c02ac04"
+    },
+    {
+      "path": "assets/starter.js",
+      "sha256": "8b8f2bae2826cd3763f7d59cb8531d0df73f00529747d4464a10bd9333eb72ad"
+    },
+    {
+      "path": "assets/visual.js",
+      "sha256": "bab3931ad7e512c7566684480d221c9fe1b17a823b44bfdfe608092bbc55dd27"
+    },
+    {
+      "path": "index.html",
+      "sha256": "a70c711bd1c2abaa643fb46a090d37aa28b32f01f7c499e348e284de88e9e46e"
+    },
+    {
+      "path": "starter.html",
+      "sha256": "62ad1f847f9daff835ed8e86060c2b04a1f379e135d963be4df35771275a2e6f"
+    },
+    {
+      "path": "tokens.json",
+      "sha256": "88a41730684b7c05abb6eea769e6ed70db352673a537769293e67edf70ff4bda"
+    },
+    {
+      "path": "驗證紀錄.txt",
+      "sha256": "d3da49b06fec2bc6d91cd877f8871f8cc33806fb30536a59b26c5509d9cb1df4"
+    }
+  ]
+}
