@@ -22,6 +22,8 @@ permissions:
   contents: read
 
 env:
+  # 失敗時把輸出最後幾行寫成註記，在 PR 的 Checks 頁面就能看到原因
+  SETUP_LOG: setup.log
   # 從零開始的測試直接下載這次提交的腳本，跟文檔中的一行命令走同一條路
   SCRIPT_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha || github.sha }}/scripts
 
@@ -38,10 +40,10 @@ jobs:
 
       - name: setup.sh
         if: runner.os != 'Windows'
-        run: ./scripts/setup.sh
+        run: ./scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
       - name: setup.sh 再執行一次（應該很快且成功）
         if: runner.os != 'Windows'
-        run: ./scripts/setup.sh
+        run: ./scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
 
       # shell: powershell 是 Windows 內建的 PowerShell 5.1，跟多數使用者的環境一致
       - name: setup.ps1
@@ -52,6 +54,17 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+
+      - name: 失敗時把最後的輸出寫成註記
+        if: failure() && runner.os != 'Windows'
+        run: |
+          log="$RUNNER_TEMP/$SETUP_LOG"
+          [ -f "$log" ] || exit 0
+          msg="$(tail -n 30 "$log")"
+          msg="${msg//'%'/'%25'}"
+          msg="${msg//$'\r'/}"
+          msg="${msg//$'\n'/'%0A'}"
+          echo "::error title=setup.sh 最後 30 行輸出::${msg}"
 
   from-scratch:
     name: 從零開始（${{ matrix.os }}）
@@ -64,7 +77,7 @@ jobs:
       - name: curl | bash
         if: runner.os != 'Windows'
         working-directory: ${{ runner.temp }}
-        run: curl -LsSf "$SCRIPT_BASE/setup.sh" | bash -s -- --dir "$RUNNER_TEMP/rpa"
+        run: curl -LsSf "$SCRIPT_BASE/setup.sh" | bash -s -- --dir "$RUNNER_TEMP/rpa" 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
 
       - name: 下載後以 -File 執行
         if: runner.os == 'Windows'
@@ -73,3 +86,14 @@ jobs:
         run: |
           irm "$env:SCRIPT_BASE/setup.ps1" -OutFile $env:TEMP\rpa-setup.ps1
           powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -Dir (Join-Path $env:RUNNER_TEMP 'rpa')
+
+      - name: 失敗時把最後的輸出寫成註記
+        if: failure() && runner.os != 'Windows'
+        run: |
+          log="$RUNNER_TEMP/$SETUP_LOG"
+          [ -f "$log" ] || exit 0
+          msg="$(tail -n 30 "$log")"
+          msg="${msg//'%'/'%25'}"
+          msg="${msg//$'\r'/}"
+          msg="${msg//$'\n'/'%0A'}"
+          echo "::error title=setup.sh 最後 30 行輸出::${msg}"

@@ -11,7 +11,8 @@
 # 說明文件：docs/develop/quickstart.html
 #
 # 注意：macOS 內建的是 bash 3.2，這個腳本不能用 bash 4 以後的語法
-# （關聯陣列、${var,,}、mapfile、set -u 下展開空陣列等）。
+# （關聯陣列、${var,,}、mapfile 等）；set -u 下空的 "$@" 要寫成 ${1+"$@"}。
+# 變數後面緊接中文時一定要寫成 ${var}：macOS 的 bash 會把中文的位元組當成變數名稱的一部分。
 
 set -Eeuo pipefail
 
@@ -67,7 +68,7 @@ die() {
   printf '\n%s✗ %s%s\n' "$C_RED$C_BOLD" "$1" "$C_RESET" >&2
   shift
   local line
-  for line in "$@"; do printf '  %s\n' "$line" >&2; done
+  for line in ${1+"$@"}; do printf '  %s\n' "$line" >&2; done
   printf '  修正後重新執行同一個命令即可，已完成的步驟會跳過。說明見 %s\n' "$DOC_PAGE" >&2
   exit 1
 }
@@ -91,7 +92,7 @@ usage() {
 並執行 rpa --version 與全部測試，確認專案能運行。
 
 選項：
-  --dir <路徑>      還沒有程式碼時，下載到哪裡（預設 ~/code/$REPO_NAME，
+  --dir <路徑>      還沒有程式碼時，下載到哪裡（預設 ~/code/${REPO_NAME}，
                     也可以用環境變數 RPA_DIR）。在專案資料夾裡執行時不需要。
   --skip-browser    不下載 Chromium；需要瀏覽器的測試會略過。
   --skip-tests      只安裝，不跑測試。
@@ -237,7 +238,7 @@ check_system() {
   arch="$(uname -m)"
   case "$OS" in
     Darwin)
-      ok "macOS $(sw_vers -productVersion 2>/dev/null || true)（$arch）"
+      ok "macOS $(sw_vers -productVersion 2>/dev/null || true)（${arch}）"
       if [ "$arch" = x86_64 ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" = 1 ]; then
         warn "終端機正透過 Rosetta 執行，會裝成 Intel 版的 Python。建議關掉終端機的 Rosetta 設定後重跑（見 docs/develop/macos.html#faq）。"
       fi
@@ -248,7 +249,7 @@ check_system() {
         # shellcheck source=/dev/null
         distro="$(. /etc/os-release && printf '%s' "${PRETTY_NAME:-}")"
       fi
-      ok "Linux${distro:+ $distro}（$arch）"
+      ok "Linux${distro:+ $distro}（${arch}）"
       ;;
     MINGW* | MSYS* | CYGWIN*)
       die "Windows 請改用 PowerShell 執行 scripts/setup.ps1。"
@@ -333,11 +334,11 @@ ensure_uv() {
     fi
     ver="$(uv_version)"
     if ! version_ge "$ver" "$need"; then
-      die "uv 仍然是 $ver，需要 $need 以上。" \
+      die "uv 仍然是 ${ver}，需要 $need 以上。" \
         "用安裝腳本裝的執行 uv self update，Homebrew 裝的執行 brew upgrade uv，其他方式請依原本的安裝方式升級。"
     fi
   fi
-  ok "uv $ver（$UV）"
+  ok "uv ${ver}（${UV}）"
 }
 
 sync_deps() {
@@ -454,4 +455,4 @@ main() {
 }
 
 # 整個腳本包在 main 裡，透過 curl | bash 執行時才會先讀完全部內容再開始跑。
-main "$@"
+main ${1+"$@"}

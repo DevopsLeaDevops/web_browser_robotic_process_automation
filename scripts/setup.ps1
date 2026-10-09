@@ -343,7 +343,7 @@ $RpaSetupArgs = @{
             }
             $ver = Get-UvVersion
             if (-not (Test-VersionAtLeast $ver $need)) {
-                Stop-Setup "uv 仍然是 $ver，需要 $need 以上。" @(
+                Stop-Setup "uv 仍然是 ${ver}，需要 $need 以上。" @(
                     '用安裝腳本裝的執行 uv self update，winget 裝的執行 winget upgrade astral-sh.uv，其他方式請依原本的安裝方式升級。'
                 )
             }
