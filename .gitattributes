@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# 視覺設計包原樣收錄，MANIFEST.json 以 sha256 校驗，不允許換行轉換。
+docs/design-system/** -text

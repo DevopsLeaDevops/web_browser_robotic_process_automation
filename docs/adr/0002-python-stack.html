@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0002 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0002" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0002：後端、執行與工具鏈採用 Python 技術棧</h1>
+      <p>除了 Web 前端，所有元件都用 Python，放在同一個 uv workspace。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-09</dd>
+        <dt>影響範圍</dt><dd>所有 Python 套件、CI、開發環境</dd>
+        <dt>相關</dt><dd><a href="../design/tech-stack.html">技術選型</a>、<a href="0004-react-frontend.html">ADR 0004</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>團隊的主力語言是 Python。平台需要瀏覽器自動化、資料模型校驗、Web API 與 AI 整合，這些在 Python 都有成熟方案。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>瀏覽器：Playwright for Python，執行引擎使用 async API。</li>
+            <li>模型：Pydantic v2，DSL 與 API 共用同一套模型。</li>
+            <li>API：FastAPI；資料庫：SQLAlchemy 2.0 + Alembic。</li>
+            <li>工程：uv workspace 單倉多套件；ruff、pyright strict、pytest。</li>
+            <li>最低版本 Python 3.12。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>團隊熟悉，review 與維護成本低。</li>
+            <li>DSL 模型從校驗、API 到 AI 生成一路共用。</li>
+            <li>AI 與資料處理生態完整。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>前端無法直接共用 Python 型別，改由 OpenAPI 與 JSON Schema 生成 TypeScript 型別。</li>
+            <li>Playwright 原生語言是 TypeScript，部分新功能可能稍晚出現在 Python 版。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>TypeScript 全端</td><td>型別可前後端共用，但團隊主力不是 TypeScript。</td></tr>
+              <tr><td>Python + Selenium</td><td>缺少自動等待、語意化定位與 Trace，穩定性較差。</td></tr>
+              <tr><td>poetry 管理依賴</td><td>可行，但 uv 更快且原生支援 workspace。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>開發規範 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="conventions" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>開發規範</h1>
+      <p>分支、提交、PR、程式碼與測試的約定。工具能檢查的都交給工具，這裡只寫工具管不到的。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>分支與 PR</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>main 受保護。</strong>只透過 PR 合併，CI 全綠且至少一人 review。</li>
+            <li><strong>分支命名。</strong>里程碑工作用 <code>m1/dsl-models</code>；其他用 <code>fix/…</code>、<code>docs/…</code>、<code>chore/…</code>。</li>
+            <li><strong>PR 描述三段。</strong>做了什麼、怎麼驗證、還沒做的部分。</li>
+            <li><strong>合併方式。</strong>Squash merge，PR 標題即為最終提交訊息。</li>
+            <li><strong>依賴變更。</strong>新增依賴要在 PR 描述說明理由。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>提交訊息</h2><span class="muted">Conventional Commits</span></div>
+        <div class="panel-body">
+<pre class="source">&lt;類型&gt;(&lt;範圍&gt;): &lt;繁體中文摘要&gt;
+
+feat(core): 新增 goto 與 click 動作模型
+fix(cli): validate 對空檔案回報錯誤行號
+docs(adr): 新增 0007 Secrets 加密方式</pre>
+          <dl class="spec-list">
+            <dt>類型</dt><dd><code>feat</code>、<code>fix</code>、<code>docs</code>、<code>refactor</code>、<code>test</code>、<code>ci</code>、<code>chore</code></dd>
+            <dt>範圍</dt><dd>套件或區域：<code>core</code>、<code>cli</code>、<code>runner</code>、<code>docs</code>、<code>adr</code>…</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>程式碼</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>語言。</strong>識別字用英文；註解、文件字串、錯誤訊息與文檔用繁體中文。</li>
+            <li><strong>型別。</strong>pyright strict；所有函式完整標註型別，避免 <code>Any</code>。</li>
+            <li><strong>格式。</strong>以 ruff 為準，不手動爭論格式。</li>
+            <li><strong>輸出。</strong>程式碼中不留 <code>print</code>；CLI 透過 click 輸出，函式庫用 logging。</li>
+            <li><strong>邊界。</strong><code>rpa-core</code> 不依賴瀏覽器或資料庫；執行相關的程式碼放在 <code>rpa-runner</code>。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>測試</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>每個套件在自己的 <code>tests/</code> 下測試；跨套件的測試放在根目錄 <code>tests/</code>。</li>
+            <li>需要真實瀏覽器的測試加上 <code>@pytest.mark.browser</code>。</li>
+            <li>測試不依賴外部網站；需要網頁時用測試網站（M2 起）。</li>
+            <li>修 bug 先寫一個重現問題的測試。</li>
+            <li>文檔頁面由 <code>tests/docs</code> 檢查結構與連結。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="notice warn">不要提交真實帳號密碼、內部系統網址或包含業務資料的截圖。本機機密放在 <code>.env</code>（已被 Git 忽略），範例檔用 <code>.env.example</code>。</div>
+  </div>
+</main>
+</body>
+</html>

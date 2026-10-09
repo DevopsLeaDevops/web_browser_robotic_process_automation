@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 靜態檢查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: 安裝依賴
+        # uv.lock 提交後自動改用 --locked，確保 CI 與本機版本一致
+        run: if [ -f uv.lock ]; then uv sync --locked; else uv sync; fi
+      - name: ruff check
+        run: uv run ruff check --output-format=github .
+      - name: ruff format
+        run: uv run ruff format --check .
+      - name: pyright
+        run: uv run pyright
+
+  test:
+    name: 測試（Python ${{ matrix.python }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 安裝依賴
+        run: if [ -f uv.lock ]; then uv sync --locked; else uv sync; fi
+      - name: 安裝 Chromium
+        run: uv run playwright install --with-deps chromium
+      - name: pytest
+        env:
+          # CI 中缺少瀏覽器時直接失敗，而不是略過
+          RPA_REQUIRE_BROWSER: "1"
+        run: uv run pytest

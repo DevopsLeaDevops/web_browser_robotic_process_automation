@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>首頁 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="design-system/assets/portal.css">
+<link rel="stylesheet" href="assets/docs.css">
+<script defer src="assets/nav.js"></script>
+<script defer src="assets/docs-shell.js"></script>
+</head>
+<body data-page="home" data-root="">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>瀏覽器 RPA 工程文檔</h1>
+      <p>瀏覽器自動化場景的生成、管理與執行平台。團隊共用、多用戶、面向內部系統。</p>
+    </div>
+    <div class="actions">
+      <a class="button" href="develop/setup.html">開發環境</a>
+      <a class="button primary" href="roadmap.html">查看路線圖</a>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="four-col">
+      <section class="panel panel-body stat"><span class="muted">目前階段</span><div class="value">M0</div><span class="muted">工程骨架與設計文件</span></section>
+      <section class="panel panel-body stat"><span class="muted">里程碑</span><div class="value">10</div><span class="muted">M0 至 M9，逐步交付</span></section>
+      <section class="panel panel-body stat"><span class="muted">架構決策</span><div class="value">6</div><span class="muted">全部已接受</span></section>
+      <section class="panel panel-body stat"><span class="muted">主要語言</span><div class="value">Python</div><span class="muted">3.12 以上 · 前端 TypeScript</span></section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>一句話說明</h2></div>
+      <div class="panel-body">
+        <p class="lead">以「<strong>場景</strong>」為核心資產：一段可重複執行的瀏覽器操作流程，用聲明式 DSL 描述。平台負責把場景<strong>生成</strong>出來（錄製、自然語言、範本），<strong>管理</strong>起來（版本、參數、權限），<strong>執行</strong>它（Playwright），再把結果<strong>回饋</strong>給使用者（截圖、Trace、失敗定位）。</p>
+      </div>
+    </section>
+
+    <div class="grid">
+      <a class="panel panel-body link-card" href="design/positioning.html"><h2>產品定位</h2><p>要解決什麼問題、核心概念、生成到回饋的閉環。</p></a>
+      <a class="panel panel-body link-card" href="design/dsl.html"><h2>場景 DSL</h2><p>為什麼用聲明式 DSL，以及它大致長什麼樣子（草案）。</p></a>
+      <a class="panel panel-body link-card" href="design/architecture.html"><h2>系統架構</h2><p>元件、資料流與目錄結構，以及每個套件的職責。</p></a>
+      <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>技術選型</h2><p>每一層的選擇、備選方案與理由。</p></a>
+      <a class="panel panel-body link-card" href="design/multi-user.html"><h2>多用戶與內部系統</h2><p>認證、權限、Secrets、稽核，以及內部系統帶來的限制。</p></a>
+      <a class="panel panel-body link-card" href="style/index.html"><h2>介面風格</h2><p>介面設計系統 v1.0：兩級 Portal、藍色主色、緊湊資訊密度。</p></a>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>建議閱讀順序</h2><span class="muted">第一次接觸本工程</span></div>
+        <div class="panel-body prose">
+          <ol>
+            <li><a href="design/positioning.html">產品定位</a>：先理解「場景」這個核心概念。</li>
+            <li><a href="design/architecture.html">系統架構</a>：看懂元件之間怎麼協作。</li>
+            <li><a href="adr/index.html">決策索引</a>：了解幾個關鍵決定的來龍去脈。</li>
+            <li><a href="roadmap.html">路線圖</a>：知道現在在哪一步、下一步做什麼。</li>
+            <li><a href="develop/setup.html">開發環境</a>與<a href="develop/conventions.html">開發規範</a>：開始動手。</li>
+          </ol>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M0 完成時</span></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>rpa-core</dt><dd>DSL 套件骨架，M1 開始填入模型</dd>
+            <dt>rpa-cli</dt><dd><code>rpa --version</code> 可用</dd>
+            <dt>工具鏈</dt><dd>uv、ruff、pyright（strict）、pytest、pre-commit</dd>
+            <dt>CI</dt><dd>靜態檢查，Python 3.12 / 3.13 測試，含 Chromium 冒煙測試</dd>
+            <dt>文檔</dt><dd>本站，含文檔連結自動檢查</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

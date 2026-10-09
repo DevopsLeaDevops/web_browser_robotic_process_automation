@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>決策索引 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-index" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>決策索引</h1>
+      <p>架構決策紀錄（ADR）：每個影響長遠的決定寫成一頁，說明背景、選擇、後果與沒選的方案。</p>
+    </div>
+    <a class="button" href="../develop/writing-docs.html#adr">如何新增 ADR</a>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>全部決策</h2><span class="muted">6 筆</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>編號</th><th>決策</th><th>狀態</th><th>日期</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag">0001</span></td><td><a href="0001-dsl-as-source-of-truth.html">場景以聲明式 DSL 為唯一真實來源</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0002</span></td><td><a href="0002-python-stack.html">後端、執行與工具鏈採用 Python 技術棧</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0003</span></td><td><a href="0003-postgres-queue.html">以 PostgreSQL 作為任務佇列</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0004</span></td><td><a href="0004-react-frontend.html">前端採用 React + TypeScript</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0005</span></td><td><a href="0005-html-docs.html">文檔以 HTML 撰寫並套用 Portal 樣式</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0006</span></td><td><a href="0006-design-system.html">採用介面設計系統 v1.0 作為視覺契約</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>狀態說明</h2></div>
+      <div class="panel-body">
+        <div class="actions">
+          <span class="badge amber">提議中</span><span class="muted">討論中，尚未定案</span>
+          <span class="badge green">已接受</span><span class="muted">目前遵循</span>
+          <span class="badge">已取代</span><span class="muted">被新的 ADR 取代，頁面保留並連到新決策</span>
+          <span class="badge red">已棄用</span><span class="muted">不再適用，也沒有替代</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

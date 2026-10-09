@@ -1,0 +1,60 @@
+/* 文檔站補充樣式：只補 portal.css 沒有的文檔元素，顏色一律沿用其設計變數。 */
+
+/* 閱讀寬度：正文段落與清單不要拉到整個畫面寬 */
+.prose > p, .prose > ul, .prose > ol, .prose li, .lead { max-width: 60em; }
+.lead { font-size: 13px; line-height: 1.8; color: var(--ink); }
+
+/* 行內程式碼 */
+:not(pre) > code { background: #f1f4f8; border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+
+/* 文檔表格：允許換行、頂端對齊 */
+table.wrap th, table.wrap td { white-space: normal; vertical-align: top; line-height: 1.65; }
+table.wrap td { padding-top: 8px; padding-bottom: 8px; }
+table.wrap th:first-child, table.wrap td:first-child { white-space: nowrap; }
+td .muted, td small { display: block; margin-top: 2px; }
+
+/* 面板標題右側的小字 */
+.panel-header .muted { font-size: 11px; }
+
+/* 圖表 */
+.diagram { padding: 12px; overflow: auto; }
+.diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.diagram-caption { font-size: 11px; color: var(--muted); padding: 0 12px 10px; }
+
+/* 連結卡片 */
+.link-card { display: grid; gap: 6px; align-content: start; color: var(--ink); }
+.link-card:hover { border-color: #9bbfe6; background: #fafcff; }
+.link-card h2 { color: var(--blue-strong); margin: 0; }
+.link-card p { font-size: 12px; color: var(--muted); line-height: 1.7; margin: 0; }
+
+/* 重點清單 */
+.points { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 12.5px; line-height: 1.7; }
+.points li { padding-left: 14px; position: relative; }
+.points li::before { content: ""; position: absolute; left: 2px; top: .75em; width: 5px; height: 5px; border-radius: 50%; background: var(--blue); }
+.points strong { color: var(--ink); }
+h3 + .points { margin-top: 6px; }
+.points + h3 { margin-top: 14px; }
+
+/* 規格清單在面板內使用時的上下留白 */
+.panel-body > .spec-list:first-child dt:first-of-type, .panel-body > .spec-list:first-child dd:first-of-type { padding-top: 0; }
+.spec-list dd { line-height: 1.65; }
+
+/* 狀態與里程碑 */
+.milestone { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-weight: 600; color: var(--blue-strong); }
+tr.current td { background: #f5faff; }
+
+/* 色票（風格頁） */
+.swatch i { border-bottom: 1px solid var(--line); }
+.swatch code { background: none; border-radius: 0; }
+
+/* 首頁統計卡片內的說明 */
+.stat .muted { font-size: 11px; }
+
+/* 目錄樹等需要保持對齊的程式碼區塊：不換行，改為區塊內橫向捲動 */
+pre.source.tree { white-space: pre; overflow-x: auto; overflow-wrap: normal; }
+
+@media (max-width: 700px) {
+  .diagram svg { min-width: 680px; }
+  /* 窄螢幕上表格保持可讀寬度，在容器內橫向捲動，而不是把欄位擠成一字一行 */
+  table.wrap { min-width: 600px; }
+}

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文檔與 ADR · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="writing-docs" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>文檔與 ADR</h1>
+      <p>怎麼新增一個文檔頁面，以及怎麼記錄架構決策。背景見 <a href="../adr/0005-html-docs.html">ADR 0005</a>。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>寫作原則</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>先結論，後細節。</strong>頁面描述一句話講清楚這頁在說什麼。</li>
+            <li><strong>一個面板一個主題。</strong>面板標題就是讀者會掃的目錄。</li>
+            <li><strong>用對元件。</strong>比較用表格，定義用規格清單，要點用重點清單，提醒用提示框。</li>
+            <li><strong>狀態要有文字。</strong>不能只靠顏色表達狀態。</li>
+            <li><strong>不重複。</strong>同一件事只在一個地方詳細說明，其他地方連過去。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>新增頁面</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>複製同一目錄下現有的頁面，保留 <code>&lt;head&gt;</code> 與 <code>&lt;body&gt;</code> 的屬性。</li>
+            <li>修改 <code>data-page</code>（頁面 id）與 <code>data-root</code>（回到 <code>docs/</code> 的相對路徑，例如 <code>../</code>）。</li>
+            <li>在 <code>docs/assets/nav.js</code> 登記頁面。</li>
+            <li>執行 <code>uv run pytest tests/docs</code>，確認結構與連結正確。</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>頁面範本</h2><span class="muted">以 docs/design/ 下的頁面為例</span></div>
+      <div class="panel-body">
+<pre class="source">&lt;!doctype html&gt;
+&lt;html lang="zh-Hant"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;meta name="viewport" content="width=device-width,initial-scale=1"&gt;
+&lt;title&gt;頁面名稱 · 瀏覽器 RPA 工程文檔&lt;/title&gt;
+&lt;link rel="stylesheet" href="../design-system/assets/portal.css"&gt;
+&lt;link rel="stylesheet" href="../assets/docs.css"&gt;
+&lt;script defer src="../assets/nav.js"&gt;&lt;/script&gt;
+&lt;script defer src="../assets/docs-shell.js"&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body data-page="頁面-id" data-root="../"&gt;
+&lt;main id="main"&gt;
+  &lt;div class="heading"&gt;&lt;div&gt;&lt;h1&gt;頁面名稱&lt;/h1&gt;&lt;p&gt;一句話說明&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;
+  &lt;div class="stack"&gt;
+    &lt;section class="panel"&gt;
+      &lt;div class="panel-header"&gt;&lt;h2&gt;面板標題&lt;/h2&gt;&lt;/div&gt;
+      &lt;div class="panel-body"&gt;內容&lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>可用元件</h2><span class="muted">來自 portal.css 與 docs.css</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>元件</th><th>class</th><th>適合</th></tr></thead>
+          <tbody>
+            <tr><td>面板</td><td><code>panel</code>、<code>panel-header</code>、<code>panel-body</code></td><td>每個主題一個</td></tr>
+            <tr><td>版面</td><td><code>stack</code>、<code>two-col</code>、<code>four-col</code>、<code>grid</code></td><td>面板的排列；窄螢幕自動變單欄</td></tr>
+            <tr><td>規格清單</td><td><code>spec-list</code>（<code>dl</code>）</td><td>名詞與定義、設定值</td></tr>
+            <tr><td>重點清單</td><td><code>points</code>（<code>ul</code>）</td><td>三到六個要點</td></tr>
+            <tr><td>表格</td><td><code>table-scroll</code> 包住 <code>table.wrap</code></td><td>多個項目的比較</td></tr>
+            <tr><td>提示框</td><td><code>notice</code>、<code>notice warn</code>、<code>notice success</code></td><td>需要特別注意的事</td></tr>
+            <tr><td>狀態標籤</td><td><code>badge blue | green | amber | red</code></td><td>狀態，必須含文字</td></tr>
+            <tr><td>程式碼區塊</td><td><code>pre.source</code></td><td>命令與範例；HTML 要跳脫 <code>&lt;</code> 與 <code>&gt;</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="adr">
+      <div class="panel-header"><h2>新增 ADR</h2></div>
+      <div class="panel-body">
+        <div class="two-col">
+          <div>
+            <h3>什麼時候寫</h3>
+            <ul class="points">
+              <li>選擇會影響多個套件或很難反悔。</li>
+              <li>有兩個以上合理的方案，而且需要讓後來的人知道為什麼選這個。</li>
+              <li>推翻或修改既有的 ADR。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>怎麼寫</h3>
+            <ul class="points">
+              <li>複製最近一份 ADR，檔名 <code>NNNN-英文短名.html</code>，編號遞增。</li>
+              <li>固定段落：日期、影響範圍、背景、決策、後果（好處與代價）、沒有選的方案。</li>
+              <li>新 ADR 先標「提議中」，在 PR 中討論，合併時改為「已接受」。</li>
+              <li>更新 <code>adr/index.html</code> 與 <code>nav.js</code>。</li>
+              <li>取代舊決策時，舊 ADR 改為「已取代」並連到新的 ADR，內容不刪。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

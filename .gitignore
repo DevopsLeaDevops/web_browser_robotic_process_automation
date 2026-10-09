@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+
+# 工具快取
+.pytest_cache/
+.ruff_cache/
+.pyright/
+.coverage
+htmlcov/
+
+# 執行產物（截圖、Trace、下載檔）
+artifacts/
+test-results/
+
+# 本機設定與機密
+.env
+.env.*
+!.env.example
+*.local.yaml
+
+# 編輯器與系統
+.idea/
+.vscode/
+.DS_Store

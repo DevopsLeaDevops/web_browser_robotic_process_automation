@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>開發環境 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="setup" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>開發環境</h1>
+      <p>從零到能跑測試，大約五分鐘。Windows、macOS、Linux 指令相同。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>第一次設定</h2></div>
+        <div class="panel-body">
+<pre class="source">git clone https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git
+cd web_browser_robotic_process_automation
+
+# 建立 .venv，安裝全部套件與開發工具
+uv sync
+
+# 下載 Chromium（Linux 第一次可加 --with-deps 安裝系統依賴）
+uv run playwright install chromium
+
+# 提交前自動檢查
+uv run pre-commit install
+
+# 確認安裝成功
+uv run rpa --version</pre>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>前置需求</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>Python</dt><dd>3.12 以上。沒有的話 <code>uv</code> 會自動下載。</dd>
+            <dt>uv</dt><dd>0.11 以上，安裝方式見 uv 官方文件。</dd>
+            <dt>Git</dt><dd>任一近期版本。</dd>
+            <dt>Node.js</dt><dd>M8 開始做前端時才需要。</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>常用命令</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>做什麼</th><th>命令</th></tr></thead>
+          <tbody>
+            <tr><td>跑全部測試</td><td><code>uv run pytest</code></td></tr>
+            <tr><td>跳過需要瀏覽器的測試</td><td><code>uv run pytest -m "not browser"</code></td></tr>
+            <tr><td>只檢查文檔</td><td><code>uv run pytest tests/docs</code></td></tr>
+            <tr><td>Lint 並自動修正</td><td><code>uv run ruff check --fix .</code></td></tr>
+            <tr><td>格式化</td><td><code>uv run ruff format .</code></td></tr>
+            <tr><td>型別檢查</td><td><code>uv run pyright</code></td></tr>
+            <tr><td>提交前的全部檢查</td><td><code>uv run pre-commit run --all-files</code></td></tr>
+            <tr><td>替某個套件加依賴</td><td><code>uv add --package rpa-core 套件名稱</code></td></tr>
+            <tr><td>瀏覽文檔</td><td>直接開啟 <code>docs/index.html</code>，或 <code>python -m http.server -d docs 8000</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>常見問題</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>沒有 uv.lock</dt><dd>M0 尚未提交鎖檔。第一位執行 <code>uv sync</code> 的成員會產生 <code>uv.lock</code>，請單獨開一個 PR 提交；之後 CI 會自動改用 <code>uv sync --locked</code>。</dd>
+          <dt>內網連不到 PyPI</dt><dd>設定環境變數 <code>UV_INDEX_URL</code> 指向公司的套件鏡像。</dd>
+          <dt>瀏覽器下載失敗</dt><dd>設定 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 指向內部鏡像；瀏覽器冒煙測試在本機沒有瀏覽器時會自動略過。</dd>
+          <dt>pyright 找不到套件</dt><dd>確認已執行 <code>uv sync</code>，且編輯器使用的是專案的 <code>.venv</code>。</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

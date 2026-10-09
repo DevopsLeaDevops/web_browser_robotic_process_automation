@@ -1,0 +1,78 @@
+# 工程根目錄：uv workspace（虛擬根，不發佈）。
+# 各套件在 packages/ 與 apps/ 下，各自有 pyproject.toml。
+# 設計說明見 docs/index.html。
+
+[tool.uv.workspace]
+members = ["packages/*", "apps/*"]
+
+[tool.uv]
+required-version = ">=0.11"
+default-groups = ["dev"]
+
+[tool.uv.sources]
+rpa-core = { workspace = true }
+rpa-cli = { workspace = true }
+
+[dependency-groups]
+dev = [
+  # workspace 成員：裝進同一個開發環境
+  "rpa-core",
+  "rpa-cli",
+  # 工具鏈
+  "ruff>=0.16",
+  "pyright>=1.1.400",
+  "pytest>=9.0",
+  "pre-commit>=4.0",
+  # 目前只給瀏覽器冒煙測試用；M2 起移到 rpa-runner 的正式依賴
+  "playwright>=1.56",
+]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["packages/*/src", "apps/*/src"]
+extend-exclude = ["docs/design-system"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",  # pycodestyle
+  "F",       # pyflakes
+  "I",       # import 排序
+  "N",       # 命名
+  "UP",      # 新語法
+  "B",       # 常見錯誤
+  "SIM",     # 簡化
+  "C4",      # 推導式
+  "RUF",     # ruff 專屬規則
+  "PT",      # pytest 風格
+  "ASYNC",   # asyncio 誤用（Playwright async 會大量用到）
+  "PTH",     # 用 pathlib
+  "T20",     # 禁止遺留 print
+]
+# 中文註解與字串中的全形標點是正常寫法
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["T20"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ---------------------------------------------------------------- pyright
+[tool.pyright]
+include = ["packages", "apps", "tests"]
+exclude = ["**/.venv", "docs"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["packages", "apps", "tests"]
+# 多個套件都有 tests/ 目錄，用 importlib 模式避免同名模組衝突
+addopts = ["--import-mode=importlib", "--strict-markers", "-ra"]
+markers = [
+  "browser: 需要真實瀏覽器（Playwright + Chromium）的測試",
+]

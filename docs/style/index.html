@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>風格總覽 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="style" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>風格總覽</h1>
+      <p>介面設計系統 v1.0：同事交付的視覺契約，原樣收錄在 <code>docs/design-system/</code>。</p>
+    </div>
+    <div class="actions">
+      <a class="button" href="../design-system/tokens.json" download>下載設計變數</a>
+      <a class="button" href="../design-system/starter.html">空白起始版型</a>
+      <a class="button primary" href="../design-system/index.html">開啟設計系統</a>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>色彩</h2><span class="muted">tokens.json 與 portal.css</span></div>
+      <div class="panel-body">
+        <div class="swatches">
+          <div class="swatch"><i style="background:#147fe6"></i><strong>主色 / 導覽</strong><code>#147fe6</code></div>
+          <div class="swatch"><i style="background:#0b69c4"></i><strong>主要按鈕 / 連結</strong><code>#0b69c4</code></div>
+          <div class="swatch"><i style="background:#f5f7fb"></i><strong>畫布背景</strong><code>#f5f7fb</code></div>
+          <div class="swatch"><i style="background:#ffffff"></i><strong>面板背景</strong><code>#ffffff</code></div>
+          <div class="swatch"><i style="background:#24334a"></i><strong>主要文字</strong><code>#24334a</code></div>
+          <div class="swatch"><i style="background:#64758b"></i><strong>輔助文字</strong><code>#64758b</code></div>
+          <div class="swatch"><i style="background:#e9edf3"></i><strong>分隔線</strong><code>#e9edf3</code></div>
+          <div class="swatch"><i style="background:#eaf4ff"></i><strong>選取背景</strong><code>#eaf4ff</code></div>
+          <div class="swatch"><i style="background:#248569"></i><strong>成功</strong><code>#248569</code></div>
+          <div class="swatch"><i style="background:#966516"></i><strong>警告</strong><code>#966516</code></div>
+          <div class="swatch"><i style="background:#b74643"></i><strong>錯誤</strong><code>#b74643</code></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>版面與字體</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>導覽</dt><dd>頂部第一級、左側第二級；麵包屑標示位置</dd>
+            <dt>頂部列</dt><dd>56px，固定定位</dd>
+            <dt>左側欄</dt><dd>176px</dd>
+            <dt>內容區</dt><dd>左右 20px；區塊間距 12px</dd>
+            <dt>圓角</dt><dd>面板 9px，按鈕 6px</dd>
+            <dt>字級</dt><dd>頁面標題 21px，區塊標題 14px，正文 13px，表格 12px</dd>
+            <dt>字體</dt><dd>系統預設字體，不載入外部字型</dd>
+            <dt>窄螢幕</dt><dd>700px 以下側欄收合為選單按鈕，版面改單欄</dd>
+          </dl>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>必守規則</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>緊湊資訊密度。</strong>不用大橫幅、插畫或大量留白；重複的標題只保留一次。</li>
+            <li><strong>狀態要有文字。</strong>不能只用圖示或色點。</li>
+            <li><strong>鍵盤可操作。</strong>焦點框清楚；對話框可用 Esc 關閉。</li>
+            <li><strong>三種尺寸驗收。</strong>1440×900、1280×720、390×844，不得出現整頁水平捲動。</li>
+            <li><strong>不另造導覽。</strong>新頁面一律放進兩級 Portal。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>在本工程的應用</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>用途</th><th>做法</th><th>階段</th><th>狀態</th></tr></thead>
+          <tbody>
+            <tr><td>文檔站</td><td>直接引用 <code>portal.css</code>；補充樣式在 <code>docs/assets/docs.css</code></td><td>M0</td><td><span class="badge green">已套用</span></td></tr>
+            <tr><td>頁面原型</td><td>以 <code>starter.html</code> 為基礎製作登入、場景庫、步驟編輯器、執行詳情、使用者與權限頁</td><td>M6</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td>Web UI</td><td><code>portal.css</code> 與設計變數移植到 React，外殼改寫為元件</td><td>M8</td><td><span class="badge">未開始</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>M6 需要與設計者確認</h2><span class="muted">收錄時發現的缺口</span></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>設計變數不完整。</strong><code>tokens.json</code> 沒有成功、警告、錯誤與選取背景色；這些只出現在 <code>portal.css</code>。</li>
+          <li><strong>選取背景色不一致。</strong>設計系統的色彩頁寫 <code>#eaf3ff</code>，<code>portal.css</code> 實際使用 <code>#eaf4ff</code>。</li>
+          <li><strong>步驟編輯器細節。</strong>已有流程畫布與節點樣式，但沒有拖拽、定位器候選切換、校驗錯誤標示的狀態。</li>
+          <li><strong>執行詳情。</strong>逐步日誌、截圖回放與 Trace 連結的版面。</li>
+          <li><strong>YAML 編輯器。</strong>已有 <code>code-editor</code> 基礎樣式，需確認語法高亮與錯誤行標示。</li>
+          <li><strong>圖示。</strong>目前只有一個通用圖示，選單與動作需要一套圖示。</li>
+          <li><strong>深色模式。</strong>目前沒有，需確認是否需要。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

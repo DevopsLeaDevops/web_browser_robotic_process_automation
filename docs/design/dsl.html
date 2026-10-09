@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>場景 DSL · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="dsl" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>場景 DSL</h1>
+      <p>場景的唯一真實來源。YAML 編寫、JSON 存儲，以 Pydantic 模型校驗。</p>
+    </div>
+    <span class="badge amber">草案 · M1 定稿</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice warn">本頁是方向草案，欄位名稱與動作清單在 M1 討論後定稿。決策背景見 <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a>。</div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>範例</h2><span class="muted">示意；download 在 M3 加入</span></div>
+        <div class="panel-body">
+<pre class="source">id: erp-export-report
+name: 登入 ERP 並匯出月報
+params:
+  month: { type: string, default: "2026-09" }
+secrets: [ERP_PASSWORD]
+browser: { engine: chromium, headless: true }
+steps:
+  - id: open
+    action: goto
+    url: https://erp.example.internal/login
+  - id: login-user
+    action: fill
+    target: { role: textbox, name: 帳號 }
+    value: "{{ env.ERP_USER }}"
+  - id: login-pass
+    action: fill
+    target: { label: 密碼 }
+    value: "{{ secrets.ERP_PASSWORD }}"
+  - id: submit
+    action: click
+    target:
+      role: button
+      name: 登入
+      fallback: [{ css: "#login-btn" }]
+  - id: check
+    action: expect
+    target: { text: 歡迎回來 }
+    state: visible
+  - id: export
+    action: download
+    trigger:
+      action: click
+      target: { role: button, name: 匯出 }
+    saveAs: "report-{{ params.month }}.xlsx"</pre>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header"><h2>設計原則</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>每個步驟有穩定的 id。</strong>執行結果、截圖與日誌按步驟歸檔；介面編輯時不會錯位。</li>
+            <li><strong>定位器有優先順序。</strong>testId → role + name → label → text → css / xpath。錄製時同時記下多個候選，作為自癒的基礎。</li>
+            <li><strong>只用條件等待。</strong>不允許固定秒數的 sleep，改用 <code>waitFor</code> 等待元素、網址或網路狀態。</li>
+            <li><strong>步驟級錯誤處理。</strong>每一步可設定 retry、timeout 與 onError（繼續、失敗、跳到某一步）。</li>
+            <li><strong>Secrets 只引用名稱。</strong>值在執行時注入，日誌與截圖說明自動遮罩。</li>
+            <li><strong>表達式在沙箱內求值。</strong><code>{{ }}</code> 以 Jinja2 沙箱環境處理，只能讀取 params、env、secrets 與先前步驟的輸出。</li>
+            <li><strong>保留逃生門。</strong>DSL 表達不了的情況使用受控的 <code>script</code> 步驟，並在審核時特別標示。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>M1 預計支援的動作</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>動作</th><th>用途</th><th>主要欄位</th></tr></thead>
+          <tbody>
+            <tr><td><code>goto</code></td><td>開啟網址</td><td>url、waitUntil</td></tr>
+            <tr><td><code>click</code></td><td>點擊元素</td><td>target、button、clickCount</td></tr>
+            <tr><td><code>fill</code></td><td>填寫輸入框</td><td>target、value</td></tr>
+            <tr><td><code>select</code></td><td>選擇下拉選項</td><td>target、option</td></tr>
+            <tr><td><code>press</code></td><td>按鍵或組合鍵</td><td>target、key</td></tr>
+            <tr><td><code>waitFor</code></td><td>等待條件成立</td><td>target、state、url、timeout</td></tr>
+            <tr><td><code>expect</code></td><td>斷言，不成立即判定失敗</td><td>target、state、text</td></tr>
+            <tr><td><code>extract</code></td><td>從頁面抽取資料（文字、屬性、表格）</td><td>target、as、fields</td></tr>
+            <tr><td><code>screenshot</code></td><td>截圖存為產物</td><td>target、fullPage、name</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">download、upload、iframe、多分頁、條件與迴圈等在 M3 加入。</div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

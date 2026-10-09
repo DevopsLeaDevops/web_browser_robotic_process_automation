@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>系統架構 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+</style>
+</head>
+<body data-page="architecture" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>系統架構</h1>
+      <p>元件、資料流與目錄結構。平台全部部署在內網，worker 直接連到目標系統。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>元件總覽</h2><span class="muted">M9 完成後的樣貌</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
+          <title id="arch-title">系統元件圖</title>
+          <desc id="arch-desc">使用者透過 Web UI 或 CLI 呼叫 API 服務；API 讀寫 PostgreSQL 並呼叫 LLM 生成場景；排程器建立任務；worker 從 PostgreSQL 佇列取任務，以 Playwright 操作目標內部系統，產物存入 MinIO。</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <!-- 使用者端 -->
+          <rect class="frame" x="16" y="40" width="192" height="232" rx="10"/>
+          <text class="frame-label" x="28" y="60">使用者端</text>
+          <rect class="box" x="32" y="76" width="160" height="60" rx="8"/>
+          <text class="title" x="46" y="100">Web UI</text>
+          <text class="sub" x="46" y="120">React + TypeScript</text>
+          <rect class="box" x="32" y="160" width="160" height="92" rx="8"/>
+          <text class="title" x="46" y="184">CLI（rpa）</text>
+          <text class="sub" x="46" y="204">驗證、執行、推送</text>
+          <text class="sub" x="46" y="224">rpa record 本機錄製</text>
+          <text class="sub" x="46" y="242">rpa generate 生成</text>
+
+          <!-- 平台 -->
+          <rect class="frame" x="240" y="24" width="536" height="356" rx="10"/>
+          <text class="frame-label" x="252" y="44">平台（部署於內網）</text>
+
+          <rect class="box key" x="264" y="64" width="216" height="168" rx="8"/>
+          <text class="title" x="280" y="90">API 服務（FastAPI）</text>
+          <text class="sub" x="280" y="116">認證、權限、稽核</text>
+          <text class="sub" x="280" y="140">場景與版本管理</text>
+          <text class="sub" x="280" y="164">AI 生成與校驗</text>
+          <text class="sub" x="280" y="188">執行紀錄與產物查詢</text>
+          <text class="sub" x="280" y="212">Secrets 加密存放</text>
+
+          <rect class="box" x="264" y="272" width="216" height="72" rx="8"/>
+          <text class="title" x="280" y="298">排程器</text>
+          <text class="sub" x="280" y="320">依 cron 定時建立執行任務</text>
+
+          <rect class="box" x="520" y="64" width="232" height="96" rx="8"/>
+          <text class="title" x="536" y="90">PostgreSQL</text>
+          <text class="sub" x="536" y="114">場景、版本、使用者、執行紀錄</text>
+          <text class="sub" x="536" y="138">任務佇列（Procrastinate）</text>
+
+          <rect class="box key" x="520" y="196" width="232" height="72" rx="8"/>
+          <text class="title" x="536" y="222">Worker × N</text>
+          <text class="sub" x="536" y="244">Runner + Playwright（Chromium）</text>
+
+          <rect class="box" x="520" y="304" width="232" height="56" rx="8"/>
+          <text class="title" x="536" y="328">MinIO（S3 相容）</text>
+          <text class="sub" x="536" y="346">截圖、Trace、下載檔</text>
+
+          <!-- 外部 -->
+          <rect class="box ext" x="808" y="64" width="176" height="72" rx="8"/>
+          <text class="title" x="822" y="90">LLM 服務</text>
+          <text class="sub" x="822" y="112">外部 API 或自架模型</text>
+
+          <rect class="box ext" x="808" y="196" width="176" height="72" rx="8"/>
+          <text class="title" x="822" y="222">目標內部系統</text>
+          <text class="sub" x="822" y="244">登入、表單、報表、下載</text>
+
+          <!-- 連線 -->
+          <path class="link" d="M192 106H262" marker-end="url(#arrow)"/>
+          <path class="link" d="M192 206H262" marker-end="url(#arrow)"/>
+          <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+          <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
+          <path class="link" d="M636 160V194" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="182">取任務</text>
+          <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="290">上傳產物</text>
+          <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
+          <text class="label" x="758" y="224">操作</text>
+          <path class="link" d="M372 64V36H896V62" marker-end="url(#arrow)"/>
+          <text class="label" x="790" y="30">生成請求</text>
+        </svg>
+      </div>
+      <div class="diagram-caption">藍框為核心元件；灰底為平台外部的系統。M2 之前只有 CLI 與 Runner，直接在本機執行。</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>套件職責</h2><span class="muted">uv workspace，每個套件可單獨測試</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>套件</th><th>職責</th><th>依賴</th><th>起始</th></tr></thead>
+          <tbody>
+            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、ruamel.yaml、Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>執行引擎：步驟處理器註冊表、瀏覽器與上下文管理、產物收集。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-recorder</code></td><td>本機錄製：注入監聽腳本，把使用者操作轉成 DSL 步驟。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-generator</code></td><td>AI 生成與選擇器自癒：頁面快照 + 自然語言 → DSL，校驗失敗回饋修正。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
+            <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述套件、click</td><td>M0</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API 服務、資料庫模型、權限、排程。</td><td>rpa-core、FastAPI、SQLAlchemy</td><td>M7</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>從佇列取任務，呼叫 rpa-runner 執行，回寫結果與產物。</td><td>rpa-runner、Procrastinate</td><td>M9</td></tr>
+            <tr><td><code>web</code></td><td>管理介面（TypeScript，不屬於 Python workspace）。</td><td>React、Vite</td><td>M8</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>目錄結構</h2></div>
+        <div class="panel-body">
+<pre class="source tree">web_browser_robotic_process_automation/
+├── packages/            # 可重用的函式庫
+│   ├── rpa_core/        # M0
+│   ├── rpa_runner/      # M2
+│   ├── rpa_recorder/    # M4
+│   └── rpa_generator/   # M5
+├── apps/                # 可執行的程式
+│   ├── cli/             # M0
+│   ├── server/          # M7
+│   ├── worker/          # M9
+│   └── web/             # M8（TypeScript）
+├── testsite/            # 模擬內部系統的測試網站（M2）
+├── scenarios/           # 範例場景
+├── tests/               # 跨套件測試：冒煙、文檔檢查
+├── deploy/              # Docker Compose 與設定範例（M9）
+└── docs/                # 本文檔站與介面設計系統</pre>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>一次執行的資料流</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>使用者在 Web UI 或 CLI 觸發執行，或排程器到點建立任務。</li>
+            <li>API 檢查權限，取出指定版本的場景，寫入一筆執行紀錄與一個佇列任務。</li>
+            <li>某個 worker 取到任務，向 API 解出參數與 Secrets（只在記憶體中）。</li>
+            <li>Runner 開啟獨立的瀏覽器上下文，逐步執行；每一步回報狀態。</li>
+            <li>截圖、Trace、下載檔上傳到 MinIO；抽取的資料寫回執行紀錄。</li>
+            <li>執行結束，結果通知觸發者；失敗時標出出錯的步驟與截圖。</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>
