@@ -180,7 +180,7 @@ def _from_details(details: ErrorDetails, data: object, source: SourceMap | None)
 
     if "." in error_type:
         # 自訂錯誤（dsl_error）的種類都帶有「.」，Pydantic 內建的種類沒有
-        return _make(error_type, path, data, position(), context)
+        return _make(error_type, path, data, position(key=walk.is_key), context)
 
     match error_type:
         case "missing":

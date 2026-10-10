@@ -1,6 +1,6 @@
 """rpa_core：場景 DSL 的模型、校驗與表達式引擎。
 
-M0 只提供版本資訊；DSL 模型在 M1 加入。
+場景 DSL 在 rpa_core.dsl（M1）；表達式引擎在 M3 加入。
 """
 
 from importlib.metadata import version
