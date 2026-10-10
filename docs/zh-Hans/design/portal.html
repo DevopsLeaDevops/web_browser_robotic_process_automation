@@ -21,7 +21,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">启动：<code>uv run rpa serve</code>，再打开 <code>http://127.0.0.1:8000</code>。数据放在 <code>data/</code>（或 <code>--data</code> 指定的文件夹）。没有登录保护，默认只开放本机连接。</div>
+    <div class="notice">启动：<code>uv run rpa serve</code>，再打开 <code>http://127.0.0.1:8080</code>。数据放在 <code>data/</code>（或 <code>--data</code> 指定的文件夹）。没有登录保护，默认只开放本机连接。</div>
 
     <section class="panel" id="flow">
       <div class="panel-header"><h2>流程</h2><span class="muted">验收：在浏览器内走完一次</span></div>
@@ -29,7 +29,7 @@
         <div class="stepbar"><span>1 创建或导入</span><span>2 编辑</span><span>3 验证</span><span>4 发布</span><span>5 运行</span><span>6 看报告</span></div>
         <ol>
           <li><strong>创建或导入。</strong>添加场景会产生第 1 版草稿（只开一个网页）；也可以一键导入 <code>scenarios/demo</code> 的示例。场景编号就是 DSL 的 <code>id</code>，创建后不能改、也不会重复使用。</li>
-          <li><strong>编辑。</strong>直接编辑 YAML（脚本场景另有两支脚本）。存盘前先用 <code>rpa validate</code> 同一套规则校验，有问题时列出行号、步骤与字段，不会创建新版本。</li>
+          <li><strong>编辑。</strong>直接编辑 YAML（脚本场景另有两支脚本）。保存前先用 <code>rpa validate</code> 同一套规则校验，有问题时列出行号、步骤与字段，不会创建新版本。</li>
           <li><strong>验证。</strong>用真实浏览器运行指定版本，入参、浏览器、网址都可以在表单调整。</li>
           <li><strong>发布。</strong>只有通过验证的版本可以发布，而且要用户在对话框确认。</li>
           <li><strong>运行。</strong>一律使用已发布的版本；新的草稿不影响正式运行。</li>
@@ -42,7 +42,7 @@
       <div class="panel-header"><h2>版本与发布门槛</h2></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>版本不可变。</strong>每次存盘都是新版本（v1、v2…），内容写进数据目录后设成唯读。存盘要带「从哪一版开始改」，不是最新版就回 409，避免覆盖别人的修改。</li>
+          <li><strong>版本不可变。</strong>每次保存都是新版本（v1、v2…），内容写进数据目录后设成唯读。保存要带「从哪一版开始改」，不是最新版就回 409，避免覆盖别人的修改。</li>
           <li><strong>状态。</strong>草稿 → 验证中 → 验证通过／验证失败；状态是最近一次验证的结果。发布后场景指向该版本，旧的发布版本留在历史中。</li>
           <li><strong>验证的就是发布的。</strong>版本记录内容哈希，算法与 rpa-runner 写在 <code>result.json</code> 的 <code>scenarioHash</code> 相同。发布时要同时符合：最近一次验证通过、有一次通过的验证运行跑的哈希等于版本哈希、磁盘上的内容重新计算后也还是同一个哈希。</li>
           <li><strong>改内容就重新验证。</strong>新版本一律从草稿开始，旧版本的验证结果不能拿来发布新内容。</li>
@@ -124,7 +124,7 @@
         <div class="panel-header"><h2>设置</h2></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt><code>--host</code>、<code>--port</code></dt><dd>默认 <code>127.0.0.1:8000</code></dd>
+            <dt><code>--host</code>、<code>--port</code></dt><dd>默认 <code>127.0.0.1:8080</code></dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>数据文件夹，默认 <code>data</code>；也可以用 <code>--data</code></dd>
             <dt><code>RPA_DATABASE_URL</code></dt><dd>默认 SQLite；PostgreSQL 在 M8</dd>
             <dt><code>RPA_LANG</code></dt><dd>默认语言，也是运行报告的语言；页面右上角可以切换</dd>
@@ -153,7 +153,7 @@
         <dl class="spec-list">
           <dt>M4</dt><dd>入参与出参的表单编辑；录制、调试工作阶段、登录凭证与 needs_login</dd>
           <dt>M5</dt><dd>AI 助手只改草稿，发布仍走同一个门槛</dd>
-          <dt>M6</dt><dd>自由试验场：场景串行、出参绑定、失败即停</dd>
+          <dt>M6</dt><dd>自由试验场：场景序列、出参绑定、失败即停</dd>
           <dt>M8</dt><dd>认证与权限、Secrets 加密、PostgreSQL</dd>
           <dt>M9</dt><dd>分布式 worker、服务器推送事件取代轮询</dd>
         </dl>
