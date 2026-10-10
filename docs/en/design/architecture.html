@@ -37,7 +37,7 @@
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
           <title id="arch-title">System components</title>
-          <desc id="arch-desc">Users call the API service through the web UI or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers connect to PostgreSQL and fetch tasks themselves (the database never calls a worker), drive the internal target systems with Playwright, and store artifacts in object storage.</desc>
+          <desc id="arch-desc">Users call the API service through the management portal (rendered by the API service with Jinja) or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers connect to PostgreSQL and fetch tasks themselves (the database never calls a worker), drive the internal target systems with Playwright, and store artifacts in object storage.</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -48,8 +48,8 @@
           <rect class="frame" x="16" y="40" width="192" height="232" rx="10"/>
           <text class="frame-label" x="28" y="60">Clients</text>
           <rect class="box" x="32" y="76" width="160" height="60" rx="8"/>
-          <text class="title" x="46" y="100">Web UI</text>
-          <text class="sub" x="46" y="120">React + TypeScript</text>
+          <text class="title" x="46" y="100">Management portal</text>
+          <text class="sub" x="46" y="120">FastAPI + Jinja pages</text>
           <rect class="box" x="32" y="160" width="160" height="92" rx="8"/>
           <text class="title" x="46" y="184">CLI (rpa)</text>
           <text class="sub" x="46" y="204">Validate, run, push</text>
@@ -109,7 +109,28 @@
           <text class="label" x="790" y="30">generation request</text>
         </svg>
       </div>
-      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. Before M2 there are only the CLI and the runner, running directly on your machine. Development and prototypes can use SQLite instead of PostgreSQL, in which case the queue and scheduler run inside the API process; see <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>.</div>
+      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. This is the picture after M9; the next section shows the MVP stage.</div>
+    </section>
+
+    <section class="panel" id="mvp">
+      <div class="panel-header"><h2>The MVP stage</h2><span class="muted">M2–M6: single machine, single user, serial execution</span></div>
+      <div class="panel-body">
+        <div class="four-col">
+          <div class="notice"><strong>Management portal</strong><p>Opened in a browser; the API service renders the pages with Jinja, following the layout of the <a href="../../prototypes/mvp/index.html">MVP prototype</a> (from M3).</p></div>
+          <div class="notice"><strong>API service</strong><p>FastAPI: scenarios, revisions and the publishing gate, inputs and outputs, runs, reports, debugging sessions (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>).</p></div>
+          <div class="notice"><strong>Background worker</strong><p>On the same computer; every run starts the runner in a subprocess with an overall deadline and cancellation, and the whole process group is terminated on failure or timeout.</p></div>
+          <div class="notice"><strong>Data and artifacts</strong><p>SQLite for metadata (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>); a file directory for scenario revision snapshots and one directory per run.</p></div>
+        </div>
+        <p class="muted">Requests flow portal → API → worker. The worker writes run status and artifacts, and the portal reads progress by polling or server-sent events; long tasks never block web requests. Before M2 there are only the CLI and the runner, running directly on your machine.</p>
+<pre class="source">runs/&lt;run-id&gt;/
+  input.json          # this run's validated inputs
+  facts.json          # page facts extracted by the automation
+  output.json         # created only when the independent assertions and output validation pass
+  screenshot.png, trace.zip
+  automation.log, assertion.log
+  scenario/           # snapshot of the scenario revision used (including Python scripts)
+  result.json, report.html</pre>
+      </div>
     </section>
 
     <section class="panel">
@@ -119,13 +140,12 @@
           <thead><tr><th>Package</th><th>Responsibility</th><th>Depends on</th><th>Starts</th></tr></thead>
           <tbody>
             <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs. No browser, no database.</td><td>Pydantic, PyYAML, Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>Execution engine: step handler registry, browser and context management, artifact collection. Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
-            <tr><td><code>rpa-recorder</code></td><td>Local recording: injects a listener script and turns user actions into DSL steps.</td><td>rpa-core, Playwright</td><td>M4</td></tr>
-            <tr><td><code>rpa-generator</code></td><td>AI generation and self-healing selectors: page snapshot + natural language → DSL, with validation failures fed back for correction.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>Execution engine: input validation, step handler registry, browser and context management, independent assertions, output publishing, run directory and report; also runs Python script scenarios. Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-recorder</code></td><td>Recording: records user actions in an isolated browser, keeps the raw recording and turns it into a DSL draft.</td><td>rpa-core, Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-generator</code></td><td>AI assistant: conversational debugging, natural language → DSL, validation failures fed back for correction, self-healing selectors; it can only edit drafts.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, run, record, generate, push.</td><td>The packages above, click</td><td>M0</td></tr>
-            <tr><td><code>rpa-server</code></td><td>API service, database models, permissions, scheduling.</td><td>rpa-core, FastAPI, SQLAlchemy</td><td>M7</td></tr>
-            <tr><td><code>rpa-worker</code></td><td>Takes tasks from the queue, runs them with rpa-runner, writes back results and artifacts.</td><td>rpa-runner, Procrastinate</td><td>M9</td></tr>
-            <tr><td><code>web</code></td><td>Management UI (TypeScript, not part of the Python workspace).</td><td>React, Vite</td><td>M8</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API and management pages, database models, revisions and the publishing gate, debugging sessions; permissions (M8), scheduling (M9).</td><td>rpa-core, FastAPI, Jinja2, SQLAlchemy</td><td>M3</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>Takes pending tasks, runs rpa-runner in a subprocess with an overall deadline and cancellation, and writes back results and artifacts. On the same computer in M3, distributed in M9.</td><td>rpa-runner; Procrastinate (M9)</td><td>M3</td></tr>
           </tbody>
         </table>
       </div>
@@ -143,15 +163,16 @@
 │   └── rpa_generator/   # M5
 ├── apps/                # Executables
 │   ├── cli/             # M0
-│   ├── server/          # M7
-│   ├── worker/          # M9
-│   └── web/             # M8 (TypeScript)
+│   ├── server/          # M3 (FastAPI + Jinja)
+│   └── worker/          # M3
 ├── testsite/            # Test site that mimics internal systems (M2)
-├── scenarios/           # Example scenarios
+├── scenarios/           # Example scenarios: examples/, demo/ (the prototype's BA-001, BA-002)
+├── schema/              # JSON Schema of the scenario DSL (generated by rpa schema)
 ├── tests/               # Cross-package tests: smoke, docs checks
 ├── deploy/              # Docker Compose and sample configuration (M9)
 ├── tools/               # Dev tools: multilingual sync (i18n.py)
 └── docs/                # This docs site (Traditional Chinese) and the interface design system
+    ├── prototypes/mvp/  # MVP prototype (kept as delivered)
     ├── en/              # English
     └── zh-Hans/         # Simplified Chinese (generated)</pre>
         </div>
@@ -160,12 +181,12 @@
         <div class="panel-header"><h2>Data flow of a run</h2></div>
         <div class="panel-body prose">
           <ol>
-            <li>A user triggers a run in the web UI or the CLI, or the scheduler creates a task when it is due.</li>
-            <li>The API checks permissions, fetches the requested version of the scenario, and writes a run record and a queue task.</li>
-            <li>An idle worker is notified by PostgreSQL (or finds the task when it polls), fetches and locks the task itself, and gets the parameters and secrets from the API (kept in memory only).</li>
-            <li>The runner opens an isolated browser context and executes step by step, reporting the status of each step.</li>
-            <li>Screenshots, traces and downloads are uploaded to object storage; extracted data is written back to the run record.</li>
-            <li>When the run ends, the person who triggered it is notified; on failure, the failing step and its screenshot are highlighted.</li>
+            <li>A user triggers a run in the management portal or the CLI (from M9 the scheduler can create runs too).</li>
+            <li>The API checks the published revision, validates the inputs before any browser starts, and writes a run record and a task.</li>
+            <li>The worker takes the task and starts the runner in a subprocess with the scenario revision snapshot, the inputs and the secrets (kept in memory only), under an overall deadline.</li>
+            <li>The runner opens an isolated browser context, executes step by step and records page facts, reporting the status of each step.</li>
+            <li>The independent assertions compare the facts with the inputs; only after they pass are the outputs validated and output.json written.</li>
+            <li>Screenshots, traces, logs and the report go into the run directory (object storage from M9); on failure the failing stage, step and screenshot are highlighted.</li>
           </ol>
         </div>
       </section>

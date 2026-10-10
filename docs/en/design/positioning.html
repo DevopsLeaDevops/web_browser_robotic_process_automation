@@ -50,7 +50,7 @@
       <div class="panel-body">
         <div class="four-col">
           <div><h3>1　Generate</h3><ul class="points"><li>Record user actions</li><li>Have AI produce it from natural language</li><li>Compose from templates or sub-scenarios</li></ul></div>
-          <div><h3>2　Manage</h3><ul class="points"><li>Versions and diffs</li><li>Parameters, tags and projects</li><li>Permissions and auditing</li></ul></div>
+          <div><h3>2　Manage</h3><ul class="points"><li>Revisions and the publishing gate</li><li>Inputs, outputs and categories</li><li>Permissions and auditing</li></ul></div>
           <div><h3>3　Run</h3><ul class="points"><li>Triggered manually, on a schedule or by API</li><li>Many workers in parallel</li><li>Retries and timeouts</li></ul></div>
           <div><h3>4　Report</h3><ul class="points"><li>Screenshots and logs for every step</li><li>Playwright trace replay</li><li>Failure location and self-healing selectors</li></ul></div>
         </div>
@@ -61,14 +61,20 @@
       <div class="panel-header"><h2>Core concepts</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>Scenario</dt><dd>A repeatable sequence of browser actions described in a declarative DSL. The platform's core asset; it has versions.</dd>
+          <dt>Scenario</dt><dd>A repeatable sequence of browser actions described in a declarative DSL (in rare cases a Python script, see <a href="../adr/0009-scenario-contract.html">ADR 0009</a>). The platform's core asset, with a stable id and a category.</dd>
+          <dt>Revision</dt><dd>An immutable version of a scenario: draft → validating → passed or failed → published. Any change requires validating again, and the published revision must be the one that passed.</dd>
           <dt>Step</dt><dd>One action in a scenario, such as opening a URL, clicking, filling in a field or extracting data. Every step has a stable <code>id</code>.</dd>
           <dt>Target</dt><dd>Describes which element on the page to act on. It can have several candidates, tried in order of priority.</dd>
-          <dt>Param</dt><dd>A value given only at run time, such as the month to query; it has a type and a default.</dd>
+          <dt>Input</dt><dd>A value given only at run time, such as the month to query; it has a type, constraints and a default, and is validated before the browser starts.</dd>
+          <dt>Fact</dt><dd>A value extracted from the page during a run. It only describes what was seen and does not mean success.</dd>
+          <dt>Verify</dt><dd>Rules that compare facts with inputs after the automation ends. "The script did not fail" is not success.</dd>
+          <dt>Output</dt><dd>A result published only after the independent assertions pass; it can feed the next scenario's inputs.</dd>
           <dt>Secret</dt><dd>Credentials and other sensitive values. Scenarios refer to them by name only; the plain value never appears in scenarios, logs or screenshot captions.</dd>
-          <dt>Run</dt><dd>One execution of a scenario, recording who triggered it, the parameters, and the result and duration of every step.</dd>
+          <dt>Run</dt><dd>One execution of a revision, recording who triggered it, the inputs, and the result and duration of every step; its status is queued, running, passed, failed, timed out, cancelled or needs login.</dd>
           <dt>Artifact</dt><dd>Screenshots, traces, downloaded files and extracted data produced by a run.</dd>
-          <dt>Project</dt><dd>The unit of permission isolation. Scenarios, secrets and runs all belong to a project.</dd>
+          <dt>Workflow</dt><dd>Published scenarios arranged in sequence; upstream outputs bind to downstream inputs, and it stops on failure (M6).</dd>
+          <dt>Debug session</dt><dd>A recording or draft is debugged in an isolated browser; the AI assistant can only edit drafts, and publishing needs the user's confirmation (M4, M5).</dd>
+          <dt>Project</dt><dd>The unit of permission isolation. Scenarios, secrets and runs all belong to a project (M8; the MVP has a single user).</dd>
         </dl>
       </div>
     </section>
