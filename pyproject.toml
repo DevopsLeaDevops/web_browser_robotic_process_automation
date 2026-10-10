@@ -19,12 +19,12 @@ dev = [
   "rpa-core",
   "rpa-cli",
   # 工具鏈
-  "ruff>=0.16",
-  "pyright>=1.1.400",
-  "pytest>=9.0",
-  "pre-commit>=4.0",
+  "ruff>=0.16.10",
+  "pyright>=1.1.414",
+  "pytest>=9.1.1",
+  "pre-commit>=4.6.2",
   # 目前只給瀏覽器冒煙測試用；M2 起移到 rpa-runner 的正式依賴
-  "playwright>=1.56",
+  "playwright>=1.63.0",
   # 由繁中產生簡中（tools/i18n.py）。鎖定版本：詞庫一更新，產生的簡中就會不同，
   # 升級時要一併執行 uv run python tools/i18n.py sync 並提交結果。見 ADR 0007。
   "opencc==1.4.2",
