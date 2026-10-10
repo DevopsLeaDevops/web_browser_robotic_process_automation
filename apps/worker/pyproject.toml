@@ -1,23 +1,16 @@
 [project]
-name = "rpa-cli"
+name = "rpa-worker"
 version = "0.1.0"
-description = "命令列工具：rpa validate / run / serve / record / generate / push"
+description = "背景 worker：領取待執行的任務，以子程序呼叫 rpa-runner，套用總期限與取消，回寫結果"
 requires-python = ">=3.12"
 dependencies = [
   "rpa-core",
   "rpa-runner",
-  # rpa serve 啟動管理 Portal
-  "rpa-server",
-  "click>=8.5.0",
 ]
-
-[project.scripts]
-rpa = "rpa_cli.main:main"
 
 [tool.uv.sources]
 rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
-rpa-server = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]

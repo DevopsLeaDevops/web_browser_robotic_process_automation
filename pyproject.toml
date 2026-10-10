@@ -12,6 +12,8 @@ default-groups = ["dev"]
 [tool.uv.sources]
 rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
+rpa-worker = { workspace = true }
+rpa-server = { workspace = true }
 rpa-cli = { workspace = true }
 
 [dependency-groups]
@@ -19,11 +21,15 @@ dev = [
   # workspace 成員：裝進同一個開發環境
   "rpa-core",
   "rpa-runner",
+  "rpa-worker",
+  "rpa-server",
   "rpa-cli",
   # 工具鏈
   "ruff>=0.16.10",
   "pyright>=1.1.414",
   "pytest>=9.1.1",
+  # FastAPI 的 TestClient
+  "httpx>=0.28.1",
   "pre-commit>=4.6.2",
   # 由繁中產生簡中（tools/i18n.py）。鎖定版本：詞庫一更新，產生的簡中就會不同，
   # 升級時要一併執行 uv run python tools/i18n.py sync 並提交結果。見 ADR 0007。
