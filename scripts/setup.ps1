@@ -439,11 +439,6 @@ $RpaSetupArgs = @{
             Write-Host ''
             Write-Host '[!] uv 是剛安裝的：開一個新的 PowerShell 視窗，才能直接使用 uv 命令。' -ForegroundColor Yellow
         }
-        if ((Test-Path -LiteralPath 'uv.lock') -and (Test-Git) -and
-            -not (Test-Native git @('ls-files', '--error-unmatch', 'uv.lock'))) {
-            Write-Host ''
-            Write-Host '- 產生了 uv.lock。M0 尚未提交鎖檔，請單獨開一個 PR 提交（見 docs/develop/setup.html#faq）。' -ForegroundColor DarkGray
-        }
         if ($State.Warnings -gt 0) {
             Write-Host ''
             Write-Host ('[!] 過程中有 {0} 個提醒，見上方以 [!] 開頭的行。' -f $State.Warnings) -ForegroundColor Yellow

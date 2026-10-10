@@ -2,11 +2,12 @@
 
 瀏覽器自動化場景的生成、管理與執行平台。團隊共用、多用戶、面向內部系統。
 
-> 文檔以 HTML 撰寫，放在 [`docs/`](docs/)（見 [ADR 0005](docs/adr/0005-html-docs.html)）。
-> GitHub 上只能看到原始碼，請在本機開啟 `docs/index.html`，或執行：
+> 文檔以 HTML 撰寫，放在 [`docs/`](docs/)（見 [ADR 0005](docs/adr/0005-html-docs.html)），有三種語言：
+> 繁體中文 `docs/index.html`、简体中文 `docs/zh-Hans/index.html`、English `docs/en/index.html`。
+> GitHub 上只能看到原始碼，請在本機直接開啟，或執行：
 >
 > ```bash
-> python -m http.server -d docs 8000   # 然後瀏覽 http://localhost:8000
+> uv run python -m http.server -d docs 8000   # 然後瀏覽 http://localhost:8000（英文版在 /en/）
 > ```
 
 ## 快速開始
@@ -30,4 +31,4 @@ uv run rpa --version
 
 ## 目前進度
 
-M0：工程骨架與設計文件。路線圖見 `docs/roadmap.html`。
+M0 工程骨架已完成，下一步是 M1（DSL v0）。路線圖見 `docs/roadmap.html`。

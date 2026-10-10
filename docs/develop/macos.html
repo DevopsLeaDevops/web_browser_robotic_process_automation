@@ -120,7 +120,7 @@ uv run playwright install chromium</pre>
           <dt>.venv/</dt><dd>專案自己的虛擬環境，就在專案資料夾內。不需要手動啟用，<code>uv run</code> 會自動使用它。</dd>
           <dt>Python</dt><dd>uv 下載的 Python 放在 <code>~/.local/share/uv/python</code>，不會動到系統的 Python。</dd>
           <dt>Chromium</dt><dd>放在 <code>~/Library/Caches/ms-playwright</code>。macOS 不需要加 <code>--with-deps</code>，那是 Linux 用來安裝系統函式庫的。</dd>
-          <dt>uv.lock</dt><dd>第一次 <code>uv sync</code> 會產生鎖檔，<code>git status</code> 會看到它。怎麼處理見<a href="setup.html#faq">開發環境的常見問題</a>。</dd>
+          <dt>uv.lock</dt><dd>倉庫裡的鎖檔，記錄每個套件的確切版本；<code>uv sync</code> 依它安裝，所以每個人裝到的版本相同。</dd>
         </dl>
       </div>
     </section>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0008 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0008" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0008：資料庫同時支援 SQLite 與 PostgreSQL</h1>
+      <p>開發與原型用 SQLite，不必安裝資料庫；正式環境用 PostgreSQL。同一套程式碼與遷移在兩種資料庫上都要能跑。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-10</dd>
+        <dt>影響範圍</dt><dd>rpa-server、rpa-worker、資料庫遷移、CI、部署（M7 起）</dd>
+        <dt>相關</dt><dd><a href="0003-postgres-queue.html">ADR 0003</a>、<a href="../design/tech-stack.html">技術選型</a>、<a href="../design/architecture.html">系統架構</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>M7 之前場景以 YAML 檔放在倉庫，不需要資料庫。M7 開始的管理後端要存放使用者、專案、場景版本與執行紀錄。</p>
+          <p>開發與設計階段要快速走通原型，不希望每位開發者都先安裝、設定 PostgreSQL。正式環境則是多用戶共用，需要併發寫入、多個 worker 與正式的備份。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>兩種資料庫，用途分開。</strong>開發、測試與原型用 SQLite（Python 內建，不用另外安裝）；正式環境一律用 PostgreSQL。</li>
+            <li><strong>一個設定切換。</strong>連線字串放在環境變數 <code>RPA_DATABASE_URL</code>；沒有設定時使用本機的 SQLite 檔。</li>
+            <li><strong>只寫兩邊都支援的程式碼。</strong>模型與查詢只用 SQLAlchemy 2.0 的通用型別與寫法，不直接使用 PostgreSQL 專屬功能。</li>
+            <li><strong>同一套遷移。</strong>Alembic 遷移兩種資料庫共用，啟用 batch 模式讓 SQLite 也能修改資料表結構。</li>
+            <li><strong>佇列依資料庫切換實作。</strong>PostgreSQL 用 Procrastinate，可以有多個 worker（<a href="0003-postgres-queue.html">ADR 0003</a>）；SQLite 只允許單一程序，佇列與排程在 API 程序內執行。</li>
+            <li><strong>CI 兩種都測。</strong>M7 起資料庫相關的測試在 SQLite 與 PostgreSQL 上各跑一次，兩邊都通過才能合併。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="rules">
+      <div class="panel-header"><h2>寫程式時的規則</h2><span class="muted">兩種資料庫行為不同的地方</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>項目</th><th>做法</th></tr></thead>
+          <tbody>
+            <tr><td>JSON 欄位</td><td>用 SQLAlchemy 的 <code>JSON</code>，在 PostgreSQL 上以 <code>with_variant</code> 存成 JSONB；查詢不用 JSONB 專屬運算子。</td></tr>
+            <tr><td>時間</td><td>一律以 UTC 存放，用共用的欄位型別轉換；SQLite 不會保存時區。</td></tr>
+            <tr><td>外鍵</td><td>SQLite 預設不檢查外鍵，每個連線都要開啟 <code>foreign_keys</code>，並使用 WAL 模式。</td></tr>
+            <tr><td>不分大小寫搜尋</td><td>不用 <code>ILIKE</code>；兩邊都轉成小寫再比較。</td></tr>
+            <tr><td>PostgreSQL 專屬功能</td><td>陣列、<code>LISTEN/NOTIFY</code>、<code>SKIP LOCKED</code>、advisory lock 等，只能出現在可替換的實作裡（例如佇列），不能出現在模型與一般查詢。</td></tr>
+            <tr><td>併發</td><td>SQLite 同一時間只能有一個寫入者。需要驗證多個 worker、併發寫入的測試只在 PostgreSQL 上跑。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>開發者不用安裝資料庫，<code>uv sync</code> 之後就能跑起後端；測試也更快。</li>
+            <li>正式環境仍有 PostgreSQL 的併發、多 worker 與備份能力。</li>
+            <li>不綁定資料庫專屬功能，之後要換資料庫也比較容易。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>不能直接使用 PostgreSQL 的進階功能；需要時要另外包成可替換的實作。</li>
+            <li>佇列要維護兩份實作；SQLite 模式驗證不到多 worker 的行為，只能靠 PostgreSQL 的測試。</li>
+            <li>兩種資料庫在型別、鎖與交易隔離上的差異，可能讓問題只在其中一邊出現，所以 CI 要兩邊都測。</li>
+            <li>原型階段的資料不搬到正式環境；場景本身是 YAML，需要時用匯出、匯入（<code>rpa push</code>）帶過去。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>只支援 PostgreSQL，開發用 Docker 起一個</td><td>開發與正式環境最一致，但每個人都要先裝 Docker 或 PostgreSQL，拖慢原型。</td></tr>
+              <tr><td>正式環境也用 SQLite</td><td>只能單機、單一寫入者，無法支援多個 worker 與多用戶併發。</td></tr>
+              <tr><td>測試時臨時啟動 PostgreSQL（例如 testcontainers）</td><td>測試貼近正式環境，但本機要有 Docker；改在 CI 用 PostgreSQL 補上。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="notice">安全措施：正式部署的設定範例（M9）一律使用 PostgreSQL；伺服器啟動時在日誌標明使用的資料庫，使用 SQLite 時提醒「僅供開發與原型」；設定多個 worker 卻連到 SQLite 時拒絕啟動。</div>
+  </div>
+</main>
+</body>
+</html>

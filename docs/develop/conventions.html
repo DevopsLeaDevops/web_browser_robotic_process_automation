@@ -58,6 +58,7 @@ docs(adr): 新增 0008 Secrets 加密方式</pre>
             <li><strong>型別。</strong>pyright strict；所有函式完整標註型別，避免 <code>Any</code>。</li>
             <li><strong>格式。</strong>以 ruff 為準，不手動爭論格式。</li>
             <li><strong>輸出。</strong>程式碼中不留 <code>print</code>；CLI 透過 click 輸出，函式庫用 logging。</li>
+            <li><strong>資料庫。</strong>只用 SQLAlchemy 的通用型別與寫法，SQLite 與 PostgreSQL 都要能跑；規則見 <a href="../adr/0008-sqlite-and-postgresql.html#rules">ADR 0008</a>。</li>
             <li><strong>邊界。</strong><code>rpa-core</code> 不依賴瀏覽器或資料庫；執行相關的程式碼放在 <code>rpa-runner</code>。</li>
           </ul>
         </div>

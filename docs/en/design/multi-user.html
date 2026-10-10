@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:0aca7c477bf1e58d">
+<meta name="translation-source" content="sha256:1bc8c671b43b71c0">
 <title>Multi-user and internal systems · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -30,6 +30,7 @@
             <dt>Secrets</dt><dd>Stored encrypted. Users can reference them in scenarios but cannot read the plain value.</dd>
             <dt>Auditing</dt><dd>Who changed or ran which scenario and when is all recorded and cannot be altered or deleted.</dd>
             <dt>Versions</dt><dd>Every save of a scenario creates a new immutable version; each run points to its exact version.</dd>
+            <dt>Database</dt><dd>Production uses PostgreSQL, which supports several workers and concurrent writes; SQLite is only for development and prototypes (single machine, single process). See <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>.</dd>
             <dt>Stateless runner</dt><dd>From M2 on it only takes scenarios, parameters and secrets and outputs results and artifacts, so it moves into workers unchanged.</dd>
           </dl>
         </div>

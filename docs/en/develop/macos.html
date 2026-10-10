@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4a0466c777f3a3c2">
+<meta name="translation-source" content="sha256:917c97eca1d4c640">
 <title>Run on macOS · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -121,7 +121,7 @@ uv run playwright install chromium</pre>
           <dt>.venv/</dt><dd>The project's own virtual environment, inside the project folder. No need to activate it: <code>uv run</code> uses it automatically.</dd>
           <dt>Python</dt><dd>Python downloaded by uv lives in <code>~/.local/share/uv/python</code> and leaves the system Python alone.</dd>
           <dt>Chromium</dt><dd>Lives in <code>~/Library/Caches/ms-playwright</code>. macOS does not need <code>--with-deps</code>; that installs system libraries on Linux.</dd>
-          <dt>uv.lock</dt><dd>The first <code>uv sync</code> creates a lock file, which shows up in <code>git status</code>. What to do with it is in the <a href="setup.html#faq">Dev environment FAQ</a>.</dd>
+          <dt>uv.lock</dt><dd>The repository's lock file, recording the exact version of every package; <code>uv sync</code> installs from it, so everyone gets the same versions.</dd>
         </dl>
       </div>
     </section>

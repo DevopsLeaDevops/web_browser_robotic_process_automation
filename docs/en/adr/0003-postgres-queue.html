@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:d67e630a44e633f1">
+<meta name="translation-source" content="sha256:ab102b998eda9756">
 <title>ADR 0003 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -21,11 +21,13 @@
   </div>
 
   <div class="stack">
+    <div class="notice">Amended by <a href="0008-sqlite-and-postgresql.html">ADR 0008</a>: this decision applies to production, which uses PostgreSQL. When development and prototypes use SQLite, the queue and scheduler run inside the API process with a single worker.</div>
+
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>Date</dt><dd class="mono">2026-10-09</dd>
         <dt>Affects</dt><dd>rpa-server, rpa-worker, deployment (M7, M9)</dd>
-        <dt>Related</dt><dd><a href="../design/architecture.html">Architecture</a></dd>
+        <dt>Related</dt><dd><a href="../design/architecture.html">Architecture</a>, <a href="0008-sqlite-and-postgresql.html">ADR 0008</a></dd>
       </dl>
     </section>
 

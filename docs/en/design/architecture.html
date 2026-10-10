@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e9af8a033472c49a">
+<meta name="translation-source" content="sha256:9bdf72db4ee25809">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -37,7 +37,7 @@
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
           <title id="arch-title">System components</title>
-          <desc id="arch-desc">Users call the API service through the web UI or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers take tasks from the PostgreSQL queue, drive the internal target systems with Playwright, and store artifacts in MinIO.</desc>
+          <desc id="arch-desc">Users call the API service through the web UI or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers pull tasks from the PostgreSQL queue themselves, drive the internal target systems with Playwright, and store artifacts in MinIO.</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -100,7 +100,7 @@
           <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
           <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
           <path class="link" d="M636 160V194" marker-end="url(#arrow)"/>
-          <text class="label" x="644" y="182">fetch task</text>
+          <text class="label" x="644" y="182">worker pulls tasks</text>
           <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
           <text class="label" x="644" y="290">upload artifacts</text>
           <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
@@ -109,7 +109,7 @@
           <text class="label" x="790" y="30">generation request</text>
         </svg>
       </div>
-      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. Before M2 there are only the CLI and the runner, running directly on your machine.</div>
+      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. Before M2 there are only the CLI and the runner, running directly on your machine. Development and prototypes can use SQLite instead of PostgreSQL, in which case the queue and scheduler run inside the API process; see <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>.</div>
     </section>
 
     <section class="panel">

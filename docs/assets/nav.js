@@ -12,7 +12,7 @@ window.DOCS_NAV = {
   "subtitle": "ENGINEERING DOCS",
   "text": {
     "title": {"zh-Hant": "瀏覽器 RPA", "zh-Hans": "浏览器 RPA", "en": "Browser RPA"},
-    "badge": {"zh-Hant": "文檔 · M0", "zh-Hans": "文档 · M0", "en": "Docs · M0"},
+    "badge": {"zh-Hant": "文檔 · M1", "zh-Hans": "文档 · M1", "en": "Docs · M1"},
     "skip": {"zh-Hant": "跳至主要內容", "zh-Hans": "跳至主要内容", "en": "Skip to main content"},
     "topnav": {"zh-Hant": "第一級選單", "zh-Hans": "第一级菜单", "en": "Primary navigation"},
     "sidenav": {"zh-Hant": "第二級選單", "zh-Hans": "第二级菜单", "en": "Section navigation"},
@@ -118,6 +118,11 @@ window.DOCS_NAV = {
           "id": "adr-0007",
           "href": "adr/0007-i18n.html",
           "name": {"zh-Hant": "0007 多語言", "zh-Hans": "0007 多语言", "en": "0007 Multilingual"}
+        },
+        {
+          "id": "adr-0008",
+          "href": "adr/0008-sqlite-and-postgresql.html",
+          "name": {"zh-Hant": "0008 資料庫", "zh-Hans": "0008 數據庫", "en": "0008 Database"}
         }
       ]
     },

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c10307f60b2dbfb7">
+<meta name="translation-source" content="sha256:2e43c7ee7171b14c">
 <title>Roadmap · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -26,16 +26,16 @@
         <table class="wrap">
           <thead><tr><th>Stage</th><th>Name</th><th>Scope</th><th>Acceptance</th><th>Status</th></tr></thead>
           <tbody>
-            <tr class="current"><td><span class="milestone">M0</span></td><td>Project skeleton</td><td>uv workspace, ruff, pyright, pytest, pre-commit, CI; design docs and ADRs; interface design system v1.0; multilingual foundation (Traditional Chinese, Simplified Chinese, English)</td><td>CI all green; docs link check passes</td><td><span class="badge blue">In progress</span></td></tr>
-            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>Core actions (goto, click, fill, select, press, waitFor, expect, extract, screenshot), locator model, YAML loading and validation</td><td><code>rpa validate</code> points to the file line, step and field of each error</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M0</span></td><td>Project skeleton</td><td>uv workspace, ruff, pyright, pytest, pre-commit, CI; design docs and ADRs; interface design system v1.0; multilingual foundation (Traditional Chinese, Simplified Chinese, English); setup scripts; dependency locking (uv.lock)</td><td>CI all green; docs link check passes</td><td><span class="badge green">Done</span></td></tr>
+            <tr class="current"><td><span class="milestone">M1</span></td><td>DSL v0</td><td>Core actions (goto, click, fill, select, press, waitFor, expect, extract, screenshot), locator model, YAML loading and validation</td><td><code>rpa validate</code> points to the file line, step and field of each error</td><td><span class="badge blue">Next</span></td></tr>
             <tr><td><span class="milestone">M2</span></td><td>Runner and CLI</td><td>Stateless execution engine, step handler registry, screenshots and traces on failure; a test site that mimics internal systems</td><td><code>rpa run</code> works against the test site</td><td><span class="badge">Not started</span></td></tr>
             <tr><td><span class="milestone">M3</span></td><td>Flow features</td><td>Variables and expressions, conditions, loops, error handling, sub-scenarios, data-driven runs, secrets, reusing login state</td><td>Complex example scenarios pass</td><td><span class="badge">Not started</span></td></tr>
             <tr><td><span class="milestone">M4</span></td><td>Generation 1: recording</td><td>Record in a local headed browser and output DSL; prefer semantic locators and avoid auto-generated ids</td><td>A recording replays successfully</td><td><span class="badge">Not started</span></td></tr>
             <tr><td><span class="milestone">M5</span></td><td>Generation 2: AI</td><td>Generate DSL from natural language plus the page accessibility tree; fix validation failures automatically; self-healing selectors</td><td>A one-sentence description produces a runnable scenario</td><td><span class="badge">Not started</span></td></tr>
             <tr><td><span class="milestone">M6</span></td><td>Site design</td><td>The visual guidelines were delivered as <a href="style/index.html">interface design system v1.0</a>; this stage now builds prototypes of the core pages with it: login, scenario library, step editor, run details, user and permission management</td><td>Frontend work starts only after you approve the prototypes</td><td><span class="badge amber">Partly delivered</span></td></tr>
-            <tr><td><span class="milestone">M7</span></td><td>Management backend</td><td>Authentication, permissions, projects, scenario versions, secret encryption, auditing, REST API</td><td>API tests pass</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>Management backend</td><td>Authentication, permissions, projects, scenario versions, secret encryption, auditing, REST API; the database supports both SQLite (development, prototypes) and PostgreSQL (production)</td><td>API tests pass on both SQLite and PostgreSQL</td><td><span class="badge">Not started</span></td></tr>
             <tr><td><span class="milestone">M8</span></td><td>Web UI</td><td>Implement the M6 prototypes</td><td>Complete the "generate → run → view results" loop in the browser</td><td><span class="badge">Not started</span></td></tr>
-            <tr><td><span class="milestone">M9</span></td><td>Operations</td><td>Distributed workers, scheduling, concurrency, retries, notifications, Docker Compose deployment</td><td><code>docker compose up</code> starts everything</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>Operations</td><td>Distributed workers and scheduling (PostgreSQL), concurrency, retries, notifications, Docker Compose deployment</td><td><code>docker compose up</code> starts everything</td><td><span class="badge">Not started</span></td></tr>
           </tbody>
         </table>
       </div>

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:7ddeb1c737e9e8b8">
+<title>ADR 0008 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0008" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0008: The database supports both SQLite and PostgreSQL</h1>
+      <p>SQLite for development and prototypes, with nothing to install; PostgreSQL in production. The same code and migrations must run on both.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-10</dd>
+        <dt>Affects</dt><dd>rpa-server, rpa-worker, database migrations, CI, deployment (from M7)</dd>
+        <dt>Related</dt><dd><a href="0003-postgres-queue.html">ADR 0003</a>, <a href="../design/tech-stack.html">Tech stack</a>, <a href="../design/architecture.html">Architecture</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Until M7, scenarios live as YAML files in the repository and no database is needed. From M7, the management backend stores users, projects, scenario versions and runs.</p>
+          <p>During development and design we want to get prototypes working quickly, without every developer installing and configuring PostgreSQL first. Production, on the other hand, is shared by many users and needs concurrent writes, several workers and proper backups.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Two databases with separate purposes.</strong> SQLite (built into Python, nothing extra to install) for development, tests and prototypes; always PostgreSQL in production.</li>
+            <li><strong>One setting to switch.</strong> The connection string goes in the <code>RPA_DATABASE_URL</code> environment variable; when it is not set, a local SQLite file is used.</li>
+            <li><strong>Only write code both support.</strong> Models and queries use only SQLAlchemy 2.0's portable types and constructs, never PostgreSQL-specific features directly.</li>
+            <li><strong>One set of migrations.</strong> Alembic migrations are shared by both databases, with batch mode enabled so SQLite can alter table structure too.</li>
+            <li><strong>The queue implementation follows the database.</strong> PostgreSQL uses Procrastinate and can have several workers (<a href="0003-postgres-queue.html">ADR 0003</a>); SQLite allows a single process only, and the queue and scheduler run inside the API process.</li>
+            <li><strong>CI tests both.</strong> From M7, database tests run once on SQLite and once on PostgreSQL, and both must pass before merging.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="rules">
+      <div class="panel-header"><h2>Rules when writing code</h2><span class="muted">Where the two databases behave differently</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Item</th><th>Approach</th></tr></thead>
+          <tbody>
+            <tr><td>JSON columns</td><td>Use SQLAlchemy's <code>JSON</code>, stored as JSONB on PostgreSQL through <code>with_variant</code>; queries do not use JSONB-only operators.</td></tr>
+            <tr><td>Time</td><td>Always stored in UTC through a shared column type; SQLite does not keep time zones.</td></tr>
+            <tr><td>Foreign keys</td><td>SQLite does not check foreign keys by default; turn on <code>foreign_keys</code> for every connection and use WAL mode.</td></tr>
+            <tr><td>Case-insensitive search</td><td>No <code>ILIKE</code>; lower-case both sides before comparing.</td></tr>
+            <tr><td>PostgreSQL-only features</td><td>Arrays, <code>LISTEN/NOTIFY</code>, <code>SKIP LOCKED</code>, advisory locks and the like may appear only in replaceable implementations (such as the queue), never in models or ordinary queries.</td></tr>
+            <tr><td>Concurrency</td><td>SQLite allows one writer at a time. Tests that verify several workers or concurrent writes run on PostgreSQL only.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Developers install no database: the backend runs right after <code>uv sync</code>, and tests are faster.</li>
+            <li>Production still gets PostgreSQL's concurrency, multiple workers and backups.</li>
+            <li>Not tied to database-specific features, which makes switching databases later easier.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>PostgreSQL's advanced features cannot be used directly; when needed they must be wrapped in a replaceable implementation.</li>
+            <li>The queue has two implementations to maintain; SQLite mode cannot verify multi-worker behavior, which relies on the PostgreSQL tests.</li>
+            <li>Differences in types, locking and transaction isolation can make a problem appear on only one side, which is why CI tests both.</li>
+            <li>Data from the prototype stage is not moved to production; scenarios are YAML, so they can be carried over by export and import (<code>rpa push</code>) when needed.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>PostgreSQL only, with Docker for development</td><td>Development matches production most closely, but everyone must install Docker or PostgreSQL first, which slows prototyping.</td></tr>
+              <tr><td>SQLite in production too</td><td>Single machine and a single writer only; cannot support several workers or many concurrent users.</td></tr>
+              <tr><td>Start PostgreSQL on demand for tests (for example testcontainers)</td><td>Tests closer to production, but needs Docker locally; PostgreSQL coverage comes from CI instead.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="notice">Safeguards: the production deployment examples (M9) always use PostgreSQL; the server logs which database it uses at startup and warns "development and prototypes only" for SQLite; it refuses to start when several workers are configured against SQLite.</div>
+  </div>
+</main>
+</body>
+</html>

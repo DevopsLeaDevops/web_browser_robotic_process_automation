@@ -1,5 +1,8 @@
 # 在乾淨的 macOS、Ubuntu、Windows 機器上實際跑一鍵安裝腳本，確認文檔裡的命令真的能用。
-# 只在腳本或這個檔案變動時執行；也可以在 Actions 頁面手動觸發。
+# 觸發時機：
+# - 腳本、依賴或 Python 版本變動時（包括 Dependabot 的升級 PR）
+# - 每週一次：抓出外部變化，例如 uv 安裝腳本改版、GitHub 更換 *-latest 的系統、瀏覽器下載方式改變
+# - 在 Actions 頁面手動觸發
 name: 一鍵安裝腳本
 
 on:
@@ -8,10 +11,24 @@ on:
     paths:
       - "scripts/**"
       - ".github/workflows/setup-scripts.yml"
+      - "pyproject.toml"
+      - "packages/*/pyproject.toml"
+      - "apps/*/pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
   pull_request:
     paths:
       - "scripts/**"
       - ".github/workflows/setup-scripts.yml"
+      - "pyproject.toml"
+      - "packages/*/pyproject.toml"
+      - "apps/*/pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+  schedule:
+    # 每週一 UTC 02:17（台北 10:17）。避開整點，整點排程多、容易延遲。
+    # 公開倉庫 60 天沒有任何活動時，GitHub 會自動停用排程。
+    - cron: "17 2 * * 1"
   workflow_dispatch:
 
 concurrency:

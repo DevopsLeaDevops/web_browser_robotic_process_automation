@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:9bfe50f88e4ffdee">
+<meta name="translation-source" content="sha256:ebeb725f0942fec1">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -48,6 +48,7 @@ uv run rpa --version</pre>
             <dt>uv</dt><dd>0.11 or later; see the official uv docs for installation.</dd>
             <dt>Git</dt><dd>Any recent version.</dd>
             <dt>Node.js</dt><dd>Only needed once frontend work starts in M8.</dd>
+            <dt>Database</dt><dd>Nothing to install. From M7, development uses SQLite (built into Python); PostgreSQL is only needed in production. See <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>.</dd>
           </dl>
         </div>
       </section>
@@ -67,7 +68,7 @@ uv run rpa --version</pre>
             <tr><td>Format</td><td><code>uv run ruff format .</code></td></tr>
             <tr><td>Type check</td><td><code>uv run pyright</code></td></tr>
             <tr><td>All pre-commit checks</td><td><code>uv run pre-commit run --all-files</code></td></tr>
-            <tr><td>Add a dependency to a package</td><td><code>uv add --package rpa-core package-name</code></td></tr>
+            <tr><td>Add a dependency to a package</td><td><code>uv add --package rpa-core package-name</code> (also updates <code>uv.lock</code>; commit both files together)</td></tr>
             <tr><td>Show <code>rpa</code> in another language</td><td><code>uv run rpa --lang en -h</code>, or set the environment variable <code>RPA_LANG=zh-Hans</code></td></tr>
             <tr><td>Regenerate Simplified Chinese, check translations</td><td><code>uv run python tools/i18n.py sync</code>, <code>uv run python tools/i18n.py check</code>; see <a href="writing-docs.html#i18n">Three languages</a></td></tr>
             <tr><td>Browse the docs</td><td>Open <code>docs/index.html</code> directly, or <code>python -m http.server -d docs 8000</code></td></tr>
@@ -80,7 +81,7 @@ uv run rpa --version</pre>
       <div class="panel-header"><h2>FAQ</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>No uv.lock</dt><dd>M0 has not committed a lock file yet. The first member to run <code>uv sync</code> generates <code>uv.lock</code>; please commit it in a PR of its own. After that, CI switches to <code>uv sync --locked</code> automatically.</dd>
+          <dt>CI says uv.lock needs updating</dt><dd>A dependency in <code>pyproject.toml</code> changed without updating the lock file. Run <code>uv lock</code> and commit <code>uv.lock</code> together with the change.</dd>
           <dt>PyPI unreachable from the intranet</dt><dd>Set the <code>UV_INDEX_URL</code> environment variable to the company's package mirror.</dd>
           <dt>Browser download fails</dt><dd>Set <code>PLAYWRIGHT_DOWNLOAD_HOST</code> to an internal mirror; the browser smoke test is skipped automatically when no browser is installed locally.</dd>
           <dt>Tests say Simplified Chinese is not up to date</dt><dd>After changing Traditional Chinese docs or message catalogs, run <code>uv run python tools/i18n.py sync</code> and commit the generated files.</dd>
