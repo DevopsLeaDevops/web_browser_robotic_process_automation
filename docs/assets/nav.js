@@ -123,6 +123,21 @@ window.DOCS_NAV = {
           "id": "adr-0008",
           "href": "adr/0008-sqlite-and-postgresql.html",
           "name": {"zh-Hant": "0008 資料庫", "zh-Hans": "0008 数据库", "en": "0008 Database"}
+        },
+        {
+          "id": "adr-0009",
+          "href": "adr/0009-scenario-contract.html",
+          "name": {"zh-Hant": "0009 場景契約", "zh-Hans": "0009 场景契约", "en": "0009 Scenario contract"}
+        },
+        {
+          "id": "adr-0010",
+          "href": "adr/0010-mvp-first.html",
+          "name": {"zh-Hant": "0010 MVP 先行", "zh-Hans": "0010 MVP 先行", "en": "0010 MVP first"}
+        },
+        {
+          "id": "adr-0011",
+          "href": "adr/0011-fastapi-jinja.html",
+          "name": {"zh-Hant": "0011 FastAPI + Jinja", "zh-Hans": "0011 FastAPI + Jinja", "en": "0011 FastAPI + Jinja"}
         }
       ]
     },

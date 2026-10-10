@@ -37,7 +37,7 @@
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
           <title id="arch-title">系统组件图</title>
-          <desc id="arch-desc">用户通过 Web UI 或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 主动连到 PostgreSQL 领取任务（不是由数据库调用 worker），以 Playwright 操作目标内部系统，产物存入对象存储。</desc>
+          <desc id="arch-desc">用户通过管理 Portal（由 API 服务以 Jinja 渲染）或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 主动连到 PostgreSQL 领取任务（不是由数据库调用 worker），以 Playwright 操作目标内部系统，产物存入对象存储。</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -48,8 +48,8 @@
           <rect class="frame" x="16" y="40" width="192" height="232" rx="10"/>
           <text class="frame-label" x="28" y="60">用户端</text>
           <rect class="box" x="32" y="76" width="160" height="60" rx="8"/>
-          <text class="title" x="46" y="100">Web UI</text>
-          <text class="sub" x="46" y="120">React + TypeScript</text>
+          <text class="title" x="46" y="100">管理 Portal</text>
+          <text class="sub" x="46" y="120">FastAPI + Jinja 页面</text>
           <rect class="box" x="32" y="160" width="160" height="92" rx="8"/>
           <text class="title" x="46" y="184">CLI（rpa）</text>
           <text class="sub" x="46" y="204">验证、运行、推送</text>
@@ -109,7 +109,28 @@
           <text class="label" x="790" y="30">生成请求</text>
         </svg>
       </div>
-      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统。M2 之前只有 CLI 与 Runner，直接在本机运行。开发与原型可以用 SQLite 取代 PostgreSQL，这时队列与调度在 API 进程内运行，见 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</div>
+      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统。这是 M9 完成后的样貌；MVP 阶段的样貌见下一节。</div>
+    </section>
+
+    <section class="panel" id="mvp">
+      <div class="panel-header"><h2>MVP 阶段的样貌</h2><span class="muted">M2～M6：单机、单用户、串行运行</span></div>
+      <div class="panel-body">
+        <div class="four-col">
+          <div class="notice"><strong>管理 Portal</strong><p>浏览器打开；页面由 API 服务以 Jinja 渲染，沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>的版面（M3 起）。</p></div>
+          <div class="notice"><strong>API 服务</strong><p>FastAPI：场景、版本与发布门槛、入参出参、运行、报告、调试工作阶段（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>）。</p></div>
+          <div class="notice"><strong>背景 worker</strong><p>同一台电脑；每次运行以子进程跑 Runner，应用总期限与取消，失败或超时就终止整个进程组。</p></div>
+          <div class="notice"><strong>数据与产物</strong><p>SQLite 存元数据（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；文件目录存场景版本快照与每次运行的目录。</p></div>
+        </div>
+        <p class="muted">请求方向：Portal → API → worker。worker 写入运行状态与产物，Portal 以轮询或服务器推送事件读取进度；长任务不阻塞网页请求。M2 之前只有 CLI 与 Runner，直接在本机运行。</p>
+<pre class="source">runs/&lt;运行编号&gt;/
+  input.json          # 校验后的本次入参
+  facts.json          # 自动化抽取的页面事实
+  output.json         # 只有独立断言与出参校验都通过才产生
+  screenshot.png、trace.zip
+  automation.log、assertion.log
+  scenario/           # 本次使用的场景版本快照（含 Python 脚本）
+  result.json、report.html</pre>
+      </div>
     </section>
 
     <section class="panel">
@@ -119,13 +140,12 @@
           <thead><tr><th>包</th><th>职责</th><th>依赖</th><th>起始</th></tr></thead>
           <tbody>
             <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 加载与校验、表达式引擎、JSON Schema 导出、多语言消息目录。不碰浏览器、不碰数据库。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>运行引擎：步骤处理器注册表、浏览器与上下文管理、产物收集。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
-            <tr><td><code>rpa-recorder</code></td><td>本机录制：注入监听脚本，把用户操作转成 DSL 步骤。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
-            <tr><td><code>rpa-generator</code></td><td>AI 生成与选择器自愈：页面快照 + 自然语言 → DSL，校验失败反馈修正。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>运行引擎：入参校验、步骤处理器注册表、浏览器与上下文管理、独立断言、出参发布、运行目录与报告；也运行 Python 脚本场景。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-recorder</code></td><td>录制：在隔离的浏览器中记录用户操作，保存原始录制稿并转成 DSL 草稿。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-generator</code></td><td>AI 助手：对话调试、自然语言 → DSL、校验失败反馈修正、选择器自愈；只能修改草稿。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述包、click</td><td>M0</td></tr>
-            <tr><td><code>rpa-server</code></td><td>API 服务、数据库模型、权限、调度。</td><td>rpa-core、FastAPI、SQLAlchemy</td><td>M7</td></tr>
-            <tr><td><code>rpa-worker</code></td><td>从队列取任务，调用 rpa-runner 运行，回写结果与产物。</td><td>rpa-runner、Procrastinate</td><td>M9</td></tr>
-            <tr><td><code>web</code></td><td>管理界面（TypeScript，不属于 Python workspace）。</td><td>React、Vite</td><td>M8</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API 与管理页面、数据库模型、版本与发布门槛、调试工作阶段；权限（M8）、调度（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>取出待运行的任务，以子进程调用 rpa-runner，应用总期限与取消，回写结果与产物。M3 在同一台电脑，M9 改为分布式。</td><td>rpa-runner；Procrastinate（M9）</td><td>M3</td></tr>
           </tbody>
         </table>
       </div>
@@ -143,15 +163,16 @@
 │   └── rpa_generator/   # M5
 ├── apps/                # 可运行的程序
 │   ├── cli/             # M0
-│   ├── server/          # M7
-│   ├── worker/          # M9
-│   └── web/             # M8（TypeScript）
+│   ├── server/          # M3（FastAPI + Jinja）
+│   └── worker/          # M3
 ├── testsite/            # 模拟内部系统的测试网站（M2）
-├── scenarios/           # 示例场景
+├── scenarios/           # 示例场景：examples/、demo/（原型的 BA-001、BA-002）
+├── schema/              # 场景 DSL 的 JSON Schema（rpa schema 产生）
 ├── tests/               # 跨包测试：冒烟、文档检查
 ├── deploy/              # Docker Compose 与配置示例（M9）
 ├── tools/               # 开发工具：多语言同步（i18n.py）
 └── docs/                # 本文档站（繁中）与界面设计系统
+    ├── prototypes/mvp/  # MVP 原型（原样收录）
     ├── en/              # 英文版
     └── zh-Hans/         # 简中版（自动产生）</pre>
         </div>
@@ -160,12 +181,12 @@
         <div class="panel-header"><h2>一次运行的数据流</h2></div>
         <div class="panel-body prose">
           <ol>
-            <li>用户在 Web UI 或 CLI 触发运行，或调度器到点创建任务。</li>
-            <li>API 检查权限，取出指定版本的场景，写入一笔运行记录与一个队列任务。</li>
-            <li>空闲的 worker 收到 PostgreSQL 的通知（或定期查询时发现），主动领取并锁住这个任务，向 API 解出参数与 Secrets（只在内存中）。</li>
-            <li>Runner 打开独立的浏览器上下文，逐步运行；每一步回报状态。</li>
-            <li>截图、Trace、下载文件上传到对象存储；抽取的数据写回运行记录。</li>
-            <li>运行结束，结果通知触发者；失败时标出出错的步骤与截图。</li>
+            <li>用户在管理 Portal 或 CLI 触发运行（M9 起也可以由调度器创建）。</li>
+            <li>API 检查已发布的版本，在启动浏览器前校验入参，写入一笔运行记录与一个任务。</li>
+            <li>worker 领取任务，以子进程启动 Runner，传入场景版本快照、入参与 Secrets（只在内存中），并设置总期限。</li>
+            <li>Runner 打开独立的浏览器上下文逐步运行，记下页面事实；每一步回报状态。</li>
+            <li>独立断言比较页面事实与入参；通过后出参校验，才写出 output.json。</li>
+            <li>截图、Trace、日志与报告存入运行目录（M9 改为对象存储）；失败时标出出错的阶段、步骤与截图。</li>
           </ol>
         </div>
       </section>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:ce96d1dc2d2f2c6c">
+<title>ADR 0011 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0011" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0011: Server-rendered management interface with FastAPI + Jinja</h1>
+      <p>FastAPI serves both the API and the pages of the MVP management portal; pages are Jinja templates with the design system's CSS and a little JavaScript. Supersedes React from ADR 0004.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-10</dd>
+        <dt>Scope</dt><dd>rpa-server (from M3), every page of the management interface, CI</dd>
+        <dt>Related</dt><dd>Supersedes <a href="0004-react-frontend.html">ADR 0004</a>; <a href="0002-python-stack.html">ADR 0002</a>, <a href="0006-design-system.html">ADR 0006</a>, <a href="0010-mvp-first.html">ADR 0010</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>ADR 0004 chose React mainly because a visual step editor needs drag-and-drop and rich interaction. The pages of the MVP prototype are cards, forms, filters, draft editing and serial workflows, all built with design system v1.0's portal.css, shell.js and one JavaScript file, without a framework.</p>
+          <p>The prototype's brief suggests Flask + Jinja. The backend already defines the DSL with Pydantic (ADR 0002), and the API returns the same models.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>FastAPI serves the API and the pages.</strong> The REST API uses rpa-core's Pydantic models directly and generates OpenAPI; the same service renders pages with Jinja2 templates.</li>
+            <li><strong>Only the design system and a little JavaScript on the frontend.</strong> Keep portal.css, shell.js and the design tokens; interaction uses small JavaScript modules that need no build, with no framework and no Node.js build.</li>
+            <li><strong>Long tasks never block requests.</strong> Runs go to a background worker; pages read progress by polling or server-sent events.</li>
+            <li><strong>Multilingual.</strong> Template text lives in the message catalogs, using the same mechanism as the command line (ADR 0007).</li>
+            <li><strong>Room to adjust.</strong> If a later step editor truly needs a framework, it is introduced on that page only, with its own ADR.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>The whole project is Python, with no TypeScript or frontend build to maintain.</li>
+            <li>Pages match the prototype: the same CSS, layout and components.</li>
+            <li>The API and the pages share models and validation, so error messages are consistent.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Complex drag-and-drop editing needs hand-written JavaScript; past a certain size it must be reconsidered.</li>
+            <li>Server-rendered pages must separately ensure keyboard access and narrow-screen layouts.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Flask + Jinja (the prototype's brief)</td><td>Equally simple, but request validation and API docs need extra pieces; FastAPI uses Pydantic models directly and generates OpenAPI.</td></tr>
+              <tr><td>FastAPI + React (ADR 0004)</td><td>Richest interaction, but the MVP pages do not need it, while it adds a TypeScript codebase and build to maintain.</td></tr>
+              <tr><td>NiceGUI, Streamlit</td><td>Pure Python, but they cannot reuse the design system's layout and components.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

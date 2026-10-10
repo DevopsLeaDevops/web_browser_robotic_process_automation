@@ -593,6 +593,119 @@
       "title": "GotoStep",
       "type": "object"
     },
+    "InputSpec": {
+      "additionalProperties": false,
+      "description": "一個入參：執行時由使用者、API 或上游場景的出參提供。啟動瀏覽器之前校驗。",
+      "properties": {
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "minLength": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minlength"
+        },
+        "maxLength": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlength"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        }
+      },
+      "title": "InputSpec",
+      "type": "object"
+    },
     "Locator": {
       "additionalProperties": false,
       "description": "頁面元素的定位器。\n\n範例::\n\n    { role: button, name: 登入 }\n    { label: 密碼 }\n    { css: \"tr\", hasText: 訂單 123, within: { role: table, name: 訂單 } }",
@@ -878,9 +991,9 @@
       "title": "Locator",
       "type": "object"
     },
-    "ParamSpec": {
+    "OutputSpec": {
       "additionalProperties": false,
-      "description": "場景參數的宣告；執行時由使用者或排程提供值。",
+      "description": "一個出參：自動化與獨立斷言都通過之後才發布，可以串到下游場景的入參。",
       "properties": {
         "type": {
           "default": "string",
@@ -888,14 +1001,12 @@
             "string",
             "number",
             "integer",
-            "boolean"
+            "boolean",
+            "array",
+            "object"
           ],
           "title": "Type",
           "type": "string"
-        },
-        "default": {
-          "default": null,
-          "title": "Default"
         },
         "description": {
           "anyOf": [
@@ -909,9 +1020,99 @@
           ],
           "default": null,
           "title": "Description"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "minLength": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minlength"
+        },
+        "maxLength": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlength"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
         }
       },
-      "title": "ParamSpec",
+      "title": "OutputSpec",
       "type": "object"
     },
     "PressStep": {
@@ -1055,6 +1256,26 @@
       "title": "ScreenshotStep",
       "type": "object"
     },
+    "ScriptConfig": {
+      "additionalProperties": false,
+      "description": "Python 腳本逃生門：DSL 表達不了的場景，用原型的檔案契約執行。\n\n- automation.py 接受 ``--input --facts --screenshot --target-url``，把頁面事實寫進 facts\n- assertion.py 接受 ``--input --facts --output``，獨立比對事實與入參，寫出候選出參\n\n審核時特別標示；錄製與 AI 不會產生這種場景。",
+      "properties": {
+        "automation": {
+          "title": "Automation",
+          "type": "string"
+        },
+        "assertion": {
+          "title": "Assertion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "automation",
+        "assertion"
+      ],
+      "title": "ScriptConfig",
+      "type": "object"
+    },
     "SelectStep": {
       "additionalProperties": false,
       "description": "選擇下拉選單的選項。",
@@ -1121,6 +1342,85 @@
         "option"
       ],
       "title": "SelectStep",
+      "type": "object"
+    },
+    "VerifyCheck": {
+      "additionalProperties": false,
+      "description": "獨立斷言的一條規則：在自動化結束後，比對頁面事實與入參。\n\nvalue 與比較值都以 ``{{ }}`` 代入後的文字比較。",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        },
+        "equals": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Equals"
+        },
+        "contains": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contains"
+        },
+        "matches": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matches"
+        },
+        "notEmpty": {
+          "anyOf": [
+            {
+              "const": true,
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notempty"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "VerifyCheck",
       "type": "object"
     },
     "Viewport": {
@@ -1288,11 +1588,31 @@
       "default": null,
       "title": "Description"
     },
-    "params": {
+    "category": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Category"
+    },
+    "inputs": {
       "additionalProperties": {
-        "$ref": "#/$defs/ParamSpec"
+        "$ref": "#/$defs/InputSpec"
       },
-      "title": "Params",
+      "title": "Inputs",
+      "type": "object"
+    },
+    "outputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/OutputSpec"
+      },
+      "title": "Outputs",
       "type": "object"
     },
     "secrets": {
@@ -1308,62 +1628,110 @@
     "defaults": {
       "$ref": "#/$defs/Defaults"
     },
-    "steps": {
-      "items": {
-        "discriminator": {
-          "mapping": {
-            "click": "#/$defs/ClickStep",
-            "expect": "#/$defs/ExpectStep",
-            "extract": "#/$defs/ExtractStep",
-            "fill": "#/$defs/FillStep",
-            "goto": "#/$defs/GotoStep",
-            "press": "#/$defs/PressStep",
-            "screenshot": "#/$defs/ScreenshotStep",
-            "select": "#/$defs/SelectStep",
-            "waitFor": "#/$defs/WaitForStep"
-          },
-          "propertyName": "action"
+    "deadline": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "maximum": 3600000,
+          "type": "integer"
         },
-        "oneOf": [
-          {
-            "$ref": "#/$defs/GotoStep"
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Deadline"
+    },
+    "steps": {
+      "anyOf": [
+        {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "click": "#/$defs/ClickStep",
+                "expect": "#/$defs/ExpectStep",
+                "extract": "#/$defs/ExtractStep",
+                "fill": "#/$defs/FillStep",
+                "goto": "#/$defs/GotoStep",
+                "press": "#/$defs/PressStep",
+                "screenshot": "#/$defs/ScreenshotStep",
+                "select": "#/$defs/SelectStep",
+                "waitFor": "#/$defs/WaitForStep"
+              },
+              "propertyName": "action"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/GotoStep"
+              },
+              {
+                "$ref": "#/$defs/ClickStep"
+              },
+              {
+                "$ref": "#/$defs/FillStep"
+              },
+              {
+                "$ref": "#/$defs/SelectStep"
+              },
+              {
+                "$ref": "#/$defs/PressStep"
+              },
+              {
+                "$ref": "#/$defs/WaitForStep"
+              },
+              {
+                "$ref": "#/$defs/ExpectStep"
+              },
+              {
+                "$ref": "#/$defs/ExtractStep"
+              },
+              {
+                "$ref": "#/$defs/ScreenshotStep"
+              }
+            ]
           },
-          {
-            "$ref": "#/$defs/ClickStep"
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Steps"
+    },
+    "verify": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/VerifyCheck"
           },
-          {
-            "$ref": "#/$defs/FillStep"
-          },
-          {
-            "$ref": "#/$defs/SelectStep"
-          },
-          {
-            "$ref": "#/$defs/PressStep"
-          },
-          {
-            "$ref": "#/$defs/WaitForStep"
-          },
-          {
-            "$ref": "#/$defs/ExpectStep"
-          },
-          {
-            "$ref": "#/$defs/ExtractStep"
-          },
-          {
-            "$ref": "#/$defs/ScreenshotStep"
-          }
-        ]
-      },
-      "minItems": 1,
-      "title": "Steps",
-      "type": "array"
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Verify"
+    },
+    "script": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScriptConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [
     "schemaVersion",
     "id",
-    "name",
-    "steps"
+    "name"
   ],
   "title": "Scenario",
   "type": "object"

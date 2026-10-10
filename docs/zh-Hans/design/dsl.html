@@ -15,52 +15,54 @@
   <div class="heading">
     <div>
       <h1>场景 DSL</h1>
-      <p>场景的唯一真实来源。YAML 编写、JSON 存储，以 Pydantic 模型校验；本页是 schemaVersion 1 的规格。</p>
+      <p>场景的唯一真实来源。YAML 编写、JSON 存储，以 Pydantic 模型校验；包含入参、出参与独立断言的场景契约。本页是 schemaVersion 1 的规格。</p>
     </div>
-    <span class="badge green">schemaVersion 1 · M1 定稿</span>
+    <span class="badge green">schemaVersion 1 · M1.1</span>
   </div>
 
   <div class="stack">
-    <div class="notice">模型在 <code>packages/rpa_core/src/rpa_core/dsl/</code>，完整示例在 <code>examples/</code>，JSON Schema 在 <code>schema/scenario.v1.json</code>。决策背景见 <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a>。</div>
+    <div class="notice">模型在 <code>packages/rpa_core/src/rpa_core/dsl/</code>，示例在 <code>scenarios/</code>，JSON Schema 在 <code>schema/scenario.v1.json</code>。决策背景见 <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a> 与 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>。</div>
 
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>示例</h2><span class="muted">节录自 examples/erp-login.yaml</span></div>
+        <div class="panel-header"><h2>示例</h2><span class="muted">节录自 scenarios/demo/ba-001.yaml（MVP 原型的 BA-001）</span></div>
         <div class="panel-body">
-<pre class="source"># yaml-language-server: $schema=../schema/scenario.v1.json
+<pre class="source"># yaml-language-server: $schema=../../schema/scenario.v1.json
 schemaVersion: 1
-id: erp-login
-name: 登录 ERP
-params:
-  user: { type: string, description: 登录账号 }
-secrets: [ERP_PASSWORD]
-browser:
-  baseUrl: https://erp.example.internal
-  viewport: { width: 1280, height: 800 }
-defaults:
-  timeout: 10000
+id: ba-001
+name: 创建示例记录
+category: 示例数据
+inputs:
+  title: { type: string, minLength: 1, maxLength: 60 }
+  quantity: { type: integer, minimum: 1, maximum: 30, default: 12 }
+outputs:
+  recordId:
+    pattern: '^DEMO-[A-Z0-9]+$'
+    from: '{{ facts.record.recordId }}'
+browser: { engine: firefox, baseUrl: http://127.0.0.1:8765 }
+deadline: 45000
 steps:
   - id: open
     action: goto
-    url: /login
-  - id: fill-user
+    url: /
+  - id: fill-title
     action: fill
-    target: { role: textbox, name: 账号 }
-    value: "{{ params.user }}"
-  - id: fill-password
-    action: fill
-    target: { label: 密码 }
-    value: "{{ secrets.ERP_PASSWORD }}"
+    target: { label: 标题, exact: true }
+    value: '{{ inputs.title }}'
   - id: submit
     action: click
-    target:
-      role: button
-      name: 登录
-      fallback: [{ testId: login-submit }]
-  - id: check-welcome
-    action: expect
-    target: { text: 欢迎回来 }
-    state: visible</pre>
+    target: { role: button, name: 创建记录 }
+  - id: read-record
+    action: extract
+    target: { css: '#receipt' }
+    as: record
+    fields:
+      recordId: { target: { css: '#record-id' } }
+      status: { target: { css: '#record-status' } }
+verify:
+  - name: 状态是已创建
+    value: '{{ facts.record.status }}'
+    equals: 已创建</pre>
         </div>
       </section>
 
@@ -68,13 +70,14 @@ steps:
         <div class="panel-header"><h2>设计原则</h2></div>
         <div class="panel-body">
           <ul class="points">
+            <li><strong>成功要有证据。</strong>步骤只操作页面、留下页面事实；由独立断言 <code>verify</code> 判定成功，通过后才发布出参。「脚本没有出错」不等于成功。</li>
+            <li><strong>入参、出参是契约。</strong>入参在启动浏览器前校验；出参可以串到下一个场景的入参。两者都能导出成 JSON Schema。</li>
             <li><strong>每个步骤有稳定的 id。</strong>运行结果、截图与日志按步骤归档；插入或删除步骤时不会错位。</li>
             <li><strong>定位器有优先级。</strong>testId → role + name → label → placeholder → text → altText → title → css → xpath。录制时同时记下多个候选放在 fallback，作为自愈的基础。</li>
-            <li><strong>只用条件等待。</strong>不提供固定秒数的 sleep，改用 <code>waitFor</code> 等待元素、网址或加载状态。</li>
+            <li><strong>只用条件等待。</strong>不提供固定秒数的 sleep，改用 <code>waitFor</code>；整次运行受 <code>deadline</code> 限制。</li>
             <li><strong>写错就挡下来。</strong>无法识别的字段、类型不符、YAML 的隐式转型都在校验时报错，并指出文件行号、步骤与字段。</li>
             <li><strong>Secrets 只引用名称。</strong>值在运行时注入，日志与截图说明自动遮罩。</li>
-            <li><strong>表达式在沙箱内求值。</strong><code>{{ }}</code> 以 Jinja2 沙箱环境处理（M3），只能读取 params、env、secrets 与先前步骤的输出。</li>
-            <li><strong>保留逃生门。</strong>DSL 表达不了的情况使用受控的 <code>script</code> 步骤（M3 之后），并在审核时特别标示。</li>
+            <li><strong>保留逃生门。</strong>DSL 表达不了的场景可以改用 Python 脚本（<code>script</code>），沿用同一份契约，审核时特别标示。</li>
           </ul>
         </div>
       </section>
@@ -87,18 +90,37 @@ steps:
           <thead><tr><th>字段</th><th>必填</th><th>说明</th></tr></thead>
           <tbody>
             <tr><td><code>schemaVersion</code></td><td>是</td><td>DSL 版本，目前是 <code>1</code>。格式有不兼容的变更时递增，并提供迁移。</td></tr>
-            <tr><td><code>id</code></td><td>是</td><td>小写英文字母、数字、<code>-</code> 与 <code>_</code>，以英数开头，最长 64 个字符。会用在文件名与网址。</td></tr>
+            <tr><td><code>id</code></td><td>是</td><td>小写英文字母、数字、<code>-</code> 与 <code>_</code>，以英数开头，最长 64 个字符。会用在文件名与网址，不重复使用。</td></tr>
             <tr><td><code>name</code></td><td>是</td><td>给人看的名称。</td></tr>
             <tr><td><code>description</code></td><td></td><td>说明。</td></tr>
-            <tr><td><code>params</code></td><td></td><td>参数声明，键是参数名称（英文字母、数字与 <code>_</code>）。每个参数有 <code>type</code>（string、number、integer、boolean，默认 string）、<code>default</code>、<code>description</code>；没有默认值代表运行时必须提供。</td></tr>
+            <tr><td><code>category</code></td><td></td><td>分类，场景列表与报告依此筛选。</td></tr>
+            <tr><td><code>inputs</code></td><td></td><td>入参声明，键是名称（英文字母、数字与 <code>_</code>），见下方场景契约。</td></tr>
+            <tr><td><code>outputs</code></td><td></td><td>出参声明；有出参就要有 <code>verify</code>。</td></tr>
             <tr><td><code>secrets</code></td><td></td><td>机密名称列表，例如 <code>ERP_PASSWORD</code>（大写英文字母、数字与 <code>_</code>）。值不写在场景里。</td></tr>
-            <tr><td><code>browser</code></td><td></td><td><code>engine</code>（chromium、firefox、webkit，默认 chromium）、<code>headless</code>（默认 true）、<code>viewport</code>（width、height）、<code>baseUrl</code>、<code>locale</code>（例如 zh-TW）。</td></tr>
-            <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>：步骤默认超时。</td></tr>
-            <tr><td><code>steps</code></td><td>是</td><td>步骤列表，至少一步。</td></tr>
+            <tr><td><code>browser</code></td><td></td><td><code>engine</code>（chromium、firefox；webkit 可用但 CI 不测；默认 chromium）、<code>headless</code>（默认 true）、<code>viewport</code>（width、height）、<code>baseUrl</code>、<code>locale</code>（例如 zh-TW）。</td></tr>
+            <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>：单一步骤的默认超时。</td></tr>
+            <tr><td><code>deadline</code></td><td></td><td>整次运行的总期限（毫秒），从启动浏览器算到发布出参；每一步只能用剩下的时间。</td></tr>
+            <tr><td><code>steps</code></td><td>二择一</td><td>自动化步骤列表，至少一步。</td></tr>
+            <tr><td><code>script</code></td><td>二择一</td><td>Python 脚本逃生门，见下方场景契约。</td></tr>
+            <tr><td><code>verify</code></td><td></td><td>独立断言列表，见下方场景契约。</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="diagram-caption">网址以 <code>/</code> 开头时接在 <code>browser.baseUrl</code> 后面，同一个场景换环境（测试、正式）只要改 baseUrl。</div>
+      <div class="diagram-caption">网址以 <code>/</code> 开头时接在 <code>browser.baseUrl</code> 后面，同一个场景换环境（测试、正式）只要改 baseUrl。M1 的 <code>params</code> 已改名为 <code>inputs</code>，写旧名会提示新名。</div>
+    </section>
+
+    <section class="panel" id="contract">
+      <div class="panel-header"><h2>场景契约</h2><span class="muted">入参 → 步骤 → 页面事实 → 独立断言 → 出参</span></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean，默认 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制。</dd>
+          <dt><code>facts</code></dt><dd>页面事实：<code>extract</code> 以 <code>as: 名称</code> 存成 <code>facts.名称</code>。步骤只能引用前面步骤产生的事实；verify 与 outputs 可以引用全部。</dd>
+          <dt><code>verify</code></dt><dd>每一条有 <code>value</code>（必须含 <code>{{ }}</code>）与 <code>equals</code>、<code>contains</code>、<code>matches</code>（正则表达式）、<code>notEmpty: true</code> 其中一种比较；<code>name</code> 会出现在报告。比较时两边都以代入后的文字比较。</dd>
+          <dt><code>outputs</code></dt><dd>类型多了 array、object，限制同入参；<code>from</code> 指定取值，例如 <code>{{ facts.record.recordId }}</code>。只有一个 <code>{{ }}</code> 时保留原本的类型（例如列表），否则依 type 转换文字。</dd>
+          <dt><code>script</code></dt><dd><code>automation</code> 与 <code>assertion</code> 两个 Python 文件，路径相对于场景文件所在的文件夹、不能用 <code>..</code>。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令行契约）。脚本场景不写 verify，出参也不写 from。</dd>
+        </dl>
+        <p class="muted">运行顺序与失败时的处理见 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>；运行引擎在 M2 实现。<code>rpa schema 场景文件 --part inputs</code> 或 <code>--part outputs</code> 输出单一场景的入参或出参 JSON Schema。</p>
+      </div>
     </section>
 
     <div class="two-col">
@@ -109,9 +131,9 @@ steps:
             <dt><code>id</code></dt><dd>必填，场景内唯一。格式同场景 id。</dd>
             <dt><code>action</code></dt><dd>必填，动作名称，见下方动作表。</dd>
             <dt><code>name</code></dt><dd>给人看的步骤说明。</dd>
-            <dt><code>timeout</code></dt><dd>这一步的超时，<strong>毫秒整数</strong>，大于 0、最多 3,600,000（一小时）。没写就用 <code>defaults.timeout</code>。</dd>
+            <dt><code>timeout</code></dt><dd>这一步的超时，<strong>毫秒整数</strong>，大于 0、最多 3,600,000（一小时）。没写就用 <code>defaults.timeout</code>；不会超过总期限剩下的时间。</dd>
           </dl>
-          <p class="muted">retry 与 onError（继续、失败、跳到某一步）在 M3 加入。</p>
+          <p class="muted">retry 与 onError 在 M7 加入；重试只用于没有副作用的步骤，送出表单之类的动作不会自动重试。</p>
         </div>
       </section>
 
@@ -170,21 +192,21 @@ steps:
             <tr><td><code>select</code></td><td>选择下拉选项</td><td><strong>target</strong>、<strong>option</strong></td><td>option 是选项的值或显示文字；写成列表代表多选</td></tr>
             <tr><td><code>press</code></td><td>按键或组合键</td><td><strong>key</strong>（Enter、Tab、Control+A…）、target</td><td>没有 target 时送给目前聚焦的元素</td></tr>
             <tr><td><code>waitFor</code></td><td>等待条件成立</td><td>target + state（visible、hidden、attached、detached）、url + match、loadState</td><td>三种条件恰好选一种</td></tr>
-            <tr><td><code>expect</code></td><td>断言，不成立即判定失败</td><td>target + state、text、value、count 其一；或不给 target，检查 url、title 其一；match</td><td>state 可用 visible、hidden、enabled、disabled、checked、unchecked、editable</td></tr>
-            <tr><td><code>extract</code></td><td>从页面抽取数据</td><td><strong>target</strong>、<strong>as</strong>、get、attribute、multiple、fields</td><td>见下方说明</td></tr>
+            <tr><td><code>expect</code></td><td>步骤内的检查，不成立即判定失败</td><td>target + state、text、value、count 其一；或不给 target，检查 url、title 其一；match</td><td>state 可用 visible、hidden、enabled、disabled、checked、unchecked、editable</td></tr>
+            <tr><td><code>extract</code></td><td>抽取页面事实</td><td><strong>target</strong>、<strong>as</strong>、get、attribute、multiple、fields</td><td>见下方说明</td></tr>
             <tr><td><code>screenshot</code></td><td>截图存为产物</td><td>file、target、fullPage</td><td>file 是不含扩展名的文件名，没写就用步骤 id；fullPage 不能搭配 target</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
         <dl class="spec-list">
+          <dt>extract 的 as</dt><dd>存成页面事实 <code>facts.名称</code>；同一个场景内不能重复。</dd>
           <dt>extract 的 get</dt><dd><code>text</code>（默认）、<code>value</code>、<code>html</code>、<code>attribute</code>（要用 <code>attribute</code> 指定属性名称）、<code>table</code>（把 &lt;table&gt; 依表头转成记录列表）。</dd>
           <dt>extract 的 multiple</dt><dd>抽取所有符合的元素，得到列表；默认只取第一个。</dd>
           <dt>extract 的 fields</dt><dd>每个元素抽成一笔记录，键是字段名称，值可写 target（相对于该元素）、get、attribute。有 fields 时不写外层的 get。</dd>
-          <dt>extract 的 as</dt><dd>存成的变量名称，之后的步骤可以引用（M3）。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">download、upload、iframe、多标签页、条件与循环等在 M3 加入。</div>
+      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。download、upload、iframe、多标签页、条件与循环等在 M7 加入。</div>
     </section>
 
     <div class="two-col">
@@ -203,12 +225,13 @@ steps:
       </section>
 
       <section class="panel" id="templates">
-        <div class="panel-header"><h2>表达式 <code>{{ }}</code></h2><span class="muted">M1 只做静态检查</span></div>
+        <div class="panel-header"><h2>表达式 <code>{{ }}</code></h2><span class="muted">Jinja2；M2 在沙箱内求值</span></div>
         <div class="panel-body">
           <ul class="points">
-            <li>字符串字段可以写 <code>{{ params.名称 }}</code>、<code>{{ secrets.名称 }}</code>、<code>{{ env.名称 }}</code>，求值在 M3 加入。</li>
-            <li>校验时检查 <code>{{</code> 有没有对应的 <code>}}</code>、内容是否空白，以及引用的 params、secrets 有没有声明。</li>
-            <li>场景与步骤的 <code>name</code>、<code>description</code> 是给人看的文字，不检查也不代入。</li>
+            <li><strong>可用的变量</strong>只有 <code>inputs</code>、<code>secrets</code>、<code>facts</code>、<code>env</code>；可以用 Jinja2 的过滤器，例如 <code>{{ inputs.title | upper }}</code>。</li>
+            <li><strong>校验时就会检查</strong>语法、未知的变量与过滤器、没有声明的 inputs 与 secrets、没有 extract 产生或还没产生的 facts。</li>
+            <li><strong>facts 不能用在 browser 设置</strong>，因为那时还没开始操作页面。</li>
+            <li>场景、步骤与断言的 <code>name</code>、<code>description</code> 是给人看的文字，不检查也不代入。</li>
           </ul>
         </div>
       </section>
@@ -217,17 +240,17 @@ steps:
     <section class="panel" id="validate">
       <div class="panel-header"><h2>校验：<code>rpa validate</code></h2></div>
       <div class="panel-body">
-<pre class="source">$ rpa validate examples/ scenarios/login.yaml
+<pre class="source">$ rpa validate scenarios/
 scenarios/login.yaml:14:9: 步骤 3（login-pass） › target.css：只能指定一种定位方式，目前有：label, css；其他写法可以放在 fallback
-scenarios/login.yaml:20:5: 步骤 4（shot） › fullpage：无法识别的字段 fullpage，是不是 fullPage？
-检查 3 个文件，1 个未通过，共 2 个问题。</pre>
+scenarios/login.yaml:31:15: 步骤 5（read） › value：facts.total 要等后面的 extract 步骤才会产生
+检查 5 个文件，1 个未通过，共 2 个问题。</pre>
         <dl class="spec-list">
           <dt>位置</dt><dd><code>文件:行:列</code>，与编译器相同的格式，编辑器与 CI 可以直接跳到错误位置。行与列从 1 开始。</dd>
-          <dt>参数</dt><dd>文件或文件夹，可以多个；文件夹会找出底下所有 .yaml 与 .yml（略过隐藏文件夹）。</dd>
+          <dt>参数</dt><dd>文件或文件夹，可以多个；文件夹会找出底下所有 .yaml 与 .yml（略过隐藏文件夹）。脚本场景会检查脚本文件是否存在。</dd>
           <dt><code>--format json</code></dt><dd>每个问题含 line、column、step、stepId、field、path、code、message，给程序与 AI 自动修正（M5）使用。</dd>
           <dt>退出码</dt><dd>0 全部通过；1 有文件未通过，或文件夹里没有 YAML；2 参数错误。</dd>
-          <dt><code>rpa schema</code></dt><dd>输出 JSON Schema。仓库中的 <code>schema/scenario.v1.json</code> 由它产生；场景文件第一行加上 <code># yaml-language-server: $schema=…</code>，VS Code 的 YAML 插件就能自动补全与实时检查。</dd>
-          <dt>Python</dt><dd><code>rpa_core.dsl.validate_file()</code>、<code>validate_text()</code>、<code>validate_data()</code> 回传场景模型与所有问题；Web UI 与 API 也用同一套。</dd>
+          <dt><code>rpa schema</code></dt><dd>输出 DSL 的 JSON Schema。仓库中的 <code>schema/scenario.v1.json</code> 由它产生；场景文件第一行加上 <code># yaml-language-server: $schema=…</code>，VS Code 的 YAML 插件就能自动补全与实时检查。指定场景文件时输出该场景的入参或出参 Schema。</dd>
+          <dt>Python</dt><dd><code>rpa_core.dsl.validate_file()</code>、<code>validate_text()</code>、<code>validate_data()</code> 回传场景模型与所有问题；<code>inputs_json_schema()</code>、<code>outputs_json_schema()</code> 产生单一场景的契约。管理界面与 API 也用同一套。</dd>
         </dl>
       </div>
     </section>

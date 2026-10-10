@@ -24,9 +24,9 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">目前階段</span><div class="value">M2</div><span class="muted">Runner 與 CLI：M1 場景 DSL 已完成</span></section>
+      <section class="panel panel-body stat"><span class="muted">目前階段</span><div class="value">M1.1</div><span class="muted">場景契約：方案 v2 結合 MVP 原型</span></section>
       <section class="panel panel-body stat"><span class="muted">里程碑</span><div class="value">10</div><span class="muted">M0 至 M9，逐步交付</span></section>
-      <section class="panel panel-body stat"><span class="muted">架構決策</span><div class="value">8</div><span class="muted">全部已接受</span></section>
+      <section class="panel panel-body stat"><span class="muted">架構決策</span><div class="value">11</div><span class="muted">10 項已接受、1 項已取代</span></section>
       <section class="panel panel-body stat"><span class="muted">主要語言</span><div class="value">Python</div><span class="muted">3.12 以上 · 前端 TypeScript</span></section>
     </div>
 
@@ -39,11 +39,12 @@
 
     <div class="grid">
       <a class="panel panel-body link-card" href="design/positioning.html"><h2>產品定位</h2><p>要解決什麼問題、核心概念、生成到回饋的閉環。</p></a>
-      <a class="panel panel-body link-card" href="design/dsl.html"><h2>場景 DSL</h2><p>為什麼用聲明式 DSL，以及每個欄位與動作的規格。</p></a>
+      <a class="panel panel-body link-card" href="design/dsl.html"><h2>場景 DSL</h2><p>聲明式 DSL 與場景契約：入參、出參、獨立斷言，以及每個欄位與動作的規格。</p></a>
       <a class="panel panel-body link-card" href="design/architecture.html"><h2>系統架構</h2><p>元件、資料流與目錄結構，以及每個套件的職責。</p></a>
       <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>技術選型</h2><p>每一層的選擇、備選方案與理由。</p></a>
       <a class="panel panel-body link-card" href="design/multi-user.html"><h2>多用戶與內部系統</h2><p>認證、權限、Secrets、稽核，以及內部系統帶來的限制。</p></a>
       <a class="panel panel-body link-card" href="style/index.html"><h2>介面風格</h2><p>介面設計系統 v1.0：兩級 Portal、藍色主色、緊湊資訊密度。</p></a>
+      <a class="panel panel-body link-card" href="prototypes/mvp/index.html"><h2>MVP 原型</h2><p>場景管理、錄製與調試、報告、自由試驗場的離線互動原型，以及真實執行的範例。</p></a>
     </div>
 
     <div class="two-col">
@@ -60,11 +61,11 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M1 完成時</span></div>
+        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M1.1 進行中</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>rpa-core</dt><dd>場景 DSL 的模型、YAML 載入與校驗；範例在 <code>examples/</code></dd>
-            <dt>rpa-cli</dt><dd><code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa schema</code> 輸出 JSON Schema；<code>--lang</code> 切換繁中、簡中、英文</dd>
+            <dt>rpa-core</dt><dd>場景 DSL 與場景契約的模型、YAML 載入與校驗；範例在 <code>scenarios/</code></dd>
+            <dt>rpa-cli</dt><dd><code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa schema</code> 輸出 DSL 或單一場景入參、出參的 JSON Schema；<code>--lang</code> 切換繁中、簡中、英文</dd>
             <dt>工具鏈</dt><dd>uv（依賴以 <code>uv.lock</code> 鎖定）、ruff、pyright（strict）、pytest、pre-commit</dd>
             <dt>CI</dt><dd>靜態檢查，Python 3.12 / 3.13 測試，含 Chromium 冒煙測試；一鍵安裝腳本每週在 macOS、Ubuntu、Windows 實際執行</dd>
             <dt>文檔</dt><dd>本站，繁中、簡中、英文三種語言，含連結與翻譯同步的自動檢查</dd>

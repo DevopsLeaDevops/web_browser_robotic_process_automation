@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:0a934b600ca8a2d9">
+<meta name="translation-source" content="sha256:7f226fc8e68e6b45">
 <title>ADR 0006 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -43,7 +43,7 @@
             <li>The design package is included as is in <code>docs/design-system/</code> and never edited directly; tests check the sha256 values in <code>MANIFEST.json</code>.</li>
             <li>The docs site uses its <code>portal.css</code> from M0.</li>
             <li>M6 builds this project's page prototypes from <code>starter.html</code>.</li>
-            <li>M8 ports <code>portal.css</code> and <code>tokens.json</code> to the React frontend.</li>
+            <li>From M3 the management interface's Jinja pages use <code>portal.css</code> and <code>tokens.json</code> directly (the original plan to port them to React in M8 was changed by <a href="0011-fastapi-jinja.html">ADR 0011</a>).</li>
             <li>When the design package is updated, it is replaced as a whole and the version is recorded on this page.</li>
           </ul>
         </div>

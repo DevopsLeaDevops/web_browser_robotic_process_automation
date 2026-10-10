@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=../../schema/scenario.v1.json
+#
+# MVP 原型的 BA-001：在本機測試頁建立一筆範例紀錄。
+# 等同原型 python-demo/scenes 的 automation.py 與 assertion.py：
+# 步驟只負責操作頁面、抽取頁面事實（facts）；成功與否由 verify 獨立判定，全部通過才發布出參。
+# 測試頁在 M2 加入倉庫（沿用原型的 target/server.py）。
+
+schemaVersion: 1
+id: ba-001
+name: 建立範例紀錄
+category: 範例資料
+description: 填寫標題與數量後建立紀錄；出參是新紀錄的編號、標題與數量，可以交給 BA-002 查詢。
+
+inputs:
+  title:
+    type: string
+    minLength: 1
+    maxLength: 60
+    pattern: '\S'
+    default: 介面驗證範例
+  quantity:
+    type: integer
+    minimum: 1
+    maximum: 30
+    default: 12
+
+outputs:
+  recordId:
+    type: string
+    pattern: '^DEMO-[A-Z0-9]+$'
+    from: '{{ facts.record.recordId }}'
+  title:
+    type: string
+    from: '{{ facts.record.title }}'
+  quantity:
+    type: integer
+    minimum: 1
+    maximum: 30
+    from: '{{ facts.record.quantity }}'
+
+browser:
+  engine: firefox
+  baseUrl: http://127.0.0.1:8765
+  viewport: { width: 1280, height: 800 }
+
+defaults:
+  timeout: 5000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /
+    waitUntil: domcontentloaded
+
+  - id: fill-title
+    action: fill
+    target: { label: 標題, exact: true }
+    value: '{{ inputs.title }}'
+
+  - id: fill-quantity
+    action: fill
+    target: { label: 數量, exact: true }
+    value: '{{ inputs.quantity }}'
+
+  - id: submit
+    name: 建立紀錄（有副作用，只點擊一次，不自動重試）
+    action: click
+    target: { role: button, name: 建立紀錄, exact: true }
+
+  - id: wait-receipt
+    action: waitFor
+    target: { css: '#receipt' }
+
+  - id: read-record
+    name: 讀取畫面上的紀錄詳情
+    action: extract
+    target: { css: '#receipt' }
+    as: record
+    fields:
+      recordId: { target: { css: '#record-id' } }
+      title: { target: { css: '#record-title' } }
+      quantity: { target: { css: '#record-quantity' } }
+      status: { target: { css: '#record-status' } }
+
+  - id: evidence
+    action: screenshot
+    fullPage: true
+
+verify:
+  - name: 取得有效的紀錄編號
+    value: '{{ facts.record.recordId }}'
+    matches: '^DEMO-[A-Z0-9]+$'
+  - name: 狀態是已建立
+    value: '{{ facts.record.status }}'
+    equals: 已建立
+  - name: 畫面上的標題與入參相同
+    value: '{{ facts.record.title }}'
+    equals: '{{ inputs.title }}'
+  - name: 畫面上的數量與入參相同
+    value: '{{ facts.record.quantity }}'
+    equals: '{{ inputs.quantity }}'

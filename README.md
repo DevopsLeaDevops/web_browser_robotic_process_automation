@@ -22,15 +22,16 @@
 
 ```bash
 uv sync                              # 安裝全部套件與開發工具
-uv run playwright install chromium   # 下載瀏覽器
+uv run playwright install chromium firefox   # 下載瀏覽器
 uv run pytest                        # 跑測試
 uv run rpa --version
-uv run rpa validate examples/        # 校驗範例場景
+uv run rpa validate scenarios/       # 校驗範例場景
 ```
 
 完整說明見 `docs/develop/setup.html`；在 Mac 上從零開始的逐步說明見 `docs/develop/macos.html`。
 
 ## 目前進度
 
-M1 場景 DSL 已完成：`rpa validate` 校驗場景並指出行號、步驟與欄位，範例在 `examples/`，規格見 `docs/design/dsl.html`。
-下一步是 M2（Runner 與 CLI）。路線圖見 `docs/roadmap.html`。
+方案 v2：結合 MVP 原型（`docs/prototypes/mvp/`），先交付單機、單使用者的 MVP。
+M1 場景 DSL 已完成；M1.1 場景契約（入參、出參、獨立斷言）進行中，範例在 `scenarios/`，規格見 `docs/design/dsl.html`。
+下一步是 M2（Runner 與執行契約）。路線圖見 `docs/roadmap.html`。

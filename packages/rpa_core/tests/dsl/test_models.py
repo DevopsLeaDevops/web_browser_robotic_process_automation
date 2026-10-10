@@ -15,6 +15,7 @@ from rpa_core.dsl import (
     Locator,
     Scenario,
     ScreenshotStep,
+    Step,
     WaitForStep,
     scenario_json_schema,
     validate_text,
@@ -24,14 +25,14 @@ TEXT = """\
 schemaVersion: 1
 id: demo
 name: 示範
-params:
+inputs:
   month: { type: string, default: "2026-09" }
 secrets: [PASSWORD]
 browser: { baseUrl: https://example.test, viewport: { width: 1280, height: 800 } }
 defaults: { timeout: 5000 }
 steps:
   - { id: open, action: goto, url: /login }
-  - { id: pick, action: select, target: { label: 月份 }, option: "{{ params.month }}" }
+  - { id: pick, action: select, target: { label: 月份 }, option: "{{ inputs.month }}" }
   - { id: go, action: click, target: { role: button, name: 查詢, exact: true } }
   - { id: wait, action: waitFor, target: { testId: result } }
   - { id: rows, action: extract, target: { css: tr }, as: rows, multiple: true,
@@ -46,25 +47,31 @@ def load() -> Scenario:
     return result.scenario
 
 
+def steps() -> list[Step]:
+    scenario_steps = load().steps
+    assert scenario_steps is not None
+    return scenario_steps
+
+
 def test_defaults() -> None:
     scenario = load()
 
     assert scenario.schema_version == SCHEMA_VERSION
     assert scenario.browser.engine == "chromium"
     assert scenario.browser.headless is True
-    click = scenario.steps[2]
+    click = steps()[2]
     assert isinstance(click, ClickStep)
     assert (click.button, click.click_count, click.modifiers) == ("left", 1, None)
-    wait = scenario.steps[3]
+    wait = steps()[3]
     assert isinstance(wait, WaitForStep)
     assert (wait.state, wait.match) == ("visible", "contains")
-    shot = scenario.steps[5]
+    shot = steps()[5]
     assert isinstance(shot, ScreenshotStep)
     assert shot.file is None
 
 
 def test_extract_as_is_aliased() -> None:
-    step = load().steps[4]
+    step = steps()[4]
 
     assert isinstance(step, ExtractStep)
     assert step.as_ == "rows"
@@ -73,7 +80,7 @@ def test_extract_as_is_aliased() -> None:
 
 
 def test_locator_strategy() -> None:
-    click = load().steps[2]
+    click = steps()[2]
     assert isinstance(click, ClickStep)
     assert click.target.strategy == "role"
 
@@ -92,7 +99,7 @@ def test_dump_uses_dsl_field_names() -> None:
     assert data["steps"][4]["as"] == "rows"
     assert data["steps"][5] == {"id": "shot", "action": "screenshot", "fullPage": True}
     # 單一字串的 option 載入後一律是清單
-    assert data["steps"][1]["option"] == ["{{ params.month }}"]
+    assert data["steps"][1]["option"] == ["{{ inputs.month }}"]
 
 
 def test_json_round_trip() -> None:
@@ -119,7 +126,10 @@ def test_json_schema_lists_every_action() -> None:
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     defs = cast("dict[str, dict[str, object]]", schema["$defs"])
     steps = cast("dict[str, object]", cast("dict[str, object]", schema["properties"])["steps"])
-    items = cast("dict[str, object]", steps["items"])
+    variants = cast("list[dict[str, object]]", steps["anyOf"])
+    items = cast(
+        "dict[str, object]", next(v for v in variants if v.get("type") == "array")["items"]
+    )
     discriminator = cast("dict[str, object]", items["discriminator"])
     mapping = cast("dict[str, str]", discriminator["mapping"])
     assert sorted(mapping) == sorted(ACTIONS)

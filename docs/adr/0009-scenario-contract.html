@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0009 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0009" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0009：場景契約與獨立斷言</h1>
+      <p>每個場景都有入參、出參與獨立斷言；「腳本沒有拋錯」不算成功，出參只在獨立斷言通過後發布。DSL 為主，Python 腳本是受控的逃生門。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-10</dd>
+        <dt>影響範圍</dt><dd>rpa-core（DSL）、rpa-runner（M2）、管理 Portal、錄製與 AI 生成、編排</dd>
+        <dt>相關</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a>、<a href="0010-mvp-first.html">ADR 0010</a>、<a href="../design/dsl.html">場景 DSL</a>、<a href="../prototypes/mvp/index.html">MVP 原型</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>MVP 原型以真實的 Python / Playwright 範例驗證了一套執行契約：入參在啟動瀏覽器前以 JSON Schema 校驗；自動化只負責操作頁面並留下「頁面事實」；另一個獨立的斷言比對事實與入參；全部通過後，出參才發布，並可以交給下一個場景。</p>
+          <p>M1 的 DSL 只有 <code>params</code> 與步驟內的 <code>expect</code>：成功等於「步驟都沒失敗」，沒有出參，也無法串接場景。原型的流程與錄製、AI 生成、編排都依賴這份契約。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>場景契約。</strong>每個場景可以宣告 <code>inputs</code>（入參）與 <code>outputs</code>（出參），型別與限制取 JSON Schema 2020-12 的常用子集，可以匯出成 JSON Schema。<code>params</code> 改名為 <code>inputs</code>。</li>
+            <li><strong>頁面事實。</strong><code>extract</code> 的結果放在 <code>facts</code>；事實只描述頁面上看到了什麼，不代表成功。</li>
+            <li><strong>獨立斷言。</strong><code>verify</code> 在自動化結束後比對 facts 與 inputs。有出參的場景一定要有 verify。</li>
+            <li><strong>出參最後才發布。</strong>入參校驗 → 自動化 → 獨立斷言 → 出參校驗，全部通過才產生 output.json；任何一步失敗都沒有成功出參。</li>
+            <li><strong>總期限。</strong><code>deadline</code> 限制整次執行；每一步只能用剩下的時間。</li>
+            <li><strong>DSL 為主，Python 腳本為逃生門。</strong>DSL 表達不了的場景可用 <code>script</code> 指定 automation.py 與 assertion.py，沿用原型的命令列契約；審核時特別標示，錄製與 AI 不產生這種場景。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>一次執行的順序</h2><span class="muted">M2 實作</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>階段</th><th>輸入</th><th>產出</th><th>失敗時</th></tr></thead>
+          <tbody>
+            <tr><td>入參校驗</td><td>入參、inputs 宣告</td><td>input.json</td><td>不啟動瀏覽器</td></tr>
+            <tr><td>自動化</td><td>steps 或 automation.py</td><td>facts.json、截圖、日誌</td><td>保留階段、錯誤與能取得的截圖</td></tr>
+            <tr><td>獨立斷言</td><td>verify 或 assertion.py、facts、入參</td><td>候選出參</td><td>沒有成功出參</td></tr>
+            <tr><td>出參校驗與發布</td><td>候選出參、outputs 宣告</td><td>output.json</td><td>沒有成功出參</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">每一階段都受總期限限制；有副作用的動作（例如送出表單）不會因為逾時自動重試。</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>成功有證據：報告可以指出是哪一條斷言、哪一個事實不符。</li>
+            <li>場景可以串接：下游的入參綁定上游的出參，型別在執行前就能檢查。</li>
+            <li>API、管理介面與 AI 用同一份入參、出參 Schema。</li>
+            <li>DSL 仍是預設，錄製與 AI 的輸出可以先校驗；少數複雜場景有退路。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>寫場景時要多寫 verify 與 outputs；只截圖或查看的簡單場景可以省略。</li>
+            <li>Python 腳本場景能做任何事，安全邊界要靠審核、權限與執行隔離。</li>
+            <li>執行引擎要支援兩種場景，報告格式要一致。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>以 Python 腳本為主（照原型）</td><td>最有彈性，但錄製與 AI 的輸出無法在執行前校驗，網頁上難以編輯，安全邊界不清楚（<a href="0001-dsl-as-source-of-truth.html">ADR 0001</a> 的理由仍然成立）。</td></tr>
+              <tr><td>只用 DSL</td><td>最單純，但 DSL 擴充前遇到複雜頁面就沒有退路。</td></tr>
+              <tr><td>只用步驟內的 expect 判定成功</td><td>斷言與操作混在一起，無法保證「發布的出參」真的被檢查過，也不能獨立重跑斷言。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

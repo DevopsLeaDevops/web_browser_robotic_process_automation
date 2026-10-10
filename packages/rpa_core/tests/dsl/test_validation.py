@@ -64,7 +64,7 @@ def test_valid_scenario() -> None:
     assert result.ok
     assert result.issues == ()
     assert isinstance(result.scenario, Scenario)
-    assert [step.id for step in result.scenario.steps] == ["open", "ok"]
+    assert [step.id for step in result.scenario.steps or ()] == ["open", "ok"]
 
 
 # ---------------------------------------------------------------- 結構錯誤
@@ -93,9 +93,7 @@ def test_unknown_top_level_field() -> None:
     text = HEADER + "step:\n  - id: a\n"
     result = validate_text(text)
 
-    codes = {(i.code, i.field) for i in result.issues}
-    assert ("unknown_field.suggest", "step") in codes
-    assert ("missing", "steps") in codes
+    assert [(i.code, i.field) for i in result.issues] == [("unknown_field.suggest", "step")]
 
 
 def test_unknown_action_points_at_action() -> None:
@@ -150,6 +148,7 @@ def test_yes_stays_a_string() -> None:
 
     assert result.ok
     assert result.scenario is not None
+    assert result.scenario.steps is not None
     step = result.scenario.steps[0]
     assert step.action == "fill"
     assert step.value == "yes"
@@ -397,7 +396,7 @@ def test_select_accepts_one_or_many_options() -> None:
     result = validate_text(text)
 
     assert result.scenario is not None
-    options = [step.option for step in result.scenario.steps if step.action == "select"]
+    options = [step.option for step in result.scenario.steps or () if step.action == "select"]
     assert options == [["北區"], ["甲", "乙"]]
 
 
@@ -405,17 +404,17 @@ def test_select_accepts_one_or_many_options() -> None:
     ("top", "code", "field"),
     [
         (
-            "params:\n  n: { type: integer, default: '1' }\n",
-            "param.default_type",
-            "params.n.default",
+            "inputs:\n  n: { type: integer, default: '1' }\n",
+            "value.default_invalid",
+            "inputs.n.default",
         ),
         (
-            "params:\n  n: { type: number, default: true }\n",
-            "param.default_type",
-            "params.n.default",
+            "inputs:\n  n: { type: number, default: true }\n",
+            "value.default_invalid",
+            "inputs.n.default",
         ),
-        ("params:\n  n: { type: date }\n", "choice", "params.n.type"),
-        ("params:\n  1n: { type: string }\n", "format.identifier", "params.1n"),
+        ("inputs:\n  n: { type: date }\n", "choice", "inputs.n.type"),
+        ("inputs:\n  1n: { type: string }\n", "format.identifier", "inputs.1n"),
         ("secrets: [erp_password]\n", "format.secret_name", "secrets[0]"),
         ("browser: { baseUrl: example.test }\n", "url.invalid_base", "browser.baseUrl"),
         ("browser: { engine: chrome }\n", "choice.suggest", "browser.engine"),
@@ -471,13 +470,13 @@ def test_template_references_must_be_declared() -> None:
         "  - id: a\n"
         "    action: fill\n"
         "    target: { label: 帳號 }\n"
-        "    value: '{{ params.user }}-{{ secrets.PASSWORD }}-{{ env.HOME }}'\n",
-        "params:\n  other: {}\n",
+        "    value: '{{ inputs.user }}-{{ secrets.PASSWORD }}-{{ env.HOME }}'\n",
+        "inputs:\n  other: {}\n",
     )
     result = validate_text(text)
 
     assert [(i.code, i.field) for i in result.issues] == [
-        ("template.undeclared_params", "value"),
+        ("template.undeclared_inputs", "value"),
         ("template.undeclared_secrets", "value"),
     ]
     assert result.issues[0].position == position_of(text, "'{{")
@@ -488,21 +487,21 @@ def test_declared_template_references_are_fine() -> None:
     text = scenario(
         "  - id: a\n"
         "    action: fill\n"
-        "    target: { label: '{{ params.field }}' }\n"
-        "    value: '{{ params.user | upper }} {{ secrets.PASSWORD }}'\n",
-        "params:\n  user: {}\n  field: { default: 帳號 }\nsecrets: [PASSWORD]\n",
+        "    target: { label: '{{ inputs.field }}' }\n"
+        "    value: '{{ inputs.user | upper }} {{ secrets.PASSWORD }}'\n",
+        "inputs:\n  user: {}\n  field: { default: 帳號 }\nsecrets: [PASSWORD]\n",
     )
     assert validate_text(text).ok
 
 
 @pytest.mark.parametrize(
     ("value", "code"),
-    [("'{{ }}'", "template.empty"), ("'a {{ params.x'", "template.unclosed")],
+    [("'{{ }}'", "template.empty"), ("'a {{ inputs.x'", "template.unclosed")],
 )
 def test_template_syntax(value: str, code: str) -> None:
     text = scenario(
         f"  - id: a\n    action: fill\n    target: {{ label: x }}\n    value: {value}\n",
-        "params:\n  x: {}\n",
+        "inputs:\n  x: {}\n",
     )
     assert only_issue(text).code == code
 
@@ -510,7 +509,7 @@ def test_template_syntax(value: str, code: str) -> None:
 def test_names_and_descriptions_are_free_text() -> None:
     text = scenario(
         "  - id: a\n    name: 說明 {{ 不檢查\n    action: goto\n    url: https://example.test/\n",
-        "description: 用 {{ params.x }} 舉例\n",
+        "description: 用 {{ inputs.x }} 舉例\n",
     )
     assert validate_text(text).ok
 

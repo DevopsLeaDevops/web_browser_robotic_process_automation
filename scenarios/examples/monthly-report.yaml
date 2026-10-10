@@ -1,14 +1,16 @@
-# yaml-language-server: $schema=../schema/scenario.v1.json
+# yaml-language-server: $schema=../../schema/scenario.v1.json
 #
 # 範例：查詢月報，抽取總額與訂單表格，最後截圖。
-# 示範 select（單選、多選）、press、waitFor、extract 的三種寫法與 screenshot。
+# 示範 select（單選、多選）、press、waitFor、extract 的三種寫法、screenshot，
+# 以及出參與獨立斷言：總額與訂單表格都抽到才發布出參。
 # 網址是虛構的，M2 起改用測試網站實際執行。
 
 schemaVersion: 1
 id: monthly-report
 name: 查詢月報並抽取訂單
+category: 範例
 
-params:
+inputs:
   month:
     type: string
     default: "2026-09"
@@ -16,6 +18,15 @@ params:
   region:
     type: string
     default: 北區
+
+outputs:
+  total:
+    type: string
+    from: "{{ facts.total }}"
+  orders:
+    type: array
+    description: 訂單表格，每一列是一筆記錄
+    from: "{{ facts.orders }}"
 
 browser:
   baseUrl: https://erp.example.internal
@@ -29,12 +40,12 @@ steps:
   - id: fill-month
     action: fill
     target: { placeholder: YYYY-MM }
-    value: "{{ params.month }}"
+    value: "{{ inputs.month }}"
 
   - id: pick-region
     action: select
     target: { label: 區域 }
-    option: "{{ params.region }}"
+    option: "{{ inputs.region }}"
 
   - id: pick-status
     name: 多選訂單狀態
@@ -57,6 +68,12 @@ steps:
     target: { testId: report-month }
     text: "^\\d{4}-\\d{2}$"
     match: regex
+
+  - id: month
+    name: 畫面上實際顯示的月份
+    action: extract
+    target: { testId: report-month }
+    as: month
 
   - id: total
     name: 總額（第一個符合元素的文字）
@@ -91,3 +108,11 @@ steps:
     action: screenshot
     file: monthly-report
     fullPage: true
+
+verify:
+  - name: 有抽到總額
+    value: "{{ facts.total }}"
+    notEmpty: true
+  - name: 查詢的是指定月份
+    value: "{{ facts.month }}"
+    equals: "{{ inputs.month }}"

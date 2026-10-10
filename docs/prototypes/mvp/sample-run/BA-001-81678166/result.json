@@ -1,0 +1,37 @@
+{
+  "runId": "BA-001-81678166",
+  "sceneId": "BA-001",
+  "revision": 1,
+  "status": "passed",
+  "startedAt": "2026-10-09T03:44:03.319006+00:00",
+  "input": {
+    "title": "介面驗證範例",
+    "quantity": 12
+  },
+  "output": {
+    "recordId": "DEMO-D82C136FF21F",
+    "title": "介面驗證範例",
+    "quantity": 12
+  },
+  "automationHash": "8c3f642b96acbfdeaeb2346ec138f9f91479987f244d506ea2302a8472ce7080",
+  "assertionHash": "01c0ede207cc94e863b3a15c3134c81d7d39082de31f937bbc20568e66790607",
+  "steps": [
+    {
+      "name": "入參驗證",
+      "status": "passed"
+    },
+    {
+      "name": "瀏覽器自動化",
+      "status": "passed"
+    },
+    {
+      "name": "獨立斷言",
+      "status": "passed"
+    },
+    {
+      "name": "出參驗證與發布",
+      "status": "passed"
+    }
+  ],
+  "durationSeconds": 1.915
+}

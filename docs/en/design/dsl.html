@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a6a561f1f61a45bf">
+<meta name="translation-source" content="sha256:c9879fd70aa658df">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,52 +15,54 @@
   <div class="heading">
     <div>
       <h1>Scenario DSL</h1>
-      <p>The single source of truth for scenarios. Written in YAML, stored as JSON, validated with Pydantic models; this page specifies schemaVersion 1.</p>
+      <p>The single source of truth for scenarios. Written in YAML, stored as JSON, validated with Pydantic models; it includes the scenario contract of inputs, outputs and independent assertions. This page specifies schemaVersion 1.</p>
     </div>
-    <span class="badge green">schemaVersion 1 · finalized in M1</span>
+    <span class="badge green">schemaVersion 1 · M1.1</span>
   </div>
 
   <div class="stack">
-    <div class="notice">The models live in <code>packages/rpa_core/src/rpa_core/dsl/</code>, complete examples in <code>examples/</code>, and the JSON Schema in <code>schema/scenario.v1.json</code>. For the background of the decision see <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a>.</div>
+    <div class="notice">The models live in <code>packages/rpa_core/src/rpa_core/dsl/</code>, examples in <code>scenarios/</code>, and the JSON Schema in <code>schema/scenario.v1.json</code>. For the background see <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a> and <a href="../adr/0009-scenario-contract.html">ADR 0009</a>.</div>
 
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>Example</h2><span class="muted">Excerpt from examples/erp-login.yaml</span></div>
+        <div class="panel-header"><h2>Example</h2><span class="muted">Excerpt from scenarios/demo/ba-001.yaml (BA-001 of the MVP prototype)</span></div>
         <div class="panel-body">
-<pre class="source"># yaml-language-server: $schema=../schema/scenario.v1.json
+<pre class="source"># yaml-language-server: $schema=../../schema/scenario.v1.json
 schemaVersion: 1
-id: erp-login
-name: Log in to the ERP
-params:
-  user: { type: string, description: Login account }
-secrets: [ERP_PASSWORD]
-browser:
-  baseUrl: https://erp.example.internal
-  viewport: { width: 1280, height: 800 }
-defaults:
-  timeout: 10000
+id: ba-001
+name: Create a sample record
+category: Sample data
+inputs:
+  title: { type: string, minLength: 1, maxLength: 60 }
+  quantity: { type: integer, minimum: 1, maximum: 30, default: 12 }
+outputs:
+  recordId:
+    pattern: '^DEMO-[A-Z0-9]+$'
+    from: '{{ facts.record.recordId }}'
+browser: { engine: firefox, baseUrl: http://127.0.0.1:8765 }
+deadline: 45000
 steps:
   - id: open
     action: goto
-    url: /login
-  - id: fill-user
+    url: /
+  - id: fill-title
     action: fill
-    target: { role: textbox, name: Account }
-    value: "{{ params.user }}"
-  - id: fill-password
-    action: fill
-    target: { label: Password }
-    value: "{{ secrets.ERP_PASSWORD }}"
+    target: { label: Title, exact: true }
+    value: '{{ inputs.title }}'
   - id: submit
     action: click
-    target:
-      role: button
-      name: Log in
-      fallback: [{ testId: login-submit }]
-  - id: check-welcome
-    action: expect
-    target: { text: Welcome back }
-    state: visible</pre>
+    target: { role: button, name: Create record }
+  - id: read-record
+    action: extract
+    target: { css: '#receipt' }
+    as: record
+    fields:
+      recordId: { target: { css: '#record-id' } }
+      status: { target: { css: '#record-status' } }
+verify:
+  - name: Status is created
+    value: '{{ facts.record.status }}'
+    equals: Created</pre>
         </div>
       </section>
 
@@ -68,13 +70,14 @@ steps:
         <div class="panel-header"><h2>Design principles</h2></div>
         <div class="panel-body">
           <ul class="points">
+            <li><strong>Success needs evidence.</strong> Steps only operate the page and record page facts; the independent assertions in <code>verify</code> decide success, and outputs are published only after they pass. "The script did not fail" is not success.</li>
+            <li><strong>Inputs and outputs are a contract.</strong> Inputs are validated before the browser starts; outputs can feed the next scenario's inputs. Both can be exported as JSON Schema.</li>
             <li><strong>Every step has a stable id.</strong> Results, screenshots and logs are filed by step, so inserting or deleting steps never shifts them.</li>
             <li><strong>Locators have a priority order.</strong> testId → role + name → label → placeholder → text → altText → title → css → xpath. The recorder keeps several candidates in fallback as the basis for self-healing.</li>
-            <li><strong>Only conditional waits.</strong> There is no fixed-duration sleep; use <code>waitFor</code> to wait for an element, a URL or a load state.</li>
+            <li><strong>Only conditional waits.</strong> There is no fixed-duration sleep; use <code>waitFor</code>. The whole run is bound by <code>deadline</code>.</li>
             <li><strong>Mistakes are caught early.</strong> Unknown fields, wrong types and YAML's implicit conversions are reported during validation with the file line, step and field.</li>
             <li><strong>Secrets are referenced by name only.</strong> Values are injected at run time and masked in logs and screenshot captions.</li>
-            <li><strong>Expressions are evaluated in a sandbox.</strong> <code>{{ }}</code> is handled by a Jinja2 sandboxed environment (M3) that can read only params, env, secrets and the outputs of earlier steps.</li>
-            <li><strong>An escape hatch remains.</strong> What the DSL cannot express goes into a controlled <code>script</code> step (after M3), which is flagged during review.</li>
+            <li><strong>An escape hatch remains.</strong> A scenario the DSL cannot express can use Python scripts (<code>script</code>) under the same contract, flagged in review.</li>
           </ul>
         </div>
       </section>
@@ -87,18 +90,37 @@ steps:
           <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td><code>schemaVersion</code></td><td>Yes</td><td>The DSL version, currently <code>1</code>. It is incremented for incompatible format changes, with a migration.</td></tr>
-            <tr><td><code>id</code></td><td>Yes</td><td>Lowercase letters, digits, <code>-</code> and <code>_</code>, starting with a letter or digit, at most 64 characters. Used in file names and URLs.</td></tr>
+            <tr><td><code>id</code></td><td>Yes</td><td>Lowercase letters, digits, <code>-</code> and <code>_</code>, starting with a letter or digit, at most 64 characters. Used in file names and URLs, and never reused.</td></tr>
             <tr><td><code>name</code></td><td>Yes</td><td>A name for people.</td></tr>
             <tr><td><code>description</code></td><td></td><td>A description.</td></tr>
-            <tr><td><code>params</code></td><td></td><td>Parameter declarations keyed by parameter name (letters, digits and <code>_</code>). Each has a <code>type</code> (string, number, integer, boolean; default string), a <code>default</code> and a <code>description</code>; a parameter without a default must be supplied at run time.</td></tr>
+            <tr><td><code>category</code></td><td></td><td>A category used to filter scenario lists and reports.</td></tr>
+            <tr><td><code>inputs</code></td><td></td><td>Input declarations keyed by name (letters, digits and <code>_</code>); see the scenario contract below.</td></tr>
+            <tr><td><code>outputs</code></td><td></td><td>Output declarations; a scenario with outputs needs <code>verify</code>.</td></tr>
             <tr><td><code>secrets</code></td><td></td><td>A list of secret names such as <code>ERP_PASSWORD</code> (uppercase letters, digits and <code>_</code>). Values never appear in the scenario.</td></tr>
-            <tr><td><code>browser</code></td><td></td><td><code>engine</code> (chromium, firefox, webkit; default chromium), <code>headless</code> (default true), <code>viewport</code> (width, height), <code>baseUrl</code>, <code>locale</code> (for example zh-TW).</td></tr>
-            <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>: the default step timeout.</td></tr>
-            <tr><td><code>steps</code></td><td>Yes</td><td>The list of steps, at least one.</td></tr>
+            <tr><td><code>browser</code></td><td></td><td><code>engine</code> (chromium, firefox; webkit works but is not tested in CI; default chromium), <code>headless</code> (default true), <code>viewport</code> (width, height), <code>baseUrl</code>, <code>locale</code> (for example zh-TW).</td></tr>
+            <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>: the default timeout of a single step.</td></tr>
+            <tr><td><code>deadline</code></td><td></td><td>The overall deadline of a run in milliseconds, from starting the browser to publishing outputs; each step may use only the time that remains.</td></tr>
+            <tr><td><code>steps</code></td><td>One of two</td><td>The list of automation steps, at least one.</td></tr>
+            <tr><td><code>script</code></td><td>One of two</td><td>The Python script escape hatch; see the scenario contract below.</td></tr>
+            <tr><td><code>verify</code></td><td></td><td>The list of independent assertions; see the scenario contract below.</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="diagram-caption">A URL starting with <code>/</code> is appended to <code>browser.baseUrl</code>, so moving a scenario to another environment (test, production) only means changing baseUrl.</div>
+      <div class="diagram-caption">A URL starting with <code>/</code> is appended to <code>browser.baseUrl</code>, so moving a scenario to another environment (test, production) only means changing baseUrl. M1's <code>params</code> is renamed to <code>inputs</code>; the old name points to the new one.</div>
+    </section>
+
+    <section class="panel" id="contract">
+      <div class="panel-header"><h2>Scenario contract</h2><span class="muted">inputs → steps → page facts → independent assertions → outputs</span></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt><code>inputs</code></dt><dd>Each input has a <code>type</code> (string, number, integer, boolean; default string), a <code>default</code>, a <code>description</code> and constraints: <code>enum</code>, <code>minLength</code>, <code>maxLength</code>, <code>pattern</code> (strings), <code>minimum</code>, <code>maximum</code> (numbers). An input without a default must be supplied at run time. Defaults must satisfy the constraints too.</dd>
+          <dt><code>facts</code></dt><dd>Page facts: <code>extract</code> with <code>as: name</code> stores <code>facts.name</code>. A step may only use facts produced by earlier steps; verify and outputs may use them all.</dd>
+          <dt><code>verify</code></dt><dd>Each rule has a <code>value</code> (which must contain <code>{{ }}</code>) and exactly one comparison: <code>equals</code>, <code>contains</code>, <code>matches</code> (regular expression) or <code>notEmpty: true</code>; its <code>name</code> appears in the report. Both sides are compared as text after substitution.</dd>
+          <dt><code>outputs</code></dt><dd>Types add array and object; constraints are the same as for inputs. <code>from</code> says where the value comes from, for example <code>{{ facts.record.recordId }}</code>. With a single <code>{{ }}</code> the original type is kept (for example a list); otherwise the text is converted to the declared type.</dd>
+          <dt><code>script</code></dt><dd>Two Python files, <code>automation</code> and <code>assertion</code>, relative to the scenario file's folder and without <code>..</code>. automation.py takes <code>--input --facts --screenshot --target-url</code>, and assertion.py takes <code>--input --facts --output</code> (the MVP prototype's command-line contract). Script scenarios have no verify, and their outputs have no from.</dd>
+        </dl>
+        <p class="muted">For the order of a run and what happens on failure, see <a href="../adr/0009-scenario-contract.html">ADR 0009</a>; the execution engine arrives in M2. <code>rpa schema SCENARIO --part inputs</code> or <code>--part outputs</code> prints the JSON Schema of one scenario's inputs or outputs.</p>
+      </div>
     </section>
 
     <div class="two-col">
@@ -109,9 +131,9 @@ steps:
             <dt><code>id</code></dt><dd>Required and unique within the scenario. Same format as the scenario id.</dd>
             <dt><code>action</code></dt><dd>Required; the action name, see the action table below.</dd>
             <dt><code>name</code></dt><dd>A step description for people.</dd>
-            <dt><code>timeout</code></dt><dd>The timeout of this step as an <strong>integer number of milliseconds</strong>, greater than 0 and at most 3,600,000 (one hour). Falls back to <code>defaults.timeout</code>.</dd>
+            <dt><code>timeout</code></dt><dd>The timeout of this step as an <strong>integer number of milliseconds</strong>, greater than 0 and at most 3,600,000 (one hour). Falls back to <code>defaults.timeout</code>, and never exceeds what remains of the deadline.</dd>
           </dl>
-          <p class="muted">retry and onError (continue, fail, jump to a step) are added in M3.</p>
+          <p class="muted">retry and onError are added in M7; retries apply only to steps without side effects, so actions such as submitting a form are never retried automatically.</p>
         </div>
       </section>
 
@@ -170,21 +192,21 @@ steps:
             <tr><td><code>select</code></td><td>Choose dropdown options</td><td><strong>target</strong>, <strong>option</strong></td><td>option is the option's value or visible text; a list selects several</td></tr>
             <tr><td><code>press</code></td><td>Press a key or key combination</td><td><strong>key</strong> (Enter, Tab, Control+A…), target</td><td>Without target the key goes to the focused element</td></tr>
             <tr><td><code>waitFor</code></td><td>Wait for a condition</td><td>target + state (visible, hidden, attached, detached), url + match, loadState</td><td>Exactly one of the three conditions</td></tr>
-            <tr><td><code>expect</code></td><td>Assert; the step fails if the condition does not hold</td><td>target with one of state, text, value, count; or no target with one of url, title; match</td><td>state is visible, hidden, enabled, disabled, checked, unchecked or editable</td></tr>
-            <tr><td><code>extract</code></td><td>Extract data from the page</td><td><strong>target</strong>, <strong>as</strong>, get, attribute, multiple, fields</td><td>See below</td></tr>
+            <tr><td><code>expect</code></td><td>An in-step check; the step fails if it does not hold</td><td>target with one of state, text, value, count; or no target with one of url, title; match</td><td>state is visible, hidden, enabled, disabled, checked, unchecked or editable</td></tr>
+            <tr><td><code>extract</code></td><td>Extract page facts</td><td><strong>target</strong>, <strong>as</strong>, get, attribute, multiple, fields</td><td>See below</td></tr>
             <tr><td><code>screenshot</code></td><td>Save a screenshot as an artifact</td><td>file, target, fullPage</td><td>file is a name without extension and defaults to the step id; fullPage cannot be used with target</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
         <dl class="spec-list">
+          <dt>extract as</dt><dd>Stores the page fact <code>facts.name</code>; names cannot repeat within a scenario.</dd>
           <dt>extract get</dt><dd><code>text</code> (default), <code>value</code>, <code>html</code>, <code>attribute</code> (name it with <code>attribute</code>), <code>table</code> (turns a &lt;table&gt; into a list of records keyed by its header).</dd>
           <dt>extract multiple</dt><dd>Extract every matching element into a list; by default only the first one.</dd>
           <dt>extract fields</dt><dd>Turn each element into a record. Keys are field names; each value may set target (relative to the element), get and attribute. With fields, leave out the outer get.</dd>
-          <dt>extract as</dt><dd>The variable name to store the result under, for later steps to use (M3).</dd>
         </dl>
       </div>
-      <div class="diagram-caption">download, upload, iframes, multiple tabs, conditions and loops are added in M3.</div>
+      <div class="diagram-caption">expect guards a step; verify decides whether outputs are published. download, upload, iframes, multiple tabs, conditions and loops are added in M7.</div>
     </section>
 
     <div class="two-col">
@@ -203,12 +225,13 @@ steps:
       </section>
 
       <section class="panel" id="templates">
-        <div class="panel-header"><h2>Expressions <code>{{ }}</code></h2><span class="muted">Static checks only in M1</span></div>
+        <div class="panel-header"><h2>Expressions <code>{{ }}</code></h2><span class="muted">Jinja2; evaluated in a sandbox from M2</span></div>
         <div class="panel-body">
           <ul class="points">
-            <li>String fields can use <code>{{ params.name }}</code>, <code>{{ secrets.NAME }}</code> and <code>{{ env.NAME }}</code>; evaluation is added in M3.</li>
-            <li>Validation checks that every <code>{{</code> has a matching <code>}}</code>, that the expression is not empty, and that referenced params and secrets are declared.</li>
-            <li>The <code>name</code> and <code>description</code> of scenarios and steps are text for people; they are neither checked nor substituted.</li>
+            <li><strong>The only variables</strong> are <code>inputs</code>, <code>secrets</code>, <code>facts</code> and <code>env</code>; Jinja2 filters work, for example <code>{{ inputs.title | upper }}</code>.</li>
+            <li><strong>Validation already checks</strong> syntax, unknown variables and filters, undeclared inputs and secrets, and facts that no extract produces or that are produced only later.</li>
+            <li><strong>facts cannot be used in browser settings</strong>, because the page has not been touched yet at that point.</li>
+            <li>The <code>name</code> and <code>description</code> of scenarios, steps and assertions are text for people; they are neither checked nor substituted.</li>
           </ul>
         </div>
       </section>
@@ -217,17 +240,17 @@ steps:
     <section class="panel" id="validate">
       <div class="panel-header"><h2>Validation: <code>rpa validate</code></h2></div>
       <div class="panel-body">
-<pre class="source">$ rpa --lang en validate examples/ scenarios/login.yaml
+<pre class="source">$ rpa --lang en validate scenarios/
 scenarios/login.yaml:14:9: Step 3 (login-pass) › target.css: Specify only one way to locate the element, found: label, css; put alternatives in fallback
-scenarios/login.yaml:20:5: Step 4 (shot) › fullpage: Unknown field fullpage. Did you mean fullPage?
-Files checked: 3. Failed: 1. Problems: 2.</pre>
+scenarios/login.yaml:31:15: Step 5 (read) › value: facts.total is only produced by a later extract step
+Files checked: 5. Failed: 1. Problems: 2.</pre>
         <dl class="spec-list">
           <dt>Location</dt><dd><code>file:line:column</code>, the same format compilers use, so editors and CI can jump to the problem. Lines and columns start at 1.</dd>
-          <dt>Arguments</dt><dd>One or more files or directories; a directory is searched for all .yaml and .yml files (hidden directories are skipped).</dd>
+          <dt>Arguments</dt><dd>One or more files or directories; a directory is searched for all .yaml and .yml files (hidden directories are skipped). For script scenarios, the script files must exist.</dd>
           <dt><code>--format json</code></dt><dd>Each problem has line, column, step, stepId, field, path, code and message, for programs and AI auto-repair (M5).</dd>
           <dt>Exit code</dt><dd>0 when everything passes; 1 when a file fails or a directory has no YAML; 2 for invalid arguments.</dd>
-          <dt><code>rpa schema</code></dt><dd>Prints the JSON Schema. <code>schema/scenario.v1.json</code> in the repository is generated by it; add <code># yaml-language-server: $schema=…</code> as the first line of a scenario and the VS Code YAML extension provides completion and live checks.</dd>
-          <dt>Python</dt><dd><code>rpa_core.dsl.validate_file()</code>, <code>validate_text()</code> and <code>validate_data()</code> return the scenario model and every problem; the Web UI and API use the same functions.</dd>
+          <dt><code>rpa schema</code></dt><dd>Prints the DSL's JSON Schema. <code>schema/scenario.v1.json</code> in the repository is generated by it; add <code># yaml-language-server: $schema=…</code> as the first line of a scenario and the VS Code YAML extension provides completion and live checks. With a scenario file, it prints that scenario's input or output schema.</dd>
+          <dt>Python</dt><dd><code>rpa_core.dsl.validate_file()</code>, <code>validate_text()</code> and <code>validate_data()</code> return the scenario model and every problem; <code>inputs_json_schema()</code> and <code>outputs_json_schema()</code> produce one scenario's contract. The management interface and API use the same functions.</dd>
         </dl>
       </div>
     </section>

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "recordId"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "recordId": {
+      "type": "string",
+      "pattern": "^DEMO-[A-Z0-9]+$"
+    }
+  }
+}

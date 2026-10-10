@@ -16,6 +16,8 @@ import pytest
 
 DOCS = Path(__file__).resolve().parents[2] / "docs"
 DESIGN_SYSTEM = DOCS / "design-system"
+# 整包匯入、不翻譯也不改寫的外部交付物；以 MANIFEST.json 的雜湊確認沒有被改動
+IMPORTED = (DESIGN_SYSTEM, DOCS / "prototypes" / "mvp")
 NAV_FILE = DOCS / "assets" / "nav.js"
 NAV_PREFIX = "window.DOCS_NAV = "
 SKIP_SCHEMES = {"http", "https", "mailto", "data", "javascript"}
@@ -117,7 +119,9 @@ def _locale_of(path: Path) -> str:
 
 
 def _doc_paths() -> list[Path]:
-    return sorted(p for p in DOCS.rglob("*.html") if DESIGN_SYSTEM not in p.parents)
+    return sorted(
+        p for p in DOCS.rglob("*.html") if not any(root in p.parents for root in IMPORTED)
+    )
 
 
 PAGES = {path: _parse(path) for path in _doc_paths()}
@@ -213,12 +217,19 @@ def test_nav_text_is_complete_in_every_language() -> None:
     assert not incomplete, f"nav.js 這些名稱缺少某種語言：{incomplete}"
 
 
-def test_design_system_matches_manifest() -> None:
-    manifest = json.loads((DESIGN_SYSTEM / "MANIFEST.json").read_text(encoding="utf-8"))
+@pytest.mark.parametrize("root", IMPORTED, ids=lambda p: p.relative_to(DOCS).as_posix())
+def test_imported_package_matches_manifest(root: Path) -> None:
+    manifest = json.loads((root / "MANIFEST.json").read_text(encoding="utf-8"))
+    listed = {entry["path"] for entry in manifest["files"]}
     changed = [
         entry["path"]
         for entry in manifest["files"]
-        if hashlib.sha256((DESIGN_SYSTEM / entry["path"]).read_bytes()).hexdigest()
-        != entry["sha256"]
+        if hashlib.sha256((root / entry["path"]).read_bytes()).hexdigest() != entry["sha256"]
     ]
-    assert not changed, f"設計系統檔案被修改（應整包替換，不直接改）：{changed}"
+    assert not changed, f"檔案被修改（應整包替換，不直接改）：{changed}"
+    extra = sorted(
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path.name != "MANIFEST.json"
+    )
+    assert set(extra) <= listed, f"多出 MANIFEST.json 沒有列出的檔案：{sorted(set(extra) - listed)}"

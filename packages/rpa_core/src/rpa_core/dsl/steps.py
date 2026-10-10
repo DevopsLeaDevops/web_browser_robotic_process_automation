@@ -4,7 +4,7 @@
 步驟內欄位之間的規則（例如 waitFor 三選一）在各模型的 model_validator 檢查；
 跨步驟的規則（id 重複、引用未宣告的參數）在 rpa_core.dsl.checks。
 
-retry、onError 在 M3 加入；download、upload、iframe、多分頁、條件與迴圈也是。
+retry、onError、download、upload、iframe、多分頁、條件與迴圈在 M7 加入（路線圖 v2）。
 """
 
 import re
@@ -262,7 +262,7 @@ class ExtractStep(StepBase):
     action: Literal["extract"]
     target: Locator
     as_: Identifier = Field(alias="as")
-    """存成的變數名稱，之後的步驟可以引用（M3）。"""
+    """存成頁面事實 ``facts.名稱``，之後的步驟、verify 與 outputs 可以引用。"""
     get: Literal["text", "value", "html", "attribute", "table"] = "text"
     attribute: NonEmptyStr | None = None
     """get 為 attribute 時，要讀的屬性名稱，例如 href。"""

@@ -26,17 +26,17 @@
         <table class="wrap">
           <thead><tr><th>层面</th><th>选型</th><th>备选</th><th>理由</th><th>起始</th></tr></thead>
           <tbody>
-            <tr><td>浏览器驱动</td><td>Playwright for Python（async）</td><td>Selenium</td><td>多浏览器、自动等待、语意化定位（get_by_role）、Trace Viewer；async 让一个 worker 同时跑多个浏览器上下文</td><td>M2</td></tr>
+            <tr><td>浏览器驱动</td><td>Playwright for Python；支持 Chromium 与 Firefox，CI 都测</td><td>Selenium</td><td>多浏览器、自动等待、语意化定位（get_by_role）、Trace Viewer；每次运行在独立的子进程与浏览器上下文中进行<small><a href="../adr/0010-mvp-first.html">ADR 0010</a></small></td><td>M2</td></tr>
             <tr><td>DSL 模型与校验</td><td>Pydantic v2</td><td>marshmallow</td><td>判别联合很适合「每种动作一个模型」；可直接导出 JSON Schema 给 AI 和前端<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
             <tr><td>YAML 解析</td><td>PyYAML（只用解析器）</td><td>ruamel.yaml</td><td>解析出的节点树带有行号与列号，校验错误能指出文件位置；转型改用自己实现的 YAML 1.2 core 规则并拒绝重复的键；有类型标注，pyright strict 可用。M1 实现时由 ruamel.yaml 改选，见<a href="dsl.html#yaml">场景 DSL</a></td><td>M1</td></tr>
-            <tr><td>表达式 <code>{{ }}</code></td><td>Jinja2 沙箱环境</td><td>自行实现</td><td>成熟，可以限制场景能访问的内容，防止运行任意代码</td><td>M3</td></tr>
+            <tr><td>表达式 <code>{{ }}</code></td><td>Jinja2 沙箱环境</td><td>自行实现</td><td>成熟，可以限制场景能访问的内容，防止运行任意代码；M1.1 解析与检查引用，M2 求值<small><a href="../adr/0009-scenario-contract.html">ADR 0009</a></small></td><td>M1.1</td></tr>
             <tr><td>命令行</td><td>click</td><td>Typer、argparse</td><td>成熟稳定、子命令与测试工具完整</td><td>M0</td></tr>
-            <tr><td>后端 API</td><td>FastAPI</td><td>Django</td><td>与 DSL 共用同一套 Pydantic 模型，自动产生 OpenAPI<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>
-            <tr><td>数据库</td><td>SQLite（开发、原型）与 PostgreSQL（正式环境），SQLAlchemy 2.0 + Alembic</td><td>只用 PostgreSQL</td><td>开发不必安装数据库；正式环境需要并发写入与多个 worker；CI 两种都测<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M7</td></tr>
+            <tr><td>后端 API</td><td>FastAPI</td><td>Django</td><td>与 DSL 共用同一套 Pydantic 模型，自动产生 OpenAPI；同一个服务也渲染管理页面<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
+            <tr><td>数据库</td><td>SQLite（开发、原型）与 PostgreSQL（正式环境），SQLAlchemy 2.0 + Alembic</td><td>只用 PostgreSQL</td><td>开发不必安装数据库；正式环境需要并发写入与多个 worker；CI 两种都测<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M3</td></tr>
             <tr><td>任务队列与调度</td><td>PostgreSQL 队列（Procrastinate）；SQLite 模式在 API 进程内运行</td><td>Celery + Redis</td><td>少一个组件，原生 asyncio，支持定时任务<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
             <tr><td>产物存储</td><td>S3 兼容的对象存储（产品在 M9 前选定）</td><td>共用磁盘</td><td>多个 worker 的截图、Trace、下载文件需要集中存放；程序只依赖 S3 界面，换产品不用改代码；本机开发用本地目录。原定的 MinIO 社区版已在 2026 年 4 月停止维护</td><td>M9</td></tr>
-            <tr><td>前端</td><td>React + TypeScript + Vite</td><td>NiceGUI、HTMX</td><td>步骤编辑器交互很多，纯 Python 方案难做好<small><a href="../adr/0004-react-frontend.html">ADR 0004</a></small></td><td>M8</td></tr>
-            <tr><td>界面样式</td><td>界面设计系统 v1.0</td><td>—</td><td>同事交付的视觉契约，文档站与 Web UI 共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
+            <tr><td>管理界面</td><td>Jinja2 服务器端渲染 + 设计系统的 CSS 与少量 JavaScript</td><td>React + TypeScript（原 ADR 0004）、Flask</td><td>MVP 原型的页面全是卡片、表单、筛选与编排，不需要框架；整个工程只有 Python<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
+            <tr><td>界面样式</td><td>界面设计系统 v1.0</td><td>—</td><td>同事交付的视觉契约，文档站、MVP 原型与管理界面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支持多包；ruff 一个工具处理 lint 与格式化</td><td>M0</td></tr>
             <tr><td>多语言</td><td>各包的 JSON 消息目录；简中以 OpenCC 由繁中产生</td><td>gettext、Babel</td><td>繁中为主要语言，Web UI 也要读同一份翻译；只需人工维护繁中与英文<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
             <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>仓库在 GitHub；Python 3.12 / 3.13 两个版本并行测试</td><td>M0</td></tr>

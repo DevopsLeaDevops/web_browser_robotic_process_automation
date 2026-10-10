@@ -8,6 +8,8 @@ dependencies = [
   "pydantic>=2.13.5",
   # 讀取場景 YAML；只用它的解析器，轉型規則自己實作（YAML 1.2 core，見 dsl/yaml_loader.py）
   "pyyaml>=6.0.3",
+  # {{ }} 運算式：M1.1 解析與檢查引用，M2 在沙箱環境求值（ADR 0009）
+  "jinja2>=3.1.6",
 ]
 
 [build-system]

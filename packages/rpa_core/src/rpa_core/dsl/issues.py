@@ -13,7 +13,7 @@ from typing import Annotated, Final, Literal, Union, cast, get_args, get_origin
 from pydantic import BaseModel, ValidationError
 from pydantic_core import ErrorDetails
 
-from rpa_core.dsl.checks import CrossIssue
+from rpa_core.dsl.checks import RENAMED, CrossIssue
 from rpa_core.dsl.fields import catalog, join_names
 from rpa_core.dsl.scenario import Scenario
 from rpa_core.dsl.steps import ACTIONS
@@ -205,6 +205,10 @@ def _from_details(details: ErrorDetails, data: object, source: SourceMap | None)
 def _unknown_field(path: DataPath, walk: "_Walk", data: object, position: Position | None) -> Issue:
     name = str(path[-1])
     allowed = list(_aliases(walk.parent)) if walk.parent is not None else []
+    if (new := RENAMED.get(name)) is not None and new in allowed:
+        return _make(
+            "unknown_field.renamed", path, data, position, {"value": name, "suggestion": new}
+        )
     return _with_suggestion("unknown_field", path, data, position, name, allowed)
 
 

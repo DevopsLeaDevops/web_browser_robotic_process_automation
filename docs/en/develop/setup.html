@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:ebeb725f0942fec1">
+<meta name="translation-source" content="sha256:821315cfb8605838">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -30,8 +30,8 @@ cd web_browser_robotic_process_automation
 # Create .venv and install all packages and dev tools
 uv sync
 
-# Download Chromium (on Linux, add --with-deps the first time to install system dependencies)
-uv run playwright install chromium
+# Download Chromium and Firefox (on Linux, add --with-deps the first time to install system dependencies)
+uv run playwright install chromium firefox
 
 # Automatic checks before each commit
 uv run pre-commit install

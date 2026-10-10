@@ -22,7 +22,7 @@
   <div class="stack">
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>多用户</h2><span class="muted">主要在 M7 实现</span></div>
+        <div class="panel-header"><h2>多用户</h2><span class="muted">主要在 M8 实现；MVP 是单用户</span></div>
         <div class="panel-body">
           <dl class="spec-list">
             <dt>认证</dt><dd>先做本地账号；预留 OIDC 与 LDAP 接口，方便接公司的 AD 或 SSO。</dd>
@@ -31,7 +31,7 @@
             <dt>审核</dt><dd>谁在什么时间修改、运行了哪个场景，全部留记录，不可删改。</dd>
             <dt>版本</dt><dd>场景每次保存产生不可变的新版本；运行记录指向确切版本。</dd>
             <dt>数据库</dt><dd>正式环境用 PostgreSQL，支持多个 worker 与并发写入；SQLite 只用于开发与原型（单机、单一进程），见 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
-            <dt>Runner 无状态</dt><dd>从 M2 起只接收场景、参数与 Secrets，输出结果与产物；放进 worker 时不用改。</dd>
+            <dt>Runner 无状态</dt><dd>从 M2 起只接收场景、入参与 Secrets，输出结果与产物；放进 M3 的背景 worker 与 M9 的分布式 worker 时不用改。</dd>
           </dl>
         </div>
       </section>
@@ -51,7 +51,7 @@
             </tbody>
           </table>
         </div>
-        <div class="diagram-caption">另有平台级的系统管理员，负责创建项目与全域设置。细节在 M7 定稿。</div>
+        <div class="diagram-caption">另有平台级的系统管理员，负责创建项目与全域设置。细节在 M8 定稿。</div>
       </section>
     </div>
 
@@ -62,19 +62,19 @@
           <thead><tr><th>情况</th><th>对策</th><th>落在</th></tr></thead>
           <tbody>
             <tr><td>目标系统只能从内网访问</td><td>平台与 worker 都部署在内网；worker 必须能直连目标系统</td><td>M9</td></tr>
-            <tr><td>每次运行都要登录</td><td>保存并重用登录状态（Playwright storage state），减少登录次数，也降低触发账号锁定的风险</td><td>M3</td></tr>
+            <tr><td>每次运行都要登录</td><td>每个角色保存并重用自己的登录状态（Playwright storage state），减少登录次数、降低账号锁定的风险；登录失效时回报 needs_login，引导人工重新登录后续跑</td><td>M4</td></tr>
             <tr><td>老系统缺少语意化标签</td><td>定位器更依赖 css、xpath 与文字；录制器避开自动生成的 id，产出稳定的选择器</td><td>M1、M4</td></tr>
-            <tr><td>iframe、弹出窗口、多标签页</td><td>DSL 提供切换 frame 与标签页的步骤，定位器可指定所在 frame</td><td>M3</td></tr>
-            <tr><td>文件上传与下载</td><td>upload、download 动作；下载文件作为产物保存</td><td>M3</td></tr>
+            <tr><td>iframe、弹出窗口、多标签页</td><td>DSL 提供切换 frame 与标签页的步骤，定位器可指定所在 frame</td><td>M7</td></tr>
+            <tr><td>文件上传与下载</td><td>upload、download 动作；下载文件作为产物保存</td><td>M7</td></tr>
             <tr><td>表格数据抽取</td><td>extract 支持表格转成结构化数据</td><td>M1</td></tr>
             <tr><td>自签凭证</td><td>场景层级可设置忽略 HTTPS 错误，默认关闭并在审核时标示</td><td>M2</td></tr>
-            <tr><td>页面内容可能敏感</td><td>AI 生成可切换到自建模型；截图与 Trace 依项目权限访问</td><td>M5、M7</td></tr>
+            <tr><td>页面内容可能敏感</td><td>AI 生成可切换到自建模型；截图与 Trace 依项目权限访问</td><td>M5、M8</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <div class="notice">录制在用户自己的电脑上进行：CLI 开一个有画面的浏览器，录好后上传到服务器。之后可考虑改成浏览器扩充功能。测试网站（M2）会模拟一个典型内部系统：登录、菜单、iframe、表格与文件下载。</div>
+    <div class="notice">MVP 是单机：录制与调试在运行平台的同一台电脑上打开有画面的隔离浏览器（M4）。多用户部署之后（M8 起）再考虑远程浏览器画面实时传输或浏览器扩充功能。测试网站（M2）先沿用 MVP 原型的本机测试页，之后扩充成典型内部系统：登录、菜单、iframe、表格与文件下载。</div>
   </div>
 </main>
 </body>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:1bc8c671b43b71c0">
+<meta name="translation-source" content="sha256:a6241c486361c013">
 <title>Multi-user and internal systems · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -22,7 +22,7 @@
   <div class="stack">
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>Multi-user</h2><span class="muted">Mostly implemented in M7</span></div>
+        <div class="panel-header"><h2>Multi-user</h2><span class="muted">Mostly implemented in M8; the MVP has a single user</span></div>
         <div class="panel-body">
           <dl class="spec-list">
             <dt>Authentication</dt><dd>Local accounts first, with hooks for OIDC and LDAP so the company's AD or SSO can be connected.</dd>
@@ -31,7 +31,7 @@
             <dt>Auditing</dt><dd>Who changed or ran which scenario and when is all recorded and cannot be altered or deleted.</dd>
             <dt>Versions</dt><dd>Every save of a scenario creates a new immutable version; each run points to its exact version.</dd>
             <dt>Database</dt><dd>Production uses PostgreSQL, which supports several workers and concurrent writes; SQLite is only for development and prototypes (single machine, single process). See <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>.</dd>
-            <dt>Stateless runner</dt><dd>From M2 on it only takes scenarios, parameters and secrets and outputs results and artifacts, so it moves into workers unchanged.</dd>
+            <dt>Stateless runner</dt><dd>From M2 on it only takes scenarios, inputs and secrets and outputs results and artifacts, so it moves into the M3 background worker and the M9 distributed workers unchanged.</dd>
           </dl>
         </div>
       </section>
@@ -51,7 +51,7 @@
             </tbody>
           </table>
         </div>
-        <div class="diagram-caption">There is also a platform-level system administrator who creates projects and manages global settings. Details are finalized in M7.</div>
+        <div class="diagram-caption">There is also a platform-level system administrator who creates projects and manages global settings. Details are finalized in M8.</div>
       </section>
     </div>
 
@@ -62,19 +62,19 @@
           <thead><tr><th>Situation</th><th>Approach</th><th>Lands in</th></tr></thead>
           <tbody>
             <tr><td>Target systems are reachable only from the intranet</td><td>Deploy the platform and workers on the intranet; workers must reach the target systems directly</td><td>M9</td></tr>
-            <tr><td>Every run has to log in</td><td>Save and reuse login state (Playwright storage state) to log in less often and lower the risk of account lockouts</td><td>M3</td></tr>
+            <tr><td>Every run has to log in</td><td>Each role saves and reuses its own login state (Playwright storage state) to log in less often and lower the risk of account lockouts; when the login expires the run reports needs_login and guides a manual re-login before continuing</td><td>M4</td></tr>
             <tr><td>Legacy systems lack semantic markup</td><td>Locators rely more on css, xpath and text; the recorder avoids auto-generated ids and produces stable selectors</td><td>M1, M4</td></tr>
-            <tr><td>iframes, pop-up windows, multiple tabs</td><td>The DSL provides steps to switch frames and tabs, and a locator can name the frame it lives in</td><td>M3</td></tr>
-            <tr><td>File uploads and downloads</td><td>upload and download actions; downloaded files are kept as artifacts</td><td>M3</td></tr>
+            <tr><td>iframes, pop-up windows, multiple tabs</td><td>The DSL provides steps to switch frames and tabs, and a locator can name the frame it lives in</td><td>M7</td></tr>
+            <tr><td>File uploads and downloads</td><td>upload and download actions; downloaded files are kept as artifacts</td><td>M7</td></tr>
             <tr><td>Extracting table data</td><td>extract can turn tables into structured data</td><td>M1</td></tr>
             <tr><td>Self-signed certificates</td><td>A scenario can choose to ignore HTTPS errors; off by default and flagged during review</td><td>M2</td></tr>
-            <tr><td>Page content may be sensitive</td><td>AI generation can switch to a self-hosted model; access to screenshots and traces follows project permissions</td><td>M5, M7</td></tr>
+            <tr><td>Page content may be sensitive</td><td>AI generation can switch to a self-hosted model; access to screenshots and traces follows project permissions</td><td>M5, M8</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <div class="notice">Recording happens on the user's own computer: the CLI opens a visible browser and uploads the recording to the server when done. A browser extension may replace this later. The test site (M2) mimics a typical internal system: login, menus, iframes, tables and file downloads.</div>
+    <div class="notice">The MVP runs on one machine: recording and debugging open a visible, isolated browser on the same computer as the platform (M4). Remote browser streaming or a browser extension can follow once there are multiple users (from M8). The test site (M2) starts from the MVP prototype's local test page and later grows into a typical internal system: login, menus, iframes, tables and file downloads.</div>
   </div>
 </main>
 </body>

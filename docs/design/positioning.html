@@ -49,7 +49,7 @@
       <div class="panel-body">
         <div class="four-col">
           <div><h3>1　生成</h3><ul class="points"><li>錄製使用者操作</li><li>用自然語言讓 AI 產生</li><li>由範本或子場景組合</li></ul></div>
-          <div><h3>2　管理</h3><ul class="points"><li>版本與差異比較</li><li>參數、標籤與專案</li><li>權限與稽核</li></ul></div>
+          <div><h3>2　管理</h3><ul class="points"><li>版本與發布門檻</li><li>入參、出參與分類</li><li>權限與稽核</li></ul></div>
           <div><h3>3　執行</h3><ul class="points"><li>手動、排程或 API 觸發</li><li>多 worker 併發</li><li>重試與逾時控制</li></ul></div>
           <div><h3>4　回饋</h3><ul class="points"><li>每一步的截圖與日誌</li><li>Playwright Trace 回放</li><li>失敗定位與選擇器自癒</li></ul></div>
         </div>
@@ -60,14 +60,20 @@
       <div class="panel-header"><h2>核心概念</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>場景 Scenario</dt><dd>一段可重複執行的瀏覽器操作流程，以聲明式 DSL 描述。平台的核心資產，有版本。</dd>
+          <dt>場景 Scenario</dt><dd>一段可重複執行的瀏覽器操作流程，以聲明式 DSL 描述（少數情況用 Python 腳本，見 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>）。平台的核心資產，有穩定的 id 與分類。</dd>
+          <dt>版本 Revision</dt><dd>場景的一個不可變版本：草稿 → 驗證中 → 通過或失敗 → 已發布。修改後要重新驗證，發布的版本必須就是驗證通過的版本。</dd>
           <dt>步驟 Step</dt><dd>場景中的一個動作，例如開啟網址、點擊、填寫、抽取資料。每個步驟有穩定的 <code>id</code>。</dd>
           <dt>定位器 Target</dt><dd>描述「要操作頁面上的哪個元素」，可以有多個候選，依優先順序嘗試。</dd>
-          <dt>參數 Param</dt><dd>執行時才給定的值，例如查詢月份；有型別與預設值。</dd>
+          <dt>入參 Input</dt><dd>執行時才給定的值，例如查詢月份；有型別、限制與預設值，啟動瀏覽器前校驗。</dd>
+          <dt>頁面事實 Fact</dt><dd>執行中從頁面抽取的值，只描述看到了什麼，不代表成功。</dd>
+          <dt>獨立斷言 Verify</dt><dd>自動化結束後，比對頁面事實與入參的規則。「腳本沒有出錯」不等於成功。</dd>
+          <dt>出參 Output</dt><dd>獨立斷言通過後才發布的結果，可以串到下一個場景的入參。</dd>
           <dt>Secret</dt><dd>帳號密碼等機密，場景只引用名稱，明文不會出現在場景、日誌或截圖說明中。</dd>
-          <dt>執行 Run</dt><dd>場景的一次執行，記錄觸發者、參數、每一步的結果與耗時。</dd>
+          <dt>執行 Run</dt><dd>某個版本的一次執行，記錄觸發者、入參、每一步的結果與耗時；狀態為排隊、執行中、通過、失敗、逾時、已取消或需要登入。</dd>
           <dt>產物 Artifact</dt><dd>執行產生的截圖、Trace、下載檔與抽取的資料。</dd>
-          <dt>專案 Project</dt><dd>權限隔離的單位。場景、Secrets、執行紀錄都屬於某個專案。</dd>
+          <dt>編排 Workflow</dt><dd>把已發布的場景排成序列，上游的出參綁到下游的入參，失敗就停止（M6）。</dd>
+          <dt>調試工作階段 Debug session</dt><dd>錄製稿或草稿在隔離的瀏覽器中調試；AI 助手只能修改草稿，發布要使用者確認（M4、M5）。</dd>
+          <dt>專案 Project</dt><dd>權限隔離的單位。場景、Secrets、執行紀錄都屬於某個專案（M8；MVP 是單使用者）。</dd>
         </dl>
       </div>
     </section>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:60eb5e8445101c27">
+<meta name="translation-source" content="sha256:08d4ae524349b94b">
 <title>Roadmap · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -15,30 +15,35 @@
   <div class="heading">
     <div>
       <h1>Roadmap</h1>
-      <p>Ten milestones, each accepted on its own. Every step: explain the design → confirm → write code and tests → open a PR → merge after review.</p>
+      <p>Plan v2: combined with the MVP prototype, deliver a single-machine, single-user MVP first, then add flow features, multiple users and operations. Every step: explain the design → confirm → write code and tests → open a PR → merge after review.</p>
     </div>
+    <span class="badge blue">Plan v2</span>
   </div>
 
   <div class="stack">
+    <div class="notice">The decisions behind v2 are in <a href="adr/0010-mvp-first.html">ADR 0010</a>; the <a href="../prototypes/mvp/index.html">MVP prototype</a> is the reference for the MVP's pages and flows.</div>
+
     <section class="panel">
-      <div class="panel-header"><h2>Milestones</h2><span class="muted">Status is updated with every PR</span></div>
+      <div class="panel-header"><h2>Milestones</h2><span class="muted">Status is updated with each PR</span></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>Stage</th><th>Name</th><th>Scope</th><th>Acceptance</th><th>Status</th></tr></thead>
           <tbody>
-            <tr><td><span class="milestone">M0</span></td><td>Project skeleton</td><td>uv workspace, ruff, pyright, pytest, pre-commit, CI; design docs and ADRs; interface design system v1.0; multilingual foundation (Traditional Chinese, Simplified Chinese, English); setup scripts; dependency locking (uv.lock)</td><td>CI all green; docs link check passes</td><td><span class="badge green">Done</span></td></tr>
-            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>Core actions (goto, click, fill, select, press, waitFor, expect, extract, screenshot), locator model, YAML loading and validation</td><td><code>rpa validate</code> points to the file line, step and field of each error</td><td><span class="badge green">Done</span></td></tr>
-            <tr class="current"><td><span class="milestone">M2</span></td><td>Runner and CLI</td><td>Stateless execution engine, step handler registry, screenshots and traces on failure; a test site that mimics internal systems</td><td><code>rpa run</code> works against the test site</td><td><span class="badge blue">Next</span></td></tr>
-            <tr><td><span class="milestone">M3</span></td><td>Flow features</td><td>Variables and expressions, conditions, loops, error handling, sub-scenarios, data-driven runs, secrets, reusing login state</td><td>Complex example scenarios pass</td><td><span class="badge">Not started</span></td></tr>
-            <tr><td><span class="milestone">M4</span></td><td>Generation 1: recording</td><td>Record in a local headed browser and output DSL; prefer semantic locators and avoid auto-generated ids</td><td>A recording replays successfully</td><td><span class="badge">Not started</span></td></tr>
-            <tr><td><span class="milestone">M5</span></td><td>Generation 2: AI</td><td>Generate DSL from natural language plus the page accessibility tree; fix validation failures automatically; self-healing selectors</td><td>A one-sentence description produces a runnable scenario</td><td><span class="badge">Not started</span></td></tr>
-            <tr><td><span class="milestone">M6</span></td><td>Site design</td><td>The visual guidelines were delivered as <a href="style/index.html">interface design system v1.0</a>; this stage now builds prototypes of the core pages with it: login, scenario library, step editor, run details, user and permission management</td><td>Frontend work starts only after you approve the prototypes</td><td><span class="badge amber">Partly delivered</span></td></tr>
-            <tr><td><span class="milestone">M7</span></td><td>Management backend</td><td>Authentication, permissions, projects, scenario versions, secret encryption, auditing, REST API; the database supports both SQLite (development, prototypes) and PostgreSQL (production)</td><td>API tests pass on both SQLite and PostgreSQL</td><td><span class="badge">Not started</span></td></tr>
-            <tr><td><span class="milestone">M8</span></td><td>Web UI</td><td>Implement the M6 prototypes</td><td>Complete the "generate → run → view results" loop in the browser</td><td><span class="badge">Not started</span></td></tr>
-            <tr><td><span class="milestone">M9</span></td><td>Operations</td><td>Distributed workers and scheduling (PostgreSQL), concurrency, retries, notifications, Docker Compose deployment</td><td><code>docker compose up</code> starts everything</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M0</span></td><td>Project skeleton</td><td>uv workspace, ruff, pyright, pytest, pre-commit, CI; design docs and ADRs; interface design system v1.0; multilingual (Traditional Chinese, Simplified Chinese, English); setup scripts; dependency locking</td><td>CI all green; docs link check passes</td><td><span class="badge green">Done</span></td></tr>
+            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>Nine core actions, locator model, YAML loading and validation, <code>rpa validate</code>, <code>rpa schema</code></td><td><code>rpa validate</code> points to the file line, step and field of each error</td><td><span class="badge green">Done</span></td></tr>
+            <tr class="current"><td><span class="milestone">M1.1</span></td><td>Scenario contract</td><td>inputs, outputs, independent verify, overall deadline, category; Python script escape hatch; DSL versions of the prototype's BA-001 and BA-002; the MVP prototype imported; docs moved to v2</td><td><code>rpa validate</code> passes BA-001 and BA-002</td><td><span class="badge blue">In progress</span></td></tr>
+            <tr><td><span class="milestone">M2</span></td><td>Runner and execution contract</td><td><code>rpa run</code>; subprocess execution, overall deadline and cancellation; input validation → steps → page facts → independent assertions → published outputs; run directory and HTML report; sandboxed <code>{{ }}</code> evaluation; Python script scenarios; a test site (based on the prototype's local test page)</td><td>BA-001 → BA-002 chained for real in Chromium and Firefox; the prototype's five regression cases pass</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M3</span></td><td>Management portal</td><td>FastAPI + Jinja server + SQLite + background worker; scenario cards and categories, immutable revisions and the publishing gate, input and output editing, runs, report filters</td><td>"Create → validate → publish → run → read the report" done in the browser</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M4</span></td><td>Scenario production and login</td><td>Raw recording → DSL draft → debugging session (isolated browser) → candidate validation → manual publishing; credential references, separate login state per role, needs_login guiding a manual re-login</td><td>A recording is published and runs successfully; two roles do not interfere</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M5</span></td><td>AI assistant</td><td>Conversational debugging, restricted tools, natural language to DSL, automatic repair of validation failures, self-healing selectors</td><td>The assistant only edits drafts and publishing needs the user's confirmation; a one-sentence description produces a scenario that passes validation</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M6</span></td><td>Playground</td><td>Arrange published scenarios in sequence; pinned revisions; upstream outputs bound to downstream inputs; stop on failure</td><td>The prototype's playground flow runs for real. <strong>MVP done</strong></td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>Flow features</td><td>Conditions, loops, error handling, retries (only for steps without side effects), iframes, multiple tabs, uploads and downloads, sub-scenarios, data-driven runs</td><td>Complex example scenarios pass</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M8</span></td><td>Multiple users and governance</td><td>Authentication (OIDC or LDAP), project permissions, secret encryption, auditing; PostgreSQL in production</td><td>API tests pass on both SQLite and PostgreSQL</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>Operations</td><td>Distributed workers and scheduling, concurrency, notifications, S3-compatible object storage, Docker Compose deployment</td><td><code>docker compose up</code> starts everything</td><td><span class="badge">Not started</span></td></tr>
           </tbody>
         </table>
       </div>
+      <div class="diagram-caption">The original plan's page prototypes (old M6) are delivered by the MVP prototype; the original Web UI (old M8) is split across M3–M6, each stage delivering its own pages.</div>
     </section>
 
     <div class="two-col">
@@ -46,10 +51,11 @@
         <div class="panel-header"><h2>Why this order</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>CLI before UI.</strong> Every capability can be verified without an interface; the web UI is a layer on top.</li>
-            <li><strong>Generation before the management backend.</strong> Generation is what sets this project apart. Until M6, scenarios live as YAML files in the repository and Git is the version control.</li>
-            <li><strong>Prototypes before the backend.</strong> The M6 page prototypes decide what data the M7 API must provide.</li>
-            <li><strong>The runner is stateless from day one.</strong> It takes scenarios, parameters and secrets and outputs results and artifacts, so in M9 it goes straight into the workers.</li>
+            <li><strong>One real chain first.</strong> M2 runs BA-001 → BA-002 from the CLI; the management interface is a layer on top.</li>
+            <li><strong>MVP first.</strong> Single machine, single user, serial execution; SQLite and a file directory are enough (<a href="adr/0008-sqlite-and-postgresql.html">ADR 0008</a>). Multiple users and distribution come after the MVP is proven.</li>
+            <li><strong>Success needs evidence.</strong> From M2 on, outputs are published only after the independent assertions pass; simulated results in the interface never count for publishing.</li>
+            <li><strong>Generation only produces drafts.</strong> Recorded and AI output must pass a real validation and be published by a person, and the published revision must be the validated one.</li>
+            <li><strong>The runner is stateless from day one.</strong> It takes a scenario, inputs and secrets and returns results and artifacts; the M3 background worker and the M9 distributed workers reuse it as is.</li>
           </ul>
         </div>
       </section>
@@ -57,10 +63,11 @@
         <div class="panel-header"><h2>Still to decide</h2></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>AI model</dt><dd>Decide before M5. First confirm whether internal page content may be sent to an external API; if not, use a self-hosted model.</dd>
-            <dt>SSO type</dt><dd>Confirm before M7 whether the company uses OIDC or LDAP / AD.</dd>
-            <dt>Deployment</dt><dd>Confirm before M9 whether it is single-host Docker Compose or Kubernetes.</dd>
-            <dt>Object storage</dt><dd>Choose an S3-compatible product before M9, such as SeaweedFS, Garage or storage the company already runs; MinIO Community Edition, the original choice, is no longer maintained.</dd>
+            <dt>AI model</dt><dd>Decide before M5. First confirm whether internal system pages may be sent to an external API; if not, use a self-hosted model.</dd>
+            <dt>Login method</dt><dd>Before M4, confirm how the target systems log in (password, SSO, CAPTCHA) and which roles are needed.</dd>
+            <dt>SSO type</dt><dd>Before M8, confirm whether the company uses OIDC or LDAP / AD.</dd>
+            <dt>Deployment</dt><dd>Before M9, confirm a single Docker Compose host or Kubernetes.</dd>
+            <dt>Object storage</dt><dd>Before M9, choose an S3-compatible product such as SeaweedFS, Garage or the company's existing storage; the originally planned MinIO community edition is no longer maintained.</dd>
           </dl>
         </div>
       </section>
