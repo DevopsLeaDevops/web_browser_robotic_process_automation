@@ -13,7 +13,15 @@ from typing import Final, Literal
 import click
 
 from rpa_cli.i18n import t
-from rpa_core.dsl import Issue, ValidationResult, format_issue, scenario_json_schema, validate_file
+from rpa_core.dsl import (
+    Issue,
+    ValidationResult,
+    format_issue,
+    inputs_json_schema,
+    outputs_json_schema,
+    scenario_json_schema,
+    validate_file,
+)
 
 __all__ = ["EXIT_INVALID", "build_schema_command", "build_validate_command", "collect_files"]
 
@@ -23,6 +31,7 @@ EXIT_INVALID: Final = 1
 YAML_SUFFIXES: Final = (".yaml", ".yml")
 
 OutputFormat = Literal["text", "json"]
+SchemaPart = Literal["inputs", "outputs"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +175,31 @@ def build_schema_command() -> click.Command:
         short_help=t("cli.schema.short_help"),
         options_metavar=t("cli.options_metavar"),
     )
-    def schema() -> None:
-        click.echo(json.dumps(scenario_json_schema(), ensure_ascii=False, indent=2))
+    @click.argument(
+        "scenario",
+        required=False,
+        type=click.Path(exists=True, dir_okay=False, path_type=Path),
+        metavar=t("cli.schema.scenario_metavar"),
+    )
+    @click.option(
+        "--part",
+        type=click.Choice(["inputs", "outputs"]),
+        default="inputs",
+        show_default=True,
+        help=t("cli.schema.part_help"),
+    )
+    def schema(scenario: Path | None, part: SchemaPart) -> None:
+        if scenario is None:
+            click.echo(json.dumps(scenario_json_schema(), ensure_ascii=False, indent=2))
+            return
+        result = validate_file(scenario)
+        if result.scenario is None:
+            display = _display(scenario)
+            for issue in result.issues:
+                click.echo(_issue_line(display, issue), err=True)
+            click.get_current_context().exit(EXIT_INVALID)
+            return
+        build = inputs_json_schema if part == "inputs" else outputs_json_schema
+        click.echo(json.dumps(build(result.scenario), ensure_ascii=False, indent=2))
 
     return schema

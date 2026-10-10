@@ -178,3 +178,48 @@ def test_schema_command() -> None:
     schema = cast("dict[str, object]", json.loads(result.output))
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["title"] == "Scenario"
+
+
+CONTRACT = """\
+schemaVersion: 1
+id: contract
+name: 契約
+inputs:
+  title: { minLength: 1 }
+  quantity: { type: integer, default: 1 }
+outputs:
+  recordId: { from: '{{ facts.record }}' }
+steps:
+  - { id: read, action: extract, target: { css: a }, as: record }
+verify:
+  - { value: '{{ facts.record }}', notEmpty: true }
+"""
+
+
+def test_schema_of_scenario_inputs(workdir: Path) -> None:
+    (workdir / "contract.yaml").write_text(CONTRACT, encoding="utf-8")
+    result = invoke(["schema", "contract.yaml"])
+
+    assert result.exit_code == 0, result.output
+    schema = cast("dict[str, object]", json.loads(result.output))
+    assert schema["required"] == ["title"]
+    assert schema["properties"] == {
+        "title": {"type": "string", "minLength": 1},
+        "quantity": {"type": "integer", "default": 1},
+    }
+
+
+def test_schema_of_scenario_outputs(workdir: Path) -> None:
+    (workdir / "contract.yaml").write_text(CONTRACT, encoding="utf-8")
+    result = invoke(["schema", "contract.yaml", "--part", "outputs"])
+
+    assert result.exit_code == 0, result.output
+    schema = cast("dict[str, object]", json.loads(result.output))
+    assert schema["required"] == ["recordId"]
+
+
+def test_schema_of_invalid_scenario(workdir: Path) -> None:
+    result = invoke(["schema", "bad.yaml"])
+
+    assert result.exit_code == 1
+    assert "bad.yaml:10:5:" in result.output

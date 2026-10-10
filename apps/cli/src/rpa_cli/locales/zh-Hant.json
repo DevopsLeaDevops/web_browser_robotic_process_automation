@@ -12,6 +12,8 @@
   "cli.validate.no_files": "{path} 裡找不到 .yaml 或 .yml 檔。",
   "cli.validate.summary.ok": "檢查 {files} 個檔案，全部通過。",
   "cli.validate.summary.failed": "檢查 {files} 個檔案，{invalid} 個未通過，共 {issues} 個問題。",
-  "cli.schema.help": "輸出場景 DSL 的 JSON Schema，給編輯器自動補全、AI 生成與前端使用。",
-  "cli.schema.short_help": "輸出場景 DSL 的 JSON Schema。"
+  "cli.schema.help": "輸出場景 DSL 的 JSON Schema，給編輯器自動補全、AI 生成與前端使用。指定場景檔時，改為輸出該場景入參或出參的 JSON Schema。",
+  "cli.schema.short_help": "輸出場景 DSL 的 JSON Schema。",
+  "cli.schema.scenario_metavar": "[場景檔]",
+  "cli.schema.part_help": "指定場景檔時要輸出的部分：inputs（入參）或 outputs（出參）。"
 }

@@ -12,6 +12,8 @@
   "cli.validate.no_files": "No .yaml or .yml files found in {path}.",
   "cli.validate.summary.ok": "Files checked: {files}. All passed.",
   "cli.validate.summary.failed": "Files checked: {files}. Failed: {invalid}. Problems: {issues}.",
-  "cli.schema.help": "Print the JSON Schema of the scenario DSL, for editor autocompletion, AI generation and the frontend.",
-  "cli.schema.short_help": "Print the JSON Schema of the scenario DSL."
+  "cli.schema.help": "Print the JSON Schema of the scenario DSL, for editor autocompletion, AI generation and the frontend. With a scenario file, print the JSON Schema of that scenario's inputs or outputs instead.",
+  "cli.schema.short_help": "Print the JSON Schema of the scenario DSL.",
+  "cli.schema.scenario_metavar": "[SCENARIO]",
+  "cli.schema.part_help": "Which part to print for a scenario file: inputs or outputs."
 }

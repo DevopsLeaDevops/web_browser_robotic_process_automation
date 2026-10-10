@@ -13,5 +13,7 @@
   "cli.validate.summary.ok": "检查 {files} 个文件，全部通过。",
   "cli.validate.summary.failed": "检查 {files} 个文件，{invalid} 个未通过，共 {issues} 个问题。",
   "cli.schema.help": "输出场景 DSL 的 JSON Schema，给编辑器自动补全、AI 生成与前端使用。",
-  "cli.schema.short_help": "输出场景 DSL 的 JSON Schema。"
+  "cli.schema.short_help": "输出场景 DSL 的 JSON Schema。",
+  "cli.schema.scenario_metavar": "[場景檔]",
+  "cli.schema.part_help": "指定場景檔時要輸出的部分：inputs（入參）或 outputs（出參）。"
 }

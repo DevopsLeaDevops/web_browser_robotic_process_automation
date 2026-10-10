@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=../../schema/scenario.v1.json
+#
+# MVP 原型的 BA-002：用 BA-001 的出參 recordId 查詢同一筆紀錄。
+# 在編排（M6 自由試驗場）中，recordId 綁定上游 BA-001 的成功出參；上游失敗就不執行。
+
+schemaVersion: 1
+id: ba-002
+name: 查詢範例紀錄
+category: 範例資料
+description: 依紀錄編號查詢；出參與 BA-001 相同，用來確認建立的紀錄真的存在。
+
+inputs:
+  recordId:
+    type: string
+    pattern: '^DEMO-[A-Z0-9]+$'
+    description: 要查詢的紀錄編號，通常來自 BA-001 的出參
+
+outputs:
+  recordId:
+    type: string
+    pattern: '^DEMO-[A-Z0-9]+$'
+    from: '{{ facts.record.recordId }}'
+  title:
+    type: string
+    from: '{{ facts.record.title }}'
+  quantity:
+    type: integer
+    minimum: 1
+    maximum: 30
+    from: '{{ facts.record.quantity }}'
+
+browser:
+  engine: firefox
+  baseUrl: http://127.0.0.1:8765
+  viewport: { width: 1280, height: 800 }
+
+defaults:
+  timeout: 5000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /?view=query
+    waitUntil: domcontentloaded
+
+  - id: fill-id
+    action: fill
+    target: { label: 紀錄編號, exact: true }
+    value: '{{ inputs.recordId }}'
+
+  - id: search
+    action: click
+    target: { role: button, name: 查詢, exact: true }
+
+  - id: wait-receipt
+    action: waitFor
+    target: { css: '#receipt' }
+
+  - id: read-record
+    action: extract
+    target: { css: '#receipt' }
+    as: record
+    fields:
+      recordId: { target: { css: '#record-id' } }
+      title: { target: { css: '#record-title' } }
+      quantity: { target: { css: '#record-quantity' } }
+      status: { target: { css: '#record-status' } }
+
+  - id: evidence
+    action: screenshot
+    fullPage: true
+
+verify:
+  - name: 查到的是指定的紀錄
+    value: '{{ facts.record.recordId }}'
+    equals: '{{ inputs.recordId }}'
+  - name: 狀態是已建立
+    value: '{{ facts.record.status }}'
+    equals: 已建立

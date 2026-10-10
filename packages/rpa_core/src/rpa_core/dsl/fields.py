@@ -90,7 +90,7 @@ Slug = Annotated[str, _pattern_checker("slug", r"[a-z0-9][a-z0-9_-]{0,63}")]
 """
 
 Identifier = Annotated[str, _pattern_checker("identifier", r"[A-Za-z_][A-Za-z0-9_]{0,63}")]
-"""參數名稱、extract 的變數名稱：之後要在 ``{{ params.名稱 }}`` 中引用。"""
+"""入參、出參與 extract 的名稱：之後以 ``{{ inputs.名稱 }}``、``{{ facts.名稱 }}`` 引用。"""
 
 SecretName = Annotated[str, _pattern_checker("secret_name", r"[A-Z][A-Z0-9_]{0,63}")]
 """Secrets 名稱：大寫英文字母、數字與 _，例如 ERP_PASSWORD。"""

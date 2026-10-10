@@ -1,11 +1,11 @@
 """場景：DSL 的最上層。"""
 
-import math
 from typing import Annotated, Final, Literal, Self, cast
 
 from pydantic import Field, ValidationInfo, model_validator
 
 from rpa_core.dsl.checks import CrossIssue, cross_check
+from rpa_core.dsl.contract import InputSpec, OutputSpec, ScriptConfig, VerifyCheck
 from rpa_core.dsl.fields import (
     ABSOLUTE_URL,
     DslModel,
@@ -23,7 +23,6 @@ __all__ = [
     "SCHEMA_VERSION",
     "BrowserConfig",
     "Defaults",
-    "ParamSpec",
     "Scenario",
     "Viewport",
 ]
@@ -33,39 +32,6 @@ SCHEMA_VERSION: Final = 1
 
 CROSS_ISSUES_CONTEXT: Final = "cross_issues"
 """校驗時在 context 放一個 list 用這個鍵，跨欄位的問題會全部收集進去，而不是只拋出第一個。"""
-
-ParamType = Literal["string", "number", "integer", "boolean"]
-
-
-def _matches_type(value: object, param_type: ParamType) -> bool:
-    match param_type:
-        case "string":
-            return isinstance(value, str)
-        case "boolean":
-            return isinstance(value, bool)
-        case "integer":
-            return isinstance(value, int) and not isinstance(value, bool)
-        case "number":
-            return (
-                isinstance(value, int | float)
-                and not isinstance(value, bool)
-                and not (isinstance(value, float) and not math.isfinite(value))
-            )
-
-
-class ParamSpec(DslModel):
-    """場景參數的宣告；執行時由使用者或排程提供值。"""
-
-    type: ParamType = "string"
-    default: object = None
-    """預設值，型別要符合 type；沒有預設值代表執行時必須提供。"""
-    description: NonEmptyStr | None = None
-
-    @model_validator(mode="after")
-    def _check(self) -> Self:
-        if self.default is not None and not _matches_type(self.default, self.type):
-            raise dsl_error("param.default_type", at=["default"], type=self.type)
-        return self
 
 
 class Viewport(DslModel):
@@ -79,6 +45,7 @@ class BrowserConfig(DslModel):
     """執行這個場景的瀏覽器設定。"""
 
     engine: Literal["chromium", "firefox", "webkit"] = "chromium"
+    """Chromium 與 Firefox 由 CI 測試；webkit 可用但不保證。"""
     headless: bool = True
     viewport: Viewport | None = None
     base_url: NonEmptyStr | None = None
@@ -113,12 +80,24 @@ class Scenario(DslModel):
     id: Slug
     name: NonEmptyStr
     description: NonEmptyStr | None = None
-    params: dict[Identifier, ParamSpec] = Field(default_factory=dict[str, ParamSpec])
+    category: NonEmptyStr | None = None
+    """分類，報告與場景清單依此篩選。"""
+    inputs: dict[Identifier, InputSpec] = Field(default_factory=dict[str, InputSpec])
+    """入參：執行時提供的值，啟動瀏覽器前校驗。"""
+    outputs: dict[Identifier, OutputSpec] = Field(default_factory=dict[str, OutputSpec])
+    """出參：獨立斷言通過後才發布，可以串到下游場景。"""
     secrets: list[SecretName] = Field(default_factory=list[str])
     """執行時注入的機密名稱。值不寫在場景裡，日誌與截圖說明會遮罩。"""
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     defaults: Defaults = Field(default_factory=Defaults)
-    steps: Annotated[list[Step], Field(min_length=1)]
+    deadline: TimeoutMs | None = None
+    """整次執行的總期限（毫秒），從啟動瀏覽器算到發布出參；每一步只能用剩下的時間。"""
+    steps: Annotated[list[Step], Field(min_length=1)] | None = None
+    """自動化步驟。與 script 二擇一。"""
+    verify: Annotated[list[VerifyCheck], Field(min_length=1)] | None = None
+    """獨立斷言：自動化結束後比對頁面事實與入參。"""
+    script: ScriptConfig | None = None
+    """Python 腳本逃生門，與 steps 二擇一；審核時特別標示。"""
 
     @model_validator(mode="after")
     def _cross_check(self, info: ValidationInfo) -> Self:

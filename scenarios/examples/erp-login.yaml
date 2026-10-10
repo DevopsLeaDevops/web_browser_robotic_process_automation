@@ -1,15 +1,16 @@
-# yaml-language-server: $schema=../schema/scenario.v1.json
+# yaml-language-server: $schema=../../schema/scenario.v1.json
 #
 # 範例：登入 ERP 並確認首頁載入。
-# 示範 params 與 secrets 的宣告、browser.baseUrl、定位器的優先順序與備用定位器。
+# 示範 inputs 與 secrets 的宣告、browser.baseUrl、定位器的優先順序與備用定位器。
 # 網址是虛構的，M2 起改用測試網站實際執行。
 
 schemaVersion: 1
 id: erp-login
 name: 登入 ERP
+category: 範例
 description: 以帳號密碼登入，確認看到歡迎訊息與正確的頁面標題。
 
-params:
+inputs:
   user:
     type: string
     description: 登入帳號
@@ -35,7 +36,7 @@ steps:
   - id: fill-user
     action: fill
     target: { role: textbox, name: 帳號 }
-    value: "{{ params.user }}"
+    value: "{{ inputs.user }}"
 
   - id: fill-password
     action: fill
