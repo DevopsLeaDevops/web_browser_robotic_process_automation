@@ -27,7 +27,15 @@ jobs:
       - name: ruff format
         run: uv run ruff format --check .
       - name: pyright
-        run: uv run pyright
+        # 錯誤同時轉成 annotations，直接標在 PR 的檔案行上（tools/ci_annotations.py）
+        run: |
+          set +e
+          uv run pyright --outputjson > pyright.json
+          code=$?
+          set -e
+          uv run python tools/ci_annotations.py pyright pyright.json
+          [ "$code" -eq 0 ] || uv run pyright
+          exit "$code"
 
   test:
     name: 測試（Python ${{ matrix.python }}）
@@ -49,4 +57,11 @@ jobs:
         env:
           # CI 中缺少瀏覽器時直接失敗，而不是略過
           RPA_REQUIRE_BROWSER: "1"
-        run: uv run pytest
+        # 失敗的測試同時轉成 annotations（tools/ci_annotations.py）
+        run: |
+          set +e
+          uv run pytest --junitxml=pytest-report.xml -o junit_family=xunit1
+          code=$?
+          set -e
+          uv run python tools/ci_annotations.py junit pytest-report.xml
+          exit "$code"
