@@ -29,8 +29,8 @@ cd web_browser_robotic_process_automation
 # 建立 .venv，安裝全部套件與開發工具
 uv sync
 
-# 下載 Chromium（Linux 第一次可加 --with-deps 安裝系統依賴）
-uv run playwright install chromium
+# 下載 Chromium 與 Firefox（Linux 第一次可加 --with-deps 安裝系統依賴）
+uv run playwright install chromium firefox
 
 # 提交前自動檢查
 uv run pre-commit install

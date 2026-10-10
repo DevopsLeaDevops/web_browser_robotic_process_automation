@@ -94,7 +94,7 @@ usage() {
 選項：
   --dir <路徑>      還沒有程式碼時，下載到哪裡（預設 ~/code/${REPO_NAME}，
                     也可以用環境變數 RPA_DIR）。在專案資料夾裡執行時不需要。
-  --skip-browser    不下載 Chromium；需要瀏覽器的測試會略過。
+  --skip-browser    不下載瀏覽器（Chromium、Firefox）；需要瀏覽器的測試會略過。
   --skip-tests      只安裝，不跑測試。
   --no-hooks        不安裝 Git 提交前檢查（pre-commit）。
   -h, --help        顯示這段說明。
@@ -226,7 +226,8 @@ fetch_uv_installer() {
 
 browser_launches() {
   uv run python -c "from playwright.sync_api import sync_playwright; \
-p = sync_playwright().start(); p.chromium.launch().close(); p.stop()" >/dev/null 2>&1
+p = sync_playwright().start(); p.chromium.launch().close(); p.firefox.launch().close(); p.stop()" \
+    >/dev/null 2>&1
 }
 
 # ---------------------------------------------------------------- 步驟
@@ -352,7 +353,7 @@ sync_deps() {
 }
 
 install_browser() {
-  step "安裝 Chromium"
+  step "安裝瀏覽器（Chromium、Firefox）"
   if [ "$SKIP_BROWSER" = 1 ]; then
     info "已用 --skip-browser 略過；需要瀏覽器的測試也會略過。"
     return 0
@@ -360,22 +361,22 @@ install_browser() {
   if [ -n "${PLAYWRIGHT_DOWNLOAD_HOST:-}" ]; then
     info "已設定 PLAYWRIGHT_DOWNLOAD_HOST，從瀏覽器鏡像下載。"
   fi
-  if ! run uv run playwright install chromium; then
-    die "下載 Chromium 失敗。" \
+  if ! run uv run playwright install chromium firefox; then
+    die "下載瀏覽器失敗。" \
       "公司網路請設定 PLAYWRIGHT_DOWNLOAD_HOST 指向內部鏡像；或先加 --skip-browser 跳過這一步。"
   fi
   if [ "$OS" = Linux ] && ! browser_launches; then
-    info "Chromium 缺少系統函式庫，交給 Playwright 安裝（會用 sudo，可能需要輸入密碼）。"
-    if ! run uv run playwright install-deps chromium; then
-      die "安裝 Chromium 的系統函式庫失敗。" \
+    info "瀏覽器缺少系統函式庫，交給 Playwright 安裝（會用 sudo，可能需要輸入密碼）。"
+    if ! run uv run playwright install-deps chromium firefox; then
+      die "安裝瀏覽器的系統函式庫失敗。" \
         "Playwright 只能在 Debian、Ubuntu 上自動安裝；其他發行版請依上面的錯誤訊息手動安裝缺少的函式庫。"
     fi
   fi
   if ! browser_launches; then
-    die "Chromium 已下載，但無法啟動。" \
+    die "瀏覽器已下載，但無法啟動。" \
       "手動執行 uv run pytest -m browser 看完整錯誤；仍無法解決時可先加 --skip-browser。"
   fi
-  ok "Chromium 可以啟動"
+  ok "Chromium 與 Firefox 可以啟動"
 }
 
 install_hooks() {

@@ -43,8 +43,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: 安裝依賴
         run: uv sync --locked
-      - name: 安裝 Chromium
-        run: uv run playwright install --with-deps chromium
+      - name: 安裝瀏覽器（Chromium、Firefox）
+        run: uv run playwright install --with-deps chromium firefox
       - name: pytest
         env:
           # CI 中缺少瀏覽器時直接失敗，而不是略過

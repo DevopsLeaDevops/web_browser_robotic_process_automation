@@ -39,7 +39,7 @@ cd web_browser_robotic_process_automation
 
 # 4. Install dependencies and the browser
 uv sync
-uv run playwright install chromium
+uv run playwright install chromium firefox
 
 # 5. Confirm it works
 uv run rpa --version
@@ -116,7 +116,7 @@ cd web_browser_robotic_process_automation</pre>
 uv sync
 
 # Download the Chromium used by Playwright
-uv run playwright install chromium</pre>
+uv run playwright install chromium firefox</pre>
         <dl class="spec-list">
           <dt>.venv/</dt><dd>The project's own virtual environment, inside the project folder. No need to activate it: <code>uv run</code> uses it automatically.</dd>
           <dt>Python</dt><dd>Python downloaded by uv lives in <code>~/.local/share/uv/python</code> and leaves the system Python alone.</dd>
@@ -135,12 +135,12 @@ uv run playwright install chromium</pre>
             <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.1.0（rpa-core 0.1.0）</code>; with <code>--lang en</code>: <code>rpa 0.1.0 (rpa-core 0.1.0)</code></td></tr>
             <tr><td><code>uv run rpa -h</code></td><td>Shows the usage and the description; in English (<code>--lang en</code>): "Generate, manage and run browser automation scenarios." M0 has no subcommands yet.</td></tr>
             <tr><td><code>uv run pytest</code></td><td>The last line shows only <code>passed</code>: no <code>failed</code> and no <code>skipped</code>.</td></tr>
-            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>1 passed</code> (the other tests show as deselected). This is the browser smoke test; like CI, a missing browser fails instead of being skipped.</td></tr>
+            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>2 passed</code> (one each for Chromium and Firefox; the other tests show as deselected). This is the browser smoke test; like CI, a missing browser fails instead of being skipped.</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
-        <div class="notice warn">If <code>uv run pytest</code> shows <code>1 skipped</code> with the reason "Chromium 未安裝" (Chromium not installed), the browser from step 4 did not install correctly; run <code>uv run playwright install chromium</code> again.</div>
+        <div class="notice warn">If <code>uv run pytest</code> shows <code>skipped</code> with the reason "chromium 未安裝" or "firefox 未安裝" (not installed), the browser from step 4 did not install correctly; run <code>uv run playwright install chromium firefox</code> again.</div>
         <p><code>rpa</code> prints Traditional Chinese by default; for Simplified Chinese or English, add <code>--lang zh-Hans</code> or <code>--lang en</code>, or set the <code>RPA_LANG</code> environment variable (for example, add <code>export RPA_LANG=en</code> to <code>~/.zshrc</code>).</p>
         <p>To avoid typing <code>uv run</code> every time, activate the virtual environment first with <code>source .venv/bin/activate</code>, then type <code>rpa --version</code> or <code>pytest</code> directly; leave with <code>deactivate</code>.</p>
       </div>
@@ -197,7 +197,7 @@ uv run pytest</pre>
             <tr><td><code>Address already in use</code></td><td>Port 8000 is taken; use another port, for example <code>uv run python -m http.server -d docs 8001</code>.</td></tr>
             <tr><td><code>git pull</code> says uv.lock would be overwritten</td><td>The lock file has been committed to main. Delete your locally generated copy and pull again: <code>rm uv.lock &amp;&amp; git pull &amp;&amp; uv sync</code>.</td></tr>
             <tr><td>Company network, proxy or mirrors</td><td>See the <a href="setup.html#faq">Dev environment FAQ</a> (<code>UV_INDEX_URL</code>, <code>PLAYWRIGHT_DOWNLOAD_HOST</code>).</td></tr>
-            <tr><td>Start over completely</td><td>Rebuild the environment: <code>rm -rf .venv &amp;&amp; uv sync</code>. Reinstall the browser: <code>rm -rf ~/Library/Caches/ms-playwright</code>, then <code>uv run playwright install chromium</code>.</td></tr>
+            <tr><td>Start over completely</td><td>Rebuild the environment: <code>rm -rf .venv &amp;&amp; uv sync</code>. Reinstall the browser: <code>rm -rf ~/Library/Caches/ms-playwright</code>, then <code>uv run playwright install chromium firefox</code>.</td></tr>
           </tbody>
         </table>
       </div>

@@ -38,7 +38,7 @@ cd web_browser_robotic_process_automation
 
 # 4. 安裝依賴與瀏覽器
 uv sync
-uv run playwright install chromium
+uv run playwright install chromium firefox
 
 # 5. 確認能運行
 uv run rpa --version
@@ -115,7 +115,7 @@ cd web_browser_robotic_process_automation</pre>
 uv sync
 
 # 下載 Playwright 使用的 Chromium
-uv run playwright install chromium</pre>
+uv run playwright install chromium firefox</pre>
         <dl class="spec-list">
           <dt>.venv/</dt><dd>專案自己的虛擬環境，就在專案資料夾內。不需要手動啟用，<code>uv run</code> 會自動使用它。</dd>
           <dt>Python</dt><dd>uv 下載的 Python 放在 <code>~/.local/share/uv/python</code>，不會動到系統的 Python。</dd>
@@ -134,12 +134,12 @@ uv run playwright install chromium</pre>
             <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.1.0（rpa-core 0.1.0）</code></td></tr>
             <tr><td><code>uv run rpa -h</code></td><td>顯示用法與說明「瀏覽器自動化場景的生成、管理與執行工具。」M0 還沒有子命令。</td></tr>
             <tr><td><code>uv run pytest</code></td><td>最後一行只有 <code>passed</code>，沒有 <code>failed</code>，也沒有 <code>skipped</code>。</td></tr>
-            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>1 passed</code>（其餘測試顯示為 deselected）。這是瀏覽器冒煙測試，跟 CI 一樣缺瀏覽器就失敗，而不是略過。</td></tr>
+            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>2 passed</code>（Chromium 與 Firefox 各一；其餘測試顯示為 deselected）。這是瀏覽器冒煙測試，跟 CI 一樣缺瀏覽器就失敗，而不是略過。</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
-        <div class="notice warn">如果 <code>uv run pytest</code> 顯示 <code>1 skipped</code>、原因是「Chromium 未安裝」，代表第 4 步的瀏覽器沒裝好，重新執行 <code>uv run playwright install chromium</code>。</div>
+        <div class="notice warn">如果 <code>uv run pytest</code> 顯示 <code>skipped</code>、原因是「chromium 未安裝」或「firefox 未安裝」，代表第 4 步的瀏覽器沒裝好，重新執行 <code>uv run playwright install chromium firefox</code>。</div>
         <p><code>rpa</code> 預設以繁體中文顯示；要改用簡體中文或英文，加上 <code>--lang zh-Hans</code>、<code>--lang en</code>，或設定環境變數 <code>RPA_LANG</code>（例如在 <code>~/.zshrc</code> 加一行 <code>export RPA_LANG=en</code>）。</p>
         <p>不想每次都打 <code>uv run</code>，可以先啟用虛擬環境：<code>source .venv/bin/activate</code>，之後直接打 <code>rpa --version</code>、<code>pytest</code>；離開用 <code>deactivate</code>。</p>
       </div>
@@ -196,7 +196,7 @@ uv run pytest</pre>
             <tr><td><code>Address already in use</code></td><td>8000 埠被佔用，換一個埠號，例如 <code>uv run python -m http.server -d docs 8001</code>。</td></tr>
             <tr><td><code>git pull</code> 說 uv.lock 會被覆蓋</td><td>鎖檔已經提交到 main。刪掉本機產生的那份再拉：<code>rm uv.lock &amp;&amp; git pull &amp;&amp; uv sync</code>。</td></tr>
             <tr><td>公司網路、代理或鏡像</td><td>見<a href="setup.html#faq">開發環境的常見問題</a>（<code>UV_INDEX_URL</code>、<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）。</td></tr>
-            <tr><td>想整個重來</td><td>重建環境：<code>rm -rf .venv &amp;&amp; uv sync</code>。重裝瀏覽器：<code>rm -rf ~/Library/Caches/ms-playwright</code>，再執行 <code>uv run playwright install chromium</code>。</td></tr>
+            <tr><td>想整個重來</td><td>重建環境：<code>rm -rf .venv &amp;&amp; uv sync</code>。重裝瀏覽器：<code>rm -rf ~/Library/Caches/ms-playwright</code>，再執行 <code>uv run playwright install chromium firefox</code>。</td></tr>
           </tbody>
         </table>
       </div>

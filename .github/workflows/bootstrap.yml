@@ -1,0 +1,60 @@
+# 產生 uv.lock、簡體中文版與 JSON Schema，提交回同一個分支。
+# 給連不到 PyPI 的開發環境使用（例如雲端開發環境）；本機能執行 uv 的話，直接跑下面同樣的命令即可。
+#
+# 觸發方式（都不會在 main 上執行）：
+# - 推送的提交訊息含 [bootstrap]
+# - 手動執行：Actions → bootstrap → Run workflow，選擇分支（workflow 合併到 main 之後才能手動執行）
+#
+# bot 的提交不會再觸發 CI；之後自己的下一個提交會。
+name: bootstrap
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: 產生 uv.lock 與簡中
+    if: >-
+      github.ref != 'refs/heads/main' && (github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[bootstrap]'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: uv lock
+        run: uv lock
+      - name: 安裝依賴
+        run: uv sync --locked
+      - name: 產生簡中
+        run: uv run python tools/i18n.py sync
+      - name: 產生 JSON Schema
+        run: uv run rpa schema > schema/scenario.v1.json
+      - name: 檢查
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run pyright
+          uv run pytest -m "not browser"
+      - name: 提交
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock docs apps packages schema
+          if git diff --cached --quiet; then
+            echo "沒有變更"
+          else
+            git commit -m "chore: 產生 uv.lock 與簡體中文版"
+            git push
+          fi

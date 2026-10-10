@@ -30,8 +30,8 @@ cd web_browser_robotic_process_automation
 # Create .venv and install all packages and dev tools
 uv sync
 
-# Download Chromium (on Linux, add --with-deps the first time to install system dependencies)
-uv run playwright install chromium
+# Download Chromium and Firefox (on Linux, add --with-deps the first time to install system dependencies)
+uv run playwright install chromium firefox
 
 # Automatic checks before each commit
 uv run pre-commit install

@@ -139,8 +139,8 @@ def _rebase_links(html: str, source: Path, target: Path, pages: frozenset[Path])
 
 
 def source_pages() -> list[Path]:
-    """繁中頁面：docs/ 下的 HTML，不含設計系統與其他語言目錄。"""
-    excluded = (DOCS / "design-system", *LANGUAGE_DIRS.values())
+    """繁中頁面：docs/ 下的 HTML，不含設計系統、MVP 原型與其他語言目錄。"""
+    excluded = (DOCS / "design-system", DOCS / "prototypes", *LANGUAGE_DIRS.values())
     return sorted(p for p in DOCS.rglob("*.html") if not any(d in p.parents for d in excluded))
 
 

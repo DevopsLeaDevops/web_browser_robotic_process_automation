@@ -22,7 +22,7 @@
 
 ```bash
 uv sync                              # 安裝全部套件與開發工具
-uv run playwright install chromium   # 下載瀏覽器
+uv run playwright install chromium firefox   # 下載瀏覽器
 uv run pytest                        # 跑測試
 uv run rpa --version
 uv run rpa validate examples/        # 校驗範例場景

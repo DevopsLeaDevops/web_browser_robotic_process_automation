@@ -36,7 +36,8 @@ line-length = 100
 target-version = "py312"
 # "." 讓 tools/ 也算本專案的模組（import 排序時歸在第一方）
 src = ["packages/*/src", "apps/*/src", "."]
-extend-exclude = ["docs/design-system"]
+# 設計系統與 MVP 原型是整包匯入的外部交付物，不改寫
+extend-exclude = ["docs/design-system", "docs/prototypes"]
 
 [tool.ruff.lint]
 select = [

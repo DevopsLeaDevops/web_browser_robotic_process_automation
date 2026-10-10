@@ -2,3 +2,6 @@
 
 # 視覺設計包原樣收錄，MANIFEST.json 以 sha256 校驗，不允許換行轉換。
 docs/design-system/** -text
+
+# MVP 原型同樣原樣收錄，MANIFEST.json 以 sha256 校驗。
+docs/prototypes/** -text

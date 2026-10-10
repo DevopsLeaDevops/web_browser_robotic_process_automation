@@ -3,7 +3,7 @@
 一鍵安裝本機開發環境，並確認專案能運行（Windows）。macOS、Linux 請用 scripts/setup.sh。
 
 .DESCRIPTION
-依序完成：檢查系統、準備程式碼、安裝 uv、安裝 Python 與依賴、安裝 Chromium、
+依序完成：檢查系統、準備程式碼、安裝 uv、安裝 Python 與依賴、安裝瀏覽器、
 安裝提交前檢查，最後執行 rpa --version 與全部測試。重複執行是安全的，已完成的步驟會很快跳過。
 
 已經有程式碼：在專案資料夾裡執行
@@ -26,7 +26,7 @@
 也可以用環境變數 RPA_DIR。在專案資料夾裡執行時不需要。
 
 .PARAMETER SkipBrowser
-不下載 Chromium；需要瀏覽器的測試會略過。
+不下載瀏覽器（Chromium、Firefox）；需要瀏覽器的測試會略過。
 
 .PARAMETER SkipTests
 只安裝，不跑測試。
@@ -241,7 +241,7 @@ $RpaSetupArgs = @{
 
     function Test-BrowserLaunches {
         return (Test-Native uv @('run', 'python', '-c',
-                'from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.stop()'))
+                'from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.firefox.launch().close(); p.stop()'))
     }
 
     # ------------------------------------------------------------ 步驟
@@ -361,20 +361,20 @@ $RpaSetupArgs = @{
     }
 
     function Step-InstallBrowser {
-        Write-Step '安裝 Chromium'
+        Write-Step '安裝瀏覽器（Chromium、Firefox）'
         if ($SkipBrowser) {
             Write-Info '已用 -SkipBrowser 略過；需要瀏覽器的測試也會略過。'
             return
         }
         if ($env:PLAYWRIGHT_DOWNLOAD_HOST) { Write-Info '已設定 PLAYWRIGHT_DOWNLOAD_HOST，從瀏覽器鏡像下載。' }
-        Invoke-Native uv @('run', 'playwright', 'install', 'chromium') -Message '下載 Chromium 失敗。' `
+        Invoke-Native uv @('run', 'playwright', 'install', 'chromium', 'firefox') -Message '下載瀏覽器失敗。' `
             -Hints @('公司網路請設定 $env:PLAYWRIGHT_DOWNLOAD_HOST 指向內部鏡像；或先加 -SkipBrowser 跳過這一步。')
         if (-not (Test-BrowserLaunches)) {
-            Stop-Setup 'Chromium 已下載，但無法啟動。' @(
+            Stop-Setup '瀏覽器已下載，但無法啟動。' @(
                 '手動執行 uv run pytest -m browser 看完整錯誤；仍無法解決時可先加 -SkipBrowser。'
             )
         }
-        Write-Ok 'Chromium 可以啟動'
+        Write-Ok 'Chromium 與 Firefox 可以啟動'
     }
 
     function Step-InstallHooks {
