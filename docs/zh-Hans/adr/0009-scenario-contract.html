@@ -1,0 +1,107 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0009-scenario-contract.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0009 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0009" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0009：场景契约与独立断言</h1>
+      <p>每个场景都有入参、出参与独立断言；「脚本没有抛错」不算成功，出参只在独立断言通过后发布。DSL 为主，Python 脚本是受控的逃生门。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-10</dd>
+        <dt>影响范围</dt><dd>rpa-core（DSL）、rpa-runner（M2）、管理 Portal、录制与 AI 生成、编排</dd>
+        <dt>相关</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a>、<a href="0010-mvp-first.html">ADR 0010</a>、<a href="../design/dsl.html">场景 DSL</a>、<a href="../../prototypes/mvp/index.html">MVP 原型</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>MVP 原型以真实的 Python / Playwright 示例验证了一套运行契约：入参在启动浏览器前以 JSON Schema 校验；自动化只负责操作页面并留下「页面事实」；另一个独立的断言比对事实与入参；全部通过后，出参才发布，并可以交给下一个场景。</p>
+          <p>M1 的 DSL 只有 <code>params</code> 与步骤内的 <code>expect</code>：成功等于「步骤都没失败」，没有出参，也无法串接场景。原型的流程与录制、AI 生成、编排都依赖这份契约。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>决策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>场景契约。</strong>每个场景可以声明 <code>inputs</code>（入参）与 <code>outputs</code>（出参），类型与限制取 JSON Schema 2020-12 的常用子集，可以导出成 JSON Schema。<code>params</code> 改名为 <code>inputs</code>。</li>
+            <li><strong>页面事实。</strong><code>extract</code> 的结果放在 <code>facts</code>；事实只描述页面上看到了什么，不代表成功。</li>
+            <li><strong>独立断言。</strong><code>verify</code> 在自动化结束后比对 facts 与 inputs。有出参的场景一定要有 verify。</li>
+            <li><strong>出参最后才发布。</strong>入参校验 → 自动化 → 独立断言 → 出参校验，全部通过才产生 output.json；任何一步失败都没有成功出参。</li>
+            <li><strong>总期限。</strong><code>deadline</code> 限制整次运行；每一步只能用剩下的时间。</li>
+            <li><strong>DSL 为主，Python 脚本为逃生门。</strong>DSL 表达不了的场景可用 <code>script</code> 指定 automation.py 与 assertion.py，沿用原型的命令行契约；审核时特别标示，录制与 AI 不产生这种场景。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>一次运行的顺序</h2><span class="muted">M2 实现</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>阶段</th><th>输入</th><th>产出</th><th>失败时</th></tr></thead>
+          <tbody>
+            <tr><td>入参校验</td><td>入参、inputs 声明</td><td>input.json</td><td>不启动浏览器</td></tr>
+            <tr><td>自动化</td><td>steps 或 automation.py</td><td>facts.json、截图、日志</td><td>保留阶段、错误与能取得的截图</td></tr>
+            <tr><td>独立断言</td><td>verify 或 assertion.py、facts、入参</td><td>候选出参</td><td>没有成功出参</td></tr>
+            <tr><td>出参校验与发布</td><td>候选出参、outputs 声明</td><td>output.json</td><td>没有成功出参</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">每一阶段都受总期限限制；有副作用的动作（例如送出表单）不会因为超时自动重试。</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body">
+          <h3>好处</h3>
+          <ul class="points">
+            <li>成功有证据：报告可以指出是哪一条断言、哪一个事实不符。</li>
+            <li>场景可以串接：下游的入参绑定上游的出参，类型在运行前就能检查。</li>
+            <li>API、管理界面与 AI 用同一份入参、出参 Schema。</li>
+            <li>DSL 仍是默认，录制与 AI 的输出可以先校验；少数复杂场景有退路。</li>
+          </ul>
+          <h3>代价</h3>
+          <ul class="points">
+            <li>写场景时要多写 verify 与 outputs；只截图或查看的简单场景可以省略。</li>
+            <li>Python 脚本场景能做任何事，安全边界要靠审核、权限与运行隔离。</li>
+            <li>运行引擎要支持两种场景，报告格式要一致。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>为什么不选</th></tr></thead>
+            <tbody>
+              <tr><td>以 Python 脚本为主（照原型）</td><td>最有弹性，但录制与 AI 的输出无法在运行前校验，网页上难以编辑，安全边界不清楚（<a href="0001-dsl-as-source-of-truth.html">ADR 0001</a> 的理由仍然成立）。</td></tr>
+              <tr><td>只用 DSL</td><td>最单纯，但 DSL 扩充前遇到复杂页面就没有退路。</td></tr>
+              <tr><td>只用步骤内的 expect 判定成功</td><td>断言与操作混在一起，无法保证「发布的出参」真的被检查过，也不能独立重跑断言。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

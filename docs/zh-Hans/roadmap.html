@@ -15,30 +15,35 @@
   <div class="heading">
     <div>
       <h1>路线图</h1>
-      <p>十个里程碑，每个都能独立验收。每一步：先说明设计 → 确认 → 写程序与测试 → 开 PR → review 后合并。</p>
+      <p>方案 v2：结合 MVP 原型，先交付单机、单用户的 MVP，再扩充流程能力、多用户与营运。每一步：先说明设计 → 确认 → 写程序与测试 → 开 PR → review 后合并。</p>
     </div>
+    <span class="badge blue">方案 v2</span>
   </div>
 
   <div class="stack">
+    <div class="notice">v2 的决策见 <a href="adr/0010-mvp-first.html">ADR 0010</a>；MVP 的页面与流程以 <a href="../prototypes/mvp/index.html">MVP 原型</a>为准。</div>
+
     <section class="panel">
       <div class="panel-header"><h2>里程碑</h2><span class="muted">状态随每个 PR 更新</span></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>阶段</th><th>名称</th><th>内容</th><th>验收方式</th><th>状态</th></tr></thead>
           <tbody>
-            <tr><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；设计文档与 ADR；纳入界面设计系统 v1.0；多语言基础（繁中、简中、英文）；一键安装脚本；依赖锁定（uv.lock）</td><td>CI 全绿；文档链接检查通过</td><td><span class="badge green">已完成</span></td></tr>
-            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>内核动作（goto、click、fill、select、press、waitFor、expect、extract、screenshot）、定位器模型、YAML 加载与校验</td><td><code>rpa validate</code> 能指出错误所在的文件行号、步骤与字段</td><td><span class="badge green">已完成</span></td></tr>
-            <tr class="current"><td><span class="milestone">M2</span></td><td>Runner 与 CLI</td><td>无状态运行引擎、步骤处理器注册表、失败截图与 Trace；模拟内部系统的测试网站</td><td><code>rpa run</code> 对测试网站跑通</td><td><span class="badge blue">下一步</span></td></tr>
-            <tr><td><span class="milestone">M3</span></td><td>流程能力</td><td>变量与表达式、条件、循环、错误处理、子场景、数据驱动、Secrets、登录状态重用</td><td>复杂示例场景通过</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M4</span></td><td>生成一：录制</td><td>本机有头浏览器录制，输出 DSL；定位器优先语意化，避开自动生成的 id</td><td>录制后回放成功</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M5</span></td><td>生成二：AI</td><td>自然语言加页面无障碍树生成 DSL；校验失败自动修正；选择器自愈</td><td>一句话描述即可生成可运行的场景</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M6</span></td><td>网站风格设计</td><td>视觉规范已由<a href="style/index.html">界面设计系统 v1.0</a> 交付；本阶段改为以它制作内核页面原型：登录、场景库、步骤编辑器、运行详情、用户与权限管理</td><td>原型经你确认后才开始写前端</td><td><span class="badge amber">部分交付</span></td></tr>
-            <tr><td><span class="milestone">M7</span></td><td>管理后端</td><td>认证、权限、项目、场景版本、Secrets 加密、审核、REST API；数据库同时支持 SQLite（开发、原型）与 PostgreSQL（正式环境）</td><td>API 测试在 SQLite 与 PostgreSQL 上都通过</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M8</span></td><td>Web UI</td><td>依 M6 原型实现</td><td>在浏览器内完成「生成 → 运行 → 查看结果」闭环</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M9</span></td><td>营运能力</td><td>分布式 worker 与调度（PostgreSQL）、并发、重试、通知、Docker Compose 部署</td><td><code>docker compose up</code> 一键启动</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；设计文档与 ADR；界面设计系统 v1.0；多语言（繁中、简中、英文）；一键安装脚本；依赖锁定</td><td>CI 全绿；文档链接检查通过</td><td><span class="badge green">已完成</span></td></tr>
+            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>九个核心动作、定位器模型、YAML 加载与校验、<code>rpa validate</code>、<code>rpa schema</code></td><td><code>rpa validate</code> 能指出错误所在的文件行号、步骤与字段</td><td><span class="badge green">已完成</span></td></tr>
+            <tr class="current"><td><span class="milestone">M1.1</span></td><td>场景契约</td><td>入参 inputs、出参 outputs、独立断言 verify、总期限 deadline、分类 category；Python 脚本逃生门；原型 BA-001、BA-002 的 DSL 版；导入 MVP 原型；文档改为 v2</td><td><code>rpa validate</code> 通过 BA-001、BA-002</td><td><span class="badge blue">进行中</span></td></tr>
+            <tr><td><span class="milestone">M2</span></td><td>Runner 与运行契约</td><td><code>rpa run</code>；子进程运行、总期限与取消；入参校验 → 步骤 → 页面事实 → 独立断言 → 发布出参；运行目录与 HTML 报告；<code>{{ }}</code> 在沙箱求值；Python 脚本场景；测试网站（沿用原型的本机测试页）</td><td>BA-001 → BA-002 在 Chromium 与 Firefox 真实串联；原型的五个回归情境通过</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M3</span></td><td>管理 Portal</td><td>FastAPI + Jinja 服务器 + SQLite + 背景 worker；场景卡片与分类、不可变版本与发布门槛、入参出参编辑、运行、报告筛选</td><td>在浏览器内完成「创建 → 验证 → 发布 → 运行 → 看报告」</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M4</span></td><td>场景生产与登录</td><td>原始录制稿 → DSL 草稿 → 调试工作阶段（隔离浏览器）→ 候选版本验证 → 人工发布；登录凭证识别码、每个角色独立的登录状态、needs_login 引导人工重新登录</td><td>录制一段操作后发布并运行成功；两个角色互不干扰</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>对话调试、受限的工具、自然语言生成 DSL、校验失败自动修正、选择器自愈</td><td>助手只改草稿、发布要用户确认；一句话描述生成可通过验证的场景</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M6</span></td><td>自由试验场</td><td>把已发布场景排成串行；固定版本；上游出参绑定到下游入参；失败即停</td><td>原型的试验场流程以真实运行跑通。<strong>MVP 完成</strong></td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>条件、循环、错误处理、重试（只用于无副作用的步骤）、iframe、多标签页、上传与下载、子场景、数据驱动</td><td>复杂示例场景通过</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M8</span></td><td>多用户与治理</td><td>认证（OIDC 或 LDAP）、项目权限、Secrets 加密、审核；正式环境 PostgreSQL</td><td>API 测试在 SQLite 与 PostgreSQL 上都通过</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>营运能力</td><td>分布式 worker 与调度、并发、通知、S3 兼容对象存储、Docker Compose 部署</td><td><code>docker compose up</code> 一键启动</td><td><span class="badge">未开始</span></td></tr>
           </tbody>
         </table>
       </div>
+      <div class="diagram-caption">原方案的页面原型（原 M6）已由 MVP 原型交付；原 Web UI（原 M8）拆进 M3～M6，每个阶段交付自己的页面。</div>
     </section>
 
     <div class="two-col">
@@ -46,10 +51,11 @@
         <div class="panel-header"><h2>为什么是这个顺序</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>CLI 先于 UI。</strong>每个能力都能在没有界面的情况下验证，Web UI 只是在上面加一层。</li>
-            <li><strong>生成先于管理后端。</strong>生成是本工程的核心差异；M6 之前场景以 YAML 文件放在仓库，Git 就是版本控制。</li>
-            <li><strong>原型先于后端。</strong>M6 的页面原型决定 M7 的 API 需要提供哪些数据。</li>
-            <li><strong>Runner 从一开始就无状态。</strong>只吃场景、参数与 Secrets，输出结果与产物，到 M9 直接放进 worker。</li>
+            <li><strong>先打通一条真实链路。</strong>M2 用 CLI 跑通 BA-001 → BA-002，管理界面只是在上面加一层。</li>
+            <li><strong>MVP 先行。</strong>单机、单用户、串行运行；SQLite 与文件目录就够用（<a href="adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。多用户、分布式等 MVP 验证后再做。</li>
+            <li><strong>成功要有证据。</strong>从 M2 起，出参只在独立断言通过后发布；界面上的模拟结果不能当成发布依据。</li>
+            <li><strong>生成只产生草稿。</strong>录制与 AI 的输出都要经过真实验证与人工发布，验证的版本必须就是发布的版本。</li>
+            <li><strong>Runner 从一开始就无状态。</strong>只吃场景、入参与 Secrets，输出结果与产物；M3 的背景 worker 与 M9 的分布式 worker 直接沿用。</li>
           </ul>
         </div>
       </section>
@@ -58,7 +64,8 @@
         <div class="panel-body">
           <dl class="spec-list">
             <dt>AI 模型</dt><dd>M5 前决定。需先确认内部系统的页面内容能否送到外部 API；不行就接自建模型。</dd>
-            <dt>SSO 类型</dt><dd>M7 前确认公司使用 OIDC 还是 LDAP / AD。</dd>
+            <dt>登录方式</dt><dd>M4 前确认目标系统的登录流程（帐密、SSO、验证码）与需要的角色。</dd>
+            <dt>SSO 类型</dt><dd>M8 前确认公司使用 OIDC 还是 LDAP / AD。</dd>
             <dt>部署环境</dt><dd>M9 前确认是单机 Docker Compose 还是 Kubernetes。</dd>
             <dt>对象存储</dt><dd>M9 前选定 S3 兼容的产品，例如 SeaweedFS、Garage 或公司现有的保存；原定的 MinIO 社区版已停止维护。</dd>
           </dl>

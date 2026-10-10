@@ -1,0 +1,88 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0011-fastapi-jinja.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0011 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0011" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0011：管理界面以 FastAPI + Jinja 服务器端渲染</h1>
+      <p>MVP 的管理 Portal 由 FastAPI 提供 API 与页面，页面用 Jinja 样板加设计系统的 CSS 与少量 JavaScript。取代 ADR 0004 的 React。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-10</dd>
+        <dt>影响范围</dt><dd>rpa-server（M3 起）、管理界面的所有页面、CI</dd>
+        <dt>相关</dt><dd>取代 <a href="0004-react-frontend.html">ADR 0004</a>；<a href="0002-python-stack.html">ADR 0002</a>、<a href="0006-design-system.html">ADR 0006</a>、<a href="0010-mvp-first.html">ADR 0010</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>ADR 0004 选择 React，主要理由是可视化的步骤编辑器需要拖拽与复杂交互。MVP 原型的页面则是卡片、表单、筛选、草稿编辑与串行编排，全部用设计系统 v1.0 的 portal.css、shell.js 与一支 JavaScript 完成，没有用框架。</p>
+          <p>原型的交付任务书建议 Flask + Jinja。后端已经以 Pydantic 定义 DSL（ADR 0002），API 也要回传同一套模型。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>决策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>FastAPI 提供 API 与页面。</strong>REST API 直接使用 rpa-core 的 Pydantic 模型并产生 OpenAPI；页面由同一个服务以 Jinja2 样板渲染。</li>
+            <li><strong>前端只用设计系统与少量 JavaScript。</strong>沿用 portal.css、shell.js 与设计变量；交互以小型、不需建置的 JavaScript 模块完成，不引入框架与 Node.js 构建流程。</li>
+            <li><strong>长任务不阻塞请求。</strong>运行交给背景 worker；页面以轮询或服务器推送事件读取进度。</li>
+            <li><strong>多语言。</strong>Jinja 样板的文字放在消息目录，与命令行共用同一套机制（ADR 0007）。</li>
+            <li><strong>保留调整空间。</strong>若之后的步骤编辑器确实需要框架，只在那一页引入，并另写 ADR。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body">
+          <h3>好处</h3>
+          <ul class="points">
+            <li>整个工程只有 Python，不必维护 TypeScript 与前端建置。</li>
+            <li>页面与原型一致：同一套 CSS、同样的版面与组件。</li>
+            <li>API 与页面共用模型与校验，错误消息一致。</li>
+          </ul>
+          <h3>代价</h3>
+          <ul class="points">
+            <li>复杂的拖拽编辑要自己写 JavaScript；超过一定规模就要重新评估。</li>
+            <li>服务器端渲染的页面要另外确保键盘操作与窄屏幕版面。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>为什么不选</th></tr></thead>
+            <tbody>
+              <tr><td>Flask + Jinja（原型任务书）</td><td>同样简单，但请求校验与 API 文档要另外置；FastAPI 直接使用 Pydantic 模型并产生 OpenAPI。</td></tr>
+              <tr><td>FastAPI + React（ADR 0004）</td><td>交互最强，但 MVP 的页面用不到，却要多维护一套 TypeScript 与构建流程。</td></tr>
+              <tr><td>NiceGUI、Streamlit</td><td>纯 Python，但无法沿用设计系统的版面与组件。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

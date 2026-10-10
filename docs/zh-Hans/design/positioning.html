@@ -50,7 +50,7 @@
       <div class="panel-body">
         <div class="four-col">
           <div><h3>1　生成</h3><ul class="points"><li>录制用户操作</li><li>用自然语言让 AI 产生</li><li>由模板或子场景组合</li></ul></div>
-          <div><h3>2　管理</h3><ul class="points"><li>版本与差异比较</li><li>参数、标签与项目</li><li>权限与审核</li></ul></div>
+          <div><h3>2　管理</h3><ul class="points"><li>版本与发布门槛</li><li>入参、出参与分类</li><li>权限与审核</li></ul></div>
           <div><h3>3　运行</h3><ul class="points"><li>手动、调度或 API 触发</li><li>多 worker 并发</li><li>重试与超时控制</li></ul></div>
           <div><h3>4　反馈</h3><ul class="points"><li>每一步的截图与日志</li><li>Playwright Trace 回放</li><li>失败定位与选择器自愈</li></ul></div>
         </div>
@@ -61,14 +61,20 @@
       <div class="panel-header"><h2>内核概念</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>场景 Scenario</dt><dd>一段可重复运行的浏览器操作流程，以声明式 DSL 描述。平台的核心资产，有版本。</dd>
+          <dt>场景 Scenario</dt><dd>一段可重复运行的浏览器操作流程，以声明式 DSL 描述（少数情况用 Python 脚本，见 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>）。平台的核心资产，有稳定的 id 与分类。</dd>
+          <dt>版本 Revision</dt><dd>场景的一个不可变版本：草稿 → 验证中 → 通过或失败 → 已发布。修改后要重新验证，发布的版本必须就是验证通过的版本。</dd>
           <dt>步骤 Step</dt><dd>场景中的一个动作，例如打开网址、点击、填写、抽取数据。每个步骤有稳定的 <code>id</code>。</dd>
           <dt>定位器 Target</dt><dd>描述「要操作页面上的哪个元素」，可以有多个候选，依优先级尝试。</dd>
-          <dt>参数 Param</dt><dd>运行时才给定的值，例如查询月份；有类型与默认值。</dd>
+          <dt>入参 Input</dt><dd>运行时才给定的值，例如查询月份；有类型、限制与默认值，启动浏览器前校验。</dd>
+          <dt>页面事实 Fact</dt><dd>运行中从页面抽取的值，只描述看到了什么，不代表成功。</dd>
+          <dt>独立断言 Verify</dt><dd>自动化结束后，比对页面事实与入参的规则。「脚本没有出错」不等于成功。</dd>
+          <dt>出参 Output</dt><dd>独立断言通过后才发布的结果，可以串到下一个场景的入参。</dd>
           <dt>Secret</dt><dd>账号密码等机密，场景只引用名称，明文不会出现在场景、日志或截图说明中。</dd>
-          <dt>运行 Run</dt><dd>场景的一次运行，记录触发者、参数、每一步的结果与耗时。</dd>
+          <dt>运行 Run</dt><dd>某个版本的一次运行，记录触发者、入参、每一步的结果与耗时；状态为排队、运行中、通过、失败、超时、已取消或需要登录。</dd>
           <dt>产物 Artifact</dt><dd>运行产生的截图、Trace、下载文件与抽取的数据。</dd>
-          <dt>项目 Project</dt><dd>权限隔离的单位。场景、Secrets、运行记录都属于某个项目。</dd>
+          <dt>编排 Workflow</dt><dd>把已发布的场景排成串行，上游的出参绑到下游的入参，失败就停止（M6）。</dd>
+          <dt>调试工作阶段 Debug session</dt><dd>录制稿或草稿在隔离的浏览器中调试；AI 助手只能修改草稿，发布要用户确认（M4、M5）。</dd>
+          <dt>项目 Project</dt><dd>权限隔离的单位。场景、Secrets、运行记录都属于某个项目（M8；MVP 是单用户）。</dd>
         </dl>
       </div>
     </section>
