@@ -37,7 +37,7 @@
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
           <title id="arch-title">系统组件图</title>
-          <desc id="arch-desc">用户通过 Web UI 或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 主动从 PostgreSQL 队列取任务，以 Playwright 操作目标内部系统，产物存入 MinIO。</desc>
+          <desc id="arch-desc">用户通过 Web UI 或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 主动连到 PostgreSQL 领取任务（不是由数据库调用 worker），以 Playwright 操作目标内部系统，产物存入对象保存。</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -82,7 +82,7 @@
           <text class="sub" x="536" y="244">Runner + Playwright（Chromium）</text>
 
           <rect class="box" x="520" y="304" width="232" height="56" rx="8"/>
-          <text class="title" x="536" y="328">MinIO（S3 兼容）</text>
+          <text class="title" x="536" y="328">对象保存（S3 兼容）</text>
           <text class="sub" x="536" y="346">截图、Trace、下载文件</text>
 
           <!-- 外部 -->
@@ -99,8 +99,8 @@
           <path class="link" d="M192 206H262" marker-end="url(#arrow)"/>
           <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
           <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
-          <path class="link" d="M636 160V194" marker-end="url(#arrow)"/>
-          <text class="label" x="644" y="182">worker 主动取任务</text>
+          <path class="link" d="M636 194V162" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="182">worker 领取任务</text>
           <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
           <text class="label" x="644" y="290">上传产物</text>
           <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
@@ -162,9 +162,9 @@
           <ol>
             <li>用户在 Web UI 或 CLI 触发运行，或调度器到点创建任务。</li>
             <li>API 检查权限，取出指定版本的场景，写入一笔运行记录与一个队列任务。</li>
-            <li>某个 worker 取到任务，向 API 解出参数与 Secrets（只在内存中）。</li>
+            <li>空闲的 worker 收到 PostgreSQL 的通知（或定期查询时发现），主动领取并锁住这笔任务，向 API 解出参数与 Secrets（只在内存中）。</li>
             <li>Runner 打开独立的浏览器上下文，逐步运行；每一步回报状态。</li>
-            <li>截图、Trace、下载文件上传到 MinIO；抽取的数据写回运行记录。</li>
+            <li>截图、Trace、下载文件上传到对象保存；抽取的数据写回运行记录。</li>
             <li>运行结束，结果通知触发者；失败时标出出错的步骤与截图。</li>
           </ol>
         </div>
