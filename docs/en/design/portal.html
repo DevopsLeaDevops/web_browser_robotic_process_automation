@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:e428fde3e2aab726">
+<title>Management portal · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="portal" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Management portal</h1>
+      <p>M3: create scenarios, validate, publish and run them, and read the reports in the browser. Single machine, single user (<a href="../adr/0010-mvp-first.html">ADR 0010</a>), FastAPI + Jinja (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>), SQLite (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>); the layout follows the <a href="../../prototypes/mvp/index.html">MVP prototype</a> and design system v1.0.</p>
+    </div>
+    <span class="badge blue">M3</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice">Start it with <code>uv run rpa serve</code> and open <code>http://127.0.0.1:8000</code>. Data is kept in <code>data/</code> (or the folder given with <code>--data</code>). There is no sign-in, so by default only this computer can connect.</div>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>Flow</h2><span class="muted">Acceptance: walk through it once in the browser</span></div>
+      <div class="panel-body prose">
+        <div class="stepbar"><span>1 Create or import</span><span>2 Edit</span><span>3 Validate</span><span>4 Publish</span><span>5 Run</span><span>6 Read the report</span></div>
+        <ol>
+          <li><strong>Create or import.</strong> A new scenario starts as a v1 draft that only opens a page; the examples in <code>scenarios/demo</code> can also be imported with one click. The scenario ID is the DSL <code>id</code>; it cannot be changed or reused.</li>
+          <li><strong>Edit.</strong> Edit the YAML directly (script scenarios also have their two scripts). Before saving, the files are checked with the same rules as <code>rpa validate</code>; problems are listed with their line, step and field, and no revision is created.</li>
+          <li><strong>Validate.</strong> Runs the chosen revision in a real browser; inputs, browser and URL can be adjusted in the form.</li>
+          <li><strong>Publish.</strong> Only a revision that passed validation can be published, and the user confirms it in a dialog.</li>
+          <li><strong>Run.</strong> Runs always use the published revision; new drafts do not affect them.</li>
+          <li><strong>Read the report.</strong> Filter by category, scenario (multiple), result and purpose; every run has the M2 <code>report.html</code>, a screenshot and the full run folder.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="gate">
+      <div class="panel-header"><h2>Revisions and the publishing gate</h2></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>Revisions are immutable.</strong> Every save is a new revision (v1, v2…); its files are written to the data folder and made read-only. A save names the revision it started from and gets a 409 if that is not the latest, so nobody overwrites someone else's change.</li>
+          <li><strong>Status.</strong> Draft → validating → validated / validation failed; the status is the result of the latest validation. Publishing points the scenario at that revision; earlier published revisions stay in the history.</li>
+          <li><strong>What was validated is what gets published.</strong> Each revision records a content hash computed the same way as the <code>scenarioHash</code> rpa-runner writes to <code>result.json</code>. Publishing requires all of: the latest validation passed, a passing validation run has the same hash as the revision, and the files on disk still hash to that value.</li>
+          <li><strong>Changed content needs validation again.</strong> A new revision always starts as a draft; earlier validation results cannot be used to publish new content.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="runs">
+      <div class="panel-header"><h2>Runs</h2></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>Check first, then queue.</strong> Inputs are checked when a run is requested; invalid inputs get a 422 and nothing is queued. Otherwise the answer is 202 with the run ID.</li>
+          <li><strong>Background worker.</strong> <code>rpa-worker</code> runs in a background thread of the server process and takes one run at a time in creation order (SQLite allows a single process). It calls the M2 <code>rpa_runner.run.execute</code>, so the overall deadline, subprocess and process-group termination are the same as in M2.</li>
+          <li><strong>Progress.</strong> The run page checks the status every second and reloads when the stage or status changes.</li>
+          <li><strong>Cancellation.</strong> A queued run is cancelled right away; a running one has its subprocess and browser terminated at once and ends as "Cancelled". Actions already completed on the target site are not undone.</li>
+          <li><strong>No double submission.</strong> Each form load creates an <code>idempotencyKey</code>; submitting twice returns the same run.</li>
+          <li><strong>Server restarts.</strong> On start-up, runs that were interrupted are marked as failed; queued runs continue.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="pages">
+      <div class="panel-header"><h2>Pages</h2><span class="muted">Top-level and side navigation as in the MVP prototype</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Path</th><th>Content</th></tr></thead>
+          <tbody>
+            <tr><td><code>/scenes</code></td><td>Statistics, search and category filter, scenario cards; new scenario, import examples</td></tr>
+            <tr><td><code>/scenes/{id}</code></td><td>Revisions and their status, publishing, inputs and outputs, default URL, recent runs</td></tr>
+            <tr><td><code>/scenes/{id}/edit</code></td><td>Edit the YAML and scripts and save a new revision; validation problems are listed on the page</td></tr>
+            <tr><td><code>/scenes/{id}/run</code></td><td>Form to validate or run: inputs (JSON with the defaults filled in), browser, URL</td></tr>
+            <tr><td><code>/runs</code></td><td>Run reports: filter by category and scenario (multiple), result and purpose</td></tr>
+            <tr><td><code>/runs/{run ID}</code></td><td>Status, stages, independent assertions, inputs and outputs, screenshot, files in the run folder; cancel, publish</td></tr>
+            <tr><td><code>/recording</code>, <code>/playground</code></td><td>Placeholders: recording comes in M4, the playground in M6</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="api">
+      <div class="panel-header"><h2>API</h2><span class="muted">JSON, camelCase; interactive docs at <code>/api/docs</code></span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /api/scenes</code>, <code>POST /api/scenes</code></td><td>List scenarios (<code>q</code>, <code>category</code>); create a scenario</td></tr>
+            <tr><td><code>POST /api/scenes/import</code></td><td>Import the scenarios in the examples folder, skipping existing ones</td></tr>
+            <tr><td><code>GET</code>, <code>PATCH /api/scenes/{id}</code></td><td>A scenario and its revisions; change the default URL, archive</td></tr>
+            <tr><td><code>GET /api/scenes/{id}/revisions/{n}</code></td><td>A revision and its files</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>Save a new revision: <code>baseRevision</code>, <code>files</code>, <code>note</code>; 409 if not based on the latest, 422 with validation problems (including line numbers)</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>Validate; 202 with the run</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>Publish; 409 if the publishing gate is not met</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>Run the published revision: <code>inputs</code>, <code>engine</code>, <code>baseUrl</code>, <code>idempotencyKey</code></td></tr>
+            <tr><td><code>GET /api/runs</code>, <code>GET /api/runs/{run ID}</code></td><td>List runs (<code>scene</code>, <code>category</code>, <code>status</code>, <code>purpose</code> can repeat); one run with its <code>result.json</code> and file list</td></tr>
+            <tr><td><code>POST /api/runs/{run ID}/cancel</code></td><td>Cancel</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">Errors are always <code>{"error": {"code", "message", …}}</code>: 404 not found, 409 conflicting state, 422 invalid content.</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="data">
+        <div class="panel-header"><h2>Data</h2></div>
+        <div class="panel-body">
+<pre class="source">data/
+  rpa.db                      SQLite: scenes, revisions, runs
+  scenes/&lt;scenario id&gt;/&lt;n&gt;/   scenario.yaml (script scenarios also have two scripts)
+  runs/&lt;run ID&gt;/              the M2 run folder (input.json, report.html…)</pre>
+          <dl class="spec-list">
+            <dt>scenes</dt><dd>ID, name and category (from the latest revision), default URL, latest and published revision numbers, archived</dd>
+            <dt>revisions</dt><dd>Scenario, revision number (unique), content hash, kind, status, note, publishing time</dd>
+            <dt>runs</dt><dd>Run ID, scenario and revision, the name and category at the time, purpose, status and stage, inputs and outputs, error, hash, times</dd>
+          </dl>
+          <p class="muted">The models use SQLAlchemy 2; schema changes go through Alembic migrations, applied automatically when the server starts. A test checks that the migrations match the models.</p>
+        </div>
+      </section>
+      <section class="panel" id="settings">
+        <div class="panel-header"><h2>Settings</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt><code>--host</code>, <code>--port</code></dt><dd>Default <code>127.0.0.1:8000</code></dd>
+            <dt><code>RPA_DATA_DIR</code></dt><dd>Data folder, default <code>data</code>; or use <code>--data</code></dd>
+            <dt><code>RPA_DATABASE_URL</code></dt><dd>SQLite by default; PostgreSQL comes in M8</dd>
+            <dt><code>RPA_LANG</code></dt><dd>Default language, also used for run reports; pages can switch at the top right</dd>
+            <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>Folder for "Import examples", default <code>scenarios/demo</code></dd>
+            <dt>Secrets</dt><dd>As in M2, read from environment variables of the same name in the server process</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="security">
+      <div class="panel-header"><h2>Security and limits</h2></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>No sign-in.</strong> By default it only listens on <code>127.0.0.1</code>; <code>rpa serve</code> warns when another address is used. Authentication and permissions come in M8.</li>
+          <li><strong>Cross-site requests are blocked.</strong> A write request that carries an <code>Origin</code> header must come from the same origin, so other websites cannot call the local API in the background.</li>
+          <li><strong>Files in run folders.</strong> Only files inside the run folder are served; only <code>report.html</code> is shown as a web page, with a content security policy that allows nothing but inline styles and the screenshots.</li>
+          <li><strong>Script scenarios run arbitrary code.</strong> As in M2, only trusted people should edit Python script scenarios.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="later">
+      <div class="panel-header"><h2>Later milestones</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>M4</dt><dd>Form editing of inputs and outputs; recording, debugging sessions, sign-in credentials and needs_login</dd>
+          <dt>M5</dt><dd>The AI assistant only edits drafts; publishing goes through the same gate</dd>
+          <dt>M6</dt><dd>Playground: scenario sequences, output bindings, stop on failure</dd>
+          <dt>M8</dt><dd>Authentication and permissions, encrypted secrets, PostgreSQL</dd>
+          <dt>M9</dt><dd>Distributed workers; server-sent events instead of polling</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

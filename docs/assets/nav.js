@@ -12,7 +12,7 @@ window.DOCS_NAV = {
   "subtitle": "ENGINEERING DOCS",
   "text": {
     "title": {"zh-Hant": "瀏覽器 RPA", "zh-Hans": "浏览器 RPA", "en": "Browser RPA"},
-    "badge": {"zh-Hant": "文檔 · M2", "zh-Hans": "文档 · M2", "en": "Docs · M2"},
+    "badge": {"zh-Hant": "文檔 · M3", "zh-Hans": "文档 · M3", "en": "Docs · M3"},
     "skip": {"zh-Hant": "跳至主要內容", "zh-Hans": "跳至主要内容", "en": "Skip to main content"},
     "topnav": {"zh-Hant": "第一級選單", "zh-Hans": "第一级菜单", "en": "Primary navigation"},
     "sidenav": {"zh-Hant": "第二級選單", "zh-Hans": "第二级菜单", "en": "Section navigation"},
@@ -56,6 +56,11 @@ window.DOCS_NAV = {
           "id": "dsl",
           "href": "design/dsl.html",
           "name": {"zh-Hant": "場景 DSL", "zh-Hans": "场景 DSL", "en": "Scenario DSL"}
+        },
+        {
+          "id": "portal",
+          "href": "design/portal.html",
+          "name": {"zh-Hant": "管理 Portal", "zh-Hans": "管理 Portal", "en": "Management portal"}
         },
         {
           "id": "architecture",

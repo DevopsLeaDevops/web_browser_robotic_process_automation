@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理 Portal · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="portal" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>管理 Portal</h1>
+      <p>M3：在瀏覽器裡建立場景、驗證、發布、執行並查看報告。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.0。</p>
+    </div>
+    <span class="badge blue">M3</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice">啟動：<code>uv run rpa serve</code>，再打開 <code>http://127.0.0.1:8000</code>。資料放在 <code>data/</code>（或 <code>--data</code> 指定的資料夾）。沒有登入保護，預設只開放本機連線。</div>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>流程</h2><span class="muted">驗收：在瀏覽器內走完一次</span></div>
+      <div class="panel-body prose">
+        <div class="stepbar"><span>1 建立或匯入</span><span>2 編輯</span><span>3 驗證</span><span>4 發布</span><span>5 執行</span><span>6 看報告</span></div>
+        <ol>
+          <li><strong>建立或匯入。</strong>新增場景會產生第 1 版草稿（只開一個網頁）；也可以一鍵匯入 <code>scenarios/demo</code> 的範例。場景編號就是 DSL 的 <code>id</code>，建立後不能改、也不會重複使用。</li>
+          <li><strong>編輯。</strong>直接編輯 YAML（腳本場景另有兩支腳本）。存檔前先用 <code>rpa validate</code> 同一套規則校驗，有問題時列出行號、步驟與欄位，不會建立新版本。</li>
+          <li><strong>驗證。</strong>用真實瀏覽器執行指定版本，入參、瀏覽器、網址都可以在表單調整。</li>
+          <li><strong>發布。</strong>只有通過驗證的版本可以發布，而且要使用者在對話框確認。</li>
+          <li><strong>執行。</strong>一律使用已發布的版本；新的草稿不影響正式執行。</li>
+          <li><strong>看報告。</strong>依分類、場景（多選）、結果與目的篩選；每次執行都有 M2 的 <code>report.html</code>、截圖與完整的執行目錄。</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="gate">
+      <div class="panel-header"><h2>版本與發布門檻</h2></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>版本不可變。</strong>每次存檔都是新版本（v1、v2…），內容寫進資料目錄後設成唯讀。存檔要帶「從哪一版開始改」，不是最新版就回 409，避免覆蓋別人的修改。</li>
+          <li><strong>狀態。</strong>草稿 → 驗證中 → 驗證通過／驗證失敗；狀態是最近一次驗證的結果。發布後場景指向該版本，舊的發布版本留在歷史中。</li>
+          <li><strong>驗證的就是發布的。</strong>版本記錄內容雜湊，演算法與 rpa-runner 寫在 <code>result.json</code> 的 <code>scenarioHash</code> 相同。發布時要同時符合：最近一次驗證通過、有一次通過的驗證執行跑的雜湊等於版本雜湊、磁碟上的內容重新計算後也還是同一個雜湊。</li>
+          <li><strong>改內容就重新驗證。</strong>新版本一律從草稿開始，舊版本的驗證結果不能拿來發布新內容。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="runs">
+      <div class="panel-header"><h2>執行</h2></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>先校驗、再排隊。</strong>請求執行時先檢查入參，不合規則直接回 422，不會排進佇列；通過後回 202 與執行編號。</li>
+          <li><strong>背景 worker。</strong><code>rpa-worker</code> 在伺服器程序內的背景執行緒，依建立時間一次執行一個（SQLite 只允許單一程序）。它呼叫 M2 的 <code>rpa_runner.run.execute</code>，總期限、子程序與程序群組的終止都沿用 M2。</li>
+          <li><strong>進度。</strong>執行頁每秒查詢一次狀態，階段或狀態改變時重新整理。</li>
+          <li><strong>取消。</strong>排隊中的直接取消；執行中的立即終止子程序與瀏覽器，狀態為「已取消」。已經在目標網站完成的動作不會復原。</li>
+          <li><strong>不重複送出。</strong>表單每次載入產生一個 <code>idempotencyKey</code>，重複送出只會得到同一個執行。</li>
+          <li><strong>伺服器重啟。</strong>啟動時把上次執行到一半的任務標為失敗；排隊中的會繼續執行。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="pages">
+      <div class="panel-header"><h2>頁面</h2><span class="muted">頂部第一級、左側第二級，與 MVP 原型相同</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>路徑</th><th>內容</th></tr></thead>
+          <tbody>
+            <tr><td><code>/scenes</code></td><td>統計、搜尋與分類篩選、場景卡片；新增場景、匯入範例</td></tr>
+            <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、入參與出參、預設網址、最近執行</td></tr>
+            <tr><td><code>/scenes/{id}/edit</code></td><td>編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上</td></tr>
+            <tr><td><code>/scenes/{id}/run</code></td><td>驗證或執行的表單：入參（JSON，已帶入預設值）、瀏覽器、網址</td></tr>
+            <tr><td><code>/runs</code></td><td>執行報告：分類、場景多選，結果、目的篩選</td></tr>
+            <tr><td><code>/runs/{執行編號}</code></td><td>狀態、階段、獨立斷言、入參與出參、截圖、執行目錄的檔案；取消、發布</td></tr>
+            <tr><td><code>/recording</code>、<code>/playground</code></td><td>預留位置：錄製在 M4、自由試驗場在 M6</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="api">
+      <div class="panel-header"><h2>API</h2><span class="muted">JSON、camelCase；互動文件在 <code>/api/docs</code></span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>介面</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /api/scenes</code>、<code>POST /api/scenes</code></td><td>場景清單（<code>q</code>、<code>category</code>）；建立場景</td></tr>
+            <tr><td><code>POST /api/scenes/import</code></td><td>匯入範例資料夾的場景，已存在的略過</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>場景與版本清單；修改預設網址、封存</td></tr>
+            <tr><td><code>GET /api/scenes/{id}/revisions/{n}</code></td><td>版本與檔案內容</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校驗問題（含行號）</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>驗證；202 回執行</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>發布；不符合發布門檻時 409</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>idempotencyKey</code></td></tr>
+            <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單</td></tr>
+            <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">錯誤一律是 <code>{"error": {"code", "message", …}}</code>：404 找不到、409 狀態衝突、422 內容有問題。</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="data">
+        <div class="panel-header"><h2>資料</h2></div>
+        <div class="panel-body">
+<pre class="source">data/
+  rpa.db                     SQLite：scenes、revisions、runs
+  scenes/&lt;場景 id&gt;/&lt;版本&gt;/   scenario.yaml（腳本場景另有兩支腳本）
+  runs/&lt;執行編號&gt;/            M2 的執行目錄（input.json、report.html…）</pre>
+          <dl class="spec-list">
+            <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、預設網址、最新與已發布的版本號碼、封存</dd>
+            <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
+            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、入參與出參、錯誤、雜湊、時間</dd>
+          </dl>
+          <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
+        </div>
+      </section>
+      <section class="panel" id="settings">
+        <div class="panel-header"><h2>設定</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt><code>--host</code>、<code>--port</code></dt><dd>預設 <code>127.0.0.1:8000</code></dd>
+            <dt><code>RPA_DATA_DIR</code></dt><dd>資料資料夾，預設 <code>data</code>；也可以用 <code>--data</code></dd>
+            <dt><code>RPA_DATABASE_URL</code></dt><dd>預設 SQLite；PostgreSQL 在 M8</dd>
+            <dt><code>RPA_LANG</code></dt><dd>預設語言，也是執行報告的語言；頁面右上角可以切換</dd>
+            <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「匯入範例」的資料夾，預設 <code>scenarios/demo</code></dd>
+            <dt>Secrets</dt><dd>與 M2 相同，從伺服器程序的同名環境變數讀取</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="security">
+      <div class="panel-header"><h2>安全與限制</h2></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>沒有登入。</strong>預設只聽 <code>127.0.0.1</code>；改成其他位址時 <code>rpa serve</code> 會提醒。認證與權限在 M8。</li>
+          <li><strong>擋掉跨站請求。</strong>寫入請求帶了 <code>Origin</code> 標頭時必須同源，避免其他網站在背景呼叫本機的 API。</li>
+          <li><strong>執行目錄的檔案。</strong>只提供執行目錄內的檔案；只有 <code>report.html</code> 當成網頁顯示，並加上只允許內嵌樣式與截圖的內容安全政策。</li>
+          <li><strong>腳本場景等同執行任意程式。</strong>與 M2 相同，Python 腳本場景只給信任的人編輯。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="later">
+      <div class="panel-header"><h2>之後的里程碑</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>M4</dt><dd>入參與出參的表單編輯；錄製、調試工作階段、登入憑證與 needs_login</dd>
+          <dt>M5</dt><dd>AI 助手只改草稿，發布仍走同一個門檻</dd>
+          <dt>M6</dt><dd>自由試驗場：場景序列、出參綁定、失敗即停</dd>
+          <dt>M8</dt><dd>認證與權限、Secrets 加密、PostgreSQL</dd>
+          <dt>M9</dt><dd>分散式 worker、伺服器推送事件取代輪詢</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
