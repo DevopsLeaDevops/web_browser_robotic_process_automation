@@ -89,6 +89,20 @@ jobs:
           msg="${msg//$'\n'/'%0A'}"
           echo "::error title=setup.sh 最後 30 行輸出::${msg}"
 
+      # Windows 的腳本輸出沒有存檔；失敗時再跑一次測試，把失敗的測試寫成註記（tools/ci_annotations.py）
+      - name: 失敗時重跑測試並寫成註記（Windows）
+        if: failure() && runner.os == 'Windows'
+        shell: powershell
+        env:
+          RPA_REQUIRE_BROWSER: "1"
+        run: |
+          $uv = (Get-Command uv -ErrorAction SilentlyContinue).Source
+          if (-not $uv) { $uv = Join-Path $HOME '.local\bin\uv.exe' }
+          if (-not (Test-Path $uv)) { Write-Host '找不到 uv，略過'; exit 0 }
+          & $uv run pytest -q --junitxml=pytest-report.xml -o junit_family=xunit1
+          & $uv run python tools/ci_annotations.py junit pytest-report.xml
+          exit 0
+
   from-scratch:
     name: 從零開始（${{ matrix.os }}）
     runs-on: ${{ matrix.os }}
