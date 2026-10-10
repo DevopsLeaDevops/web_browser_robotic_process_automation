@@ -49,6 +49,7 @@ from rpa_runner.files import (
     SCREENSHOT,
     STEPS,
     read_json,
+    read_json_or,
     write_json,
 )
 from rpa_runner.i18n import t
@@ -376,12 +377,14 @@ def execute(
         result.error = current.message
     finally:
         (folder / CANDIDATE).unlink(missing_ok=True)
+        for leftover in folder.glob(".*.tmp"):  # 子程序寫到一半被終止時留下的暫存檔
+            leftover.unlink(missing_ok=True)
         if result.status != "passed":
             (folder / OUTPUT).unlink(missing_ok=True)
             result.output = None
-        steps = folder / STEPS
-        if steps.exists():
-            result.steps = cast("list[dict[str, object]]", read_json(steps))
+        steps = read_json_or(folder / STEPS, [])
+        if isinstance(steps, list):
+            result.steps = cast("list[dict[str, object]]", steps)
         result.duration_seconds = round(time.monotonic() - started, 3)
         write_json(folder / RESULT, result.to_json())
         (folder / REPORT).write_text(render_report(result), encoding="utf-8")
@@ -459,10 +462,10 @@ def _automation_stage(
         _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel)
     finally:
         _timed(stage, started)
-        diagnostic = folder / DIAGNOSTIC
-        if diagnostic.exists():
-            details = cast("dict[str, object]", read_json(diagnostic))
-            result.error = mask(str(details.get("error", "")), secrets) or None
+        details = read_json_or(folder / DIAGNOSTIC, None)
+        if isinstance(details, dict):
+            error = cast("dict[str, object]", details).get("error", "")
+            result.error = mask(str(error), secrets) or None
     if not (folder / FACTS).exists():
         raise _StageFailedError("failed", t("run.facts_missing"))
     stage.status = "passed"

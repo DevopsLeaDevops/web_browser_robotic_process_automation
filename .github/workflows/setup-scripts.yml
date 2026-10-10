@@ -76,10 +76,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+      # 第二次把輸出存檔，失敗時才能寫成註記（第一次維持使用者的執行方式）
       - name: setup.ps1 再執行一次（應該很快且成功）
         if: runner.os == 'Windows'
-        shell: powershell
-        run: powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+        shell: cmd
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 > "%RUNNER_TEMP%\%SETUP_LOG%" 2>&1
+          set code=%ERRORLEVEL%
+          type "%RUNNER_TEMP%\%SETUP_LOG%"
+          exit /b %code%
 
       - name: 失敗時把最後的輸出寫成註記
         if: failure() && runner.os != 'Windows'
@@ -99,14 +104,23 @@ jobs:
           [ -f pytest-report.xml ] || exit 0
           uv="$(command -v uv || echo "$HOME/.local/bin/uv")"
           "$uv" run python tools/ci_annotations.py junit pytest-report.xml
+      # PowerShell 5.1 在 CI 裡會把原生命令的 stderr 當成錯誤，所以改回 Continue；Python 輸出用 UTF-8
       - name: 失敗時把失敗的測試寫成註記（Windows）
         if: failure() && runner.os == 'Windows'
         shell: powershell
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
-          if (-not (Test-Path pytest-report.xml)) { Write-Host '沒有 pytest-report.xml'; exit 0 }
+          $ErrorActionPreference = 'Continue'
+          $log = Join-Path $env:RUNNER_TEMP $env:SETUP_LOG
+          if (Test-Path $log) {
+            $tail = (Get-Content $log -Tail 40 -Encoding UTF8 | ForEach-Object { $_ -replace '%', '%25' }) -join '%0A'
+            Write-Output "::error title=setup.ps1 output (last 40 lines)::$tail"
+          }
+          if (-not (Test-Path pytest-report.xml)) { exit 0 }
           $uv = (Get-Command uv -ErrorAction SilentlyContinue).Source
           if (-not $uv) { $uv = Join-Path $HOME '.local\bin\uv.exe' }
-          & $uv run python tools/ci_annotations.py junit pytest-report.xml
+          if (Test-Path $uv) { & $uv run python tools/ci_annotations.py junit pytest-report.xml }
           exit 0
 
   from-scratch:

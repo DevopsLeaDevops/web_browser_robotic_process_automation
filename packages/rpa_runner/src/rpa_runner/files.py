@@ -21,6 +21,7 @@ __all__ = [
     "SCREENSHOT",
     "STEPS",
     "read_json",
+    "read_json_or",
     "write_json",
 ]
 
@@ -44,8 +45,19 @@ REPORT: Final = "report.html"
 
 
 def write_json(path: Path, value: object) -> None:
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    """寫出 JSON：先寫暫存檔再改名，子程序在寫到一半時被終止也不會留下不完整的檔案。"""
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def read_json(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_json_or(path: Path, default: object) -> object:
+    """讀取 JSON；檔案不存在或內容不完整（例如舊版寫到一半被終止）時回傳 default。"""
+    try:
+        return read_json(path)
+    except (OSError, ValueError):
+        return default

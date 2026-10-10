@@ -8,7 +8,7 @@ import pytest
 
 from rpa_core.dsl import validate_file
 from rpa_core.i18n import use_locale
-from rpa_runner.files import OUTPUT, REPORT, RESULT
+from rpa_runner.files import OUTPUT, REPORT, RESULT, read_json, read_json_or, write_json
 from rpa_runner.run import execute, new_run_id, scenario_digest, scenario_sources
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -76,3 +76,14 @@ def test_new_run_id_format() -> None:
     prefix, date, time, suffix = run_id.rsplit("-", 3)
     assert prefix == "ba-001"
     assert (len(date), len(time), len(suffix)) == (8, 6, 6)
+
+
+def test_json_files_are_written_atomically(tmp_path: Path) -> None:
+    path = tmp_path / "steps.json"
+    write_json(path, [{"id": "甲"}])
+
+    assert read_json(path) == [{"id": "甲"}]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["steps.json"]
+    path.write_text("[{", encoding="utf-8")  # 舊版被終止時可能留下的半個檔案
+    assert read_json_or(path, []) == []
+    assert read_json_or(tmp_path / "missing.json", None) is None
