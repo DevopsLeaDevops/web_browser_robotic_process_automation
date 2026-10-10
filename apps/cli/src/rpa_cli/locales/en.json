@@ -4,5 +4,14 @@
   "cli.lang.help": "Interface language. Defaults to {default}; can also be set with the {env} environment variable.",
   "cli.lang.invalid": "{value} is not a supported language. Choose from {choices}.",
   "cli.options_metavar": "[OPTIONS]",
-  "cli.subcommand_metavar": "COMMAND [ARGS]..."
+  "cli.subcommand_metavar": "COMMAND [ARGS]...",
+  "cli.validate.help": "Validate scenario files and point to the file, line, step and field of each problem. Accepts files or directories; a directory is searched for all .yaml and .yml files. Exits with 0 when everything passes, otherwise 1.",
+  "cli.validate.short_help": "Validate scenario files.",
+  "cli.validate.paths_metavar": "PATH...",
+  "cli.validate.format_help": "Output format: text for people, json for programs and AI.",
+  "cli.validate.no_files": "No .yaml or .yml files found in {path}.",
+  "cli.validate.summary.ok": "Files checked: {files}. All passed.",
+  "cli.validate.summary.failed": "Files checked: {files}. Failed: {invalid}. Problems: {issues}.",
+  "cli.schema.help": "Print the JSON Schema of the scenario DSL, for editor autocompletion, AI generation and the frontend.",
+  "cli.schema.short_help": "Print the JSON Schema of the scenario DSL."
 }

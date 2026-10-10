@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=../schema/scenario.v1.json
+#
+# 範例：登入 ERP 並確認首頁載入。
+# 示範 params 與 secrets 的宣告、browser.baseUrl、定位器的優先順序與備用定位器。
+# 網址是虛構的，M2 起改用測試網站實際執行。
+
+schemaVersion: 1
+id: erp-login
+name: 登入 ERP
+description: 以帳號密碼登入，確認看到歡迎訊息與正確的頁面標題。
+
+params:
+  user:
+    type: string
+    description: 登入帳號
+
+secrets: [ERP_PASSWORD]
+
+browser:
+  engine: chromium
+  headless: true
+  baseUrl: https://erp.example.internal
+  viewport: { width: 1280, height: 800 }
+  locale: zh-TW
+
+defaults:
+  timeout: 10000
+
+steps:
+  - id: open
+    name: 開啟登入頁
+    action: goto
+    url: /login
+
+  - id: fill-user
+    action: fill
+    target: { role: textbox, name: 帳號 }
+    value: "{{ params.user }}"
+
+  - id: fill-password
+    action: fill
+    target: { label: 密碼 }
+    value: "{{ secrets.ERP_PASSWORD }}"
+
+  - id: submit
+    name: 送出登入表單
+    action: click
+    target:
+      role: button
+      name: 登入
+      exact: true
+      fallback:
+        - { testId: login-submit }
+        - { css: "form#login button[type=submit]" }
+
+  - id: wait-home
+    action: waitFor
+    url: /home
+
+  - id: check-welcome
+    action: expect
+    target: { text: 歡迎回來 }
+    state: visible
+
+  - id: check-title
+    action: expect
+    title: ERP

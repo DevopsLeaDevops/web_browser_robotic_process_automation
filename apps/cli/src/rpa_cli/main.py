@@ -1,7 +1,6 @@
 """`rpa` 命令入口。
 
-M0 只有 `--version` 與 `--lang`；之後的里程碑依序加入子命令：
-validate（M1）、run（M2）、record（M4）、generate（M5）、push（M7）。
+子命令依里程碑加入：validate 與 schema（M1）、run（M2）、record（M4）、generate（M5）、push（M7）。
 
 說明文字要依語言顯示，所以命令在決定語言之後才由 build_cli() 建立，
 不在模組載入時就用裝飾器定義好。
@@ -16,6 +15,7 @@ import click
 import rpa_cli
 import rpa_core
 from rpa_cli.i18n import LANG_OPTION, install_click_translations, resolve_locale, t
+from rpa_cli.validate import build_schema_command, build_validate_command
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, LOCALES, Locale, parse_locale, set_locale
 
 
@@ -61,6 +61,8 @@ def build_cli() -> click.Group:
     def cli() -> None:
         pass
 
+    cli.add_command(build_validate_command())
+    cli.add_command(build_schema_command())
     return cli
 
 
