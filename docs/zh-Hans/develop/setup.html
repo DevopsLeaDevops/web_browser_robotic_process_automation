@@ -48,6 +48,7 @@ uv run rpa --version</pre>
             <dt>uv</dt><dd>0.11 以上，安装方式见 uv 官方文档。</dd>
             <dt>Git</dt><dd>任一近期版本。</dd>
             <dt>Node.js</dt><dd>M8 开始做前端时才需要。</dd>
+            <dt>数据库</dt><dd>不用安装。M7 起开发用 SQLite（Python 内置）；PostgreSQL 只有正式环境需要，见 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
           </dl>
         </div>
       </section>
@@ -67,7 +68,7 @@ uv run rpa --version</pre>
             <tr><td>格式化</td><td><code>uv run ruff format .</code></td></tr>
             <tr><td>类型检查</td><td><code>uv run pyright</code></td></tr>
             <tr><td>提交前的全部检查</td><td><code>uv run pre-commit run --all-files</code></td></tr>
-            <tr><td>替某个包加依赖</td><td><code>uv add --package rpa-core 包名称</code></td></tr>
+            <tr><td>替某个包加依赖</td><td><code>uv add --package rpa-core 包名称</code>（会一并更新 <code>uv.lock</code>，两个文件一起提交）</td></tr>
             <tr><td>以其他语言显示 <code>rpa</code></td><td><code>uv run rpa --lang en -h</code>，或设置环境变量 <code>RPA_LANG=zh-Hans</code></td></tr>
             <tr><td>重新产生简中、检查翻译</td><td><code>uv run python tools/i18n.py sync</code>、<code>uv run python tools/i18n.py check</code>，见<a href="writing-docs.html#i18n">三种语言</a></td></tr>
             <tr><td>浏览文档</td><td>直接打开 <code>docs/index.html</code>，或 <code>python -m http.server -d docs 8000</code></td></tr>
@@ -80,7 +81,7 @@ uv run rpa --version</pre>
       <div class="panel-header"><h2>常见问题</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>没有 uv.lock</dt><dd>M0 尚未提交锁文件。第一位运行 <code>uv sync</code> 的成员会产生 <code>uv.lock</code>，请单独开一个 PR 提交；之后 CI 会自动改用 <code>uv sync --locked</code>。</dd>
+          <dt>CI 说 uv.lock 需要更新</dt><dd>改了 <code>pyproject.toml</code> 的依赖却没有更新锁文件。运行 <code>uv lock</code>，把 <code>uv.lock</code> 一起提交。</dd>
           <dt>内网连不到 PyPI</dt><dd>设置环境变量 <code>UV_INDEX_URL</code> 指向公司的包镜像。</dd>
           <dt>浏览器下载失败</dt><dd>设置 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 指向内部镜像；浏览器冒烟测试在本机没有浏览器时会自动略过。</dd>
           <dt>测试说简中不是最新</dt><dd>改了繁中文档或消息目录后，运行 <code>uv run python tools/i18n.py sync</code> 并提交产生的文件。</dd>

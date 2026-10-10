@@ -37,7 +37,7 @@
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
           <title id="arch-title">系统组件图</title>
-          <desc id="arch-desc">用户通过 Web UI 或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 从 PostgreSQL 队列取任务，以 Playwright 操作目标内部系统，产物存入 MinIO。</desc>
+          <desc id="arch-desc">用户通过 Web UI 或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 主动从 PostgreSQL 队列取任务，以 Playwright 操作目标内部系统，产物存入 MinIO。</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -100,7 +100,7 @@
           <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
           <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
           <path class="link" d="M636 160V194" marker-end="url(#arrow)"/>
-          <text class="label" x="644" y="182">取任务</text>
+          <text class="label" x="644" y="182">worker 主动取任务</text>
           <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
           <text class="label" x="644" y="290">上传产物</text>
           <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
@@ -109,7 +109,7 @@
           <text class="label" x="790" y="30">生成请求</text>
         </svg>
       </div>
-      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统。M2 之前只有 CLI 与 Runner，直接在本机运行。</div>
+      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统。M2 之前只有 CLI 与 Runner，直接在本机运行。开发与原型可以用 SQLite 取代 PostgreSQL，这时队列与调度在 API 进程内运行，见 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</div>
     </section>
 
     <section class="panel">

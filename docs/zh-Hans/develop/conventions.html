@@ -59,6 +59,7 @@ docs(adr): 添加 0008 Secrets 加密方式</pre>
             <li><strong>类型。</strong>pyright strict；所有函数完整标注类型，避免 <code>Any</code>。</li>
             <li><strong>格式。</strong>以 ruff 为准，不手动争论格式。</li>
             <li><strong>输出。</strong>代码中不留 <code>print</code>；CLI 通过 click 输出，函数库用 logging。</li>
+            <li><strong>数据库。</strong>只用 SQLAlchemy 的通用类型与写法，SQLite 与 PostgreSQL 都要能跑；规则见 <a href="../adr/0008-sqlite-and-postgresql.html#rules">ADR 0008</a>。</li>
             <li><strong>边界。</strong><code>rpa-core</code> 不依赖浏览器或数据库；运行相关的代码放在 <code>rpa-runner</code>。</li>
           </ul>
         </div>

@@ -30,6 +30,7 @@
             <dt>Secrets</dt><dd>加密存放。用户可以在场景中引用，但无法读出明文。</dd>
             <dt>审核</dt><dd>谁在什么时间修改、运行了哪个场景，全部留记录，不可删改。</dd>
             <dt>版本</dt><dd>场景每次保存产生不可变的新版本；运行记录指向确切版本。</dd>
+            <dt>数据库</dt><dd>正式环境用 PostgreSQL，支持多个 worker 与并发写入；SQLite 只用于开发与原型（单机、单一进程），见 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
             <dt>Runner 无状态</dt><dd>从 M2 起只接收场景、参数与 Secrets，输出结果与产物；放进 worker 时不用改。</dd>
           </dl>
         </div>

@@ -21,11 +21,13 @@
   </div>
 
   <div class="stack">
+    <div class="notice"><a href="0008-sqlite-and-postgresql.html">ADR 0008</a> 补充：本决策适用于使用 PostgreSQL 的正式环境。开发与原型使用 SQLite 时，队列与调度改在 API 进程内运行，只有单一 worker。</div>
+
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-09</dd>
         <dt>影响范围</dt><dd>rpa-server、rpa-worker、部署（M7、M9）</dd>
-        <dt>相关</dt><dd><a href="../design/architecture.html">系统架构</a></dd>
+        <dt>相关</dt><dd><a href="../design/architecture.html">系统架构</a>、<a href="0008-sqlite-and-postgresql.html">ADR 0008</a></dd>
       </dl>
     </section>
 

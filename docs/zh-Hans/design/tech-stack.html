@@ -32,8 +32,8 @@
             <tr><td>表达式 <code>{{ }}</code></td><td>Jinja2 沙箱环境</td><td>自行实现</td><td>成熟，可以限制场景能访问的内容，防止运行任意代码</td><td>M3</td></tr>
             <tr><td>命令行</td><td>click</td><td>Typer、argparse</td><td>成熟稳定、子命令与测试工具完整</td><td>M0</td></tr>
             <tr><td>后端 API</td><td>FastAPI</td><td>Django</td><td>与 DSL 共用同一套 Pydantic 模型，自动产生 OpenAPI<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>
-            <tr><td>数据库</td><td>PostgreSQL + SQLAlchemy 2.0 + Alembic</td><td>—</td><td>多用户共用需要正式的数据库；单元测试用 SQLite</td><td>M7</td></tr>
-            <tr><td>任务队列与调度</td><td>PostgreSQL 队列（Procrastinate）</td><td>Celery + Redis</td><td>少一个组件，原生 asyncio，支持定时任务<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
+            <tr><td>数据库</td><td>SQLite（开发、原型）与 PostgreSQL（正式环境），SQLAlchemy 2.0 + Alembic</td><td>只用 PostgreSQL</td><td>开发不必安装数据库；正式环境需要并发写入与多个 worker；CI 两种都测<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M7</td></tr>
+            <tr><td>任务队列与调度</td><td>PostgreSQL 队列（Procrastinate）；SQLite 模式在 API 进程内运行</td><td>Celery + Redis</td><td>少一个组件，原生 asyncio，支持定时任务<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
             <tr><td>产物存储</td><td>MinIO（S3 兼容）</td><td>共用磁盘</td><td>多个 worker 的截图、Trace、下载文件需要集中存放；本机开发用本地目录</td><td>M9</td></tr>
             <tr><td>前端</td><td>React + TypeScript + Vite</td><td>NiceGUI、HTMX</td><td>步骤编辑器交互很多，纯 Python 方案难做好<small><a href="../adr/0004-react-frontend.html">ADR 0004</a></small></td><td>M8</td></tr>
             <tr><td>界面样式</td><td>界面设计系统 v1.0</td><td>—</td><td>同事交付的视觉契约，文档站与 Web UI 共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
@@ -53,7 +53,7 @@
           <dt>Python</dt><dd>3.12 以上（CI 测 3.12 与 3.13；本机默认 3.13，见 <code>.python-version</code>）</dd>
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
           <dt>类型检查</dt><dd>pyright strict 模式，新代码一律完整标注类型</dd>
-          <dt>依赖锁定</dt><dd><code>uv.lock</code> 提交后，CI 自动改用 <code>uv sync --locked</code></dd>
+          <dt>依赖锁定</dt><dd><code>uv.lock</code> 记录每个包的确切版本并提交到仓库；CI 以 <code>uv sync --locked</code> 安装，锁文件与 <code>pyproject.toml</code> 不一致时失败</dd>
           <dt>依赖更新</dt><dd>Dependabot 每周检查 GitHub Actions 与 Python 依赖</dd>
         </dl>
       </div>

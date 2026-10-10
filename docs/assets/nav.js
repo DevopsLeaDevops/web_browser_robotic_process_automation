@@ -122,7 +122,7 @@ window.DOCS_NAV = {
         {
           "id": "adr-0008",
           "href": "adr/0008-sqlite-and-postgresql.html",
-          "name": {"zh-Hant": "0008 資料庫", "zh-Hans": "0008 數據庫", "en": "0008 Database"}
+          "name": {"zh-Hant": "0008 資料庫", "zh-Hans": "0008 数据库", "en": "0008 Database"}
         }
       ]
     },

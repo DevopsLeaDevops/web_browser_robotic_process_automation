@@ -82,7 +82,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
             <tr><td>1. 检查系统</td><td>确认操作系统与 CPU 架构。Apple 芯片的 Mac 在 Rosetta 下运行时会提醒。</td><td>每次都检查</td></tr>
             <tr><td>2. 准备代码</td><td>在项目里运行就用这一份；否则用 <code>git clone</code> 下载到默认位置或 <code>--dir</code> 指定的位置。</td><td>已经下载过就直接使用，不会自动 <code>git pull</code></td></tr>
             <tr><td>3. 准备 uv</td><td>没有就用官方安装脚本安装；版本低于 <code>pyproject.toml</code> 的 <code>required-version</code> 时尝试升级。</td><td>版本够新就跳过</td></tr>
-            <tr><td>4. 安装 Python 与依赖</td><td><code>uv sync</code>：依 <code>.python-version</code> 准备 Python 3.13，创建 <code>.venv</code>，安装全部包与开发工具。</td><td>没有变动时几秒内结束</td></tr>
+            <tr><td>4. 安装 Python 与依赖</td><td><code>uv sync</code>：依 <code>.python-version</code> 准备 Python 3.13，创建 <code>.venv</code>，依 <code>uv.lock</code> 的版本安装全部包与开发工具。</td><td>没有变动时几秒内结束</td></tr>
             <tr><td>5. 安装 Chromium</td><td><code>uv run playwright install chromium</code>，再实际启动一次。Linux 缺系统函数库时运行 <code>playwright install-deps</code>。</td><td>已下载就跳过下载，只做启动检查</td></tr>
             <tr><td>6. 安装提交前检查</td><td><code>uv run pre-commit install</code>，之后每次 <code>git commit</code> 前自动跑 ruff、pyright 与文档检查。</td><td>重新写入同一个 hook，不影响</td></tr>
             <tr><td>7. 确认能运行</td><td>运行 <code>rpa --version</code>，再设置 <code>RPA_REQUIRE_BROWSER=1</code> 跑全部测试：跟 CI 一样，缺浏览器直接失败而不是略过。</td><td>每次都跑</td></tr>

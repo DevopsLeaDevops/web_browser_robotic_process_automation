@@ -26,16 +26,16 @@
         <table class="wrap">
           <thead><tr><th>阶段</th><th>名称</th><th>内容</th><th>验收方式</th><th>状态</th></tr></thead>
           <tbody>
-            <tr class="current"><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；设计文档与 ADR；纳入界面设计系统 v1.0；多语言基础（繁中、简中、英文）</td><td>CI 全绿；文档链接检查通过</td><td><span class="badge blue">进行中</span></td></tr>
-            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>内核动作（goto、click、fill、select、press、waitFor、expect、extract、screenshot）、定位器模型、YAML 加载与校验</td><td><code>rpa validate</code> 能指出错误所在的文件行号、步骤与字段</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；设计文档与 ADR；纳入界面设计系统 v1.0；多语言基础（繁中、简中、英文）；一键安装脚本；依赖锁定（uv.lock）</td><td>CI 全绿；文档链接检查通过</td><td><span class="badge green">已完成</span></td></tr>
+            <tr class="current"><td><span class="milestone">M1</span></td><td>DSL v0</td><td>内核动作（goto、click、fill、select、press、waitFor、expect、extract、screenshot）、定位器模型、YAML 加载与校验</td><td><code>rpa validate</code> 能指出错误所在的文件行号、步骤与字段</td><td><span class="badge blue">下一步</span></td></tr>
             <tr><td><span class="milestone">M2</span></td><td>Runner 与 CLI</td><td>无状态运行引擎、步骤处理器注册表、失败截图与 Trace；模拟内部系统的测试网站</td><td><code>rpa run</code> 对测试网站跑通</td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M3</span></td><td>流程能力</td><td>变量与表达式、条件、循环、错误处理、子场景、数据驱动、Secrets、登录状态重用</td><td>复杂范例场景通过</td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M4</span></td><td>生成一：录制</td><td>本机有头浏览器录制，输出 DSL；定位器优先语意化，避开自动生成的 id</td><td>录制后回放成功</td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M5</span></td><td>生成二：AI</td><td>自然语言加页面无障碍树生成 DSL；校验失败自动修正；选择器自愈</td><td>一句话描述即可生成可运行的场景</td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M6</span></td><td>网站风格设计</td><td>视觉规范已由<a href="style/index.html">界面设计系统 v1.0</a> 交付；本阶段改为以它制作内核页面原型：登录、场景库、步骤编辑器、运行详情、用户与权限管理</td><td>原型经你确认后才开始写前端</td><td><span class="badge amber">部分交付</span></td></tr>
-            <tr><td><span class="milestone">M7</span></td><td>管理后端</td><td>认证、权限、项目、场景版本、Secrets 加密、审核、REST API</td><td>API 测试通过</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>管理后端</td><td>认证、权限、项目、场景版本、Secrets 加密、审核、REST API；数据库同时支持 SQLite（开发、原型）与 PostgreSQL（正式环境）</td><td>API 测试在 SQLite 与 PostgreSQL 上都通过</td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M8</span></td><td>Web UI</td><td>依 M6 原型实现</td><td>在浏览器内完成「生成 → 运行 → 查看结果」闭环</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M9</span></td><td>营运能力</td><td>分布式 worker、调度、并发、重试、通知、Docker Compose 部署</td><td><code>docker compose up</code> 一键启动</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>营运能力</td><td>分布式 worker 与调度（PostgreSQL）、并发、重试、通知、Docker Compose 部署</td><td><code>docker compose up</code> 一键启动</td><td><span class="badge">未开始</span></td></tr>
           </tbody>
         </table>
       </div>
