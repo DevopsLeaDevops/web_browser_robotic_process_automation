@@ -6,6 +6,8 @@
 
 from importlib.metadata import version
 
-__all__ = ["__version__"]
+from rpa_worker.worker import Executor, Job, JobSource, Worker
+
+__all__ = ["Executor", "Job", "JobSource", "Worker", "__version__"]
 
 __version__: str = version("rpa-worker")

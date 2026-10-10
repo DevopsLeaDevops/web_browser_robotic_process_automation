@@ -4,18 +4,20 @@
 - ``POST /api/records``、``GET /api/records/<編號>``：資料只存在記憶體，程序結束就消失
 - 只綁定 127.0.0.1；不連線任何外部系統
 
-測試用 ``create_server()`` 在隨機埠號啟動；手動試用：``uv run python -m testsite --port 8765``。
+測試用 ``running()`` 在隨機埠號啟動；手動試用：``uv run python -m testsite --port 8765``。
 """
 
 import json
 import threading
 import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Final, cast
 from urllib.parse import unquote, urlsplit
 
-__all__ = ["MAX_QUANTITY", "PAGE", "create_server"]
+__all__ = ["MAX_QUANTITY", "PAGE", "create_server", "running"]
 
 PAGE: Final = Path(__file__).with_name("index.html")
 MAX_QUANTITY: Final = 30
@@ -87,3 +89,17 @@ def create_server(port: int = 0) -> ThreadingHTTPServer:
             self._json(201, record)
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+
+
+@contextmanager
+def running(port: int = 0) -> Generator[str, None, None]:
+    """在背景執行緒啟動測試網站，產出網址（例如 ``http://127.0.0.1:54321``）；離開時關閉。"""
+    server = create_server(port)
+    thread = threading.Thread(target=server.serve_forever, name="testsite", daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
