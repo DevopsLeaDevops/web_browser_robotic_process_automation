@@ -309,7 +309,7 @@ def stamp(target: Path) -> None:
         html, count = re.subn(r'(<meta name="viewport"[^>]*>\n)', rf"\1{meta}\n", html, count=1)
         if count != 1:
             raise ValueError(f'{target.relative_to(ROOT)} 缺少 <meta name="viewport">')
-    target.write_text(html, encoding="utf-8")
+    target.write_text(html, encoding="utf-8", newline="\n")
 
 
 def sync(convert: Convert) -> int:
@@ -318,7 +318,7 @@ def sync(convert: Convert) -> int:
     for path, content in outputs.items():
         if not path.exists() or path.read_text(encoding="utf-8") != content:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
+            path.write_text(content, encoding="utf-8", newline="\n")
             print(f"更新 {path.relative_to(ROOT)}")
             changed += 1
     for path in stale_generated(outputs):
