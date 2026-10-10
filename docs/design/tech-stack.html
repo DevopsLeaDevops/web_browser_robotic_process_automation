@@ -25,7 +25,7 @@
         <table class="wrap">
           <thead><tr><th>層面</th><th>選型</th><th>備選</th><th>理由</th><th>起始</th></tr></thead>
           <tbody>
-            <tr><td>瀏覽器驅動</td><td>Playwright for Python；支援 Chromium 與 Firefox，CI 都測</td><td>Selenium</td><td>多瀏覽器、自動等待、語意化定位（get_by_role）、Trace Viewer；每次執行在獨立的子程序與瀏覽器上下文中進行<small><a href="../adr/0010-mvp-first.html">ADR 0010</a></small></td><td>M2</td></tr>
+            <tr><td>瀏覽器驅動</td><td>Playwright for Python；支援 Chromium 與 Firefox，CI 都測</td><td>Selenium</td><td>多瀏覽器、自動等待、語意化定位（get_by_role）、Trace Viewer；每次執行在獨立的子程序與瀏覽器上下文中進行；一個程序只跑一次執行，所以 Runner 用同步 API<small><a href="../adr/0010-mvp-first.html">ADR 0010</a></small></td><td>M2</td></tr>
             <tr><td>DSL 模型與校驗</td><td>Pydantic v2</td><td>marshmallow</td><td>判別聯合很適合「每種動作一個模型」；可直接導出 JSON Schema 給 AI 和前端<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
             <tr><td>YAML 解析</td><td>PyYAML（只用解析器）</td><td>ruamel.yaml</td><td>解析出的節點樹帶有行號與列號，校驗錯誤能指出檔案位置；轉型改用自己實作的 YAML 1.2 core 規則並拒絕重複的鍵；有型別標註，pyright strict 可用。M1 實作時由 ruamel.yaml 改選，見<a href="dsl.html#yaml">場景 DSL</a></td><td>M1</td></tr>
             <tr><td>表達式 <code>{{ }}</code></td><td>Jinja2 沙箱環境</td><td>自行實作</td><td>成熟，可以限制場景能存取的內容，防止執行任意程式碼；M1.1 解析與檢查引用，M2 求值<small><a href="../adr/0009-scenario-contract.html">ADR 0009</a></small></td><td>M1.1</td></tr>

@@ -236,6 +236,26 @@ verify:
       </section>
     </div>
 
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>執行：<code>rpa run</code></h2><span class="muted">M2</span></div>
+      <div class="panel-body">
+<pre class="source">$ uv run python -m testsite --port 8765          # 另開一個終端：本機測試網站
+$ rpa run scenarios/demo/ba-001.yaml -i title=測試 -i quantity=3
+ba-001 建立範例紀錄：通過（1.4 秒）
+出參：runs/ba-001-20261010-123405-164e7e/output.json
+報告：runs/ba-001-20261010-123405-164e7e/report.html
+$ rpa run scenarios/demo/ba-002.yaml --input runs/ba-001-…/output.json   # 不認得的入參會報錯，可改用 -i recordId=…</pre>
+        <dl class="spec-list">
+          <dt>順序</dt><dd>入參校驗（有問題就不啟動瀏覽器）→ 在子程序中執行步驟或 automation.py → 獨立斷言（verify 或 assertion.py）→ 出參轉型與校驗 → 寫出 output.json。任何一步失敗都沒有成功出參。</dd>
+          <dt>總期限</dt><dd>以單調時鐘計算；每一步只能用剩下的時間。子程序超過期限就終止整個程序群組，結果是「逾時」。</dd>
+          <dt>選項</dt><dd><code>-i 名稱=值</code>（依型別轉換，可重複）、<code>--input 檔.json</code>、<code>--base-url</code>、<code>--browser chromium|firefox</code>、<code>--headed</code>、<code>--deadline 毫秒</code>、<code>--out 資料夾</code>（預設 runs/）、<code>--format json</code>。退出碼：0 通過、1 未通過。</dd>
+          <dt>執行目錄</dt><dd>input.json、facts.json、steps.json、output.json（只有通過時）、screenshot.png 與 screenshot 步驟的截圖、automation.log、diagnostic.json（失敗時）、scenario/（本次的場景快照）、result.json、report.html。</dd>
+          <dt>Secrets</dt><dd>M2 從同名的環境變數讀取（例如 <code>ERP_PASSWORD</code>），只傳給子程序，日誌與報告中會遮罩；M8 改為加密存放。</dd>
+          <dt>Python 腳本場景</dt><dd>剩下的總期限在環境變數 <code>RPA_DEADLINE_SECONDS</code>，瀏覽器在 <code>RPA_BROWSER</code>；範例見 <code>scenarios/demo/ba-001-script/</code>。</dd>
+        </dl>
+      </div>
+    </section>
+
     <section class="panel" id="validate">
       <div class="panel-header"><h2>校驗：<code>rpa validate</code></h2></div>
       <div class="panel-body">

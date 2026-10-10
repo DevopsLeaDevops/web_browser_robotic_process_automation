@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c9879fd70aa658df">
+<meta name="translation-source" content="sha256:fb2d067220895f57">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -236,6 +236,26 @@ verify:
         </div>
       </section>
     </div>
+
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>Running: <code>rpa run</code></h2><span class="muted">M2</span></div>
+      <div class="panel-body">
+<pre class="source">$ uv run python -m testsite --port 8765          # in another terminal: the local test site
+$ rpa --lang en run scenarios/demo/ba-001.yaml -i title=Test -i quantity=3
+ba-001 建立範例紀錄: Passed (1.4 s)
+Outputs: runs/ba-001-20261010-123405-164e7e/output.json
+Report: runs/ba-001-20261010-123405-164e7e/report.html
+$ rpa run scenarios/demo/ba-002.yaml --input runs/ba-001-…/output.json   # unknown inputs are rejected; use -i recordId=… instead</pre>
+        <dl class="spec-list">
+          <dt>Order</dt><dd>Input validation (the browser is not started if anything is wrong) → the steps or automation.py in a subprocess → independent assertions (verify or assertion.py) → output conversion and validation → output.json. A failure at any stage leaves no successful outputs.</dd>
+          <dt>Deadline</dt><dd>Measured with a monotonic clock; each step may use only the time that remains. A subprocess that runs past the deadline is terminated with its whole process group, and the result is "timed out".</dd>
+          <dt>Options</dt><dd><code>-i NAME=VALUE</code> (converted to the declared type, repeatable), <code>--input FILE.json</code>, <code>--base-url</code>, <code>--browser chromium|firefox</code>, <code>--headed</code>, <code>--deadline MS</code>, <code>--out FOLDER</code> (default runs/), <code>--format json</code>. Exit code: 0 passed, 1 not passed.</dd>
+          <dt>Run directory</dt><dd>input.json, facts.json, steps.json, output.json (only when passed), screenshot.png and the screenshots taken by screenshot steps, automation.log, diagnostic.json (on failure), scenario/ (this run's scenario snapshot), result.json, report.html.</dd>
+          <dt>Secrets</dt><dd>In M2 they are read from environment variables of the same name (for example <code>ERP_PASSWORD</code>), passed only to the subprocess and masked in logs and reports; M8 stores them encrypted.</dd>
+          <dt>Python script scenarios</dt><dd>The remaining deadline is in the environment variable <code>RPA_DEADLINE_SECONDS</code> and the browser in <code>RPA_BROWSER</code>; see <code>scenarios/demo/ba-001-script/</code>.</dd>
+        </dl>
+      </div>
+    </section>
 
     <section class="panel" id="validate">
       <div class="panel-header"><h2>Validation: <code>rpa validate</code></h2></div>
