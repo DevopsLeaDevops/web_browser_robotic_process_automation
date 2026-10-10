@@ -33,7 +33,7 @@
       <section class="panel">
         <div class="panel-header"><h2>背景</h2></div>
         <div class="panel-body prose">
-          <p>多用户共用需要多个 worker 并发运行、定时调度、失败重试。平台本来就需要 PostgreSQL 存放场景与运行纪录。</p>
+          <p>多用户共用需要多个 worker 并发运行、定时调度、失败重试。平台本来就需要 PostgreSQL 存放场景与运行记录。</p>
           <p>RPA 的瓶颈在浏览器本身：一次运行通常是数秒到数分钟，任务量是每分钟数十到数百笔，而不是每秒数千笔。</p>
         </div>
       </section>
@@ -42,8 +42,8 @@
         <div class="panel-body">
           <ul class="points">
             <li>使用 Procrastinate：以 PostgreSQL 为后端、原生 asyncio 的任务队列，支持定时任务。</li>
-            <li>创建运行纪录与入列任务放在同一个数据库交易里，不会出现有纪录没任务的情况。</li>
-            <li>worker 透过一层薄界面调用队列，必要时可替换实作。</li>
+            <li>创建运行记录与入列任务放在同一个数据库事务里，不会出现有记录没任务的情况。</li>
+            <li>worker 通过一层薄接口调用队列，必要时可替换实现。</li>
           </ul>
         </div>
       </section>
@@ -56,13 +56,13 @@
           <h3>好处</h3>
           <ul class="points">
             <li>部署少一个组件，备份与监控只需顾好 PostgreSQL。</li>
-            <li>任务与运行纪录的一致性由交易保证。</li>
+            <li>任务与运行记录的一致性由事务保证。</li>
             <li>与 Playwright async 运行模型兼容。</li>
           </ul>
           <h3>代价</h3>
           <ul class="points">
             <li>吞吐量上限低于专用消息队列；以本工程的规模足够。</li>
-            <li>依赖单一函数库，因此保留替换界面。</li>
+            <li>依赖单一函数库，因此保留替换接口。</li>
           </ul>
         </div>
       </section>
@@ -74,7 +74,7 @@
             <tbody>
               <tr><td>Celery + Redis</td><td>成熟但多一个组件，asyncio 支持较弱。</td></tr>
               <tr><td>arq（Redis）</td><td>asyncio 原生，但同样需要 Redis。</td></tr>
-              <tr><td>自行实作 SKIP LOCKED 队列</td><td>可行，但重试、调度、监控都要自己写。</td></tr>
+              <tr><td>自行实现 SKIP LOCKED 队列</td><td>可行，但重试、调度、监控都要自己写。</td></tr>
             </tbody>
           </table>
         </div>

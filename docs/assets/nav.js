@@ -77,7 +77,7 @@ window.DOCS_NAV = {
     {
       "id": "adr",
       "caption": "DECISIONS",
-      "name": {"zh-Hant": "決策紀錄", "zh-Hans": "决策纪录", "en": "Decisions"},
+      "name": {"zh-Hant": "決策紀錄", "zh-Hans": "决策记录", "en": "Decisions"},
       "pages": [
         {
           "id": "adr-index",

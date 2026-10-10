@@ -24,7 +24,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-09</dd>
-        <dt>影响范围</dt><dd>所有 Python 套件、CI、开发环境</dd>
+        <dt>影响范围</dt><dd>所有 Python 包、CI、开发环境</dd>
         <dt>相关</dt><dd><a href="../design/tech-stack.html">技术选型</a>、<a href="0004-react-frontend.html">ADR 0004</a></dd>
       </dl>
     </section>
@@ -43,7 +43,7 @@
             <li>浏览器：Playwright for Python，运行引擎使用 async API。</li>
             <li>模型：Pydantic v2，DSL 与 API 共用同一套模型。</li>
             <li>API：FastAPI；数据库：SQLAlchemy 2.0 + Alembic。</li>
-            <li>工程：uv workspace 单仓多套件；ruff、pyright strict、pytest。</li>
+            <li>工程：uv workspace 单仓多包；ruff、pyright strict、pytest。</li>
             <li>最低版本 Python 3.12。</li>
           </ul>
         </div>

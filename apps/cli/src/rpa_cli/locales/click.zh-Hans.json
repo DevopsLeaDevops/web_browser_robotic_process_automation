@@ -15,7 +15,7 @@
   "Got unexpected extra argument ({args})": "多出无法辨识的参数（{args}）",
   "Got unexpected extra arguments ({args})": "多出无法辨识的参数（{args}）",
   "env var: {var}": "环境变量：{var}",
-  "default: {default}": "预设：{default}",
+  "default: {default}": "默认：{default}",
   "(dynamic)": "（动态）",
   "Takes {nargs} values but 1 was given.": "需要 {nargs} 个值，但只给了 1 个。",
   "Takes {nargs} values but {len} were given.": "需要 {nargs} 个值，但给了 {len} 个。",

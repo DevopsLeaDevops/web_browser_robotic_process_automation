@@ -24,7 +24,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-10</dd>
-        <dt>影响范围</dt><dd>所有套件中用户看得到的文字、<code>rpa</code> 命令、M8 Web UI、<code>docs/</code></dd>
+        <dt>影响范围</dt><dd>所有包中用户看得到的文字、<code>rpa</code> 命令、M8 Web UI、<code>docs/</code></dd>
         <dt>相关</dt><dd><a href="../develop/conventions.html">开发规范</a>、<a href="../develop/writing-docs.html#i18n">文档与 ADR</a>、<a href="0005-html-docs.html">ADR 0005</a></dd>
       </dl>
     </section>
@@ -41,9 +41,9 @@
         <div class="panel-header"><h2>决策</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>三种语言。</strong>繁体中文 <code>zh-Hant</code>（预设）、简体中文 <code>zh-Hans</code>、英文 <code>en</code>。网址、文件名与参数都用这组代码。</li>
-            <li><strong>预设固定繁中，</strong>不跟随操作系统或浏览器语言，由用户手动切换：命令行用 <code>--lang</code> 或环境变量 <code>RPA_LANG</code>，Web UI 记在用户设置，文档站在页眉切换。</li>
-            <li><strong>产品文字放在消息目录。</strong>每个套件的 <code>locales/&lt;语言&gt;.json</code>，代码以消息键取用（<code>rpa_core.i18n.Catalog</code>），不写死用户看得到的文字。click 内置的「用法」「选项」与错误消息也一并翻译。</li>
+            <li><strong>三种语言。</strong>繁体中文 <code>zh-Hant</code>（默认）、简体中文 <code>zh-Hans</code>、英文 <code>en</code>。网址、文件名与参数都用这组代码。</li>
+            <li><strong>默认固定繁中，</strong>不跟随操作系统或浏览器语言，由用户手动切换：命令行用 <code>--lang</code> 或环境变量 <code>RPA_LANG</code>，Web UI 记在用户设置，文档站在页眉切换。</li>
+            <li><strong>产品文字放在消息目录。</strong>每个包的 <code>locales/&lt;语言&gt;.json</code>，代码以消息键取用（<code>rpa_core.i18n.Catalog</code>），不写死用户看得到的文字。click 内置的「用法」「选项」与错误消息也一并翻译。</li>
             <li><strong>简中自动产生。</strong>繁中与英文由人维护；简中用 OpenCC 的 <code>tw2sp</code>（繁转简并换成大陆用语）产生后提交，不道地的词在 <code>tools/zh-Hans-overrides.json</code> 修正。OpenCC 锁定版本。</li>
             <li><strong>文档三个目录。</strong>繁中在 <code>docs/</code>（网址不变），英文在 <code>docs/en/</code>，简中在 <code>docs/zh-Hans/</code>；目录结构与锚点相同。</li>
             <li><strong>用检查保持同步。</strong>测试确保三种语言的消息键与占位符一致、简中是最新产生的、英文页对照的是目前的繁中版本。</li>
@@ -59,11 +59,11 @@
           <thead><tr><th>内容</th><th>处理方式</th></tr></thead>
           <tbody>
             <tr><td>命令行输出、错误与校验消息、运行报告</td><td>三种语言，放在消息目录</td></tr>
-            <tr><td>Web UI 与 API 错误消息（M7、M8）</td><td>三种语言；前端沿用同一套代码与预设语言</td></tr>
+            <tr><td>Web UI 与 API 错误消息（M7、M8）</td><td>三种语言；前端沿用同一套代码与默认语言</td></tr>
             <tr><td>工程文档 <code>docs/</code></td><td>三种语言，各一个目录</td></tr>
             <tr><td>用户撰写的内容：场景名称、步骤说明、定位器里的页面文字</td><td>不翻译，原样保存与显示</td></tr>
-            <tr><td>DSL 的字段与动作名称、代码识别字</td><td>维持英文，不翻译</td></tr>
-            <tr><td>代码注解与文档字符串、README、一键安装脚本的输出</td><td>维持繁中</td></tr>
+            <tr><td>DSL 的字段与动作名称、代码标识符</td><td>维持英文，不翻译</td></tr>
+            <tr><td>代码注释与文档字符串、README、一键安装脚本的输出</td><td>维持繁中</td></tr>
           </tbody>
         </table>
       </div>
@@ -82,7 +82,7 @@
           <h3>代价</h3>
           <ul class="points">
             <li>修改用户看得到的文字或文档时，要同时改英文，PR 会变大。</li>
-            <li>预设固定繁中，英文用户每次要加 <code>--lang en</code>，或设置 <code>RPA_LANG</code>。</li>
+            <li>默认固定繁中，英文用户每次要加 <code>--lang en</code>，或设置 <code>RPA_LANG</code>。</li>
             <li>自动转换的简中偶尔有不道地的词，要靠对照表修正。</li>
             <li>界面设计系统 v1.0 以繁中设计；英文通常较长，M6 的页面原型要检查英文版面。</li>
           </ul>

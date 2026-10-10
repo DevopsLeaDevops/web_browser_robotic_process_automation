@@ -34,14 +34,14 @@
     <section class="panel">
       <div class="panel-header"><h2>一句话说明</h2></div>
       <div class="panel-body">
-        <p class="lead">以「<strong>场景</strong>」为内核资产：一段可重复运行的浏览器操作流程，用声明式 DSL 描述。平台负责把场景<strong>生成</strong>出来（录制、自然语言、范本），<strong>管理</strong>起来（版本、参数、权限），<strong>运行</strong>它（Playwright），再把结果<strong>回馈</strong>给用户（截屏、Trace、失败定位）。</p>
+        <p class="lead">以「<strong>场景</strong>」为内核资产：一段可重复运行的浏览器操作流程，用声明式 DSL 描述。平台负责把场景<strong>生成</strong>出来（录制、自然语言、模板），<strong>管理</strong>起来（版本、参数、权限），<strong>运行</strong>它（Playwright），再把结果<strong>反馈</strong>给用户（截图、Trace、失败定位）。</p>
       </div>
     </section>
 
     <div class="grid">
-      <a class="panel panel-body link-card" href="design/positioning.html"><h2>产品定位</h2><p>要解决什么问题、内核概念、生成到回馈的闭环。</p></a>
+      <a class="panel panel-body link-card" href="design/positioning.html"><h2>产品定位</h2><p>要解决什么问题、内核概念、生成到反馈的闭环。</p></a>
       <a class="panel panel-body link-card" href="design/dsl.html"><h2>场景 DSL</h2><p>为什么用声明式 DSL，以及它大致长什么样子（草案）。</p></a>
-      <a class="panel panel-body link-card" href="design/architecture.html"><h2>系统架构</h2><p>组件、数据流与目录结构，以及每个套件的职责。</p></a>
+      <a class="panel panel-body link-card" href="design/architecture.html"><h2>系统架构</h2><p>组件、数据流与目录结构，以及每个包的职责。</p></a>
       <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>技术选型</h2><p>每一层的选择、备选方案与理由。</p></a>
       <a class="panel panel-body link-card" href="design/multi-user.html"><h2>多用户与内部系统</h2><p>认证、权限、Secrets、审核，以及内部系统带来的限制。</p></a>
       <a class="panel panel-body link-card" href="style/index.html"><h2>界面风格</h2><p>界面设计系统 v1.0：两级 Portal、蓝色主色、紧凑信息密度。</p></a>
@@ -64,7 +64,7 @@
         <div class="panel-header"><h2>仓库现况</h2><span class="muted">M0 完成时</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>rpa-core</dt><dd>DSL 套件骨架，M1 开始填入模型</dd>
+            <dt>rpa-core</dt><dd>DSL 包骨架，M1 开始填入模型</dd>
             <dt>rpa-cli</dt><dd><code>rpa --version</code> 可用；<code>--lang</code> 切换繁中、简中、英文</dd>
             <dt>工具链</dt><dd>uv、ruff、pyright（strict）、pytest、pre-commit</dd>
             <dt>CI</dt><dd>静态检查，Python 3.12 / 3.13 测试，含 Chromium 冒烟测试</dd>

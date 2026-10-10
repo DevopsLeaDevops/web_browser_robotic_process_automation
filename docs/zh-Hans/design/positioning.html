@@ -28,7 +28,7 @@
             <li><strong>重复的人工操作。</strong>每天在内部系统登录、填表、查找、导出报表，耗人力又容易出错。</li>
             <li><strong>脚本只有开发者能写。</strong>自动化脚本散落在个人电脑，难以共用，也没人知道哪个版本是对的。</li>
             <li><strong>页面一改就坏。</strong>选择器失效后很难看出坏在哪一步、为什么坏。</li>
-            <li><strong>团队共用缺少治理。</strong>没有权限、审核与凭证管理，帐号密码常常直接写在脚本里。</li>
+            <li><strong>团队共用缺少治理。</strong>没有权限、审核与凭证管理，账号密码常常直接写在脚本里。</li>
           </ul>
         </div>
       </section>
@@ -46,13 +46,13 @@
     </div>
 
     <section class="panel">
-      <div class="panel-header"><h2>生成 → 管理 → 运行 → 回馈</h2><span class="muted">平台的主循环</span></div>
+      <div class="panel-header"><h2>生成 → 管理 → 运行 → 反馈</h2><span class="muted">平台的主循环</span></div>
       <div class="panel-body">
         <div class="four-col">
-          <div><h3>1　生成</h3><ul class="points"><li>录制用户操作</li><li>用自然语言让 AI 产生</li><li>由范本或子场景组合</li></ul></div>
+          <div><h3>1　生成</h3><ul class="points"><li>录制用户操作</li><li>用自然语言让 AI 产生</li><li>由模板或子场景组合</li></ul></div>
           <div><h3>2　管理</h3><ul class="points"><li>版本与差异比较</li><li>参数、标签与项目</li><li>权限与审核</li></ul></div>
-          <div><h3>3　运行</h3><ul class="points"><li>手动、调度或 API 触发</li><li>多 worker 并发</li><li>重试与逾时控制</li></ul></div>
-          <div><h3>4　回馈</h3><ul class="points"><li>每一步的截屏与日志</li><li>Playwright Trace 回放</li><li>失败定位与选择器自愈</li></ul></div>
+          <div><h3>3　运行</h3><ul class="points"><li>手动、调度或 API 触发</li><li>多 worker 并发</li><li>重试与超时控制</li></ul></div>
+          <div><h3>4　反馈</h3><ul class="points"><li>每一步的截图与日志</li><li>Playwright Trace 回放</li><li>失败定位与选择器自愈</li></ul></div>
         </div>
       </div>
     </section>
@@ -65,10 +65,10 @@
           <dt>步骤 Step</dt><dd>场景中的一个动作，例如打开网址、点击、填写、抽取数据。每个步骤有稳定的 <code>id</code>。</dd>
           <dt>定位器 Target</dt><dd>描述「要操作页面上的哪个元素」，可以有多个候选，依优先级尝试。</dd>
           <dt>参数 Param</dt><dd>运行时才给定的值，例如查找月份；有类型与默认值。</dd>
-          <dt>Secret</dt><dd>帐号密码等机密，场景只引用名称，明文不会出现在场景、日志或截屏说明中。</dd>
+          <dt>Secret</dt><dd>账号密码等机密，场景只引用名称，明文不会出现在场景、日志或截图说明中。</dd>
           <dt>运行 Run</dt><dd>场景的一次运行，记录触发者、参数、每一步的结果与耗时。</dd>
-          <dt>产物 Artifact</dt><dd>运行产生的截屏、Trace、下载档与抽取的数据。</dd>
-          <dt>项目 Project</dt><dd>权限隔离的单位。场景、Secrets、运行纪录都属于某个项目。</dd>
+          <dt>产物 Artifact</dt><dd>运行产生的截图、Trace、下载文件与抽取的数据。</dd>
+          <dt>项目 Project</dt><dd>权限隔离的单位。场景、Secrets、运行记录都属于某个项目。</dd>
         </dl>
       </div>
     </section>

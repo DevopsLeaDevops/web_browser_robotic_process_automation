@@ -55,7 +55,7 @@
             <dt>内容区</dt><dd>左右 20px；区块间距 12px</dd>
             <dt>圆角</dt><dd>面板 9px，按钮 6px</dd>
             <dt>字级</dt><dd>页面标题 21px，区块标题 14px，正文 13px，表格 12px</dd>
-            <dt>字体</dt><dd>系统预设字体，不加载外部字体</dd>
+            <dt>字体</dt><dd>系统默认字体，不加载外部字体</dd>
             <dt>窄屏幕</dt><dd>700px 以下侧栏收合为菜单按钮，版面改单栏</dd>
           </dl>
         </div>
@@ -80,7 +80,7 @@
         <table class="wrap">
           <thead><tr><th>用途</th><th>做法</th><th>阶段</th><th>状态</th></tr></thead>
           <tbody>
-            <tr><td>文档站</td><td>直接引用 <code>portal.css</code>；补充样式在 <code>docs/assets/docs.css</code></td><td>M0</td><td><span class="badge green">已套用</span></td></tr>
+            <tr><td>文档站</td><td>直接引用 <code>portal.css</code>；补充样式在 <code>docs/assets/docs.css</code></td><td>M0</td><td><span class="badge green">已应用</span></td></tr>
             <tr><td>页面原型</td><td>以 <code>starter.html</code> 为基础制作登录、场景库、步骤编辑器、运行详情、用户与权限页</td><td>M6</td><td><span class="badge">未开始</span></td></tr>
             <tr><td>Web UI</td><td><code>portal.css</code> 与设计变量移植到 React，外壳改写为组件</td><td>M8</td><td><span class="badge">未开始</span></td></tr>
           </tbody>
@@ -95,7 +95,7 @@
           <li><strong>设计变量不完整。</strong><code>tokens.json</code> 没有成功、警告、错误与选取背景色；这些只出现在 <code>portal.css</code>。</li>
           <li><strong>选取背景色不一致。</strong>设计系统的色彩页写 <code>#eaf3ff</code>，<code>portal.css</code> 实际使用 <code>#eaf4ff</code>。</li>
           <li><strong>步骤编辑器细节。</strong>已有流程画布与节点样式，但没有拖拽、定位器候选切换、校验错误标示的状态。</li>
-          <li><strong>运行详情。</strong>逐步日志、截屏回放与 Trace 链接的版面。</li>
+          <li><strong>运行详情。</strong>逐步日志、截图回放与 Trace 链接的版面。</li>
           <li><strong>YAML 编辑器。</strong>已有 <code>code-editor</code> 基础样式，需确认语法高亮与错误行标示。</li>
           <li><strong>图标。</strong>目前只有一个通用图标，菜单与动作需要一套图标。</li>
           <li><strong>深色模式。</strong>目前没有，需确认是否需要。</li>

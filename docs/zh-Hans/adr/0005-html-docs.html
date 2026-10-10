@@ -14,7 +14,7 @@
 <main id="main">
   <div class="heading">
     <div>
-      <h1>ADR 0005：文档以 HTML 撰写并套用 Portal 样式</h1>
+      <h1>ADR 0005：文档以 HTML 撰写并应用 Portal 样式</h1>
       <p>除非必要，不使用 Markdown；文档本身就是一个可以直接部署的静态网站。</p>
     </div>
     <span class="badge green">已接受</span>
@@ -40,9 +40,9 @@
         <div class="panel-header"><h2>决策</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li>文档以手写 HTML 放在 <code>docs/</code>，套用界面设计系统的 <code>portal.css</code>。</li>
+            <li>文档以手写 HTML 放在 <code>docs/</code>，应用界面设计系统的 <code>portal.css</code>。</li>
             <li>导览集中在 <code>docs/assets/nav.js</code>，由 <code>docs-shell.js</code> 产生；页面只写内容。</li>
-            <li>不使用静态网站产生器，不需要建置，直接开档或用任何静态服务器即可浏览。</li>
+            <li>不使用静态网站生成器，不需要构建，直接打开文件或用任何静态服务器即可浏览。</li>
             <li>只有仓库根目录的 <code>README.md</code> 保留 Markdown，因为 GitHub 首页需要它。</li>
             <li>CI 检查每个页面的结构、导览登记与链接。</li>
           </ul>
@@ -61,7 +61,7 @@
           </ul>
           <h3>代价</h3>
           <ul class="points">
-            <li>手写 HTML 比 Markdown 冗长；以页面范本和自动检查降低出错机会。</li>
+            <li>手写 HTML 比 Markdown 冗长；以页面模板和自动检查降低出错机会。</li>
             <li>在 GitHub 网页上看到的是源代码，需要部署或下载后浏览。</li>
           </ul>
         </div>
@@ -73,7 +73,7 @@
             <thead><tr><th>方案</th><th>为什么不选</th></tr></thead>
             <tbody>
               <tr><td>Markdown</td><td>难以做出重点突出的版面，与要求不符。</td></tr>
-              <tr><td>Markdown + MkDocs 等产生器</td><td>写作方便，但需要建置流程，风格难与产品一致。</td></tr>
+              <tr><td>Markdown + MkDocs 等生成器</td><td>写作方便，但需要构建流程，风格难与产品一致。</td></tr>
             </tbody>
           </table>
         </div>

@@ -27,7 +27,7 @@
 <pre class="source">git clone https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git
 cd web_browser_robotic_process_automation
 
-# 创建 .venv，安装全部套件与开发工具
+# 创建 .venv，安装全部包与开发工具
 uv sync
 
 # 下载 Chromium（Linux 第一次可加 --with-deps 安装系统依赖）
@@ -67,7 +67,7 @@ uv run rpa --version</pre>
             <tr><td>格式化</td><td><code>uv run ruff format .</code></td></tr>
             <tr><td>类型检查</td><td><code>uv run pyright</code></td></tr>
             <tr><td>提交前的全部检查</td><td><code>uv run pre-commit run --all-files</code></td></tr>
-            <tr><td>替某个套件加依赖</td><td><code>uv add --package rpa-core 套件名称</code></td></tr>
+            <tr><td>替某个包加依赖</td><td><code>uv add --package rpa-core 包名称</code></td></tr>
             <tr><td>以其他语言显示 <code>rpa</code></td><td><code>uv run rpa --lang en -h</code>，或设置环境变量 <code>RPA_LANG=zh-Hans</code></td></tr>
             <tr><td>重新产生简中、检查翻译</td><td><code>uv run python tools/i18n.py sync</code>、<code>uv run python tools/i18n.py check</code>，见<a href="writing-docs.html#i18n">三种语言</a></td></tr>
             <tr><td>浏览文档</td><td>直接打开 <code>docs/index.html</code>，或 <code>python -m http.server -d docs 8000</code></td></tr>
@@ -80,12 +80,12 @@ uv run rpa --version</pre>
       <div class="panel-header"><h2>常见问题</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>没有 uv.lock</dt><dd>M0 尚未提交锁档。第一位运行 <code>uv sync</code> 的成员会产生 <code>uv.lock</code>，请单独开一个 PR 提交；之后 CI 会自动改用 <code>uv sync --locked</code>。</dd>
-          <dt>内网连不到 PyPI</dt><dd>设置环境变量 <code>UV_INDEX_URL</code> 指向公司的套件镜像。</dd>
+          <dt>没有 uv.lock</dt><dd>M0 尚未提交锁文件。第一位运行 <code>uv sync</code> 的成员会产生 <code>uv.lock</code>，请单独开一个 PR 提交；之后 CI 会自动改用 <code>uv sync --locked</code>。</dd>
+          <dt>内网连不到 PyPI</dt><dd>设置环境变量 <code>UV_INDEX_URL</code> 指向公司的包镜像。</dd>
           <dt>浏览器下载失败</dt><dd>设置 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 指向内部镜像；浏览器冒烟测试在本机没有浏览器时会自动略过。</dd>
           <dt>测试说简中不是最新</dt><dd>改了繁中文档或消息目录后，运行 <code>uv run python tools/i18n.py sync</code> 并提交产生的文件。</dd>
           <dt>测试说英文翻译需要更新</dt><dd>依繁中的修改更新 <code>docs/en/</code> 的同一页，再运行测试消息里的 <code>stamp</code> 命令。</dd>
-          <dt>pyright 找不到套件</dt><dd>确认已运行 <code>uv sync</code>，且编辑器使用的是项目的 <code>.venv</code>。</dd>
+          <dt>pyright 找不到包</dt><dd>确认已运行 <code>uv sync</code>，且编辑器使用的是项目的 <code>.venv</code>。</dd>
         </dl>
       </div>
     </section>

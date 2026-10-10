@@ -39,7 +39,7 @@ steps:
     url: https://erp.example.internal/login
   - id: login-user
     action: fill
-    target: { role: textbox, name: 帐号 }
+    target: { role: textbox, name: 账号 }
     value: "{{ env.ERP_USER }}"
   - id: login-pass
     action: fill
@@ -68,11 +68,11 @@ steps:
         <div class="panel-header"><h2>设计原则</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>每个步骤有稳定的 id。</strong>运行结果、截屏与日志按步骤归档；界面编辑时不会错位。</li>
+            <li><strong>每个步骤有稳定的 id。</strong>运行结果、截图与日志按步骤归档；界面编辑时不会错位。</li>
             <li><strong>定位器有优先级。</strong>testId → role + name → label → text → css / xpath。录制时同时记下多个候选，作为自愈的基础。</li>
             <li><strong>只用条件等待。</strong>不允许固定秒数的 sleep，改用 <code>waitFor</code> 等待元素、网址或网络状态。</li>
             <li><strong>步骤级错误处理。</strong>每一步可设置 retry、timeout 与 onError（继续、失败、跳到某一步）。</li>
-            <li><strong>Secrets 只引用名称。</strong>值在运行时注入，日志与截屏说明自动遮罩。</li>
+            <li><strong>Secrets 只引用名称。</strong>值在运行时注入，日志与截图说明自动遮罩。</li>
             <li><strong>表达式在沙箱内求值。</strong><code>{{ }}</code> 以 Jinja2 沙箱环境处理，只能读取 params、env、secrets 与先前步骤的输出。</li>
             <li><strong>保留逃生门。</strong>DSL 表达不了的情况使用受控的 <code>script</code> 步骤，并在审核时特别标示。</li>
           </ul>
@@ -94,11 +94,11 @@ steps:
             <tr><td><code>waitFor</code></td><td>等待条件成立</td><td>target、state、url、timeout</td></tr>
             <tr><td><code>expect</code></td><td>断言，不成立即判定失败</td><td>target、state、text</td></tr>
             <tr><td><code>extract</code></td><td>从页面抽取数据（文字、属性、表格）</td><td>target、as、fields</td></tr>
-            <tr><td><code>screenshot</code></td><td>截屏存为产物</td><td>target、fullPage、name</td></tr>
+            <tr><td><code>screenshot</code></td><td>截图存为产物</td><td>target、fullPage、name</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="diagram-caption">download、upload、iframe、多分页、条件与循环等在 M3 加入。</div>
+      <div class="diagram-caption">download、upload、iframe、多标签页、条件与循环等在 M3 加入。</div>
     </section>
   </div>
 </main>
