@@ -33,7 +33,7 @@
       <section class="panel">
         <div class="panel-header"><h2>背景</h2></div>
         <div class="panel-body prose">
-          <p>M7 之前场景以 YAML 档放在仓库，不需要数据库。M7 开始的管理后端要存放用户、项目、场景版本与运行记录。</p>
+          <p>M7 之前场景以 YAML 文件放在仓库，不需要数据库。M7 开始的管理后端要存放用户、项目、场景版本与运行记录。</p>
           <p>开发与设计阶段要快速走通原型，不希望每位开发者都先安装、设置 PostgreSQL。正式环境则是多用户共用，需要并发写入、多个 worker 与正式的备份。</p>
         </div>
       </section>
@@ -42,7 +42,7 @@
         <div class="panel-body">
           <ul class="points">
             <li><strong>两种数据库，用途分开。</strong>开发、测试与原型用 SQLite（Python 内置，不用另外安装）；正式环境一律用 PostgreSQL。</li>
-            <li><strong>一个设置切换。</strong>连接字符串放在环境变量 <code>RPA_DATABASE_URL</code>；没有设置时使用本机的 SQLite 档。</li>
+            <li><strong>一个设置切换。</strong>连接字符串放在环境变量 <code>RPA_DATABASE_URL</code>；没有设置时使用本机的 SQLite 文件。</li>
             <li><strong>只写两边都支持的代码。</strong>模型与查询只用 SQLAlchemy 2.0 的通用类型与写法，不直接使用 PostgreSQL 专属功能。</li>
             <li><strong>同一套迁移。</strong>Alembic 迁移两种数据库共用，启用 batch 模式让 SQLite 也能修改数据表结构。</li>
             <li><strong>队列依数据库切换实现。</strong>PostgreSQL 用 Procrastinate，可以有多个 worker（<a href="0003-postgres-queue.html">ADR 0003</a>）；SQLite 只允许单一进程，队列与调度在 API 进程内运行。</li>
@@ -60,7 +60,7 @@
           <tbody>
             <tr><td>JSON 字段</td><td>用 SQLAlchemy 的 <code>JSON</code>，在 PostgreSQL 上以 <code>with_variant</code> 存成 JSONB；查询不用 JSONB 专属操作符。</td></tr>
             <tr><td>时间</td><td>一律以 UTC 存放，用共用的字段类型转换；SQLite 不会保存时区。</td></tr>
-            <tr><td>外键</td><td>SQLite 默认不检查外键，每个连接都要打开 <code>foreign_keys</code>，并使用 WAL 模式。</td></tr>
+            <tr><td>外键</td><td>SQLite 默认不检查外键，每个连接都要开启 <code>foreign_keys</code>，并使用 WAL 模式。</td></tr>
             <tr><td>不分大小写搜索</td><td>不用 <code>ILIKE</code>；两边都转成小写再比较。</td></tr>
             <tr><td>PostgreSQL 专属功能</td><td>数组、<code>LISTEN/NOTIFY</code>、<code>SKIP LOCKED</code>、advisory lock 等，只能出现在可替换的实现里（例如队列），不能出现在模型与一般查询。</td></tr>
             <tr><td>并发</td><td>SQLite 同一时间只能有一个写入者。需要验证多个 worker、并发写入的测试只在 PostgreSQL 上跑。</td></tr>
