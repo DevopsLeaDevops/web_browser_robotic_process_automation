@@ -77,6 +77,39 @@ def run(
     )
 
 
+def test_cancel_stops_browser_and_never_publishes_output(
+    site: str, engine: str, tmp_path: Path
+) -> None:
+    cancel = threading.Event()
+    stages: list[str] = []
+
+    def on_stage(name: str) -> None:
+        stages.append(name)
+        if name == "automation":
+            # 子程序啟動、瀏覽器開到一半時取消
+            threading.Timer(1.0, cancel.set).start()
+
+    started = time.monotonic()
+    result = execute(
+        BA_001,
+        {"title": "取消", "quantity": 1},
+        out_root=tmp_path,
+        base_url=site,
+        engine=engine,
+        cancel=cancel,
+        on_stage=on_stage,
+    )
+
+    assert stages[:2] == ["input", "automation"]
+    if result.status == "passed":  # pragma: no cover - 機器太快，一秒內就跑完
+        pytest.skip("一秒內已執行完畢，來不及取消")
+    assert result.status == "cancelled"
+    assert result.stage("automation").status == "cancelled"
+    assert time.monotonic() - started < 20
+    assert not (result.directory / OUTPUT).exists()
+    assert (result.directory / REPORT).is_file()
+
+
 def test_chain_ba001_to_ba002(site: str, engine: str, tmp_path: Path) -> None:
     first = run(BA_001, {"title": "繁體中文鏈路驗證", "quantity": 23}, site, engine, tmp_path)
 

@@ -6,6 +6,7 @@
 - 獨立斷言：DSL 場景在本程序比對 verify；腳本場景再啟動一個 assertion.py 子程序。
 - 只有每個階段都通過，才寫出 output.json；任何失敗都沒有成功出參。
 - 每次執行一個目錄（見 files.py），最後一定寫出 result.json 與 report.html。
+- 可以從別的執行緒取消（``cancel``，例如管理介面的 worker）：立即終止程序群組，狀態為 cancelled。
 """
 
 import contextlib
@@ -15,9 +16,10 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -56,9 +58,14 @@ from rpa_runner.secrets import mask, missing_secrets, read_secrets
 __all__ = [
     "DEFAULT_DEADLINE_MS",
     "RunResult",
+    "RunStatus",
     "ScenarioInvalidError",
     "Stage",
+    "StageName",
     "execute",
+    "new_run_id",
+    "scenario_digest",
+    "scenario_sources",
 ]
 
 DEFAULT_DEADLINE_MS: Final = 120_000
@@ -66,6 +73,8 @@ DEFAULT_DEADLINE_MS: Final = 120_000
 _GRACE_SECONDS: Final = 3.0
 """子程序在總期限後還有這麼多秒可以寫診斷與截圖，之後就被終止。"""
 _EXIT_DEADLINE: Final = 3
+_POLL_SECONDS: Final = 0.2
+"""等待子程序時，每隔這麼久檢查一次是否被取消。"""
 
 RunStatus = Literal["passed", "failed", "timed_out", "cancelled"]
 StageName = Literal["input", "automation", "verify", "output"]
@@ -186,9 +195,35 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
     process.wait(timeout=10)
 
 
+def _check_cancelled(cancel: threading.Event | None) -> None:
+    if cancel is not None and cancel.is_set():
+        raise _StageFailedError("cancelled", t("run.cancelled"))
+
+
+def _wait(process: subprocess.Popen[bytes], seconds: float, cancel: threading.Event | None) -> int:
+    """等子程序結束；超過 seconds 或被取消時終止整個程序群組。"""
+    end = time.monotonic() + seconds
+    while True:
+        left = end - time.monotonic()
+        try:
+            return process.wait(timeout=max(0.0, min(_POLL_SECONDS, left)))
+        except subprocess.TimeoutExpired:
+            if cancel is not None and cancel.is_set():
+                _stop(process)
+                raise _StageFailedError("cancelled", t("run.cancelled")) from None
+            if left <= 0:
+                _stop(process)
+                raise _StageFailedError("timed_out", t("run.deadline_killed")) from None
+
+
 def _run_process(
-    command: Sequence[str], log: Path, deadline: Deadline, env: Mapping[str, str]
+    command: Sequence[str],
+    log: Path,
+    deadline: Deadline,
+    env: Mapping[str, str],
+    cancel: threading.Event | None = None,
 ) -> None:
+    _check_cancelled(cancel)
     remaining = deadline.remaining_ms() / 1000
     if remaining <= 0:
         raise _StageFailedError("timed_out", t("run.deadline_before_stage"))
@@ -201,10 +236,9 @@ def _run_process(
             start_new_session=os.name != "nt",
         )
         try:
-            code = process.wait(timeout=remaining + _GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            _stop(process)
-            raise _StageFailedError("timed_out", t("run.deadline_killed")) from None
+            code = _wait(process, remaining + _GRACE_SECONDS, cancel)
+        except _StageFailedError:
+            raise
         except BaseException:
             _stop(process)
             raise
@@ -217,21 +251,41 @@ def _run_process(
 # ---------------------------------------------------------------- 執行
 
 
+def scenario_sources(path: Path, scenario: Scenario) -> list[str]:
+    """場景由哪些檔案組成（相對於場景檔所在的資料夾）：場景檔，加上腳本場景的兩支腳本。"""
+    sources = [path.name]
+    if scenario.script is not None:
+        sources += [scenario.script.automation, scenario.script.assertion]
+    return sources
+
+
+def scenario_digest(path: Path, scenario: Scenario) -> str:
+    """場景內容的雜湊（sha256），每次執行都記在 result.json 的 scenarioHash。
+
+    管理介面的發布門檻用它確認「通過驗證的就是要發布的版本」。
+    """
+    digest = hashlib.sha256()
+    for relative in scenario_sources(path, scenario):
+        digest.update(relative.encode() + b"\0" + (path.parent / relative).read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def new_run_id(scenario_id: str, now: datetime | None = None) -> str:
+    """執行編號：``<場景 id>-<UTC 日期>-<時間>-<6 碼亂數>``，同時是執行目錄的名稱。"""
+    moment = now or datetime.now(UTC)
+    return f"{scenario_id}-{moment:%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
+
+
 def _snapshot(path: Path, scenario: Scenario, folder: Path) -> tuple[Path, str]:
     """把場景檔（與腳本）複製進執行目錄，回傳 (快照路徑, 雜湊)。"""
     target = folder / SCENARIO_DIR
     target.mkdir()
-    sources = [path.name]
-    if scenario.script is not None:
-        sources += [scenario.script.automation, scenario.script.assertion]
-    digest = hashlib.sha256()
-    for relative in sources:
-        source = path.parent / relative
+    for relative in scenario_sources(path, scenario):
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
-        digest.update(relative.encode() + b"\0" + source.read_bytes() + b"\0")
-    return target / path.name, digest.hexdigest()
+        shutil.copy2(path.parent / relative, destination)
+    snapshot = target / path.name
+    return snapshot, scenario_digest(snapshot, scenario)
 
 
 def _environment(
@@ -254,15 +308,23 @@ def execute(
     engine: str | None = None,
     headed: bool = False,
     deadline_ms: int | None = None,
+    run_id: str | None = None,
+    cancel: threading.Event | None = None,
+    on_stage: Callable[[StageName], None] | None = None,
 ) -> RunResult:
-    """執行場景檔，回傳結果；場景本身沒通過校驗時拋出 ScenarioInvalidError。"""
+    """執行場景檔，回傳結果；場景本身沒通過校驗時拋出 ScenarioInvalidError。
+
+    - ``run_id``：指定執行編號（例如管理介面排入佇列時就決定好）；沒指定時用 :func:`new_run_id`。
+    - ``cancel``：別的執行緒設定這個事件就取消執行。
+    - ``on_stage``：每個階段開始時呼叫，用來回報進度。
+    """
     validated = validate_file(path)
     if validated.scenario is None:
         raise ScenarioInvalidError(validated.issues)
     scenario = validated.scenario
     started = time.monotonic()
     now = datetime.now(UTC)
-    run_id = f"{scenario.id}-{now:%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
+    run_id = run_id or new_run_id(scenario.id, now)
     folder = out_root / run_id
     folder.mkdir(parents=True)
     snapshot, digest = _snapshot(path, scenario, folder)
@@ -280,24 +342,32 @@ def execute(
     secrets = read_secrets(scenario)
     deadline = Deadline.after((deadline_ms or scenario.deadline or DEFAULT_DEADLINE_MS) / 1000)
     current: Stage = result.stage("input")
+
+    def enter(name: StageName) -> None:
+        nonlocal current
+        current = result.stage(name)
+        _check_cancelled(cancel)
+        if on_stage is not None:
+            on_stage(name)
+
     try:
-        current = result.stage("input")
+        enter("input")
         _input_stage(scenario, inputs, result, folder)
-        current = result.stage("automation")
+        enter("automation")
         _automation_stage(
-            scenario, snapshot, folder, deadline, secrets, base_url, engine, headed, result
+            scenario, snapshot, folder, deadline, secrets, base_url, engine, headed, cancel, result
         )
-        current = result.stage("verify")
-        _verify_stage(scenario, snapshot, folder, deadline, secrets, result)
-        current = result.stage("output")
+        enter("verify")
+        _verify_stage(scenario, snapshot, folder, deadline, secrets, cancel, result)
+        enter("output")
         _output_stage(scenario, folder, deadline, secrets, result)
         result.status = "passed"
     except _StageFailedError as failure:
         current.status = failure.status
         current.message = mask(failure.message, secrets)
-        result.status = "timed_out" if failure.status == "timed_out" else "failed"
+        result.status = failure.status if failure.status in ("timed_out", "cancelled") else "failed"
         # 子程序寫在 diagnostic.json 的錯誤（例如找不到元素）比階段說明更具體，一併保留
-        detail = result.error
+        detail = result.error if failure.status != "cancelled" else None
         result.error = f"{current.message}；{detail}" if detail else current.message
     except KeyboardInterrupt:
         current.status = "cancelled"
@@ -348,6 +418,7 @@ def _automation_stage(
     base_url: str | None,
     engine: str | None,
     headed: bool,
+    cancel: threading.Event | None,
     result: RunResult,
 ) -> None:
     started = time.monotonic()
@@ -385,7 +456,7 @@ def _automation_stage(
         command += ["--headed"] if headed else []
     try:
         env = _environment(secrets, deadline, engine or scenario.browser.engine)
-        _run_process(command, folder / AUTOMATION_LOG, deadline, env)
+        _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel)
     finally:
         _timed(stage, started)
         diagnostic = folder / DIAGNOSTIC
@@ -403,6 +474,7 @@ def _verify_stage(
     folder: Path,
     deadline: Deadline,
     secrets: Mapping[str, str],
+    cancel: threading.Event | None,
     result: RunResult,
 ) -> None:
     started = time.monotonic()
@@ -419,7 +491,8 @@ def _verify_stage(
             str(folder / CANDIDATE),
         ]
         try:
-            _run_process(command, folder / ASSERTION_LOG, deadline, _environment(secrets, deadline))
+            env = _environment(secrets, deadline)
+            _run_process(command, folder / ASSERTION_LOG, deadline, env, cancel)
         finally:
             _timed(stage, started)
         stage.status = "passed"
