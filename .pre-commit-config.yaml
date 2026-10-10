@@ -33,6 +33,13 @@ repos:
         language: system
         types_or: [python, pyi]
         pass_filenames: false
+      # 繁中改了就重新產生簡中。檔案被改動時這次提交會中止，把新產生的檔案加入後再提交一次。
+      - id: i18n-sync
+        name: 產生簡體中文版
+        entry: uv run python tools/i18n.py sync
+        language: system
+        files: ^(docs/|tools/|(packages|apps)/[^/]+/src/[^/]+/locales/)
+        pass_filenames: false
       - id: docs-links
         name: 文檔連結檢查
         entry: uv run pytest -q tests/docs

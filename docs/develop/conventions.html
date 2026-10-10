@@ -53,7 +53,8 @@ docs(adr): 新增 0007 Secrets 加密方式</pre>
         <div class="panel-header"><h2>程式碼</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>語言。</strong>識別字用英文；註解、文件字串、錯誤訊息與文檔用繁體中文。</li>
+            <li><strong>語言。</strong>識別字用英文；註解與文件字串用繁體中文。</li>
+            <li><strong>使用者看得到的文字。</strong>命令列輸出、錯誤與校驗訊息等一律放進套件的 <code>locales/</code>，程式碼只寫訊息鍵；同時寫繁中與英文，簡中自動產生。見 <a href="../adr/0007-i18n.html">ADR 0007</a>。</li>
             <li><strong>型別。</strong>pyright strict；所有函式完整標註型別，避免 <code>Any</code>。</li>
             <li><strong>格式。</strong>以 ruff 為準，不手動爭論格式。</li>
             <li><strong>輸出。</strong>程式碼中不留 <code>print</code>；CLI 透過 click 輸出，函式庫用 logging。</li>
@@ -69,7 +70,7 @@ docs(adr): 新增 0007 Secrets 加密方式</pre>
             <li>需要真實瀏覽器的測試加上 <code>@pytest.mark.browser</code>。</li>
             <li>測試不依賴外部網站；需要網頁時用測試網站（M2 起）。</li>
             <li>修 bug 先寫一個重現問題的測試。</li>
-            <li>文檔頁面由 <code>tests/docs</code> 檢查結構與連結。</li>
+            <li>文檔頁面由 <code>tests/docs</code> 檢查結構與連結；三種語言是否同步由 <code>tests/i18n</code> 檢查。</li>
           </ul>
         </div>
       </section>

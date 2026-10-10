@@ -53,7 +53,17 @@ tr.current td { background: #f5faff; }
 /* 目錄樹等需要保持對齊的程式碼區塊：不換行，改為區塊內橫向捲動 */
 pre.source.tree { white-space: pre; overflow-x: auto; overflow-wrap: normal; }
 
+/* 語言切換：沿用 portal.css 的 .segmented，改成連結 */
+.lang-switch a { display: block; border-radius: 4px; font-size: 12px; padding: 4px 10px; color: var(--muted); }
+.lang-switch a:hover { color: var(--blue-strong); }
+.lang-switch .lang-short { display: none; }
+
 @media (max-width: 700px) {
+  /* 窄螢幕頂列空間有限：語言只顯示「繁、简、EN」，並隱藏版本標籤 */
+  .lang-switch .lang-full { display: none; }
+  .lang-switch .lang-short { display: inline; }
+  .lang-switch a { padding: 4px 8px; }
+  .top-end .env { display: none; }
   .diagram svg { min-width: 680px; }
   /* 窄螢幕上表格保持可讀寬度，在容器內橫向捲動，而不是把欄位擠成一字一行 */
   table.wrap { min-width: 600px; }

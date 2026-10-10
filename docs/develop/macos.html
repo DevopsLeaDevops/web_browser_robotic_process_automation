@@ -140,6 +140,7 @@ uv run playwright install chromium</pre>
       </div>
       <div class="panel-body">
         <div class="notice warn">如果 <code>uv run pytest</code> 顯示 <code>1 skipped</code>、原因是「Chromium 未安裝」，代表第 4 步的瀏覽器沒裝好，重新執行 <code>uv run playwright install chromium</code>。</div>
+        <p><code>rpa</code> 預設以繁體中文顯示；要改用簡體中文或英文，加上 <code>--lang zh-Hans</code>、<code>--lang en</code>，或設定環境變數 <code>RPA_LANG</code>（例如在 <code>~/.zshrc</code> 加一行 <code>export RPA_LANG=en</code>）。</p>
         <p>不想每次都打 <code>uv run</code>，可以先啟用虛擬環境：<code>source .venv/bin/activate</code>，之後直接打 <code>rpa --version</code>、<code>pytest</code>；離開用 <code>deactivate</code>。</p>
       </div>
     </section>
@@ -153,6 +154,7 @@ open docs/index.html
 
 # 或起一個本機伺服器，瀏覽 http://localhost:8000（Control-C 停止）
 uv run python -m http.server -d docs 8000</pre>
+          <p>頁首右上角可以切換繁體中文、简体中文與 English。</p>
           <p>macOS 沒有 <code>python</code> 命令。README 裡的 <code>python -m http.server</code> 請改用上面的 <code>uv run python</code>，或系統的 <code>python3</code>。</p>
         </div>
       </section>

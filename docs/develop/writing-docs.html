@@ -14,7 +14,7 @@
   <div class="heading">
     <div>
       <h1>文檔與 ADR</h1>
-      <p>怎麼新增一個文檔頁面，以及怎麼記錄架構決策。背景見 <a href="../adr/0005-html-docs.html">ADR 0005</a>。</p>
+      <p>怎麼新增一個文檔頁面、怎麼維持三種語言同步，以及怎麼記錄架構決策。背景見 <a href="../adr/0005-html-docs.html">ADR 0005</a> 與 <a href="../adr/0007-i18n.html">ADR 0007</a>。</p>
     </div>
   </div>
 
@@ -36,10 +36,11 @@
         <div class="panel-header"><h2>新增頁面</h2></div>
         <div class="panel-body prose">
           <ol>
-            <li>複製同一目錄下現有的頁面，保留 <code>&lt;head&gt;</code> 與 <code>&lt;body&gt;</code> 的屬性。</li>
-            <li>修改 <code>data-page</code>（頁面 id）與 <code>data-root</code>（回到 <code>docs/</code> 的相對路徑，例如 <code>../</code>）。</li>
-            <li>在 <code>docs/assets/nav.js</code> 登記頁面。</li>
-            <li>執行 <code>uv run pytest tests/docs</code>，確認結構與連結正確。</li>
+            <li>先寫繁中版：複製同一目錄下現有的頁面，保留 <code>&lt;head&gt;</code> 與 <code>&lt;body&gt;</code> 的屬性。</li>
+            <li>修改 <code>data-page</code>（頁面 id）與 <code>data-root</code>（回到該語言根目錄的相對路徑，例如 <code>../</code>）。</li>
+            <li>在 <code>docs/assets/nav.js</code> 登記頁面，名稱同時寫 <code>"zh-Hant"</code> 與 <code>"en"</code>。</li>
+            <li>在 <code>docs/en/</code> 相同路徑寫英文版，見下方<a href="#i18n">三種語言</a>。</li>
+            <li>執行 <code>uv run python tools/i18n.py sync</code> 產生簡中，再執行 <code>uv run pytest tests/docs tests/i18n</code>。</li>
           </ol>
         </div>
       </section>
@@ -93,6 +94,37 @@
       </div>
     </section>
 
+    <section class="panel" id="i18n">
+      <div class="panel-header"><h2>三種語言</h2><span class="muted">繁中、英文由人維護，簡中自動產生</span></div>
+      <div class="panel-body">
+        <div class="two-col">
+          <div>
+            <h3>目錄與規則</h3>
+            <ul class="points">
+              <li>繁中在 <code>docs/</code>，英文在 <code>docs/en/</code>，簡中在 <code>docs/zh-Hans/</code>；三個目錄的檔名、結構與錨點（<code>id</code>）完全相同。</li>
+              <li>英文頁的 <code>lang="en"</code>，共用資源多回一層，例如 <code>../../assets/docs.css</code>；<code>data-root</code> 仍是回到 <code>docs/en/</code> 的路徑。</li>
+              <li>頁面之間的連結只連同語言的頁面；切換語言由頁首處理。</li>
+              <li><code>docs/zh-Hans/</code> 與 <code>nav.js</code> 的 <code>"zh-Hans"</code> 是產生的，不要手改；用詞不對就加到 <code>tools/zh-Hans-overrides.json</code>。</li>
+              <li>程式實際印出的繁中訊息（例如一鍵安裝腳本的輸出），加上 <code>translate="no"</code>，產生簡中時保留原文。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>修改繁中頁面之後</h3>
+<pre class="source"># 1. 依修改內容更新 docs/en/ 的同一頁
+# 2. 記下英文版對照的是哪個繁中版本
+uv run python tools/i18n.py stamp docs/en/develop/setup.html
+
+# 3. 重新產生簡中（提交前檢查也會自動執行）
+uv run python tools/i18n.py sync
+
+# 只檢查不寫入
+uv run python tools/i18n.py check</pre>
+            <p class="muted">繁中改了而英文沒有重新 stamp，測試會失敗並指出是哪一頁。只改錯字、英文不受影響時，直接 stamp 即可。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="adr">
       <div class="panel-header"><h2>新增 ADR</h2></div>
       <div class="panel-body">
@@ -111,7 +143,7 @@
               <li>複製最近一份 ADR，檔名 <code>NNNN-英文短名.html</code>，編號遞增。</li>
               <li>固定段落：日期、影響範圍、背景、決策、後果（好處與代價）、沒有選的方案。</li>
               <li>新 ADR 先標「提議中」，在 PR 中討論，合併時改為「已接受」。</li>
-              <li>更新 <code>adr/index.html</code> 與 <code>nav.js</code>。</li>
+              <li>更新 <code>adr/index.html</code> 與 <code>nav.js</code>，並照<a href="#i18n">三種語言</a>的規則提供英文版。</li>
               <li>取代舊決策時，舊 ADR 改為「已取代」並連到新的 ADR，內容不刪。</li>
             </ul>
           </div>

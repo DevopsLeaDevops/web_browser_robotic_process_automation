@@ -1,6 +1,7 @@
-"""文檔站檢查：頁面結構、導覽登記、連結與設計系統完整性。
+"""文檔站檢查：頁面結構、導覽登記、連結、三種語言的對應與設計系統完整性。
 
 規則見 docs/develop/writing-docs.html。只用標準函式庫，不需要瀏覽器。
+簡中是否由繁中重新產生、英文是否跟上繁中，由 tests/i18n/test_generated.py 檢查。
 """
 
 import hashlib
@@ -18,19 +19,38 @@ DESIGN_SYSTEM = DOCS / "design-system"
 NAV_FILE = DOCS / "assets" / "nav.js"
 NAV_PREFIX = "window.DOCS_NAV = "
 SKIP_SCHEMES = {"http", "https", "mailto", "data", "javascript"}
+DEFAULT_LOCALE = "zh-Hant"
+# 每種語言的根目錄：繁中在 docs/，其他語言在 docs/<語言>/，目錄結構相同
+LANGUAGE_ROOTS = {"zh-Hant": DOCS, "zh-Hans": DOCS / "zh-Hans", "en": DOCS / "en"}
+
+type Localized = dict[str, str]
 
 
 class NavPage(TypedDict):
     id: str
-    name: str
+    name: Localized
     href: str
 
 
 class NavGroup(TypedDict):
     id: str
-    name: str
-    en: str
+    caption: str
+    name: Localized
     pages: list[NavPage]
+
+
+class NavLanguage(TypedDict):
+    code: str
+    label: str
+    short: str
+
+
+class Nav(TypedDict):
+    default: str
+    languages: list[NavLanguage]
+    subtitle: str
+    text: dict[str, Localized]
+    groups: list[NavGroup]
 
 
 @dataclass
@@ -81,12 +101,19 @@ def _parse(path: Path) -> Page:
     return page
 
 
-def _load_nav() -> list[NavGroup]:
+def _load_nav() -> Nav:
     text = NAV_FILE.read_text(encoding="utf-8")
     start = text.index(NAV_PREFIX) + len(NAV_PREFIX)
     end = text.rindex("}") + 1
-    groups: list[NavGroup] = json.loads(text[start:end])["groups"]
-    return groups
+    nav: Nav = json.loads(text[start:end])
+    return nav
+
+
+def _locale_of(path: Path) -> str:
+    for locale, root in LANGUAGE_ROOTS.items():
+        if locale != DEFAULT_LOCALE and root in path.parents:
+            return locale
+    return DEFAULT_LOCALE
 
 
 def _doc_paths() -> list[Path]:
@@ -95,31 +122,43 @@ def _doc_paths() -> list[Path]:
 
 PAGES = {path: _parse(path) for path in _doc_paths()}
 NAV = _load_nav()
-NAV_PAGES = {page["id"]: page for group in NAV for page in group["pages"]}
+NAV_PAGES = {page["id"]: page for group in NAV["groups"] for page in group["pages"]}
+LOCALES = [language["code"] for language in NAV["languages"]]
 
 
 def _rel(path: Path) -> str:
     return path.relative_to(DOCS).as_posix()
 
 
+def _rel_to_language_root(path: Path) -> str:
+    return path.relative_to(LANGUAGE_ROOTS[_locale_of(path)]).as_posix()
+
+
+def _pages_of(locale: str) -> set[str]:
+    return {_rel_to_language_root(p) for p in PAGES if _locale_of(p) == locale}
+
+
 @pytest.mark.parametrize("path", list(PAGES), ids=_rel)
 def test_page_structure(path: Path) -> None:
     page = PAGES[path]
-    assert page.lang == "zh-Hant", "html 需標註 lang=zh-Hant"
+    locale = _locale_of(path)
+    assert page.lang == locale, f"html 需標註 lang={locale}"
     assert page.title.strip(), "缺少 <title>"
     assert page.h1_count == 1, f"每頁只能有一個 h1，實際 {page.h1_count} 個"
     assert "main" in page.ids, '內容需放在 <main id="main">'
 
-    depth = len(path.relative_to(DOCS).parts) - 1
-    assert page.body.get("data-root", "") == "../" * depth, "data-root 與目錄深度不符"
+    rel = _rel_to_language_root(path)
+    depth = rel.count("/")
+    assert page.body.get("data-root", "") == "../" * depth, "data-root 需回到該語言的根目錄"
 
     page_id = page.body.get("data-page")
     assert page_id in NAV_PAGES, f"data-page={page_id!r} 沒有在 nav.js 登記"
-    assert NAV_PAGES[page_id]["href"] == _rel(path), "nav.js 登記的路徑與檔案位置不符"
+    assert NAV_PAGES[page_id]["href"] == rel, "nav.js 登記的路徑與檔案位置不符"
 
 
 @pytest.mark.parametrize("path", list(PAGES), ids=_rel)
 def test_links_resolve(path: Path) -> None:
+    locale = _locale_of(path)
     broken: list[str] = []
     for link in PAGES[path].links:
         parts = urlsplit(link)
@@ -128,21 +167,50 @@ def test_links_resolve(path: Path) -> None:
         target = (path.parent / unquote(parts.path)).resolve() if parts.path else path
         if not target.exists():
             broken.append(f"{link}（檔案不存在）")
+        elif target in PAGES and _locale_of(target) != locale:
+            broken.append(f"{link}（連到其他語言的頁面；語言切換由頁首處理）")
         elif parts.fragment and target in PAGES and parts.fragment not in PAGES[target].ids:
             broken.append(f"{link}（找不到錨點）")
     assert not broken, "失效連結：\n" + "\n".join(broken)
 
 
+@pytest.mark.parametrize("locale", ["zh-Hans", "en"])
+def test_every_language_has_the_same_pages(locale: str) -> None:
+    source = _pages_of(DEFAULT_LOCALE)
+    other = _pages_of(locale)
+    assert source - other == set(), f"{locale} 缺少這些頁面"
+    assert other - source == set(), f"{locale} 多出繁中沒有的頁面"
+
+
+@pytest.mark.parametrize("path", [p for p in PAGES if _locale_of(p) != DEFAULT_LOCALE], ids=_rel)
+def test_translated_page_keeps_anchors(path: Path) -> None:
+    """各語言的錨點相同，切換語言時才能停在同一段落，跨頁連結的 #錨點 也才有效。"""
+    source = DOCS / _rel_to_language_root(path)
+    if source in PAGES:
+        assert PAGES[path].ids == PAGES[source].ids, "錨點（id）與繁中版不同"
+
+
 def test_nav_is_complete_and_unique() -> None:
-    ids = [page["id"] for group in NAV for page in group["pages"]]
+    ids = [page["id"] for group in NAV["groups"] for page in group["pages"]]
     assert len(ids) == len(set(ids)), "nav.js 中有重複的頁面 id"
 
-    registered = {(DOCS / page["href"]).resolve() for page in NAV_PAGES.values()}
     missing = [p["href"] for p in NAV_PAGES.values() if not (DOCS / p["href"]).exists()]
     assert not missing, f"nav.js 登記了不存在的頁面：{missing}"
 
-    unregistered = [_rel(p) for p in PAGES if p.resolve() not in registered]
+    registered = {page["href"] for page in NAV_PAGES.values()}
+    unregistered = sorted(_pages_of(DEFAULT_LOCALE) - registered)
     assert not unregistered, f"頁面沒有在 nav.js 登記：{unregistered}"
+
+
+def test_nav_text_is_complete_in_every_language() -> None:
+    assert NAV["default"] == DEFAULT_LOCALE
+    assert sorted(LOCALES) == sorted(LANGUAGE_ROOTS)
+    names: list[Localized] = list(NAV["text"].values())
+    for group in NAV["groups"]:
+        names.append(group["name"])
+        names.extend(page["name"] for page in group["pages"])
+    incomplete = [n for n in names if sorted(n) != sorted(LOCALES) or not all(n.values())]
+    assert not incomplete, f"nav.js 這些名稱缺少某種語言：{incomplete}"
 
 
 def test_design_system_matches_manifest() -> None:

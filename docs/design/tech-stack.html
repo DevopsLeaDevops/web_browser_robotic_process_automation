@@ -37,6 +37,7 @@
             <tr><td>前端</td><td>React + TypeScript + Vite</td><td>NiceGUI、HTMX</td><td>步驟編輯器互動很多，純 Python 方案難做好<small><a href="../adr/0004-react-frontend.html">ADR 0004</a></small></td><td>M8</td></tr>
             <tr><td>介面樣式</td><td>介面設計系統 v1.0</td><td>—</td><td>同事交付的視覺契約，文檔站與 Web UI 共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支援多套件；ruff 一個工具處理 lint 與格式化</td><td>M0</td></tr>
+            <tr><td>多語言</td><td>各套件的 JSON 訊息目錄；簡中以 OpenCC 由繁中產生</td><td>gettext、Babel</td><td>繁中為主要語言，Web UI 也要讀同一份翻譯；只需人工維護繁中與英文<a href="../adr/0007-i18n.html">ADR 0007</a></td><td>M0</td></tr>
             <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>倉庫在 GitHub；Python 3.12 / 3.13 兩個版本並行測試</td><td>M0</td></tr>
             <tr><td>部署</td><td>Docker Compose</td><td>Kubernetes</td><td>起步夠用，之後可以遷移</td><td>M9</td></tr>
           </tbody>
