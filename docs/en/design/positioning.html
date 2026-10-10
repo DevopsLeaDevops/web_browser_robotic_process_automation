@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:a256c4dd762b9a62">
+<title>Positioning · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="positioning" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Positioning</h1>
+      <p>The problem we solve, and the core concepts the whole platform is built around.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>The problem</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Repetitive manual work.</strong> Logging in to internal systems, filling in forms, running queries and exporting reports every day takes time and invites mistakes.</li>
+            <li><strong>Only developers can write scripts.</strong> Automation scripts are scattered across personal computers, hard to share, and nobody knows which version is the right one.</li>
+            <li><strong>Pages change and scripts break.</strong> When a selector stops working, it is hard to see which step broke and why.</li>
+            <li><strong>No governance for shared use.</strong> There are no permissions, auditing or credential management, and passwords often sit right in the scripts.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Out of scope</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>Desktop application automation: only actions inside the browser.</li>
+            <li>Solving CAPTCHAs or bypassing the target system's security measures.</li>
+            <li>Large-scale web crawling.</li>
+            <li>Replacing test frameworks: it can run checks, but its purpose is business process automation.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Generate → Manage → Run → Report</h2><span class="muted">The platform's main loop</span></div>
+      <div class="panel-body">
+        <div class="four-col">
+          <div><h3>1　Generate</h3><ul class="points"><li>Record user actions</li><li>Have AI produce it from natural language</li><li>Compose from templates or sub-scenarios</li></ul></div>
+          <div><h3>2　Manage</h3><ul class="points"><li>Versions and diffs</li><li>Parameters, tags and projects</li><li>Permissions and auditing</li></ul></div>
+          <div><h3>3　Run</h3><ul class="points"><li>Triggered manually, on a schedule or by API</li><li>Many workers in parallel</li><li>Retries and timeouts</li></ul></div>
+          <div><h3>4　Report</h3><ul class="points"><li>Screenshots and logs for every step</li><li>Playwright trace replay</li><li>Failure location and self-healing selectors</li></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Core concepts</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>Scenario</dt><dd>A repeatable sequence of browser actions described in a declarative DSL. The platform's core asset; it has versions.</dd>
+          <dt>Step</dt><dd>One action in a scenario, such as opening a URL, clicking, filling in a field or extracting data. Every step has a stable <code>id</code>.</dd>
+          <dt>Target</dt><dd>Describes which element on the page to act on. It can have several candidates, tried in order of priority.</dd>
+          <dt>Param</dt><dd>A value given only at run time, such as the month to query; it has a type and a default.</dd>
+          <dt>Secret</dt><dd>Credentials and other sensitive values. Scenarios refer to them by name only; the plain value never appears in scenarios, logs or screenshot captions.</dd>
+          <dt>Run</dt><dd>One execution of a scenario, recording who triggered it, the parameters, and the result and duration of every step.</dd>
+          <dt>Artifact</dt><dd>Screenshots, traces, downloaded files and extracted data produced by a run.</dd>
+          <dt>Project</dt><dd>The unit of permission isolation. Scenarios, secrets and runs all belong to a project.</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/writing-docs.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文档与 ADR · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="writing-docs" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>文档与 ADR</h1>
+      <p>怎么添加一个文档页面、怎么维持三种语言同步，以及怎么记录架构决策。背景见 <a href="../adr/0005-html-docs.html">ADR 0005</a> 与 <a href="../adr/0007-i18n.html">ADR 0007</a>。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>写作原则</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>先结论，后细节。</strong>页面描述一句话讲清楚这页在说什么。</li>
+            <li><strong>一个面板一个主题。</strong>面板标题就是读者会扫的目录。</li>
+            <li><strong>用对组件。</strong>比较用表格，定义用规格清单，要点用重点清单，提醒用提示框。</li>
+            <li><strong>状态要有文字。</strong>不能只靠颜色表达状态。</li>
+            <li><strong>不重复。</strong>同一件事只在一个地方详细说明，其他地方连过去。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>添加页面</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>先写繁中版：拷贝同一目录下现有的页面，保留 <code>&lt;head&gt;</code> 与 <code>&lt;body&gt;</code> 的属性。</li>
+            <li>修改 <code>data-page</code>（页面 id）与 <code>data-root</code>（回到该语言根目录的相对路径，例如 <code>../</code>）。</li>
+            <li>在 <code>docs/assets/nav.js</code> 登记页面，名称同时写 <code>"zh-Hant"</code> 与 <code>"en"</code>。</li>
+            <li>在 <code>docs/en/</code> 相同路径写英文版，见下方<a href="#i18n">三种语言</a>。</li>
+            <li>运行 <code>uv run python tools/i18n.py sync</code> 产生简中，再运行 <code>uv run pytest tests/docs tests/i18n</code>。</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>页面模板</h2><span class="muted">以 docs/design/ 下的页面为例</span></div>
+      <div class="panel-body">
+<pre class="source">&lt;!doctype html&gt;
+&lt;html lang="zh-Hant"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;meta name="viewport" content="width=device-width,initial-scale=1"&gt;
+&lt;title&gt;页面名称 · 浏览器 RPA 工程文档&lt;/title&gt;
+&lt;link rel="stylesheet" href="../../design-system/assets/portal.css"&gt;
+&lt;link rel="stylesheet" href="../../assets/docs.css"&gt;
+&lt;script defer src="../../assets/nav.js"&gt;&lt;/script&gt;
+&lt;script defer src="../../assets/docs-shell.js"&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body data-page="頁面-id" data-root="../"&gt;
+&lt;main id="main"&gt;
+  &lt;div class="heading"&gt;&lt;div&gt;&lt;h1&gt;页面名称&lt;/h1&gt;&lt;p&gt;一句话说明&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;
+  &lt;div class="stack"&gt;
+    &lt;section class="panel"&gt;
+      &lt;div class="panel-header"&gt;&lt;h2&gt;面板标题&lt;/h2&gt;&lt;/div&gt;
+      &lt;div class="panel-body"&gt;内容&lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>可用组件</h2><span class="muted">来自 portal.css 与 docs.css</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>组件</th><th>class</th><th>适合</th></tr></thead>
+          <tbody>
+            <tr><td>面板</td><td><code>panel</code>、<code>panel-header</code>、<code>panel-body</code></td><td>每个主题一个</td></tr>
+            <tr><td>版面</td><td><code>stack</code>、<code>two-col</code>、<code>four-col</code>、<code>grid</code></td><td>面板的排列；窄屏幕自动变单栏</td></tr>
+            <tr><td>规格清单</td><td><code>spec-list</code>（<code>dl</code>）</td><td>名词与定义、设置值</td></tr>
+            <tr><td>重点清单</td><td><code>points</code>（<code>ul</code>）</td><td>三到六个要点</td></tr>
+            <tr><td>表格</td><td><code>table-scroll</code> 包住 <code>table.wrap</code></td><td>多个项目的比较</td></tr>
+            <tr><td>提示框</td><td><code>notice</code>、<code>notice warn</code>、<code>notice success</code></td><td>需要特别注意的事</td></tr>
+            <tr><td>状态标签</td><td><code>badge blue | green | amber | red</code></td><td>状态，必须含文字</td></tr>
+            <tr><td>代码区块</td><td><code>pre.source</code></td><td>命令与范例；HTML 要跳脱 <code>&lt;</code> 与 <code>&gt;</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="i18n">
+      <div class="panel-header"><h2>三种语言</h2><span class="muted">繁中、英文由人维护，简中自动产生</span></div>
+      <div class="panel-body">
+        <div class="two-col">
+          <div>
+            <h3>目录与规则</h3>
+            <ul class="points">
+              <li>繁中在 <code>docs/</code>，英文在 <code>docs/en/</code>，简中在 <code>docs/zh-Hans/</code>；三个目录的文件名、结构与锚点（<code>id</code>）完全相同。</li>
+              <li>英文页的 <code>lang="en"</code>，共用资源多回一层，例如 <code>../../assets/docs.css</code>；<code>data-root</code> 仍是回到 <code>docs/en/</code> 的路径。</li>
+              <li>页面之间的链接只连同语言的页面；切换语言由页眉处理。</li>
+              <li><code>docs/zh-Hans/</code> 与 <code>nav.js</code> 的 <code>"zh-Hans"</code> 是产生的，不要手改；用词不对就加到 <code>tools/zh-Hans-overrides.json</code>。</li>
+              <li>程序实际印出的繁中消息（例如一键安装脚本的输出），加上 <code>translate="no"</code>，产生简中时保留原文。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>修改繁中页面之后</h3>
+<pre class="source"># 1. 依修改内容更新 docs/en/ 的同一页
+# 2. 记下英文版对照的是哪个繁中版本
+uv run python tools/i18n.py stamp docs/en/develop/setup.html
+
+# 3. 重新产生简中（提交前检查也会自动运行）
+uv run python tools/i18n.py sync
+
+# 只检查不写入
+uv run python tools/i18n.py check</pre>
+            <p class="muted">繁中改了而英文没有重新 stamp，测试会失败并指出是哪一页。只改错字、英文不受影响时，直接 stamp 即可。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="adr">
+      <div class="panel-header"><h2>添加 ADR</h2></div>
+      <div class="panel-body">
+        <div class="two-col">
+          <div>
+            <h3>什么时候写</h3>
+            <ul class="points">
+              <li>选择会影响多个包或很难反悔。</li>
+              <li>有两个以上合理的方案，而且需要让后来的人知道为什么选这个。</li>
+              <li>推翻或修改既有的 ADR。</li>
+            </ul>
+          </div>
+          <div>
+            <h3>怎么写</h3>
+            <ul class="points">
+              <li>拷贝最近一份 ADR，文件名 <code>NNNN-英文短名.html</code>，编号递增。</li>
+              <li>固定段落：日期、影响范围、背景、决策、后果（好处与代价）、没有选的方案。</li>
+              <li>新 ADR 先标「提议中」，在 PR 中讨论，合并时改为「已接受」。</li>
+              <li>更新 <code>adr/index.html</code> 与 <code>nav.js</code>，并照<a href="#i18n">三种语言</a>的规则提供英文版。</li>
+              <li>取代旧决策时，旧 ADR 改为「已取代」并连到新的 ADR，内容不删。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

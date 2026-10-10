@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0007 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0007" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0007：產品與文檔支援英文、繁體中文、簡體中文</h1>
+      <p>從 M0 開始建立多語言機制，不必等功能寫多了再回頭找出所有寫死的文字。</p>
+    </div>
+    <span class="badge amber">提議中</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-10</dd>
+        <dt>影響範圍</dt><dd>所有套件中使用者看得到的文字、<code>rpa</code> 命令、M8 Web UI、<code>docs/</code></dd>
+        <dt>相關</dt><dd><a href="../develop/conventions.html">開發規範</a>、<a href="../develop/writing-docs.html#i18n">文檔與 ADR</a>、<a href="0005-html-docs.html">ADR 0005</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>平台的使用者與文檔讀者包括使用英文、繁體中文、簡體中文的同事。</p>
+          <p>如果先把繁中寫死，之後要從命令列、校驗訊息、執行報告與介面裡逐一找出文字改寫，成本會隨程式碼一起成長。M0 只有少量文字，是導入成本最低的時候。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>三種語言。</strong>繁體中文 <code>zh-Hant</code>（預設）、簡體中文 <code>zh-Hans</code>、英文 <code>en</code>。網址、檔名與參數都用這組代碼。</li>
+            <li><strong>預設固定繁中，</strong>不跟隨作業系統或瀏覽器語言，由使用者手動切換：命令列用 <code>--lang</code> 或環境變數 <code>RPA_LANG</code>，Web UI 記在使用者設定，文檔站在頁首切換。</li>
+            <li><strong>產品文字放在訊息目錄。</strong>每個套件的 <code>locales/&lt;語言&gt;.json</code>，程式碼以訊息鍵取用（<code>rpa_core.i18n.Catalog</code>），不寫死使用者看得到的文字。click 內建的「用法」「選項」與錯誤訊息也一併翻譯。</li>
+            <li><strong>簡中自動產生。</strong>繁中與英文由人維護；簡中用 OpenCC 的 <code>tw2sp</code>（繁轉簡並換成大陸用語）產生後提交，不道地的詞在 <code>tools/zh-Hans-overrides.json</code> 修正。OpenCC 鎖定版本。</li>
+            <li><strong>文檔三個目錄。</strong>繁中在 <code>docs/</code>（網址不變），英文在 <code>docs/en/</code>，簡中在 <code>docs/zh-Hans/</code>；目錄結構與錨點相同。</li>
+            <li><strong>用檢查保持同步。</strong>測試確保三種語言的訊息鍵與佔位符一致、簡中是最新產生的、英文頁對照的是目前的繁中版本。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="scope">
+      <div class="panel-header"><h2>翻譯範圍</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>內容</th><th>處理方式</th></tr></thead>
+          <tbody>
+            <tr><td>命令列輸出、錯誤與校驗訊息、執行報告</td><td>三種語言，放在訊息目錄</td></tr>
+            <tr><td>Web UI 與 API 錯誤訊息（M7、M8）</td><td>三種語言；前端沿用同一套代碼與預設語言</td></tr>
+            <tr><td>工程文檔 <code>docs/</code></td><td>三種語言，各一個目錄</td></tr>
+            <tr><td>使用者撰寫的內容：場景名稱、步驟說明、定位器裡的頁面文字</td><td>不翻譯，原樣保存與顯示</td></tr>
+            <tr><td>DSL 的欄位與動作名稱、程式碼識別字</td><td>維持英文，不翻譯</td></tr>
+            <tr><td>程式碼註解與文件字串、README、一鍵安裝腳本的輸出</td><td>維持繁中</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>新功能從第一行開始就有三種語言，不必事後補。</li>
+            <li>人工只維護兩種語言，簡中的用詞也一致。</li>
+            <li>漏翻或翻譯過期會讓 CI 失敗，不會悄悄變成語言混雜的畫面。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>修改使用者看得到的文字或文檔時，要同時改英文，PR 會變大。</li>
+            <li>預設固定繁中，英文使用者每次要加 <code>--lang en</code>，或設定 <code>RPA_LANG</code>。</li>
+            <li>自動轉換的簡中偶爾有不道地的詞，要靠對照表修正。</li>
+            <li>介面設計系統 v1.0 以繁中設計；英文通常較長，M6 的頁面原型要檢查英文版面。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>gettext 與 Babel（<code>.po</code> 檔）</td><td>業界常用，但以英文原文當鍵、需要編譯步驟；本工程以繁中為主要語言，Web UI 也要讀同一份翻譯，JSON 更直接。</td></tr>
+              <tr><td>三種語言都人工維護</td><td>簡中用詞最精準，但每次改文字要寫三份，最容易不同步。</td></tr>
+              <tr><td>跟隨系統或瀏覽器語言</td><td>同一個命令在不同電腦上會輸出不同語言，文檔範例與問題回報不易對照；改為固定繁中、手動切換。</td></tr>
+              <tr><td>文檔在瀏覽器裡即時轉換簡中</td><td>不用產生檔案，但要附上數 MB 的詞庫，連結檢查與離線閱讀也較複雜。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

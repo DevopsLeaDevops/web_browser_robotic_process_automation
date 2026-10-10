@@ -118,7 +118,7 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
       <div class="panel-header"><h2>成功的樣子</h2></div>
       <div class="panel-body">
         <p>最後一步印出版本、全部測試只有 <code>passed</code>，接著是「完成」與接下來可以用的命令：</p>
-<pre class="source">[7/7] 確認能運行
+<pre class="source" translate="no">[7/7] 確認能運行
   ✓ rpa 0.1.0（rpa-core 0.1.0）
   $ env RPA_REQUIRE_BROWSER=1 uv run pytest
 …
@@ -159,12 +159,12 @@ git pull              # 取得最新程式碼
           <tbody>
             <tr><td>Windows：「因為這個系統上已停用指令碼執行」</td><td>用本頁帶 <code>-ExecutionPolicy Bypass</code> 的命令執行，只對這一次有效，不需要改系統設定。</td></tr>
             <tr><td>Windows：用 <code>irm … | iex</code> 執行，出現「is not recognized」或「Unexpected attribute」</td><td>改用本頁「先下載、再用 <code>-File</code> 執行」的兩行命令。腳本存成含 BOM 的 UTF-8，Windows PowerShell 5.1 才不會把中文讀成亂碼；但 BOM 會留在 <code>irm</code> 下載的字串裡，讓 <code>iex</code> 解析失敗。</td></tr>
-            <tr><td>macOS：「請在跳出的視窗按『安裝』」</td><td>安裝命令列開發者工具，完成後再執行同一條命令。不需要安裝完整的 Xcode。</td></tr>
-            <tr><td>「已經存在，而且不是空資料夾」</td><td>預設位置被其他東西佔用。用 <code>--dir</code>（Windows 是 <code>-Dir</code>）指定別的位置；如果那就是專案，進到資料夾裡執行 <code>scripts/setup.sh</code>。</td></tr>
-            <tr><td>「安裝依賴失敗」或「下載 Chromium 失敗」</td><td>多半是公司網路。設定 <code>UV_INDEX_URL</code> 或 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 後重跑，見<a href="setup.html#faq">開發環境的常見問題</a>；瀏覽器暫時下載不了，可以先加 <code>--skip-browser</code>。</td></tr>
-            <tr><td>Linux：「Chromium 缺少系統函式庫」</td><td>腳本會用 sudo 執行 <code>playwright install-deps</code>，需要輸入密碼。不是 Debian、Ubuntu 時，依錯誤訊息手動安裝缺少的函式庫。</td></tr>
+            <tr><td>macOS：「<span translate="no">請在跳出的視窗按『安裝』</span>」</td><td>安裝命令列開發者工具，完成後再執行同一條命令。不需要安裝完整的 Xcode。</td></tr>
+            <tr><td>「<span translate="no">已經存在，而且不是空資料夾</span>」</td><td>預設位置被其他東西佔用。用 <code>--dir</code>（Windows 是 <code>-Dir</code>）指定別的位置；如果那就是專案，進到資料夾裡執行 <code>scripts/setup.sh</code>。</td></tr>
+            <tr><td>「<span translate="no">安裝依賴失敗</span>」或「<span translate="no">下載 Chromium 失敗</span>」</td><td>多半是公司網路。設定 <code>UV_INDEX_URL</code> 或 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 後重跑，見<a href="setup.html#faq">開發環境的常見問題</a>；瀏覽器暫時下載不了，可以先加 <code>--skip-browser</code>。</td></tr>
+            <tr><td>Linux：「<span translate="no">Chromium 缺少系統函式庫</span>」</td><td>腳本會用 sudo 執行 <code>playwright install-deps</code>，需要輸入密碼。不是 Debian、Ubuntu 時，依錯誤訊息手動安裝缺少的函式庫。</td></tr>
             <tr><td>完成後輸入 <code>uv</code> 顯示找不到命令</td><td>腳本剛安裝 uv，只對新開的終端機視窗生效。開一個新視窗；macOS、Linux 也可以執行 <code>source $HOME/.local/bin/env</code>。</td></tr>
-            <tr><td>「測試沒有通過」</td><td>往上找 <code>FAILED</code> 的測試名稱與錯誤。在專案資料夾執行 <code>uv run pytest -x</code> 可以停在第一個失敗。</td></tr>
+            <tr><td>「<span translate="no">測試沒有通過</span>」</td><td>往上找 <code>FAILED</code> 的測試名稱與錯誤。在專案資料夾執行 <code>uv run pytest -x</code> 可以停在第一個失敗。</td></tr>
             <tr><td>想整個重來</td><td>刪除專案裡的 <code>.venv</code>，再執行一次腳本。Mac 特有的問題（Rosetta、<code>xcrun: error</code> 等）見 <a href="macos.html#faq">macOS 本機運行的常見問題</a>。</td></tr>
           </tbody>
         </table>

@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/roadmap.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>路线图 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="roadmap" data-root="">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>路线图</h1>
+      <p>十个里程碑，每个都能独立验收。每一步：先说明设计 → 确认 → 写程序与测试 → 开 PR → review 后合并。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>里程碑</h2><span class="muted">状态随每个 PR 更新</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>阶段</th><th>名称</th><th>内容</th><th>验收方式</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr class="current"><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；设计文档与 ADR；纳入界面设计系统 v1.0；多语言基础（繁中、简中、英文）</td><td>CI 全绿；文档链接检查通过</td><td><span class="badge blue">进行中</span></td></tr>
+            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>内核动作（goto、click、fill、select、press、waitFor、expect、extract、screenshot）、定位器模型、YAML 加载与校验</td><td><code>rpa validate</code> 能指出错误所在的文件行号、步骤与字段</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M2</span></td><td>Runner 与 CLI</td><td>无状态运行引擎、步骤处理器注册表、失败截图与 Trace；模拟内部系统的测试网站</td><td><code>rpa run</code> 对测试网站跑通</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M3</span></td><td>流程能力</td><td>变量与表达式、条件、循环、错误处理、子场景、数据驱动、Secrets、登录状态重用</td><td>复杂范例场景通过</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M4</span></td><td>生成一：录制</td><td>本机有头浏览器录制，输出 DSL；定位器优先语意化，避开自动生成的 id</td><td>录制后回放成功</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M5</span></td><td>生成二：AI</td><td>自然语言加页面无障碍树生成 DSL；校验失败自动修正；选择器自愈</td><td>一句话描述即可生成可运行的场景</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M6</span></td><td>网站风格设计</td><td>视觉规范已由<a href="style/index.html">界面设计系统 v1.0</a> 交付；本阶段改为以它制作内核页面原型：登录、场景库、步骤编辑器、运行详情、用户与权限管理</td><td>原型经你确认后才开始写前端</td><td><span class="badge amber">部分交付</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>管理后端</td><td>认证、权限、项目、场景版本、Secrets 加密、审核、REST API</td><td>API 测试通过</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M8</span></td><td>Web UI</td><td>依 M6 原型实现</td><td>在浏览器内完成「生成 → 运行 → 查看结果」闭环</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>营运能力</td><td>分布式 worker、调度、并发、重试、通知、Docker Compose 部署</td><td><code>docker compose up</code> 一键启动</td><td><span class="badge">未开始</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>为什么是这个顺序</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>CLI 先于 UI。</strong>每个能力都能在没有界面的情况下验证，Web UI 只是在上面加一层。</li>
+            <li><strong>生成先于管理后端。</strong>生成是本工程的核心差异；M6 之前场景以 YAML 档放在仓库，Git 就是版本控制。</li>
+            <li><strong>原型先于后端。</strong>M6 的页面原型决定 M7 的 API 需要提供哪些数据。</li>
+            <li><strong>Runner 从一开始就无状态。</strong>只吃场景、参数与 Secrets，输出结果与产物，到 M9 直接放进 worker。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>尚待决定</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>AI 模型</dt><dd>M5 前决定。需先确认内部系统的页面内容能否送到外部 API；不行就接自建模型。</dd>
+            <dt>SSO 类型</dt><dd>M7 前确认公司使用 OIDC 还是 LDAP / AD。</dd>
+            <dt>部署环境</dt><dd>M9 前确认是单机 Docker Compose 还是 Kubernetes。</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

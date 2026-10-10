@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:34902fec1d5c8f7e">
+<title>Tech stack · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="tech-stack" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Tech stack</h1>
+      <p>Everything except the frontend is Python. Important choices have their own decision records explaining the background and trade-offs.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>Choices by layer</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Layer</th><th>Choice</th><th>Alternatives</th><th>Reason</th><th>Starts</th></tr></thead>
+          <tbody>
+            <tr><td>Browser driver</td><td>Playwright for Python (async)</td><td>Selenium</td><td>Multiple browsers, auto-waiting, semantic locators (get_by_role), Trace Viewer; async lets one worker run several browser contexts at once</td><td>M2</td></tr>
+            <tr><td>DSL models and validation</td><td>Pydantic v2</td><td>marshmallow</td><td>Discriminated unions fit "one model per action" well; JSON Schema can be exported directly for AI and the frontend<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
+            <tr><td>YAML parsing</td><td>ruamel.yaml</td><td>PyYAML</td><td>Keeps line numbers, so validation errors can point to the line in the file</td><td>M1</td></tr>
+            <tr><td>Expressions <code>{{ }}</code></td><td>Jinja2 sandboxed environment</td><td>Custom implementation</td><td>Mature, and can restrict what a scenario may access to prevent arbitrary code execution</td><td>M3</td></tr>
+            <tr><td>Command line</td><td>click</td><td>Typer, argparse</td><td>Mature and stable, with complete support for subcommands and testing</td><td>M0</td></tr>
+            <tr><td>Backend API</td><td>FastAPI</td><td>Django</td><td>Shares the same Pydantic models as the DSL and generates OpenAPI automatically<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>
+            <tr><td>Database</td><td>PostgreSQL + SQLAlchemy 2.0 + Alembic</td><td>—</td><td>Shared multi-user use needs a real database; unit tests use SQLite</td><td>M7</td></tr>
+            <tr><td>Task queue and scheduling</td><td>PostgreSQL queue (Procrastinate)</td><td>Celery + Redis</td><td>One component fewer, native asyncio, supports periodic tasks<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
+            <tr><td>Artifact storage</td><td>MinIO (S3 compatible)</td><td>Shared disk</td><td>Screenshots, traces and downloads from many workers must be stored centrally; local development uses a local directory</td><td>M9</td></tr>
+            <tr><td>Frontend</td><td>React + TypeScript + Vite</td><td>NiceGUI, HTMX</td><td>The step editor is highly interactive, which pure-Python options handle poorly<small><a href="../adr/0004-react-frontend.html">ADR 0004</a></small></td><td>M8</td></tr>
+            <tr><td>Interface style</td><td>Interface design system v1.0</td><td>—</td><td>A visual contract delivered by a colleague, shared by the docs site and the web UI<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
+            <tr><td>Project tooling</td><td>uv workspace, ruff, pyright (strict), pytest, pre-commit</td><td>poetry, mypy</td><td>uv is fast and supports multiple packages natively; ruff handles both linting and formatting</td><td>M0</td></tr>
+            <tr><td>Multilingual</td><td>JSON message catalogs per package; Simplified Chinese generated from Traditional Chinese with OpenCC</td><td>gettext, Babel</td><td>Traditional Chinese is the main language and the web UI must read the same translations; only Traditional Chinese and English are maintained by hand<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
+            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>The repository is on GitHub; tests run on Python 3.12 and 3.13 in parallel</td><td>M0</td></tr>
+            <tr><td>Deployment</td><td>Docker Compose</td><td>Kubernetes</td><td>Enough to start with; can be migrated later</td><td>M9</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Version baseline</h2><span class="muted">Set in M0</span></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>Python</dt><dd>3.12 or later (CI tests 3.12 and 3.13; 3.13 by default locally, see <code>.python-version</code>)</dd>
+          <dt>uv</dt><dd>0.11 or later (<code>required-version</code> in <code>pyproject.toml</code>)</dd>
+          <dt>Type checking</dt><dd>pyright in strict mode; all new code is fully annotated</dd>
+          <dt>Dependency locking</dt><dd>Once <code>uv.lock</code> is committed, CI switches to <code>uv sync --locked</code> automatically</dd>
+          <dt>Dependency updates</dt><dd>Dependabot checks GitHub Actions and Python dependencies weekly</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

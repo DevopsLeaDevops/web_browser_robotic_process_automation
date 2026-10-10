@@ -1,0 +1,84 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/conventions.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>开发规范 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="conventions" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>开发规范</h1>
+      <p>分支、提交、PR、代码与测试的约定。工具能检查的都交给工具，这里只写工具管不到的。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>分支与 PR</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>main 受保护。</strong>只通过 PR 合并，CI 全绿且至少一人 review。</li>
+            <li><strong>分支命名。</strong>里程碑工作用 <code>m1/dsl-models</code>；其他用 <code>fix/…</code>、<code>docs/…</code>、<code>chore/…</code>。</li>
+            <li><strong>PR 描述三段。</strong>做了什么、怎么验证、还没做的部分。</li>
+            <li><strong>合并方式。</strong>Squash merge，PR 标题即为最终提交消息。</li>
+            <li><strong>依赖变更。</strong>添加依赖要在 PR 描述说明理由。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>提交消息</h2><span class="muted">Conventional Commits</span></div>
+        <div class="panel-body">
+<pre class="source">&lt;类型&gt;(&lt;范围&gt;): &lt;繁体中文摘要&gt;
+
+feat(core): 添加 goto 与 click 动作模型
+fix(cli): validate 对空文件回报错误行号
+docs(adr): 添加 0008 Secrets 加密方式</pre>
+          <dl class="spec-list">
+            <dt>类型</dt><dd><code>feat</code>、<code>fix</code>、<code>docs</code>、<code>refactor</code>、<code>test</code>、<code>ci</code>、<code>chore</code></dd>
+            <dt>范围</dt><dd>包或区域：<code>core</code>、<code>cli</code>、<code>runner</code>、<code>docs</code>、<code>adr</code>…</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>代码</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>语言。</strong>标识符用英文；注释与文档字符串用繁体中文。</li>
+            <li><strong>用户看得到的文字。</strong>命令行输出、错误与校验消息等一律放进包的 <code>locales/</code>，代码只写消息键；同时写繁中与英文，简中自动产生。见 <a href="../adr/0007-i18n.html">ADR 0007</a>。</li>
+            <li><strong>类型。</strong>pyright strict；所有函数完整标注类型，避免 <code>Any</code>。</li>
+            <li><strong>格式。</strong>以 ruff 为准，不手动争论格式。</li>
+            <li><strong>输出。</strong>代码中不留 <code>print</code>；CLI 通过 click 输出，函数库用 logging。</li>
+            <li><strong>边界。</strong><code>rpa-core</code> 不依赖浏览器或数据库；运行相关的代码放在 <code>rpa-runner</code>。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>测试</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>每个包在自己的 <code>tests/</code> 下测试；跨包的测试放在根目录 <code>tests/</code>。</li>
+            <li>需要真实浏览器的测试加上 <code>@pytest.mark.browser</code>。</li>
+            <li>测试不依赖外部网站；需要网页时用测试网站（M2 起）。</li>
+            <li>修 bug 先写一个重现问题的测试。</li>
+            <li>文档页面由 <code>tests/docs</code> 检查结构与链接；三种语言是否同步由 <code>tests/i18n</code> 检查。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="notice warn">不要提交真实账号密码、内部系统网址或包含业务数据的截图。本机机密放在 <code>.env</code>（已被 Git 忽略），范例档用 <code>.env.example</code>。</div>
+  </div>
+</main>
+</body>
+</html>

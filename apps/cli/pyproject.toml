@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-rpa = "rpa_cli.main:cli"
+rpa = "rpa_cli.main:main"
 
 [tool.uv.sources]
 rpa-core = { workspace = true }

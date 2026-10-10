@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:a044d9e357bcda89">
+<title>ADR 0001 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0001" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0001: A declarative DSL is the single source of truth for scenarios</h1>
+      <p>Scenarios are stored as schema-constrained data, not as code.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-09</dd>
+        <dt>Affects</dt><dd>rpa-core, every generation method, the web UI editor, the execution engine</dd>
+        <dt>Related</dt><dd><a href="../design/dsl.html">Scenario DSL (draft)</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Scenarios come from three sources (recording, AI, manual editing). They must be edited visually on the web, compared across versions, and handed to many workers to run.</p>
+          <p>If scenarios were stored as Playwright scripts, the editor could not reliably parse and rewrite them, and AI output could not be validated before running. A script can do anything, so review and security boundaries would be unclear.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>Scenarios are described in a declarative DSL: written in YAML, stored as JSON.</li>
+            <li>The DSL is defined with Pydantic v2 models, and the same definition exports a JSON Schema for AI generation and the frontend.</li>
+            <li>The DSL carries a <code>schemaVersion</code>, with migrations when the format changes.</li>
+            <li>Scenarios can be exported as Playwright code for developers' reference, but the export cannot be written back as a scenario.</li>
+            <li>When the DSL cannot express something, a controlled <code>script</code> step is used.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>The editor, version comparison and review all work directly with structured data.</li>
+            <li>AI output can be validated, and errors can be fed back precisely to the model for correction.</li>
+            <li>The execution layer is replaceable, and the DSL defines the security boundary.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Expressiveness is limited, so an escape hatch is needed and flagged during review.</li>
+            <li>We maintain the DSL specification and version migrations ourselves.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Store Playwright scripts directly</td><td>Cannot be edited visually in a reliable way, cannot be validated before running, and the security boundary is unclear.</td></tr>
+              <tr><td>Flowchart JSON (common in low-code platforms)</td><td>The same idea in essence, but hard to write by hand and to compare in Git; a YAML DSL covers both.</td></tr>
+              <tr><td>Buy an off-the-shelf RPA platform</td><td>High license costs and limited generation and customization.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

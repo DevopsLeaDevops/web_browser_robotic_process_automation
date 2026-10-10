@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:46905d8e2bca3889">
+<title>Conventions · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="conventions" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Conventions</h1>
+      <p>Agreements on branches, commits, PRs, code and tests. Whatever tools can check is left to the tools; this page covers only what they cannot.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Branches and PRs</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>main is protected.</strong> Merge only through PRs, with CI all green and at least one review.</li>
+            <li><strong>Branch names.</strong> Milestone work uses <code>m1/dsl-models</code>; everything else uses <code>fix/…</code>, <code>docs/…</code>, <code>chore/…</code>.</li>
+            <li><strong>Three-part PR descriptions.</strong> What was done, how it was verified, what is not done yet.</li>
+            <li><strong>Merging.</strong> Squash merge; the PR title becomes the final commit message.</li>
+            <li><strong>Dependency changes.</strong> Explain the reason for any new dependency in the PR description.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Commit messages</h2><span class="muted">Conventional Commits</span></div>
+        <div class="panel-body">
+<pre class="source">&lt;type&gt;(&lt;scope&gt;): &lt;summary in Traditional Chinese&gt;
+
+feat(core): 新增 goto 與 click 動作模型
+fix(cli): validate 對空檔案回報錯誤行號
+docs(adr): 新增 0008 Secrets 加密方式</pre>
+          <dl class="spec-list">
+            <dt>Type</dt><dd><code>feat</code>, <code>fix</code>, <code>docs</code>, <code>refactor</code>, <code>test</code>, <code>ci</code>, <code>chore</code></dd>
+            <dt>Scope</dt><dd>A package or area: <code>core</code>, <code>cli</code>, <code>runner</code>, <code>docs</code>, <code>adr</code>…</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Code</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Language.</strong> Identifiers in English; comments and docstrings in Traditional Chinese.</li>
+            <li><strong>User-facing text.</strong> Command-line output, error and validation messages and the like always go into the package's <code>locales/</code>, and code refers to message keys only; write Traditional Chinese and English together, and Simplified Chinese is generated. See <a href="../adr/0007-i18n.html">ADR 0007</a>.</li>
+            <li><strong>Types.</strong> pyright strict; every function fully annotated, avoiding <code>Any</code>.</li>
+            <li><strong>Formatting.</strong> ruff decides; no manual arguments about formatting.</li>
+            <li><strong>Output.</strong> No leftover <code>print</code> in code; the CLI prints through click and libraries use logging.</li>
+            <li><strong>Boundaries.</strong> <code>rpa-core</code> does not depend on a browser or a database; execution code goes into <code>rpa-runner</code>.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Tests</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>Each package tests under its own <code>tests/</code>; cross-package tests go in the root <code>tests/</code>.</li>
+            <li>Tests that need a real browser are marked <code>@pytest.mark.browser</code>.</li>
+            <li>Tests do not depend on external websites; when a web page is needed, use the test site (from M2).</li>
+            <li>When fixing a bug, first write a test that reproduces it.</li>
+            <li><code>tests/docs</code> checks the structure and links of docs pages; <code>tests/i18n</code> checks that the three languages are in sync.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="notice warn">Never commit real credentials, internal system URLs or screenshots containing business data. Keep local secrets in <code>.env</code> (ignored by Git) and use <code>.env.example</code> for the example file.</div>
+  </div>
+</main>
+</body>
+</html>

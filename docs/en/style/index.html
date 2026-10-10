@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:3a3bfbcfda5e33e5">
+<title>Style overview · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="style" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Style overview</h1>
+      <p>Interface design system v1.0: the visual contract delivered by a colleague, included as is in <code>docs/design-system/</code>. The design package itself is in Traditional Chinese.</p>
+    </div>
+    <div class="actions">
+      <a class="button" href="../../design-system/tokens.json" download>Download design tokens</a>
+      <a class="button" href="../../design-system/starter.html">Blank starter layout</a>
+      <a class="button primary" href="../../design-system/index.html">Open the design system</a>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>Colors</h2><span class="muted">tokens.json and portal.css</span></div>
+      <div class="panel-body">
+        <div class="swatches">
+          <div class="swatch"><i style="background:#147fe6"></i><strong>Primary / navigation</strong><code>#147fe6</code></div>
+          <div class="swatch"><i style="background:#0b69c4"></i><strong>Primary button / link</strong><code>#0b69c4</code></div>
+          <div class="swatch"><i style="background:#f5f7fb"></i><strong>Canvas background</strong><code>#f5f7fb</code></div>
+          <div class="swatch"><i style="background:#ffffff"></i><strong>Panel background</strong><code>#ffffff</code></div>
+          <div class="swatch"><i style="background:#24334a"></i><strong>Primary text</strong><code>#24334a</code></div>
+          <div class="swatch"><i style="background:#64758b"></i><strong>Secondary text</strong><code>#64758b</code></div>
+          <div class="swatch"><i style="background:#e9edf3"></i><strong>Divider</strong><code>#e9edf3</code></div>
+          <div class="swatch"><i style="background:#eaf4ff"></i><strong>Selected background</strong><code>#eaf4ff</code></div>
+          <div class="swatch"><i style="background:#248569"></i><strong>Success</strong><code>#248569</code></div>
+          <div class="swatch"><i style="background:#966516"></i><strong>Warning</strong><code>#966516</code></div>
+          <div class="swatch"><i style="background:#b74643"></i><strong>Error</strong><code>#b74643</code></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Layout and type</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>Navigation</dt><dd>First level at the top, second level on the left; breadcrumbs show the location</dd>
+            <dt>Top bar</dt><dd>56px, fixed</dd>
+            <dt>Sidebar</dt><dd>176px</dd>
+            <dt>Content area</dt><dd>20px left and right; 12px between blocks</dd>
+            <dt>Corner radius</dt><dd>9px for panels, 6px for buttons</dd>
+            <dt>Font sizes</dt><dd>Page title 21px, section title 14px, body 13px, tables 12px</dd>
+            <dt>Typeface</dt><dd>The system default font; no external fonts are loaded</dd>
+            <dt>Narrow screens</dt><dd>Below 700px the sidebar collapses into a menu button and the layout becomes one column</dd>
+          </dl>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Rules to follow</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Compact information density.</strong> No large banners, illustrations or lots of white space; keep repeated headings only once.</li>
+            <li><strong>States need words.</strong> Never rely on an icon or colored dot alone.</li>
+            <li><strong>Keyboard accessible.</strong> Clear focus outlines; dialogs close with Esc.</li>
+            <li><strong>Accepted at three sizes.</strong> 1440×900, 1280×720, 390×844, with no horizontal scrolling of the whole page.</li>
+            <li><strong>No extra navigation.</strong> New pages always go into the two-level portal.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Use in this project</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Use</th><th>Approach</th><th>Stage</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Docs site</td><td>References <code>portal.css</code> directly; additional styles in <code>docs/assets/docs.css</code></td><td>M0</td><td><span class="badge green">Applied</span></td></tr>
+            <tr><td>Page prototypes</td><td>Build the login, scenario library, step editor, run details, and user and permission pages from <code>starter.html</code></td><td>M6</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td>Web UI</td><td>Port <code>portal.css</code> and the design tokens to React and rewrite the shell as components</td><td>M8</td><td><span class="badge">Not started</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>To confirm with the designer in M6</h2><span class="muted">Gaps found while including the package</span></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Incomplete design tokens.</strong> <code>tokens.json</code> has no success, warning, error or selected-background colors; they appear only in <code>portal.css</code>.</li>
+          <li><strong>Inconsistent selected background.</strong> The design system's color page says <code>#eaf3ff</code>, while <code>portal.css</code> actually uses <code>#eaf4ff</code>.</li>
+          <li><strong>Step editor details.</strong> Flow canvas and node styles exist, but there are no states for dragging, switching locator candidates or marking validation errors.</li>
+          <li><strong>Run details.</strong> The layout for step-by-step logs, screenshot replay and trace links.</li>
+          <li><strong>YAML editor.</strong> Basic <code>code-editor</code> styles exist; syntax highlighting and error-line marking need confirming.</li>
+          <li><strong>Icons.</strong> There is only one generic icon so far; menus and actions need a set.</li>
+          <li><strong>Dark mode.</strong> Not available yet; confirm whether it is needed.</li>
+          <li><strong>Layouts in three languages.</strong> The design package was designed in Traditional Chinese; English is usually longer, so check the prototypes once in English and once in Simplified Chinese; see <a href="../adr/0007-i18n.html">ADR 0007</a>.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

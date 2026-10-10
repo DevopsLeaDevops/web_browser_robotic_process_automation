@@ -1,0 +1,8 @@
+{
+  "cli.help": "Generate, manage and run browser automation scenarios.",
+  "cli.version": "rpa {version} (rpa-core {core_version})",
+  "cli.lang.help": "Interface language. Defaults to {default}; can also be set with the {env} environment variable.",
+  "cli.lang.invalid": "{value} is not a supported language. Choose from {choices}.",
+  "cli.options_metavar": "[OPTIONS]",
+  "cli.subcommand_metavar": "COMMAND [ARGS]..."
+}

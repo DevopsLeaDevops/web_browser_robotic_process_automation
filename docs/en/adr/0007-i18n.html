@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:4018a47c7a7127b2">
+<title>ADR 0007 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0007" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0007: The product and docs support English, Traditional Chinese and Simplified Chinese</h1>
+      <p>Build the multilingual mechanism from M0, instead of hunting down hard-coded text after many features exist.</p>
+    </div>
+    <span class="badge amber">Proposed</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-10</dd>
+        <dt>Affects</dt><dd>All user-facing text in every package, the <code>rpa</code> command, the M8 web UI, <code>docs/</code></dd>
+        <dt>Related</dt><dd><a href="../develop/conventions.html">Conventions</a>, <a href="../develop/writing-docs.html#i18n">Docs &amp; ADRs</a>, <a href="0005-html-docs.html">ADR 0005</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The platform's users and the readers of its docs include colleagues who use English, Traditional Chinese and Simplified Chinese.</p>
+          <p>If Traditional Chinese is hard-coded first, rewriting later means finding text one piece at a time across the command line, validation messages, run reports and the UI, and that cost grows with the code. M0 has very little text, so this is when adoption is cheapest.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Three languages.</strong> Traditional Chinese <code>zh-Hant</code> (default), Simplified Chinese <code>zh-Hans</code>, English <code>en</code>. URLs, file names and options all use these codes.</li>
+            <li><strong>Always Traditional Chinese by default,</strong> not following the operating system or browser language; users switch manually: <code>--lang</code> or the <code>RPA_LANG</code> environment variable on the command line, a user setting in the web UI, the page header on the docs site.</li>
+            <li><strong>Product text lives in message catalogs.</strong> Each package has <code>locales/&lt;language&gt;.json</code>, and code refers to message keys (<code>rpa_core.i18n.Catalog</code>) instead of hard-coding user-facing text. click's built-in "Usage", "Options" and error messages are translated too.</li>
+            <li><strong>Simplified Chinese is generated.</strong> Traditional Chinese and English are maintained by hand; Simplified Chinese is generated with OpenCC's <code>tw2sp</code> (converts to Simplified and switches to Mainland terms) and committed, with fixes for unidiomatic terms in <code>tools/zh-Hans-overrides.json</code>. The OpenCC version is pinned.</li>
+            <li><strong>Three docs directories.</strong> Traditional Chinese in <code>docs/</code> (URLs unchanged), English in <code>docs/en/</code>, Simplified Chinese in <code>docs/zh-Hans/</code>; the directory layout and anchors are identical.</li>
+            <li><strong>Checks keep them in sync.</strong> Tests ensure all three languages have the same message keys and placeholders, that Simplified Chinese is freshly generated, and that each English page matches the current Traditional Chinese version.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="scope">
+      <div class="panel-header"><h2>What gets translated</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Content</th><th>Handling</th></tr></thead>
+          <tbody>
+            <tr><td>Command-line output, error and validation messages, run reports</td><td>Three languages, in message catalogs</td></tr>
+            <tr><td>Web UI and API error messages (M7, M8)</td><td>Three languages; the frontend uses the same codes and default language</td></tr>
+            <tr><td>Engineering docs <code>docs/</code></td><td>Three languages, one directory each</td></tr>
+            <tr><td>User-written content: scenario names, step descriptions, page text in locators</td><td>Not translated; stored and shown as written</td></tr>
+            <tr><td>DSL field and action names, code identifiers</td><td>Stay in English, not translated</td></tr>
+            <tr><td>Code comments and docstrings, README, output of the setup scripts</td><td>Stay in Traditional Chinese</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>New features have three languages from their first line, with nothing to backfill.</li>
+            <li>Only two languages are maintained by hand, and Simplified Chinese terminology stays consistent.</li>
+            <li>Missing or outdated translations fail CI instead of quietly producing mixed-language screens.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Changing user-facing text or docs means updating the English too, so PRs get bigger.</li>
+            <li>Because the default is always Traditional Chinese, English users need <code>--lang en</code> every time, or set <code>RPA_LANG</code>.</li>
+            <li>Automatically converted Simplified Chinese occasionally has unidiomatic terms that need entries in the override table.</li>
+            <li>Interface design system v1.0 was designed in Traditional Chinese; English is usually longer, so the M6 page prototypes must check English layouts.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>gettext and Babel (<code>.po</code> files)</td><td>Widely used, but keyed by the English source text and needs a compile step; this project's main language is Traditional Chinese and the web UI must read the same translations, so JSON is more direct.</td></tr>
+              <tr><td>Maintain all three languages by hand</td><td>The most precise Simplified Chinese wording, but every change is written three times and drifts out of sync most easily.</td></tr>
+              <tr><td>Follow the system or browser language</td><td>The same command would print different languages on different computers, making it hard to match docs examples and bug reports; instead the default is always Traditional Chinese with manual switching.</td></tr>
+              <tr><td>Convert docs to Simplified Chinese in the browser</td><td>No generated files, but it ships several megabytes of dictionaries and complicates link checks and offline reading.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:09a79437895c08d2">
+<title>Home · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="home" data-root="">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Browser RPA Engineering Docs</h1>
+      <p>A platform for generating, managing and running browser automation scenarios. Shared by the team, multi-user, built for internal systems.</p>
+    </div>
+    <div class="actions">
+      <a class="button" href="develop/setup.html">Dev environment</a>
+      <a class="button primary" href="roadmap.html">View the roadmap</a>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="four-col">
+      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M0</div><span class="muted">Project skeleton and design docs</span></section>
+      <section class="panel panel-body stat"><span class="muted">Milestones</span><div class="value">10</div><span class="muted">M0 to M9, delivered step by step</span></section>
+      <section class="panel panel-body stat"><span class="muted">Architecture decisions</span><div class="value">7</div><span class="muted">6 accepted, 1 proposed</span></section>
+      <section class="panel panel-body stat"><span class="muted">Main language</span><div class="value">Python</div><span class="muted">3.12 or later · TypeScript frontend</span></section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>In one sentence</h2></div>
+      <div class="panel-body">
+        <p class="lead">The core asset is the <strong>scenario</strong>: a repeatable sequence of browser actions described in a declarative DSL. The platform <strong>generates</strong> scenarios (recording, natural language, templates), <strong>manages</strong> them (versions, parameters, permissions), <strong>runs</strong> them (Playwright), and <strong>reports</strong> results back to users (screenshots, traces, failure location).</p>
+      </div>
+    </section>
+
+    <div class="grid">
+      <a class="panel panel-body link-card" href="design/positioning.html"><h2>Positioning</h2><p>The problem we solve, the core concepts, and the loop from generation to feedback.</p></a>
+      <a class="panel panel-body link-card" href="design/dsl.html"><h2>Scenario DSL</h2><p>Why a declarative DSL, and roughly what it looks like (draft).</p></a>
+      <a class="panel panel-body link-card" href="design/architecture.html"><h2>Architecture</h2><p>Components, data flow and directory layout, and what each package is responsible for.</p></a>
+      <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>Tech stack</h2><p>The choice for each layer, the alternatives, and the reasons.</p></a>
+      <a class="panel panel-body link-card" href="design/multi-user.html"><h2>Multi-user and internal systems</h2><p>Authentication, permissions, secrets, auditing, and the constraints internal systems bring.</p></a>
+      <a class="panel panel-body link-card" href="style/index.html"><h2>Interface style</h2><p>Interface design system v1.0: two-level portal, blue primary color, compact information density.</p></a>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Suggested reading order</h2><span class="muted">New to the project</span></div>
+        <div class="panel-body prose">
+          <ol>
+            <li><a href="design/positioning.html">Positioning</a>: start with the core concept of a "scenario".</li>
+            <li><a href="design/architecture.html">Architecture</a>: see how the components work together.</li>
+            <li><a href="adr/index.html">Decision index</a>: the background of a few key decisions.</li>
+            <li><a href="roadmap.html">Roadmap</a>: where we are now and what comes next.</li>
+            <li><a href="develop/quickstart.html">Run locally from scratch</a> (one command sets up everything), <a href="develop/setup.html">Dev environment</a> and <a href="develop/conventions.html">Conventions</a>: start working.</li>
+          </ol>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Repository status</h2><span class="muted">At the end of M0</span></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>rpa-core</dt><dd>DSL package skeleton; models are added from M1</dd>
+            <dt>rpa-cli</dt><dd><code>rpa --version</code> works; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
+            <dt>Toolchain</dt><dd>uv, ruff, pyright (strict), pytest, pre-commit</dd>
+            <dt>CI</dt><dd>Static checks, tests on Python 3.12 / 3.13, including a Chromium smoke test</dd>
+            <dt>Docs</dt><dd>This site, in Traditional Chinese, Simplified Chinese and English, with automatic checks for links and translation sync</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

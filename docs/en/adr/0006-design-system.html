@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:0a934b600ca8a2d9">
+<title>ADR 0006 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0006" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0006: Interface design system v1.0 as the visual contract</h1>
+      <p>The design package delivered by a colleague is included as is and shared by the docs site and the future web UI.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-09</dd>
+        <dt>Affects</dt><dd>docs/, M6 page prototypes, M8 web UI</dd>
+        <dt>Related</dt><dd><a href="../style/index.html">Style overview</a>, <a href="0004-react-frontend.html">ADR 0004</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>M6 on the roadmap is the site design. A colleague has already delivered interface design system v1.0: design tokens, shared styles, a two-level menu shell and a starter layout, verified at three screen sizes.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>The design package is included as is in <code>docs/design-system/</code> and never edited directly; tests check the sha256 values in <code>MANIFEST.json</code>.</li>
+            <li>The docs site uses its <code>portal.css</code> from M0.</li>
+            <li>M6 builds this project's page prototypes from <code>starter.html</code>.</li>
+            <li>M8 ports <code>portal.css</code> and <code>tokens.json</code> to the React frontend.</li>
+            <li>When the design package is updated, it is replaced as a whole and the version is recorded on this page.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Docs and product share one style; M6 shrinks from "design a style" to "design pages".</li>
+            <li>The design package already includes styles for flow editing (flow canvas, nodes, component library) that the step editor can use directly.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Whatever this project needs but the package does not yet cover must be confirmed with the designer in M6; see the <a href="../style/index.html">Style overview</a>.</li>
+            <li>The design package cannot be edited directly; this project's additional styles live in its own files.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Redesign from scratch</td><td>Duplicated work, when verified results already exist.</td></tr>
+              <tr><td>Adopt an off-the-shelf component library</td><td>Would need extra work to match the team's style and overlaps with the design package.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

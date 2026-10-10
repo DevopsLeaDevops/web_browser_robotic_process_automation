@@ -1,0 +1,8 @@
+{
+  "cli.help": "瀏覽器自動化場景的生成、管理與執行工具。",
+  "cli.version": "rpa {version}（rpa-core {core_version}）",
+  "cli.lang.help": "介面語言。預設 {default}，也可以用環境變數 {env} 設定。",
+  "cli.lang.invalid": "不支援 {value}，可用的語言：{choices}。",
+  "cli.options_metavar": "[選項]",
+  "cli.subcommand_metavar": "命令 [參數]..."
+}

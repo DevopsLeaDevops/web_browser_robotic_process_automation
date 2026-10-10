@@ -1,0 +1,176 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/design/architecture.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>系统架构 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+</style>
+</head>
+<body data-page="architecture" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>系统架构</h1>
+      <p>组件、数据流与目录结构。平台全部部署在内网，worker 直接连到目标系统。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>组件总览</h2><span class="muted">M9 完成后的样貌</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
+          <title id="arch-title">系统组件图</title>
+          <desc id="arch-desc">用户通过 Web UI 或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 从 PostgreSQL 队列取任务，以 Playwright 操作目标内部系统，产物存入 MinIO。</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <!-- 用户端 -->
+          <rect class="frame" x="16" y="40" width="192" height="232" rx="10"/>
+          <text class="frame-label" x="28" y="60">用户端</text>
+          <rect class="box" x="32" y="76" width="160" height="60" rx="8"/>
+          <text class="title" x="46" y="100">Web UI</text>
+          <text class="sub" x="46" y="120">React + TypeScript</text>
+          <rect class="box" x="32" y="160" width="160" height="92" rx="8"/>
+          <text class="title" x="46" y="184">CLI（rpa）</text>
+          <text class="sub" x="46" y="204">验证、运行、推送</text>
+          <text class="sub" x="46" y="224">rpa record 本机录制</text>
+          <text class="sub" x="46" y="242">rpa generate 生成</text>
+
+          <!-- 平台 -->
+          <rect class="frame" x="240" y="24" width="536" height="356" rx="10"/>
+          <text class="frame-label" x="252" y="44">平台（部署于内网）</text>
+
+          <rect class="box key" x="264" y="64" width="216" height="168" rx="8"/>
+          <text class="title" x="280" y="90">API 服务（FastAPI）</text>
+          <text class="sub" x="280" y="116">认证、权限、审核</text>
+          <text class="sub" x="280" y="140">场景与版本管理</text>
+          <text class="sub" x="280" y="164">AI 生成与校验</text>
+          <text class="sub" x="280" y="188">运行记录与产物查找</text>
+          <text class="sub" x="280" y="212">Secrets 加密存放</text>
+
+          <rect class="box" x="264" y="272" width="216" height="72" rx="8"/>
+          <text class="title" x="280" y="298">调度器</text>
+          <text class="sub" x="280" y="320">依 cron 定时创建运行任务</text>
+
+          <rect class="box" x="520" y="64" width="232" height="96" rx="8"/>
+          <text class="title" x="536" y="90">PostgreSQL</text>
+          <text class="sub" x="536" y="114">场景、版本、用户、运行记录</text>
+          <text class="sub" x="536" y="138">任务队列（Procrastinate）</text>
+
+          <rect class="box key" x="520" y="196" width="232" height="72" rx="8"/>
+          <text class="title" x="536" y="222">Worker × N</text>
+          <text class="sub" x="536" y="244">Runner + Playwright（Chromium）</text>
+
+          <rect class="box" x="520" y="304" width="232" height="56" rx="8"/>
+          <text class="title" x="536" y="328">MinIO（S3 兼容）</text>
+          <text class="sub" x="536" y="346">截图、Trace、下载文件</text>
+
+          <!-- 外部 -->
+          <rect class="box ext" x="808" y="64" width="176" height="72" rx="8"/>
+          <text class="title" x="822" y="90">LLM 服务</text>
+          <text class="sub" x="822" y="112">外部 API 或自建模型</text>
+
+          <rect class="box ext" x="808" y="196" width="176" height="72" rx="8"/>
+          <text class="title" x="822" y="222">目标内部系统</text>
+          <text class="sub" x="822" y="244">登录、表单、报表、下载</text>
+
+          <!-- 连接 -->
+          <path class="link" d="M192 106H262" marker-end="url(#arrow)"/>
+          <path class="link" d="M192 206H262" marker-end="url(#arrow)"/>
+          <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+          <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
+          <path class="link" d="M636 160V194" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="182">取任务</text>
+          <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="290">上传产物</text>
+          <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
+          <text class="label" x="758" y="224">操作</text>
+          <path class="link" d="M372 64V36H896V62" marker-end="url(#arrow)"/>
+          <text class="label" x="790" y="30">生成请求</text>
+        </svg>
+      </div>
+      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统。M2 之前只有 CLI 与 Runner，直接在本机运行。</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>包职责</h2><span class="muted">uv workspace，每个包可单独测试</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>包</th><th>职责</th><th>依赖</th><th>起始</th></tr></thead>
+          <tbody>
+            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 加载与校验、表达式引擎、JSON Schema 导出、多语言消息目录。不碰浏览器、不碰数据库。</td><td>Pydantic、ruamel.yaml、Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>运行引擎：步骤处理器注册表、浏览器与上下文管理、产物收集。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-recorder</code></td><td>本机录制：注入监听脚本，把用户操作转成 DSL 步骤。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-generator</code></td><td>AI 生成与选择器自愈：页面快照 + 自然语言 → DSL，校验失败反馈修正。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
+            <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述包、click</td><td>M0</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API 服务、数据库模型、权限、调度。</td><td>rpa-core、FastAPI、SQLAlchemy</td><td>M7</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>从队列取任务，调用 rpa-runner 运行，回写结果与产物。</td><td>rpa-runner、Procrastinate</td><td>M9</td></tr>
+            <tr><td><code>web</code></td><td>管理界面（TypeScript，不属于 Python workspace）。</td><td>React、Vite</td><td>M8</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>目录结构</h2></div>
+        <div class="panel-body">
+<pre class="source tree">web_browser_robotic_process_automation/
+├── packages/            # 可重用的函数库
+│   ├── rpa_core/        # M0
+│   ├── rpa_runner/      # M2
+│   ├── rpa_recorder/    # M4
+│   └── rpa_generator/   # M5
+├── apps/                # 可运行的程序
+│   ├── cli/             # M0
+│   ├── server/          # M7
+│   ├── worker/          # M9
+│   └── web/             # M8（TypeScript）
+├── testsite/            # 模拟内部系统的测试网站（M2）
+├── scenarios/           # 范例场景
+├── tests/               # 跨包测试：冒烟、文档检查
+├── deploy/              # Docker Compose 与设置范例（M9）
+├── tools/               # 开发工具：多语言同步（i18n.py）
+└── docs/                # 本文档站（繁中）与界面设计系统
+    ├── en/              # 英文版
+    └── zh-Hans/         # 简中版（自动产生）</pre>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>一次运行的数据流</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>用户在 Web UI 或 CLI 触发运行，或调度器到点创建任务。</li>
+            <li>API 检查权限，取出指定版本的场景，写入一笔运行记录与一个队列任务。</li>
+            <li>某个 worker 取到任务，向 API 解出参数与 Secrets（只在内存中）。</li>
+            <li>Runner 打开独立的浏览器上下文，逐步运行；每一步回报状态。</li>
+            <li>截图、Trace、下载文件上传到 MinIO；抽取的数据写回运行记录。</li>
+            <li>运行结束，结果通知触发者；失败时标出出错的步骤与截图。</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>
