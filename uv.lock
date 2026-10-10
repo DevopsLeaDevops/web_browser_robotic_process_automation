@@ -6,17 +6,18 @@ requires-python = ">=3.12"
 members = [
     "rpa-cli",
     "rpa-core",
+    "rpa-runner",
 ]
 
 [manifest.dependency-groups]
 dev = [
     { name = "opencc", specifier = "==1.4.2" },
-    { name = "playwright", specifier = ">=1.63.0" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "rpa-cli", editable = "apps/cli" },
     { name = "rpa-core", editable = "packages/rpa_core" },
+    { name = "rpa-runner", editable = "packages/rpa_runner" },
     { name = "ruff", specifier = ">=0.16.10" },
 ]
 
@@ -614,12 +615,14 @@ source = { editable = "apps/cli" }
 dependencies = [
     { name = "click" },
     { name = "rpa-core" },
+    { name = "rpa-runner" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.5.0" },
     { name = "rpa-core", editable = "packages/rpa_core" },
+    { name = "rpa-runner", editable = "packages/rpa_runner" },
 ]
 
 [[package]]
@@ -637,6 +640,21 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+]
+
+[[package]]
+name = "rpa-runner"
+version = "0.1.0"
+source = { editable = "packages/rpa_runner" }
+dependencies = [
+    { name = "playwright" },
+    { name = "rpa-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "playwright", specifier = ">=1.63.0" },
+    { name = "rpa-core", editable = "packages/rpa_core" },
 ]
 
 [[package]]
