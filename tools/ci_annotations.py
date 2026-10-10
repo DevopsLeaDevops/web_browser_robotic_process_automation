@@ -152,7 +152,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"::warning title=ci_annotations::找不到 {path}，略過")
         return 0
     if kind == "junit":
-        emit(from_junit(path))
+        annotations = from_junit(path)
+        emit(annotations)
+        if not annotations:
+            total = sum(1 for _ in ET.parse(path).getroot().iter("testcase"))
+            print(f"::notice title=pytest::{path.name} 沒有失敗的測試（{total} 個）")
     else:
         emit(from_pyright(json.loads(path.read_text(encoding="utf-8"))))
     return 0

@@ -94,12 +94,20 @@ jobs:
 
       # 失敗的測試寫成註記（tools/ci_annotations.py）；報告來自腳本裡最後一次執行的 pytest
       - name: 失敗時把失敗的測試寫成註記
-        if: failure()
-        shell: bash
+        if: failure() && runner.os != 'Windows'
         run: |
           [ -f pytest-report.xml ] || exit 0
           uv="$(command -v uv || echo "$HOME/.local/bin/uv")"
           "$uv" run python tools/ci_annotations.py junit pytest-report.xml
+      - name: 失敗時把失敗的測試寫成註記（Windows）
+        if: failure() && runner.os == 'Windows'
+        shell: powershell
+        run: |
+          if (-not (Test-Path pytest-report.xml)) { Write-Host '沒有 pytest-report.xml'; exit 0 }
+          $uv = (Get-Command uv -ErrorAction SilentlyContinue).Source
+          if (-not $uv) { $uv = Join-Path $HOME '.local\bin\uv.exe' }
+          & $uv run python tools/ci_annotations.py junit pytest-report.xml
+          exit 0
 
   from-scratch:
     name: 從零開始（${{ matrix.os }}）

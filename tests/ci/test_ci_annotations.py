@@ -82,3 +82,13 @@ def test_too_many_annotations_are_merged() -> None:
 def test_missing_report_is_a_warning(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert tool.main(["junit", str(tmp_path / "missing.xml")]) == 0
     assert capsys.readouterr().out.startswith("::warning")
+
+
+def test_passing_report_is_a_notice(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    report = tmp_path / "report.xml"
+    report.write_text(
+        '<testsuites><testsuite><testcase classname="a" name="b"/></testsuite></testsuites>',
+        encoding="utf-8",
+    )
+    assert tool.main(["junit", str(report)]) == 0
+    assert capsys.readouterr().out == "::notice title=pytest::report.xml 沒有失敗的測試（1 個）\n"
