@@ -1,0 +1,80 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/design/multi-user.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>多用户与内部系统 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="multi-user" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>多用户与内部系统</h1>
+      <p>团队共用与内部系统这两个前提，对设计提出的具体要求。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>多用户</h2><span class="muted">主要在 M7 实作</span></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>认证</dt><dd>先做本地帐号；预留 OIDC 与 LDAP 接口，方便接公司的 AD 或 SSO。</dd>
+            <dt>权限</dt><dd>以「项目」为单位隔离场景、Secrets 与运行纪录。</dd>
+            <dt>Secrets</dt><dd>加密存放。用户可以在场景中引用，但无法读出明文。</dd>
+            <dt>审核</dt><dd>谁在什么时间修改、运行了哪个场景，全部留纪录，不可删改。</dd>
+            <dt>版本</dt><dd>场景每次保存产生不可变的新版本；运行纪录指向确切版本。</dd>
+            <dt>Runner 无状态</dt><dd>从 M2 起只接收场景、参数与 Secrets，输出结果与产物；放进 worker 时不用改。</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header"><h2>角色</h2><span class="muted">项目内的权限</span></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>能力</th><th>管理员</th><th>编辑者</th><th>运行者</th><th>查看者</th></tr></thead>
+            <tbody>
+              <tr><td>查看场景与运行纪录</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+              <tr><td>运行场景</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+              <tr><td>创建、编辑场景</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>引用 Secrets</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>管理 Secrets 与调度</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr><td>管理成员</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="diagram-caption">另有平台级的系统管理员，负责创建项目与全域设置。细节在 M7 定稿。</div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>内部系统带来的要求</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>情况</th><th>对策</th><th>落在</th></tr></thead>
+          <tbody>
+            <tr><td>目标系统只能从内网访问</td><td>平台与 worker 都部署在内网；worker 必须能直连目标系统</td><td>M9</td></tr>
+            <tr><td>每次运行都要登录</td><td>保存并重用登录状态（Playwright storage state），减少登录次数，也降低触发帐号锁定的风险</td><td>M3</td></tr>
+            <tr><td>老系统缺少语意化标签</td><td>定位器更依赖 css、xpath 与文字；录制器避开自动生成的 id，产出稳定的选择器</td><td>M1、M4</td></tr>
+            <tr><td>iframe、弹出窗口、多分页</td><td>DSL 提供切换 frame 与分页的步骤，定位器可指定所在 frame</td><td>M3</td></tr>
+            <tr><td>文件上传与下载</td><td>upload、download 动作；下载档作为产物保存</td><td>M3</td></tr>
+            <tr><td>表格数据抽取</td><td>extract 支持表格转成结构化数据</td><td>M1</td></tr>
+            <tr><td>自签凭证</td><td>场景层级可设置忽略 HTTPS 错误，预设关闭并在审核时标示</td><td>M2</td></tr>
+            <tr><td>页面内容可能敏感</td><td>AI 生成可切换到自架模型；截屏与 Trace 依项目权限访问</td><td>M5、M7</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="notice">录制在用户自己的电脑上进行：CLI 开一个有画面的浏览器，录好后上传到服务器。之后可考虑改成浏览器扩充功能。测试网站（M2）会模拟一个典型内部系统：登录、菜单、iframe、表格与文件下载。</div>
+  </div>
+</main>
+</body>
+</html>

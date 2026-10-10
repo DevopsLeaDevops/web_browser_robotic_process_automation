@@ -1,8 +1,8 @@
 {
-  "cli.help": "瀏覽器自動化場景的生成、管理與執行工具。",
+  "cli.help": "浏览器自动化场景的生成、管理与运行工具。",
   "cli.version": "rpa {version}（rpa-core {core_version}）",
-  "cli.lang.help": "介面語言。預設 {default}，也可以用環境變數 {env} 設定。",
-  "cli.lang.invalid": "不支援的語言：{value}。可用：{choices}。",
-  "cli.options_metavar": "[選項]",
-  "cli.subcommand_metavar": "命令 [參數]..."
+  "cli.lang.help": "界面语言。预设 {default}，也可以用环境变量 {env} 设置。",
+  "cli.lang.invalid": "不支持 {value}，可用的语言：{choices}。",
+  "cli.options_metavar": "[选项]",
+  "cli.subcommand_metavar": "命令 [参数]..."
 }

@@ -1,0 +1,179 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/quickstart.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>本机从零运行 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="quickstart" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>本机从零运行</h1>
+      <p>一条命令，从一台没装过开发工具的电脑，到 CLI、测试与文档站都跑通。macOS、Linux、Windows 都适用；第一次大约十分钟，多半在等下载。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">目前是 M0（工程骨架）。「能运行」指的是：<code>rpa</code> 命令可以运行、全部测试通过、Playwright 能启动 Chromium、文档站能在浏览器打开。校验、运行、录制场景等子命令会在后续里程碑加入，见<a href="../roadmap.html">路线图</a>。</div>
+
+    <div class="two-col">
+      <section class="panel" id="unix">
+        <div class="panel-header"><h2>macOS、Linux</h2><span class="muted">在「终端机」运行</span></div>
+        <div class="panel-body">
+<pre class="source"># 还没下载代码：下载到 ~/code/web_browser_robotic_process_automation 并安装
+curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
+
+# 已经 clone 了：在项目文件夹里运行
+./scripts/setup.sh</pre>
+        </div>
+      </section>
+      <section class="panel" id="windows">
+        <div class="panel-header"><h2>Windows</h2><span class="muted">在 PowerShell 运行</span></div>
+        <div class="panel-body">
+<pre class="source"># 还没下载代码：先下载脚本，再运行；代码会下载到 %USERPROFILE%\code\web_browser_robotic_process_automation
+irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1
+
+# 已经 clone 了：在项目文件夹里运行
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>运行前要有什么</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>macOS</dt><dd>什么都不用先装。没有 Git 时，脚本会叫出「命令行开发者工具」的安装窗口，装完再运行一次同一条命令。</dd>
+            <dt>Linux</dt><dd>需要 Git，以及 curl 或 wget。Chromium 缺系统函数库时，脚本会用 sudo 自动安装（限 Debian、Ubuntu）。</dd>
+            <dt>Windows</dt><dd>Windows 10 以上，内置的 PowerShell 5.1 即可。没有 Git 时，脚本会用 winget 安装。</dd>
+            <dt>网络</dt><dd>需要连得到 GitHub、astral.sh（uv）、PyPI 与 Playwright 的浏览器下载站。公司网络见<a href="#faq">常见问题</a>。</dd>
+            <dt>磁盘空间</dt><dd>预留约 1 GB，给 Python、套件与 Chromium。</dd>
+            <dt>不需要</dt><dd>Python、Homebrew、Node.js 都不用自己装。Python 由 uv 下载，不会动到系统的 Python。</dd>
+          </dl>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>运行前想先看脚本</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>脚本在仓库的 <code>scripts/setup.sh</code> 与 <code>scripts/setup.ps1</code>，开头有完整说明。</li>
+            <li>习惯先看再跑：把命令里的网址贴到浏览器打开，或先 <code>git clone</code> 再运行项目里的那一份。Windows 的命令本来就是先下载成文件，可以打开看过再运行第二行。</li>
+            <li>脚本只会在你的家目录安装 uv 与 Python、在项目文件夹创建 <code>.venv</code>、下载 Chromium；需要系统权限的只有安装 Git（macOS、Windows）与 Linux 的浏览器函数库，都会先询问。</li>
+            <li>重复运行是安全的：已经完成的步骤会很快跳过，所以失败后修正问题，重跑同一条命令即可。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="steps">
+      <div class="panel-header"><h2>脚本做了什么</h2><span class="muted">两个平台的步骤相同</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>步骤</th><th>做什么</th><th>已经完成时</th></tr></thead>
+          <tbody>
+            <tr><td>1. 检查系统</td><td>确认操作系统与 CPU 架构。Apple 芯片的 Mac 在 Rosetta 下运行时会提醒。</td><td>每次都检查</td></tr>
+            <tr><td>2. 准备代码</td><td>在项目里运行就用这一份；否则用 <code>git clone</code> 下载到预设位置或 <code>--dir</code> 指定的位置。</td><td>已经下载过就直接使用，不会自动 <code>git pull</code></td></tr>
+            <tr><td>3. 准备 uv</td><td>没有就用官方安装脚本安装；版本低于 <code>pyproject.toml</code> 的 <code>required-version</code> 时尝试升级。</td><td>版本够新就跳过</td></tr>
+            <tr><td>4. 安装 Python 与依赖</td><td><code>uv sync</code>：依 <code>.python-version</code> 准备 Python 3.13，创建 <code>.venv</code>，安装全部套件与开发工具。</td><td>没有变动时几秒内结束</td></tr>
+            <tr><td>5. 安装 Chromium</td><td><code>uv run playwright install chromium</code>，再实际启动一次。Linux 缺系统函数库时运行 <code>playwright install-deps</code>。</td><td>已下载就跳过下载，只做启动检查</td></tr>
+            <tr><td>6. 安装提交前检查</td><td><code>uv run pre-commit install</code>，之后每次 <code>git commit</code> 前自动跑 ruff、pyright 与文档检查。</td><td>重新写入同一个 hook，不影响</td></tr>
+            <tr><td>7. 确认能运行</td><td>运行 <code>rpa --version</code>，再设置 <code>RPA_REQUIRE_BROWSER=1</code> 跑全部测试：跟 CI 一样，缺浏览器直接失败而不是略过。</td><td>每次都跑</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="options">
+      <div class="panel-header"><h2>选项</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>macOS、Linux</th><th>Windows</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>--dir &lt;路径&gt;</code></td><td><code>-Dir &lt;路径&gt;</code></td><td>还没有代码时下载到哪里。也可以用环境变量 <code>RPA_DIR</code>。在项目文件夹里运行时没有作用。</td></tr>
+            <tr><td><code>--skip-browser</code></td><td><code>-SkipBrowser</code></td><td>不下载 Chromium，需要浏览器的测试会略过。连不到浏览器下载站时，先用它把其他部分跑通。</td></tr>
+            <tr><td><code>--skip-tests</code></td><td><code>-SkipTests</code></td><td>只安装，不跑测试。</td></tr>
+            <tr><td><code>--no-hooks</code></td><td><code>-NoHooks</code></td><td>不安装提交前检查。</td></tr>
+            <tr><td><code>--help</code></td><td><code>Get-Help .\scripts\setup.ps1 -Detailed</code></td><td>显示说明。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p>从零开始的命令也可以带选项：</p>
+<pre class="source"># macOS、Linux：选项放在 bash -s -- 后面
+curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash -s -- --skip-browser
+
+# Windows：选项放在 -File 脚本路径后面
+powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="done">
+      <div class="panel-header"><h2>成功的样子</h2></div>
+      <div class="panel-body">
+        <p>最后一步印出版本、全部测试只有 <code>passed</code>，接着是「完成」与接下来可以用的命令：</p>
+<pre class="source" translate="no">[7/7] 確認能運行
+  ✓ rpa 0.1.0（rpa-core 0.1.0）
+  $ env RPA_REQUIRE_BROWSER=1 uv run pytest
+…
+============================= 46 passed in 2.91s ==============================
+  ✓ 全部測試通過
+
+完成！本機環境已經可以運行。
+
+接下來在專案資料夾裡：
+  cd /Users/you/code/web_browser_robotic_process_automation
+  uv run rpa -h                               # 命令列工具
+  uv run pytest                               # 跑測試
+  open docs/index.html                        # 開啟文檔站
+  uv run python -m http.server -d docs 8000   # 或用本機伺服器瀏覽文檔</pre>
+        <ul class="points">
+          <li>测试数量会随着代码与文档页面增加，重点是没有 <code>failed</code>、也没有 <code>skipped</code>。</li>
+          <li>中途失败时，脚本会用 <code>✗</code>（Windows 是 <code>[X]</code>）标出停在哪一步，以及怎么处理。</li>
+          <li>以 <code>!</code>（Windows 是 <code>[!]</code>）开头的是提醒，不影响运行，但建议看一下。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="daily">
+      <div class="panel-header"><h2>之后每次使用</h2></div>
+      <div class="panel-body">
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+git pull              # 取得最新代码
+./scripts/setup.sh    # 依赖、浏览器有变动才会安装，最后重跑测试；Windows 用 scripts\setup.ps1</pre>
+        <p>只想更新依赖、不想跑完整流程时，用 <code>uv sync</code> 即可。其他常用命令见<a href="setup.html">开发环境</a>。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>常见问题</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>看到什么</th><th>怎么处理</th></tr></thead>
+          <tbody>
+            <tr><td>Windows：「因为这个系统上已禁用脚本运行」</td><td>用本页带 <code>-ExecutionPolicy Bypass</code> 的命令运行，只对这一次有效，不需要改系统设置。</td></tr>
+            <tr><td>Windows：用 <code>irm … | iex</code> 运行，出现「is not recognized」或「Unexpected attribute」</td><td>改用本页「先下载、再用 <code>-File</code> 运行」的两行命令。脚本存成含 BOM 的 UTF-8，Windows PowerShell 5.1 才不会把中文读成乱码；但 BOM 会留在 <code>irm</code> 下载的字符串里，让 <code>iex</code> 解析失败。</td></tr>
+            <tr><td>macOS：「<span translate="no">請在跳出的視窗按『安裝』</span>」</td><td>安装命令行开发者工具，完成后再运行同一条命令。不需要安装完整的 Xcode。</td></tr>
+            <tr><td>「<span translate="no">已經存在，而且不是空資料夾</span>」</td><td>预设位置被其他东西占用。用 <code>--dir</code>（Windows 是 <code>-Dir</code>）指定别的位置；如果那就是项目，进到文件夹里运行 <code>scripts/setup.sh</code>。</td></tr>
+            <tr><td>「<span translate="no">安裝依賴失敗</span>」或「<span translate="no">下載 Chromium 失敗</span>」</td><td>多半是公司网络。设置 <code>UV_INDEX_URL</code> 或 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 后重跑，见<a href="setup.html#faq">开发环境的常见问题</a>；浏览器暂时下载不了，可以先加 <code>--skip-browser</code>。</td></tr>
+            <tr><td>Linux：「<span translate="no">Chromium 缺少系統函式庫</span>」</td><td>脚本会用 sudo 运行 <code>playwright install-deps</code>，需要输入密码。不是 Debian、Ubuntu 时，依错误消息手动安装缺少的函数库。</td></tr>
+            <tr><td>完成后输入 <code>uv</code> 显示找不到命令</td><td>脚本刚安装 uv，只对新开的终端机窗口生效。开一个新窗口；macOS、Linux 也可以运行 <code>source $HOME/.local/bin/env</code>。</td></tr>
+            <tr><td>「<span translate="no">測試沒有通過</span>」</td><td>往上找 <code>FAILED</code> 的测试名称与错误。在项目文件夹运行 <code>uv run pytest -x</code> 可以停在第一个失败。</td></tr>
+            <tr><td>想整个重来</td><td>删除项目里的 <code>.venv</code>，再运行一次脚本。Mac 特有的问题（Rosetta、<code>xcrun: error</code> 等）见 <a href="macos.html#faq">macOS 本机运行的常见问题</a>。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="notice">不想用脚本、或想知道每一步的细节：Mac 的逐步说明见 <a href="macos.html">macOS 本机运行</a>，各平台通用的命令见<a href="setup.html">开发环境</a>。</div>
+  </div>
+</main>
+</body>
+</html>

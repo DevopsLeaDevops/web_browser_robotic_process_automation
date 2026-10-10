@@ -1,0 +1,109 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/style/index.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>风格总览 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="style" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>风格总览</h1>
+      <p>界面设计系统 v1.0：同事交付的视觉契约，原样收录在 <code>docs/design-system/</code>。</p>
+    </div>
+    <div class="actions">
+      <a class="button" href="../../design-system/tokens.json" download>下载设计变量</a>
+      <a class="button" href="../../design-system/starter.html">空白起始版型</a>
+      <a class="button primary" href="../../design-system/index.html">打开设计系统</a>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>色彩</h2><span class="muted">tokens.json 与 portal.css</span></div>
+      <div class="panel-body">
+        <div class="swatches">
+          <div class="swatch"><i style="background:#147fe6"></i><strong>主色 / 导览</strong><code>#147fe6</code></div>
+          <div class="swatch"><i style="background:#0b69c4"></i><strong>主要按钮 / 链接</strong><code>#0b69c4</code></div>
+          <div class="swatch"><i style="background:#f5f7fb"></i><strong>画布背景</strong><code>#f5f7fb</code></div>
+          <div class="swatch"><i style="background:#ffffff"></i><strong>面板背景</strong><code>#ffffff</code></div>
+          <div class="swatch"><i style="background:#24334a"></i><strong>主要文字</strong><code>#24334a</code></div>
+          <div class="swatch"><i style="background:#64758b"></i><strong>辅助文字</strong><code>#64758b</code></div>
+          <div class="swatch"><i style="background:#e9edf3"></i><strong>分隔线</strong><code>#e9edf3</code></div>
+          <div class="swatch"><i style="background:#eaf4ff"></i><strong>选取背景</strong><code>#eaf4ff</code></div>
+          <div class="swatch"><i style="background:#248569"></i><strong>成功</strong><code>#248569</code></div>
+          <div class="swatch"><i style="background:#966516"></i><strong>警告</strong><code>#966516</code></div>
+          <div class="swatch"><i style="background:#b74643"></i><strong>错误</strong><code>#b74643</code></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>版面与字体</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>导览</dt><dd>顶部第一级、左侧第二级；面包屑标示位置</dd>
+            <dt>顶部列</dt><dd>56px，固定定位</dd>
+            <dt>左侧栏</dt><dd>176px</dd>
+            <dt>内容区</dt><dd>左右 20px；区块间距 12px</dd>
+            <dt>圆角</dt><dd>面板 9px，按钮 6px</dd>
+            <dt>字级</dt><dd>页面标题 21px，区块标题 14px，正文 13px，表格 12px</dd>
+            <dt>字体</dt><dd>系统预设字体，不加载外部字体</dd>
+            <dt>窄屏幕</dt><dd>700px 以下侧栏收合为菜单按钮，版面改单栏</dd>
+          </dl>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>必守规则</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>紧凑信息密度。</strong>不用大横幅、插画或大量留白；重复的标题只保留一次。</li>
+            <li><strong>状态要有文字。</strong>不能只用图标或色点。</li>
+            <li><strong>键盘可操作。</strong>焦点框清楚；对话框可用 Esc 关闭。</li>
+            <li><strong>三种尺寸验收。</strong>1440×900、1280×720、390×844，不得出现整页水平卷动。</li>
+            <li><strong>不另造导览。</strong>新页面一律放进两级 Portal。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>在本工程的应用</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>用途</th><th>做法</th><th>阶段</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td>文档站</td><td>直接引用 <code>portal.css</code>；补充样式在 <code>docs/assets/docs.css</code></td><td>M0</td><td><span class="badge green">已套用</span></td></tr>
+            <tr><td>页面原型</td><td>以 <code>starter.html</code> 为基础制作登录、场景库、步骤编辑器、运行详情、用户与权限页</td><td>M6</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td>Web UI</td><td><code>portal.css</code> 与设计变量移植到 React，外壳改写为组件</td><td>M8</td><td><span class="badge">未开始</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>M6 需要与设计者确认</h2><span class="muted">收录时发现的缺口</span></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>设计变量不完整。</strong><code>tokens.json</code> 没有成功、警告、错误与选取背景色；这些只出现在 <code>portal.css</code>。</li>
+          <li><strong>选取背景色不一致。</strong>设计系统的色彩页写 <code>#eaf3ff</code>，<code>portal.css</code> 实际使用 <code>#eaf4ff</code>。</li>
+          <li><strong>步骤编辑器细节。</strong>已有流程画布与节点样式，但没有拖拽、定位器候选切换、校验错误标示的状态。</li>
+          <li><strong>运行详情。</strong>逐步日志、截屏回放与 Trace 链接的版面。</li>
+          <li><strong>YAML 编辑器。</strong>已有 <code>code-editor</code> 基础样式，需确认语法高亮与错误行标示。</li>
+          <li><strong>图标。</strong>目前只有一个通用图标，菜单与动作需要一套图标。</li>
+          <li><strong>深色模式。</strong>目前没有，需确认是否需要。</li>
+          <li><strong>三种语言的版面。</strong>设计包以繁中设计；英文通常较长，原型要用英文与简中各检查一次，见 <a href="../adr/0007-i18n.html">ADR 0007</a>。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

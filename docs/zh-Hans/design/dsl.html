@@ -1,0 +1,106 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/design/dsl.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>场景 DSL · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="dsl" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>场景 DSL</h1>
+      <p>场景的唯一真实来源。YAML 编写、JSON 存储，以 Pydantic 模型校验。</p>
+    </div>
+    <span class="badge amber">草案 · M1 定稿</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice warn">本页是方向草案，字段名称与动作清单在 M1 讨论后定稿。决策背景见 <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a>。</div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>范例</h2><span class="muted">示意；download 在 M3 加入</span></div>
+        <div class="panel-body">
+<pre class="source">id: erp-export-report
+name: 登录 ERP 并导出月报
+params:
+  month: { type: string, default: "2026-09" }
+secrets: [ERP_PASSWORD]
+browser: { engine: chromium, headless: true }
+steps:
+  - id: open
+    action: goto
+    url: https://erp.example.internal/login
+  - id: login-user
+    action: fill
+    target: { role: textbox, name: 帐号 }
+    value: "{{ env.ERP_USER }}"
+  - id: login-pass
+    action: fill
+    target: { label: 密码 }
+    value: "{{ secrets.ERP_PASSWORD }}"
+  - id: submit
+    action: click
+    target:
+      role: button
+      name: 登录
+      fallback: [{ css: "#login-btn" }]
+  - id: check
+    action: expect
+    target: { text: 欢迎回来 }
+    state: visible
+  - id: export
+    action: download
+    trigger:
+      action: click
+      target: { role: button, name: 导出 }
+    saveAs: "report-{{ params.month }}.xlsx"</pre>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header"><h2>设计原则</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>每个步骤有稳定的 id。</strong>运行结果、截屏与日志按步骤归档；界面编辑时不会错位。</li>
+            <li><strong>定位器有优先级。</strong>testId → role + name → label → text → css / xpath。录制时同时记下多个候选，作为自愈的基础。</li>
+            <li><strong>只用条件等待。</strong>不允许固定秒数的 sleep，改用 <code>waitFor</code> 等待元素、网址或网络状态。</li>
+            <li><strong>步骤级错误处理。</strong>每一步可设置 retry、timeout 与 onError（继续、失败、跳到某一步）。</li>
+            <li><strong>Secrets 只引用名称。</strong>值在运行时注入，日志与截屏说明自动遮罩。</li>
+            <li><strong>表达式在沙箱内求值。</strong><code>{{ }}</code> 以 Jinja2 沙箱环境处理，只能读取 params、env、secrets 与先前步骤的输出。</li>
+            <li><strong>保留逃生门。</strong>DSL 表达不了的情况使用受控的 <code>script</code> 步骤，并在审核时特别标示。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>M1 预计支持的动作</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>动作</th><th>用途</th><th>主要字段</th></tr></thead>
+          <tbody>
+            <tr><td><code>goto</code></td><td>打开网址</td><td>url、waitUntil</td></tr>
+            <tr><td><code>click</code></td><td>点击元素</td><td>target、button、clickCount</td></tr>
+            <tr><td><code>fill</code></td><td>填写输入框</td><td>target、value</td></tr>
+            <tr><td><code>select</code></td><td>选择下拉选项</td><td>target、option</td></tr>
+            <tr><td><code>press</code></td><td>按键或组合键</td><td>target、key</td></tr>
+            <tr><td><code>waitFor</code></td><td>等待条件成立</td><td>target、state、url、timeout</td></tr>
+            <tr><td><code>expect</code></td><td>断言，不成立即判定失败</td><td>target、state、text</td></tr>
+            <tr><td><code>extract</code></td><td>从页面抽取数据（文字、属性、表格）</td><td>target、as、fields</td></tr>
+            <tr><td><code>screenshot</code></td><td>截屏存为产物</td><td>target、fullPage、name</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">download、upload、iframe、多分页、条件与循环等在 M3 加入。</div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

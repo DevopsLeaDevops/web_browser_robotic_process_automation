@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/index.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>决策索引 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-index" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>决策索引</h1>
+      <p>架构决策纪录（ADR）：每个影响长远的决定写成一页，说明背景、选择、后果与没选的方案。</p>
+    </div>
+    <a class="button" href="../develop/writing-docs.html#adr">如何添加 ADR</a>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>全部决策</h2><span class="muted">7 笔</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>编号</th><th>决策</th><th>状态</th><th>日期</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag">0001</span></td><td><a href="0001-dsl-as-source-of-truth.html">场景以声明式 DSL 为唯一真实来源</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0002</span></td><td><a href="0002-python-stack.html">后端、运行与工具链采用 Python 技术栈</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0003</span></td><td><a href="0003-postgres-queue.html">以 PostgreSQL 作为任务队列</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0004</span></td><td><a href="0004-react-frontend.html">前端采用 React + TypeScript</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0005</span></td><td><a href="0005-html-docs.html">文档以 HTML 撰写并套用 Portal 样式</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0006</span></td><td><a href="0006-design-system.html">采用界面设计系统 v1.0 作为视觉契约</a></td><td><span class="badge green">已接受</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0007</span></td><td><a href="0007-i18n.html">产品与文档支持英文、繁体中文、简体中文</a></td><td><span class="badge amber">提议中</span></td><td class="mono">2026-10-10</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>状态说明</h2></div>
+      <div class="panel-body">
+        <div class="actions">
+          <span class="badge amber">提议中</span><span class="muted">讨论中，尚未定案</span>
+          <span class="badge green">已接受</span><span class="muted">目前遵循</span>
+          <span class="badge">已取代</span><span class="muted">被新的 ADR 取代，页面保留并连到新决策</span>
+          <span class="badge red">已弃用</span><span class="muted">不再适用，也没有替代</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
