@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# Python 腳本逃生門的範例：與 ../ba-001.yaml 做同一件事，但自動化與斷言寫成 Python（ADR 0009）。
+# 契約沿用 MVP 原型：
+#   automation.py --input --facts --screenshot --target-url   操作頁面，只寫頁面事實
+#   assertion.py  --input --facts --output                    獨立比對事實與入參，寫出候選出參
+# 剩下的總期限在環境變數 RPA_DEADLINE_SECONDS，瀏覽器在 RPA_BROWSER。
+# 一般情況請用 DSL；腳本場景審核時會特別標示。
+
+schemaVersion: 1
+id: ba-001-script
+name: 建立範例紀錄（Python 腳本）
+category: 範例資料
+
+inputs:
+  title:
+    type: string
+    minLength: 1
+    maxLength: 60
+    default: 介面驗證範例
+  quantity:
+    type: integer
+    minimum: 1
+    maximum: 30
+    default: 12
+
+outputs:
+  recordId:
+    type: string
+    pattern: '^DEMO-[A-Z0-9]+$'
+  title:
+    type: string
+  quantity:
+    type: integer
+    minimum: 1
+    maximum: 30
+
+browser:
+  engine: firefox
+  baseUrl: http://127.0.0.1:8765
+
+deadline: 45000
+
+script:
+  automation: automation.py
+  assertion: assertion.py

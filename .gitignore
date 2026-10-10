@@ -27,3 +27,6 @@ test-results/
 .idea/
 .vscode/
 .DS_Store
+
+# rpa run 的執行目錄
+runs/

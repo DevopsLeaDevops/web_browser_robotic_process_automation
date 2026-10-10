@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:edb1789198890562">
+<meta name="translation-source" content="sha256:c14e8fd1c88d9146">
 <title>Home · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -25,7 +25,7 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M1.1</div><span class="muted">Scenario contract: plan v2 combines the MVP prototype</span></section>
+      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M2</div><span class="muted">Runner: rpa run executes scenarios for real</span></section>
       <section class="panel panel-body stat"><span class="muted">Milestones</span><div class="value">10</div><span class="muted">M0 to M9, delivered step by step</span></section>
       <section class="panel panel-body stat"><span class="muted">Architecture decisions</span><div class="value">11</div><span class="muted">10 accepted, 1 superseded</span></section>
       <section class="panel panel-body stat"><span class="muted">Main language</span><div class="value">Python</div><span class="muted">3.12 or later · TypeScript frontend</span></section>
@@ -62,11 +62,12 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>Repository status</h2><span class="muted">M1.1 in progress</span></div>
+        <div class="panel-header"><h2>Repository status</h2><span class="muted">M2 in progress</span></div>
         <div class="panel-body">
           <dl class="spec-list">
             <dt>rpa-core</dt><dd>Models of the scenario DSL and the scenario contract, YAML loading and validation; examples in <code>scenarios/</code></dd>
-            <dt>rpa-cli</dt><dd><code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
+            <dt>rpa-runner</dt><dd>Execution engine: input validation, running the steps in Chromium or Firefox, independent assertions, output publishing, run reports</dd>
+            <dt>rpa-cli</dt><dd><code>rpa run</code> runs a scenario; <code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
             <dt>Toolchain</dt><dd>uv (dependencies locked in <code>uv.lock</code>), ruff, pyright (strict), pytest, pre-commit</dd>
             <dt>CI</dt><dd>Static checks, tests on Python 3.12 / 3.13, including a Chromium smoke test; the setup scripts run weekly on macOS, Ubuntu and Windows</dd>
             <dt>Docs</dt><dd>This site, in Traditional Chinese, Simplified Chinese and English, with automatic checks for links and translation sync</dd>
