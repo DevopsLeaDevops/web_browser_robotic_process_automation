@@ -1,23 +1,15 @@
 """版本檔案的檢查、寫入、雜湊與執行目錄的檔案。不需要資料庫。"""
 
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
 from rpa_core.dsl import validate_file
-from rpa_core.i18n import use_locale
 from rpa_runner.run import scenario_digest
 from rpa_server.storage import SCENARIO_FILE, Storage, StorageConflictError, new_scene_template
 
 ROOT = Path(__file__).resolve().parents[3]
 DEMO = ROOT / "scenarios" / "demo"
-
-
-@pytest.fixture(autouse=True)
-def _zh_hant() -> Iterator[None]:
-    with use_locale("zh-Hant"):
-        yield
 
 
 @pytest.fixture
