@@ -20,7 +20,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">啟動：<code>uv run rpa serve</code>，再打開 <code>http://127.0.0.1:8000</code>。資料放在 <code>data/</code>（或 <code>--data</code> 指定的資料夾）。沒有登入保護，預設只開放本機連線。</div>
+    <div class="notice">啟動：<code>uv run rpa serve</code>，再打開 <code>http://127.0.0.1:8080</code>。資料放在 <code>data/</code>（或 <code>--data</code> 指定的資料夾）。沒有登入保護，預設只開放本機連線。</div>
 
     <section class="panel" id="flow">
       <div class="panel-header"><h2>流程</h2><span class="muted">驗收：在瀏覽器內走完一次</span></div>
@@ -123,7 +123,7 @@
         <div class="panel-header"><h2>設定</h2></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt><code>--host</code>、<code>--port</code></dt><dd>預設 <code>127.0.0.1:8000</code></dd>
+            <dt><code>--host</code>、<code>--port</code></dt><dd>預設 <code>127.0.0.1:8080</code></dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>資料資料夾，預設 <code>data</code>；也可以用 <code>--data</code></dd>
             <dt><code>RPA_DATABASE_URL</code></dt><dd>預設 SQLite；PostgreSQL 在 M8</dd>
             <dt><code>RPA_LANG</code></dt><dd>預設語言，也是執行報告的語言；頁面右上角可以切換</dd>

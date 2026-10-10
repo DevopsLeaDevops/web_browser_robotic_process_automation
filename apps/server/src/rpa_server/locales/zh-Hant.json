@@ -122,7 +122,7 @@
   "runs.description": "依分類、場景與結果篩選；每次執行都保留入參、出參、步驟、斷言與截圖。",
   "runs.multi_hint": "多選：Windows 按 Ctrl、macOS 按 ⌘ 點選；沒有選代表全部。",
   "runs.records": "執行紀錄",
-  "runs.count": "{count} 筆（最多顯示 {limit} 筆）",
+  "runs.count": "{count} 次執行（最多顯示 {limit} 次）",
   "runs.filter_category": "分類",
   "runs.filter_scene": "場景",
   "runs.filter_status": "結果",

@@ -28,7 +28,7 @@ uv run rpa --version
 uv run rpa validate scenarios/       # 校驗範例場景
 uv run python -m testsite &          # 本機測試網站（127.0.0.1:8765）
 uv run rpa run scenarios/demo/ba-001.yaml -i title=測試   # 真實執行一個場景，報告在 runs/
-uv run rpa serve                     # 管理 Portal：http://127.0.0.1:8000（資料在 data/）
+uv run rpa serve                     # 管理 Portal：http://127.0.0.1:8080（資料在 data/）
 ```
 
 完整說明見 `docs/develop/setup.html`；在 Mac 上從零開始的逐步說明見 `docs/develop/macos.html`。

@@ -33,7 +33,7 @@ def build_serve_command() -> click.Command:
     )
     @click.option("--host", default="127.0.0.1", show_default=True, help=t("cli.serve.host_help"))
     @click.option(
-        "--port", default=8000, show_default=True, type=int, help=t("cli.serve.port_help")
+        "--port", default=8080, show_default=True, type=int, help=t("cli.serve.port_help")
     )
     @click.option(
         "--data",
