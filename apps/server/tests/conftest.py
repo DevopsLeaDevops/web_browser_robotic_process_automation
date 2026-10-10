@@ -14,7 +14,7 @@ from rpa_server.config import Settings, sqlite_url
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
-    from httpx import Client
+    from httpx2 import Client
 
 ROOT = Path(__file__).resolve().parents[3]
 DEMO = ROOT / "scenarios" / "demo"
@@ -47,7 +47,7 @@ def app(settings: Settings) -> "FastAPI":
 
 @pytest.fixture
 def client(app: "FastAPI") -> Iterator["Client"]:
-    """TestClient 是 httpx.Client 的子類別；以 httpx 的型別提供給測試。"""
+    """TestClient 是 httpx2.Client 的子類別。"""
     from fastapi.testclient import TestClient
 
     with TestClient(app) as client:

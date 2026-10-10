@@ -80,7 +80,10 @@ def test_cancel_stops_browser_and_never_publishes_output(
     if result.status == "passed":  # pragma: no cover - 機器太快，一秒內就跑完
         pytest.skip("一秒內已執行完畢，來不及取消")
     assert result.status == "cancelled"
-    assert result.stage("automation").status == "cancelled"
+    # 通常停在自動化階段；機器很快時自動化已經做完，就停在下一個階段開始前
+    cancelled = [stage.name for stage in result.stages if stage.status == "cancelled"]
+    assert len(cancelled) == 1
+    assert cancelled[0] in ("automation", "verify", "output")
     assert time.monotonic() - started < 20
     assert not (result.directory / OUTPUT).exists()
     assert (result.directory / REPORT).is_file()

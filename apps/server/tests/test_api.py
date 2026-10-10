@@ -9,7 +9,7 @@ from typing import cast
 
 import pytest
 from fastapi import FastAPI
-from httpx import Client, Response
+from httpx2 import Client, Response
 
 from rpa_server.services import Services
 from rpa_worker import Worker
