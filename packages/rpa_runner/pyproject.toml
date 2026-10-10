@@ -1,0 +1,17 @@
+[project]
+name = "rpa-runner"
+version = "0.1.0"
+description = "執行引擎：入參校驗、在瀏覽器中執行步驟、獨立斷言、出參發布、執行報告"
+requires-python = ">=3.12"
+dependencies = [
+  "rpa-core",
+  # 瀏覽器自動化；Chromium 與 Firefox 都在 CI 測試（ADR 0010）
+  "playwright>=1.63.0",
+]
+
+[tool.uv.sources]
+rpa-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13"]
+build-backend = "uv_build"
