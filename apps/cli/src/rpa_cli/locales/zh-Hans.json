@@ -34,11 +34,11 @@
   "cli.run.error": "原因：{error}",
   "cli.run.output": "出参：{path}",
   "cli.run.report": "报告：{path}",
-  "cli.serve.help": "啟動管理 Portal：在瀏覽器裡建立場景、驗證、發布、執行與查看報告。資料（SQLite、場景版本、執行目錄）放在 --data 指定的資料夾，預設是 RPA_DATA_DIR 或 data/。沒有登入保護，預設只開放本機連線。",
-  "cli.serve.short_help": "啟動管理 Portal。",
-  "cli.serve.host_help": "監聽的位址。沒有登入保護，請只在信任的網路開放給其他電腦。",
-  "cli.serve.port_help": "監聽的埠號。",
-  "cli.serve.data_help": "資料資料夾，預設是環境變數 RPA_DATA_DIR 或 data/。",
-  "cli.serve.exposed": "注意：{host} 不是本機位址，而管理 Portal 沒有登入保護；同一個網路的其他人都能操作。",
-  "cli.serve.started": "管理 Portal：{url}（資料：{data}；Ctrl+C 結束）"
+  "cli.serve.help": "启动管理 Portal：在浏览器里创建场景、验证、发布、运行与查看报告。数据（SQLite、场景版本、运行目录）放在 --data 指定的文件夹，默认是 RPA_DATA_DIR 或 data/。没有登录保护，默认只开放本机连接。",
+  "cli.serve.short_help": "启动管理 Portal。",
+  "cli.serve.host_help": "监听的地址。没有登录保护，请只在信任的网络开放给其他电脑。",
+  "cli.serve.port_help": "监听的端口号。",
+  "cli.serve.data_help": "数据文件夹，默认是环境变量 RPA_DATA_DIR 或 data/。",
+  "cli.serve.exposed": "注意：{host} 不是本机地址，而管理 Portal 没有登录保护；同一个网络的其他人都能操作。",
+  "cli.serve.started": "管理 Portal：{url}（数据：{data}；Ctrl+C 结束）"
 }
