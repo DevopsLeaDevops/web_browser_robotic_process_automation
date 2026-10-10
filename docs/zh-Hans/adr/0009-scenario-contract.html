@@ -33,7 +33,7 @@
       <section class="panel">
         <div class="panel-header"><h2>背景</h2></div>
         <div class="panel-body prose">
-          <p>MVP 原型以真实的 Python / Playwright 示例验证了一套运行契约：入参在启动浏览器前以 JSON Schema 校验；自动化只负责操作页面并留下「页面事实」；另一个独立的断言比对事实与入参；全部通过后，出参才发布，并可以交给下一个场景。</p>
+          <p>MVP 原型以真实的 Python / Playwright 示例验证了一套运行契约：入参在启动浏览器前以 JSON Schema 校验；自动化只负责操作页面并留下「页面事实」；另一个独立的断言比较事实与入参；全部通过后，出参才发布，并可以交给下一个场景。</p>
           <p>M1 的 DSL 只有 <code>params</code> 与步骤内的 <code>expect</code>：成功等于「步骤都没失败」，没有出参，也无法串接场景。原型的流程与录制、AI 生成、编排都依赖这份契约。</p>
         </div>
       </section>
@@ -43,7 +43,7 @@
           <ul class="points">
             <li><strong>场景契约。</strong>每个场景可以声明 <code>inputs</code>（入参）与 <code>outputs</code>（出参），类型与限制取 JSON Schema 2020-12 的常用子集，可以导出成 JSON Schema。<code>params</code> 改名为 <code>inputs</code>。</li>
             <li><strong>页面事实。</strong><code>extract</code> 的结果放在 <code>facts</code>；事实只描述页面上看到了什么，不代表成功。</li>
-            <li><strong>独立断言。</strong><code>verify</code> 在自动化结束后比对 facts 与 inputs。有出参的场景一定要有 verify。</li>
+            <li><strong>独立断言。</strong><code>verify</code> 在自动化结束后比较 facts 与 inputs。有出参的场景一定要有 verify。</li>
             <li><strong>出参最后才发布。</strong>入参校验 → 自动化 → 独立断言 → 出参校验，全部通过才产生 output.json；任何一步失败都没有成功出参。</li>
             <li><strong>总期限。</strong><code>deadline</code> 限制整次运行；每一步只能用剩下的时间。</li>
             <li><strong>DSL 为主，Python 脚本为逃生门。</strong>DSL 表达不了的场景可用 <code>script</code> 指定 automation.py 与 assertion.py，沿用原型的命令行契约；审核时特别标示，录制与 AI 不产生这种场景。</li>

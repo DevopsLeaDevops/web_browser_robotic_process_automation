@@ -93,7 +93,7 @@ verify:
             <tr><td><code>id</code></td><td>是</td><td>小写英文字母、数字、<code>-</code> 与 <code>_</code>，以英数开头，最长 64 个字符。会用在文件名与网址，不重复使用。</td></tr>
             <tr><td><code>name</code></td><td>是</td><td>给人看的名称。</td></tr>
             <tr><td><code>description</code></td><td></td><td>说明。</td></tr>
-            <tr><td><code>category</code></td><td></td><td>分类，场景清单与报告依此筛选。</td></tr>
+            <tr><td><code>category</code></td><td></td><td>分类，场景列表与报告依此筛选。</td></tr>
             <tr><td><code>inputs</code></td><td></td><td>入参声明，键是名称（英文字母、数字与 <code>_</code>），见下方场景契约。</td></tr>
             <tr><td><code>outputs</code></td><td></td><td>出参声明；有出参就要有 <code>verify</code>。</td></tr>
             <tr><td><code>secrets</code></td><td></td><td>机密名称列表，例如 <code>ERP_PASSWORD</code>（大写英文字母、数字与 <code>_</code>）。值不写在场景里。</td></tr>
@@ -102,7 +102,7 @@ verify:
             <tr><td><code>deadline</code></td><td></td><td>整次运行的总期限（毫秒），从启动浏览器算到发布出参；每一步只能用剩下的时间。</td></tr>
             <tr><td><code>steps</code></td><td>二择一</td><td>自动化步骤列表，至少一步。</td></tr>
             <tr><td><code>script</code></td><td>二择一</td><td>Python 脚本逃生门，见下方场景契约。</td></tr>
-            <tr><td><code>verify</code></td><td></td><td>独立断言清单，见下方场景契约。</td></tr>
+            <tr><td><code>verify</code></td><td></td><td>独立断言列表，见下方场景契约。</td></tr>
           </tbody>
         </table>
       </div>
@@ -115,9 +115,9 @@ verify:
         <dl class="spec-list">
           <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean，默认 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制。</dd>
           <dt><code>facts</code></dt><dd>页面事实：<code>extract</code> 以 <code>as: 名称</code> 存成 <code>facts.名称</code>。步骤只能引用前面步骤产生的事实；verify 与 outputs 可以引用全部。</dd>
-          <dt><code>verify</code></dt><dd>每一条有 <code>value</code>（必须含 <code>{{ }}</code>）与 <code>equals</code>、<code>contains</code>、<code>matches</code>（正则表达式）、<code>notEmpty: true</code> 其中一种比较；<code>name</code> 会出现在报告。比较时两边都以代入后的文字比对。</dd>
-          <dt><code>outputs</code></dt><dd>类型多了 array、object，限制同入参；<code>from</code> 指定取值，例如 <code>{{ facts.record.recordId }}</code>。只有一个 <code>{{ }}</code> 时保留原本的类型（例如清单），否则依 type 转换文字。</dd>
-          <dt><code>script</code></dt><dd><code>automation</code> 与 <code>assertion</code> 两个 Python 档，路径相对于场景文件所在的文件夹、不能用 <code>..</code>。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令行契约）。脚本场景不写 verify，出参也不写 from。</dd>
+          <dt><code>verify</code></dt><dd>每一条有 <code>value</code>（必须含 <code>{{ }}</code>）与 <code>equals</code>、<code>contains</code>、<code>matches</code>（正则表达式）、<code>notEmpty: true</code> 其中一种比较；<code>name</code> 会出现在报告。比较时两边都以代入后的文字比较。</dd>
+          <dt><code>outputs</code></dt><dd>类型多了 array、object，限制同入参；<code>from</code> 指定取值，例如 <code>{{ facts.record.recordId }}</code>。只有一个 <code>{{ }}</code> 时保留原本的类型（例如列表），否则依 type 转换文字。</dd>
+          <dt><code>script</code></dt><dd><code>automation</code> 与 <code>assertion</code> 两个 Python 文件，路径相对于场景文件所在的文件夹、不能用 <code>..</code>。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令行契约）。脚本场景不写 verify，出参也不写 from。</dd>
         </dl>
         <p class="muted">运行顺序与失败时的处理见 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>；运行引擎在 M2 实现。<code>rpa schema 场景文件 --part inputs</code> 或 <code>--part outputs</code> 输出单一场景的入参或出参 JSON Schema。</p>
       </div>
@@ -246,7 +246,7 @@ scenarios/login.yaml:31:15: 步骤 5（read） › value：facts.total 要等后
 检查 5 个文件，1 个未通过，共 2 个问题。</pre>
         <dl class="spec-list">
           <dt>位置</dt><dd><code>文件:行:列</code>，与编译器相同的格式，编辑器与 CI 可以直接跳到错误位置。行与列从 1 开始。</dd>
-          <dt>参数</dt><dd>文件或文件夹，可以多个；文件夹会找出底下所有 .yaml 与 .yml（略过隐藏文件夹）。脚本场景会检查脚本档是否存在。</dd>
+          <dt>参数</dt><dd>文件或文件夹，可以多个；文件夹会找出底下所有 .yaml 与 .yml（略过隐藏文件夹）。脚本场景会检查脚本文件是否存在。</dd>
           <dt><code>--format json</code></dt><dd>每个问题含 line、column、step、stepId、field、path、code、message，给程序与 AI 自动修正（M5）使用。</dd>
           <dt>退出码</dt><dd>0 全部通过；1 有文件未通过，或文件夹里没有 YAML；2 参数错误。</dd>
           <dt><code>rpa schema</code></dt><dd>输出 DSL 的 JSON Schema。仓库中的 <code>schema/scenario.v1.json</code> 由它产生；场景文件第一行加上 <code># yaml-language-server: $schema=…</code>，VS Code 的 YAML 插件就能自动补全与实时检查。指定场景文件时输出该场景的入参或出参 Schema。</dd>
