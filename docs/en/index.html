@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:09a79437895c08d2">
+<meta name="translation-source" content="sha256:17260fcef09ac24f">
 <title>Home · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -25,9 +25,9 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M0</div><span class="muted">Project skeleton and design docs</span></section>
+      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M1</div><span class="muted">DSL v0: the M0 project skeleton is done</span></section>
       <section class="panel panel-body stat"><span class="muted">Milestones</span><div class="value">10</div><span class="muted">M0 to M9, delivered step by step</span></section>
-      <section class="panel panel-body stat"><span class="muted">Architecture decisions</span><div class="value">7</div><span class="muted">6 accepted, 1 proposed</span></section>
+      <section class="panel panel-body stat"><span class="muted">Architecture decisions</span><div class="value">8</div><span class="muted">All accepted</span></section>
       <section class="panel panel-body stat"><span class="muted">Main language</span><div class="value">Python</div><span class="muted">3.12 or later · TypeScript frontend</span></section>
     </div>
 
@@ -66,8 +66,8 @@
           <dl class="spec-list">
             <dt>rpa-core</dt><dd>DSL package skeleton; models are added from M1</dd>
             <dt>rpa-cli</dt><dd><code>rpa --version</code> works; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
-            <dt>Toolchain</dt><dd>uv, ruff, pyright (strict), pytest, pre-commit</dd>
-            <dt>CI</dt><dd>Static checks, tests on Python 3.12 / 3.13, including a Chromium smoke test</dd>
+            <dt>Toolchain</dt><dd>uv (dependencies locked in <code>uv.lock</code>), ruff, pyright (strict), pytest, pre-commit</dd>
+            <dt>CI</dt><dd>Static checks, tests on Python 3.12 / 3.13, including a Chromium smoke test; the setup scripts run weekly on macOS, Ubuntu and Windows</dd>
             <dt>Docs</dt><dd>This site, in Traditional Chinese, Simplified Chinese and English, with automatic checks for links and translation sync</dd>
           </dl>
         </div>

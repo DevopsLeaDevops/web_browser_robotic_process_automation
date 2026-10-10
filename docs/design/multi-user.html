@@ -29,6 +29,7 @@
             <dt>Secrets</dt><dd>加密存放。使用者可以在場景中引用，但無法讀出明文。</dd>
             <dt>稽核</dt><dd>誰在什麼時間修改、執行了哪個場景，全部留紀錄，不可刪改。</dd>
             <dt>版本</dt><dd>場景每次儲存產生不可變的新版本；執行紀錄指向確切版本。</dd>
+            <dt>資料庫</dt><dd>正式環境用 PostgreSQL，支援多個 worker 與併發寫入；SQLite 只用於開發與原型（單機、單一程序），見 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
             <dt>Runner 無狀態</dt><dd>從 M2 起只接收場景、參數與 Secrets，輸出結果與產物；放進 worker 時不用改。</dd>
           </dl>
         </div>

@@ -432,10 +432,6 @@ summary() {
   if [ "$UV_INSTALLED_NOW" = 1 ]; then
     printf '\n%s! uv 是剛安裝的：開一個新的終端機視窗，才能直接使用 uv 命令。%s\n' "$C_YELLOW" "$C_RESET"
   fi
-  if [ -f uv.lock ] && have_git && ! git ls-files --error-unmatch uv.lock >/dev/null 2>&1; then
-    printf '\n%s· 產生了 uv.lock。M0 尚未提交鎖檔，請單獨開一個 PR 提交（見 docs/develop/setup.html#faq）。%s\n' \
-      "$C_DIM" "$C_RESET"
-  fi
   if [ "$WARNINGS" -gt 0 ]; then
     printf '\n%s! 過程中有 %d 個提醒，見上方以 ! 開頭的行。%s\n' "$C_YELLOW" "$WARNINGS" "$C_RESET"
   fi

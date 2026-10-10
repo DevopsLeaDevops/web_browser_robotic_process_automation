@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:6be8c2117f03174a">
+<meta name="translation-source" content="sha256:50623aa7bf26b9e9">
 <title>Run locally from scratch · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -82,7 +82,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
             <tr><td>1. Check the system</td><td>Confirms the operating system and CPU architecture. Warns when an Apple silicon Mac is running under Rosetta.</td><td>Checked every time</td></tr>
             <tr><td>2. Prepare the code</td><td>Uses the project it runs in; otherwise <code>git clone</code>s to the default location or the one given with <code>--dir</code>.</td><td>Uses the existing download; does not <code>git pull</code> automatically</td></tr>
             <tr><td>3. Prepare uv</td><td>Installs it with the official installer if missing; tries to upgrade when older than <code>required-version</code> in <code>pyproject.toml</code>.</td><td>Skipped when new enough</td></tr>
-            <tr><td>4. Install Python and dependencies</td><td><code>uv sync</code>: prepares Python 3.13 per <code>.python-version</code>, creates <code>.venv</code>, installs all packages and dev tools.</td><td>Finishes in seconds when nothing changed</td></tr>
+            <tr><td>4. Install Python and dependencies</td><td><code>uv sync</code>: prepares Python 3.13 per <code>.python-version</code>, creates <code>.venv</code>, installs all packages and dev tools at the versions in <code>uv.lock</code>.</td><td>Finishes in seconds when nothing changed</td></tr>
             <tr><td>5. Install Chromium</td><td><code>uv run playwright install chromium</code>, then actually starts it once. On Linux, runs <code>playwright install-deps</code> if system libraries are missing.</td><td>Skips the download and only checks that it starts</td></tr>
             <tr><td>6. Install pre-commit checks</td><td><code>uv run pre-commit install</code>, so ruff, pyright and the docs checks run before every <code>git commit</code>.</td><td>Rewrites the same hook, no effect</td></tr>
             <tr><td>7. Confirm it works</td><td>Runs <code>rpa --version</code>, then all tests with <code>RPA_REQUIRE_BROWSER=1</code>: like CI, a missing browser fails instead of being skipped.</td><td>Runs every time</td></tr>

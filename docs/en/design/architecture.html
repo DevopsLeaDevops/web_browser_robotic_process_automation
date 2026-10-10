@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e9af8a033472c49a">
+<meta name="translation-source" content="sha256:a8b07235139cd603">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -37,7 +37,7 @@
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
           <title id="arch-title">System components</title>
-          <desc id="arch-desc">Users call the API service through the web UI or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers take tasks from the PostgreSQL queue, drive the internal target systems with Playwright, and store artifacts in MinIO.</desc>
+          <desc id="arch-desc">Users call the API service through the web UI or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers connect to PostgreSQL and fetch tasks themselves (the database never calls a worker), drive the internal target systems with Playwright, and store artifacts in object storage.</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -82,7 +82,7 @@
           <text class="sub" x="536" y="244">Runner + Playwright (Chromium)</text>
 
           <rect class="box" x="520" y="304" width="232" height="56" rx="8"/>
-          <text class="title" x="536" y="328">MinIO (S3 compatible)</text>
+          <text class="title" x="536" y="328">Object storage (S3)</text>
           <text class="sub" x="536" y="346">Screenshots, traces, downloads</text>
 
           <!-- External -->
@@ -99,8 +99,8 @@
           <path class="link" d="M192 206H262" marker-end="url(#arrow)"/>
           <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
           <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
-          <path class="link" d="M636 160V194" marker-end="url(#arrow)"/>
-          <text class="label" x="644" y="182">fetch task</text>
+          <path class="link" d="M636 194V162" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="182">worker fetches tasks</text>
           <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
           <text class="label" x="644" y="290">upload artifacts</text>
           <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
@@ -109,7 +109,7 @@
           <text class="label" x="790" y="30">generation request</text>
         </svg>
       </div>
-      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. Before M2 there are only the CLI and the runner, running directly on your machine.</div>
+      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. Before M2 there are only the CLI and the runner, running directly on your machine. Development and prototypes can use SQLite instead of PostgreSQL, in which case the queue and scheduler run inside the API process; see <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>.</div>
     </section>
 
     <section class="panel">
@@ -162,9 +162,9 @@
           <ol>
             <li>A user triggers a run in the web UI or the CLI, or the scheduler creates a task when it is due.</li>
             <li>The API checks permissions, fetches the requested version of the scenario, and writes a run record and a queue task.</li>
-            <li>A worker picks up the task and gets the parameters and secrets from the API (kept in memory only).</li>
+            <li>An idle worker is notified by PostgreSQL (or finds the task when it polls), fetches and locks the task itself, and gets the parameters and secrets from the API (kept in memory only).</li>
             <li>The runner opens an isolated browser context and executes step by step, reporting the status of each step.</li>
-            <li>Screenshots, traces and downloads are uploaded to MinIO; extracted data is written back to the run record.</li>
+            <li>Screenshots, traces and downloads are uploaded to object storage; extracted data is written back to the run record.</li>
             <li>When the run ends, the person who triggered it is notified; on failure, the failing step and its screenshot are highlighted.</li>
           </ol>
         </div>

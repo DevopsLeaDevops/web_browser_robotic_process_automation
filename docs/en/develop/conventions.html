@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:46905d8e2bca3889">
+<meta name="translation-source" content="sha256:e501be37131b1f6d">
 <title>Conventions · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -59,6 +59,7 @@ docs(adr): 新增 0008 Secrets 加密方式</pre>
             <li><strong>Types.</strong> pyright strict; every function fully annotated, avoiding <code>Any</code>.</li>
             <li><strong>Formatting.</strong> ruff decides; no manual arguments about formatting.</li>
             <li><strong>Output.</strong> No leftover <code>print</code> in code; the CLI prints through click and libraries use logging.</li>
+            <li><strong>Database.</strong> Use only SQLAlchemy's portable types and constructs so the code runs on both SQLite and PostgreSQL; the rules are in <a href="../adr/0008-sqlite-and-postgresql.html#rules">ADR 0008</a>.</li>
             <li><strong>Boundaries.</strong> <code>rpa-core</code> does not depend on a browser or a database; execution code goes into <code>rpa-runner</code>.</li>
           </ul>
         </div>

@@ -20,8 +20,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
       - name: 安裝依賴
-        # uv.lock 提交後自動改用 --locked，確保 CI 與本機版本一致
-        run: if [ -f uv.lock ]; then uv sync --locked; else uv sync; fi
+        # --locked：依 uv.lock 安裝；鎖檔與 pyproject.toml 不一致時失敗，提醒執行 uv lock
+        run: uv sync --locked
       - name: ruff check
         run: uv run ruff check --output-format=github .
       - name: ruff format
@@ -42,7 +42,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: 安裝依賴
-        run: if [ -f uv.lock ]; then uv sync --locked; else uv sync; fi
+        run: uv sync --locked
       - name: 安裝 Chromium
         run: uv run playwright install --with-deps chromium
       - name: pytest
