@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}<a href="/scenes">{{ t("nav.scenes") }}</a> › {{ scene.id }}{% endblock %}
+{% block description %}<span class="tag">{{ scene.id }}</span> {{ scene.category or t("scenes.no_category") }} · {{ t("kind." + scene.kind) }}{% if scene.archived %} · {{ t("scene.archived") }}{% endif %}{% endblock %}
+{% block actions %}
+<a class="button" href="/scenes/{{ scene.id }}/edit">{{ t("scene.edit") }}</a>
+<a class="button" href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("scene.validate_latest", number=scene.latest_number) }}</a>
+{% if scene.published %}
+<a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution">{{ t("scenes.run") }}</a>
+{% else %}
+<button class="button primary" disabled title="{{ t('scenes.run_disabled') }}">{{ t("scenes.run") }}</button>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="stack" data-scene="{{ scene.id }}">
+  {% if scene.description %}<p>{{ scene.description }}</p>{% endif %}
+  {% if not scene.published %}
+  <div class="notice warn">{{ t("scene.not_published") }}</div>
+  {% elif scene.published_number != scene.latest_number %}
+  <div class="notice">{{ t("scene.newer_draft", published=scene.published_number, latest=scene.latest_number) }}</div>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("scene.versions") }}</h2><span class="muted">{{ t("scene.versions_hint") }}</span></div>
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr>
+        <th>{{ t("scene.col_version") }}</th><th>{{ t("scene.col_created") }}</th><th>{{ t("scene.col_status") }}</th>
+        <th>{{ t("scene.col_hash") }}</th><th>{{ t("scene.col_note") }}</th><th>{{ t("scene.col_actions") }}</th>
+      </tr></thead>
+      <tbody>
+      {% for revision in revisions %}
+        <tr data-revision="{{ revision.number }}">
+          <td><strong>v{{ revision.number }}</strong>{% if revision.number == scene.latest_number %} <span class="tag">{{ t("scene.latest") }}</span>{% endif %}</td>
+          <td>{{ m.time(revision.created_at) }}</td>
+          <td>{{ m.revision_badge(revision) }}</td>
+          <td><code class="mono" title="{{ revision.content_hash }}">{{ revision.content_hash[:12] }}</code></td>
+          <td>{{ revision.note or "—" }}</td>
+          <td>
+            <a class="text-btn" href="/scenes/{{ scene.id }}/edit?revision={{ revision.number }}">{{ t("scene.view_content") }}</a>
+            <a class="text-btn" href="/scenes/{{ scene.id }}/run?purpose=validation&amp;revision={{ revision.number }}">{{ t("scene.validate") }}</a>
+            {% if revision.status == "passed" and not revision.published %}
+            <button class="text-btn" data-action="publish" data-scene="{{ scene.id }}" data-revision="{{ revision.number }}">{{ t("scene.publish") }}</button>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+
+  {% if scenario %}
+  {{ m.spec_tables(scenario) }}
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("scene.settings") }}</h2></div>
+    <form class="panel-body stack" data-action="scene-settings" data-scene="{{ scene.id }}">
+      <label class="field">{{ t("scene.base_url") }}
+        <input type="url" name="baseUrl" value="{{ scene.base_url or '' }}" placeholder="{{ default_base_url or 'https://' }}">
+        <span class="cell-sub">{{ t("scene.base_url_hint", default=default_base_url or "—") }}</span>
+      </label>
+      <div><button class="button" type="submit">{{ t("scene.save_settings") }}</button></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("scene.recent_runs") }}</h2><a class="text-btn" href="/runs?scene={{ scene.id }}">{{ t("scene.all_runs") }}</a></div>
+    {% if runs %}{{ m.run_rows(runs, show_scene=false) }}{% else %}<div class="empty">{{ t("scene.no_runs") }}</div>{% endif %}
+  </section>
+</div>
+{% endblock %}

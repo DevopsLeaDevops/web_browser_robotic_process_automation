@@ -7,13 +7,12 @@ dependencies = [
   "rpa-core",
   "rpa-runner",
   "rpa-worker",
-  # 版本下限在 uv.lock 產生後對齊實際解析到的版本
-  "fastapi>=0.115.0",
-  "uvicorn>=0.32.0",
+  "fastapi>=0.143.0",
+  "uvicorn>=0.54.0",
   "jinja2>=3.1.6",
   # 資料庫：SQLite 與 PostgreSQL 共用模型與遷移（ADR 0008）
-  "sqlalchemy>=2.0.36",
-  "alembic>=1.14.0",
+  "sqlalchemy>=2.1.4",
+  "alembic>=1.20.0",
 ]
 
 [tool.uv.sources]

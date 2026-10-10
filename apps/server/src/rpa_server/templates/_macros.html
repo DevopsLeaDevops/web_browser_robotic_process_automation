@@ -1,0 +1,86 @@
+{% macro rules(spec) %}
+{% set items = [] %}
+{% if spec.enum is not none %}{% set _ = items.append("enum: " ~ (spec.enum | compact_json)) %}{% endif %}
+{% if spec.min_length is not none %}{% set _ = items.append("minLength: " ~ spec.min_length) %}{% endif %}
+{% if spec.max_length is not none %}{% set _ = items.append("maxLength: " ~ spec.max_length) %}{% endif %}
+{% if spec.pattern is not none %}{% set _ = items.append("pattern: " ~ spec.pattern) %}{% endif %}
+{% if spec.minimum is not none %}{% set _ = items.append("minimum: " ~ (spec.minimum | num)) %}{% endif %}
+{% if spec.maximum is not none %}{% set _ = items.append("maximum: " ~ (spec.maximum | num)) %}{% endif %}
+{% if items %}<code>{{ items | join(", ") }}</code>{% else %}—{% endif %}
+{% endmacro %}
+
+{% macro badge(status, label) %}<span class="badge {{ badge_color(status) }}" data-status="{{ status }}">{{ label }}</span>{% endmacro %}
+
+{% macro run_badge(status) %}{{ badge(status, t("status." + status)) }}{% endmacro %}
+
+{% macro revision_badge(revision) %}
+{% if revision.published %}{{ badge("published", t("revision.published")) }} {% endif %}{{ badge(revision.status, t("revision." + revision.status)) }}
+{% endmacro %}
+
+{% macro time(value) %}{% if value %}<time datetime="{{ iso(value) }}">{{ display_time(value) }}</time>{% else %}—{% endif %}{% endmacro %}
+
+{% macro run_rows(runs, show_scene=true) %}
+<div class="table-scroll">
+  <table>
+    <thead><tr>
+      <th>{{ t("runs.col_run") }}</th>
+      {% if show_scene %}<th>{{ t("runs.col_scene") }}</th>{% endif %}
+      <th>{{ t("runs.col_revision") }}</th>
+      <th>{{ t("runs.col_purpose") }}</th>
+      <th>{{ t("runs.col_status") }}</th>
+      <th class="numeric">{{ t("runs.col_duration") }}</th>
+      <th>{{ t("runs.col_actions") }}</th>
+    </tr></thead>
+    <tbody>
+    {% for run in runs %}
+      <tr data-run="{{ run.id }}">
+        <td><span class="tag mono">{{ run.id }}</span><span class="cell-sub">{{ time(run.created_at) }}</span></td>
+        {% if show_scene %}<td><a href="/scenes/{{ run.scene_id }}">{{ run.scene_id }}</a> {{ run.scene_name }}{% if run.category %}<span class="cell-sub">{{ run.category }}</span>{% endif %}</td>{% endif %}
+        <td>v{{ run.revision_number }}</td>
+        <td>{{ t("purpose." + run.purpose) }}</td>
+        <td>{{ run_badge(run.status) }}</td>
+        <td class="numeric">{% if run.duration_seconds is not none %}{{ "%.1f"|format(run.duration_seconds) }} s{% else %}—{% endif %}</td>
+        <td><a class="text-btn" href="/runs/{{ run.id }}">{{ t("runs.view") }}</a>{% if run.finished %} <a class="text-btn" href="/runs/{{ run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% macro spec_tables(scenario) %}
+<div class="two-col">
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}</span></div>
+    {% if scenario.inputs %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("spec.type") }}</th><th>{{ t("spec.default") }}</th><th>{{ t("spec.rules") }}</th></tr></thead>
+      <tbody>
+      {% for name, spec in scenario.inputs.items() %}
+        <tr><td><code>{{ name }}</code>{% if spec.default is none %} <span class="tag">{{ t("spec.required") }}</span>{% endif %}{% if spec.description %}<span class="cell-sub">{{ spec.description }}</span>{% endif %}</td>
+          <td>{{ spec.type }}</td>
+          <td>{% if spec.default is not none %}<code>{{ spec.default | compact_json }}</code>{% else %}—{% endif %}</td>
+          <td class="rules">{{ rules(spec) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("spec.no_inputs") }}</div>{% endif %}
+  </section>
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("spec.outputs") }}</h2><span class="muted">{{ scenario.outputs | length }}</span></div>
+    {% if scenario.outputs %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("spec.type") }}</th><th>{{ t("spec.from") }}</th><th>{{ t("spec.rules") }}</th></tr></thead>
+      <tbody>
+      {% for name, spec in scenario.outputs.items() %}
+        <tr><td><code>{{ name }}</code>{% if spec.description %}<span class="cell-sub">{{ spec.description }}</span>{% endif %}</td>
+          <td>{{ spec.type }}</td>
+          <td>{% if spec.from_ %}<code>{{ spec.from_ }}</code>{% else %}{{ t("spec.from_script") }}{% endif %}</td>
+          <td class="rules">{{ rules(spec) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("spec.no_outputs") }}</div>{% endif %}
+  </section>
+</div>
+{% endmacro %}

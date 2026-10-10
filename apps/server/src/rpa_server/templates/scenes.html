@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block description %}{{ t("scenes.description") }}{% endblock %}
+{% block actions %}
+{% if can_import %}<button class="button" data-action="import">{{ t("scenes.import") }}</button>{% endif %}
+<button class="button primary" data-action="new-scene">{{ t("scenes.new") }}</button>
+{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="four-col">
+    <div class="panel panel-body stat"><span class="muted">{{ t("scenes.stat_scenes") }}</span><div class="value">{{ stats.scenes }}</div></div>
+    <div class="panel panel-body stat"><span class="muted">{{ t("scenes.stat_published") }}</span><div class="value">{{ stats.published }}</div></div>
+    <div class="panel panel-body stat"><span class="muted">{{ t("scenes.stat_runs") }}</span><div class="value">{{ stats.runs }}</div></div>
+    <div class="panel panel-body stat"><span class="muted">{{ t("scenes.stat_passed") }}</span><div class="value">{{ stats.passed }}</div></div>
+  </div>
+  <form class="toolbar panel" method="get" action="/scenes" data-auto-submit>
+    <label class="grow">{{ t("scenes.search") }} <input type="search" name="q" value="{{ query }}" placeholder="{{ t('scenes.search_placeholder') }}"></label>
+    <label>{{ t("scenes.category") }} <select name="category">
+      <option value="">{{ t("scenes.all_categories") }}</option>
+      {% for item in categories %}<option{% if item == category %} selected{% endif %}>{{ item }}</option>{% endfor %}
+    </select></label>
+    <button class="button" type="submit">{{ t("scenes.filter") }}</button>
+  </form>
+  {% if scenes %}
+  <div id="cards" class="grid">
+    {% for scene in scenes %}
+    <article class="panel panel-body" data-scene="{{ scene.id }}">
+      <div class="card-meta">
+        <span class="tag">{{ scene.id }}</span>
+        {% if scene.published %}{{ m.badge("published", t("revision.published")) }}{% else %}{{ m.badge(scene.latest_status, t("revision." + scene.latest_status)) }}{% endif %}
+        <span class="muted">v{{ scene.latest_number }}{% if scene.published and scene.published_number != scene.latest_number %} · {{ t("scenes.published_version", number=scene.published_number) }}{% endif %}</span>
+      </div>
+      <h2><a href="/scenes/{{ scene.id }}">{{ scene.name }}</a></h2>
+      <div class="card-meta">
+        <div class="thumb" aria-hidden="true"><b></b><i></i><i></i></div>
+        <div><strong>{{ scene.category or t("scenes.no_category") }}</strong><span class="cell-sub">{{ t("kind." + scene.kind) }}{% if scene.description %}<br>{{ scene.description }}{% endif %}</span></div>
+      </div>
+      <div class="card-links">
+        <a class="text-btn" href="/scenes/{{ scene.id }}/edit">{{ t("scenes.link_content") }}</a>
+        <a class="text-btn" href="/scenes/{{ scene.id }}">{{ t("scenes.link_versions") }}</a>
+        <a class="text-btn" href="/runs?scene={{ scene.id }}">{{ t("scenes.link_runs") }}</a>
+      </div>
+      <div class="card-footer">
+        <a class="button" href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("scenes.validate") }}</a>
+        {% if scene.published %}
+        <a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution">{{ t("scenes.run") }}</a>
+        {% else %}
+        <button class="button primary" disabled title="{{ t('scenes.run_disabled') }}">{{ t("scenes.run") }}</button>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">{% if query or category %}{{ t("scenes.no_match") }}{% else %}{{ t("scenes.empty") }}{% endif %}</div>
+  {% endif %}
+</div>
+<template id="new-scene-form">
+  <div class="notice">{{ t("scenes.new_notice") }}</div>
+  <label>{{ t("scenes.new_id") }}<input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="ba-003" autocomplete="off"></label>
+  <label>{{ t("scenes.new_name") }}<input name="name" required maxlength="200"></label>
+  <label>{{ t("scenes.new_category") }}<input name="category" maxlength="100" value="{{ category or '' }}"></label>
+  <p class="form-error" role="alert"></p>
+</template>
+{% endblock %}

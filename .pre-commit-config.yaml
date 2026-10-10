@@ -1,6 +1,6 @@
 # 安裝：uv run pre-commit install
 # ruff 與 pyright 走本機 uv 環境，版本跟 uv.lock 一致，不在這裡另外鎖版本。
-exclude: ^docs/(design-system|prototypes)/
+exclude: ^(docs/(design-system|prototypes)/|apps/server/src/rpa_server/static/(portal\.css|shell\.js)$)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}<a href="/scenes">{{ t("nav.scenes") }}</a> › <a href="/scenes/{{ scene.id }}">{{ scene.id }}</a> › {{ t("purpose." + purpose) }}{% endblock %}
+{% block description %}{{ t("run_form.description_" + purpose, number=revision.number, name=scene.name) }}{% endblock %}
+{% block actions %}<a class="button" href="/scenes/{{ scene.id }}">{{ t("edit.back") }}</a>{% endblock %}
+{% block content %}
+<form class="stack" id="run-form" data-scene="{{ scene.id }}" data-purpose="{{ purpose }}" data-revision="{{ revision.number }}">
+  <div class="notice{% if purpose == 'validation' %} warn{% endif %}">{{ t("run_form.notice_" + purpose) }}</div>
+  <section class="panel" id="problems" hidden>
+    <div class="panel-header"><h2>{{ t("run_form.problems") }}</h2></div>
+    <ul class="panel-body checklist" id="problem-list"></ul>
+  </section>
+  <div class="two-col">
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("run_form.inputs") }}</h2><span class="muted">JSON</span></div>
+      <div class="panel-body stack">
+        <label class="field">{{ t("run_form.inputs_label") }}
+          <textarea class="code-editor" name="inputs" rows="10" spellcheck="false">
+{{ defaults | pretty_json }}</textarea>
+        </label>
+        <span class="cell-sub">{{ t("run_form.inputs_hint") }}</span>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("run_form.options") }}</h2></div>
+      <div class="panel-body stack">
+        <label class="field">{{ t("run_form.engine") }}
+          <select name="engine">
+            <option value="">{{ t("run_form.engine_default", engine=scenario.browser.engine) }}</option>
+            {% for engine in engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field">{{ t("run_form.base_url") }}
+          <input type="url" name="baseUrl" value="{{ base_url or '' }}" placeholder="https://">
+          <span class="cell-sub">{{ t("run_form.base_url_hint") }}</span>
+        </label>
+        <div><button class="button primary" type="submit" data-action="submit-run">{{ t("run_form.submit_" + purpose) }}</button></div>
+      </div>
+    </section>
+  </div>
+  {{ m.spec_tables(scenario) }}
+</form>
+{% endblock %}
