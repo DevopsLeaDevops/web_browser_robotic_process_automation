@@ -5,13 +5,13 @@
   "cli.lang.invalid": "不支持 {value}，可用的语言：{choices}。",
   "cli.options_metavar": "[选项]",
   "cli.subcommand_metavar": "命令 [参数]...",
-  "cli.validate.help": "校驗場景檔，指出錯誤所在的檔案、行號、步驟與欄位。可以傳入檔案或資料夾；資料夾會檢查底下所有 .yaml 與 .yml。全部通過時退出碼為 0，否則為 1。",
-  "cli.validate.short_help": "校驗場景檔。",
-  "cli.validate.paths_metavar": "路徑...",
-  "cli.validate.format_help": "輸出格式：text 給人看，json 給程式與 AI 使用。",
-  "cli.validate.no_files": "{path} 裡找不到 .yaml 或 .yml 檔。",
-  "cli.validate.summary.ok": "檢查 {files} 個檔案，全部通過。",
-  "cli.validate.summary.failed": "檢查 {files} 個檔案，{invalid} 個未通過，共 {issues} 個問題。",
-  "cli.schema.help": "輸出場景 DSL 的 JSON Schema，給編輯器自動補全、AI 生成與前端使用。",
-  "cli.schema.short_help": "輸出場景 DSL 的 JSON Schema。"
+  "cli.validate.help": "校验场景档，指出错误所在的文件、行号、步骤与字段。可以传入文件或文件夹；文件夹会检查底下所有 .yaml 与 .yml。全部通过时退出码为 0，否则为 1。",
+  "cli.validate.short_help": "校验场景档。",
+  "cli.validate.paths_metavar": "路径...",
+  "cli.validate.format_help": "输出格式：text 给人看，json 给程序与 AI 使用。",
+  "cli.validate.no_files": "{path} 里找不到 .yaml 或 .yml 档。",
+  "cli.validate.summary.ok": "检查 {files} 个文件，全部通过。",
+  "cli.validate.summary.failed": "检查 {files} 个文件，{invalid} 个未通过，共 {issues} 个问题。",
+  "cli.schema.help": "输出场景 DSL 的 JSON Schema，给编辑器自动补全、AI 生成与前端使用。",
+  "cli.schema.short_help": "输出场景 DSL 的 JSON Schema。"
 }
