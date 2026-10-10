@@ -234,9 +234,14 @@ def _snapshot(path: Path, scenario: Scenario, folder: Path) -> tuple[Path, str]:
     return target / path.name, digest.hexdigest()
 
 
-def _environment(secrets: Mapping[str, str], deadline: Deadline) -> dict[str, str]:
+def _environment(
+    secrets: Mapping[str, str], deadline: Deadline, engine: str | None = None
+) -> dict[str, str]:
+    """子程序的環境變數：Secrets、剩餘秒數 RPA_DEADLINE_SECONDS、瀏覽器 RPA_BROWSER。"""
     env = {**os.environ, **secrets, "PYTHONIOENCODING": "utf-8"}
     env["RPA_DEADLINE_SECONDS"] = f"{max(0, deadline.remaining_ms()) / 1000:.3f}"
+    if engine:
+        env["RPA_BROWSER"] = engine
     return env
 
 
@@ -291,7 +296,9 @@ def execute(
         current.status = failure.status
         current.message = mask(failure.message, secrets)
         result.status = "timed_out" if failure.status == "timed_out" else "failed"
-        result.error = current.message
+        # 子程序寫在 diagnostic.json 的錯誤（例如找不到元素）比階段說明更具體，一併保留
+        detail = result.error
+        result.error = f"{current.message}；{detail}" if detail else current.message
     except KeyboardInterrupt:
         current.status = "cancelled"
         current.message = t("run.cancelled")
@@ -377,7 +384,8 @@ def _automation_stage(
         command += ["--base-url", base_url] if base_url else []
         command += ["--headed"] if headed else []
     try:
-        _run_process(command, folder / AUTOMATION_LOG, deadline, _environment(secrets, deadline))
+        env = _environment(secrets, deadline, engine or scenario.browser.engine)
+        _run_process(command, folder / AUTOMATION_LOG, deadline, env)
     finally:
         _timed(stage, started)
         diagnostic = folder / DIAGNOSTIC

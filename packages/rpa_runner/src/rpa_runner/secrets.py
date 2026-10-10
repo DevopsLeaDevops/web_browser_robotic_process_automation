@@ -5,7 +5,7 @@
 """
 
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from typing import Final
 
 from rpa_core.dsl import Scenario
@@ -26,10 +26,9 @@ def missing_secrets(scenario: Scenario, environ: Mapping[str, str] | None = None
     return [name for name in scenario.secrets if name not in source]
 
 
-def mask(text: str, secrets: Mapping[str, str] | Iterable[str]) -> str:
+def mask(text: str, secrets: Mapping[str, str]) -> str:
     """把文字中出現的 secret 值換成 ***（長度 3 以下的值不遮罩，避免把一般文字也蓋掉）。"""
-    values: list[str] = list(secrets.values()) if isinstance(secrets, Mapping) else list(secrets)
-    for value in sorted(values, key=len, reverse=True):
+    for value in sorted(secrets.values(), key=len, reverse=True):
         if len(value) > 3:
             text = text.replace(value, MASK)
     return text

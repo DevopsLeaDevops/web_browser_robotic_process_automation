@@ -23,7 +23,14 @@ from rpa_core.dsl import (
     validate_file,
 )
 
-__all__ = ["EXIT_INVALID", "build_schema_command", "build_validate_command", "collect_files"]
+__all__ = [
+    "EXIT_INVALID",
+    "build_schema_command",
+    "build_validate_command",
+    "collect_files",
+    "display_path",
+    "issue_line",
+]
 
 EXIT_INVALID: Final = 1
 """有任何檔案沒有通過校驗時的退出碼。"""
@@ -64,7 +71,7 @@ def collect_files(paths: Iterable[Path]) -> tuple[list[Path], list[Path]]:
     return list(files), empty_dirs
 
 
-def _display(path: Path) -> str:
+def display_path(path: Path) -> str:
     """輸出用的路徑：在目前目錄底下就用相對路徑，一律用 / 分隔。"""
     try:
         return path.resolve().relative_to(Path.cwd().resolve()).as_posix()
@@ -72,7 +79,7 @@ def _display(path: Path) -> str:
         return path.as_posix()
 
 
-def _issue_line(path: str, issue: Issue) -> str:
+def issue_line(path: str, issue: Issue) -> str:
     position = issue.position
     location = f"{path}:{position.line}:{position.column}" if position else path
     return f"{click.style(location, bold=True)}: {format_issue(issue)}"
@@ -94,11 +101,11 @@ def _issue_json(issue: Issue) -> dict[str, object]:
 
 def _report_text(checked: Sequence[_Checked], empty_dirs: Sequence[Path]) -> None:
     for directory in empty_dirs:
-        click.echo(t("cli.validate.no_files", path=_display(directory)), err=True)
+        click.echo(t("cli.validate.no_files", path=display_path(directory)), err=True)
     for item in checked:
-        display = _display(item.path)
+        display = display_path(item.path)
         for issue in item.result.issues:
-            click.echo(_issue_line(display, issue))
+            click.echo(issue_line(display, issue))
     invalid = sum(1 for item in checked if not item.result.ok)
     issues = sum(len(item.result.issues) for item in checked)
     if invalid:
@@ -113,13 +120,13 @@ def _report_json(checked: Sequence[_Checked], empty_dirs: Sequence[Path]) -> Non
     report = {
         "files": [
             {
-                "path": _display(item.path),
+                "path": display_path(item.path),
                 "valid": item.result.ok,
                 "issues": [_issue_json(issue) for issue in item.result.issues],
             }
             for item in checked
         ],
-        "emptyDirectories": [_display(directory) for directory in empty_dirs],
+        "emptyDirectories": [display_path(directory) for directory in empty_dirs],
         "summary": {
             "files": len(checked),
             "invalid": sum(1 for item in checked if not item.result.ok),
@@ -194,9 +201,9 @@ def build_schema_command() -> click.Command:
             return
         result = validate_file(scenario)
         if result.scenario is None:
-            display = _display(scenario)
+            display = display_path(scenario)
             for issue in result.issues:
-                click.echo(_issue_line(display, issue), err=True)
+                click.echo(issue_line(display, issue), err=True)
             click.get_current_context().exit(EXIT_INVALID)
             return
         build = inputs_json_schema if part == "inputs" else outputs_json_schema
