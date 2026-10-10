@@ -33,7 +33,7 @@
             <tr><td>後端 API</td><td>FastAPI</td><td>Django</td><td>與 DSL 共用同一套 Pydantic 模型，自動產生 OpenAPI<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>
             <tr><td>資料庫</td><td>SQLite（開發、原型）與 PostgreSQL（正式環境），SQLAlchemy 2.0 + Alembic</td><td>只用 PostgreSQL</td><td>開發不必安裝資料庫；正式環境需要併發寫入與多個 worker；CI 兩種都測<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M7</td></tr>
             <tr><td>任務佇列與排程</td><td>PostgreSQL 佇列（Procrastinate）；SQLite 模式在 API 程序內執行</td><td>Celery + Redis</td><td>少一個元件，原生 asyncio，支援定時任務<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
-            <tr><td>產物存儲</td><td>MinIO（S3 相容）</td><td>共用磁碟</td><td>多個 worker 的截圖、Trace、下載檔需要集中存放；本機開發用本地目錄</td><td>M9</td></tr>
+            <tr><td>產物存儲</td><td>S3 相容的物件儲存（產品在 M9 前選定）</td><td>共用磁碟</td><td>多個 worker 的截圖、Trace、下載檔需要集中存放；程式只依賴 S3 介面，換產品不用改程式碼；本機開發用本地目錄。原定的 MinIO 社群版已在 2026 年 4 月停止維護</td><td>M9</td></tr>
             <tr><td>前端</td><td>React + TypeScript + Vite</td><td>NiceGUI、HTMX</td><td>步驟編輯器互動很多，純 Python 方案難做好<small><a href="../adr/0004-react-frontend.html">ADR 0004</a></small></td><td>M8</td></tr>
             <tr><td>介面樣式</td><td>介面設計系統 v1.0</td><td>—</td><td>同事交付的視覺契約，文檔站與 Web UI 共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支援多套件；ruff 一個工具處理 lint 與格式化</td><td>M0</td></tr>

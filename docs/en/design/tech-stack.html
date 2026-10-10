@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:9d5ee84c605fb30c">
+<meta name="translation-source" content="sha256:db16abf7779c0e07">
 <title>Tech stack · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -34,7 +34,7 @@
             <tr><td>Backend API</td><td>FastAPI</td><td>Django</td><td>Shares the same Pydantic models as the DSL and generates OpenAPI automatically<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>
             <tr><td>Database</td><td>SQLite (development, prototypes) and PostgreSQL (production), SQLAlchemy 2.0 + Alembic</td><td>PostgreSQL only</td><td>No database to install for development; production needs concurrent writes and several workers; CI tests both<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M7</td></tr>
             <tr><td>Task queue and scheduling</td><td>PostgreSQL queue (Procrastinate); in SQLite mode, runs inside the API process</td><td>Celery + Redis</td><td>One component fewer, native asyncio, supports periodic tasks<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
-            <tr><td>Artifact storage</td><td>MinIO (S3 compatible)</td><td>Shared disk</td><td>Screenshots, traces and downloads from many workers must be stored centrally; local development uses a local directory</td><td>M9</td></tr>
+            <tr><td>Artifact storage</td><td>S3-compatible object storage (product chosen before M9)</td><td>Shared disk</td><td>Screenshots, traces and downloads from many workers must be stored centrally; the code depends only on the S3 API, so the product can change without code changes; local development uses a local directory. MinIO Community Edition, the original choice, stopped being maintained in April 2026</td><td>M9</td></tr>
             <tr><td>Frontend</td><td>React + TypeScript + Vite</td><td>NiceGUI, HTMX</td><td>The step editor is highly interactive, which pure-Python options handle poorly<small><a href="../adr/0004-react-frontend.html">ADR 0004</a></small></td><td>M8</td></tr>
             <tr><td>Interface style</td><td>Interface design system v1.0</td><td>—</td><td>A visual contract delivered by a colleague, shared by the docs site and the web UI<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>Project tooling</td><td>uv workspace, ruff, pyright (strict), pytest, pre-commit</td><td>poetry, mypy</td><td>uv is fast and supports multiple packages natively; ruff handles both linting and formatting</td><td>M0</td></tr>
