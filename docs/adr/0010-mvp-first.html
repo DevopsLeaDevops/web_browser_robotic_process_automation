@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0010 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0010" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0010：MVP 先行與路線圖 v2</h1>
+      <p>以 MVP 原型為準，先交付單機、單使用者、序列執行的 MVP（M2～M6），多用戶與分散式移到 MVP 之後。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-10</dd>
+        <dt>影響範圍</dt><dd>路線圖、系統架構、多用戶設計、M2 之後的所有里程碑</dd>
+        <dt>相關</dt><dd><a href="../roadmap.html">路線圖</a>、<a href="0008-sqlite-and-postgresql.html">ADR 0008</a>、<a href="0009-scenario-contract.html">ADR 0009</a>、<a href="0011-fastapi-jinja.html">ADR 0011</a>、<a href="../prototypes/mvp/index.html">MVP 原型</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>原路線圖依「CLI → 流程能力 → 錄製 → AI → 頁面原型 → 管理後端 → Web UI → 營運」排序，管理介面要到 M8 才出現，多用戶在 M7 就要完成。</p>
+          <p>MVP 原型描述了第一版要交付的產品：場景管理、錄製與調試、報告、自由試驗場，並且明確把任意 DAG、分散式叢集、多租戶權限與跨環境排程排除在 MVP 之外。原型也附了一條已用真實瀏覽器跑通的 Python 鏈路。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>MVP 範圍。</strong>單機、單使用者、序列執行；SQLite 存元資料，檔案目錄存腳本快照與執行產物。</li>
+            <li><strong>新的里程碑順序。</strong>M1.1 場景契約 → M2 Runner → M3 管理 Portal → M4 場景生產與登入 → M5 AI 助手 → M6 自由試驗場（MVP 完成）→ M7 流程能力 → M8 多用戶與治理 → M9 營運。</li>
+            <li><strong>原型就是頁面原型。</strong>原 M6 的頁面原型由 MVP 原型交付；原 Web UI 拆進 M3～M6，每個階段交付自己的頁面，沿用原型的頂部一級、左側二級版面。</li>
+            <li><strong>原型收進倉庫。</strong>放在 <code>docs/prototypes/mvp/</code>，比照設計系統以 MANIFEST.json 校驗，不改寫、不翻譯；原型的模擬結果不能當成真實驗證。</li>
+            <li><strong>版本與發布門檻。</strong>場景版本不可變：草稿 → 驗證中 → 通過或失敗 → 已發布；改過腳本、Schema 或預設值就要重新驗證，發布的版本必須就是驗證通過的版本。</li>
+            <li><strong>瀏覽器。</strong>Chromium 與 Firefox 都支援，CI 都測；場景以 <code>browser.engine</code> 指定。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>使用者在 M3 就能在瀏覽器裡操作，比原計畫早五個里程碑。</li>
+            <li>每個階段都以原型的情境驗收，需求有共同的參照。</li>
+            <li>多用戶、分散式等成本高的能力，等 MVP 驗證方向後再做。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>M3～M6 的頁面在多用戶（M8）時要補上權限與專案範圍；資料模型從一開始就預留 owner 與 project 欄位以降低成本。</li>
+            <li>條件、迴圈、上傳下載等流程能力延到 M7，MVP 期間較複雜的場景要用 Python 腳本逃生門。</li>
+            <li>每一頁都直接連到後端，原型與實作的差異要在各階段的 PR 中說明。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>維持原路線圖</td><td>管理介面太晚出現，與原型描述的 MVP 不一致。</td></tr>
+              <tr><td>一開始就做多用戶與 PostgreSQL</td><td>原型明確排除多租戶；先做會拖慢 MVP，而 ADR 0008 已保留之後切換的路。</td></tr>
+              <tr><td>直接把原型的 localStorage 前端接上後端</td><td>原型是展示用的單一 JavaScript 檔；正式頁面改由伺服器端渲染（ADR 0011），只沿用版面與流程。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

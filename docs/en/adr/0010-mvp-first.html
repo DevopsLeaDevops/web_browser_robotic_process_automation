@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:0000000000000000">
+<title>ADR 0010 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0010" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0010: MVP first and roadmap v2</h1>
+      <p>Following the MVP prototype, deliver a single-machine, single-user MVP with serial execution first (M2–M6); multiple users and distribution move after the MVP.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-10</dd>
+        <dt>Scope</dt><dd>Roadmap, system architecture, multi-user design, every milestone from M2 on</dd>
+        <dt>Related</dt><dd><a href="../roadmap.html">Roadmap</a>, <a href="0008-sqlite-and-postgresql.html">ADR 0008</a>, <a href="0009-scenario-contract.html">ADR 0009</a>, <a href="0011-fastapi-jinja.html">ADR 0011</a>, <a href="../../prototypes/mvp/index.html">MVP prototype</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The original roadmap went "CLI → flow features → recording → AI → page prototypes → management backend → Web UI → operations": the management interface would appear only in M8, and multiple users had to be done by M7.</p>
+          <p>The MVP prototype describes the first product to deliver: scenario management, recording and debugging, reports, and a playground. It explicitly leaves arbitrary DAGs, distributed clusters, multi-tenant permissions and cross-environment scheduling out of the MVP. It also comes with a Python chain already run in a real browser.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>MVP scope.</strong> Single machine, single user, serial execution; SQLite for metadata and a file directory for script snapshots and run artifacts.</li>
+            <li><strong>New milestone order.</strong> M1.1 scenario contract → M2 runner → M3 management portal → M4 scenario production and login → M5 AI assistant → M6 playground (MVP done) → M7 flow features → M8 multiple users and governance → M9 operations.</li>
+            <li><strong>The prototype is the page prototype.</strong> The page prototypes of the old M6 are delivered by the MVP prototype; the old Web UI is split across M3–M6, each delivering its own pages with the prototype's top-level and left-side navigation.</li>
+            <li><strong>The prototype lives in the repository.</strong> It is kept in <code>docs/prototypes/mvp/</code> and checked against MANIFEST.json like the design system, without edits or translation; its simulated results never count as real validation.</li>
+            <li><strong>Revisions and the publishing gate.</strong> Scenario revisions are immutable: draft → validating → passed or failed → published. Changing scripts, schemas or defaults requires validating again, and the published revision must be exactly the one that passed.</li>
+            <li><strong>Browsers.</strong> Chromium and Firefox are both supported and both tested in CI; a scenario chooses one with <code>browser.engine</code>.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Users work in the browser from M3, five milestones earlier than planned.</li>
+            <li>Every stage is accepted against the prototype's scenarios, giving the requirements a shared reference.</li>
+            <li>Expensive capabilities such as multiple users and distribution wait until the MVP has proven the direction.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>The M3–M6 pages need permissions and project scope added for multiple users (M8); the data model reserves owner and project fields from the start to keep that cheap.</li>
+            <li>Conditions, loops, uploads, downloads and other flow features move to M7; during the MVP, complex scenarios use the Python script escape hatch.</li>
+            <li>Every page talks to the backend directly, so differences between the prototype and the implementation are explained in each stage's PR.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Keep the original roadmap</td><td>The management interface arrives too late and does not match the MVP the prototype describes.</td></tr>
+              <tr><td>Build multiple users and PostgreSQL from the start</td><td>The prototype explicitly excludes multi-tenancy; doing it first slows the MVP, and ADR 0008 already keeps the way open to switch later.</td></tr>
+              <tr><td>Connect the prototype's localStorage frontend to a backend directly</td><td>The prototype is a single demo JavaScript file; the real pages are rendered on the server (ADR 0011) and keep only its layout and flows.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

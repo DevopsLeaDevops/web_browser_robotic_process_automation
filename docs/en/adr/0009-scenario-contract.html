@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:0000000000000000">
+<title>ADR 0009 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0009" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0009: Scenario contract and independent assertions</h1>
+      <p>Every scenario has inputs, outputs and independent assertions; "the script did not raise" is not success, and outputs are published only after the independent assertions pass. The DSL comes first; Python scripts are a controlled escape hatch.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-10</dd>
+        <dt>Scope</dt><dd>rpa-core (DSL), rpa-runner (M2), the management portal, recording and AI generation, workflows</dd>
+        <dt>Related</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a>, <a href="0010-mvp-first.html">ADR 0010</a>, <a href="../design/dsl.html">Scenario DSL</a>, <a href="../../prototypes/mvp/index.html">MVP prototype</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The MVP prototype proved an execution contract with a real Python / Playwright example: inputs are validated against a JSON Schema before the browser starts; the automation only operates the page and records "page facts"; a separate, independent assertion compares the facts with the inputs; only when everything passes are the outputs published and handed to the next scenario.</p>
+          <p>The M1 DSL had only <code>params</code> and in-step <code>expect</code>: success meant "no step failed", there were no outputs, and scenarios could not be chained. The prototype's flows, recording, AI generation and workflows all depend on this contract.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Scenario contract.</strong> Every scenario can declare <code>inputs</code> and <code>outputs</code>. Types and constraints are a common subset of JSON Schema 2020-12 and can be exported as JSON Schema. <code>params</code> is renamed to <code>inputs</code>.</li>
+            <li><strong>Page facts.</strong> The results of <code>extract</code> go into <code>facts</code>; facts only describe what the page showed and do not mean success.</li>
+            <li><strong>Independent assertions.</strong> <code>verify</code> compares facts with inputs after the automation ends. A scenario with outputs must have verify.</li>
+            <li><strong>Outputs are published last.</strong> Input validation → automation → independent assertions → output validation; output.json exists only if all of them pass, and a failure at any stage leaves no successful outputs.</li>
+            <li><strong>Overall deadline.</strong> <code>deadline</code> limits the whole run; each step may use only the time that remains.</li>
+            <li><strong>DSL first, Python scripts as an escape hatch.</strong> A scenario the DSL cannot express may use <code>script</code> to name automation.py and assertion.py, following the prototype's command-line contract. Such scenarios are flagged in review, and recording and AI never produce them.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Order of a run</h2><span class="muted">Implemented in M2</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Stage</th><th>Input</th><th>Output</th><th>On failure</th></tr></thead>
+          <tbody>
+            <tr><td>Input validation</td><td>Inputs, inputs declaration</td><td>input.json</td><td>The browser is not started</td></tr>
+            <tr><td>Automation</td><td>steps or automation.py</td><td>facts.json, screenshots, logs</td><td>Stage, error and any screenshot that could be taken are kept</td></tr>
+            <tr><td>Independent assertions</td><td>verify or assertion.py, facts, inputs</td><td>Candidate outputs</td><td>No successful outputs</td></tr>
+            <tr><td>Output validation and publishing</td><td>Candidate outputs, outputs declaration</td><td>output.json</td><td>No successful outputs</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">Every stage is bound by the overall deadline; actions with side effects (such as submitting a form) are never retried automatically after a timeout.</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Success comes with evidence: the report points to the assertion and the fact that did not match.</li>
+            <li>Scenarios can be chained: a downstream input binds to an upstream output, and types are checked before running.</li>
+            <li>The API, the management interface and AI share the same input and output schemas.</li>
+            <li>The DSL stays the default, so recorded and AI output can be validated first; a few complex scenarios still have a way out.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Scenario authors write verify and outputs; simple scenarios that only take screenshots or look at pages can leave them out.</li>
+            <li>Python script scenarios can do anything, so their safety relies on review, permissions and isolated execution.</li>
+            <li>The execution engine supports two kinds of scenarios, and their reports must look the same.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Python scripts first (as in the prototype)</td><td>Most flexible, but recorded and AI output cannot be validated before running, editing in a web page is hard, and the security boundary is unclear (the reasons in <a href="0001-dsl-as-source-of-truth.html">ADR 0001</a> still hold).</td></tr>
+              <tr><td>DSL only</td><td>Simplest, but complex pages have no way out until the DSL grows.</td></tr>
+              <tr><td>Judge success only by in-step expect</td><td>Assertions mix with operations, nothing guarantees that published outputs were checked, and assertions cannot be rerun on their own.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>
