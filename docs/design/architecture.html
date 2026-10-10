@@ -117,7 +117,7 @@
         <table class="wrap">
           <thead><tr><th>套件</th><th>職責</th><th>依賴</th><th>起始</th></tr></thead>
           <tbody>
-            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出、多語言訊息目錄。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、ruamel.yaml、Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出、多語言訊息目錄。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
             <tr><td><code>rpa-runner</code></td><td>執行引擎：步驟處理器註冊表、瀏覽器與上下文管理、產物收集。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
             <tr><td><code>rpa-recorder</code></td><td>本機錄製：注入監聽腳本，把使用者操作轉成 DSL 步驟。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI 生成與選擇器自癒：頁面快照 + 自然語言 → DSL，校驗失敗回饋修正。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>

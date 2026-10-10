@@ -3,7 +3,12 @@ name = "rpa-core"
 version = "0.1.0"
 description = "場景 DSL 模型、校驗與表達式引擎"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  # DSL 模型與校驗、JSON Schema（ADR 0001）
+  "pydantic>=2.13.5",
+  # 讀取場景 YAML；只用它的解析器，轉型規則自己實作（YAML 1.2 core，見 dsl/yaml_loader.py）
+  "pyyaml>=6.0.3",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]

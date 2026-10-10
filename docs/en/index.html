@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:17260fcef09ac24f">
+<meta name="translation-source" content="sha256:16019479e486b054">
 <title>Home · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -25,7 +25,7 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M1</div><span class="muted">DSL v0: the M0 project skeleton is done</span></section>
+      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M2</div><span class="muted">Runner and CLI: the M1 scenario DSL is done</span></section>
       <section class="panel panel-body stat"><span class="muted">Milestones</span><div class="value">10</div><span class="muted">M0 to M9, delivered step by step</span></section>
       <section class="panel panel-body stat"><span class="muted">Architecture decisions</span><div class="value">8</div><span class="muted">All accepted</span></section>
       <section class="panel panel-body stat"><span class="muted">Main language</span><div class="value">Python</div><span class="muted">3.12 or later · TypeScript frontend</span></section>
@@ -40,7 +40,7 @@
 
     <div class="grid">
       <a class="panel panel-body link-card" href="design/positioning.html"><h2>Positioning</h2><p>The problem we solve, the core concepts, and the loop from generation to feedback.</p></a>
-      <a class="panel panel-body link-card" href="design/dsl.html"><h2>Scenario DSL</h2><p>Why a declarative DSL, and roughly what it looks like (draft).</p></a>
+      <a class="panel panel-body link-card" href="design/dsl.html"><h2>Scenario DSL</h2><p>Why a declarative DSL, and the specification of every field and action.</p></a>
       <a class="panel panel-body link-card" href="design/architecture.html"><h2>Architecture</h2><p>Components, data flow and directory layout, and what each package is responsible for.</p></a>
       <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>Tech stack</h2><p>The choice for each layer, the alternatives, and the reasons.</p></a>
       <a class="panel panel-body link-card" href="design/multi-user.html"><h2>Multi-user and internal systems</h2><p>Authentication, permissions, secrets, auditing, and the constraints internal systems bring.</p></a>
@@ -61,11 +61,11 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>Repository status</h2><span class="muted">At the end of M0</span></div>
+        <div class="panel-header"><h2>Repository status</h2><span class="muted">At the end of M1</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>rpa-core</dt><dd>DSL package skeleton; models are added from M1</dd>
-            <dt>rpa-cli</dt><dd><code>rpa --version</code> works; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
+            <dt>rpa-core</dt><dd>Scenario DSL models, YAML loading and validation; examples in <code>examples/</code></dd>
+            <dt>rpa-cli</dt><dd><code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa schema</code> prints the JSON Schema; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
             <dt>Toolchain</dt><dd>uv (dependencies locked in <code>uv.lock</code>), ruff, pyright (strict), pytest, pre-commit</dd>
             <dt>CI</dt><dd>Static checks, tests on Python 3.12 / 3.13, including a Chromium smoke test; the setup scripts run weekly on macOS, Ubuntu and Windows</dd>
             <dt>Docs</dt><dd>This site, in Traditional Chinese, Simplified Chinese and English, with automatic checks for links and translation sync</dd>

@@ -4,5 +4,14 @@
   "cli.lang.help": "介面語言。預設 {default}，也可以用環境變數 {env} 設定。",
   "cli.lang.invalid": "不支援 {value}，可用的語言：{choices}。",
   "cli.options_metavar": "[選項]",
-  "cli.subcommand_metavar": "命令 [參數]..."
+  "cli.subcommand_metavar": "命令 [參數]...",
+  "cli.validate.help": "校驗場景檔，指出錯誤所在的檔案、行號、步驟與欄位。可以傳入檔案或資料夾；資料夾會檢查底下所有 .yaml 與 .yml。全部通過時退出碼為 0，否則為 1。",
+  "cli.validate.short_help": "校驗場景檔。",
+  "cli.validate.paths_metavar": "路徑...",
+  "cli.validate.format_help": "輸出格式：text 給人看，json 給程式與 AI 使用。",
+  "cli.validate.no_files": "{path} 裡找不到 .yaml 或 .yml 檔。",
+  "cli.validate.summary.ok": "檢查 {files} 個檔案，全部通過。",
+  "cli.validate.summary.failed": "檢查 {files} 個檔案，{invalid} 個未通過，共 {issues} 個問題。",
+  "cli.schema.help": "輸出場景 DSL 的 JSON Schema，給編輯器自動補全、AI 生成與前端使用。",
+  "cli.schema.short_help": "輸出場景 DSL 的 JSON Schema。"
 }

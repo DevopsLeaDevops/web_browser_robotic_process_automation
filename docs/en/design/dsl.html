@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:1f9350a76b0996fb">
+<meta name="translation-source" content="sha256:a6a561f1f61a45bf">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,33 +15,39 @@
   <div class="heading">
     <div>
       <h1>Scenario DSL</h1>
-      <p>The single source of truth for scenarios. Written in YAML, stored as JSON, validated with Pydantic models.</p>
+      <p>The single source of truth for scenarios. Written in YAML, stored as JSON, validated with Pydantic models; this page specifies schemaVersion 1.</p>
     </div>
-    <span class="badge amber">Draft · finalized in M1</span>
+    <span class="badge green">schemaVersion 1 · finalized in M1</span>
   </div>
 
   <div class="stack">
-    <div class="notice warn">This page is a draft of the direction; field names and the action list are finalized after discussion in M1. For the background of the decision see <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a>.</div>
+    <div class="notice">The models live in <code>packages/rpa_core/src/rpa_core/dsl/</code>, complete examples in <code>examples/</code>, and the JSON Schema in <code>schema/scenario.v1.json</code>. For the background of the decision see <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a>.</div>
 
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>Example</h2><span class="muted">Illustrative; download is added in M3</span></div>
+        <div class="panel-header"><h2>Example</h2><span class="muted">Excerpt from examples/erp-login.yaml</span></div>
         <div class="panel-body">
-<pre class="source">id: erp-export-report
-name: Log in to the ERP and export the monthly report
+<pre class="source"># yaml-language-server: $schema=../schema/scenario.v1.json
+schemaVersion: 1
+id: erp-login
+name: Log in to the ERP
 params:
-  month: { type: string, default: "2026-09" }
+  user: { type: string, description: Login account }
 secrets: [ERP_PASSWORD]
-browser: { engine: chromium, headless: true }
+browser:
+  baseUrl: https://erp.example.internal
+  viewport: { width: 1280, height: 800 }
+defaults:
+  timeout: 10000
 steps:
   - id: open
     action: goto
-    url: https://erp.example.internal/login
-  - id: login-user
+    url: /login
+  - id: fill-user
     action: fill
-    target: { role: textbox, name: Username }
-    value: "{{ env.ERP_USER }}"
-  - id: login-pass
+    target: { role: textbox, name: Account }
+    value: "{{ params.user }}"
+  - id: fill-password
     action: fill
     target: { label: Password }
     value: "{{ secrets.ERP_PASSWORD }}"
@@ -49,18 +55,12 @@ steps:
     action: click
     target:
       role: button
-      name: Sign in
-      fallback: [{ css: "#login-btn" }]
-  - id: check
+      name: Log in
+      fallback: [{ testId: login-submit }]
+  - id: check-welcome
     action: expect
     target: { text: Welcome back }
-    state: visible
-  - id: export
-    action: download
-    trigger:
-      action: click
-      target: { role: button, name: Export }
-    saveAs: "report-{{ params.month }}.xlsx"</pre>
+    state: visible</pre>
         </div>
       </section>
 
@@ -68,37 +68,168 @@ steps:
         <div class="panel-header"><h2>Design principles</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>Every step has a stable id.</strong> Results, screenshots and logs are filed by step, and nothing gets misaligned when the scenario is edited in the UI.</li>
-            <li><strong>Locators have a priority order.</strong> testId → role + name → label → text → css / xpath. Recording keeps several candidates at once as the basis for self-healing.</li>
-            <li><strong>Conditional waits only.</strong> Fixed-duration sleeps are not allowed; use <code>waitFor</code> to wait for an element, a URL or the network state.</li>
-            <li><strong>Error handling per step.</strong> Each step can set retry, timeout and onError (continue, fail, or jump to another step).</li>
-            <li><strong>Secrets are referenced by name only.</strong> Values are injected at run time and masked automatically in logs and screenshot captions.</li>
-            <li><strong>Expressions are evaluated in a sandbox.</strong> <code>{{ }}</code> is handled by a sandboxed Jinja2 environment and can only read params, env, secrets and the output of earlier steps.</li>
-            <li><strong>Keep an escape hatch.</strong> When the DSL cannot express something, use a controlled <code>script</code> step, which is flagged during review.</li>
+            <li><strong>Every step has a stable id.</strong> Results, screenshots and logs are filed by step, so inserting or deleting steps never shifts them.</li>
+            <li><strong>Locators have a priority order.</strong> testId → role + name → label → placeholder → text → altText → title → css → xpath. The recorder keeps several candidates in fallback as the basis for self-healing.</li>
+            <li><strong>Only conditional waits.</strong> There is no fixed-duration sleep; use <code>waitFor</code> to wait for an element, a URL or a load state.</li>
+            <li><strong>Mistakes are caught early.</strong> Unknown fields, wrong types and YAML's implicit conversions are reported during validation with the file line, step and field.</li>
+            <li><strong>Secrets are referenced by name only.</strong> Values are injected at run time and masked in logs and screenshot captions.</li>
+            <li><strong>Expressions are evaluated in a sandbox.</strong> <code>{{ }}</code> is handled by a Jinja2 sandboxed environment (M3) that can read only params, env, secrets and the outputs of earlier steps.</li>
+            <li><strong>An escape hatch remains.</strong> What the DSL cannot express goes into a controlled <code>script</code> step (after M3), which is flagged during review.</li>
           </ul>
         </div>
       </section>
     </div>
 
-    <section class="panel">
-      <div class="panel-header"><h2>Actions planned for M1</h2></div>
+    <section class="panel" id="scenario">
+      <div class="panel-header"><h2>Scenario fields</h2><span class="muted">All field names are camelCase</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>Action</th><th>Purpose</th><th>Main fields</th></tr></thead>
+          <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
           <tbody>
-            <tr><td><code>goto</code></td><td>Open a URL</td><td>url, waitUntil</td></tr>
-            <tr><td><code>click</code></td><td>Click an element</td><td>target, button, clickCount</td></tr>
-            <tr><td><code>fill</code></td><td>Fill in an input</td><td>target, value</td></tr>
-            <tr><td><code>select</code></td><td>Choose a dropdown option</td><td>target, option</td></tr>
-            <tr><td><code>press</code></td><td>Press a key or key combination</td><td>target, key</td></tr>
-            <tr><td><code>waitFor</code></td><td>Wait until a condition holds</td><td>target, state, url, timeout</td></tr>
-            <tr><td><code>expect</code></td><td>Assert; the run fails if it does not hold</td><td>target, state, text</td></tr>
-            <tr><td><code>extract</code></td><td>Extract data from the page (text, attributes, tables)</td><td>target, as, fields</td></tr>
-            <tr><td><code>screenshot</code></td><td>Save a screenshot as an artifact</td><td>target, fullPage, name</td></tr>
+            <tr><td><code>schemaVersion</code></td><td>Yes</td><td>The DSL version, currently <code>1</code>. It is incremented for incompatible format changes, with a migration.</td></tr>
+            <tr><td><code>id</code></td><td>Yes</td><td>Lowercase letters, digits, <code>-</code> and <code>_</code>, starting with a letter or digit, at most 64 characters. Used in file names and URLs.</td></tr>
+            <tr><td><code>name</code></td><td>Yes</td><td>A name for people.</td></tr>
+            <tr><td><code>description</code></td><td></td><td>A description.</td></tr>
+            <tr><td><code>params</code></td><td></td><td>Parameter declarations keyed by parameter name (letters, digits and <code>_</code>). Each has a <code>type</code> (string, number, integer, boolean; default string), a <code>default</code> and a <code>description</code>; a parameter without a default must be supplied at run time.</td></tr>
+            <tr><td><code>secrets</code></td><td></td><td>A list of secret names such as <code>ERP_PASSWORD</code> (uppercase letters, digits and <code>_</code>). Values never appear in the scenario.</td></tr>
+            <tr><td><code>browser</code></td><td></td><td><code>engine</code> (chromium, firefox, webkit; default chromium), <code>headless</code> (default true), <code>viewport</code> (width, height), <code>baseUrl</code>, <code>locale</code> (for example zh-TW).</td></tr>
+            <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>: the default step timeout.</td></tr>
+            <tr><td><code>steps</code></td><td>Yes</td><td>The list of steps, at least one.</td></tr>
           </tbody>
         </table>
       </div>
+      <div class="diagram-caption">A URL starting with <code>/</code> is appended to <code>browser.baseUrl</code>, so moving a scenario to another environment (test, production) only means changing baseUrl.</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="step">
+        <div class="panel-header"><h2>Common step fields</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt><code>id</code></dt><dd>Required and unique within the scenario. Same format as the scenario id.</dd>
+            <dt><code>action</code></dt><dd>Required; the action name, see the action table below.</dd>
+            <dt><code>name</code></dt><dd>A step description for people.</dd>
+            <dt><code>timeout</code></dt><dd>The timeout of this step as an <strong>integer number of milliseconds</strong>, greater than 0 and at most 3,600,000 (one hour). Falls back to <code>defaults.timeout</code>.</dd>
+          </dl>
+          <p class="muted">retry and onError (continue, fail, jump to a step) are added in M3.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="match">
+        <div class="panel-header"><h2>String matching</h2></div>
+        <div class="panel-body">
+          <p><code>match</code> sets how expect's <code>text</code>, <code>value</code>, <code>url</code>, <code>title</code> and waitFor's <code>url</code> are compared:</p>
+          <dl class="spec-list">
+            <dt><code>contains</code></dt><dd>The default. The text only has to appear, so <code>text: Welcome</code> matches “Welcome back, Alex”.</dd>
+            <dt><code>equals</code></dt><dd>Exactly equal.</dd>
+            <dt><code>regex</code></dt><dd>A regular expression in Python <code>re</code> syntax; it is compiled during validation and reported if invalid.</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="locators">
+      <div class="panel-header"><h2>Locator <code>target</code></h2><span class="muted">Exactly one primary strategy</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Strategy</th><th>Playwright</th><th>Best for</th></tr></thead>
+          <tbody>
+            <tr><td><code>testId</code></td><td>get_by_test_id</td><td>The most stable choice when the system has test attributes</td></tr>
+            <tr><td><code>role</code> (with <code>name</code>)</td><td>get_by_role</td><td>Buttons, links, inputs and so on; role is an ARIA role such as button, textbox, link or row</td></tr>
+            <tr><td><code>label</code></td><td>get_by_label</td><td>Form fields with a label</td></tr>
+            <tr><td><code>placeholder</code></td><td>get_by_placeholder</td><td>Inputs that only have placeholder text</td></tr>
+            <tr><td><code>text</code></td><td>get_by_text</td><td>Text shown on the page</td></tr>
+            <tr><td><code>altText</code></td><td>get_by_alt_text</td><td>Images</td></tr>
+            <tr><td><code>title</code></td><td>get_by_title</td><td>Elements with a title attribute</td></tr>
+            <tr><td><code>css</code></td><td>locator("css=…")</td><td>When nothing else works; avoid generated ids and classes</td></tr>
+            <tr><td><code>xpath</code></td><td>locator("xpath=…")</td><td>Last resort</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt><code>name</code></dt><dd>The accessible name for role, such as the text on a button. Only with role.</dd>
+          <dt><code>exact</code></dt><dd>Text must match exactly (the default is a case-insensitive substring match). For role + name, label, placeholder, text, altText and title.</dd>
+          <dt><code>nth</code></dt><dd>Which element to take when several match: 0 is the first, -1 the last.</dd>
+          <dt><code>hasText</code></dt><dd>Keep only elements that contain this text, for example the row with a given order number.</dd>
+          <dt><code>within</code></dt><dd>Another locator: find the outer element (a table, a dialog) first and search inside it.</dd>
+          <dt><code>fallback</code></dt><dd>Alternative locators tried in order when the primary one fails (used when running in M2 and self-healing in M5). A fallback locator cannot have its own fallback.</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="actions">
+      <div class="panel-header"><h2>Actions</h2><span class="muted">Required fields in bold</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Action</th><th>Purpose</th><th>Fields</th><th>Rules</th></tr></thead>
+          <tbody>
+            <tr><td><code>goto</code></td><td>Open a URL</td><td><strong>url</strong>, waitUntil (load, domcontentloaded, networkidle, commit; default load)</td><td>url is an http(s) URL, about:blank, or a path starting with / with baseUrl set</td></tr>
+            <tr><td><code>click</code></td><td>Click an element</td><td><strong>target</strong>, button (left, right, middle), clickCount (1–3), modifiers (Alt, Control, ControlOrMeta, Meta, Shift)</td><td></td></tr>
+            <tr><td><code>fill</code></td><td>Clear an input and type into it</td><td><strong>target</strong>, <strong>value</strong></td><td>value is a string; an empty string clears the input, numbers must be quoted</td></tr>
+            <tr><td><code>select</code></td><td>Choose dropdown options</td><td><strong>target</strong>, <strong>option</strong></td><td>option is the option's value or visible text; a list selects several</td></tr>
+            <tr><td><code>press</code></td><td>Press a key or key combination</td><td><strong>key</strong> (Enter, Tab, Control+A…), target</td><td>Without target the key goes to the focused element</td></tr>
+            <tr><td><code>waitFor</code></td><td>Wait for a condition</td><td>target + state (visible, hidden, attached, detached), url + match, loadState</td><td>Exactly one of the three conditions</td></tr>
+            <tr><td><code>expect</code></td><td>Assert; the step fails if the condition does not hold</td><td>target with one of state, text, value, count; or no target with one of url, title; match</td><td>state is visible, hidden, enabled, disabled, checked, unchecked or editable</td></tr>
+            <tr><td><code>extract</code></td><td>Extract data from the page</td><td><strong>target</strong>, <strong>as</strong>, get, attribute, multiple, fields</td><td>See below</td></tr>
+            <tr><td><code>screenshot</code></td><td>Save a screenshot as an artifact</td><td>file, target, fullPage</td><td>file is a name without extension and defaults to the step id; fullPage cannot be used with target</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>extract get</dt><dd><code>text</code> (default), <code>value</code>, <code>html</code>, <code>attribute</code> (name it with <code>attribute</code>), <code>table</code> (turns a &lt;table&gt; into a list of records keyed by its header).</dd>
+          <dt>extract multiple</dt><dd>Extract every matching element into a list; by default only the first one.</dd>
+          <dt>extract fields</dt><dd>Turn each element into a record. Keys are field names; each value may set target (relative to the element), get and attribute. With fields, leave out the outer get.</dd>
+          <dt>extract as</dt><dd>The variable name to store the result under, for later steps to use (M3).</dd>
+        </dl>
+      </div>
       <div class="diagram-caption">download, upload, iframes, multiple tabs, conditions and loops are added in M3.</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="yaml">
+        <div class="panel-header"><h2>Writing YAML</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Only YAML 1.2 core rules.</strong> <code>yes</code>, <code>no</code> and <code>on</code> are strings, not booleans; <code>2026-09-01</code> is a string, not a date; <code>12:30</code> is a string, not a base-60 number.</li>
+            <li><strong>No implicit conversion.</strong> A number or true/false in a string field is an error; quote it, for example <code>value: "0123"</code>.</li>
+            <li><strong>No duplicate keys.</strong> A key that appears twice at the same level is reported with the line of its first occurrence.</li>
+            <li><strong>Unknown fields are errors.</strong> When a name is close to a valid one, the correct spelling is suggested, for example fullpage → fullPage.</li>
+            <li><strong>Only plain tags.</strong> <code>!!python/…</code>, <code>!!binary</code> and custom tags are rejected; anchors and aliases are allowed, <code>&lt;&lt;</code> merges are not supported.</li>
+            <li><strong>Files are UTF-8.</strong> A BOM is allowed.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel" id="templates">
+        <div class="panel-header"><h2>Expressions <code>{{ }}</code></h2><span class="muted">Static checks only in M1</span></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>String fields can use <code>{{ params.name }}</code>, <code>{{ secrets.NAME }}</code> and <code>{{ env.NAME }}</code>; evaluation is added in M3.</li>
+            <li>Validation checks that every <code>{{</code> has a matching <code>}}</code>, that the expression is not empty, and that referenced params and secrets are declared.</li>
+            <li>The <code>name</code> and <code>description</code> of scenarios and steps are text for people; they are neither checked nor substituted.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="validate">
+      <div class="panel-header"><h2>Validation: <code>rpa validate</code></h2></div>
+      <div class="panel-body">
+<pre class="source">$ rpa --lang en validate examples/ scenarios/login.yaml
+scenarios/login.yaml:14:9: Step 3 (login-pass) › target.css: Specify only one way to locate the element, found: label, css; put alternatives in fallback
+scenarios/login.yaml:20:5: Step 4 (shot) › fullpage: Unknown field fullpage. Did you mean fullPage?
+Files checked: 3. Failed: 1. Problems: 2.</pre>
+        <dl class="spec-list">
+          <dt>Location</dt><dd><code>file:line:column</code>, the same format compilers use, so editors and CI can jump to the problem. Lines and columns start at 1.</dd>
+          <dt>Arguments</dt><dd>One or more files or directories; a directory is searched for all .yaml and .yml files (hidden directories are skipped).</dd>
+          <dt><code>--format json</code></dt><dd>Each problem has line, column, step, stepId, field, path, code and message, for programs and AI auto-repair (M5).</dd>
+          <dt>Exit code</dt><dd>0 when everything passes; 1 when a file fails or a directory has no YAML; 2 for invalid arguments.</dd>
+          <dt><code>rpa schema</code></dt><dd>Prints the JSON Schema. <code>schema/scenario.v1.json</code> in the repository is generated by it; add <code># yaml-language-server: $schema=…</code> as the first line of a scenario and the VS Code YAML extension provides completion and live checks.</dd>
+          <dt>Python</dt><dd><code>rpa_core.dsl.validate_file()</code>, <code>validate_text()</code> and <code>validate_data()</code> return the scenario model and every problem; the Web UI and API use the same functions.</dd>
+        </dl>
+      </div>
     </section>
   </div>
 </main>

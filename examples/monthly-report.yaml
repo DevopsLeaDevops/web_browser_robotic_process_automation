@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=../schema/scenario.v1.json
+#
+# 範例：查詢月報，抽取總額與訂單表格，最後截圖。
+# 示範 select（單選、多選）、press、waitFor、extract 的三種寫法與 screenshot。
+# 網址是虛構的，M2 起改用測試網站實際執行。
+
+schemaVersion: 1
+id: monthly-report
+name: 查詢月報並抽取訂單
+
+params:
+  month:
+    type: string
+    default: "2026-09"
+    description: 查詢月份（YYYY-MM）
+  region:
+    type: string
+    default: 北區
+
+browser:
+  baseUrl: https://erp.example.internal
+
+steps:
+  - id: open-report
+    action: goto
+    url: /reports/monthly
+    waitUntil: domcontentloaded
+
+  - id: fill-month
+    action: fill
+    target: { placeholder: YYYY-MM }
+    value: "{{ params.month }}"
+
+  - id: pick-region
+    action: select
+    target: { label: 區域 }
+    option: "{{ params.region }}"
+
+  - id: pick-status
+    name: 多選訂單狀態
+    action: select
+    target: { label: 訂單狀態 }
+    option: [已出貨, 已完成]
+
+  - id: search
+    action: press
+    target: { placeholder: YYYY-MM }
+    key: Enter
+
+  - id: wait-results
+    action: waitFor
+    target: { role: table, name: 訂單 }
+    timeout: 30000
+
+  - id: check-month
+    action: expect
+    target: { testId: report-month }
+    text: "^\\d{4}-\\d{2}$"
+    match: regex
+
+  - id: total
+    name: 總額（第一個符合元素的文字）
+    action: extract
+    target: { testId: report-total }
+    as: total
+
+  - id: orders
+    name: 整張表格依表頭轉成記錄
+    action: extract
+    target: { role: table, name: 訂單 }
+    get: table
+    as: orders
+
+  - id: order-links
+    name: 每一列抽成一筆記錄
+    action: extract
+    target:
+      css: tbody tr
+      within: { role: table, name: 訂單 }
+    multiple: true
+    as: orderRows
+    fields:
+      orderNo:
+        target: { css: "td:nth-child(1)" }
+      detailUrl:
+        target: { role: link, name: 明細 }
+        get: attribute
+        attribute: href
+
+  - id: snapshot
+    action: screenshot
+    file: monthly-report
+    fullPage: true

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:db16abf7779c0e07">
+<meta name="translation-source" content="sha256:60f9af283754753c">
 <title>Tech stack · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -28,7 +28,7 @@
           <tbody>
             <tr><td>Browser driver</td><td>Playwright for Python (async)</td><td>Selenium</td><td>Multiple browsers, auto-waiting, semantic locators (get_by_role), Trace Viewer; async lets one worker run several browser contexts at once</td><td>M2</td></tr>
             <tr><td>DSL models and validation</td><td>Pydantic v2</td><td>marshmallow</td><td>Discriminated unions fit "one model per action" well; JSON Schema can be exported directly for AI and the frontend<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
-            <tr><td>YAML parsing</td><td>ruamel.yaml</td><td>PyYAML</td><td>Keeps line numbers, so validation errors can point to the line in the file</td><td>M1</td></tr>
+            <tr><td>YAML parsing</td><td>PyYAML (parser only)</td><td>ruamel.yaml</td><td>The parsed node tree carries line and column numbers, so validation errors point to the place in the file; values are converted with our own YAML 1.2 core rules and duplicate keys are rejected; typed, so it works with pyright strict. Switched from ruamel.yaml during M1, see <a href="dsl.html#yaml">Scenario DSL</a></td><td>M1</td></tr>
             <tr><td>Expressions <code>{{ }}</code></td><td>Jinja2 sandboxed environment</td><td>Custom implementation</td><td>Mature, and can restrict what a scenario may access to prevent arbitrary code execution</td><td>M3</td></tr>
             <tr><td>Command line</td><td>click</td><td>Typer, argparse</td><td>Mature and stable, with complete support for subcommands and testing</td><td>M0</td></tr>
             <tr><td>Backend API</td><td>FastAPI</td><td>Django</td><td>Shares the same Pydantic models as the DSL and generates OpenAPI automatically<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>

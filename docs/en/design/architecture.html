@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a8b07235139cd603">
+<meta name="translation-source" content="sha256:4d2195f8cb186071">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -118,7 +118,7 @@
         <table class="wrap">
           <thead><tr><th>Package</th><th>Responsibility</th><th>Depends on</th><th>Starts</th></tr></thead>
           <tbody>
-            <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs. No browser, no database.</td><td>Pydantic, ruamel.yaml, Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs. No browser, no database.</td><td>Pydantic, PyYAML, Jinja2</td><td>M0</td></tr>
             <tr><td><code>rpa-runner</code></td><td>Execution engine: step handler registry, browser and context management, artifact collection. Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
             <tr><td><code>rpa-recorder</code></td><td>Local recording: injects a listener script and turns user actions into DSL steps.</td><td>rpa-core, Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI generation and self-healing selectors: page snapshot + natural language → DSL, with validation failures fed back for correction.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
