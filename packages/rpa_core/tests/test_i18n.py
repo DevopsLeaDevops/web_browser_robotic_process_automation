@@ -1,3 +1,4 @@
+import importlib
 import sys
 from pathlib import Path
 
@@ -66,7 +67,8 @@ def demo_catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Catalog:
         encoding="utf-8",
     )
     (locales / "en.json").write_text('{"greet": "Hello, {name}"}', encoding="utf-8")
-    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setattr(sys, "path", [str(tmp_path), *sys.path])
+    importlib.invalidate_caches()
     # 每個測試的暫存目錄不同，要讓 Python 重新匯入，不能沿用上一個測試的 demo_pkg
     monkeypatch.delitem(sys.modules, "demo_pkg", raising=False)
     return Catalog("demo_pkg")

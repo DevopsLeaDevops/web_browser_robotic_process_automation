@@ -19,18 +19,19 @@ from rpa_cli.i18n import LANG_OPTION, install_click_translations, resolve_locale
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, LOCALES, Locale, parse_locale, set_locale
 
 
-class LocaleType(click.ParamType):
-    """`--lang` 的值：接受 zh-Hant、zh-Hans、en，以及 zh-TW、zh_CN 這類別名。"""
+def _check_lang(ctx: click.Context, param: click.Parameter, value: str | None) -> Locale | None:
+    """驗證 `--lang`：接受 zh-Hant、zh-Hans、en，以及 zh-TW、zh_CN 這類別名。
 
-    name = "locale"
-
-    def convert(
-        self, value: object, param: click.Parameter | None, ctx: click.Context | None
-    ) -> Locale:
-        locale = parse_locale(str(value))
-        if locale is None:
-            self.fail(t("cli.lang.invalid", value=value, choices="|".join(LOCALES)), param, ctx)
-        return locale
+    語言已經在 main() 解析參數前決定好，這裡只負責對無效的值回報錯誤。
+    """
+    if value is None:
+        return None
+    locale = parse_locale(value)
+    if locale is None:
+        raise click.BadParameter(
+            t("cli.lang.invalid", value=value, choices="|".join(LOCALES)), ctx, param
+        )
+    return locale
 
 
 def build_cli() -> click.Group:
@@ -51,7 +52,7 @@ def build_cli() -> click.Group:
     )
     @click.option(
         LANG_OPTION,
-        type=LocaleType(),
+        callback=_check_lang,
         metavar="|".join(LOCALES),
         is_eager=True,
         expose_value=False,

@@ -9,7 +9,7 @@
 
 import json
 import re
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from importlib.resources import files
@@ -85,7 +85,7 @@ def set_locale(locale: Locale) -> None:
 
 
 @contextmanager
-def use_locale(locale: Locale) -> Iterator[None]:
+def use_locale(locale: Locale) -> Generator[None, None, None]:
     """在 with 區塊內暫時切換語言，離開時還原。"""
     token = _current.set(locale)
     try:

@@ -20,6 +20,7 @@ HTML 中標了 translate="no" 的元素保留原文，例如程式實際印出�
 
 import argparse
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -27,7 +28,7 @@ import sys
 from collections.abc import Callable, Iterable, Sequence
 from functools import cache
 from pathlib import Path
-from typing import Final, cast
+from typing import Final, Protocol, cast
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 ROOT: Final = Path(__file__).resolve().parent.parent
@@ -44,6 +45,12 @@ LANGUAGE_DIRS: Final = {GENERATED: DOCS / GENERATED, TRANSLATED: DOCS / TRANSLAT
 SOURCE_META: Final = "translation-source"
 
 type Convert = Callable[[str], str]
+
+
+class _OpenCC(Protocol):
+    def convert(self, text: str) -> str: ...
+
+
 type Json = dict[str, Json] | list[Json] | str | int | float | bool | None
 
 
@@ -54,10 +61,12 @@ type Json = dict[str, Json] | list[Json] | str | int | float | bool | None
 def opencc_converter() -> Convert:
     """OpenCC 繁轉簡（台灣用語→大陸用語），再套用 zh-Hans-overrides.json 的修正。"""
     try:
-        import opencc  # 只有產生簡中時才需要，放在這裡讓 stamp 不依賴它
+        # 只有產生簡中時才需要，放在這裡讓 stamp 不依賴它；opencc 沒有型別標註，以 Protocol 描述
+        module = importlib.import_module("opencc")
     except ImportError:  # pragma: no cover
         sys.exit("需要 OpenCC：先執行 uv sync 安裝開發依賴。")
-    converter = opencc.OpenCC(OPENCC_CONFIG)
+    factory = cast("Callable[[str], _OpenCC]", vars(module)["OpenCC"])
+    converter = factory(OPENCC_CONFIG)
     overrides = load_overrides()
 
     def convert(text: str) -> str:
