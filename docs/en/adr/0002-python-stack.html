@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:68f2fabdd3d70a72">
+<title>ADR 0002 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0002" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0002: Python for the backend, execution and tooling</h1>
+      <p>Every component except the web frontend is written in Python and lives in one uv workspace.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-09</dd>
+        <dt>Affects</dt><dd>All Python packages, CI, the development environment</dd>
+        <dt>Related</dt><dd><a href="../design/tech-stack.html">Tech stack</a>, <a href="0004-react-frontend.html">ADR 0004</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The team's main language is Python. The platform needs browser automation, data model validation, a web API and AI integration, all of which have mature solutions in Python.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>Browser: Playwright for Python; the execution engine uses the async API.</li>
+            <li>Models: Pydantic v2, shared by the DSL and the API.</li>
+            <li>API: FastAPI; database: SQLAlchemy 2.0 + Alembic.</li>
+            <li>Project: one repository with multiple packages in a uv workspace; ruff, pyright strict, pytest.</li>
+            <li>Minimum version Python 3.12.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Familiar to the team, so review and maintenance are cheap.</li>
+            <li>The DSL models are shared all the way from validation and the API to AI generation.</li>
+            <li>A complete ecosystem for AI and data processing.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>The frontend cannot share Python types directly; TypeScript types are generated from OpenAPI and JSON Schema instead.</li>
+            <li>Playwright's native language is TypeScript, so some new features may reach the Python version a little later.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Full-stack TypeScript</td><td>Types could be shared between frontend and backend, but TypeScript is not the team's main language.</td></tr>
+              <tr><td>Python + Selenium</td><td>Lacks auto-waiting, semantic locators and traces, and is less stable.</td></tr>
+              <tr><td>poetry for dependencies</td><td>Workable, but uv is faster and supports workspaces natively.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

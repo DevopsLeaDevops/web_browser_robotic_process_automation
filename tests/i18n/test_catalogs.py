@@ -17,8 +17,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 LOCALES = ("zh-Hant", "zh-Hans", "en")
 CATALOG_DIRS = sorted(
-    {p.parent for pattern in ("packages/*/src/*/locales/*.json", "apps/*/src/*/locales/*.json")
-     for p in ROOT.glob(pattern)}
+    {
+        p.parent
+        for pattern in ("packages/*/src/*/locales/*.json", "apps/*/src/*/locales/*.json")
+        for p in ROOT.glob(pattern)
+    }
 )
 CLICK_CATALOGS = sorted(ROOT.glob("apps/*/src/*/locales/click.*.json"))
 

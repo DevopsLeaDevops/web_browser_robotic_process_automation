@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:9bfe50f88e4ffdee">
+<title>Dev environment · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="setup" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Dev environment</h1>
+      <p>From nothing to running tests in about five minutes. The commands are the same on Windows, macOS and Linux. To set up everything with one command, use the setup script in <a href="quickstart.html">Run locally from scratch</a>; for a first setup on a Mac, follow <a href="macos.html">Run on macOS</a> step by step.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>First-time setup</h2></div>
+        <div class="panel-body">
+<pre class="source">git clone https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git
+cd web_browser_robotic_process_automation
+
+# Create .venv and install all packages and dev tools
+uv sync
+
+# Download Chromium (on Linux, add --with-deps the first time to install system dependencies)
+uv run playwright install chromium
+
+# Automatic checks before each commit
+uv run pre-commit install
+
+# Confirm the installation
+uv run rpa --version</pre>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Prerequisites</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>Python</dt><dd>3.12 or later. <code>uv</code> downloads it if missing.</dd>
+            <dt>uv</dt><dd>0.11 or later; see the official uv docs for installation.</dd>
+            <dt>Git</dt><dd>Any recent version.</dd>
+            <dt>Node.js</dt><dd>Only needed once frontend work starts in M8.</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Common commands</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Task</th><th>Command</th></tr></thead>
+          <tbody>
+            <tr><td>Install or check the whole environment</td><td><code>./scripts/setup.sh</code> (Windows: <code>scripts\setup.ps1</code>), see <a href="quickstart.html">Run locally from scratch</a></td></tr>
+            <tr><td>Run all tests</td><td><code>uv run pytest</code></td></tr>
+            <tr><td>Skip tests that need a browser</td><td><code>uv run pytest -m "not browser"</code></td></tr>
+            <tr><td>Check the docs only</td><td><code>uv run pytest tests/docs</code></td></tr>
+            <tr><td>Lint and fix automatically</td><td><code>uv run ruff check --fix .</code></td></tr>
+            <tr><td>Format</td><td><code>uv run ruff format .</code></td></tr>
+            <tr><td>Type check</td><td><code>uv run pyright</code></td></tr>
+            <tr><td>All pre-commit checks</td><td><code>uv run pre-commit run --all-files</code></td></tr>
+            <tr><td>Add a dependency to a package</td><td><code>uv add --package rpa-core package-name</code></td></tr>
+            <tr><td>Show <code>rpa</code> in another language</td><td><code>uv run rpa --lang en -h</code>, or set the environment variable <code>RPA_LANG=zh-Hans</code></td></tr>
+            <tr><td>Regenerate Simplified Chinese, check translations</td><td><code>uv run python tools/i18n.py sync</code>, <code>uv run python tools/i18n.py check</code>; see <a href="writing-docs.html#i18n">Three languages</a></td></tr>
+            <tr><td>Browse the docs</td><td>Open <code>docs/index.html</code> directly, or <code>python -m http.server -d docs 8000</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>FAQ</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>No uv.lock</dt><dd>M0 has not committed a lock file yet. The first member to run <code>uv sync</code> generates <code>uv.lock</code>; please commit it in a PR of its own. After that, CI switches to <code>uv sync --locked</code> automatically.</dd>
+          <dt>PyPI unreachable from the intranet</dt><dd>Set the <code>UV_INDEX_URL</code> environment variable to the company's package mirror.</dd>
+          <dt>Browser download fails</dt><dd>Set <code>PLAYWRIGHT_DOWNLOAD_HOST</code> to an internal mirror; the browser smoke test is skipped automatically when no browser is installed locally.</dd>
+          <dt>Tests say Simplified Chinese is not up to date</dt><dd>After changing Traditional Chinese docs or message catalogs, run <code>uv run python tools/i18n.py sync</code> and commit the generated files.</dd>
+          <dt>Tests say the English translation needs updating</dt><dd>Update the same page under <code>docs/en/</code> to match the Traditional Chinese change, then run the <code>stamp</code> command shown in the test message.</dd>
+          <dt>pyright cannot find packages</dt><dd>Make sure you have run <code>uv sync</code> and your editor uses the project's <code>.venv</code>.</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

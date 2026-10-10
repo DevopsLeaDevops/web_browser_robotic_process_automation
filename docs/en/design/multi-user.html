@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:0aca7c477bf1e58d">
+<title>Multi-user and internal systems · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="multi-user" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Multi-user and internal systems</h1>
+      <p>What the two premises, shared team use and internal target systems, concretely require from the design.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Multi-user</h2><span class="muted">Mostly implemented in M7</span></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>Authentication</dt><dd>Local accounts first, with hooks for OIDC and LDAP so the company's AD or SSO can be connected.</dd>
+            <dt>Permissions</dt><dd>Scenarios, secrets and runs are isolated per project.</dd>
+            <dt>Secrets</dt><dd>Stored encrypted. Users can reference them in scenarios but cannot read the plain value.</dd>
+            <dt>Auditing</dt><dd>Who changed or ran which scenario and when is all recorded and cannot be altered or deleted.</dd>
+            <dt>Versions</dt><dd>Every save of a scenario creates a new immutable version; each run points to its exact version.</dd>
+            <dt>Stateless runner</dt><dd>From M2 on it only takes scenarios, parameters and secrets and outputs results and artifacts, so it moves into workers unchanged.</dd>
+          </dl>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header"><h2>Roles</h2><span class="muted">Permissions within a project</span></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Capability</th><th>Admin</th><th>Editor</th><th>Runner</th><th>Viewer</th></tr></thead>
+            <tbody>
+              <tr><td>View scenarios and runs</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+              <tr><td>Run scenarios</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+              <tr><td>Create and edit scenarios</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>Reference secrets</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>Manage secrets and schedules</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr><td>Manage members</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="diagram-caption">There is also a platform-level system administrator who creates projects and manages global settings. Details are finalized in M7.</div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Requirements from internal systems</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Situation</th><th>Approach</th><th>Lands in</th></tr></thead>
+          <tbody>
+            <tr><td>Target systems are reachable only from the intranet</td><td>Deploy the platform and workers on the intranet; workers must reach the target systems directly</td><td>M9</td></tr>
+            <tr><td>Every run has to log in</td><td>Save and reuse login state (Playwright storage state) to log in less often and lower the risk of account lockouts</td><td>M3</td></tr>
+            <tr><td>Legacy systems lack semantic markup</td><td>Locators rely more on css, xpath and text; the recorder avoids auto-generated ids and produces stable selectors</td><td>M1, M4</td></tr>
+            <tr><td>iframes, pop-up windows, multiple tabs</td><td>The DSL provides steps to switch frames and tabs, and a locator can name the frame it lives in</td><td>M3</td></tr>
+            <tr><td>File uploads and downloads</td><td>upload and download actions; downloaded files are kept as artifacts</td><td>M3</td></tr>
+            <tr><td>Extracting table data</td><td>extract can turn tables into structured data</td><td>M1</td></tr>
+            <tr><td>Self-signed certificates</td><td>A scenario can choose to ignore HTTPS errors; off by default and flagged during review</td><td>M2</td></tr>
+            <tr><td>Page content may be sensitive</td><td>AI generation can switch to a self-hosted model; access to screenshots and traces follows project permissions</td><td>M5, M7</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="notice">Recording happens on the user's own computer: the CLI opens a visible browser and uploads the recording to the server when done. A browser extension may replace this later. The test site (M2) mimics a typical internal system: login, menus, iframes, tables and file downloads.</div>
+  </div>
+</main>
+</body>
+</html>

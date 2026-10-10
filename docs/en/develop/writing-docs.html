@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:710a95307488af75">
+<title>Docs &amp; ADRs · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="writing-docs" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Docs &amp; ADRs</h1>
+      <p>How to add a docs page, how to keep the three languages in sync, and how to record architecture decisions. For the background see <a href="../adr/0005-html-docs.html">ADR 0005</a> and <a href="../adr/0007-i18n.html">ADR 0007</a>.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Writing principles</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Conclusion first, details after.</strong> The page description says in one sentence what the page is about.</li>
+            <li><strong>One topic per panel.</strong> Panel titles are the table of contents readers scan.</li>
+            <li><strong>Use the right component.</strong> Tables for comparisons, spec lists for definitions, point lists for key points, notices for warnings.</li>
+            <li><strong>States need words.</strong> Never rely on color alone to show a state.</li>
+            <li><strong>No repetition.</strong> Explain each thing in detail in one place and link to it from elsewhere.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Adding a page</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>Write the Traditional Chinese version first: copy an existing page in the same directory and keep the <code>&lt;head&gt;</code> and <code>&lt;body&gt;</code> attributes.</li>
+            <li>Change <code>data-page</code> (the page id) and <code>data-root</code> (the relative path back to that language's root, for example <code>../</code>).</li>
+            <li>Register the page in <code>docs/assets/nav.js</code>, with names in both <code>"zh-Hant"</code> and <code>"en"</code>.</li>
+            <li>Write the English version at the same path under <code>docs/en/</code>; see <a href="#i18n">Three languages</a> below.</li>
+            <li>Run <code>uv run python tools/i18n.py sync</code> to generate Simplified Chinese, then <code>uv run pytest tests/docs tests/i18n</code>.</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Page template</h2><span class="muted">An English page under docs/en/design/ as the example</span></div>
+      <div class="panel-body">
+<pre class="source">&lt;!doctype html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;meta name="viewport" content="width=device-width,initial-scale=1"&gt;
+&lt;meta name="translation-source" content="(written by tools/i18n.py stamp)"&gt;
+&lt;title&gt;Page name · Browser RPA Engineering Docs&lt;/title&gt;
+&lt;link rel="stylesheet" href="../../design-system/assets/portal.css"&gt;
+&lt;link rel="stylesheet" href="../../assets/docs.css"&gt;
+&lt;script defer src="../../assets/nav.js"&gt;&lt;/script&gt;
+&lt;script defer src="../../assets/docs-shell.js"&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body data-page="page-id" data-root="../"&gt;
+&lt;main id="main"&gt;
+  &lt;div class="heading"&gt;&lt;div&gt;&lt;h1&gt;Page name&lt;/h1&gt;&lt;p&gt;One-sentence summary&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;
+  &lt;div class="stack"&gt;
+    &lt;section class="panel"&gt;
+      &lt;div class="panel-header"&gt;&lt;h2&gt;Panel title&lt;/h2&gt;&lt;/div&gt;
+      &lt;div class="panel-body"&gt;Content&lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Available components</h2><span class="muted">From portal.css and docs.css</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Component</th><th>class</th><th>Good for</th></tr></thead>
+          <tbody>
+            <tr><td>Panel</td><td><code>panel</code>, <code>panel-header</code>, <code>panel-body</code></td><td>One per topic</td></tr>
+            <tr><td>Layout</td><td><code>stack</code>, <code>two-col</code>, <code>four-col</code>, <code>grid</code></td><td>Arranging panels; collapses to one column on narrow screens</td></tr>
+            <tr><td>Spec list</td><td><code>spec-list</code> (<code>dl</code>)</td><td>Terms and definitions, settings</td></tr>
+            <tr><td>Point list</td><td><code>points</code> (<code>ul</code>)</td><td>Three to six key points</td></tr>
+            <tr><td>Table</td><td><code>table-scroll</code> around <code>table.wrap</code></td><td>Comparing several items</td></tr>
+            <tr><td>Notice</td><td><code>notice</code>, <code>notice warn</code>, <code>notice success</code></td><td>Things that need special attention</td></tr>
+            <tr><td>Status badge</td><td><code>badge blue | green | amber | red</code></td><td>States, always with text</td></tr>
+            <tr><td>Code block</td><td><code>pre.source</code></td><td>Commands and examples; escape <code>&lt;</code> and <code>&gt;</code> in HTML</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="i18n">
+      <div class="panel-header"><h2>Three languages</h2><span class="muted">Traditional Chinese and English by hand, Simplified Chinese generated</span></div>
+      <div class="panel-body">
+        <div class="two-col">
+          <div>
+            <h3>Layout and rules</h3>
+            <ul class="points">
+              <li>Traditional Chinese is in <code>docs/</code>, English in <code>docs/en/</code>, Simplified Chinese in <code>docs/zh-Hans/</code>; the three directories have exactly the same file names, structure and anchors (<code>id</code>).</li>
+              <li>English pages use <code>lang="en"</code> and go up one more level for shared resources, for example <code>../../assets/docs.css</code>; <code>data-root</code> is still the path back to <code>docs/en/</code>.</li>
+              <li>Links between pages only point to pages in the same language; the page header handles switching languages.</li>
+              <li><code>docs/zh-Hans/</code> and the <code>"zh-Hans"</code> entries in <code>nav.js</code> are generated, so never edit them by hand; add wrong terms to <code>tools/zh-Hans-overrides.json</code>.</li>
+              <li>Mark Traditional Chinese text that programs actually print (such as the setup scripts' output) with <code>translate="no"</code> so it stays unchanged in the Simplified Chinese version.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>After changing a Traditional Chinese page</h3>
+<pre class="source"># 1. Update the same page under docs/en/ to match the change
+# 2. Record which Traditional Chinese version the English page follows
+uv run python tools/i18n.py stamp docs/en/develop/setup.html
+
+# 3. Regenerate Simplified Chinese (the pre-commit check also does this)
+uv run python tools/i18n.py sync
+
+# Check only, without writing
+uv run python tools/i18n.py check</pre>
+            <p class="muted">If the Traditional Chinese page changes and the English page is not stamped again, the tests fail and name the page. For a typo fix that does not affect the English, just stamp it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="adr">
+      <div class="panel-header"><h2>Adding an ADR</h2></div>
+      <div class="panel-body">
+        <div class="two-col">
+          <div>
+            <h3>When to write one</h3>
+            <ul class="points">
+              <li>The choice affects several packages or is hard to reverse.</li>
+              <li>There are two or more reasonable options, and people who come later need to know why this one was chosen.</li>
+              <li>An existing ADR is overturned or changed.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>How to write one</h3>
+            <ul class="points">
+              <li>Copy the most recent ADR; name the file <code>NNNN-short-english-name.html</code> with the next number.</li>
+              <li>Fixed sections: date, scope, context, decision, consequences (benefits and costs), options not chosen.</li>
+              <li>A new ADR starts as "Proposed", is discussed in the PR, and becomes "Accepted" when merged.</li>
+              <li>Update <code>adr/index.html</code> and <code>nav.js</code>, and provide an English version following <a href="#i18n">Three languages</a>.</li>
+              <li>When superseding a decision, mark the old ADR "Superseded" and link it to the new one, without deleting its content.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

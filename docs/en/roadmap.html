@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:c10307f60b2dbfb7">
+<title>Roadmap · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="roadmap" data-root="">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Roadmap</h1>
+      <p>Ten milestones, each accepted on its own. Every step: explain the design → confirm → write code and tests → open a PR → merge after review.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>Milestones</h2><span class="muted">Status is updated with every PR</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Stage</th><th>Name</th><th>Scope</th><th>Acceptance</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr class="current"><td><span class="milestone">M0</span></td><td>Project skeleton</td><td>uv workspace, ruff, pyright, pytest, pre-commit, CI; design docs and ADRs; interface design system v1.0; multilingual foundation (Traditional Chinese, Simplified Chinese, English)</td><td>CI all green; docs link check passes</td><td><span class="badge blue">In progress</span></td></tr>
+            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>Core actions (goto, click, fill, select, press, waitFor, expect, extract, screenshot), locator model, YAML loading and validation</td><td><code>rpa validate</code> points to the file line, step and field of each error</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M2</span></td><td>Runner and CLI</td><td>Stateless execution engine, step handler registry, screenshots and traces on failure; a test site that mimics internal systems</td><td><code>rpa run</code> works against the test site</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M3</span></td><td>Flow features</td><td>Variables and expressions, conditions, loops, error handling, sub-scenarios, data-driven runs, secrets, reusing login state</td><td>Complex example scenarios pass</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M4</span></td><td>Generation 1: recording</td><td>Record in a local headed browser and output DSL; prefer semantic locators and avoid auto-generated ids</td><td>A recording replays successfully</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M5</span></td><td>Generation 2: AI</td><td>Generate DSL from natural language plus the page accessibility tree; fix validation failures automatically; self-healing selectors</td><td>A one-sentence description produces a runnable scenario</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M6</span></td><td>Site design</td><td>The visual guidelines were delivered as <a href="style/index.html">interface design system v1.0</a>; this stage now builds prototypes of the core pages with it: login, scenario library, step editor, run details, user and permission management</td><td>Frontend work starts only after you approve the prototypes</td><td><span class="badge amber">Partly delivered</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>Management backend</td><td>Authentication, permissions, projects, scenario versions, secret encryption, auditing, REST API</td><td>API tests pass</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M8</span></td><td>Web UI</td><td>Implement the M6 prototypes</td><td>Complete the "generate → run → view results" loop in the browser</td><td><span class="badge">Not started</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>Operations</td><td>Distributed workers, scheduling, concurrency, retries, notifications, Docker Compose deployment</td><td><code>docker compose up</code> starts everything</td><td><span class="badge">Not started</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Why this order</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>CLI before UI.</strong> Every capability can be verified without an interface; the web UI is a layer on top.</li>
+            <li><strong>Generation before the management backend.</strong> Generation is what sets this project apart. Until M6, scenarios live as YAML files in the repository and Git is the version control.</li>
+            <li><strong>Prototypes before the backend.</strong> The M6 page prototypes decide what data the M7 API must provide.</li>
+            <li><strong>The runner is stateless from day one.</strong> It takes scenarios, parameters and secrets and outputs results and artifacts, so in M9 it goes straight into the workers.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Still to decide</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>AI model</dt><dd>Decide before M5. First confirm whether internal page content may be sent to an external API; if not, use a self-hosted model.</dd>
+            <dt>SSO type</dt><dd>Confirm before M7 whether the company uses OIDC or LDAP / AD.</dd>
+            <dt>Deployment</dt><dd>Confirm before M9 whether it is single-host Docker Compose or Kubernetes.</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

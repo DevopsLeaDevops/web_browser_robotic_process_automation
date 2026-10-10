@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:4a0466c777f3a3c2">
+<title>Run on macOS · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="macos" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Run on macOS</h1>
+      <p>A step-by-step guide for a Mac with no development tools, from downloading the code to a working CLI, tests and docs site. The first time takes about ten minutes, mostly downloading. To do all of the steps below with one command, use the setup script in <a href="quickstart.html">Run locally from scratch</a>.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">This is M0 (project skeleton). "Working" means: the <code>rpa</code> command runs, all tests pass, Playwright can start Chromium, and the docs site opens in a browser. Subcommands for validating, running and recording scenarios arrive in later milestones; see the <a href="../roadmap.html">Roadmap</a>.</div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>All commands</h2><span class="muted">Copy them if you know the drill; step-by-step notes follow</span></div>
+        <div class="panel-body">
+<pre class="source"># 1. Git (skip if you already have it)
+xcode-select --install
+
+# 2. uv (open a new Terminal window afterwards)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 3. Download the code
+mkdir -p ~/code &amp;&amp; cd ~/code
+git clone https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git
+cd web_browser_robotic_process_automation
+
+# 4. Install dependencies and the browser
+uv sync
+uv run playwright install chromium
+
+# 5. Confirm it works
+uv run rpa --version
+uv run pytest
+
+# 6. Open the docs site
+open docs/index.html</pre>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Prerequisites</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>Computer</dt><dd>Any Mac with Apple silicon (M series) or Intel. A macOS version that still receives updates is recommended.</dd>
+            <dt>Terminal</dt><dd>The built-in Terminal app (Applications › Utilities). The default shell is zsh, and every command on this page runs in zsh.</dd>
+            <dt>Network</dt><dd>Access to GitHub, PyPI and Playwright's browser downloads. On a company network, read the <a href="#faq">FAQ</a> first.</dd>
+            <dt>Disk space</dt><dd>About 1 GB for Python, packages and Chromium.</dd>
+            <dt>Not needed</dt><dd>You do not install Python, Homebrew or Node.js yourself. uv downloads Python; Node.js is only needed when frontend work starts in M8.</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="git">
+      <div class="panel-header"><h2>1. Install Git</h2></div>
+      <div class="panel-body">
+        <p>First check whether Git is already there:</p>
+<pre class="source">git --version</pre>
+        <p>If it prints a version number, go to the next step. If a window asks you to install the "command line developer tools", or you see <code>xcrun: error</code>, run the command below, click "Install" in the pop-up window and wait until it finishes. You do not need the full Xcode.</p>
+<pre class="source">xcode-select --install</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="uv">
+      <div class="panel-header"><h2>2. Install uv</h2></div>
+      <div class="panel-body">
+        <p>uv downloads Python, creates virtual environments and installs packages; the project requires 0.11 or later. Choose one:</p>
+        <div class="two-col">
+          <div>
+            <h3>Official installer (recommended)</h3>
+<pre class="source">curl -LsSf https://astral.sh/uv/install.sh | sh</pre>
+            <p class="muted">Installs to <code>~/.local/bin</code>; upgrade later with <code>uv self update</code>.</p>
+          </div>
+          <div>
+            <h3>Already using Homebrew</h3>
+<pre class="source">brew install uv</pre>
+            <p class="muted">Upgrade later with <code>brew upgrade uv</code>.</p>
+          </div>
+        </div>
+        <p>When it is done, <strong>close Terminal and open a new window</strong> so the PATH takes effect, then check the version:</p>
+<pre class="source">uv --version    # for example uv 0.11.x; 0.11 or later is required</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="clone">
+      <div class="panel-header"><h2>3. Download the code</h2></div>
+      <div class="panel-body">
+        <p>Put it in a folder of your choice; this example uses <code>code</code> in your home folder:</p>
+<pre class="source">mkdir -p ~/code &amp;&amp; cd ~/code
+git clone https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git
+cd web_browser_robotic_process_automation</pre>
+        <ul class="points">
+          <li>All later commands run inside this folder.</li>
+          <li>Avoid the Desktop and Documents folders when iCloud syncs them: the many small files in <code>.venv</code> would be synced over and over.</li>
+          <li>Downloading a ZIP is not recommended: without Git history you cannot update with <code>git pull</code> or install the pre-commit checks.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="install">
+      <div class="panel-header"><h2>4. Install dependencies and the browser</h2></div>
+      <div class="panel-body">
+<pre class="source"># Prepare Python 3.13 per .python-version (downloaded if missing), create .venv, install all packages and dev tools
+uv sync
+
+# Download the Chromium used by Playwright
+uv run playwright install chromium</pre>
+        <dl class="spec-list">
+          <dt>.venv/</dt><dd>The project's own virtual environment, inside the project folder. No need to activate it: <code>uv run</code> uses it automatically.</dd>
+          <dt>Python</dt><dd>Python downloaded by uv lives in <code>~/.local/share/uv/python</code> and leaves the system Python alone.</dd>
+          <dt>Chromium</dt><dd>Lives in <code>~/Library/Caches/ms-playwright</code>. macOS does not need <code>--with-deps</code>; that installs system libraries on Linux.</dd>
+          <dt>uv.lock</dt><dd>The first <code>uv sync</code> creates a lock file, which shows up in <code>git status</code>. What to do with it is in the <a href="setup.html#faq">Dev environment FAQ</a>.</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="verify">
+      <div class="panel-header"><h2>5. Confirm it works</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Command</th><th>Expected result</th></tr></thead>
+          <tbody>
+            <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.1.0（rpa-core 0.1.0）</code>; with <code>--lang en</code>: <code>rpa 0.1.0 (rpa-core 0.1.0)</code></td></tr>
+            <tr><td><code>uv run rpa -h</code></td><td>Shows the usage and the description; in English (<code>--lang en</code>): "Generate, manage and run browser automation scenarios." M0 has no subcommands yet.</td></tr>
+            <tr><td><code>uv run pytest</code></td><td>The last line shows only <code>passed</code>: no <code>failed</code> and no <code>skipped</code>.</td></tr>
+            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>1 passed</code> (the other tests show as deselected). This is the browser smoke test; like CI, a missing browser fails instead of being skipped.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <div class="notice warn">If <code>uv run pytest</code> shows <code>1 skipped</code> with the reason "Chromium 未安裝" (Chromium not installed), the browser from step 4 did not install correctly; run <code>uv run playwright install chromium</code> again.</div>
+        <p><code>rpa</code> prints Traditional Chinese by default; for Simplified Chinese or English, add <code>--lang zh-Hans</code> or <code>--lang en</code>, or set the <code>RPA_LANG</code> environment variable (for example, add <code>export RPA_LANG=en</code> to <code>~/.zshrc</code>).</p>
+        <p>To avoid typing <code>uv run</code> every time, activate the virtual environment first with <code>source .venv/bin/activate</code>, then type <code>rpa --version</code> or <code>pytest</code> directly; leave with <code>deactivate</code>.</p>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="docs">
+        <div class="panel-header"><h2>6. Open the docs site</h2></div>
+        <div class="panel-body">
+<pre class="source"># Open the English docs directly in your default browser
+open docs/en/index.html
+
+# Or start a local server and browse http://localhost:8000/en/ (Control-C to stop)
+uv run python -m http.server -d docs 8000</pre>
+          <p>The top-right corner of the header switches between 繁體中文, 简体中文 and English.</p>
+          <p>macOS has no <code>python</code> command. Replace the <code>python -m http.server</code> in the README with <code>uv run python</code> as above, or the system <code>python3</code>.</p>
+        </div>
+      </section>
+      <section class="panel" id="develop">
+        <div class="panel-header"><h2>7. Get ready to develop</h2><span class="badge">Optional</span></div>
+        <div class="panel-body">
+<pre class="source"># Run ruff, pyright and the docs checks automatically before every git commit
+uv run pre-commit install</pre>
+          <ul class="points">
+            <li>The first pyright run (including the one at commit time) downloads the Node.js runtime it needs, so it takes a little longer.</li>
+            <li>Point your editor's Python interpreter at <code>.venv/bin/python</code> in the project so type checking can find the packages.</li>
+            <li>Common commands are in <a href="setup.html">Dev environment</a>; branch and commit rules are in <a href="conventions.html">Conventions</a>.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="daily">
+      <div class="panel-header"><h2>Every time after that</h2></div>
+      <div class="panel-body">
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+git pull        # get the latest code
+uv sync         # installs only when dependencies changed; otherwise done in seconds
+uv run pytest</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>FAQ</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>What you see</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td><code>xcrun: error</code></td><td>Common after a major macOS upgrade; reinstall the command line developer tools: <code>xcode-select --install</code>.</td></tr>
+            <tr><td><code>command not found: uv</code></td><td>Open a new Terminal window. If that does not help, run <code>source $HOME/.local/bin/env</code>, or check with <code>echo $PATH</code> that it contains <code>~/.local/bin</code>.</td></tr>
+            <tr><td><code>command not found: python</code></td><td>macOS has no such command by default. Use <code>uv run python</code> (the project's Python 3.13) or <code>python3</code>.</td></tr>
+            <tr><td>uv is too old</td><td>When <code>uv sync</code> asks for 0.11 or later: if you used the installer, run <code>uv self update</code>; with Homebrew, run <code>brew upgrade uv</code>.</td></tr>
+            <tr><td>An M-series Mac reports <code>x86_64</code></td><td><code>uname -m</code> should print <code>arm64</code>. <code>x86_64</code> means Terminal was opened through Rosetta: in Finder, choose Get Info on Terminal, uncheck the Rosetta option, reopen Terminal and run <code>rm -rf .venv &amp;&amp; uv sync</code>.</td></tr>
+            <tr><td><code>Address already in use</code></td><td>Port 8000 is taken; use another port, for example <code>uv run python -m http.server -d docs 8001</code>.</td></tr>
+            <tr><td><code>git pull</code> says uv.lock would be overwritten</td><td>The lock file has been committed to main. Delete your locally generated copy and pull again: <code>rm uv.lock &amp;&amp; git pull &amp;&amp; uv sync</code>.</td></tr>
+            <tr><td>Company network, proxy or mirrors</td><td>See the <a href="setup.html#faq">Dev environment FAQ</a> (<code>UV_INDEX_URL</code>, <code>PLAYWRIGHT_DOWNLOAD_HOST</code>).</td></tr>
+            <tr><td>Start over completely</td><td>Rebuild the environment: <code>rm -rf .venv &amp;&amp; uv sync</code>. Reinstall the browser: <code>rm -rf ~/Library/Caches/ms-playwright</code>, then <code>uv run playwright install chromium</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

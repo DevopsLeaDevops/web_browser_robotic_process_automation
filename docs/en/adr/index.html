@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:558981ad0f060f92">
+<title>Decision index · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-index" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Decision index</h1>
+      <p>Architecture decision records (ADRs): every decision with long-term impact gets a page explaining the context, the choice, the consequences and the options not chosen.</p>
+    </div>
+    <a class="button" href="../develop/writing-docs.html#adr">How to add an ADR</a>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>All decisions</h2><span class="muted">7 records</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Number</th><th>Decision</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag">0001</span></td><td><a href="0001-dsl-as-source-of-truth.html">A declarative DSL is the single source of truth for scenarios</a></td><td><span class="badge green">Accepted</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0002</span></td><td><a href="0002-python-stack.html">Python for the backend, execution and tooling</a></td><td><span class="badge green">Accepted</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0003</span></td><td><a href="0003-postgres-queue.html">PostgreSQL as the task queue</a></td><td><span class="badge green">Accepted</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0004</span></td><td><a href="0004-react-frontend.html">React + TypeScript for the frontend</a></td><td><span class="badge green">Accepted</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0005</span></td><td><a href="0005-html-docs.html">Docs are written in HTML with the portal style</a></td><td><span class="badge green">Accepted</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0006</span></td><td><a href="0006-design-system.html">Interface design system v1.0 as the visual contract</a></td><td><span class="badge green">Accepted</span></td><td class="mono">2026-10-09</td></tr>
+            <tr><td><span class="tag">0007</span></td><td><a href="0007-i18n.html">The product and docs support English, Traditional Chinese and Simplified Chinese</a></td><td><span class="badge amber">Proposed</span></td><td class="mono">2026-10-10</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Statuses</h2></div>
+      <div class="panel-body">
+        <div class="actions">
+          <span class="badge amber">Proposed</span><span class="muted">Under discussion, not yet decided</span>
+          <span class="badge green">Accepted</span><span class="muted">Currently followed</span>
+          <span class="badge">Superseded</span><span class="muted">Replaced by a newer ADR; the page stays and links to the new decision</span>
+          <span class="badge red">Deprecated</span><span class="muted">No longer applies, with no replacement</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

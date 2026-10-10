@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:e9af8a033472c49a">
+<title>Architecture · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+</style>
+</head>
+<body data-page="architecture" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Architecture</h1>
+      <p>Components, data flow and directory layout. The whole platform is deployed on the intranet, and workers connect directly to the target systems.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-header"><h2>Components</h2><span class="muted">As it will look after M9</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
+          <title id="arch-title">System components</title>
+          <desc id="arch-desc">Users call the API service through the web UI or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers take tasks from the PostgreSQL queue, drive the internal target systems with Playwright, and store artifacts in MinIO.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <!-- Clients -->
+          <rect class="frame" x="16" y="40" width="192" height="232" rx="10"/>
+          <text class="frame-label" x="28" y="60">Clients</text>
+          <rect class="box" x="32" y="76" width="160" height="60" rx="8"/>
+          <text class="title" x="46" y="100">Web UI</text>
+          <text class="sub" x="46" y="120">React + TypeScript</text>
+          <rect class="box" x="32" y="160" width="160" height="92" rx="8"/>
+          <text class="title" x="46" y="184">CLI (rpa)</text>
+          <text class="sub" x="46" y="204">Validate, run, push</text>
+          <text class="sub" x="46" y="224">rpa record (local)</text>
+          <text class="sub" x="46" y="242">rpa generate (AI)</text>
+
+          <!-- Platform -->
+          <rect class="frame" x="240" y="24" width="536" height="356" rx="10"/>
+          <text class="frame-label" x="252" y="44">Platform (deployed on the intranet)</text>
+
+          <rect class="box key" x="264" y="64" width="216" height="168" rx="8"/>
+          <text class="title" x="280" y="90">API service (FastAPI)</text>
+          <text class="sub" x="280" y="116">Auth, permissions, auditing</text>
+          <text class="sub" x="280" y="140">Scenarios and versions</text>
+          <text class="sub" x="280" y="164">AI generation and validation</text>
+          <text class="sub" x="280" y="188">Runs and artifacts</text>
+          <text class="sub" x="280" y="212">Encrypted secrets</text>
+
+          <rect class="box" x="264" y="272" width="216" height="72" rx="8"/>
+          <text class="title" x="280" y="298">Scheduler</text>
+          <text class="sub" x="280" y="320">Creates runs on cron schedules</text>
+
+          <rect class="box" x="520" y="64" width="232" height="96" rx="8"/>
+          <text class="title" x="536" y="90">PostgreSQL</text>
+          <text class="sub" x="536" y="114">Scenarios, versions, users, runs</text>
+          <text class="sub" x="536" y="138">Task queue (Procrastinate)</text>
+
+          <rect class="box key" x="520" y="196" width="232" height="72" rx="8"/>
+          <text class="title" x="536" y="222">Worker × N</text>
+          <text class="sub" x="536" y="244">Runner + Playwright (Chromium)</text>
+
+          <rect class="box" x="520" y="304" width="232" height="56" rx="8"/>
+          <text class="title" x="536" y="328">MinIO (S3 compatible)</text>
+          <text class="sub" x="536" y="346">Screenshots, traces, downloads</text>
+
+          <!-- External -->
+          <rect class="box ext" x="808" y="64" width="176" height="72" rx="8"/>
+          <text class="title" x="822" y="90">LLM service</text>
+          <text class="sub" x="822" y="112">External or self-hosted</text>
+
+          <rect class="box ext" x="808" y="196" width="176" height="72" rx="8"/>
+          <text class="title" x="822" y="222">Target systems</text>
+          <text class="sub" x="822" y="244">Logins, forms, reports</text>
+
+          <!-- Connections -->
+          <path class="link" d="M192 106H262" marker-end="url(#arrow)"/>
+          <path class="link" d="M192 206H262" marker-end="url(#arrow)"/>
+          <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+          <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
+          <path class="link" d="M636 160V194" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="182">fetch task</text>
+          <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
+          <text class="label" x="644" y="290">upload artifacts</text>
+          <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
+          <text class="label" x="758" y="224">operate</text>
+          <path class="link" d="M372 64V36H896V62" marker-end="url(#arrow)"/>
+          <text class="label" x="790" y="30">generation request</text>
+        </svg>
+      </div>
+      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. Before M2 there are only the CLI and the runner, running directly on your machine.</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Packages</h2><span class="muted">uv workspace; every package can be tested on its own</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Package</th><th>Responsibility</th><th>Depends on</th><th>Starts</th></tr></thead>
+          <tbody>
+            <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs. No browser, no database.</td><td>Pydantic, ruamel.yaml, Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>Execution engine: step handler registry, browser and context management, artifact collection. Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-recorder</code></td><td>Local recording: injects a listener script and turns user actions into DSL steps.</td><td>rpa-core, Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-generator</code></td><td>AI generation and self-healing selectors: page snapshot + natural language → DSL, with validation failures fed back for correction.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
+            <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, run, record, generate, push.</td><td>The packages above, click</td><td>M0</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API service, database models, permissions, scheduling.</td><td>rpa-core, FastAPI, SQLAlchemy</td><td>M7</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>Takes tasks from the queue, runs them with rpa-runner, writes back results and artifacts.</td><td>rpa-runner, Procrastinate</td><td>M9</td></tr>
+            <tr><td><code>web</code></td><td>Management UI (TypeScript, not part of the Python workspace).</td><td>React, Vite</td><td>M8</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Directory layout</h2></div>
+        <div class="panel-body">
+<pre class="source tree">web_browser_robotic_process_automation/
+├── packages/            # Reusable libraries
+│   ├── rpa_core/        # M0
+│   ├── rpa_runner/      # M2
+│   ├── rpa_recorder/    # M4
+│   └── rpa_generator/   # M5
+├── apps/                # Executables
+│   ├── cli/             # M0
+│   ├── server/          # M7
+│   ├── worker/          # M9
+│   └── web/             # M8 (TypeScript)
+├── testsite/            # Test site that mimics internal systems (M2)
+├── scenarios/           # Example scenarios
+├── tests/               # Cross-package tests: smoke, docs checks
+├── deploy/              # Docker Compose and sample configuration (M9)
+├── tools/               # Dev tools: multilingual sync (i18n.py)
+└── docs/                # This docs site (Traditional Chinese) and the interface design system
+    ├── en/              # English
+    └── zh-Hans/         # Simplified Chinese (generated)</pre>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Data flow of a run</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>A user triggers a run in the web UI or the CLI, or the scheduler creates a task when it is due.</li>
+            <li>The API checks permissions, fetches the requested version of the scenario, and writes a run record and a queue task.</li>
+            <li>A worker picks up the task and gets the parameters and secrets from the API (kept in memory only).</li>
+            <li>The runner opens an isolated browser context and executes step by step, reporting the status of each step.</li>
+            <li>Screenshots, traces and downloads are uploaded to MinIO; extracted data is written back to the run record.</li>
+            <li>When the run ends, the person who triggered it is notified; on failure, the failing step and its screenshot are highlighted.</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

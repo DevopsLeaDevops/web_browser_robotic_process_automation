@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:d67e630a44e633f1">
+<title>ADR 0003 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0003" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0003: PostgreSQL as the task queue</h1>
+      <p>Run tasks and schedules are stored directly in PostgreSQL, without adding Redis.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-09</dd>
+        <dt>Affects</dt><dd>rpa-server, rpa-worker, deployment (M7, M9)</dd>
+        <dt>Related</dt><dd><a href="../design/architecture.html">Architecture</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Shared multi-user use needs many workers running in parallel, scheduled runs and retries on failure. The platform needs PostgreSQL anyway to store scenarios and runs.</p>
+          <p>In RPA the bottleneck is the browser itself: a run usually takes seconds to minutes, and the load is tens to hundreds of tasks per minute, not thousands per second.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>Use Procrastinate: a task queue backed by PostgreSQL, native asyncio, with support for periodic tasks.</li>
+            <li>Creating the run record and enqueuing the task happen in the same database transaction, so there is never a record without a task.</li>
+            <li>Workers call the queue through a thin interface so the implementation can be replaced if needed.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>One component fewer to deploy; backups and monitoring only need to cover PostgreSQL.</li>
+            <li>Transactions guarantee consistency between tasks and run records.</li>
+            <li>Compatible with Playwright's async execution model.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Lower maximum throughput than a dedicated message queue; enough for this project's scale.</li>
+            <li>Depends on a single library, which is why the replaceable interface is kept.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Celery + Redis</td><td>Mature, but one more component and weaker asyncio support.</td></tr>
+              <tr><td>arq (Redis)</td><td>Native asyncio, but still needs Redis.</td></tr>
+              <tr><td>A custom SKIP LOCKED queue</td><td>Workable, but retries, scheduling and monitoring would all be ours to write.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

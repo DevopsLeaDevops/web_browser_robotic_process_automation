@@ -25,13 +25,15 @@ def test_convert_html_converts_text_and_descriptive_attributes() -> None:
 def test_convert_html_protects_urls_and_identifiers() -> None:
     html = '<a href="檔案.html" id="檔案" class="繁體" data-page="檔案">連結</a>'
 
-    assert convert_html(html) == '<a href="檔案.html" id="檔案" class="繁體" data-page="檔案">链接</a>'
+    expected = '<a href="檔案.html" id="檔案" class="繁體" data-page="檔案">链接</a>'
+    assert convert_html(html) == expected
 
 
 def test_convert_html_keeps_translate_no_blocks() -> None:
     html = '<p>檔案</p><pre class="source" translate="no">檔案\n繁體</pre><p>檔案</p>'
 
-    assert convert_html(html) == '<p>文件</p><pre class="source" translate="no">檔案\n繁體</pre><p>文件</p>'
+    expected = '<p>文件</p><pre class="source" translate="no">檔案\n繁體</pre><p>文件</p>'
+    assert convert_html(html) == expected
 
 
 def convert_html(html: str) -> str:

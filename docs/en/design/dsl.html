@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:1f9350a76b0996fb">
+<title>Scenario DSL · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="dsl" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Scenario DSL</h1>
+      <p>The single source of truth for scenarios. Written in YAML, stored as JSON, validated with Pydantic models.</p>
+    </div>
+    <span class="badge amber">Draft · finalized in M1</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice warn">This page is a draft of the direction; field names and the action list are finalized after discussion in M1. For the background of the decision see <a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a>.</div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Example</h2><span class="muted">Illustrative; download is added in M3</span></div>
+        <div class="panel-body">
+<pre class="source">id: erp-export-report
+name: Log in to the ERP and export the monthly report
+params:
+  month: { type: string, default: "2026-09" }
+secrets: [ERP_PASSWORD]
+browser: { engine: chromium, headless: true }
+steps:
+  - id: open
+    action: goto
+    url: https://erp.example.internal/login
+  - id: login-user
+    action: fill
+    target: { role: textbox, name: Username }
+    value: "{{ env.ERP_USER }}"
+  - id: login-pass
+    action: fill
+    target: { label: Password }
+    value: "{{ secrets.ERP_PASSWORD }}"
+  - id: submit
+    action: click
+    target:
+      role: button
+      name: Sign in
+      fallback: [{ css: "#login-btn" }]
+  - id: check
+    action: expect
+    target: { text: Welcome back }
+    state: visible
+  - id: export
+    action: download
+    trigger:
+      action: click
+      target: { role: button, name: Export }
+    saveAs: "report-{{ params.month }}.xlsx"</pre>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header"><h2>Design principles</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Every step has a stable id.</strong> Results, screenshots and logs are filed by step, and nothing gets misaligned when the scenario is edited in the UI.</li>
+            <li><strong>Locators have a priority order.</strong> testId → role + name → label → text → css / xpath. Recording keeps several candidates at once as the basis for self-healing.</li>
+            <li><strong>Conditional waits only.</strong> Fixed-duration sleeps are not allowed; use <code>waitFor</code> to wait for an element, a URL or the network state.</li>
+            <li><strong>Error handling per step.</strong> Each step can set retry, timeout and onError (continue, fail, or jump to another step).</li>
+            <li><strong>Secrets are referenced by name only.</strong> Values are injected at run time and masked automatically in logs and screenshot captions.</li>
+            <li><strong>Expressions are evaluated in a sandbox.</strong> <code>{{ }}</code> is handled by a sandboxed Jinja2 environment and can only read params, env, secrets and the output of earlier steps.</li>
+            <li><strong>Keep an escape hatch.</strong> When the DSL cannot express something, use a controlled <code>script</code> step, which is flagged during review.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-header"><h2>Actions planned for M1</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Action</th><th>Purpose</th><th>Main fields</th></tr></thead>
+          <tbody>
+            <tr><td><code>goto</code></td><td>Open a URL</td><td>url, waitUntil</td></tr>
+            <tr><td><code>click</code></td><td>Click an element</td><td>target, button, clickCount</td></tr>
+            <tr><td><code>fill</code></td><td>Fill in an input</td><td>target, value</td></tr>
+            <tr><td><code>select</code></td><td>Choose a dropdown option</td><td>target, option</td></tr>
+            <tr><td><code>press</code></td><td>Press a key or key combination</td><td>target, key</td></tr>
+            <tr><td><code>waitFor</code></td><td>Wait until a condition holds</td><td>target, state, url, timeout</td></tr>
+            <tr><td><code>expect</code></td><td>Assert; the run fails if it does not hold</td><td>target, state, text</td></tr>
+            <tr><td><code>extract</code></td><td>Extract data from the page (text, attributes, tables)</td><td>target, as, fields</td></tr>
+            <tr><td><code>screenshot</code></td><td>Save a screenshot as an artifact</td><td>target, fullPage, name</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram-caption">download, upload, iframes, multiple tabs, conditions and loops are added in M3.</div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

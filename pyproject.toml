@@ -34,7 +34,8 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["packages/*/src", "apps/*/src"]
+# "." 讓 tools/ 也算本專案的模組（import 排序時歸在第一方）
+src = ["packages/*/src", "apps/*/src", "."]
 extend-exclude = ["docs/design-system"]
 
 [tool.ruff.lint]

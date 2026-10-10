@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:bb20ac1fc1c072b4">
+<title>ADR 0004 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0004" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0004: React + TypeScript for the frontend</h1>
+      <p>In a mostly Python project, the web UI is the only TypeScript part.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-09</dd>
+        <dt>Affects</dt><dd>apps/web (M8)</dd>
+        <dt>Related</dt><dd><a href="0002-python-stack.html">ADR 0002</a>, <a href="0006-design-system.html">ADR 0006</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The most important page of the management UI is the step editor: drag-and-drop reordering, live validation, switching between locator candidates, and replaying screenshots step by step during a run. This kind of interaction is hard to do well in pure-Python UI frameworks.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>The frontend uses React + TypeScript + Vite and lives in <code>apps/web</code>.</li>
+            <li>Styling reuses <code>portal.css</code> and the design tokens of interface design system v1.0; no separate component library.</li>
+            <li>API types are generated from FastAPI's OpenAPI and DSL types from the JSON Schema, not written by hand.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>A mature ecosystem with ready-made solutions for complex interaction.</li>
+            <li>Types are generated from the backend, so frontend and backend never disagree.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>The team maintains a TypeScript codebase; its scope is strictly the UI, and business logic stays in the backend.</li>
+            <li>CI needs a separate Node.js workflow (added in M8).</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>NiceGUI, Streamlit</td><td>Pure Python, but limited for complex interaction and performance with many users.</td></tr>
+              <tr><td>Jinja2 + HTMX</td><td>Good for form-style pages, not for the step editor.</td></tr>
+              <tr><td>Vue</td><td>Equally workable; React has more drag-and-drop and editor packages.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

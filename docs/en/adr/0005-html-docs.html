@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:b4f2fbebe140fda7">
+<title>ADR 0005 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0005" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0005: Docs are written in HTML with the portal style</h1>
+      <p>No Markdown unless necessary; the docs themselves are a static site that can be deployed as is.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-09</dd>
+        <dt>Affects</dt><dd>All docs under docs/</dd>
+        <dt>Related</dt><dd><a href="../develop/writing-docs.html">How to write docs and ADRs</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The project lead wants docs that are easy to read and understand, with the key points standing out, and that can later become a docs website directly. Markdown can only express linear text and makes layouts such as side-by-side comparisons, status badges and spec lists hard to build.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>Docs are hand-written HTML in <code>docs/</code>, styled with the design system's <code>portal.css</code>.</li>
+            <li>Navigation is defined once in <code>docs/assets/nav.js</code> and rendered by <code>docs-shell.js</code>; pages contain only their content.</li>
+            <li>No static site generator and no build step: open the files directly or use any static server.</li>
+            <li>Only <code>README.md</code> at the repository root stays in Markdown, because the GitHub front page needs it.</li>
+            <li>CI checks every page's structure, navigation registration and links.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Readable offline, and the style matches the product.</li>
+            <li><code>docs/</code> can be deployed as a docs website as is (GitHub Pages or an internal static server).</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Hand-written HTML is more verbose than Markdown; page templates and automatic checks reduce mistakes.</li>
+            <li>GitHub shows the source, so the docs must be deployed or downloaded to read.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Markdown</td><td>Hard to build layouts where the key points stand out, which does not meet the requirement.</td></tr>
+              <tr><td>Markdown + a generator such as MkDocs</td><td>Easy to write, but needs a build process and is hard to match to the product's style.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:6be8c2117f03174a">
+<title>Run locally from scratch · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="quickstart" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Run locally from scratch</h1>
+      <p>One command takes a computer with no development tools to a working CLI, passing tests and a readable docs site. Works on macOS, Linux and Windows; the first run takes about ten minutes, mostly downloading.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">This is M0 (project skeleton). "Working" means: the <code>rpa</code> command runs, all tests pass, Playwright can start Chromium, and the docs site opens in a browser. Subcommands for validating, running and recording scenarios arrive in later milestones; see the <a href="../roadmap.html">Roadmap</a>.</div>
+
+    <div class="two-col">
+      <section class="panel" id="unix">
+        <div class="panel-header"><h2>macOS, Linux</h2><span class="muted">Run in Terminal</span></div>
+        <div class="panel-body">
+<pre class="source"># No code yet: download to ~/code/web_browser_robotic_process_automation and install
+curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
+
+# Already cloned: run inside the project folder
+./scripts/setup.sh</pre>
+        </div>
+      </section>
+      <section class="panel" id="windows">
+        <div class="panel-header"><h2>Windows</h2><span class="muted">Run in PowerShell</span></div>
+        <div class="panel-body">
+<pre class="source"># No code yet: download the script, then run it; the code goes to %USERPROFILE%\code\web_browser_robotic_process_automation
+irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1
+
+# Already cloned: run inside the project folder
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>What you need first</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>macOS</dt><dd>Nothing. Without Git, the script opens the installer for the Command Line Developer Tools; when it finishes, run the same command again.</dd>
+            <dt>Linux</dt><dd>Git, plus curl or wget. If Chromium is missing system libraries, the script installs them with sudo (Debian and Ubuntu only).</dd>
+            <dt>Windows</dt><dd>Windows 10 or later; the built-in PowerShell 5.1 is enough. Without Git, the script installs it with winget.</dd>
+            <dt>Network</dt><dd>Access to GitHub, astral.sh (uv), PyPI and Playwright's browser downloads. On a company network, see the <a href="#faq">FAQ</a>.</dd>
+            <dt>Disk space</dt><dd>About 1 GB for Python, packages and Chromium.</dd>
+            <dt>Not needed</dt><dd>You do not install Python, Homebrew or Node.js yourself. uv downloads Python and leaves the system Python alone.</dd>
+          </dl>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Reading the script before running it</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>The scripts are <code>scripts/setup.sh</code> and <code>scripts/setup.ps1</code> in the repository, with full usage notes at the top.</li>
+            <li>If you prefer to read first: open the URL from the command in a browser, or <code>git clone</code> first and run the copy in the project. The Windows command already saves the script as a file, so you can read it before running the second line.</li>
+            <li>The script only installs uv and Python in your home folder, creates <code>.venv</code> in the project folder and downloads Chromium. The only steps that need system permissions are installing Git (macOS, Windows) and Linux browser libraries, and both ask first.</li>
+            <li>Running it again is safe: finished steps are skipped quickly, so after fixing a problem just rerun the same command.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="steps">
+      <div class="panel-header"><h2>What the script does</h2><span class="muted">The same steps on every platform</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Step</th><th>What it does</th><th>When already done</th></tr></thead>
+          <tbody>
+            <tr><td>1. Check the system</td><td>Confirms the operating system and CPU architecture. Warns when an Apple silicon Mac is running under Rosetta.</td><td>Checked every time</td></tr>
+            <tr><td>2. Prepare the code</td><td>Uses the project it runs in; otherwise <code>git clone</code>s to the default location or the one given with <code>--dir</code>.</td><td>Uses the existing download; does not <code>git pull</code> automatically</td></tr>
+            <tr><td>3. Prepare uv</td><td>Installs it with the official installer if missing; tries to upgrade when older than <code>required-version</code> in <code>pyproject.toml</code>.</td><td>Skipped when new enough</td></tr>
+            <tr><td>4. Install Python and dependencies</td><td><code>uv sync</code>: prepares Python 3.13 per <code>.python-version</code>, creates <code>.venv</code>, installs all packages and dev tools.</td><td>Finishes in seconds when nothing changed</td></tr>
+            <tr><td>5. Install Chromium</td><td><code>uv run playwright install chromium</code>, then actually starts it once. On Linux, runs <code>playwright install-deps</code> if system libraries are missing.</td><td>Skips the download and only checks that it starts</td></tr>
+            <tr><td>6. Install pre-commit checks</td><td><code>uv run pre-commit install</code>, so ruff, pyright and the docs checks run before every <code>git commit</code>.</td><td>Rewrites the same hook, no effect</td></tr>
+            <tr><td>7. Confirm it works</td><td>Runs <code>rpa --version</code>, then all tests with <code>RPA_REQUIRE_BROWSER=1</code>: like CI, a missing browser fails instead of being skipped.</td><td>Runs every time</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="options">
+      <div class="panel-header"><h2>Options</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>macOS, Linux</th><th>Windows</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td><code>--dir &lt;path&gt;</code></td><td><code>-Dir &lt;path&gt;</code></td><td>Where to download when there is no code yet. The <code>RPA_DIR</code> environment variable works too. Has no effect inside the project folder.</td></tr>
+            <tr><td><code>--skip-browser</code></td><td><code>-SkipBrowser</code></td><td>Does not download Chromium; tests that need a browser are skipped. Use it to get everything else working when the browser download site is unreachable.</td></tr>
+            <tr><td><code>--skip-tests</code></td><td><code>-SkipTests</code></td><td>Installs only, without running tests.</td></tr>
+            <tr><td><code>--no-hooks</code></td><td><code>-NoHooks</code></td><td>Does not install the pre-commit checks.</td></tr>
+            <tr><td><code>--help</code></td><td><code>Get-Help .\scripts\setup.ps1 -Detailed</code></td><td>Shows the help.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p>The from-scratch commands accept options too:</p>
+<pre class="source"># macOS, Linux: put options after bash -s --
+curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash -s -- --skip-browser
+
+# Windows: put options after the script path given to -File
+powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="done">
+      <div class="panel-header"><h2>What success looks like</h2></div>
+      <div class="panel-body">
+        <p>The last step prints the version and all tests report only <code>passed</code>, followed by "完成" (done) and the commands you can use next. The setup scripts print their messages in Traditional Chinese:</p>
+<pre class="source" translate="no">[7/7] 確認能運行
+  ✓ rpa 0.1.0（rpa-core 0.1.0）
+  $ env RPA_REQUIRE_BROWSER=1 uv run pytest
+…
+============================= 46 passed in 2.91s ==============================
+  ✓ 全部測試通過
+
+完成！本機環境已經可以運行。
+
+接下來在專案資料夾裡：
+  cd /Users/you/code/web_browser_robotic_process_automation
+  uv run rpa -h                               # 命令列工具
+  uv run pytest                               # 跑測試
+  open docs/index.html                        # 開啟文檔站
+  uv run python -m http.server -d docs 8000   # 或用本機伺服器瀏覽文檔</pre>
+        <ul class="points">
+          <li>The number of tests grows with the code and docs pages; what matters is no <code>failed</code> and no <code>skipped</code>.</li>
+          <li>If something fails, the script marks where it stopped and how to fix it with <code>✗</code> (<code>[X]</code> on Windows).</li>
+          <li>Lines starting with <code>!</code> (<code>[!]</code> on Windows) are warnings: they do not stop anything, but are worth reading.</li>
+          <li><code>rpa</code> itself prints Traditional Chinese by default; add <code>--lang en</code>, or set <code>RPA_LANG=en</code>, for English.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="daily">
+      <div class="panel-header"><h2>Every time after that</h2></div>
+      <div class="panel-body">
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+git pull              # get the latest code
+./scripts/setup.sh    # installs only what changed in dependencies or browsers, then reruns the tests; scripts\setup.ps1 on Windows</pre>
+        <p>To update dependencies without the full run, <code>uv sync</code> is enough. Other common commands are in <a href="setup.html">Dev environment</a>.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>FAQ</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>What you see</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td>Windows: "running scripts is disabled on this system"</td><td>Use the commands on this page with <code>-ExecutionPolicy Bypass</code>; it applies to that run only, with no system setting changed.</td></tr>
+            <tr><td>Windows: running with <code>irm … | iex</code> reports "is not recognized" or "Unexpected attribute"</td><td>Use this page's two commands that download first and then run with <code>-File</code>. The script is saved as UTF-8 with a BOM so Windows PowerShell 5.1 reads its Chinese text correctly, but the BOM stays in the string <code>irm</code> downloads and makes <code>iex</code> fail to parse it.</td></tr>
+            <tr><td>macOS: "<span translate="no">請在跳出的視窗按『安裝』</span>" (click Install in the pop-up window)</td><td>Install the Command Line Developer Tools, then run the same command again. You do not need the full Xcode.</td></tr>
+            <tr><td>"<span translate="no">已經存在，而且不是空資料夾</span>" (already exists and is not empty)</td><td>Something else occupies the default location. Pick another one with <code>--dir</code> (<code>-Dir</code> on Windows); if it is the project, go into the folder and run <code>scripts/setup.sh</code>.</td></tr>
+            <tr><td>"<span translate="no">安裝依賴失敗</span>" or "<span translate="no">下載 Chromium 失敗</span>" (installing dependencies / downloading Chromium failed)</td><td>Usually the company network. Set <code>UV_INDEX_URL</code> or <code>PLAYWRIGHT_DOWNLOAD_HOST</code> and rerun, see the <a href="setup.html#faq">Dev environment FAQ</a>; if the browser cannot be downloaded for now, add <code>--skip-browser</code>.</td></tr>
+            <tr><td>Linux: "<span translate="no">Chromium 缺少系統函式庫</span>" (Chromium is missing system libraries)</td><td>The script runs <code>playwright install-deps</code> with sudo and asks for your password. On distributions other than Debian and Ubuntu, install the missing libraries by hand as the error describes.</td></tr>
+            <tr><td><code>uv</code> is not found after the script finishes</td><td>The script just installed uv, which only takes effect in new terminal windows. Open a new window; on macOS and Linux you can also run <code>source $HOME/.local/bin/env</code>.</td></tr>
+            <tr><td>"<span translate="no">測試沒有通過</span>" (tests did not pass)</td><td>Scroll up to find the <code>FAILED</code> test names and errors. Running <code>uv run pytest -x</code> in the project folder stops at the first failure.</td></tr>
+            <tr><td>Start over completely</td><td>Delete <code>.venv</code> in the project and run the script again. For Mac-specific issues (Rosetta, <code>xcrun: error</code> and so on) see the <a href="macos.html#faq">Run on macOS FAQ</a>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="notice">If you would rather not use the script, or want the details of every step: the Mac walkthrough is in <a href="macos.html">Run on macOS</a>, and the commands common to all platforms are in <a href="setup.html">Dev environment</a>.</div>
+  </div>
+</main>
+</body>
+</html>
