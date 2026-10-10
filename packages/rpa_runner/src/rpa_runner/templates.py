@@ -10,7 +10,7 @@ import re
 from collections.abc import Mapping
 from typing import Final
 
-from jinja2 import StrictUndefined, TemplateError
+from jinja2 import StrictUndefined, TemplateError, Undefined
 from jinja2.sandbox import SandboxedEnvironment
 
 __all__ = ["Context", "TemplateEvaluationError", "render", "render_native", "render_tree"]
@@ -47,8 +47,12 @@ def render_native(text: str, context: Context) -> object:
         )
     except TemplateError as error:
         raise TemplateEvaluationError(error.message or str(error)) from error
-    if isinstance(value, StrictUndefined):  # pragma: no cover - StrictUndefined 會先拋出錯誤
-        raise TemplateEvaluationError(str(value))
+    if isinstance(value, Undefined):
+        # 只取值、沒有進一步運算時，StrictUndefined 不會自己拋錯；轉成文字時才會
+        try:
+            str(value)
+        except TemplateError as error:
+            raise TemplateEvaluationError(error.message or str(error)) from error
     return value
 
 
