@@ -27,7 +27,7 @@
           <tbody>
             <tr><td>瀏覽器驅動</td><td>Playwright for Python（async）</td><td>Selenium</td><td>多瀏覽器、自動等待、語意化定位（get_by_role）、Trace Viewer；async 讓一個 worker 同時跑多個瀏覽器上下文</td><td>M2</td></tr>
             <tr><td>DSL 模型與校驗</td><td>Pydantic v2</td><td>marshmallow</td><td>判別聯合很適合「每種動作一個模型」；可直接導出 JSON Schema 給 AI 和前端<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
-            <tr><td>YAML 解析</td><td>ruamel.yaml</td><td>PyYAML</td><td>保留行號，校驗錯誤能指出檔案第幾行</td><td>M1</td></tr>
+            <tr><td>YAML 解析</td><td>PyYAML（只用解析器）</td><td>ruamel.yaml</td><td>解析出的節點樹帶有行號與列號，校驗錯誤能指出檔案位置；轉型改用自己實作的 YAML 1.2 core 規則並拒絕重複的鍵；有型別標註，pyright strict 可用。M1 實作時由 ruamel.yaml 改選，見<a href="dsl.html#yaml">場景 DSL</a></td><td>M1</td></tr>
             <tr><td>表達式 <code>{{ }}</code></td><td>Jinja2 沙箱環境</td><td>自行實作</td><td>成熟，可以限制場景能存取的內容，防止執行任意程式碼</td><td>M3</td></tr>
             <tr><td>命令列</td><td>click</td><td>Typer、argparse</td><td>成熟穩定、子命令與測試工具完整</td><td>M0</td></tr>
             <tr><td>後端 API</td><td>FastAPI</td><td>Django</td><td>與 DSL 共用同一套 Pydantic 模型，自動產生 OpenAPI<small><a href="../adr/0002-python-stack.html">ADR 0002</a></small></td><td>M7</td></tr>
