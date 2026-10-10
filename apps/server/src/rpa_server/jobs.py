@@ -4,7 +4,9 @@ M3 是單機、單一 worker（ADR 0008：SQLite 只允許單一程序），依�
 領取時用「狀態還是 queued 才改成 running」的條件更新，避免和取消同時發生時互相覆蓋。
 """
 
-from sqlalchemy import select, update
+from typing import Any, cast
+
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_runner.run import RunResult, ScenarioInvalidError, StageName
@@ -33,10 +35,13 @@ class RunQueue:
                 ).first()
                 if run is None:
                     return None
-                claimed = session.execute(
-                    update(Run)
-                    .where(Run.id == run.id, Run.status == "queued")
-                    .values(status="running", started_at=now(), stage=None)
+                claimed = cast(
+                    "CursorResult[Any]",
+                    session.execute(
+                        update(Run)
+                        .where(Run.id == run.id, Run.status == "queued")
+                        .values(status="running", started_at=now(), stage=None)
+                    ),
                 )
                 session.commit()
                 if claimed.rowcount == 1:

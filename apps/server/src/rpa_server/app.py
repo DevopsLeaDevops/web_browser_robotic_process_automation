@@ -5,7 +5,7 @@
 """
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Final
@@ -48,7 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     services.on_cancel = worker.cancel
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         if settings.uses_sqlite:
             logger.warning(t("server.sqlite_notice"))
         interrupted = services.recover()

@@ -147,7 +147,7 @@ def test_real_run_and_cancel_while_running(tmp_path: Path) -> None:
         worker.start()
         try:
             assert automation.wait(60), "第二個任務沒有開始"
-            time.sleep(1)
+            # 自動化階段剛開始（子程序與瀏覽器正在啟動）就取消
             assert worker.current == "stop"
             assert worker.cancel("stop") is True
             deadline = time.monotonic() + 30

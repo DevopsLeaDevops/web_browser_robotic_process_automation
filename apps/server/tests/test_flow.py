@@ -9,8 +9,7 @@ from typing import cast
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from httpx import Response
+from httpx import Client, Response
 
 from rpa_server.services import Services
 from rpa_worker import Worker
@@ -40,14 +39,14 @@ def body(response: Response) -> JsonObject:
     return cast("JsonObject", data)
 
 
-def run_next(app: FastAPI, client: TestClient, run: JsonObject) -> JsonObject:
+def run_next(app: FastAPI, client: Client, run: JsonObject) -> JsonObject:
     """執行佇列裡的下一個任務，回傳它的結果。"""
     assert cast("Worker", app.state.worker).run_once() is True
     return body(client.get(f"/api/runs/{run['id']}"))
 
 
 def test_validate_publish_run_and_chain(
-    app: FastAPI, client: TestClient, site: str, engine: str
+    app: FastAPI, client: Client, site: str, engine: str
 ) -> None:
     body(client.post("/api/scenes/import"))
     options = {"engine": engine, "baseUrl": site}
@@ -111,9 +110,7 @@ def test_validate_publish_run_and_chain(
     assert body(client.get("/api/scenes/ba-001"))["latestStatus"] == "draft"
 
 
-def test_publish_refuses_content_changed_on_disk(
-    app: FastAPI, client: TestClient, site: str
-) -> None:
+def test_publish_refuses_content_changed_on_disk(app: FastAPI, client: Client, site: str) -> None:
     engine = require_engine("chromium")
     body(client.post("/api/scenes/import"))
     queued = body(

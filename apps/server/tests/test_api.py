@@ -9,8 +9,7 @@ from typing import cast
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from httpx import Response
+from httpx import Client, Response
 
 from rpa_server.services import Services
 from rpa_worker import Worker
@@ -58,7 +57,7 @@ def services(app: FastAPI) -> Services:
     return cast("Services", app.state.services)
 
 
-def create(client: TestClient, scene_id: str, yaml_text: str) -> None:
+def create(client: Client, scene_id: str, yaml_text: str) -> None:
     """建立場景，並把 v2 存成指定的內容。"""
     assert client.post("/api/scenes", json={"id": scene_id, "name": "暫名"}).status_code == 201
     files = {"scenario.yaml": yaml_text}
@@ -71,7 +70,7 @@ def create(client: TestClient, scene_id: str, yaml_text: str) -> None:
 # ---------------------------------------------------------------- 場景與版本
 
 
-def test_create_scene_makes_a_valid_draft(client: TestClient) -> None:
+def test_create_scene_makes_a_valid_draft(client: Client) -> None:
     assert body(client.get("/api/scenes")) == {"scenes": []}
 
     response = client.post("/api/scenes", json={"id": "demo-x", "name": "示範", "category": "測試"})
@@ -96,9 +95,7 @@ def test_create_scene_makes_a_valid_draft(client: TestClient) -> None:
         ({"id": "demo-x", "name": "重複"}, 409, "scene_exists"),
     ],
 )
-def test_create_scene_errors(
-    client: TestClient, payload: JsonObject, status: int, code: str
-) -> None:
+def test_create_scene_errors(client: Client, payload: JsonObject, status: int, code: str) -> None:
     client.post("/api/scenes", json={"id": "demo-x", "name": "已存在"})
 
     response = client.post("/api/scenes", json=payload)
@@ -107,7 +104,7 @@ def test_create_scene_errors(
     assert error_code(response) == code
 
 
-def test_save_revision_checks_base_and_content(client: TestClient) -> None:
+def test_save_revision_checks_base_and_content(client: Client) -> None:
     client.post("/api/scenes", json={"id": "ba-001", "name": "暫名"})
     url = "/api/scenes/ba-001/revisions"
 
@@ -146,7 +143,7 @@ def test_save_revision_checks_base_and_content(client: TestClient) -> None:
     )
 
 
-def test_import_examples_once(client: TestClient) -> None:
+def test_import_examples_once(client: Client) -> None:
     first = body(client.post("/api/scenes/import"))
     second = body(client.post("/api/scenes/import"))
 
@@ -161,7 +158,7 @@ def test_import_examples_once(client: TestClient) -> None:
     assert sorted(files) == ["assertion.py", "automation.py", "scenario.yaml"]
 
 
-def test_update_scene_base_url(client: TestClient) -> None:
+def test_update_scene_base_url(client: Client) -> None:
     client.post("/api/scenes", json={"id": "demo-x", "name": "示範"})
 
     bad = client.patch("/api/scenes/demo-x", json={"baseUrl": "ftp://x"})
@@ -176,7 +173,7 @@ def test_update_scene_base_url(client: TestClient) -> None:
 # ---------------------------------------------------------------- 執行
 
 
-def test_run_requests_are_checked_before_queueing(client: TestClient) -> None:
+def test_run_requests_are_checked_before_queueing(client: Client) -> None:
     client.post("/api/scenes/import")
 
     not_published = client.post("/api/scenes/ba-001/runs", json={"inputs": {}})
@@ -193,7 +190,7 @@ def test_run_requests_are_checked_before_queueing(client: TestClient) -> None:
     assert body(client.get("/api/runs")) == {"runs": []}
 
 
-def test_validation_is_queued_once_per_idempotency_key(client: TestClient) -> None:
+def test_validation_is_queued_once_per_idempotency_key(client: Client) -> None:
     client.post("/api/scenes/import")
     request = {"inputs": {"title": "甲"}, "engine": "chromium", "idempotencyKey": "k-1"}
 
@@ -208,7 +205,7 @@ def test_validation_is_queued_once_per_idempotency_key(client: TestClient) -> No
     assert body(client.get("/api/scenes/ba-001"))["latestStatus"] == "validating"
 
 
-def test_cancel_queued_validation(app: FastAPI, client: TestClient) -> None:
+def test_cancel_queued_validation(app: FastAPI, client: Client) -> None:
     client.post("/api/scenes/import")
     run = body(client.post("/api/scenes/ba-001/revisions/1/validate", json={"inputs": {}}))
 
@@ -219,7 +216,7 @@ def test_cancel_queued_validation(app: FastAPI, client: TestClient) -> None:
     assert worker(app).run_once() is False
 
 
-def test_failed_run_keeps_evidence_and_reports(app: FastAPI, client: TestClient) -> None:
+def test_failed_run_keeps_evidence_and_reports(app: FastAPI, client: Client) -> None:
     create(client, "needs-secret", NEEDS_SECRET)
     run = body(client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}))
 
@@ -246,7 +243,7 @@ def test_failed_run_keeps_evidence_and_reports(app: FastAPI, client: TestClient)
     assert client.get(f"/runs/{run['id']}/files/missing.png").status_code == 404
 
 
-def test_run_list_filters(client: TestClient) -> None:
+def test_run_list_filters(client: Client) -> None:
     client.post("/api/scenes/import")
     create(client, "needs-secret", NEEDS_SECRET)
     client.post("/api/scenes/ba-001/revisions/1/validate", json={"inputs": {}})
@@ -263,7 +260,7 @@ def test_run_list_filters(client: TestClient) -> None:
     assert ids("purpose=execution") == []
 
 
-def test_recover_marks_interrupted_runs(app: FastAPI, client: TestClient) -> None:
+def test_recover_marks_interrupted_runs(app: FastAPI, client: Client) -> None:
     create(client, "needs-secret", NEEDS_SECRET)
     run = body(client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}))
     job = worker(app).source.claim()
@@ -280,7 +277,7 @@ def test_recover_marks_interrupted_runs(app: FastAPI, client: TestClient) -> Non
 # ---------------------------------------------------------------- 頁面與安全
 
 
-def test_pages_render(app: FastAPI, client: TestClient) -> None:
+def test_pages_render(app: FastAPI, client: Client) -> None:
     client.post("/api/scenes/import")
     create(client, "needs-secret", NEEDS_SECRET)
     run = body(client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}))
@@ -310,7 +307,7 @@ def test_pages_render(app: FastAPI, client: TestClient) -> None:
     assert client.get("/scenes/ba-001/run?purpose=execution").status_code == 409
 
 
-def test_language(client: TestClient) -> None:
+def test_language(client: Client) -> None:
     switched = client.get("/lang/en?next=/runs", follow_redirects=False)
     assert switched.headers["location"] == "/runs"
     assert "rpa_lang=en" in switched.headers["set-cookie"]
@@ -323,7 +320,7 @@ def test_language(client: TestClient) -> None:
     assert cast("JsonObject", body(english)["error"])["message"] == "Scenario nope not found"
 
 
-def test_cross_site_writes_are_blocked(client: TestClient) -> None:
+def test_cross_site_writes_are_blocked(client: Client) -> None:
     response = client.post(
         "/api/scenes",
         json={"id": "demo-x", "name": "跨站"},
