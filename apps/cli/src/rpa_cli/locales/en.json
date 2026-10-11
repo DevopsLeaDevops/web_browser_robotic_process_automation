@@ -37,8 +37,13 @@
   "cli.serve.help": "Start the management portal to create, validate, publish and run scenarios and view reports in a browser. Data (SQLite, scenario revisions, run folders) is kept in the --data folder, by default RPA_DATA_DIR or data/. There is no sign-in, so by default only this computer can connect.",
   "cli.serve.short_help": "Start the management portal.",
   "cli.serve.host_help": "Address to listen on. There is no sign-in; only open it to other computers on a trusted network.",
-  "cli.serve.port_help": "Port to listen on.",
+  "cli.serve.port_help": "Port to listen on. Without it, {first} is used; if another program has it, the next free port up to {last}.",
   "cli.serve.data_help": "Data folder; defaults to the RPA_DATA_DIR environment variable or data/.",
   "cli.serve.exposed": "Warning: {host} is not a loopback address and the portal has no sign-in; anyone on the same network can use it.",
-  "cli.serve.started": "Management portal: {url} (data: {data}; press Ctrl+C to stop)"
+  "cli.serve.started": "Management portal: {url} (data: {data}; press Ctrl+C to stop)",
+  "cli.serve.port_switched": "Port {busy} is used by another program; using {port} instead.",
+  "cli.serve.port_busy": "Port {port} is used by another program; choose another one, for example --port {suggestion}. To see which program: on macOS or Linux run lsof -nP -iTCP:{port} -sTCP:LISTEN; on Windows run netstat -ano | findstr :{port}.",
+  "cli.serve.no_free_port": "Ports {first}–{last} are all used by other programs; choose a port with --port.",
+  "cli.serve.already_running": "The management portal is already running at {url} (probably started earlier and still open); just open that address. To run another one, stop it first, or use --port for another port and --data for another folder.",
+  "cli.serve.bind_failed": "Cannot listen on {host}:{port}: {error}"
 }

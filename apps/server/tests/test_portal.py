@@ -11,10 +11,12 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
+import click
 import pytest
 import uvicorn
 from playwright.sync_api import Page, expect, sync_playwright
 
+from rpa_cli.serve import open_listener
 from rpa_server.app import create_app
 from rpa_server.config import Settings, sqlite_url
 from testsite.browsers import ENGINES, require_engine
@@ -71,6 +73,14 @@ def page() -> Iterator[Page]:
         finally:
             context.close()
             browser.close()
+
+
+def test_rpa_serve_recognizes_a_running_portal(portal: str) -> None:
+    """rpa serve 遇到已經在執行的 Portal 時，直接告訴使用者網址，不再開第二個。"""
+    port = int(portal.rsplit(":", 1)[1])
+    with pytest.raises(click.ClickException) as raised:
+        open_listener("127.0.0.1", port)
+    assert f"http://127.0.0.1:{port}/" in raised.value.message
 
 
 def wait_for_run(page: Page, status: str = "passed") -> str:

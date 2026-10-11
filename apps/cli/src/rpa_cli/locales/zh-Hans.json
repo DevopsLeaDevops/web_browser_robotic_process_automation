@@ -37,8 +37,13 @@
   "cli.serve.help": "启动管理 Portal：在浏览器里创建场景、验证、发布、运行与查看报告。数据（SQLite、场景版本、运行目录）放在 --data 指定的文件夹，默认是 RPA_DATA_DIR 或 data/。没有登录保护，默认只开放本机连接。",
   "cli.serve.short_help": "启动管理 Portal。",
   "cli.serve.host_help": "监听的地址。没有登录保护，请只在信任的网络开放给其他电脑。",
-  "cli.serve.port_help": "监听的端口号。",
+  "cli.serve.port_help": "監聽的埠號。沒有指定時用 {first}，被其他程式占用就自動改用下一個空的埠號（到 {last}）。",
   "cli.serve.data_help": "数据文件夹，默认是环境变量 RPA_DATA_DIR 或 data/。",
   "cli.serve.exposed": "注意：{host} 不是本机地址，而管理 Portal 没有登录保护；同一个网络的其他人都能操作。",
-  "cli.serve.started": "管理 Portal：{url}（数据：{data}；Ctrl+C 结束）"
+  "cli.serve.started": "管理 Portal：{url}（数据：{data}；Ctrl+C 结束）",
+  "cli.serve.port_switched": "埠號 {busy} 已被其他程式使用，改用 {port}。",
+  "cli.serve.port_busy": "埠號 {port} 已被其他程式使用，請換一個，例如 --port {suggestion}。想知道是哪個程式：macOS、Linux 執行 lsof -nP -iTCP:{port} -sTCP:LISTEN；Windows 執行 netstat -ano | findstr :{port}。",
+  "cli.serve.no_free_port": "埠號 {first}～{last} 都被其他程式使用，請用 --port 指定其他埠號。",
+  "cli.serve.already_running": "管理 Portal 已經在 {url} 執行中（可能是之前啟動、還沒關掉的），直接打開這個網址即可。要另外再開一個，請先關掉它；或用 --port 指定其他埠號，並用 --data 指定另一個資料夾。",
+  "cli.serve.bind_failed": "無法監聽 {host}:{port}：{error}"
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:017d4798aac3646b">
+<meta name="translation-source" content="sha256:bdd023ffb2df2c6a">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -124,7 +124,7 @@
         <div class="panel-header"><h2>Settings</h2></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt><code>--host</code>, <code>--port</code></dt><dd>Default <code>127.0.0.1:8080</code></dd>
+            <dt><code>--host</code>, <code>--port</code></dt><dd>Default <code>127.0.0.1:8080</code>; without <code>--port</code>, if another program uses 8080 the next free port up to 8089 is used. If the port is taken by the management portal itself, only its address is shown and no second one is started</dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>Data folder, default <code>data</code>; or use <code>--data</code></dd>
             <dt><code>RPA_DATABASE_URL</code></dt><dd>SQLite by default; PostgreSQL comes in M8</dd>
             <dt><code>RPA_LANG</code></dt><dd>Default language, also used for run reports; pages can switch at the top right</dd>
