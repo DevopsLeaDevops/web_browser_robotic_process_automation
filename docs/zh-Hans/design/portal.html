@@ -124,7 +124,7 @@
         <div class="panel-header"><h2>设置</h2></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt><code>--host</code>、<code>--port</code></dt><dd>默认 <code>127.0.0.1:8080</code></dd>
+            <dt><code>--host</code>、<code>--port</code></dt><dd>默认 <code>127.0.0.1:8080</code>；没有指定端口号而 8080 被其他程序占用时，自动改用下一个空的端口号（到 8089）。占用的如果就是管理 Portal，只显示它的网址，不再开第二个</dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>数据文件夹，默认 <code>data</code>；也可以用 <code>--data</code></dd>
             <dt><code>RPA_DATABASE_URL</code></dt><dd>默认 SQLite；PostgreSQL 在 M8</dd>
             <dt><code>RPA_LANG</code></dt><dd>默认语言，也是运行报告的语言；页面右上角可以切换</dd>
