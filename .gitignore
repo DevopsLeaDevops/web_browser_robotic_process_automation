@@ -12,6 +12,9 @@ dist/
 .pyright/
 .coverage
 htmlcov/
+# CI 產生的報告（tools/ci_annotations.py 讀取）
+pyright.json
+pytest-report.xml
 
 # 執行產物（截圖、Trace、下載檔）
 artifacts/
@@ -30,3 +33,6 @@ test-results/
 
 # rpa run 的執行目錄
 runs/
+
+# rpa serve 的資料目錄（SQLite、場景版本、執行目錄）
+/data/

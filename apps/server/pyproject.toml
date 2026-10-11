@@ -1,0 +1,25 @@
+[project]
+name = "rpa-server"
+version = "0.1.0"
+description = "管理 Portal：FastAPI 提供 API 與 Jinja 頁面；SQLite 存元資料，檔案目錄存版本與執行目錄"
+requires-python = ">=3.12"
+dependencies = [
+  "rpa-core",
+  "rpa-runner",
+  "rpa-worker",
+  "fastapi>=0.143.0",
+  "uvicorn>=0.54.0",
+  "jinja2>=3.1.6",
+  # 資料庫：SQLite 與 PostgreSQL 共用模型與遷移（ADR 0008）
+  "sqlalchemy>=2.1.4",
+  "alembic>=1.20.0",
+]
+
+[tool.uv.sources]
+rpa-core = { workspace = true }
+rpa-runner = { workspace = true }
+rpa-worker = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13"]
+build-backend = "uv_build"

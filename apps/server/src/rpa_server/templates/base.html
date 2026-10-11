@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ title }} · {{ t("app.title") }}</title>
+<link rel="stylesheet" href="/static/portal.css">
+<link rel="stylesheet" href="/static/portal-app.css">
+<script defer src="/static/shell.js"></script>
+<script defer src="/static/portal.js"></script>
+</head>
+<body data-page="{{ page }}">
+<a href="#main" class="skip">{{ t("app.skip") }}</a>
+<header class="topbar">
+  <a class="brand" id="brand" href="/scenes">
+    <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7m-3.5-3.5v7"/></svg></span>
+    <span>{{ t("app.title") }}<small>{{ t("app.subtitle") }}</small></span>
+  </a>
+  <nav id="topnav" class="topnav" aria-label="{{ t('app.topnav') }}">
+    {% for item in nav %}
+    <a href="{{ item.pages[0].href }}"{% if item.id == group.id %} class="active" aria-current="true"{% endif %}>{{ t("nav." + item.id) }}</a>
+    {% endfor %}
+  </nav>
+  <div class="top-end">
+    <label class="language">
+      <span class="visually-hidden">{{ t("app.language") }}</span>
+      <select id="language" data-action="language">
+        {% for code in locales %}
+        <option value="{{ code }}"{% if code == locale %} selected{% endif %}>{{ native_names[code] }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <span class="env">{{ t("app.env") }}</span>
+  </div>
+</header>
+<aside id="sidebar" class="sidebar">
+  <div id="side-heading" class="side-heading"><small>{{ group.en }}</small><strong>{{ t("nav." + group.id) }}</strong></div>
+  <div class="caption">{{ t("app.sidenav") }}</div>
+  <nav id="sidenav" class="sidenav" aria-label="{{ t('app.sidenav') }}">
+    {% for item in group.pages %}
+    <a href="{{ item.href }}"{% if item.id == page %} class="active" aria-current="page"{% endif %}><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7m-3.5-3.5v7"/></svg></span><span>{{ t("nav." + item.id) }}{% if item.milestone %} <small class="muted">{{ item.milestone }}</small>{% endif %}</span></a>
+    {% endfor %}
+  </nav>
+  <div class="side-foot">{{ t("app.footer") }} · v{{ version }}</div>
+</aside>
+<main id="main">
+  <div class="breadcrumb">
+    <button id="menu-toggle" class="button mobile-menu" aria-label="{{ t('app.menu') }}" aria-controls="sidebar" aria-expanded="false">☰</button>
+    <span>Portal</span><span>›</span><span id="crumb">{{ t("nav." + group.id) }} › {% block crumb %}{{ title }}{% endblock %}</span>
+  </div>
+  <div class="heading">
+    <div>
+      <h1 id="title">{{ title }}</h1>
+      <p id="description">{% block description %}{% endblock %}</p>
+    </div>
+    <div id="page-actions" class="actions">{% block actions %}{% endblock %}</div>
+  </div>
+  <div id="content">
+{% block content %}{% endblock %}
+  </div>
+  <footer class="page-foot"><span>{{ t("app.footer") }}</span><span>{{ t("app.footer_note") }}</span></footer>
+</main>
+<dialog id="dialog" aria-labelledby="dialog-title">
+  <div class="dialog-head"><h2 id="dialog-title"></h2><button class="button" id="dialog-close">{{ t("app.close") }}</button></div>
+  <div class="dialog-body" id="dialog-content"></div>
+  <div class="dialog-foot"><button class="button primary" id="dialog-action" hidden></button></div>
+</dialog>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<script type="application/json" id="messages">{{ js_messages | tojson }}</script>
+</body>
+</html>

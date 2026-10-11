@@ -430,6 +430,7 @@ $RpaSetupArgs = @{
         if ($State.StartDir -ne $State.RepoDir) { Write-Host ('  cd "{0}"' -f $State.RepoDir) }
         $rows = @(
             @('uv run rpa -h', '命令列工具'),
+            @('uv run rpa serve', '管理 Portal（http://127.0.0.1:8080）'),
             @('uv run pytest', '跑測試'),
             @('start docs\index.html', '開啟文檔站'),
             @('uv run python -m http.server -d docs 8000', '或用本機伺服器瀏覽文檔')

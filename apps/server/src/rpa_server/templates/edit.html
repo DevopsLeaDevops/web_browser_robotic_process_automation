@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block crumb %}<a href="/scenes">{{ t("nav.scenes") }}</a> › <a href="/scenes/{{ scene.id }}">{{ scene.id }}</a> › {{ t("edit.crumb") }}{% endblock %}
+{% block description %}{{ t("edit.description", shown=revision.number, next=scene.latest_number + 1) }}{% endblock %}
+{% block actions %}
+<a class="button" href="/scenes/{{ scene.id }}">{{ t("edit.back") }}</a>
+<button class="button primary" data-action="save-revision">{{ t("edit.save") }}</button>
+{% endblock %}
+{% block content %}
+<form class="stack" id="revision-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}">
+  {% if revision.number != scene.latest_number %}
+  <div class="notice warn">{{ t("edit.older", shown=revision.number, latest=scene.latest_number) }}</div>
+  {% endif %}
+  <div class="notice">{{ t("edit.notice") }}</div>
+  <section class="panel" id="issues" hidden>
+    <div class="panel-header"><h2>{{ t("edit.issues") }}</h2></div>
+    <ul class="panel-body checklist" id="issue-list"></ul>
+  </section>
+  {% if files | length > 1 %}
+  <div class="segmented" role="tablist">
+    {% for path in files %}
+    <button type="button" role="tab" data-file-tab="{{ path }}"{% if loop.first %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ path }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% for path, text in files.items() %}
+  <section class="panel" data-file="{{ path }}"{% if not loop.first %} hidden{% endif %}>
+    <div class="panel-header"><h2 class="mono">{{ path }}</h2></div>
+    <div class="panel-body">
+      <textarea class="code-editor" name="{{ path }}" rows="28" spellcheck="false" aria-label="{{ path }}">
+{{ text }}</textarea>
+    </div>
+  </section>
+  {% endfor %}
+  <label class="field">{{ t("edit.note") }}<input name="note" maxlength="500" placeholder="{{ t('edit.note_placeholder') }}"></label>
+</form>
+{% endblock %}

@@ -24,10 +24,10 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">目前階段</span><div class="value">M2</div><span class="muted">Runner：rpa run 真實執行場景</span></section>
+      <section class="panel panel-body stat"><span class="muted">目前階段</span><div class="value">M3</div><span class="muted">管理 Portal：rpa serve 在瀏覽器裡管理與執行場景</span></section>
       <section class="panel panel-body stat"><span class="muted">里程碑</span><div class="value">10</div><span class="muted">M0 至 M9，逐步交付</span></section>
       <section class="panel panel-body stat"><span class="muted">架構決策</span><div class="value">11</div><span class="muted">10 項已接受、1 項已取代</span></section>
-      <section class="panel panel-body stat"><span class="muted">主要語言</span><div class="value">Python</div><span class="muted">3.12 以上 · 前端 TypeScript</span></section>
+      <section class="panel panel-body stat"><span class="muted">主要語言</span><div class="value">Python</div><span class="muted">3.12 以上 · 頁面用 Jinja 與少量 JavaScript</span></section>
     </div>
 
     <section class="panel">
@@ -40,6 +40,7 @@
     <div class="grid">
       <a class="panel panel-body link-card" href="design/positioning.html"><h2>產品定位</h2><p>要解決什麼問題、核心概念、生成到回饋的閉環。</p></a>
       <a class="panel panel-body link-card" href="design/dsl.html"><h2>場景 DSL</h2><p>聲明式 DSL 與場景契約：入參、出參、獨立斷言，以及每個欄位與動作的規格。</p></a>
+      <a class="panel panel-body link-card" href="design/portal.html"><h2>管理 Portal</h2><p>頁面與流程、版本與發布門檻、資料模型、API 與背景 worker。</p></a>
       <a class="panel panel-body link-card" href="design/architecture.html"><h2>系統架構</h2><p>元件、資料流與目錄結構，以及每個套件的職責。</p></a>
       <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>技術選型</h2><p>每一層的選擇、備選方案與理由。</p></a>
       <a class="panel panel-body link-card" href="design/multi-user.html"><h2>多用戶與內部系統</h2><p>認證、權限、Secrets、稽核，以及內部系統帶來的限制。</p></a>
@@ -61,12 +62,14 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M2 進行中</span></div>
+        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M3 進行中</span></div>
         <div class="panel-body">
           <dl class="spec-list">
             <dt>rpa-core</dt><dd>場景 DSL 與場景契約的模型、YAML 載入與校驗；範例在 <code>scenarios/</code></dd>
             <dt>rpa-runner</dt><dd>執行引擎：入參校驗、在 Chromium 或 Firefox 中執行步驟、獨立斷言、出參發布、執行報告</dd>
-            <dt>rpa-cli</dt><dd><code>rpa run</code> 執行場景；<code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa schema</code> 輸出 DSL 或單一場景入參、出參的 JSON Schema；<code>--lang</code> 切換繁中、簡中、英文</dd>
+            <dt>rpa-worker</dt><dd>背景 worker：領取任務、以子程序執行、取消；不依賴資料庫</dd>
+            <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 與 Jinja 頁面、SQLite、版本與發布門檻、執行佇列</dd>
+            <dt>rpa-cli</dt><dd><code>rpa serve</code> 啟動管理 Portal；<code>rpa run</code> 執行場景；<code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa schema</code> 輸出 DSL 或單一場景入參、出參的 JSON Schema；<code>--lang</code> 切換繁中、簡中、英文</dd>
             <dt>工具鏈</dt><dd>uv（依賴以 <code>uv.lock</code> 鎖定）、ruff、pyright（strict）、pytest、pre-commit</dd>
             <dt>CI</dt><dd>靜態檢查，Python 3.12 / 3.13 測試，含 Chromium 冒煙測試；一鍵安裝腳本每週在 macOS、Ubuntu、Windows 實際執行</dd>
             <dt>文檔</dt><dd>本站，繁中、簡中、英文三種語言，含連結與翻譯同步的自動檢查</dd>

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}<a href="/runs">{{ t("nav.runs") }}</a> › {{ run.id }}{% endblock %}
+{% block description %}<a href="/scenes/{{ run.scene_id }}">{{ run.scene_id }}</a> {{ run.scene_name }} · v{{ run.revision_number }} · {{ t("purpose." + run.purpose) }}{% endblock %}
+{% block actions %}
+{% if not run.finished %}
+<button class="button" data-action="cancel-run" data-run="{{ run.id }}"{% if run.cancel_requested %} disabled{% endif %}>{{ t("run.cancel") }}</button>
+{% else %}
+<a class="button" href="/runs/{{ run.id }}/files/report.html" target="_blank" rel="noopener" data-action="open-report">{{ t("run.open_report") }}</a>
+{% endif %}
+{% if can_publish %}
+<button class="button primary" data-action="publish" data-scene="{{ run.scene_id }}" data-revision="{{ run.revision_number }}">{{ t("run.publish", number=run.revision_number) }}</button>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="stack" id="run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-stage="{{ run.stage or '' }}"{% if not run.finished %} data-poll{% endif %}>
+  {% if not run.finished %}
+  <div class="notice">{{ t("run.polling") }}</div>
+  {% endif %}
+  {% if run.error %}<div class="notice danger" role="alert">{{ run.error }}</div>{% endif %}
+  {% if run.purpose == "validation" and run.status == "passed" and not can_publish and revision and not revision.published %}
+  <div class="notice">{{ t("run.newer_validation") }}</div>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.summary") }}</h2>{{ m.run_badge(run.status) }}</div>
+    <dl class="panel-body spec-list">
+      {% if run.stage %}<dt>{{ t("run.stage") }}</dt><dd>{{ t("stage." + run.stage) }}</dd>{% endif %}
+      <dt>{{ t("run.created") }}</dt><dd>{{ m.time(run.created_at) }}</dd>
+      <dt>{{ t("run.started") }}</dt><dd>{{ m.time(run.started_at) }}</dd>
+      <dt>{{ t("run.finished") }}</dt><dd>{{ m.time(run.finished_at) }}</dd>
+      <dt>{{ t("runs.col_duration") }}</dt><dd>{% if run.duration_seconds is not none %}{{ "%.1f"|format(run.duration_seconds) }} s{% else %}—{% endif %}</dd>
+      <dt>{{ t("run.engine") }}</dt><dd>{{ (result.engine if result else none) or run.engine or t("run.engine_scenario") }}</dd>
+      <dt>{{ t("run.base_url") }}</dt><dd>{{ run.base_url or t("run.base_url_scenario") }}</dd>
+      {% if run.scenario_hash %}<dt>{{ t("scene.col_hash") }}</dt><dd><code class="mono">{{ run.scenario_hash }}</code></dd>{% endif %}
+    </dl>
+  </section>
+
+  {% if result %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.stages") }}</h2></div>
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("run.col_stage") }}</th><th>{{ t("runs.col_status") }}</th><th>{{ t("run.col_message") }}</th><th class="numeric">{{ t("runs.col_duration") }}</th></tr></thead>
+      <tbody>
+      {% for stage in result.stages %}
+        <tr><td>{{ t("stage." + stage.name) }}</td><td>{{ m.run_badge(stage.status) }}</td><td>{{ stage.message or "—" }}</td><td class="numeric">{{ stage.durationMs }} ms</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+
+  {% if result.problems %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.problems") }}</h2></div>
+    <ul class="panel-body checklist">{% for item in result.problems %}<li>{{ item }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if result.checks %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.checks") }}</h2></div>
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("run.col_check") }}</th><th>{{ t("runs.col_status") }}</th><th>{{ t("run.col_actual") }}</th><th>{{ t("run.col_expected") }}</th></tr></thead>
+      <tbody>
+      {% for check in result.checks %}
+        <tr><td>{{ check.name }}</td>
+          <td>{% if check.passed %}{{ m.run_badge("passed") }}{% else %}{{ m.run_badge("failed") }}{% endif %}</td>
+          <td><code>{{ check.actual if check.actual is not none else "—" }}</code>{% if check.error %}<span class="cell-sub">{{ check.error }}</span>{% endif %}</td>
+          <td>{{ check.comparison }} <code>{{ check.expected if check.expected is not none else "" }}</code></td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  {% endif %}
+  {% endif %}
+
+  <div class="field-pair">
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("run.input") }}</h2></div>
+      <pre class="source">{{ (result.input if result else run.input) | pretty_json }}</pre>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("run.output") }}</h2>{% if run.output is none %}<span class="muted">{{ t("run.no_output") }}</span>{% endif %}</div>
+      <pre class="source">{{ run.output | pretty_json if run.output is not none else "—" }}</pre>
+    </section>
+  </div>
+
+  {% if "screenshot.png" in files %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.screenshot") }}</h2></div>
+    <div class="panel-body"><img class="screenshot" src="/runs/{{ run.id }}/files/screenshot.png" alt="{{ t('run.screenshot') }}" loading="lazy"></div>
+  </section>
+  {% endif %}
+
+  {% if files %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.files") }}</h2><span class="muted">{{ files | length }}</span></div>
+    <ul class="panel-body file-list">
+      {% for path in files %}<li><a href="/runs/{{ run.id }}/files/{{ path }}" target="_blank" rel="noopener">{{ path }}</a></li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

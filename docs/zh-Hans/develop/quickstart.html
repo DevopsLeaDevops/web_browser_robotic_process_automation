@@ -20,7 +20,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">「能运行」指的是：<code>rpa</code> 命令可以运行（目前有 <code>rpa validate</code> 与 <code>rpa schema</code>）、全部测试通过、Playwright 能启动 Chromium 与 Firefox、文档站能在浏览器打开。运行、录制场景等功能会在后续里程碑加入，见<a href="../roadmap.html">路线图</a>。</div>
+    <div class="notice">「能运行」指的是：<code>rpa</code> 命令可以运行（目前有 <code>rpa validate</code>、<code>rpa schema</code>、<code>rpa run</code> 与 <code>rpa serve</code>）、全部测试通过、Playwright 能启动 Chromium 与 Firefox、文档站能在浏览器打开。录制场景等功能会在后续里程碑加入，见<a href="../roadmap.html">路线图</a>。</div>
 
     <div class="two-col">
       <section class="panel" id="unix">
@@ -131,6 +131,7 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
 接下來在專案資料夾裡：
   cd /Users/you/code/web_browser_robotic_process_automation
   uv run rpa -h                               # 命令列工具
+  uv run rpa serve                            # 管理 Portal（http://127.0.0.1:8080）
   uv run pytest                               # 跑測試
   open docs/index.html                        # 開啟文檔站
   uv run python -m http.server -d docs 8000   # 或用本機伺服器瀏覽文檔</pre>

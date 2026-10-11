@@ -33,5 +33,12 @@
   "cli.run.summary": "{id} {name}: {status} ({seconds} s)",
   "cli.run.error": "Reason: {error}",
   "cli.run.output": "Outputs: {path}",
-  "cli.run.report": "Report: {path}"
+  "cli.run.report": "Report: {path}",
+  "cli.serve.help": "Start the management portal to create, validate, publish and run scenarios and view reports in a browser. Data (SQLite, scenario revisions, run folders) is kept in the --data folder, by default RPA_DATA_DIR or data/. There is no sign-in, so by default only this computer can connect.",
+  "cli.serve.short_help": "Start the management portal.",
+  "cli.serve.host_help": "Address to listen on. There is no sign-in; only open it to other computers on a trusted network.",
+  "cli.serve.port_help": "Port to listen on.",
+  "cli.serve.data_help": "Data folder; defaults to the RPA_DATA_DIR environment variable or data/.",
+  "cli.serve.exposed": "Warning: {host} is not a loopback address and the portal has no sign-in; anyone on the same network can use it.",
+  "cli.serve.started": "Management portal: {url} (data: {data}; press Ctrl+C to stop)"
 }

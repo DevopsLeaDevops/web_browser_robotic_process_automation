@@ -44,7 +44,7 @@ browser:
   viewport: { width: 1280, height: 800 }
 
 defaults:
-  timeout: 5000
+  timeout: 10000
 deadline: 45000
 
 steps:

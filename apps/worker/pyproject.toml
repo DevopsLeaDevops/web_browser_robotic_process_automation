@@ -1,0 +1,17 @@
+[project]
+name = "rpa-worker"
+version = "0.1.0"
+description = "背景 worker：領取待執行的任務，以子程序呼叫 rpa-runner，套用總期限與取消，回寫結果"
+requires-python = ">=3.12"
+dependencies = [
+  "rpa-core",
+  "rpa-runner",
+]
+
+[tool.uv.sources]
+rpa-core = { workspace = true }
+rpa-runner = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13"]
+build-backend = "uv_build"

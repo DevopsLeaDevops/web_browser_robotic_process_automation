@@ -1,11 +1,13 @@
 [project]
 name = "rpa-cli"
 version = "0.1.0"
-description = "命令列工具：rpa validate / run / record / generate / push"
+description = "命令列工具：rpa validate / run / serve / record / generate / push"
 requires-python = ">=3.12"
 dependencies = [
   "rpa-core",
   "rpa-runner",
+  # rpa serve 啟動管理 Portal
+  "rpa-server",
   "click>=8.5.0",
 ]
 
@@ -15,6 +17,7 @@ rpa = "rpa_cli.main:main"
 [tool.uv.sources]
 rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
+rpa-server = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]

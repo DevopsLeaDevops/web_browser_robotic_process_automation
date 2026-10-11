@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block description %}{{ t("runs.description") }}{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="notice">{{ t("runs.multi_hint") }}</div>
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("runs.records") }}</h2><span class="muted">{{ t("runs.count", count=runs | length, limit=limit) }}</span></div>
+    <form class="toolbar" method="get" action="/runs" data-auto-submit>
+      <label>{{ t("runs.filter_category") }}<select multiple size="3" name="category">
+        {% for item in categories %}<option{% if item in selected.category %} selected{% endif %}>{{ item }}</option>{% endfor %}
+      </select></label>
+      <label class="grow">{{ t("runs.filter_scene") }}<select multiple size="3" name="scene">
+        {% for scene in scenes %}<option value="{{ scene.id }}"{% if scene.id in selected.scene %} selected{% endif %}>{{ scene.id }} · {{ scene.name }}</option>{% endfor %}
+      </select></label>
+      <label>{{ t("runs.filter_status") }}<select name="status">
+        <option value="">{{ t("runs.all") }}</option>
+        {% for status in statuses %}<option value="{{ status }}"{% if status in selected.status %} selected{% endif %}>{{ t("status." + status) }}</option>{% endfor %}
+      </select></label>
+      <label>{{ t("runs.filter_purpose") }}<select name="purpose">
+        <option value="">{{ t("runs.all") }}</option>
+        {% for purpose in purposes %}<option value="{{ purpose }}"{% if purpose in selected.purpose %} selected{% endif %}>{{ t("purpose." + purpose) }}</option>{% endfor %}
+      </select></label>
+      <button class="button" type="submit">{{ t("scenes.filter") }}</button>
+      <a class="button" href="/runs">{{ t("runs.clear") }}</a>
+    </form>
+    {% if runs %}{{ m.run_rows(runs) }}{% else %}<div class="empty">{{ t("runs.empty") }}</div>{% endif %}
+  </section>
+</div>
+{% endblock %}

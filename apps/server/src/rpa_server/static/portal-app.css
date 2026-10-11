@@ -1,0 +1,18 @@
+/* rpa-server：設計系統 v1.0 沒有的少數樣式，沿用同一組設計變數。設計系統本身（portal.css）不改。 */
+.notice.danger{background:#fff0ef;color:var(--danger);border-color:#f2cfcd}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.language select{min-height:28px;padding:2px 6px;font-size:12px}
+td code{white-space:normal}
+td.rules code{overflow-wrap:anywhere}
+.panel>pre.source{margin:12px}
+.dialog-body>.notice{margin-bottom:4px}
+.form-error{color:var(--danger);font-size:12px;margin:0}
+.form-error:empty{display:none}
+.checklist li{font-size:12px;padding:3px 0;list-style:none}
+.checklist{margin:0}
+.screenshot{display:block;max-width:100%;border:1px solid var(--line);border-radius:6px}
+.file-list{margin:0;padding-left:18px;columns:2;font-size:12px;line-height:1.9}
+.sidenav small{font-size:10px}
+h2 a{color:inherit;text-decoration:none}
+h2 a:hover{color:var(--blue-strong)}
+@media(max-width:700px){.file-list{columns:1}}

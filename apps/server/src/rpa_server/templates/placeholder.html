@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block description %}{{ t("placeholder." + page + "_description") }}{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="notice warn">{{ t("placeholder.notice", milestone=milestone) }}</div>
+  <section class="panel panel-body prose">
+    <p>{{ t("placeholder." + page + "_plan") }}</p>
+    <p><a href="/scenes">{{ t("placeholder.back") }}</a></p>
+  </section>
+</div>
+{% endblock %}

@@ -4,24 +4,21 @@
 CI 設定 RPA_REQUIRE_BROWSER=1，缺瀏覽器直接失敗。
 """
 
-import os
 import threading
 import time
 from collections.abc import Iterator
-from functools import cache
-from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from playwright.sync_api import Error, sync_playwright
 
 from rpa_cli.i18n import install_click_translations
 from rpa_cli.main import build_cli
 from rpa_core.i18n import use_locale
 from rpa_runner.files import FACTS, OUTPUT, REPORT, RESULT, SCREENSHOT
 from rpa_runner.run import RunResult, execute
-from testsite.server import create_server
+from testsite.browsers import ENGINES, require_engine
+from testsite.server import running
 
 pytestmark = pytest.mark.browser
 
@@ -31,36 +28,15 @@ BA_002 = ROOT / "scenarios" / "demo" / "ba-002.yaml"
 BA_001_SCRIPT = ROOT / "scenarios" / "demo" / "ba-001-script" / "scenario.yaml"
 
 
-@cache
-def _launch_problem(engine: str) -> str | None:
-    with sync_playwright() as playwright:
-        try:
-            getattr(playwright, engine).launch().close()
-        except Error as error:
-            return error.message.splitlines()[0]
-    return None
-
-
-@pytest.fixture(params=["chromium", "firefox"])
+@pytest.fixture(params=ENGINES)
 def engine(request: pytest.FixtureRequest) -> str:
-    name = str(request.param)
-    problem = _launch_problem(name)
-    if problem is not None:
-        if os.environ.get("RPA_REQUIRE_BROWSER") == "1":
-            pytest.fail(f"{name} 無法啟動：{problem}")
-        pytest.skip(f"{name} 未安裝：{problem}")
-    return name
+    return require_engine(str(request.param))
 
 
 @pytest.fixture(scope="module")
 def site() -> Iterator[str]:
-    server: ThreadingHTTPServer = create_server()
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{server.server_port}"
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=5)
+    with running() as url:
+        yield url
 
 
 @pytest.fixture(autouse=True)
@@ -75,6 +51,42 @@ def run(
     return execute(
         path, inputs, out_root=tmp, base_url=site, engine=engine, deadline_ms=kw.get("deadline_ms")
     )
+
+
+def test_cancel_stops_browser_and_never_publishes_output(
+    site: str, engine: str, tmp_path: Path
+) -> None:
+    cancel = threading.Event()
+    stages: list[str] = []
+
+    def on_stage(name: str) -> None:
+        stages.append(name)
+        if name == "automation":
+            # 子程序啟動、瀏覽器開到一半時取消
+            threading.Timer(1.0, cancel.set).start()
+
+    started = time.monotonic()
+    result = execute(
+        BA_001,
+        {"title": "取消", "quantity": 1},
+        out_root=tmp_path,
+        base_url=site,
+        engine=engine,
+        cancel=cancel,
+        on_stage=on_stage,
+    )
+
+    assert stages[:2] == ["input", "automation"]
+    if result.status == "passed":  # pragma: no cover - 機器太快，一秒內就跑完
+        pytest.skip("一秒內已執行完畢，來不及取消")
+    assert result.status == "cancelled"
+    # 通常停在自動化階段；機器很快時自動化已經做完，就停在下一個階段開始前
+    cancelled = [stage.name for stage in result.stages if stage.status == "cancelled"]
+    assert len(cancelled) == 1
+    assert cancelled[0] in ("automation", "verify", "output")
+    assert time.monotonic() - started < 20
+    assert not (result.directory / OUTPUT).exists()
+    assert (result.directory / REPORT).is_file()
 
 
 def test_chain_ba001_to_ba002(site: str, engine: str, tmp_path: Path) -> None:
