@@ -27,6 +27,7 @@ def test_migrations_match_models(tmp_path: Path) -> None:
         assert differences == []
         assert sorted(inspect(engine).get_table_names()) == [
             "alembic_version",
+            "domains",
             "revisions",
             "runs",
             "scenes",

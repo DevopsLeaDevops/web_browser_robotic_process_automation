@@ -201,7 +201,10 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     card = page.locator('article.scene-card[data-scene="ba-003"]')
     expect(card.locator('[data-status="passed"]')).to_be_visible()
     expect(card.locator("img")).to_have_attribute("src", re.compile(r"/files/screenshot\.png$"))
-    assert card.locator("img").evaluate("image => image.naturalWidth") > 0
+    # 截圖是延遲載入：捲到卡片，等圖片解碼完再看尺寸（壞圖時 decode 會失敗）
+    card.scroll_into_view_if_needed()
+    width = card.locator("img").evaluate("image => image.decode().then(() => image.naturalWidth)")
+    assert width > 0
 
     # 卡片上的「斷言腳本」打開編輯頁並跳到 verify
     card.locator("a", has_text="斷言腳本").click()
