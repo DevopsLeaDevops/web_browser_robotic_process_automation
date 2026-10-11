@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block description %}{{ t("domains.description") }}{% endblock %}
+{% block actions %}<button class="button primary" data-action="new-domain">{{ t("domains.new") }}</button>{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("domains.list") }}</h2><span class="muted">{{ domains | length }}</span></div>
+    {% if domains %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("domains.col_name") }}</th><th>{{ t("domains.col_id") }}</th><th>{{ t("domains.col_description") }}</th><th class="numeric">{{ t("domains.col_scenes") }}</th><th>{{ t("domains.col_actions") }}</th></tr></thead>
+      <tbody>
+      {% for domain in domains %}
+        <tr data-domain="{{ domain.id }}">
+          <td><a href="/domains/{{ domain.id }}">{{ domain.name }}</a></td>
+          <td><span class="tag">{{ domain.id }}</span></td>
+          <td>{{ domain.description or "—" }}</td>
+          <td class="numeric">{{ domain.scene_count }}</td>
+          <td>
+            <button class="text-btn" data-action="edit-domain" data-domain="{{ domain.id }}" data-name="{{ domain.name }}" data-description="{{ domain.description or '' }}">{{ t("domains.edit") }}</button>
+            {% if domain.scene_count == 0 %}<button class="text-btn" data-action="delete-domain" data-domain="{{ domain.id }}" data-name="{{ domain.name }}">{{ t("domains.delete") }}</button>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("domains.empty") }}</div>{% endif %}
+  </section>
+  {% if unassigned %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("domains.unassigned") }}</h2><span class="muted">{{ t("domains.unassigned_hint") }}</span></div>
+    <ul class="panel-body checklist">
+      {% for scene in unassigned %}<li><a href="/scenes/{{ scene.id }}#settings"><span class="tag">{{ scene.id }}</span> {{ scene.name }}</a></li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+<template id="domain-form">
+  <div class="notice" data-new-only>{{ t("domains.new_notice") }}</div>
+  <label data-new-only>{{ t("domains.new_id") }}<input name="id" pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="google" autocomplete="off"></label>
+  <label>{{ t("domains.new_name") }}<input name="name" required maxlength="100" placeholder="{{ t('domains.name_placeholder') }}"></label>
+  <label>{{ t("domains.new_description") }}<textarea name="description" rows="3" maxlength="2000"></textarea></label>
+  <p class="form-error" role="alert"></p>
+</template>
+{% endblock %}

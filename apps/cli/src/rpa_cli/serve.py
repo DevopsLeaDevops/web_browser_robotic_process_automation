@@ -5,6 +5,8 @@
 - 占用埠號的如果就是管理 Portal（例如之前啟動、還沒關掉的），直接告訴使用者網址，
   不再開第二個：兩個 Portal 共用同一個 SQLite 與 worker 會互相干擾（ADR 0008）。
 - 先自己綁定埠號再交給 uvicorn，失敗時顯示說明，而不是 uvicorn 的原始錯誤。
+- 預設一起在 127.0.0.1:8765 啟動本機測試網站（「測試網站自動化」的案例對它執行），
+  ``--no-testsite`` 關閉；8765 上已經是測試網站就直接沿用。
 """
 
 import errno
@@ -12,15 +14,27 @@ import ipaddress
 import json
 import os
 import socket
+import threading
 import urllib.request
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Final, cast
 
 import click
 
 from rpa_cli.i18n import t
+from testsite.server import DEFAULT_PORT as TESTSITE_PORT
+from testsite.server import NAME as TESTSITE_NAME
+from testsite.server import create_server
 
-__all__ = ["DEFAULT_PORT", "PORTAL_TITLE", "build_serve_command", "open_listener", "portal_url"]
+__all__ = [
+    "DEFAULT_PORT",
+    "PORTAL_TITLE",
+    "build_serve_command",
+    "open_listener",
+    "portal_url",
+    "start_testsite",
+]
 
 DEFAULT_PORT: Final = 8080
 FALLBACK_PORTS: Final = 10
@@ -75,18 +89,39 @@ def _bind(host: str, port: int) -> socket.socket:
     return sock
 
 
-def _is_portal(host: str, port: int) -> bool:
-    """這個埠號上是不是管理 Portal（讀 /api/openapi.json 的標題）。"""
+def _get_json(url: str) -> dict[str, object] | None:
+    """讀取本機網址的 JSON 物件；連不上或不是 JSON 物件時回傳 None。"""
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 本機位址不走代理
     try:
-        with opener.open(f"{portal_url(host, port)}api/openapi.json", timeout=1) as response:
+        with opener.open(url, timeout=1) as response:
             data: object = json.load(response)
     except (OSError, ValueError):
-        return False
-    if not isinstance(data, dict):
-        return False
-    info = cast("dict[str, object]", data).get("info")
+        return None
+    return cast("dict[str, object]", data) if isinstance(data, dict) else None
+
+
+def _is_portal(host: str, port: int) -> bool:
+    """這個埠號上是不是管理 Portal（讀 /api/openapi.json 的標題）。"""
+    data = _get_json(f"{portal_url(host, port)}api/openapi.json")
+    info = data.get("info") if data is not None else None
     return isinstance(info, dict) and cast("dict[str, object]", info).get("title") == PORTAL_TITLE
+
+
+def start_testsite(port: int = TESTSITE_PORT) -> tuple[ThreadingHTTPServer | None, str]:
+    """在背景執行緒啟動本機測試網站，回傳 (伺服器，沒有啟動時為 None；要顯示的訊息)。"""
+    url = f"http://127.0.0.1:{port}/"
+    try:
+        server = create_server(port)
+    except OSError as error:
+        if error.errno not in _IN_USE:
+            detail = error.strerror or str(error)
+            return None, t("cli.serve.testsite_failed", url=url, error=detail)
+        about = _get_json(f"{url}api/about")
+        if about is not None and about.get("name") == TESTSITE_NAME:
+            return None, t("cli.serve.testsite_running", url=url)
+        return None, t("cli.serve.testsite_busy", port=port)
+    threading.Thread(target=server.serve_forever, name="testsite", daemon=True).start()
+    return server, t("cli.serve.testsite_started", url=url)
 
 
 def open_listener(
@@ -143,8 +178,14 @@ def build_serve_command() -> click.Command:
         default=None,
         help=t("cli.serve.data_help"),
     )
-    def serve(host: str, port: int | None, data_dir: Path | None) -> None:
+    @click.option(
+        "--testsite/--no-testsite",
+        default=True,
+        help=t("cli.serve.testsite_help", port=TESTSITE_PORT),
+    )
+    def serve(host: str, port: int | None, data_dir: Path | None, testsite: bool) -> None:
         sock, chosen, skipped = open_listener(host, port)
+        site: ThreadingHTTPServer | None = None
         try:
             # 只有真的啟動伺服器時才載入 FastAPI 與資料庫
             import uvicorn
@@ -158,6 +199,9 @@ def build_serve_command() -> click.Command:
             if not _is_loopback(host):
                 click.echo(t("cli.serve.exposed", host=host), err=True)
             app = create_app(settings)
+            if testsite:
+                site, message = start_testsite()
+                click.echo(message, err=True)
             click.echo(
                 t(
                     "cli.serve.started",
@@ -170,5 +214,8 @@ def build_serve_command() -> click.Command:
             uvicorn.Server(config).run(sockets=[sock])
         finally:
             sock.close()
+            if site is not None:
+                site.shutdown()
+                site.server_close()
 
     return serve

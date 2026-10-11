@@ -45,5 +45,10 @@
   "cli.serve.port_busy": "埠號 {port} 已被其他程式使用，請換一個，例如 --port {suggestion}。想知道是哪個程式：macOS、Linux 執行 lsof -nP -iTCP:{port} -sTCP:LISTEN；Windows 執行 netstat -ano | findstr :{port}。",
   "cli.serve.no_free_port": "埠號 {first}～{last} 都被其他程式使用，請用 --port 指定其他埠號。",
   "cli.serve.already_running": "管理 Portal 已經在 {url} 執行中（可能是之前啟動、還沒關掉的），直接打開這個網址即可。要另外再開一個，請先關掉它；或用 --port 指定其他埠號，並用 --data 指定另一個資料夾。",
-  "cli.serve.bind_failed": "無法監聽 {host}:{port}：{error}"
+  "cli.serve.bind_failed": "無法監聽 {host}:{port}：{error}",
+  "cli.serve.testsite_help": "一起啟動本機測試網站（http://127.0.0.1:{port}/）；「測試網站自動化」的案例對它執行。",
+  "cli.serve.testsite_started": "測試網站：{url}",
+  "cli.serve.testsite_running": "測試網站已經在 {url} 執行，直接沿用。",
+  "cli.serve.testsite_busy": "埠號 {port} 被其他程式占用，沒有啟動測試網站，「測試網站自動化」的案例會連不上。關掉占用的程式後重新啟動，或加 --no-testsite 不啟動測試網站。",
+  "cli.serve.testsite_failed": "無法啟動測試網站（{url}）：{error}"
 }

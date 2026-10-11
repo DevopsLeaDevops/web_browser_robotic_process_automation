@@ -21,22 +21,25 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario, validate_file
 from rpa_runner.contract import check_inputs
-from rpa_runner.files import RESULT
+from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id, scenario_sources
+from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.domain import (
+    DOMAIN_ID,
+    DomainRecord,
     Engine,
     Purpose,
     RevisionRecord,
     RevisionStatus,
     RunRecord,
     RunStatus,
+    SceneCard,
     SceneRecord,
-    Stats,
     issue_json,
     now,
 )
 from rpa_server.i18n import t
-from rpa_server.models import Revision, Run, Scene
+from rpa_server.models import Domain, Revision, Run, Scene
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
 
 __all__ = [
@@ -50,6 +53,9 @@ __all__ = [
 
 SCENE_ID: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """與 DSL 的 id 相同的規則。"""
+
+_CARD_SHOT_LOOKBACK: Final = 5
+"""找卡片截圖時，往回看幾次執行。"""
 
 RUN_LIST_LIMIT: Final = 200
 """報告清單最多顯示的筆數。"""
@@ -99,6 +105,7 @@ def scene_record(scene: Scene, latest: Revision | None) -> SceneRecord:
         name=scene.name,
         category=scene.category,
         description=scene.description,
+        domain_id=scene.domain_id,
         kind=latest.kind if latest is not None else "dsl",
         base_url=scene.base_url,
         latest_number=scene.latest_number,
@@ -177,6 +184,159 @@ class Services:
         self.on_cancel: Callable[[str], object] = lambda run_id: None
         """要求取消執行中的任務。"""
 
+    # ------------------------------------------------------------ 領域
+
+    @staticmethod
+    def _domain(session: Session, domain_id: str) -> Domain:
+        domain = session.get(Domain, domain_id)
+        if domain is None:
+            raise _not_found("domain_not_found", t("error.domain_not_found", id=domain_id))
+        return domain
+
+    @staticmethod
+    def _domain_record(session: Session, domain: Domain) -> DomainRecord:
+        count = session.scalar(
+            select(func.count())
+            .select_from(Scene)
+            .where(Scene.domain_id == domain.id, Scene.archived.is_(False))
+        )
+        return DomainRecord(
+            id=domain.id,
+            name=domain.name,
+            description=domain.description,
+            position=domain.position,
+            scene_count=count or 0,
+            created_at=domain.created_at,
+        )
+
+    def list_domains(self) -> list[DomainRecord]:
+        """全部領域，依排列順序；就是場景管理的二級選單。"""
+        with self.sessions() as session:
+            domains = session.scalars(select(Domain).order_by(Domain.position, Domain.created_at))
+            return [self._domain_record(session, domain) for domain in domains]
+
+    def get_domain(self, domain_id: str) -> DomainRecord:
+        with self.sessions() as session:
+            return self._domain_record(session, self._domain(session, domain_id))
+
+    def create_domain(
+        self, domain_id: str, name: str, description: str | None = None
+    ) -> DomainRecord:
+        domain_id, name = domain_id.strip(), name.strip()
+        if not DOMAIN_ID.fullmatch(domain_id):
+            raise _invalid("domain_id_invalid", t("error.domain_id_invalid", id=domain_id))
+        if not name:
+            raise _invalid("domain_name_missing", t("error.domain_name_missing"))
+        with self.sessions() as session:
+            if session.get(Domain, domain_id) is not None:
+                raise _conflict("domain_exists", t("error.domain_exists", id=domain_id))
+            last = session.scalar(select(func.max(Domain.position)))
+            domain = Domain(
+                id=domain_id,
+                name=name,
+                description=(description or "").strip() or None,
+                position=(last if last is not None else -1) + 1,
+                created_at=now(),
+            )
+            session.add(domain)
+            session.commit()
+            return self._domain_record(session, domain)
+
+    def update_domain(
+        self, domain_id: str, *, name: str | None = None, description: str | None = None
+    ) -> DomainRecord:
+        """改名稱或說明；代號不能改（網址與場景都用它）。"""
+        with self.sessions() as session:
+            domain = self._domain(session, domain_id)
+            if name is not None:
+                if not name.strip():
+                    raise _invalid("domain_name_missing", t("error.domain_name_missing"))
+                domain.name = name.strip()
+            if description is not None:
+                domain.description = description.strip() or None
+            session.commit()
+            return self._domain_record(session, domain)
+
+    def delete_domain(self, domain_id: str) -> None:
+        """只能刪除沒有場景（包含封存的）的領域。"""
+        with self.sessions() as session:
+            domain = self._domain(session, domain_id)
+            used = session.scalar(
+                select(func.count()).select_from(Scene).where(Scene.domain_id == domain_id)
+            )
+            if used:
+                raise _conflict(
+                    "domain_not_empty", t("error.domain_not_empty", id=domain_id, count=used)
+                )
+            session.delete(domain)
+            session.commit()
+
+    def seed_examples_domain(self) -> ImportReport | None:
+        """還沒有任何領域時：建立「測試網站自動化」，把已經存在的範例場景放進去，再匯入其餘範例。"""
+        with self.sessions() as session:
+            if session.scalar(select(func.count()).select_from(Domain)):
+                return None
+            session.add(
+                Domain(
+                    id=EXAMPLES_DOMAIN,
+                    name=t("domain.testsite_name"),
+                    description=t("domain.testsite_description"),
+                    position=0,
+                    created_at=now(),
+                )
+            )
+            session.commit()
+            example_ids = [scenario_id for scenario_id, _ in self._examples()]
+            for scene in session.scalars(
+                select(Scene).where(Scene.domain_id.is_(None), Scene.id.in_(example_ids))
+            ):
+                scene.domain_id = EXAMPLES_DOMAIN
+            session.commit()
+        if self.examples_dir is None or not self.examples_dir.is_dir():
+            return ImportReport()
+        return self.import_examples(EXAMPLES_DOMAIN)
+
+    def _examples(self) -> list[tuple[str, Path]]:
+        """範例資料夾裡能通過校驗的場景：(場景 id, 場景檔)。"""
+        folder = self.examples_dir
+        if folder is None or not folder.is_dir():
+            return []
+        found: list[tuple[str, Path]] = []
+        for path in sorted(folder.glob("*.yaml")) + sorted(folder.glob("*/scenario.yaml")):
+            scenario = validate_file(path).scenario
+            if scenario is not None:
+                found.append((scenario.id, path))
+        return found
+
+    def scene_cards(self, domain_id: str) -> list[SceneCard]:
+        """領域頁的卡片：場景、最近一次執行、最近一張執行截圖。"""
+        scenes = self.list_scenes(domain=domain_id)
+        cards: list[SceneCard] = []
+        with self.sessions() as session:
+            for scene in scenes:
+                recent = list(
+                    session.scalars(
+                        select(Run)
+                        .where(Run.scene_id == scene.id)
+                        .order_by(Run.created_at.desc(), Run.id.desc())
+                        .limit(_CARD_SHOT_LOOKBACK)
+                    )
+                )
+                shot = next(
+                    (
+                        run.id
+                        for run in recent
+                        if self.storage.run_file(run.id, SCREENSHOT) is not None
+                    ),
+                    None,
+                )
+                last = run_record(recent[0]) if recent else None
+                cards.append(SceneCard(scene=scene, last_run=last, screenshot_run=shot))
+        return cards
+
+    def unassigned_scenes(self) -> list[SceneRecord]:
+        return [scene for scene in self.list_scenes() if scene.domain_id is None]
+
     # ------------------------------------------------------------ 查詢：場景
 
     @staticmethod
@@ -206,9 +366,16 @@ class Services:
         ).first()
 
     def list_scenes(
-        self, *, query: str = "", category: str | None = None, include_archived: bool = False
+        self,
+        *,
+        query: str = "",
+        category: str | None = None,
+        domain: str | None = None,
+        include_archived: bool = False,
     ) -> list[SceneRecord]:
         statement = select(Scene).order_by(Scene.id)
+        if domain is not None:
+            statement = statement.where(Scene.domain_id == domain)
         if not include_archived:
             statement = statement.where(Scene.archived.is_(False))
         if category:
@@ -236,40 +403,12 @@ class Services:
             if (revision.scene_id, revision.number) in wanted
         }
 
-    def categories(self) -> list[str]:
-        with self.sessions() as session:
-            values = session.scalars(
-                select(Scene.category)
-                .where(Scene.category.is_not(None), Scene.archived.is_(False))
-                .distinct()
-                .order_by(Scene.category)
-            )
-            return [value for value in values if value]
-
     def run_categories(self) -> list[str]:
         with self.sessions() as session:
             values = session.scalars(
                 select(Run.category).where(Run.category.is_not(None)).distinct()
             )
             return sorted(value for value in values if value)
-
-    def stats(self) -> Stats:
-        with self.sessions() as session:
-            active = Scene.archived.is_(False)
-            return Stats(
-                scenes=session.scalar(select(func.count()).select_from(Scene).where(active)) or 0,
-                published=session.scalar(
-                    select(func.count())
-                    .select_from(Scene)
-                    .where(active, Scene.published_number.is_not(None))
-                )
-                or 0,
-                runs=session.scalar(select(func.count()).select_from(Run)) or 0,
-                passed=session.scalar(
-                    select(func.count()).select_from(Run).where(Run.status == "passed")
-                )
-                or 0,
-            )
 
     def get_scene(self, scene_id: str) -> SceneRecord:
         with self.sessions() as session:
@@ -312,7 +451,14 @@ class Services:
 
     # ------------------------------------------------------------ 場景與版本
 
-    def create_scene(self, scene_id: str, name: str, category: str | None = None) -> SceneRecord:
+    def create_scene(
+        self,
+        scene_id: str,
+        name: str,
+        category: str | None = None,
+        *,
+        domain_id: str | None = None,
+    ) -> SceneRecord:
         scene_id, name = scene_id.strip(), name.strip()
         category = (category or "").strip() or None
         if not SCENE_ID.fullmatch(scene_id):
@@ -320,9 +466,18 @@ class Services:
         if not name:
             raise _invalid("scene_name_missing", t("error.scene_name_missing"))
         files = {SCENARIO_FILE: new_scene_template(scene_id, name, category)}
-        return self._add_scene(scene_id, files, note=t("revision.note_created"))
+        return self._add_scene(
+            scene_id, files, note=t("revision.note_created"), domain_id=domain_id
+        )
 
-    def _add_scene(self, scene_id: str, files: Mapping[str, str], note: str | None) -> SceneRecord:
+    def _add_scene(
+        self,
+        scene_id: str,
+        files: Mapping[str, str],
+        note: str | None,
+        *,
+        domain_id: str | None = None,
+    ) -> SceneRecord:
         checked = self.storage.check(files, scene_id=scene_id)
         if not checked.ok or checked.scenario is None or checked.digest is None:
             raise _invalid(
@@ -332,6 +487,8 @@ class Services:
             )
         scenario = checked.scenario
         with self.sessions() as session:
+            if domain_id is not None:
+                self._domain(session, domain_id)
             if session.get(Scene, scene_id) is not None:
                 raise _conflict("scene_exists", t("error.scene_exists", id=scene_id))
             moment = now()
@@ -340,6 +497,7 @@ class Services:
                 name=scenario.name,
                 category=scenario.category,
                 description=scenario.description,
+                domain_id=domain_id,
                 latest_number=1,
                 archived=False,
                 created_at=moment,
@@ -395,9 +553,15 @@ class Services:
         base_url: str | None = None,
         clear_base_url: bool = False,
         archived: bool | None = None,
+        domain_id: str | None = None,
+        clear_domain: bool = False,
     ) -> SceneRecord:
         with self.sessions() as session:
             scene = self._scene(session, scene_id)
+            if clear_domain:
+                scene.domain_id = None
+            elif domain_id is not None:
+                scene.domain_id = self._domain(session, domain_id).id
             if clear_base_url:
                 scene.base_url = None
             elif base_url is not None:
@@ -454,11 +618,20 @@ class Services:
             self._write_revision(session, scene_id, number, checked.files, [scene, revision])
             return revision_record(revision, scene)
 
-    def import_examples(self) -> ImportReport:
-        """匯入範例資料夾的場景（已存在的 id 略過），每個場景建立第 1 版草稿。"""
+    def import_examples(self, domain_id: str | None = None) -> ImportReport:
+        """匯入範例資料夾的場景（已存在的 id 略過），每個場景建立第 1 版草稿。
+
+        domain_id 沒指定時放進「測試網站自動化」（存在的話）。
+        """
         folder = self.examples_dir
         if folder is None or not folder.is_dir():
             raise _not_found("no_examples", t("error.no_examples"))
+        if domain_id is None:
+            with self.sessions() as session:
+                if session.get(Domain, EXAMPLES_DOMAIN) is not None:
+                    domain_id = EXAMPLES_DOMAIN
+        else:
+            self.get_domain(domain_id)
         report = ImportReport()
         paths = sorted(folder.glob("*.yaml")) + sorted(folder.glob("*/scenario.yaml"))
         for path in paths:
@@ -475,7 +648,10 @@ class Services:
             }
             try:
                 self._add_scene(
-                    scenario.id, files, note=t("revision.note_imported", path=path.name)
+                    scenario.id,
+                    files,
+                    note=t("revision.note_imported", path=path.name),
+                    domain_id=domain_id,
                 )
             except ServiceError as error:
                 report.skipped.append(f"{scenario.id}：{error.message}")

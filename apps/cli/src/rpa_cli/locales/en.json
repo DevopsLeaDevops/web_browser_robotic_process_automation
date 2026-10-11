@@ -45,5 +45,10 @@
   "cli.serve.port_busy": "Port {port} is used by another program; choose another one, for example --port {suggestion}. To see which program: on macOS or Linux run lsof -nP -iTCP:{port} -sTCP:LISTEN; on Windows run netstat -ano | findstr :{port}.",
   "cli.serve.no_free_port": "Ports {first}–{last} are all used by other programs; choose a port with --port.",
   "cli.serve.already_running": "The management portal is already running at {url} (probably started earlier and still open); just open that address. To run another one, stop it first, or use --port for another port and --data for another folder.",
-  "cli.serve.bind_failed": "Cannot listen on {host}:{port}: {error}"
+  "cli.serve.bind_failed": "Cannot listen on {host}:{port}: {error}",
+  "cli.serve.testsite_help": "Also start the local test site (http://127.0.0.1:{port}/); the “Test site automation” cases run against it.",
+  "cli.serve.testsite_started": "Test site: {url}",
+  "cli.serve.testsite_running": "The test site is already running at {url}; using it.",
+  "cli.serve.testsite_busy": "Port {port} is used by another program, so the test site was not started and the “Test site automation” cases cannot reach it. Stop that program and restart, or add --no-testsite to skip the test site.",
+  "cli.serve.testsite_failed": "Cannot start the test site ({url}): {error}"
 }

@@ -25,6 +25,7 @@ pytestmark = pytest.mark.browser
 ROOT = Path(__file__).resolve().parents[3]
 BA_001 = ROOT / "scenarios" / "demo" / "ba-001.yaml"
 BA_002 = ROOT / "scenarios" / "demo" / "ba-002.yaml"
+BA_003 = ROOT / "scenarios" / "demo" / "ba-003.yaml"
 BA_001_SCRIPT = ROOT / "scenarios" / "demo" / "ba-001-script" / "scenario.yaml"
 
 
@@ -160,6 +161,15 @@ def test_unknown_record_fails_with_evidence(site: str, engine: str, tmp_path: Pa
     assert (result.directory / REPORT).is_file()
     failed = {step["id"] for step in result.steps if step["status"] == "failed"}
     assert failed <= {"wait-receipt"}
+
+
+def test_missing_record_is_reported_clearly(site: str, engine: str, tmp_path: Path) -> None:
+    """負面案例 BA-003：查不到紀錄時，頁面顯示「查無紀錄」、不出現詳情，這次執行算通過。"""
+    result = run(BA_003, {}, site, engine, tmp_path)
+
+    assert result.status == "passed", result.error
+    assert result.output == {"message": "查無紀錄"}
+    assert (result.directory / SCREENSHOT).is_file()
 
 
 def test_python_script_scenario(site: str, engine: str, tmp_path: Path) -> None:

@@ -34,6 +34,8 @@ def settings(tmp_path: Path) -> Settings:
         database_url=sqlite_url(data / "rpa.db"),
         examples_dir=DEMO,
         start_worker=False,
+        # 預設不建立領域、不匯入範例；需要的測試自己建立或呼叫 seed_examples_domain
+        seed_examples=False,
     )
 
 

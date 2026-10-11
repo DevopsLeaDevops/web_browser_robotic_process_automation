@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block crumb %}<a href="/scenes">{{ t("nav.scenes") }}</a> › <a href="/scenes/{{ scene.id }}">{{ scene.id }}</a> › {{ t("purpose." + purpose) }}{% endblock %}
+{% block crumb %}{{ m.scene_crumb(scene, domain) }} › {{ t("purpose." + purpose) }}{% endblock %}
 {% block description %}{{ t("run_form.description_" + purpose, number=revision.number, name=scene.name) }}{% endblock %}
 {% block actions %}<a class="button" href="/scenes/{{ scene.id }}">{{ t("edit.back") }}</a>{% endblock %}
 {% block content %}

@@ -147,9 +147,14 @@ def test_import_examples_once(client: Client) -> None:
     first = body(client.post("/api/scenes/import"))
     second = body(client.post("/api/scenes/import"))
 
-    assert sorted(cast("list[str]", first["imported"])) == ["ba-001", "ba-001-script", "ba-002"]
+    assert sorted(cast("list[str]", first["imported"])) == [
+        "ba-001",
+        "ba-001-script",
+        "ba-002",
+        "ba-003",
+    ]
     assert second["imported"] == []
-    assert len(cast("list[str]", second["skipped"])) == 3
+    assert len(cast("list[str]", second["skipped"])) == 4
     script = body(client.get("/api/scenes/ba-001-script"))
     assert script["kind"] == "script"
     files = cast(
@@ -278,17 +283,21 @@ def test_recover_marks_interrupted_runs(app: FastAPI, client: Client) -> None:
 
 
 def test_pages_render(app: FastAPI, client: Client) -> None:
-    client.post("/api/scenes/import")
+    services(app).seed_examples_domain()
     create(client, "needs-secret", NEEDS_SECRET)
     run = body(client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}))
     worker(app).run_once()
 
     for url in (
         "/scenes",
-        "/scenes?q=ba&category=範例資料",
+        "/domains",
+        "/domains/testsite",
         "/scenes/ba-001",
+        "/scenes/needs-secret",
+        "/scenes/needs-secret/edit?focus=verify",
         "/scenes/ba-001/edit",
         "/scenes/ba-001-script/edit?revision=1",
+        "/scenes/ba-001-script/edit?file=assertion.py",
         "/scenes/ba-001/run?purpose=validation",
         "/runs",
         "/runs?scene=ba-001&scene=needs-secret&status=failed",
@@ -301,6 +310,8 @@ def test_pages_render(app: FastAPI, client: Client) -> None:
         assert response.headers["content-type"].startswith("text/html"), url
 
     assert client.get("/", follow_redirects=False).headers["location"] == "/scenes"
+    assert client.get("/scenes", follow_redirects=False).headers["location"] == "/domains/testsite"
+    assert client.get("/domains/nope").status_code == 404
     missing = client.get("/scenes/nope")
     assert missing.status_code == 404
     assert "找不到場景 nope" in missing.text
@@ -328,3 +339,104 @@ def test_cross_site_writes_are_blocked(client: Client) -> None:
     )
     assert response.status_code == 403
     assert body(client.get("/api/scenes")) == {"scenes": []}
+
+
+# ---------------------------------------------------------------- 領域
+
+
+def test_domains_crud(client: Client) -> None:
+    assert body(client.get("/api/domains")) == {"domains": []}
+
+    created = client.post(
+        "/api/domains", json={"id": "google", "name": "谷歌自動化", "description": "Google"}
+    )
+    second = client.post("/api/domains", json={"id": "microsoft", "name": "微軟自動化"})
+    duplicate = client.post("/api/domains", json={"id": "google", "name": "重複"})
+    bad_id = client.post("/api/domains", json={"id": "Google", "name": "大寫"})
+    renamed = client.patch("/api/domains/google", json={"name": "Google 自動化"})
+
+    assert created.status_code == 201
+    assert (body(created)["position"], body(second)["position"]) == (0, 1)
+    assert error_code(duplicate) == "domain_exists"
+    assert error_code(bad_id) == "domain_id_invalid"
+    assert body(renamed)["name"] == "Google 自動化"
+    domains = cast("list[JsonObject]", body(client.get("/api/domains"))["domains"])
+    assert [domain["id"] for domain in domains] == ["google", "microsoft"]
+
+    client.post("/api/scenes", json={"id": "g-001", "name": "登入", "domainId": "google"})
+    not_empty = client.delete("/api/domains/google")
+    assert (not_empty.status_code, error_code(not_empty)) == (409, "domain_not_empty")
+    assert body(client.delete("/api/domains/microsoft")) == {"deleted": "microsoft"}
+    assert client.get("/api/domains/microsoft").status_code == 404
+
+
+def test_scenes_belong_to_domains(client: Client) -> None:
+    client.post("/api/domains", json={"id": "google", "name": "谷歌自動化"})
+    client.post("/api/domains", json={"id": "microsoft", "name": "微軟自動化"})
+
+    unknown = client.post("/api/scenes", json={"id": "x-001", "name": "甲", "domainId": "nope"})
+    client.post("/api/scenes", json={"id": "g-001", "name": "甲", "domainId": "google"})
+    client.post("/api/scenes", json={"id": "loose", "name": "乙"})
+
+    assert error_code(unknown) == "domain_not_found"
+    scenes = cast("list[JsonObject]", body(client.get("/api/scenes?domain=google"))["scenes"])
+    assert [scene["id"] for scene in scenes] == ["g-001"]
+    moved = body(client.patch("/api/scenes/g-001", json={"domainId": "microsoft"}))
+    cleared = body(client.patch("/api/scenes/loose", json={"domainId": None}))
+    assert (moved["domainId"], cleared["domainId"]) == ("microsoft", None)
+    domain = body(client.get("/api/domains/microsoft"))
+    assert domain["sceneCount"] == 1
+    cards = cast("list[JsonObject]", domain["scenes"])
+    assert [(card["id"], card["lastRun"], card["screenshotUrl"]) for card in cards] == [
+        ("g-001", None, None)
+    ]
+
+
+def test_seed_creates_testsite_domain_once(app: FastAPI, client: Client) -> None:
+    client.post("/api/scenes/import")  # 舊版本匯入的範例：還沒有領域
+    client.post("/api/scenes", json={"id": "mine", "name": "自己的場景"})
+
+    report = services(app).seed_examples_domain()
+
+    assert report is not None
+    assert report.imported == []  # 範例都已經存在，只是被放進領域
+    domain = body(client.get("/api/domains/testsite"))
+    assert domain["name"] == "測試網站自動化"
+    cards = cast("list[JsonObject]", domain["scenes"])
+    assert [card["id"] for card in cards] == ["ba-001", "ba-001-script", "ba-002", "ba-003"]
+    assert body(client.get("/api/scenes/mine"))["domainId"] is None
+    assert services(app).seed_examples_domain() is None
+
+
+def test_import_goes_into_the_given_domain(client: Client) -> None:
+    client.post("/api/domains", json={"id": "lab", "name": "實驗"})
+
+    report = body(client.post("/api/scenes/import", json={"domainId": "lab"}))
+
+    assert len(cast("list[str]", report["imported"])) == 4
+    assert body(client.get("/api/domains/lab"))["sceneCount"] == 4
+
+
+def test_card_shows_last_run_and_screenshot(app: FastAPI, client: Client) -> None:
+    client.post("/api/domains", json={"id": "lab", "name": "實驗"})
+    create(client, "needs-secret", NEEDS_SECRET)
+    client.patch("/api/scenes/needs-secret", json={"domainId": "lab"})
+    run = body(client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}))
+    worker(app).run_once()
+    # 這次執行停在入參階段沒有截圖；放一張進執行目錄，模擬有截圖的執行
+    folder = services(app).storage.run_dir(str(run["id"]))
+    (folder / "screenshot.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    (card,) = cast("list[JsonObject]", body(client.get("/api/domains/lab"))["scenes"])
+
+    assert cast("JsonObject", card["lastRun"])["status"] == "failed"
+    assert card["screenshotUrl"] == f"/runs/{run['id']}/files/screenshot.png"
+    page = client.get("/domains/lab").text
+    assert f'src="/runs/{run["id"]}/files/screenshot.png"' in page
+    assert 'data-status="failed"' in page
+
+
+def test_cli_recognizes_the_portal(app: FastAPI) -> None:
+    from rpa_cli.serve import PORTAL_TITLE
+
+    assert app.title == PORTAL_TITLE

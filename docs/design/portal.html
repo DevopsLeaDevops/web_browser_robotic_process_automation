@@ -20,7 +20,19 @@
   </div>
 
   <div class="stack">
-    <div class="notice">啟動：<code>uv run rpa serve</code>，再打開 <code>http://127.0.0.1:8080</code>。資料放在 <code>data/</code>（或 <code>--data</code> 指定的資料夾）。沒有登入保護，預設只開放本機連線。</div>
+    <div class="notice">啟動：<code>uv run rpa serve</code>，再打開 <code>http://127.0.0.1:8080</code>。會一起在 <code>127.0.0.1:8765</code> 啟動本機測試網站，「測試網站自動化」的案例直接就能執行。資料放在 <code>data/</code>（或 <code>--data</code> 指定的資料夾）。沒有登入保護，預設只開放本機連線。</div>
+
+    <section class="panel" id="domains">
+      <div class="panel-header"><h2>領域</h2><span class="muted">場景管理的二級選單</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>依目標系統或業務劃分場景。</strong>例如「測試網站自動化」「谷歌自動化」「微軟自動化」。每個領域是「場景管理」左側的一個選單，最後一項是「領域管理」。</li>
+          <li><strong>領域頁是場景卡片。</strong>每張卡片有名稱與標籤（DSL 場景、Python 腳本、待發布）、最近一次執行的截圖、說明，「自動化腳本、斷言腳本、執行報告、入參設定、出參設定」五個連結，以及場景編號、最近一次結果、「調試」（驗證最新版本）與「運行」（執行已發布版本）。</li>
+          <li><strong>領域管理。</strong>新增領域（代號用在網址，建立後不能改）、改名稱與說明、刪除沒有場景的領域。場景頁的「執行設定」可以把場景移到其他領域。</li>
+          <li><strong>測試網站自動化。</strong>第一次啟動時自動建立，放進四個對測試網站執行的真實案例：建立紀錄（BA-001）、查詢紀錄（BA-002，入參是 BA-001 的出參）、查詢不存在的紀錄（BA-003）、Python 腳本版的建立紀錄。</li>
+        </ul>
+      </div>
+    </section>
 
     <section class="panel" id="flow">
       <div class="panel-header"><h2>流程</h2><span class="muted">驗收：在瀏覽器內走完一次</span></div>
@@ -69,8 +81,10 @@
         <table class="wrap">
           <thead><tr><th>路徑</th><th>內容</th></tr></thead>
           <tbody>
-            <tr><td><code>/scenes</code></td><td>統計、搜尋與分類篩選、場景卡片；新增場景、匯入範例</td></tr>
-            <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、入參與出參、預設網址、最近執行</td></tr>
+            <tr><td><code>/scenes</code></td><td>轉到第一個領域；還沒有領域時轉到領域管理</td></tr>
+            <tr><td><code>/domains/{代號}</code></td><td>領域頁：場景卡片；新增場景、匯入範例（測試網站自動化）</td></tr>
+            <tr><td><code>/domains</code></td><td>領域管理：新增、改名、刪除；還沒分到領域的場景</td></tr>
+            <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、入參與出參、所屬領域與預設網址、最近執行</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>驗證或執行的表單：入參（JSON，已帶入預設值）、瀏覽器、網址</td></tr>
             <tr><td><code>/runs</code></td><td>執行報告：分類、場景多選，結果、目的篩選</td></tr>
@@ -87,9 +101,11 @@
         <table class="wrap">
           <thead><tr><th>介面</th><th>用途</th></tr></thead>
           <tbody>
-            <tr><td><code>GET /api/scenes</code>、<code>POST /api/scenes</code></td><td>場景清單（<code>q</code>、<code>category</code>）；建立場景</td></tr>
-            <tr><td><code>POST /api/scenes/import</code></td><td>匯入範例資料夾的場景，已存在的略過</td></tr>
-            <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>場景與版本清單；修改預設網址、封存</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/domains</code></td><td>領域清單；新增領域（<code>id</code>、<code>name</code>、<code>description</code>）</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代號}</code></td><td>領域與它的場景卡片（最近一次執行、截圖）；改名稱與說明；刪除沒有場景的領域</td></tr>
+            <tr><td><code>GET /api/scenes</code>、<code>POST /api/scenes</code></td><td>場景清單（<code>q</code>、<code>category</code>、<code>domain</code>）；建立場景（可帶 <code>domainId</code>）</td></tr>
+            <tr><td><code>POST /api/scenes/import</code></td><td>匯入範例資料夾的場景，已存在的略過；可帶 <code>domainId</code>，預設放進測試網站自動化</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>場景與版本清單；修改所屬領域、預設網址、封存</td></tr>
             <tr><td><code>GET /api/scenes/{id}/revisions/{n}</code></td><td>版本與檔案內容</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校驗問題（含行號）</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>驗證；202 回執行</td></tr>
@@ -108,11 +124,12 @@
         <div class="panel-header"><h2>資料</h2></div>
         <div class="panel-body">
 <pre class="source">data/
-  rpa.db                     SQLite：scenes、revisions、runs
+  rpa.db                     SQLite：domains、scenes、revisions、runs
   scenes/&lt;場景 id&gt;/&lt;版本&gt;/   scenario.yaml（腳本場景另有兩支腳本）
   runs/&lt;執行編號&gt;/            M2 的執行目錄（input.json、report.html…）</pre>
           <dl class="spec-list">
-            <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、預設網址、最新與已發布的版本號碼、封存</dd>
+            <dt>domains</dt><dd>代號、名稱、說明、排列順序</dd>
+            <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存</dd>
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
             <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、入參與出參、錯誤、雜湊、時間</dd>
           </dl>
@@ -127,7 +144,8 @@
             <dt><code>RPA_DATA_DIR</code></dt><dd>資料資料夾，預設 <code>data</code>；也可以用 <code>--data</code></dd>
             <dt><code>RPA_DATABASE_URL</code></dt><dd>預設 SQLite；PostgreSQL 在 M8</dd>
             <dt><code>RPA_LANG</code></dt><dd>預設語言，也是執行報告的語言；頁面右上角可以切換</dd>
-            <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「匯入範例」的資料夾，預設 <code>scenarios/demo</code></dd>
+            <dt><code>--no-testsite</code></dt><dd>不要一起啟動測試網站（預設會在 <code>127.0.0.1:8765</code> 啟動；已經在執行就沿用）</dd>
+            <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「測試網站自動化」的範例資料夾，預設 <code>scenarios/demo</code></dd>
             <dt>Secrets</dt><dd>與 M2 相同，從伺服器程序的同名環境變數讀取</dd>
           </dl>
         </div>

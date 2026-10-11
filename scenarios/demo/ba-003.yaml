@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../schema/scenario.v1.json
+#
+# 測試網站的負面案例：用不存在的紀錄編號查詢，頁面要清楚顯示「查無紀錄」，而且不能出現紀錄詳情。
+# 不依賴其他場景，任何時候都能單獨執行。
+
+schemaVersion: 1
+id: ba-003
+name: 查詢不存在的紀錄
+category: 範例資料
+description: 用不存在的紀錄編號查詢，頁面要顯示「查無紀錄」，而且不出現紀錄詳情；確認查詢失敗時有明確提示。
+
+inputs:
+  recordId:
+    type: string
+    pattern: '^DEMO-[A-Z0-9]+$'
+    default: DEMO-NOTFOUND
+    description: 不存在的紀錄編號
+
+outputs:
+  message:
+    type: string
+    from: '{{ facts.message }}'
+
+browser:
+  engine: firefox
+  baseUrl: http://127.0.0.1:8765
+  viewport: { width: 1280, height: 800 }
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /?view=query
+    waitUntil: domcontentloaded
+
+  - id: fill-id
+    action: fill
+    target: { label: 紀錄編號, exact: true }
+    value: '{{ inputs.recordId }}'
+
+  - id: search
+    action: click
+    target: { role: button, name: 查詢, exact: true }
+
+  - id: wait-message
+    name: 等待錯誤提示
+    action: expect
+    target: { role: alert }
+    text: 查無紀錄
+
+  - id: no-receipt
+    name: 不能出現紀錄詳情
+    action: expect
+    target: { css: '#receipt' }
+    state: hidden
+
+  - id: read-message
+    action: extract
+    target: { role: alert }
+    as: message
+
+  - id: evidence
+    action: screenshot
+    fullPage: true
+
+verify:
+  - name: 顯示查無紀錄
+    value: '{{ facts.message }}'
+    equals: 查無紀錄

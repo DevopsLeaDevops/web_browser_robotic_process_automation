@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from rpa_cli.i18n import install_click_translations
 from rpa_cli.main import build_cli
-from rpa_cli.serve import PORTAL_TITLE, open_listener, portal_url
+from rpa_cli.serve import PORTAL_TITLE, open_listener, portal_url, start_testsite
 from rpa_core.i18n import use_locale
 
 HOST = "127.0.0.1"
@@ -129,3 +129,25 @@ def test_cli_reports_busy_port_without_a_traceback() -> None:
     assert result.exit_code == 1
     assert f"埠號 {busy} 已被其他程式使用" in result.output
     assert "Traceback" not in result.output
+
+
+def test_testsite_starts_once_and_is_reused() -> None:
+    with occupied() as port:
+        pass  # 取得一個剛釋放的埠號
+    site, message = start_testsite(port)
+    assert site is not None
+    try:
+        assert message == f"測試網站：http://127.0.0.1:{port}/"
+        again, second = start_testsite(port)
+        assert again is None
+        assert second == f"測試網站已經在 http://127.0.0.1:{port}/ 執行，直接沿用。"
+    finally:
+        site.shutdown()
+        site.server_close()
+
+
+def test_testsite_port_used_by_another_program() -> None:
+    with occupied() as busy:
+        site, message = start_testsite(busy)
+    assert site is None
+    assert message.startswith(f"埠號 {busy} 被其他程式占用，沒有啟動測試網站")

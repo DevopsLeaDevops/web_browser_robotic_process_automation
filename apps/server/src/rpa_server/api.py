@@ -20,15 +20,32 @@ class _Body(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")
 
 
+class DomainCreate(_Body):
+    id: str = Field(max_length=64)
+    name: str = Field(max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class DomainUpdate(_Body):
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+
+
 class SceneCreate(_Body):
     id: str = Field(max_length=64)
     name: str = Field(max_length=200)
     category: str | None = Field(default=None, max_length=100)
+    domain_id: str | None = Field(default=None, max_length=64)
 
 
 class SceneUpdate(_Body):
     base_url: str | None = Field(default=None, max_length=2000)
     archived: bool | None = None
+    domain_id: str | None = Field(default=None, max_length=64)
+
+
+class ImportRequest(_Body):
+    domain_id: str | None = Field(default=None, max_length=64)
 
 
 class RevisionCreate(_Body):
@@ -47,20 +64,49 @@ class RunCreate(_Body):
 def api_router(services: Services) -> APIRouter:
     router = APIRouter()
 
+    # ------------------------------------------------------------ 領域
+
+    @router.get("/domains")
+    def list_domains() -> dict[str, object]:
+        return {"domains": [domain.to_json() for domain in services.list_domains()]}
+
+    @router.post("/domains", status_code=201)
+    def create_domain(body: DomainCreate) -> dict[str, object]:
+        return services.create_domain(body.id, body.name, body.description).to_json()
+
+    @router.get("/domains/{domain_id}")
+    def get_domain(domain_id: str) -> dict[str, object]:
+        domain = services.get_domain(domain_id)
+        cards = services.scene_cards(domain_id)
+        return {**domain.to_json(), "scenes": [card.to_json() for card in cards]}
+
+    @router.patch("/domains/{domain_id}")
+    def update_domain(domain_id: str, body: DomainUpdate) -> dict[str, object]:
+        domain = services.update_domain(domain_id, name=body.name, description=body.description)
+        return domain.to_json()
+
+    @router.delete("/domains/{domain_id}")
+    def delete_domain(domain_id: str) -> dict[str, object]:
+        services.delete_domain(domain_id)
+        return {"deleted": domain_id}
+
     # ------------------------------------------------------------ 場景
 
     @router.get("/scenes")
-    def list_scenes(q: str = "", category: str | None = None) -> dict[str, object]:
-        scenes = services.list_scenes(query=q, category=category)
+    def list_scenes(
+        q: str = "", category: str | None = None, domain: str | None = None
+    ) -> dict[str, object]:
+        scenes = services.list_scenes(query=q, category=category, domain=domain)
         return {"scenes": [scene.to_json() for scene in scenes]}
 
     @router.post("/scenes", status_code=201)
     def create_scene(body: SceneCreate) -> dict[str, object]:
-        return services.create_scene(body.id, body.name, body.category).to_json()
+        scene = services.create_scene(body.id, body.name, body.category, domain_id=body.domain_id)
+        return scene.to_json()
 
     @router.post("/scenes/import")
-    def import_examples() -> dict[str, object]:
-        return services.import_examples().to_json()
+    def import_examples(body: ImportRequest | None = None) -> dict[str, object]:
+        return services.import_examples(body.domain_id if body else None).to_json()
 
     @router.get("/scenes/{scene_id}")
     def get_scene(scene_id: str) -> dict[str, object]:
@@ -76,6 +122,8 @@ def api_router(services: Services) -> APIRouter:
             base_url=body.base_url if "base_url" in fields else None,
             clear_base_url="base_url" in fields and not body.base_url,
             archived=body.archived if "archived" in fields else None,
+            domain_id=body.domain_id if "domain_id" in fields else None,
+            clear_domain="domain_id" in fields and not body.domain_id,
         )
         return scene.to_json()
 

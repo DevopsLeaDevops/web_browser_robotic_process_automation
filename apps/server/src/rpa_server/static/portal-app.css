@@ -16,3 +16,25 @@ td.rules code{overflow-wrap:anywhere}
 h2 a{color:inherit;text-decoration:none}
 h2 a:hover{color:var(--blue-strong)}
 @media(max-width:700px){.file-list{columns:1}}
+/* 領域頁的場景卡片（依設計樣例：標題與標籤、截圖與說明、五個連結、編號與結果、調試與運行） */
+.icon{width:14px;height:14px;flex:none}
+.heading .actions .count{font-size:12px;margin-right:4px}
+.button.is-disabled{opacity:.45;pointer-events:none;cursor:default}
+.scene-card{display:flex;flex-direction:column;gap:10px}
+.scene-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.scene-card-head h2{margin:0;font-size:15px;line-height:1.45;font-weight:600}
+.chip{flex:none;font-size:11px;line-height:1.5;padding:2px 7px;border-radius:4px;background:#f1f4f8;color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.scene-card-body{display:flex;gap:12px;align-items:flex-start}
+.shot{flex:none;width:124px;height:78px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#f3f6fa;display:grid;place-items:center;color:var(--muted);font-size:11px;text-decoration:none}
+.shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:top left}
+.empty-shot{align-content:center;gap:4px;text-align:center}
+.empty-shot svg{width:18px;height:18px;margin:0 auto;color:#8aa7c7}
+.clamp{margin:0;font-size:13px;line-height:1.7;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.scene-card-links{gap:0;margin-top:0}
+.scene-card-links a{padding:0 9px;border-left:1px solid var(--line);color:var(--ink);text-decoration:none;white-space:nowrap}
+.scene-card-links a:first-child{padding-left:0;border-left:0}
+.scene-card-links a:hover{color:var(--blue-strong)}
+.scene-card-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto}
+.scene-card-foot .grow{flex:1}
+.status-link{text-decoration:none}
+@media(min-width:1600px){.scene-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}

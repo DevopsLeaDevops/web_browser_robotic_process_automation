@@ -1,10 +1,14 @@
-"""端到端：在瀏覽器裡操作管理 Portal，完成「建立 → 驗證 → 發布 → 執行 → 看報告」（M3 驗收）。
+"""端到端：在瀏覽器裡操作管理 Portal。
+
+- 「建立 → 驗證 → 發布 → 執行 → 看報告」（M3 驗收）
+- 「測試網站自動化」領域：範例卡片、從卡片調試、結果與截圖回到卡片上
 
 Portal 用 uvicorn 在背景執行緒啟動（含背景 worker）；操作 Portal 的瀏覽器是 Chromium，
 場景本身在 Chromium 與 Firefox 各跑一次。
 """
 
 import json
+import re
 import socket
 import threading
 import time
@@ -25,7 +29,8 @@ from testsite.server import running
 pytestmark = pytest.mark.browser
 
 ROOT = Path(__file__).resolve().parents[3]
-BA_001 = (ROOT / "scenarios" / "demo" / "ba-001.yaml").read_text(encoding="utf-8")
+DEMO = ROOT / "scenarios" / "demo"
+BA_001 = (DEMO / "ba-001.yaml").read_text(encoding="utf-8")
 RUN_TIMEOUT_MS = 120_000
 
 
@@ -40,10 +45,14 @@ def site() -> Iterator[str]:
         yield url
 
 
-@pytest.fixture
-def portal(tmp_path: Path) -> Iterator[str]:
+@pytest.fixture(params=[None])
+def portal(tmp_path: Path, request: pytest.FixtureRequest) -> Iterator[str]:
+    """啟動 Portal；以 indirect 參數傳入範例資料夾時，會建立「測試網站自動化」並匯入範例。"""
     data = tmp_path / "data"
-    settings = Settings(data_dir=data, database_url=sqlite_url(data / "rpa.db"))
+    examples: Path | None = request.param
+    settings = Settings(
+        data_dir=data, database_url=sqlite_url(data / "rpa.db"), examples_dir=examples
+    )
     server = uvicorn.Server(uvicorn.Config(create_app(settings), log_level="warning"))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", 0))
@@ -163,4 +172,42 @@ def test_create_validate_publish_run_report(
     report = opened.value
     report.wait_for_load_state()
     assert "端到端執行" in report.content()
+    assert errors == []
+
+
+@pytest.mark.parametrize("portal", [DEMO], indirect=True)
+def test_testsite_domain_runs_a_real_case_from_its_card(
+    portal: str, page: Page, site: str, engine: str
+) -> None:
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+
+    page.goto(f"{portal}/scenes")
+    page.wait_for_url(f"{portal}/domains/testsite")
+    expect(page.locator("#sidenav a.active")).to_contain_text("測試網站自動化")
+    cards = page.locator("article.scene-card")
+    expect(cards).to_have_count(4)
+    card = page.locator('article.scene-card[data-scene="ba-003"]')
+    expect(card).to_contain_text("查詢不存在的紀錄")
+    expect(card.locator('[data-status="none"]')).to_be_visible()
+
+    # 從卡片調試（驗證最新版本），結果與截圖回到卡片上
+    card.locator('[data-action="debug"]').click()
+    start_run(page, {"recordId": "DEMO-NOTFOUND"}, engine, site)
+    wait_for_run(page)
+    expect(page.locator("pre.source").nth(1)).to_contain_text("查無紀錄")
+
+    page.goto(f"{portal}/domains/testsite")
+    card = page.locator('article.scene-card[data-scene="ba-003"]')
+    expect(card.locator('[data-status="passed"]')).to_be_visible()
+    expect(card.locator("img")).to_have_attribute("src", re.compile(r"/files/screenshot\.png$"))
+    assert card.locator("img").evaluate("image => image.naturalWidth") > 0
+
+    # 卡片上的「斷言腳本」打開編輯頁並跳到 verify
+    card.locator("a", has_text="斷言腳本").click()
+    page.wait_for_url(re.compile(r"/scenes/ba-003/edit\?focus=verify$"))
+    selected = page.locator('textarea[name="scenario.yaml"]').evaluate(
+        "area => area.value.slice(area.selectionStart, area.selectionEnd)"
+    )
+    assert selected == "verify"
     assert errors == []

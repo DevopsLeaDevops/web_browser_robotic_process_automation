@@ -13,10 +13,11 @@ from rpa_server.domain import (
     ENGINES,
     PURPOSES,
     RUN_STATUSES,
+    DomainRecord,
     RevisionRecord,
     RunRecord,
+    SceneCard,
     SceneRecord,
-    Stats,
 )
 from rpa_server.render import render
 
@@ -30,11 +31,22 @@ def _scenario() -> Scenario:
     return scenario
 
 
+DOMAIN = DomainRecord(
+    id="testsite",
+    name="測試網站自動化",
+    description="對本機測試網站執行的案例",
+    position=0,
+    scene_count=2,
+    created_at=MOMENT,
+)
+OTHER_DOMAIN = DomainRecord("google", "谷歌自動化", None, 1, 0, MOMENT)
+DOMAINS = [DOMAIN, OTHER_DOMAIN]
 SCENE = SceneRecord(
     id="ba-001",
     name="建立範例紀錄",
     category="範例資料",
     description="說明 <b>不是 HTML</b>",
+    domain_id="testsite",
     kind="dsl",
     base_url=None,
     latest_number=2,
@@ -110,32 +122,42 @@ def _text(html: str) -> str:
 def _pages() -> dict[str, str]:
     scenario = _scenario()
     return {
-        "scenes": render(
-            "scenes.html",
-            page="scenes",
-            title="場景",
-            scenes=[SCENE],
-            categories=["範例資料"],
-            stats=Stats(1, 1, 3, 2),
-            query="",
-            category="",
+        "domain": render(
+            "domain.html",
+            page="domain:testsite",
+            title=DOMAIN.name,
+            domains=DOMAINS,
+            domain=DOMAIN,
+            cards=[
+                SceneCard(SCENE, RUN, RUN.id),
+                SceneCard(
+                    replace(SCENE, id="ba-009", published_number=None, kind="script"), None, None
+                ),
+            ],
             can_import=True,
         ),
-        "scenes-empty": render(
-            "scenes.html",
-            page="scenes",
-            title="場景",
-            scenes=[],
-            categories=[],
-            stats=Stats(0, 0, 0, 0),
-            query="x",
-            category="",
+        "domain-empty": render(
+            "domain.html",
+            page="domain:google",
+            title=OTHER_DOMAIN.name,
+            domains=DOMAINS,
+            domain=OTHER_DOMAIN,
+            cards=[],
             can_import=False,
+        ),
+        "domains": render(
+            "domains.html",
+            page="domains",
+            title="領域管理",
+            domains=DOMAINS,
+            unassigned=[replace(SCENE, id="loose", domain_id=None)],
         ),
         "scene": render(
             "scene.html",
-            page="scenes",
+            page="domain:testsite",
             title=SCENE.name,
+            domains=DOMAINS,
+            domain=DOMAIN,
             scene=SCENE,
             revisions=REVISIONS,
             scenario=scenario,
@@ -144,17 +166,23 @@ def _pages() -> dict[str, str]:
         ),
         "edit": render(
             "edit.html",
-            page="scenes",
+            page="domain:testsite",
             title="編輯",
+            domains=DOMAINS,
+            domain=DOMAIN,
             scene=SCENE,
             revision=REVISIONS[1],
             files={"scenario.yaml": "id: ba-001\n</textarea><script>", "automation.py": "pass\n"},
+            selected="automation.py",
+            focus="",
         ),
         "run-form": render(
             "run_form.html",
-            page="scenes",
+            page="domains",
             title="驗證",
-            scene=SCENE,
+            domains=DOMAINS,
+            domain=None,
+            scene=replace(SCENE, domain_id=None),
             revision=REVISIONS[0],
             scenario=scenario,
             purpose="validation",
@@ -241,3 +269,29 @@ def test_design_system_assets_are_unchanged_copies(name: str) -> None:
     static = ROOT / "apps" / "server" / "src" / "rpa_server" / "static" / name
     original = ROOT / "docs" / "design-system" / "assets" / name
     assert static.read_bytes() == original.read_bytes()
+
+
+def test_side_menu_lists_domains_then_domain_management() -> None:
+    with use_locale("zh-Hant"):
+        html = _pages()["domain"]
+    side = html.split('id="sidenav"')[1].split("</nav>")[0]
+    labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
+    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理"]
+    assert 'href="/domains/testsite" class="active" aria-current="page"' in side
+
+
+def test_scene_card_follows_the_design() -> None:
+    with use_locale("zh-Hant"):
+        html = _pages()["domain"]
+    published, draft = html.split('class="panel panel-body scene-card"')[1:3]
+    text = _text(published)
+    for label in ("自動化腳本", "斷言腳本", "執行報告", "入參設定", "出參設定", "調試", "運行"):
+        assert label in text, label
+    assert 'src="/runs/ba-001-20261010-083000-abcdef/files/screenshot.png"' in published
+    assert 'data-status="passed"' in published
+    assert 'href="/scenes/ba-001/edit?focus=verify"' in published
+    assert "暫無執行截圖" in _text(draft)
+    assert "未執行" in _text(draft)
+    assert 'aria-disabled="true"' in draft
+    assert 'href="/scenes/ba-009/edit?file=assertion.py"' in draft
+    assert "2 個場景" in _text(html)

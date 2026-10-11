@@ -163,9 +163,9 @@
 ├── apps/                # 可執行的程式
 │   ├── cli/             # M0
 │   ├── server/          # M3（FastAPI + Jinja）
-│   └── worker/          # M3
-├── testsite/            # 模擬內部系統的測試網站（M2）
-├── scenarios/           # 範例場景：examples/、demo/（原型的 BA-001、BA-002）
+│   ├── worker/          # M3
+│   └── testsite/        # 模擬內部系統的測試網站（M2；rpa serve 一起啟動）
+├── scenarios/           # 範例場景：examples/、demo/（測試網站的 BA-001～BA-003）
 ├── schema/              # 場景 DSL 的 JSON Schema（rpa schema 產生）
 ├── tests/               # 跨套件測試：冒煙、文檔檢查
 ├── deploy/              # Docker Compose 與設定範例（M9）
