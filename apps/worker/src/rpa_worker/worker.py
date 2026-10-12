@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Final, Protocol
 
 from rpa_core.i18n import Locale, use_locale
+from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, StageName, execute
 
 __all__ = ["Executor", "Job", "JobSource", "Worker"]
@@ -38,6 +39,10 @@ class Job:
     deadline_ms: int | None = None
     headless: bool = True
     """無頭模式（不顯示瀏覽器視窗）；False 是有頭模式。"""
+    login: LoginSettings | None = None
+    """場景有 login 時，角色的登入設定。"""
+    secrets: Mapping[str, str] = field(default_factory=dict[str, str])
+    """Secrets 的值（只放在記憶體）；沒有的由 runner 從同名的環境變數找。"""
 
 
 class JobSource(Protocol):
@@ -48,7 +53,7 @@ class JobSource(Protocol):
         ...
 
     def progress(self, job: Job, stage: StageName) -> None:
-        """任務進入某個階段（入參、自動化、斷言、出參）。"""
+        """任務進入某個階段（入參、登入檢查、自動化、斷言、出參）。"""
         ...
 
     def finish(self, job: Job, result: RunResult) -> None:
@@ -76,6 +81,8 @@ class Executor(Protocol):
         run_id: str | None = None,
         cancel: threading.Event | None = None,
         on_stage: Callable[[StageName], None] | None = None,
+        login: LoginSettings | None = None,
+        secrets: Mapping[str, str] | None = None,
     ) -> RunResult: ...
 
 
@@ -200,6 +207,8 @@ class Worker:
                 run_id=job.run_id,
                 cancel=cancel,
                 on_stage=lambda stage: self._report(self.source.progress, job, stage),
+                login=job.login,
+                secrets=job.secrets,
             )
         except Exception as error:
             logger.warning("任務 %s 無法執行：%s", job.run_id, error)

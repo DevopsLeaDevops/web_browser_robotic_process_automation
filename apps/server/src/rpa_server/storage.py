@@ -6,6 +6,10 @@
       rpa.db                    SQLite（預設）
       scenes/<場景 id>/<版本>/   scenario.yaml；腳本場景另有兩支腳本
       runs/<執行編號>/           rpa-runner 的執行目錄（input.json、report.html…）
+      roles/<角色>/state.json    角色的登入狀態（只有本人能讀寫，不經由網頁提供）
+      recordings/<錄製編號>/     遮罩過的原始錄製稿 raw.py 與轉換結果 scenario.yaml
+      debug/<工作階段>/          調試工作階段的入參、場景快照與截圖（工作階段結束就刪除）
+      secrets.json              Secrets 的值（只有本人能讀寫）
 
 版本一旦寫入就不再修改；改內容就是新版本。版本內容的雜湊與 rpa-runner 記在 result.json 的
 scenarioHash 用同一個演算法（:func:`rpa_runner.run.scenario_digest`），發布門檻靠它確認
@@ -72,10 +76,42 @@ class Storage:
         self.root = root
         self.scenes = root / "scenes"
         self.runs = root / "runs"
+        self.roles = root / "roles"
+        self.recordings = root / "recordings"
+        self.debug = root / "debug"
+        self.secrets = root / "secrets.json"
 
     def ensure(self) -> None:
-        for folder in (self.scenes, self.runs):
+        for folder in (self.scenes, self.runs, self.roles, self.recordings, self.debug):
             folder.mkdir(parents=True, exist_ok=True)
+        if os.name != "nt":
+            self.roles.chmod(0o700)
+
+    # ------------------------------------------------------------ 角色、錄製、調試
+
+    def role_state(self, role_id: str) -> Path:
+        """角色的登入狀態檔（可能還不存在）。"""
+        return self.roles / role_id / "state.json"
+
+    def recording_dir(self, recording_id: str) -> Path:
+        return self.recordings / recording_id
+
+    def recording_file(self, recording_id: str, name: str) -> Path | None:
+        """錄製目錄裡的檔案；不存在時回傳 None。"""
+        if name not in ("raw.py", "scenario.yaml"):
+            return None
+        path = self.recording_dir(recording_id) / name
+        return path if path.is_file() else None
+
+    def debug_dir(self, session_id: str) -> Path:
+        return self.debug / session_id
+
+    def debug_file(self, session_id: str, name: str) -> Path | None:
+        """調試工作階段的截圖；路徑不合規則或不存在時回傳 None。"""
+        if not re.fullmatch(r"shot-\d{4,}\.png", name):
+            return None
+        path = self.debug_dir(session_id) / name
+        return path if path.is_file() else None
 
     # ------------------------------------------------------------ 版本
 

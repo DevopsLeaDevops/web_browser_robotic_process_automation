@@ -200,7 +200,7 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     page.wait_for_url(f"{portal}/domains/testsite")
     expect(page.locator("#sidenav a.active")).to_contain_text("測試網站自動化")
     cards = page.locator("article.scene-card")
-    expect(cards).to_have_count(4)
+    expect(cards).to_have_count(6)
     card = page.locator('article.scene-card[data-scene="ba-003"]')
     expect(card).to_contain_text("查詢不存在的紀錄")
     expect(card.locator('[data-status="none"]')).to_be_visible()

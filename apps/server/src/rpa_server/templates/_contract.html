@@ -1,0 +1,62 @@
+{#- 入參與出參的表單編輯（場景頁）：存檔只改寫場景檔的 inputs、outputs 兩段，建立新版本 -#}
+{% macro rule_inputs(spec, kind) -%}
+<label>minLength<input name="minLength" type="number" min="0" step="1" value="{{ spec.min_length if spec and spec.min_length is not none else '' }}"></label>
+<label>maxLength<input name="maxLength" type="number" min="0" step="1" value="{{ spec.max_length if spec and spec.max_length is not none else '' }}"></label>
+<label>pattern<input name="pattern" class="mono" value="{{ spec.pattern if spec and spec.pattern is not none else '' }}"></label>
+<label>minimum<input name="minimum" type="number" step="any" value="{{ (spec.minimum | num) if spec and spec.minimum is not none else '' }}"></label>
+<label>maximum<input name="maximum" type="number" step="any" value="{{ (spec.maximum | num) if spec and spec.maximum is not none else '' }}"></label>
+<label>enum<input name="enum" class="mono" placeholder="a, b, c" value="{{ (spec.enum | compact_json) if spec and spec.enum is not none else '' }}"></label>
+{%- endmacro %}
+
+{% macro type_select(current, types) -%}
+<select name="type">{% for item in types %}<option value="{{ item }}"{% if item == current %} selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+{%- endmacro %}
+
+{% macro input_row(name, spec) -%}
+<fieldset class="contract-row" data-kind="input" data-previous="{{ name }}">
+  <div class="contract-main">
+    <label>{{ t("spec.name") }}<input name="name" class="mono" required pattern="[A-Za-z_][A-Za-z0-9_]{0,63}" value="{{ name }}"></label>
+    <label>{{ t("spec.type") }}{{ type_select(spec.type if spec else "string", ("string", "number", "integer", "boolean")) }}</label>
+    <label class="check"><input type="checkbox" name="required"{% if spec and spec.default is none %} checked{% endif %}> {{ t("spec.required") }}</label>
+    <label>{{ t("spec.default") }}<input name="default" value="{{ (spec.default if spec.default is string else (spec.default | compact_json)) if spec and spec.default is not none else '' }}"></label>
+    <label class="wide">{{ t("contract.description") }}<input name="description" value="{{ spec.description if spec and spec.description else '' }}"></label>
+    <button class="text-btn" type="button" data-action="remove-contract-row">{{ t("contract.remove") }}</button>
+  </div>
+  <details class="contract-rules"{% if spec and (spec.min_length is not none or spec.max_length is not none or spec.pattern or spec.minimum is not none or spec.maximum is not none or spec.enum is not none) %} open{% endif %}><summary>{{ t("spec.rules") }}</summary><div class="contract-rule-fields">{{ rule_inputs(spec, "input") }}</div></details>
+</fieldset>
+{%- endmacro %}
+
+{% macro output_row(name, spec, script) -%}
+<fieldset class="contract-row" data-kind="output" data-previous="{{ name }}">
+  <div class="contract-main">
+    <label>{{ t("spec.name") }}<input name="name" class="mono" required pattern="[A-Za-z_][A-Za-z0-9_]{0,63}" value="{{ name }}"></label>
+    <label>{{ t("spec.type") }}{{ type_select(spec.type if spec else "string", ("string", "number", "integer", "boolean", "array", "object")) }}</label>
+    {% if not script %}<label class="wide">{{ t("spec.from") }}<input name="from" class="mono" placeholder="{% raw %}{{ facts.name }}{% endraw %}" value="{{ spec.from_ if spec and spec.from_ else '' }}"></label>{% endif %}
+    <label class="wide">{{ t("contract.description") }}<input name="description" value="{{ spec.description if spec and spec.description else '' }}"></label>
+    <button class="text-btn" type="button" data-action="remove-contract-row">{{ t("contract.remove") }}</button>
+  </div>
+  <details class="contract-rules"{% if spec and (spec.min_length is not none or spec.max_length is not none or spec.pattern or spec.minimum is not none or spec.maximum is not none or spec.enum is not none) %} open{% endif %}><summary>{{ t("spec.rules") }}</summary><div class="contract-rule-fields">{{ rule_inputs(spec, "output") }}</div></details>
+</fieldset>
+{%- endmacro %}
+
+<section class="panel" id="contract-editor" hidden>
+  <div class="panel-header"><h2>{{ t("contract.title") }}</h2><span class="muted">{{ t("contract.based_on", number=scene.latest_number) }}</span></div>
+  <form class="panel-body stack" id="contract-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-script="{{ 'true' if scenario.script else 'false' }}">
+    <div class="notice">{{ t("contract.notice") }}{% if scenario.script %} {{ t("contract.script_notice") }}{% endif %}</div>
+    <ul class="checklist form-issues" hidden></ul>
+    <h3>{{ t("spec.inputs") }}</h3>
+    <div class="contract-rows" data-rows="input">
+      {% for name, spec in scenario.inputs.items() %}{{ input_row(name, spec) }}{% endfor %}
+    </div>
+    <div><button class="button" type="button" data-action="add-contract-row" data-kind="input">{{ t("contract.add_input") }}</button></div>
+    <h3>{{ t("spec.outputs") }}</h3>
+    <div class="contract-rows" data-rows="output">
+      {% for name, spec in scenario.outputs.items() %}{{ output_row(name, spec, scenario.script) }}{% endfor %}
+    </div>
+    <div><button class="button" type="button" data-action="add-contract-row" data-kind="output">{{ t("contract.add_output") }}</button></div>
+    <label class="field">{{ t("edit.note") }}<input name="note" maxlength="500" placeholder="{{ t('contract.note_placeholder') }}"></label>
+    <div class="actions"><button class="button" type="button" data-action="close-contract">{{ t("js.cancel") }}</button><button class="button primary" type="submit">{{ t("edit.save") }}</button></div>
+  </form>
+  <template id="contract-input-row">{{ input_row("", none) }}</template>
+  <template id="contract-output-row">{{ output_row("", none, scenario.script) }}</template>
+</section>

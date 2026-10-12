@@ -1,20 +1,24 @@
 """HTML 頁面：取資料、交給樣板（render.py）。寫入操作由頁面上的 JavaScript 呼叫 /api。"""
 
 import mimetypes
+import os
 from typing import Annotated, Final
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
+from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
 from rpa_server.config import EXAMPLES_DOMAIN
-from rpa_server.domain import ENGINES, DomainRecord, Purpose
+from rpa_server.debugging import IDLE_SECONDS
+from rpa_server.domain import ENGINES, DomainRecord, Purpose, RoleRecord
+from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
 from rpa_server.render import domain_page, render, run_filters
-from rpa_server.services import ServiceError, Services
+from rpa_server.services import Services
 
 __all__ = ["page_router"]
 
@@ -29,6 +33,28 @@ def _html(content: str) -> HTMLResponse:
 
 _SCRIPT_FILES: Final = ("automation.py", "assertion.py")
 _FOCUS: Final = frozenset({"steps", "verify", "inputs", "outputs"})
+_AUTO_LOGIN_EXAMPLE: Final = """- { id: open, action: goto, url: https://erp.example.com/login }
+- { id: user, action: fill, target: { label: 帳號 }, value: clerk01 }
+- { id: password, action: fill, target: { label: 密碼 }, value: '{{ secrets.ERP_PASSWORD }}' }
+- { id: submit, action: click, target: { role: button, name: 登入 } }"""
+_SHOT_HEADERS: Final = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+
+
+def _check_text(role: RoleRecord) -> str:
+    return flow(role.check_locator)
+
+
+def _role_values(role: RoleRecord) -> dict[str, object]:
+    """編輯角色對話框預先填入的值。"""
+    return {
+        "name": role.name,
+        "description": role.description or "",
+        "loginUrl": role.login_url,
+        "checkUrl": role.check_url or "",
+        "check": _check_text(role),
+        "engine": role.engine,
+        "autoLogin": role.auto_login or "",
+    }
 
 
 def page_router(services: Services) -> APIRouter:
@@ -95,6 +121,7 @@ def page_router(services: Services) -> APIRouter:
             scenario = None
         return page(
             "scene.html",
+            needs=services.scene_needs(scenario) if scenario is not None else None,
             page=domain_page(record.domain_id),
             title=record.name,
             scene=record,
@@ -198,10 +225,15 @@ def page_router(services: Services) -> APIRouter:
             and not revision.published
             and record.scenario_hash == revision.content_hash
         )
+        try:
+            login = services.revision_scenario(record.scene_id, record.revision_number).login
+        except ServiceError:
+            login = None
         return page(
             "run.html",
             page="runs",
             title=t("run.title", id=record.id),
+            role=login.role if login is not None else None,
             run=record,
             revision=revision,
             result=services.run_result(run_id) if record.finished else None,
@@ -230,8 +262,100 @@ def page_router(services: Services) -> APIRouter:
         )
 
     @router.get("/recording", include_in_schema=False)
-    def recording() -> HTMLResponse:
-        return page("placeholder.html", page="recording", title=t("nav.recording"), milestone="M4")
+    def recording(scene: str = "") -> HTMLResponse:
+        """自主腳本錄製：在這台電腦錄製或貼上錄製稿，轉成場景草稿。"""
+        recordings = services.recordings.list_recordings()
+        active = next((item for item in recordings if item.status == "recording"), None)
+        domains = services.list_domains()
+        return page(
+            "recording.html",
+            page="recording",
+            title=t("nav.recording"),
+            recordings=recordings,
+            active=active,
+            scenes=services.list_scenes(),
+            roles=services.roles.list_roles(),
+            engines=ENGINES,
+            display=services.display,
+            default_domain=domains[0].id if domains else "",
+            default_url="",
+            selected_scene=scene,
+        )
+
+    @router.get("/recordings/{recording_id}", include_in_schema=False)
+    def recording_detail(recording_id: str) -> HTMLResponse:
+        item = services.recordings.get_recording(recording_id)
+        return page(
+            "recording_detail.html",
+            page="recording",
+            title=t("recording.detail_title", id=item.id),
+            item=item,
+            files=services.recordings.files(recording_id),
+        )
+
+    # ------------------------------------------------------------ 登入與憑證
+
+    @router.get("/roles", include_in_schema=False)
+    def roles() -> HTMLResponse:
+        records = services.roles.list_roles()
+        secrets = services.roles.list_secrets()
+        usage = services.secret_usage()
+        stored = {info.name for info in secrets}
+        missing = [(name, users) for name, users in sorted(usage.items()) if name not in stored]
+        return page(
+            "roles.html",
+            page="roles",
+            title=t("nav.roles"),
+            roles=records,
+            secrets=secrets,
+            usage=usage,
+            missing=missing,
+            environ={name for name, _ in missing if name in os.environ},
+            display=services.display,
+            busy=any(role.activity for role in records),
+            engines=ENGINES,
+            check_text=_check_text,
+            role_values=_role_values,
+            auto_example=_AUTO_LOGIN_EXAMPLE,
+        )
+
+    # ------------------------------------------------------------ 調試工作階段
+
+    @router.get("/scenes/{scene_id}/debug", include_in_schema=False)
+    def debug(scene_id: str, revision: int | None = None) -> HTMLResponse:
+        record = services.get_scene(scene_id)
+        session = services.debug.for_scene(scene_id)
+        shown = session.revision if session is not None else (revision or record.latest_number)
+        scenario = services.revision_scenario(scene_id, shown)
+        defaults = {n: s.default for n, s in scenario.inputs.items() if s.default is not None}
+        defaults |= {n: "" for n, s in scenario.inputs.items() if s.default is None}
+        files = services.revision_files(scene_id, shown)
+        return page(
+            "debug.html",
+            page=domain_page(record.domain_id),
+            title=t("debug.title", name=record.name),
+            scene=record,
+            domain=domain_of(record.domain_id),
+            session=session,
+            scenario=scenario,
+            revisions=services.revisions(scene_id),
+            shown=shown,
+            yaml=files.get("scenario.yaml", ""),
+            defaults=defaults,
+            needs=services.scene_needs(scenario),
+            display=services.display,
+            engines=ENGINES,
+            base_url=record.base_url or scenario.browser.base_url,
+            idle_minutes=int(IDLE_SECONDS // 60),
+        )
+
+    @router.get("/debug/{session_id}/files/{name}", include_in_schema=False)
+    def debug_file(session_id: str, name: str) -> Response:
+        services.debug.get(session_id)
+        path = services.storage.debug_file(session_id, name)
+        if path is None:
+            raise ServiceError(404, "file_not_found", t("error.file_not_found", path=name))
+        return FileResponse(path, media_type="image/png", headers=_SHOT_HEADERS)
 
     @router.get("/playground", include_in_schema=False)
     def playground() -> HTMLResponse:

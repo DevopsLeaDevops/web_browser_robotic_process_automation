@@ -6,7 +6,8 @@
 
 - 版本：草稿 draft → 驗證中 validating → 通過 passed／失敗 failed；發布後場景指向該版本。
   改內容就是新版本，舊版本的驗證結果不能拿來發布新內容。
-- 執行：queued → running → passed／failed／timed_out／cancelled。
+- 執行：queued → running → passed／failed／timed_out／cancelled；場景要以角色登入而角色沒登入時
+  是 needs_login（沒有執行任何步驟，登入後可以重新執行）。
 - 執行目的：驗證 validation（任何版本，結果決定版本能不能發布）、執行 execution（只用已發布版本）。
 """
 
@@ -22,12 +23,16 @@ __all__ = [
     "ENGINES",
     "FINISHED",
     "PURPOSES",
+    "ROLE_STATUSES",
     "RUN_STATUSES",
     "DomainRecord",
     "Engine",
     "Purpose",
+    "RecordingRecord",
     "RevisionRecord",
     "RevisionStatus",
+    "RoleRecord",
+    "RoleStatus",
     "RunRecord",
     "RunStatus",
     "SceneCard",
@@ -37,7 +42,11 @@ __all__ = [
 ]
 
 RevisionStatus = Literal["draft", "validating", "passed", "failed"]
-RunStatus = Literal["queued", "running", "passed", "failed", "timed_out", "cancelled"]
+RunStatus = Literal[
+    "queued", "running", "passed", "failed", "timed_out", "cancelled", "needs_login"
+]
+RoleStatus = Literal["none", "logged_in", "needs_login", "unknown"]
+"""角色：還沒登入過、已登入、需要登入、不確定（檢查時出錯）。"""
 Purpose = Literal["validation", "execution"]
 Engine = Literal["chromium", "firefox"]
 
@@ -48,8 +57,12 @@ RUN_STATUSES: Final[tuple[RunStatus, ...]] = (
     "failed",
     "timed_out",
     "cancelled",
+    "needs_login",
 )
-FINISHED: Final[frozenset[str]] = frozenset({"passed", "failed", "timed_out", "cancelled"})
+FINISHED: Final[frozenset[str]] = frozenset(
+    {"passed", "failed", "timed_out", "cancelled", "needs_login"}
+)
+ROLE_STATUSES: Final[tuple[RoleStatus, ...]] = ("none", "logged_in", "needs_login", "unknown")
 PURPOSES: Final[tuple[Purpose, ...]] = ("validation", "execution")
 ENGINES: Final[tuple[Engine, ...]] = ("chromium", "firefox")
 DOMAIN_ID: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
@@ -243,4 +256,98 @@ class SceneCard:
                 if self.screenshot_run is not None
                 else None
             ),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RoleRecord:
+    """登入角色，加上登入狀態檔與進行中的登入、檢查（M4）。"""
+
+    id: str
+    name: str
+    description: str | None
+    login_url: str
+    check_url: str | None
+    check_locator: dict[str, object]
+    engine: str
+    auto_login: str | None
+    status: RoleStatus
+    message: str | None
+    checked_at: datetime | None
+    state_saved_at: datetime | None
+    """登入狀態檔的時間；None 代表還沒有登入狀態。"""
+    used_by: tuple[str, ...]
+    """用到這個角色的場景（最新版本）。"""
+    activity: str | None = None
+    """進行中的工作：login（人工登入中）、checking（檢查中）。"""
+    session: dict[str, object] | None = None
+    """最近一次人工登入的進度。"""
+    created_at: datetime | None = None
+
+    @property
+    def has_state(self) -> bool:
+        return self.state_saved_at is not None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "loginUrl": self.login_url,
+            "checkUrl": self.check_url,
+            "check": self.check_locator,
+            "engine": self.engine,
+            "autoLogin": self.auto_login,
+            "status": self.status,
+            "message": self.message,
+            "checkedAt": _iso(self.checked_at),
+            "stateSavedAt": _iso(self.state_saved_at),
+            "usedBy": list(self.used_by),
+            "activity": self.activity,
+            "session": self.session,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RecordingRecord:
+    """一次錄製或匯入的錄製稿（M4）。"""
+
+    id: str
+    scene_id: str
+    scene_name: str
+    new_scene: bool
+    domain_id: str | None
+    revision_number: int | None
+    source: str
+    url: str | None
+    engine: str
+    role_id: str | None
+    status: str
+    warnings: list[dict[str, object]]
+    error: str | None
+    created_at: datetime
+    finished_at: datetime | None
+
+    @property
+    def finished(self) -> bool:
+        return self.status != "recording"
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "sceneId": self.scene_id,
+            "sceneName": self.scene_name,
+            "newScene": self.new_scene,
+            "domainId": self.domain_id,
+            "revision": self.revision_number,
+            "source": self.source,
+            "url": self.url,
+            "engine": self.engine,
+            "roleId": self.role_id,
+            "status": self.status,
+            "warnings": self.warnings,
+            "error": self.error,
+            "createdAt": _iso(self.created_at),
+            "finishedAt": _iso(self.finished_at),
+            "finished": self.finished,
         }

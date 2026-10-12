@@ -5,9 +5,13 @@ API 轉成 JSON、頁面轉成錯誤頁。
 
 發布門檻：版本的最近一次驗證通過，而且有一次「通過的驗證執行」的場景雜湊等於版本的雜湊，
 磁碟上的內容也還是同一個雜湊。改內容就是新版本，要重新驗證。
+
+M4 的登入角色與 Secrets（roles.py）、錄製（recordings.py）、調試工作階段（debugging.py）
+各自一個模組，由這裡建立：``services.roles``、``services.recordings``、``services.debug``。
 """
 
 import json
+import os
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -20,10 +24,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario, validate_file
+from rpa_core.dsl.editing import replace_contract
+from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_runner.contract import check_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id, scenario_sources
 from rpa_server.config import EXAMPLES_DOMAIN
+from rpa_server.debugging import DebugManager
 from rpa_server.domain import (
     DOMAIN_ID,
     DomainRecord,
@@ -38,12 +45,18 @@ from rpa_server.domain import (
     issue_json,
     now,
 )
+from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import follow_locale, t
 from rpa_server.models import Domain, Revision, Run, Scene
+from rpa_server.recordings import RecordingService
+from rpa_server.roles import RoleService
+from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
 
 __all__ = [
+    "ROLES_FILE",
     "ImportReport",
+    "SceneNeeds",
     "ServiceError",
     "Services",
     "revision_record",
@@ -60,40 +73,62 @@ _CARD_SHOT_LOOKBACK: Final = 5
 RUN_LIST_LIMIT: Final = 200
 """報告清單最多顯示的筆數。"""
 
+ROLES_FILE: Final = "roles.json"
+"""範例資料夾裡的登入角色定義；匯入範例時，場景用到而還沒登記的角色依這裡建立。"""
 
-class ServiceError(Exception):
-    """操作失敗：status 是對應的 HTTP 狀態碼，code 給程式判斷，message 是目前語言的說明。"""
-
-    def __init__(self, status: int, code: str, message: str, **details: object) -> None:
-        super().__init__(message)
-        self.status = status
-        self.code = code
-        self.message = message
-        self.details = details
-
-    def to_json(self) -> dict[str, object]:
-        return {"error": {"code": self.code, "message": self.message, **self.details}}
-
-
-def _not_found(code: str, message: str) -> ServiceError:
-    return ServiceError(404, code, message)
-
-
-def _conflict(code: str, message: str, **details: object) -> ServiceError:
-    return ServiceError(409, code, message, **details)
+_CONTRACT_KEYS: Final = frozenset(
+    {
+        "type",
+        "description",
+        "default",
+        "enum",
+        "minLength",
+        "maxLength",
+        "pattern",
+        "minimum",
+        "maximum",
+        "from",
+    }
+)
 
 
-def _invalid(code: str, message: str, **details: object) -> ServiceError:
-    return ServiceError(422, code, message, **details)
+_not_found = not_found
+_conflict = conflict
+_invalid = invalid
 
 
 @dataclass(frozen=True, slots=True)
 class ImportReport:
     imported: list[str] = field(default_factory=list[str])
     skipped: list[str] = field(default_factory=list[str])
+    roles: list[str] = field(default_factory=list[str])
+    """一起建立的登入角色。"""
 
     def to_json(self) -> dict[str, object]:
-        return {"imported": self.imported, "skipped": self.skipped}
+        return {"imported": self.imported, "skipped": self.skipped, "roles": self.roles}
+
+
+@dataclass(frozen=True, slots=True)
+class SceneNeeds:
+    """執行這個場景版本需要先準備的：登入角色、Secrets。"""
+
+    role: str | None
+    role_registered: bool
+    role_status: str | None
+    secrets: tuple[tuple[str, bool], ...]
+    """(名稱, 是否已設定)；環境變數有同名的值也算已設定。"""
+
+    @property
+    def missing_secrets(self) -> list[str]:
+        return [name for name, ready in self.secrets if not ready]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "role": self.role,
+            "roleRegistered": self.role_registered,
+            "roleStatus": self.role_status,
+            "secrets": [{"name": name, "set": ready} for name, ready in self.secrets],
+        }
 
 
 # ---------------------------------------------------------------- 轉換
@@ -177,12 +212,26 @@ class Services:
         *,
         examples_dir: Path | None = None,
         display: bool = False,
+        locale: Locale = DEFAULT_LOCALE,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
         self.examples_dir = examples_dir
         self.display = display
         """這台電腦能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。"""
+        self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
+        self.roles = RoleService(
+            sessions,
+            storage,
+            SecretStore(storage.secrets),
+            display=display,
+            locale=locale,
+            scene_roles=self.scene_roles,
+        )
+        self.recordings = RecordingService(
+            sessions, storage, self, self.roles, display=display, locale=locale
+        )
+        self.debug = DebugManager(storage, self, self.roles, display=display, locale=locale)
         self.on_queued: Callable[[], None] = lambda: None
         """有新的執行排入佇列（叫醒 worker）。"""
         self.on_cancel: Callable[[str], object] = lambda run_id: None
@@ -474,11 +523,13 @@ class Services:
         if not name:
             raise _invalid("scene_name_missing", t("error.scene_name_missing"))
         files = {SCENARIO_FILE: new_scene_template(scene_id, name, category)}
-        return self._add_scene(
-            scene_id, files, note=t("revision.note_created"), domain_id=domain_id
-        )
+        return self.add_scene(scene_id, files, note=t("revision.note_created"), domain_id=domain_id)
 
-    def _add_scene(
+    def scene_exists(self, scene_id: str) -> bool:
+        with self.sessions() as session:
+            return session.get(Scene, scene_id) is not None
+
+    def add_scene(
         self,
         scene_id: str,
         files: Mapping[str, str],
@@ -655,7 +706,7 @@ class Services:
                 for relative in scenario_sources(path, scenario)
             }
             try:
-                self._add_scene(
+                self.add_scene(
                     scenario.id,
                     files,
                     note=t("revision.note_imported", path=path.name),
@@ -665,6 +716,15 @@ class Services:
                 report.skipped.append(f"{scenario.id}：{error.message}")
                 continue
             report.imported.append(scenario.id)
+        wanted = sorted(
+            {
+                scenario.login.role
+                for scenario in (validate_file(path).scenario for path in paths)
+                if scenario is not None and scenario.login is not None
+            }
+        )
+        if wanted:
+            report.roles.extend(self.roles.import_examples(folder / ROLES_FILE, wanted))
         return report
 
     # ------------------------------------------------------------ 執行
@@ -862,7 +922,12 @@ class Services:
             revision.status = "failed"
 
     def recover(self) -> int:
-        """伺服器啟動時：上次執行到一半的任務標為失敗（排隊中的會繼續執行）。"""
+        """伺服器啟動時：上次執行到一半的任務標為失敗（排隊中的會繼續執行）。
+
+        錄製到一半的也標為失敗（刪除可能含密碼的暫存原始稿），清掉上次調試留下的目錄。
+        """
+        self.recordings.recover()
+        self.debug.remove_leftovers()
         with self.sessions() as session:
             runs = list(session.scalars(select(Run).where(Run.status == "running")))
             moment = now()
@@ -877,3 +942,104 @@ class Services:
                     self._settle_revision(session, run.revision_id)
             session.commit()
             return len(runs)
+
+    # ------------------------------------------------------------ M4：角色、入參出參、重新執行
+
+    def _scene_infos(self) -> dict[str, tuple[str | None, tuple[str, ...]]]:
+        """沒有封存的場景 → 最新版本的 (登入角色, Secrets 名稱)；依版本快取。"""
+        with self.sessions() as session:
+            scenes = list(session.scalars(select(Scene).where(Scene.archived.is_(False))))
+        found: dict[str, tuple[str | None, tuple[str, ...]]] = {}
+        for scene in scenes:
+            key = (scene.id, scene.latest_number)
+            if key not in self._scene_cache:
+                scenario = validate_file(self.storage.scenario_path(*key)).scenario
+                login = scenario.login if scenario is not None else None
+                secrets = tuple(scenario.secrets) if scenario is not None else ()
+                self._scene_cache[key] = (login.role if login is not None else None, secrets)
+            found[scene.id] = self._scene_cache[key]
+        return found
+
+    def scene_roles(self) -> dict[str, str]:
+        """沒有封存的場景 → 最新版本用到的登入角色。"""
+        return {scene: role for scene, (role, _) in self._scene_infos().items() if role}
+
+    def secret_usage(self) -> dict[str, list[str]]:
+        """Secrets 名稱 → 用到它的場景與角色（角色寫成「角色：代號」）。"""
+        usage: dict[str, list[str]] = {}
+        for scene, (_, names) in sorted(self._scene_infos().items()):
+            for name in names:
+                usage.setdefault(name, []).append(scene)
+        for role in self.roles.list_roles():
+            settings = self.roles.login_settings(role.id)
+            for name in settings.secrets if settings is not None else ():
+                usage.setdefault(name, []).append(t("secrets.role_user", id=role.id))
+        return usage
+
+    def scene_needs(self, scenario: Scenario) -> SceneNeeds:
+        """場景版本執行前要準備好的角色與 Secrets。"""
+        stored = {info.name for info in self.roles.list_secrets()}
+        secrets = tuple((name, name in stored or name in os.environ) for name in scenario.secrets)
+        role = scenario.login.role if scenario.login is not None else None
+        if role is None:
+            return SceneNeeds(None, False, None, secrets)
+        try:
+            record = self.roles.get_role(role)
+        except ServiceError:
+            return SceneNeeds(role, False, None, secrets)
+        return SceneNeeds(role, True, record.status, secrets)
+
+    def save_contract(
+        self,
+        scene_id: str,
+        *,
+        base: int,
+        inputs: Sequence[Mapping[str, object]],
+        outputs: Sequence[Mapping[str, object]],
+        note: str | None = None,
+    ) -> RevisionRecord:
+        """入參、出參的表單存檔：只改寫場景檔的這兩段，其他內容與註解不變，存成新版本。
+
+        每一項是 ``{"name": 名稱, "previous": 原本的名稱, "type": …, …}``；入參改名時，
+        場景裡引用舊名稱的 ``{{ inputs.舊名稱 }}`` 一起改。
+        """
+        files = dict(self.revision_files(scene_id, base))
+        renames: dict[str, str] = {}
+        specs: list[dict[str, dict[str, object]]] = []
+        for items, rename in ((inputs, True), (outputs, False)):
+            converted: dict[str, dict[str, object]] = {}
+            for item in items:
+                name = str(item.get("name") or "").strip()
+                if not name:
+                    raise _invalid("contract_name_missing", t("error.contract_name_missing"))
+                if name in converted:
+                    raise _invalid("contract_duplicate", t("error.contract_duplicate", name=name))
+                previous = str(item.get("previous") or "").strip()
+                if rename and previous and previous != name:
+                    renames[previous] = name
+                converted[name] = {
+                    key: value
+                    for key, value in item.items()
+                    if key in _CONTRACT_KEYS and value is not None and value not in ("", [])
+                }
+            specs.append(converted)
+        files[SCENARIO_FILE] = replace_contract(
+            files[SCENARIO_FILE], inputs=specs[0], outputs=specs[1], renames=renames
+        )
+        return self.save_revision(
+            scene_id, base=base, files=files, note=note or t("revision.note_contract")
+        )
+
+    def rerun(self, run_id: str, *, idempotency_key: str | None = None) -> RunRecord:
+        """用同樣的入參與選項再執行一次（例如登入之後）。驗證用同一個版本，正式執行用目前發布的版本。"""
+        run = self.get_run(run_id)
+        return self.request_run(
+            run.scene_id,
+            purpose=run.purpose,
+            number=run.revision_number if run.purpose == "validation" else None,
+            inputs=run.input,
+            engine=cast("Engine | None", run.engine),
+            base_url=run.base_url,
+            idempotency_key=idempotency_key,
+            headless=run.headless if run.headless or self.display else True,
+        )

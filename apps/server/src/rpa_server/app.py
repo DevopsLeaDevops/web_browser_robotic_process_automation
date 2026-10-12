@@ -20,12 +20,13 @@ from rpa_server import __version__
 from rpa_server.api import api_router
 from rpa_server.config import Settings
 from rpa_server.db import create_db_engine, upgrade
+from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.jobs import RunQueue
 from rpa_server.middleware import LocaleMiddleware, SameOriginMiddleware
 from rpa_server.pages import page_router
 from rpa_server.render import render
-from rpa_server.services import ServiceError, Services
+from rpa_server.services import Services
 from rpa_server.storage import Storage
 from rpa_worker import Worker
 
@@ -44,9 +45,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     upgrade(engine)
     sessions = sessionmaker(engine, expire_on_commit=False)
     services = Services(
-        sessions, storage, examples_dir=settings.examples_dir, display=settings.display
+        sessions,
+        storage,
+        examples_dir=settings.examples_dir,
+        display=settings.display,
+        locale=settings.locale,
     )
-    worker = Worker(RunQueue(sessions, storage), locale=settings.locale)
+    worker = Worker(RunQueue(sessions, storage, services.roles), locale=settings.locale)
     services.on_queued = worker.wake
     services.on_cancel = worker.cancel
 
@@ -62,10 +67,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 services.seed_examples_domain()
         if settings.start_worker:
             worker.start()
+            services.debug.start_reaper()
         try:
             yield
         finally:
             worker.stop()
+            services.debug.close_all()
+            services.recordings.close()
+            services.roles.close()
             engine.dispose()
 
     app = FastAPI(
