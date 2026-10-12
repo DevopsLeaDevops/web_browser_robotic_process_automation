@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Final, Literal, cast
 
 from rpa_core.dsl import Issue, Scenario, validate_file
+from rpa_core.i18n import ENV_VAR, get_locale
 from rpa_runner.browser import Deadline
 from rpa_runner.contract import (
     CheckResult,
@@ -292,8 +293,11 @@ def _snapshot(path: Path, scenario: Scenario, folder: Path) -> tuple[Path, str]:
 def _environment(
     secrets: Mapping[str, str], deadline: Deadline, engine: str | None = None
 ) -> dict[str, str]:
-    """子程序的環境變數：Secrets、剩餘秒數 RPA_DEADLINE_SECONDS、瀏覽器 RPA_BROWSER。"""
-    env = {**os.environ, **secrets, "PYTHONIOENCODING": "utf-8"}
+    """子程序的環境變數：Secrets、剩餘秒數 RPA_DEADLINE_SECONDS、瀏覽器 RPA_BROWSER。
+
+    另外用 RPA_LANG 傳入目前的語言，子程序的日誌與它一致。
+    """
+    env = {**os.environ, **secrets, "PYTHONIOENCODING": "utf-8", ENV_VAR: get_locale()}
     env["RPA_DEADLINE_SECONDS"] = f"{max(0, deadline.remaining_ms()) / 1000:.3f}"
     if engine:
         env["RPA_BROWSER"] = engine

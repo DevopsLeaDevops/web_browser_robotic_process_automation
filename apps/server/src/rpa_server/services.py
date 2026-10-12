@@ -38,7 +38,7 @@ from rpa_server.domain import (
     issue_json,
     now,
 )
-from rpa_server.i18n import t
+from rpa_server.i18n import follow_locale, t
 from rpa_server.models import Domain, Revision, Run, Scene
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
 
@@ -200,10 +200,14 @@ class Services:
             .select_from(Scene)
             .where(Scene.domain_id == domain.id, Scene.archived.is_(False))
         )
+        name, description = domain.name, domain.description
+        if domain.id == EXAMPLES_DOMAIN:  # 系統建立的範例領域：沒改過名稱與說明就跟著介面語言
+            name = follow_locale(name, "domain.testsite_name") or name
+            description = follow_locale(description, "domain.testsite_description")
         return DomainRecord(
             id=domain.id,
-            name=domain.name,
-            description=domain.description,
+            name=name,
+            description=description,
             position=domain.position,
             scene_count=count or 0,
             created_at=domain.created_at,

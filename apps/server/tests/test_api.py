@@ -408,6 +408,19 @@ def test_seed_creates_testsite_domain_once(app: FastAPI, client: Client) -> None
     assert services(app).seed_examples_domain() is None
 
 
+def test_testsite_domain_follows_the_language_until_renamed(app: FastAPI, client: Client) -> None:
+    services(app).seed_examples_domain()  # 伺服器語言是繁中，資料庫存的是繁中名稱
+
+    english = body(client.get("/api/domains/testsite?lang=en"))
+    assert english["name"] == "Test site automation"
+    assert str(english["description"]).startswith("Real cases that run against the local test site")
+    assert "Test site automation" in client.get("/domains/testsite?lang=en").text
+    assert body(client.get("/api/domains/testsite?lang=zh-Hans"))["name"] == "测试网站自动化"
+
+    client.patch("/api/domains/testsite", json={"name": "我們的測試網站"})
+    assert body(client.get("/api/domains/testsite?lang=en"))["name"] == "我們的測試網站"
+
+
 def test_import_goes_into_the_given_domain(client: Client) -> None:
     client.post("/api/domains", json={"id": "lab", "name": "實驗"})
 
