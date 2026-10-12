@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from rpa_core.dsl import validate_file
-from rpa_core.i18n import use_locale
+from rpa_core.i18n import ENV_VAR, Locale, use_locale
+from rpa_runner import child
 from rpa_runner.files import OUTPUT, REPORT, RESULT, read_json, read_json_or, write_json
 from rpa_runner.run import execute, new_run_id, scenario_digest, scenario_sources
 
@@ -87,3 +88,76 @@ def test_json_files_are_written_atomically(tmp_path: Path) -> None:
     path.write_text("[{", encoding="utf-8")  # 舊版被終止時可能留下的半個檔案
     assert read_json_or(path, []) == []
     assert read_json_or(tmp_path / "missing.json", None) is None
+
+
+LANGUAGE_PROBE = """\
+schemaVersion: 1
+id: lang-probe
+name: Language probe
+outputs:
+  lang: {type: string}
+script: {automation: automation.py, assertion: assertion.py}
+"""
+PROBE_AUTOMATION = """\
+import argparse, json, os
+from pathlib import Path
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "screenshot", "target-url"):
+    parser.add_argument("--" + name)
+args = parser.parse_args()
+Path(args.facts).write_text(json.dumps({"lang": os.environ["RPA_LANG"]}), encoding="utf-8")
+"""
+PROBE_ASSERTION = """\
+import argparse
+from pathlib import Path
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "output"):
+    parser.add_argument("--" + name)
+args = parser.parse_args()
+Path(args.output).write_text(Path(args.facts).read_text(encoding="utf-8"), encoding="utf-8")
+"""
+
+
+@pytest.mark.parametrize("locale", ["en", "zh-Hans"])
+def test_child_processes_get_the_current_language(tmp_path: Path, locale: Locale) -> None:
+    """子程序（場景步驟、automation.py、assertion.py）用 RPA_LANG 拿到目前的語言。不開瀏覽器。"""
+    folder = tmp_path / "probe"
+    folder.mkdir()
+    (folder / "scenario.yaml").write_text(LANGUAGE_PROBE, encoding="utf-8")
+    (folder / "automation.py").write_text(PROBE_AUTOMATION, encoding="utf-8")
+    (folder / "assertion.py").write_text(PROBE_ASSERTION, encoding="utf-8")
+
+    with use_locale(locale):
+        result = execute(folder / "scenario.yaml", {}, out_root=tmp_path / "runs")
+
+    assert result.status == "passed", result.error
+    assert result.output == {"lang": locale}
+
+
+@pytest.mark.parametrize(
+    ("lang", "caller", "message"),
+    [
+        ("en", "zh-Hant", "The scenario did not pass validation"),
+        ("zh-Hant", "en", "場景校驗失敗"),
+    ],
+)
+def test_child_writes_its_log_in_the_given_language(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    lang: str,
+    caller: Locale,
+    message: str,
+) -> None:
+    """子程序看 RPA_LANG，不是呼叫端程序目前的語言。"""
+    broken = tmp_path / "broken.yaml"
+    broken.write_text("schemaVersion: 1\n", encoding="utf-8")
+    monkeypatch.setenv(ENV_VAR, lang)
+
+    with use_locale(caller):
+        code = child.main(
+            ["--scenario", str(broken), "--input", "x", "--out", str(tmp_path), "--deadline", "5"]
+        )
+
+    assert code == child.EXIT_FAILED
+    assert message in capsys.readouterr().err

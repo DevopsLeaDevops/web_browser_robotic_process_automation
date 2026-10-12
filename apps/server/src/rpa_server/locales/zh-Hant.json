@@ -202,7 +202,8 @@
   "js.network_error": "連不上伺服器",
   "js.confirm": "確認",
   "js.cancel": "取消",
-  "js.imported": "已匯入",
+  "js.imported": "已匯入：{{ids}}",
+  "js.list_separator": "、",
   "js.publish_title": "發布",
   "js.publish_body": "發布後，「執行」會改用這個版本；之前發布的版本仍保留在歷史中。確定要發布嗎？",
   "js.publish_action": "確認發布",
@@ -268,7 +269,7 @@
   "js.save": "儲存",
   "js.domain_create_title": "新增領域",
   "js.domain_edit_title": "編輯領域",
-  "js.domain_delete_title": "刪除領域",
+  "js.domain_delete_title": "刪除領域「{{name}}」",
   "js.domain_delete_body": "刪除後左側選單就不再顯示這個領域。確定要刪除嗎？",
   "js.domain_delete_action": "確認刪除"
 }

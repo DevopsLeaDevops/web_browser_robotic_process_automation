@@ -202,7 +202,8 @@
   "js.network_error": "Cannot reach the server",
   "js.confirm": "Confirm",
   "js.cancel": "Cancel",
-  "js.imported": "Imported",
+  "js.imported": "Imported: {{ids}}",
+  "js.list_separator": ", ",
   "js.publish_title": "Publish",
   "js.publish_body": "After publishing, runs use this revision; earlier published revisions stay in the history. Publish it?",
   "js.publish_action": "Publish",
@@ -268,7 +269,7 @@
   "js.save": "Save",
   "js.domain_create_title": "New domain",
   "js.domain_edit_title": "Edit domain",
-  "js.domain_delete_title": "Delete domain",
+  "js.domain_delete_title": "Delete domain “{{name}}”",
   "js.domain_delete_body": "The domain will disappear from the side menu. Delete it?",
   "js.domain_delete_action": "Delete"
 }

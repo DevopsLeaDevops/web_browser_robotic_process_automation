@@ -1,5 +1,6 @@
 """頁面樣板：用假的紀錄渲染每一頁（三種語言），確認訊息鍵、樣板變數都存在。不需要資料庫。"""
 
+import re
 from dataclasses import replace
 from datetime import UTC, datetime
 from html.parser import HTMLParser
@@ -7,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from rpa_core.dsl import Scenario, validate_file
-from rpa_core.i18n import LOCALES, Locale, use_locale
+from rpa_core.dsl import Scenario, validate_file, validate_text
+from rpa_core.i18n import LOCALES, NATIVE_NAMES, Locale, use_locale
 from rpa_server.domain import (
     ENGINES,
     PURPOSES,
@@ -19,7 +20,8 @@ from rpa_server.domain import (
     SceneCard,
     SceneRecord,
 )
-from rpa_server.render import render
+from rpa_server.i18n import follow_locale, t
+from rpa_server.render import js_messages, render
 
 ROOT = Path(__file__).resolve().parents[3]
 MOMENT = datetime(2026, 10, 10, 8, 30, tzinfo=UTC)
@@ -295,3 +297,109 @@ def test_scene_card_follows_the_design() -> None:
     assert 'aria-disabled="true"' in draft
     assert 'href="/scenes/ba-009/edit?file=assertion.py"' in draft
     assert "2 個場景" in _text(html)
+
+
+# ---------------------------------------------------------------- 多語言
+
+
+ASCII_SCENARIO = """\
+schemaVersion: 1
+id: ascii-001
+name: ASCII scenario
+browser: {baseUrl: "http://127.0.0.1:8765"}
+inputs:
+  title: {type: string, default: hello}
+outputs:
+  message: {type: string, from: "{{ facts.message }}"}
+steps:
+  - {id: open, action: goto, url: /}
+  - {id: read, action: extract, target: {css: p}, as: message}
+verify:
+  - {name: has message, value: "{{ facts.message }}", equals: done}
+"""
+
+
+def _english_domain_pages() -> dict[str, str]:
+    """用沒有中文的資料渲染這次加入的頁面；畫面上剩下的中文就是忘了翻譯的字。"""
+    scenario = validate_text(ASCII_SCENARIO).scenario
+    assert scenario is not None
+    domain = replace(DOMAIN, name="Lab", description="Cases for the lab")
+    domains = [domain, replace(OTHER_DOMAIN, name="Other")]
+    scene = replace(SCENE, name="Scene", category="Cat", description="About")
+    run = replace(RUN, scene_name="Scene", category="Cat", input={}, output=None)
+    with use_locale("en"):
+        return {
+            "domain": render(
+                "domain.html",
+                page="domain:testsite",
+                title="Lab",
+                domains=domains,
+                domain=domain,
+                cards=[
+                    SceneCard(scene, run, run.id),
+                    SceneCard(replace(scene, id="b", published_number=None), None, None),
+                ],
+                can_import=True,
+            ),
+            "domain-empty": render(
+                "domain.html",
+                page="domain:google",
+                title="Other",
+                domains=domains,
+                domain=domains[1],
+                cards=[],
+                can_import=False,
+            ),
+            "domains": render(
+                "domains.html",
+                page="domains",
+                title=t("nav.domains"),
+                domains=domains,
+                unassigned=[replace(scene, id="loose", domain_id=None)],
+            ),
+            "scene": render(
+                "scene.html",
+                page="domain:testsite",
+                title="Scene",
+                domains=domains,
+                domain=domain,
+                scene=scene,
+                revisions=[replace(revision, note=None) for revision in REVISIONS],
+                scenario=scenario,
+                default_base_url=scenario.browser.base_url,
+                runs=[run],
+            ),
+        }
+
+
+@pytest.mark.parametrize("name", ["domain", "domain-empty", "domains", "scene"])
+def test_new_pages_have_no_untranslated_text(name: str) -> None:
+    html = _english_domain_pages()[name]
+    for native in NATIVE_NAMES.values():  # 語言切換選單用各語言自己的文字，不翻譯
+        html = html.replace(native, "")
+    leftovers = re.findall(r"[\u3000-\u303f\u4e00-\u9fff\uff01-\uff60]+", html)
+    assert leftovers == [], name
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_script_messages_keep_their_placeholders(locale: Locale) -> None:
+    """portal.js 用 {name}、{ids} 代入值；字詞順序與標點由各語言的訊息決定。"""
+    with use_locale(locale):
+        messages = js_messages()
+    assert "{name}" in messages["domain_delete_title"]
+    assert "{ids}" in messages["imported"]
+    assert messages["list_separator"]
+
+
+def test_builtin_texts_follow_the_language() -> None:
+    stored = "測試網站自動化"  # 第一次啟動時用伺服器的語言存進資料庫
+    with use_locale("en"):
+        assert follow_locale(stored, "domain.testsite_name") == "Test site automation"
+        assert follow_locale("Test site automation", "domain.testsite_name") == (
+            "Test site automation"
+        )
+    with use_locale("zh-Hans"):
+        assert follow_locale(stored, "domain.testsite_name") == t("domain.testsite_name")
+    with use_locale("en"):
+        assert follow_locale("我們的測試", "domain.testsite_name") == "我們的測試"  # 改過的名稱
+        assert follow_locale(None, "domain.testsite_description") is None
