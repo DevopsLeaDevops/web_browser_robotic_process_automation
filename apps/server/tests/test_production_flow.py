@@ -1,4 +1,5 @@
-"""M4 的真實瀏覽器流程：人工登入（假的登入視窗）→ 執行、需要登入、重新執行；自動登入；逐步調試。
+"""M4 的真實瀏覽器流程：人工登入（假的登入視窗）→ 執行、需要登入、重新執行；自動登入；
+錄製稿 → 驗證 → 發布 → 正式執行；逐步調試。
 
 人工登入的瀏覽器視窗在 CI 沒辦法開，換成假的子程序：收到「完成登入」時用 HTTP 登入測試網站，
 把 cookie 寫成登入狀態檔。之後的檢查、執行都是真的瀏覽器。
@@ -14,6 +15,7 @@ from textwrap import dedent
 from typing import cast
 
 import pytest
+import yaml
 from fastapi import FastAPI
 from httpx2 import Client, Response
 
@@ -243,6 +245,71 @@ def test_auto_login_from_secret(app: FastAPI, client: Client, site: str, engine:
     assert role["status"] == "logged_in", role
     assert role["message"]  # 自動登入過
     assert services(app).storage.role_state("auto-manager").is_file()
+
+
+RECORDED = dedent(
+    """\
+    import re
+    from playwright.sync_api import Playwright, sync_playwright, expect
+
+
+    def run(playwright: Playwright) -> None:
+        browser = playwright.chromium.launch(headless=False)
+        context = browser.new_context()
+        page = context.new_page()
+        page.goto("{site}/")
+        page.get_by_label("標題", exact=True).click()
+        page.get_by_label("標題", exact=True).fill("錄製的紀錄")
+        page.get_by_label("數量", exact=True).fill("3")
+        page.get_by_role("button", name="建立紀錄").click()
+        expect(page.locator("#record-status")).to_contain_text("已建立")
+
+        # ---------------------
+        context.close()
+        browser.close()
+
+
+    with sync_playwright() as playwright:
+        run(playwright)
+    """
+)
+
+
+def test_recording_is_validated_published_and_run(
+    app: FastAPI, client: Client, site: str, engine: str
+) -> None:
+    """路線圖 M4 的驗收：錄製一段操作 → 草稿 → 驗證 → 發布 → 用別的入參正式執行成功。"""
+    body(client.post("/api/domains", json={"id": "lab", "name": "實驗"}))
+    recording = body(
+        client.post(
+            "/api/recordings/import",
+            json={
+                "source": RECORDED.replace("{site}", site),
+                "target": {"sceneId": "rec-e2e", "new": True, "name": "錄製", "domainId": "lab"},
+                "engine": engine,
+            },
+        ),
+        201,
+    )
+    assert recording["status"] == "done"
+    assert recording["warnings"] == []
+    revision = body(client.get("/api/scenes/rec-e2e/revisions/1"))
+    loaded: object = yaml.safe_load(cast("dict[str, str]", revision["files"])["scenario.yaml"])
+    inputs = cast("dict[str, JsonObject]", cast("JsonObject", loaded)["inputs"])
+    assert [spec["default"] for spec in inputs.values()] == ["錄製的紀錄", "3"]
+
+    options: JsonObject = {"engine": engine, "baseUrl": site, "inputs": {}, "headless": True}
+    validated = run_next(
+        app, client, body(client.post("/api/scenes/rec-e2e/revisions/1/validate", json=options))
+    )
+    assert validated["status"] == "passed", validated["error"]
+    body(client.post("/api/scenes/rec-e2e/revisions/1/publish"))
+
+    title, quantity = inputs
+    production = {**options, "inputs": {title: "正式執行", quantity: "5"}}
+    run = run_next(app, client, body(client.post("/api/scenes/rec-e2e/runs", json=production), 202))
+    assert run["status"] == "passed", run["error"]
+    assert (run["purpose"], run["revision"]) == ("execution", 1)
 
 
 def test_step_debugging(app: FastAPI, client: Client, site: str, engine: str) -> None:
