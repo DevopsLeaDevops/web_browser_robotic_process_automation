@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e89fc2e308293735">
+<meta name="translation-source" content="sha256:20738e5d98b6df01">
 <title>Run locally from scratch · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -166,6 +166,7 @@ git pull              # get the latest code
             <tr><td>"<span translate="no">已經存在，而且不是空資料夾</span>" (already exists and is not empty)</td><td>Something else occupies the default location. Pick another one with <code>--dir</code> (<code>-Dir</code> on Windows); if it is the project, go into the folder and run <code>scripts/setup.sh</code>.</td></tr>
             <tr><td>"<span translate="no">安裝依賴失敗</span>" or "<span translate="no">下載瀏覽器失敗</span>" (installing dependencies / downloading the browsers failed)</td><td>Usually the company network. Set <code>UV_INDEX_URL</code> or <code>PLAYWRIGHT_DOWNLOAD_HOST</code> and rerun, see the <a href="setup.html#faq">Dev environment FAQ</a>; if the browser cannot be downloaded for now, add <code>--skip-browser</code>.</td></tr>
             <tr><td>Linux: "<span translate="no">瀏覽器缺少系統函式庫</span>" (the browsers are missing system libraries)</td><td>The script runs <code>playwright install-deps</code> with sudo and asks for your password. On distributions other than Debian and Ubuntu, install the missing libraries by hand as the error describes.</td></tr>
+            <tr><td>Running a scene says "<span translate="no">這台電腦還沒有下載 Firefox</span>" (Firefox has not been downloaded on this computer), or <code>Executable doesn't exist</code></td><td>Environments set up early downloaded only Chromium, and the Test site automation examples use Firefox. Run <code>./scripts/setup.sh</code> again in the project folder (<code>scripts\setup.ps1</code> on Windows), or just <code>uv run playwright install chromium firefox</code>; no need to restart <code>rpa serve</code>. Rerunning the script after every <code>git pull</code> is recommended.</td></tr>
             <tr><td><code>uv</code> is not found after the script finishes</td><td>The script just installed uv, which only takes effect in new terminal windows. Open a new window; on macOS and Linux you can also run <code>source $HOME/.local/bin/env</code>.</td></tr>
             <tr><td>"<span translate="no">測試沒有通過</span>" (tests did not pass)</td><td>Scroll up to find the <code>FAILED</code> test names and errors. Running <code>uv run pytest -x</code> in the project folder stops at the first failure.</td></tr>
             <tr><td>Start over completely</td><td>Delete <code>.venv</code> in the project and run the script again. For Mac-specific issues (Rosetta, <code>xcrun: error</code> and so on) see the <a href="macos.html#faq">Run on macOS FAQ</a>.</td></tr>

@@ -50,5 +50,6 @@
   "cli.serve.testsite_started": "測試網站：{url}",
   "cli.serve.testsite_running": "測試網站已經在 {url} 執行，直接沿用。",
   "cli.serve.testsite_busy": "埠號 {port} 被其他程式占用，沒有啟動測試網站，「測試網站自動化」的案例會連不上。關掉占用的程式後重新啟動，或加 --no-testsite 不啟動測試網站。",
-  "cli.serve.testsite_failed": "無法啟動測試網站（{url}）：{error}"
+  "cli.serve.testsite_failed": "無法啟動測試網站（{url}）：{error}",
+  "cli.serve.browsers_missing": "這台電腦還沒有下載 {browsers}，用到的場景會執行失敗。在專案資料夾執行 {command} 下載即可，不用重新啟動 Portal。"
 }

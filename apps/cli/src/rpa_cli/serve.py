@@ -7,6 +7,8 @@
 - 先自己綁定埠號再交給 uvicorn，失敗時顯示說明，而不是 uvicorn 的原始錯誤。
 - 預設一起在 127.0.0.1:8765 啟動本機測試網站（「測試網站自動化」的案例對它執行），
   ``--no-testsite`` 關閉；8765 上已經是測試網站就直接沿用。
+- 啟動時檢查 Chromium、Firefox 有沒有下載：較早安裝的環境只有 Chromium，
+  git pull 之後才執行 Firefox 場景會失敗，先提醒要執行的命令。
 """
 
 import errno
@@ -16,6 +18,7 @@ import os
 import socket
 import threading
 import urllib.request
+from collections.abc import Sequence
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Final, cast
@@ -30,6 +33,7 @@ from testsite.server import create_server
 __all__ = [
     "DEFAULT_PORT",
     "PORTAL_TITLE",
+    "browser_warning",
     "build_serve_command",
     "open_listener",
     "portal_url",
@@ -124,6 +128,20 @@ def start_testsite(port: int = TESTSITE_PORT) -> tuple[ThreadingHTTPServer | Non
     return server, t("cli.serve.testsite_started", url=url)
 
 
+def browser_warning(missing: Sequence[str]) -> str | None:
+    """還沒下載的瀏覽器的提醒；都有下載時回傳 None。"""
+    if not missing:
+        return None
+    # 只有啟動伺服器時才需要 Playwright
+    from rpa_runner.installed import browser_names, install_command
+
+    return t(
+        "cli.serve.browsers_missing",
+        browsers=browser_names(missing),
+        command=install_command(missing),
+    )
+
+
 def open_listener(
     host: str,
     port: int | None,
@@ -190,6 +208,7 @@ def build_serve_command() -> click.Command:
             # 只有真的啟動伺服器時才載入 FastAPI 與資料庫
             import uvicorn
 
+            from rpa_runner.installed import missing_browsers
             from rpa_server.app import create_app
             from rpa_server.config import Settings
 
@@ -202,6 +221,9 @@ def build_serve_command() -> click.Command:
             if testsite:
                 site, message = start_testsite()
                 click.echo(message, err=True)
+            warning = browser_warning(missing_browsers())
+            if warning is not None:
+                click.echo(warning, err=True)
             click.echo(
                 t(
                     "cli.serve.started",
