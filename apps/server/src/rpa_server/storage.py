@@ -73,6 +73,8 @@ def _issue(code: str, message: str, path: tuple[str | int, ...] = ()) -> Issue:
 
 class Storage:
     def __init__(self, root: Path) -> None:
+        # 絕對路徑：交給子程序的路徑（錄製稿、登入狀態）不受子程序的工作目錄影響
+        root = root.absolute()
         self.root = root
         self.scenes = root / "scenes"
         self.runs = root / "runs"
