@@ -70,7 +70,8 @@ class Settings:
         environ: Mapping[str, str] | None = None,
     ) -> "Settings":
         env = os.environ if environ is None else environ
-        data = data_dir or Path(env.get("RPA_DATA_DIR") or "data")
+        # 一律用絕對路徑：子程序（例如錄製）的工作目錄不同，相對路徑會指到別的地方
+        data = (data_dir or Path(env.get("RPA_DATA_DIR") or "data")).expanduser().absolute()
         examples = env.get("RPA_EXAMPLES_DIR")
         if examples:
             examples_dir: Path | None = Path(examples)
