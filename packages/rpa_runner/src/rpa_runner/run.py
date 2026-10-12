@@ -1,6 +1,8 @@
-"""執行一個場景：入參校驗 → 自動化（子程序）→ 獨立斷言 → 出參校驗與發布（ADR 0009）。
+"""執行一個場景：入參校驗 →（登入檢查）→ 自動化（子程序）→ 獨立斷言 → 出參校驗與發布（ADR 0009）。
 
 - 入參有問題時不啟動瀏覽器。
+- 場景有 login 時，先用子程序 ``python -m rpa_runner.login check`` 確認角色已登入
+  （必要時自動登入）；沒登入就停在 needs_login，不執行任何步驟。登入狀態檔不複製進執行目錄。
 - 自動化在子程序執行：DSL 場景是 ``python -m rpa_runner.child``，Python 腳本場景是 automation.py。
   子程序超過總期限（加上短暫的收尾時間）就終止整個程序群組。
 - 獨立斷言：DSL 場景在本程序比對 verify；腳本場景再啟動一個 assertion.py 子程序。
@@ -11,6 +13,7 @@
 
 import contextlib
 import hashlib
+import json
 import os
 import shutil
 import signal
@@ -43,6 +46,8 @@ from rpa_runner.files import (
     DIAGNOSTIC,
     FACTS,
     INPUT,
+    LOGIN,
+    LOGIN_LOG,
     OUTPUT,
     REPORT,
     RESULT,
@@ -55,6 +60,7 @@ from rpa_runner.files import (
 )
 from rpa_runner.i18n import t
 from rpa_runner.installed import missing_browser_hint
+from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_runner.report import render_report
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
 
@@ -81,9 +87,11 @@ _POLL_SECONDS: Final = 0.2
 _LOG_TAIL_BYTES: Final = 64 * 1024
 """自動化失敗時，讀日誌最後這麼多位元組，找「瀏覽器還沒下載」的錯誤。"""
 
-RunStatus = Literal["passed", "failed", "timed_out", "cancelled"]
-StageName = Literal["input", "automation", "verify", "output"]
-StageStatus = Literal["passed", "failed", "timed_out", "cancelled", "skipped"]
+RunStatus = Literal["passed", "failed", "timed_out", "cancelled", "needs_login"]
+StageName = Literal["input", "login", "automation", "verify", "output"]
+StageStatus = Literal["passed", "failed", "timed_out", "cancelled", "needs_login", "skipped"]
+ENV_STORAGE_STATE: Final = "RPA_STORAGE_STATE"
+"""Python 腳本場景從這個環境變數得知登入狀態檔（場景有 login 時）。"""
 
 
 class ScenarioInvalidError(Exception):
@@ -131,6 +139,10 @@ class RunResult:
     checks: list[CheckResult] = field(default_factory=list[CheckResult])
     problems: list[str] = field(default_factory=list[str])
     error: str | None = None
+    role: str | None = None
+    """以哪個角色登入（場景的 login.role）。"""
+    login: dict[str, object] | None = None
+    """登入檢查的結果（login.json）。"""
 
     def stage(self, name: StageName) -> Stage:
         return next(stage for stage in self.stages if stage.name == name)
@@ -171,6 +183,8 @@ class RunResult:
             ],
             "problems": self.problems,
             "error": self.error,
+            "role": self.role,
+            "login": self.login,
         }
 
 
@@ -237,7 +251,9 @@ def _run_process(
     deadline: Deadline,
     env: Mapping[str, str],
     cancel: threading.Event | None = None,
+    special: Mapping[int, _StageFailedError] | None = None,
 ) -> None:
+    """執行子程序直到結束；``special`` 是有特別意義的結束碼（例如需要登入）。"""
     _check_cancelled(cancel)
     remaining = deadline.remaining_ms() / 1000
     if remaining <= 0:
@@ -259,6 +275,8 @@ def _run_process(
             raise
     if code == _EXIT_DEADLINE:
         raise _StageFailedError("timed_out", t("run.deadline_in_stage"))
+    if special and code in special:
+        raise special[code]
     if code != 0:
         raise _StageFailedError("failed", t("run.process_failed", code=code, log=log.name))
 
@@ -308,11 +326,12 @@ def _environment(
     deadline: Deadline,
     engine: str | None = None,
     headed: bool | None = None,
+    storage_state: Path | None = None,
 ) -> dict[str, str]:
     """子程序的環境變數：Secrets、剩餘秒數 RPA_DEADLINE_SECONDS、瀏覽器 RPA_BROWSER。
 
     另外用 RPA_LANG 傳入目前的語言，子程序的日誌與它一致；自動化階段再用 RPA_HEADLESS
-    （1 無頭、0 有頭）告訴 Python 腳本要不要顯示瀏覽器視窗。
+    （1 無頭、0 有頭）告訴 Python 腳本要不要顯示瀏覽器視窗，RPA_STORAGE_STATE 告訴它登入狀態檔。
     """
     env = {**os.environ, **secrets, "PYTHONIOENCODING": "utf-8", ENV_VAR: get_locale()}
     env["RPA_DEADLINE_SECONDS"] = f"{max(0, deadline.remaining_ms()) / 1000:.3f}"
@@ -320,6 +339,10 @@ def _environment(
         env["RPA_BROWSER"] = engine
     if headed is not None:
         env["RPA_HEADLESS"] = "0" if headed else "1"
+    env.pop(ENV_STORAGE_STATE, None)
+    env.pop(ENV_LOGIN, None)
+    if storage_state is not None:
+        env[ENV_STORAGE_STATE] = str(storage_state)
     return env
 
 
@@ -335,12 +358,16 @@ def execute(
     run_id: str | None = None,
     cancel: threading.Event | None = None,
     on_stage: Callable[[StageName], None] | None = None,
+    login: LoginSettings | None = None,
+    secrets: Mapping[str, str] | None = None,
 ) -> RunResult:
     """執行場景檔，回傳結果；場景本身沒通過校驗時拋出 ScenarioInvalidError。
 
     - ``run_id``：指定執行編號（例如管理介面排入佇列時就決定好）；沒指定時用 :func:`new_run_id`。
     - ``cancel``：別的執行緒設定這個事件就取消執行。
     - ``on_stage``：每個階段開始時呼叫，用來回報進度。
+    - ``login``：場景有 login 時，這個角色的登入設定（管理 Portal 登記的角色）。
+    - ``secrets``：Secrets 的值（例如管理 Portal 保存的）；沒有的再從同名的環境變數找。
     """
     validated = validate_file(path)
     if validated.scenario is None:
@@ -361,9 +388,20 @@ def execute(
         engine=engine or scenario.browser.engine,
         directory=folder,
         started_at=now.isoformat(timespec="seconds"),
-        stages=[Stage("input"), Stage("automation"), Stage("verify"), Stage("output")],
+        stages=[
+            Stage("input"),
+            *([Stage("login")] if scenario.login is not None else []),
+            Stage("automation"),
+            Stage("verify"),
+            Stage("output"),
+        ],
+        role=scenario.login.role if scenario.login is not None else None,
     )
-    secrets = read_secrets(scenario)
+    environ = {**os.environ, **(secrets or {})}
+    login_secrets = {
+        name: environ[name] for name in (login.secrets if login else ()) if name in environ
+    }
+    secrets = read_secrets(scenario, environ)
     deadline = Deadline.after((deadline_ms or scenario.deadline or DEFAULT_DEADLINE_MS) / 1000)
     current: Stage = result.stage("input")
 
@@ -376,10 +414,32 @@ def execute(
 
     try:
         enter("input")
-        _input_stage(scenario, inputs, result, folder)
+        _input_stage(scenario, inputs, result, folder, environ)
+        state: Path | None = None
+        if scenario.login is not None:
+            enter("login")
+            state = _login_stage(
+                folder,
+                deadline,
+                login_secrets,
+                engine or scenario.browser.engine,
+                login,
+                cancel,
+                result,
+            )
         enter("automation")
         _automation_stage(
-            scenario, snapshot, folder, deadline, secrets, base_url, engine, headed, cancel, result
+            scenario,
+            snapshot,
+            folder,
+            deadline,
+            secrets,
+            base_url,
+            engine,
+            headed,
+            cancel,
+            result,
+            state,
         )
         enter("verify")
         _verify_stage(scenario, snapshot, folder, deadline, secrets, cancel, result)
@@ -389,9 +449,13 @@ def execute(
     except _StageFailedError as failure:
         current.status = failure.status
         current.message = mask(failure.message, secrets)
-        result.status = failure.status if failure.status in ("timed_out", "cancelled") else "failed"
+        result.status = (
+            failure.status
+            if failure.status in ("timed_out", "cancelled", "needs_login")
+            else "failed"
+        )
         # 子程序寫在 diagnostic.json 的錯誤（例如找不到元素）比階段說明更具體，一併保留
-        detail = result.error if failure.status != "cancelled" else None
+        detail = result.error if failure.status not in ("cancelled", "needs_login") else None
         result.error = f"{current.message}；{detail}" if detail else current.message
     except KeyboardInterrupt:
         current.status = "cancelled"
@@ -419,12 +483,17 @@ def _timed(stage: Stage, started: float) -> None:
 
 
 def _input_stage(
-    scenario: Scenario, inputs: Mapping[str, object], result: RunResult, folder: Path
+    scenario: Scenario,
+    inputs: Mapping[str, object],
+    result: RunResult,
+    folder: Path,
+    environ: Mapping[str, str],
 ) -> None:
     started = time.monotonic()
     resolved, problems = check_inputs(scenario, inputs)
     problems += [
-        Problem(name, t("contract.secret_missing", name=name)) for name in missing_secrets(scenario)
+        Problem(name, t("contract.secret_missing", name=name))
+        for name in missing_secrets(scenario, environ)
     ]
     result.input = resolved
     write_json(folder / INPUT, resolved)
@@ -433,6 +502,65 @@ def _input_stage(
         result.problems = [problem.message for problem in problems]
         raise _StageFailedError("failed", t("run.input_failed", count=len(problems)))
     result.stage("input").status = "passed"
+
+
+def _login_stage(
+    folder: Path,
+    deadline: Deadline,
+    secrets: Mapping[str, str],
+    engine: str,
+    login: LoginSettings | None,
+    cancel: threading.Event | None,
+    result: RunResult,
+) -> Path:
+    """確認角色已登入（必要時自動登入），回傳要給自動化載入的登入狀態檔。"""
+    started = time.monotonic()
+    stage = result.stage("login")
+    try:
+        if login is None:
+            raise _StageFailedError("failed", t("run.login_missing", role=result.role or "?"))
+        if login.check_url is None:
+            # 只給了登入狀態檔（例如命令列 --storage-state）：直接載入，不檢查
+            if not login.state.is_file():
+                raise _StageFailedError("failed", t("run.login_state_missing", role=login.label))
+            stage.status = "passed"
+            stage.message = t("run.login_not_checked")
+            return login.state
+        missing = [name for name in login.secrets if name not in secrets]
+        if missing:
+            raise _StageFailedError(
+                "failed", t("run.login_secret_missing", role=login.label, names=", ".join(missing))
+            )
+        command = [
+            sys.executable,
+            "-m",
+            "rpa_runner.login",
+            "check",
+            "--out",
+            str(folder),
+            "--deadline",
+            f"{max(0, deadline.remaining_ms()) / 1000:.3f}",
+            "--engine",
+            engine,
+        ]
+        env = _environment(secrets, deadline, engine)
+        env[ENV_LOGIN] = json.dumps(login.to_json(), ensure_ascii=False)
+        needs = _StageFailedError("needs_login", t("run.needs_login", role=login.label))
+        _run_process(
+            command, folder / LOGIN_LOG, deadline, env, cancel, special={EXIT_NEEDS_LOGIN: needs}
+        )
+    finally:
+        _timed(stage, started)
+        details = read_json_or(folder / LOGIN, None)
+        if isinstance(details, dict):
+            result.login = cast("dict[str, object]", details)
+            error = result.login.get("error")
+            if error:
+                result.error = mask(str(error), secrets)
+    stage.status = "passed"
+    if result.login is not None and result.login.get("refreshed"):
+        stage.message = t("run.login_refreshed", role=login.label)
+    return login.state
 
 
 def _automation_stage(
@@ -446,6 +574,7 @@ def _automation_stage(
     headed: bool,
     cancel: threading.Event | None,
     result: RunResult,
+    state: Path | None = None,
 ) -> None:
     started = time.monotonic()
     stage = result.stage("automation")
@@ -480,9 +609,10 @@ def _automation_stage(
         command += ["--engine", engine] if engine else []
         command += ["--base-url", base_url] if base_url else []
         command += ["--headed"] if headed else []
+        command += ["--storage-state", str(state)] if state is not None else []
     hint: str | None = None
     try:
-        env = _environment(secrets, deadline, engine or scenario.browser.engine, headed)
+        env = _environment(secrets, deadline, engine or scenario.browser.engine, headed, state)
         _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel)
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌

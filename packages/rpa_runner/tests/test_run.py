@@ -151,7 +151,8 @@ def test_deadline_stops_run_and_never_publishes_output(
 
 def test_unknown_record_fails_with_evidence(site: str, engine: str, tmp_path: Path) -> None:
     # 查無紀錄時頁面不會出現詳情，等待會耗盡期限。慢的機器（例如 Windows 的 Firefox）
-    # 可能還在啟動瀏覽器就逾時，所以只要求「沒有出參、有報告、失敗的步驟只能是等待詳情」。
+    # 可能還在啟動瀏覽器或前面的步驟就用完期限，所以只要求「沒有出參、有報告」，
+    # 以及等待詳情以外的步驟只能因為逾時而失敗。
     result = run(BA_002, {"recordId": "DEMO-MISSING"}, site, engine, tmp_path, deadline_ms=8000)
 
     assert result.status in ("failed", "timed_out")
@@ -159,8 +160,12 @@ def test_unknown_record_fails_with_evidence(site: str, engine: str, tmp_path: Pa
     assert result.error
     assert not (result.directory / OUTPUT).exists()
     assert (result.directory / REPORT).is_file()
-    failed = {step["id"] for step in result.steps if step["status"] == "failed"}
-    assert failed <= {"wait-receipt"}
+    failed = [step for step in result.steps if step["status"] == "failed"]
+    assert len(failed) <= 1, failed
+    for step in failed:
+        if step["id"] != "wait-receipt":
+            # 慢的機器在前面的步驟就用完期限：只能是逾時，不能是別的錯
+            assert "Timeout" in str(step["error"]) or "Deadline" in str(step["error"]), step
 
 
 def test_missing_record_is_reported_clearly(site: str, engine: str, tmp_path: Path) -> None:

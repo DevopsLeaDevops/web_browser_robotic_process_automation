@@ -33,6 +33,7 @@
       <a href="/runs?scene={{ scene.id }}">{{ t("card.reports") }}</a>
       <a href="/scenes/{{ scene.id }}#inputs">{{ t("card.inputs") }}</a>
       <a href="/scenes/{{ scene.id }}#outputs">{{ t("card.outputs") }}</a>
+      {% if scene.kind == "dsl" %}<a href="/scenes/{{ scene.id }}/debug">{{ t("card.step_debug") }}</a>{% endif %}
     </nav>
     <div class="scene-card-foot">
       <span class="tag">{{ scene.id }}</span>

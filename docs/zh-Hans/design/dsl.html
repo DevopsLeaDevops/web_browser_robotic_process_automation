@@ -97,6 +97,7 @@ verify:
             <tr><td><code>inputs</code></td><td></td><td>入参声明，键是名称（英文字母、数字与 <code>_</code>），见下方场景契约。</td></tr>
             <tr><td><code>outputs</code></td><td></td><td>出参声明；有出参就要有 <code>verify</code>。</td></tr>
             <tr><td><code>secrets</code></td><td></td><td>机密名称列表，例如 <code>ERP_PASSWORD</code>（大写英文字母、数字与 <code>_</code>）。值不写在场景里。</td></tr>
+            <tr><td><code>login</code></td><td></td><td>需要先登录时写 <code>{ role: 角色代号 }</code>（与场景 id 相同的写法）。怎么登录、怎么判断已登录登记在管理 Portal 的角色上，场景只写用哪个角色；运行前先检查这个角色是否已登录（见下方运行顺序）。</td></tr>
             <tr><td><code>browser</code></td><td></td><td><code>engine</code>（chromium、firefox；webkit 可用但 CI 不测；默认 chromium）、<code>headless</code>（默认 true）、<code>viewport</code>（width、height）、<code>baseUrl</code>、<code>locale</code>（例如 zh-TW）。</td></tr>
             <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>：单一步骤的默认超时。</td></tr>
             <tr><td><code>deadline</code></td><td></td><td>整次运行的总期限（毫秒），从启动浏览器算到发布出参；每一步只能用剩下的时间。</td></tr>
@@ -190,6 +191,7 @@ verify:
             <tr><td><code>click</code></td><td>点击元素</td><td><strong>target</strong>、button（left、right、middle）、clickCount（1–3）、modifiers（Alt、Control、ControlOrMeta、Meta、Shift）</td><td></td></tr>
             <tr><td><code>fill</code></td><td>清空输入框后填入</td><td><strong>target</strong>、<strong>value</strong></td><td>value 是字符串；空字符串代表清空，数字要加引号</td></tr>
             <tr><td><code>select</code></td><td>选择下拉选项</td><td><strong>target</strong>、<strong>option</strong></td><td>option 是选项的值或显示文字；写成列表代表多选</td></tr>
+            <tr><td><code>check</code></td><td>勾选或取消勾选复选框、单选钮</td><td><strong>target</strong>、checked（默认 true）</td><td>已经是要的状态时不再点击；<code>checked: false</code> 取消勾选</td></tr>
             <tr><td><code>press</code></td><td>按键或组合键</td><td><strong>key</strong>（Enter、Tab、Control+A…）、target</td><td>没有 target 时送给目前聚焦的元素</td></tr>
             <tr><td><code>waitFor</code></td><td>等待条件成立</td><td>target + state（visible、hidden、attached、detached）、url + match、loadState</td><td>三种条件恰好选一种</td></tr>
             <tr><td><code>expect</code></td><td>步骤内的检查，不成立即判定失败</td><td>target + state、text、value、count 其一；或不给 target，检查 url、title 其一；match</td><td>state 可用 visible、hidden、enabled、disabled、checked、unchecked、editable</td></tr>
@@ -247,13 +249,26 @@ ba-001 创建示例记录：通过（1.4 秒）
 报告：runs/ba-001-20261010-123405-164e7e/report.html
 $ rpa run scenarios/demo/ba-002.yaml --input runs/ba-001-…/output.json   # 无法识别的入参会报错，可改用 -i recordId=…</pre>
         <dl class="spec-list">
-          <dt>顺序</dt><dd>入参校验（有问题就不启动浏览器）→ 在子进程中运行步骤或 automation.py → 独立断言（verify 或 assertion.py）→ 出参转型与校验 → 写出 output.json。任何一步失败都没有成功出参。</dd>
+          <dt>顺序</dt><dd>入参校验（有问题就不启动浏览器）→ 登录检查（只有写了 <code>login</code> 的场景：打开角色的确认网址，看不到已登录的元素时先自动登录，不能自动登录就停在「需要登录」<code>needs_login</code>，不运行任何步骤）→ 在子进程中运行步骤或 automation.py → 独立断言（verify 或 assertion.py）→ 出参转型与校验 → 写出 output.json。任何一步失败都没有成功出参。</dd>
           <dt>总期限</dt><dd>以单调时钟计算；每一步只能用剩下的时间。子进程超过期限就终止整个进程组，结果是「超时」。</dd>
-          <dt>选项</dt><dd><code>-i 名称=值</code>（依类型转换，可重复）、<code>--input 文件.json</code>、<code>--base-url</code>、<code>--browser chromium|firefox</code>、<code>--headed</code>、<code>--deadline 毫秒</code>、<code>--out 文件夹</code>（默认 runs/）、<code>--format json</code>。退出码：0 通过、1 未通过。</dd>
-          <dt>运行目录</dt><dd>input.json、facts.json、steps.json、output.json（只有通过时）、screenshot.png 与 screenshot 步骤的截图、automation.log、diagnostic.json（失败时）、scenario/（本次的场景快照）、result.json、report.html。</dd>
-          <dt>Secrets</dt><dd>M2 从同名的环境变量读取（例如 <code>ERP_PASSWORD</code>），只传给子进程，日志与报告中会遮罩；M8 改为加密存放。</dd>
-          <dt>Python 脚本场景</dt><dd>剩下的总期限在环境变量 <code>RPA_DEADLINE_SECONDS</code>，浏览器在 <code>RPA_BROWSER</code>，目前的语言在 <code>RPA_LANG</code>（脚本要写给人看的消息时可以参考），要不要显示浏览器窗口在 <code>RPA_HEADLESS</code>（<code>0</code> 有头模式、<code>1</code> 无头模式）；示例见 <code>scenarios/demo/ba-001-script/</code>。脚本自己启动浏览器，不使用下面的预热设置档。</dd>
+          <dt>选项</dt><dd><code>-i 名称=值</code>（依类型转换，可重复）、<code>--input 文件.json</code>、<code>--base-url</code>、<code>--browser chromium|firefox</code>、<code>--headed</code>、<code>--deadline 毫秒</code>、<code>--out 文件夹</code>（默认 runs/）、<code>--format json</code>、<code>--storage-state 登录状态.json</code>（场景有 login 时加载这个 storageState，只加载不检查；检查与人工登录在管理 Portal）。退出码：0 通过、1 未通过。</dd>
+          <dt>运行目录</dt><dd>input.json、facts.json、steps.json、output.json（只有通过时）、screenshot.png 与 screenshot 步骤的截图、automation.log、diagnostic.json（失败时）、scenario/（本次的场景快照）、result.json、report.html；有登录检查时另有 login.json、login.log 与 login.png。登录状态本身不拷贝进来。</dd>
+          <dt>Secrets</dt><dd>命令行从同名的环境变量读取（例如 <code>ERP_PASSWORD</code>）；管理 Portal 先用「登录与凭证」设置的值，没有才找环境变量。只传给子进程，日志与报告中会遮罩；M8 改为加密存放。</dd>
+          <dt>Python 脚本场景</dt><dd>剩下的总期限在环境变量 <code>RPA_DEADLINE_SECONDS</code>，浏览器在 <code>RPA_BROWSER</code>，目前的语言在 <code>RPA_LANG</code>（脚本要写给人看的消息时可以参考），要不要显示浏览器窗口在 <code>RPA_HEADLESS</code>（<code>0</code> 有头模式、<code>1</code> 无头模式），场景有 login 时登录状态档的路径在 <code>RPA_STORAGE_STATE</code>（给 <code>browser.new_context(storage_state=…)</code>）；示例见 <code>scenarios/demo/ba-001-script/</code>。脚本自己启动浏览器，不使用下面的预热设置档。</dd>
           <dt>Firefox 设置档</dt><dd>Firefox 每次用全新的设置档启动时，会先初始化设置档而停止回应几秒（Windows 上机器忙时可能超过步骤的超时）。所以每台电脑、每个 Firefox 版本会保留一份预先初始化过的空白设置档，每次运行拷贝一份来用，结束后删除，每次运行仍然是干净的。第一次用 Firefox 运行时创建，约多花 7～10 秒。放在缓存文件夹 <code>RPA_CACHE_DIR</code>，默认是 Windows 的 <code>%LOCALAPPDATA%\rpa\cache</code>、macOS 的 <code>~/Library/Caches/rpa</code>、Linux 的 <code>~/.cache/rpa</code>；删掉也没关系，下次会重建。</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="record">
+      <div class="panel-header"><h2>录制：<code>rpa record</code></h2><span class="muted">M4</span></div>
+      <div class="panel-body">
+<pre class="source">$ rpa record https://erp.example.com/login --out erp-login.py --scenario erp-login.yaml
+$ rpa record --from 别台电脑录的.py --out erp-login.py --scenario erp-login.yaml   # 只转换，不录制</pre>
+        <dl class="spec-list">
+          <dt>录制</dt><dd>用 Playwright codegen：浏览器窗口与 Inspector 开在这台电脑上，操作完关掉窗口即结束；需要图形界面。<code>--browser chromium|firefox</code>，<code>--load-storage state.json</code> 先加载登录状态。</dd>
+          <dt>输出</dt><dd><code>--out</code> 是密码遮罩成 <code>***</code> 的录制稿（含密码的暂存原始稿转换后删除）；<code>--scenario</code> 是 DSL 草稿，<code>--id</code>、<code>--name</code> 指定场景 id 与名称。</dd>
+          <dt>转换</dt><dd>goto、click、fill、press、select_option、check 与常见的 expect；输入的值变成入参（默认值是录到的值），密码字段变成 Secret（名称是场景 id 加上 <code>_PASSWORD</code>），转不了的行以注释保留并列出行号。管理 Portal 的录制用同一套转换。</dd>
         </dl>
       </div>
     </section>

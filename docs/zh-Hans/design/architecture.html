@@ -140,8 +140,8 @@
           <thead><tr><th>包</th><th>职责</th><th>依赖</th><th>起始</th></tr></thead>
           <tbody>
             <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 加载与校验、表达式引擎、JSON Schema 导出、多语言消息目录。不碰浏览器、不碰数据库。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>运行引擎：入参校验、步骤处理器注册表、浏览器与上下文管理、独立断言、出参发布、运行目录与报告；也运行 Python 脚本场景。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
-            <tr><td><code>rpa-recorder</code></td><td>录制：在隔离的浏览器中记录用户操作，保存原始录制稿并转成 DSL 草稿。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>运行引擎：入参校验、步骤处理器注册表、浏览器与上下文管理、登录检查与人工登录、独立断言、出参发布、运行目录与报告；也运行 Python 脚本场景，并提供逐步调试用的子进程。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td>录制</td><td>在隔离的浏览器中记录用户操作，保存原始录制稿并转成 DSL 草稿。M4 没有另外做包：录制用 Playwright codegen，转换是 rpa-core 的 <code>rpa_core.recording</code>（不碰浏览器，可以单独测试）。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI 助手：对话调试、自然语言 → DSL、校验失败反馈修正、选择器自愈；只能修改草稿。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述包、click</td><td>M0</td></tr>
             <tr><td><code>rpa-server</code></td><td>API 与管理页面、数据库模型、版本与发布门槛、调试工作阶段；权限（M8）、调度（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
@@ -159,14 +159,13 @@
 ├── packages/            # 可重用的函数库
 │   ├── rpa_core/        # M0
 │   ├── rpa_runner/      # M2
-│   ├── rpa_recorder/    # M4
 │   └── rpa_generator/   # M5
 ├── apps/                # 可运行的程序
 │   ├── cli/             # M0
 │   ├── server/          # M3（FastAPI + Jinja）
 │   ├── worker/          # M3
 │   └── testsite/        # 模拟内部系统的测试网站（M2；rpa serve 一起启动）
-├── scenarios/           # 示例场景：examples/、demo/（测试网站的 BA-001～BA-003）
+├── scenarios/           # 示例场景：examples/、demo/（测试网站的 BA-001～BA-005）
 ├── schema/              # 场景 DSL 的 JSON Schema（rpa schema 产生）
 ├── tests/               # 跨包测试：冒烟、文档检查
 ├── deploy/              # Docker Compose 与配置示例（M9）

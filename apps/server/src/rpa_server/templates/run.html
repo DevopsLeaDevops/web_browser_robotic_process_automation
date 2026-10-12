@@ -7,6 +7,7 @@
 <button class="button" data-action="cancel-run" data-run="{{ run.id }}"{% if run.cancel_requested %} disabled{% endif %}>{{ t("run.cancel") }}</button>
 {% else %}
 <a class="button" href="/runs/{{ run.id }}/files/report.html" target="_blank" rel="noopener" data-action="open-report">{{ t("run.open_report") }}</a>
+<button class="button{% if run.status == 'needs_login' %} primary{% endif %}" data-action="rerun" data-run="{{ run.id }}" title="{{ t('run.rerun_title') }}">{{ t("run.rerun") }}</button>
 {% endif %}
 {% if can_publish %}
 <button class="button primary" data-action="publish" data-scene="{{ run.scene_id }}" data-revision="{{ run.revision_number }}">{{ t("run.publish", number=run.revision_number) }}</button>
@@ -17,7 +18,12 @@
   {% if not run.finished %}
   <div class="notice">{{ t("run.polling") }}</div>
   {% endif %}
-  {% if run.error %}<div class="notice danger" role="alert">{{ run.error }}</div>{% endif %}
+  {% if run.status == "needs_login" %}
+  <div class="notice warn" role="alert">{{ run.error }}
+    {% if role %}<span class="actions"><a class="button" href="/roles#role-{{ role }}">{{ t("run.go_login", role=role) }}</a></span>{% endif %}
+    <span class="cell-sub">{{ t("run.needs_login_hint") }}</span>
+  </div>
+  {% elif run.error %}<div class="notice danger" role="alert">{{ run.error }}</div>{% endif %}
   {% if run.purpose == "validation" and run.status == "passed" and not can_publish and revision and not revision.published %}
   <div class="notice">{{ t("run.newer_validation") }}</div>
   {% endif %}
@@ -33,6 +39,7 @@
       <dt>{{ t("run.engine") }}</dt><dd>{{ (result.engine if result else none) or run.engine or t("run.engine_scenario") }}</dd>
       <dt>{{ t("run_form.window") }}</dt><dd>{{ t("run_form.window_headless") if run.headless else t("run_form.window_headed") }}</dd>
       <dt>{{ t("run.base_url") }}</dt><dd>{{ run.base_url or t("run.base_url_scenario") }}</dd>
+      {% if role %}<dt>{{ t("run.role") }}</dt><dd><a href="/roles#role-{{ role }}">{{ role }}</a></dd>{% endif %}
       {% if run.scenario_hash %}<dt>{{ t("scene.col_hash") }}</dt><dd><code class="mono">{{ run.scenario_hash }}</code></dd>{% endif %}
     </dl>
   </section>
@@ -85,6 +92,13 @@
       <pre class="source">{{ run.output | pretty_json if run.output is not none else "—" }}</pre>
     </section>
   </div>
+
+  {% if "login.png" in files %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.login_screenshot") }}</h2></div>
+    <div class="panel-body"><img class="screenshot" src="/runs/{{ run.id }}/files/login.png" alt="{{ t('run.login_screenshot') }}" loading="lazy"></div>
+  </section>
+  {% endif %}
 
   {% if "screenshot.png" in files %}
   <section class="panel">

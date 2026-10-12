@@ -3,9 +3,10 @@
 - 每次執行用獨立的瀏覽器與 BrowserContext，結束就關閉。
 - 每一步的逾時 = min(步驟 timeout 或 defaults.timeout 或 30 秒, 總期限剩下的時間)。
 - 步驟欄位中的 ``{{ }}`` 在執行該步驟前才代入，所以可以用前面步驟抽到的 facts。
-- 有副作用的動作（點擊、填寫、按鍵）不會因為逾時自動重試。
+- 有副作用的動作（點擊、填寫、勾選、按鍵）不會因為逾時自動重試。
 """
 
+import contextlib
 import re
 import time
 from collections.abc import Callable, Mapping
@@ -18,6 +19,7 @@ from playwright.sync_api import Page, expect
 from pydantic import TypeAdapter
 
 from rpa_core.dsl import (
+    CheckStep,
     ClickStep,
     ExpectStep,
     ExtractField,
@@ -40,6 +42,8 @@ __all__ = [
     "DeadlineExceeded",
     "StepRecord",
     "plan_records",
+    "resolve",
+    "run_step",
     "run_steps",
 ]
 
@@ -287,6 +291,8 @@ class _Run:
                 locate(page, step.target, timeout).fill(step.value, timeout=timeout)
             case SelectStep():
                 locate(page, step.target, timeout).select_option(step.option, timeout=timeout)
+            case CheckStep():
+                locate(page, step.target, timeout).set_checked(step.checked, timeout=timeout)
             case PressStep():
                 if step.target is None:
                     page.keyboard.press(step.key)
@@ -332,22 +338,49 @@ def run_steps(
     """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。"""
     facts: dict[str, object] = {}
     run = _Run(page, scenario, base_url, artifacts, facts)
-    steps = scenario.steps or []
-    default_ms = scenario.defaults.timeout or DEFAULT_STEP_TIMEOUT_MS
-    for step, record in zip(steps, records, strict=True):
-        started = time.monotonic()
+    for step, record in zip(scenario.steps or [], records, strict=True):
         try:
-            timeout = deadline.budget(step.timeout or default_ms)
-            values: Context = {**context, "facts": facts}
-            raw = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
-            rendered = _STEP.validate_python(render_tree(raw, values, skip=frozenset({"name"})))
-            run.execute(rendered, timeout, record)
-            record.status = "passed"
-        except BaseException as error:
-            record.status = "failed"
-            record.error = f"{type(error).__name__}: {error}".splitlines()[0]
-            raise
+            _execute_step(run, step, record, context, deadline)
         finally:
-            record.duration_ms = int((time.monotonic() - started) * 1000)
             on_progress()
     return facts
+
+
+def _execute_step(
+    run: _Run, step: Step, record: StepRecord, context: Mapping[str, object], deadline: Deadline
+) -> None:
+    """執行一步並更新紀錄；失敗時記下錯誤再拋出。"""
+    started = time.monotonic()
+    default_ms = run.scenario.defaults.timeout or DEFAULT_STEP_TIMEOUT_MS
+    try:
+        timeout = deadline.budget(step.timeout or default_ms)
+        values: Context = {**context, "facts": run.facts}
+        raw = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        rendered = _STEP.validate_python(render_tree(raw, values, skip=frozenset({"name"})))
+        run.execute(rendered, timeout, record)
+        record.status = "passed"
+    except BaseException as error:
+        record.status = "failed"
+        record.error = f"{type(error).__name__}: {error}".splitlines()[0]
+        raise
+    finally:
+        record.duration_ms = int((time.monotonic() - started) * 1000)
+
+
+def run_step(
+    page: Page,
+    scenario: Scenario,
+    step: Step,
+    *,
+    facts: dict[str, object],
+    context: Mapping[str, object],
+    base_url: str | None,
+    artifacts: Path,
+    deadline: Deadline,
+) -> StepRecord:
+    """只執行一步（調試工作階段用）：facts 就地更新；失敗不拋出，記在回傳的紀錄裡。"""
+    record = StepRecord(step.id, step.action, step.name)
+    run = _Run(page, scenario, base_url, artifacts, facts)
+    with contextlib.suppress(Exception):
+        _execute_step(run, step, record, context, deadline)
+    return record

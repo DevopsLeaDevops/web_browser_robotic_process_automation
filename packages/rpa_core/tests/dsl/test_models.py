@@ -144,3 +144,24 @@ def test_json_schema_option_accepts_string_or_list() -> None:
     select = json.loads(schema)["SelectStep"]["properties"]["option"]
 
     assert {"type": "string"} in select["anyOf"]
+
+
+def test_login_and_check_action() -> None:
+    result = validate_text(
+        "schemaVersion: 1\nid: demo\nname: 示範\nlogin: { role: erp-clerk }\nsteps:\n"
+        "  - { id: open, action: goto, url: https://example.test/ }\n"
+        "  - { id: agree, action: check, target: { label: 同意 } }\n"
+        "  - { id: off, action: check, target: { label: 通知 }, checked: false }\n"
+    )
+    scenario = result.scenario
+    assert scenario is not None, result.issues
+    assert scenario.login is not None
+    assert scenario.login.role == "erp-clerk"
+    steps = scenario.steps or []
+    assert [getattr(step, "checked", None) for step in steps] == [None, True, False]
+
+    invalid = validate_text(
+        "schemaVersion: 1\nid: demo\nname: 示範\nlogin: { role: ERP 職員 }\n"
+        "steps:\n  - { id: open, action: goto, url: https://example.test/ }\n"
+    )
+    assert [issue.path for issue in invalid.issues] == [("login", "role")]

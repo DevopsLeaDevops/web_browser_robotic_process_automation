@@ -139,8 +139,8 @@
           <thead><tr><th>套件</th><th>職責</th><th>依賴</th><th>起始</th></tr></thead>
           <tbody>
             <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出、多語言訊息目錄。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>執行引擎：入參校驗、步驟處理器註冊表、瀏覽器與上下文管理、獨立斷言、出參發布、執行目錄與報告；也執行 Python 腳本場景。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
-            <tr><td><code>rpa-recorder</code></td><td>錄製：在隔離的瀏覽器中記錄使用者操作，保存原始錄製稿並轉成 DSL 草稿。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>執行引擎：入參校驗、步驟處理器註冊表、瀏覽器與上下文管理、登入檢查與人工登入、獨立斷言、出參發布、執行目錄與報告；也執行 Python 腳本場景，並提供逐步調試用的子程序。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td>錄製</td><td>在隔離的瀏覽器中記錄使用者操作，保存原始錄製稿並轉成 DSL 草稿。M4 沒有另外做套件：錄製用 Playwright codegen，轉換是 rpa-core 的 <code>rpa_core.recording</code>（不碰瀏覽器，可以單獨測試）。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI 助手：對話調試、自然語言 → DSL、校驗失敗回饋修正、選擇器自癒；只能修改草稿。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述套件、click</td><td>M0</td></tr>
             <tr><td><code>rpa-server</code></td><td>API 與管理頁面、資料庫模型、版本與發布門檻、調試工作階段；權限（M8）、排程（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
@@ -158,14 +158,13 @@
 ├── packages/            # 可重用的函式庫
 │   ├── rpa_core/        # M0
 │   ├── rpa_runner/      # M2
-│   ├── rpa_recorder/    # M4
 │   └── rpa_generator/   # M5
 ├── apps/                # 可執行的程式
 │   ├── cli/             # M0
 │   ├── server/          # M3（FastAPI + Jinja）
 │   ├── worker/          # M3
 │   └── testsite/        # 模擬內部系統的測試網站（M2；rpa serve 一起啟動）
-├── scenarios/           # 範例場景：examples/、demo/（測試網站的 BA-001～BA-003）
+├── scenarios/           # 範例場景：examples/、demo/（測試網站的 BA-001～BA-005）
 ├── schema/              # 場景 DSL 的 JSON Schema（rpa schema 產生）
 ├── tests/               # 跨套件測試：冒煙、文檔檢查
 ├── deploy/              # Docker Compose 與設定範例（M9）

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:dd46d34179e58b59">
+<meta name="translation-source" content="sha256:5822fd9ed0ff983b">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -97,6 +97,7 @@ verify:
             <tr><td><code>inputs</code></td><td></td><td>Input declarations keyed by name (letters, digits and <code>_</code>); see the scenario contract below.</td></tr>
             <tr><td><code>outputs</code></td><td></td><td>Output declarations; a scenario with outputs needs <code>verify</code>.</td></tr>
             <tr><td><code>secrets</code></td><td></td><td>A list of secret names such as <code>ERP_PASSWORD</code> (uppercase letters, digits and <code>_</code>). Values never appear in the scenario.</td></tr>
+            <tr><td><code>login</code></td><td></td><td>For scenarios that need to log in first: <code>{ role: ROLE_ID }</code> (written like a scenario id). How to log in and how to tell the role is logged in are registered on the role in the management portal; the scenario only names the role. Every run first checks that the role is logged in (see the run order below).</td></tr>
             <tr><td><code>browser</code></td><td></td><td><code>engine</code> (chromium, firefox; webkit works but is not tested in CI; default chromium), <code>headless</code> (default true), <code>viewport</code> (width, height), <code>baseUrl</code>, <code>locale</code> (for example zh-TW).</td></tr>
             <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>: the default timeout of a single step.</td></tr>
             <tr><td><code>deadline</code></td><td></td><td>The overall deadline of a run in milliseconds, from starting the browser to publishing outputs; each step may use only the time that remains.</td></tr>
@@ -190,6 +191,7 @@ verify:
             <tr><td><code>click</code></td><td>Click an element</td><td><strong>target</strong>, button (left, right, middle), clickCount (1–3), modifiers (Alt, Control, ControlOrMeta, Meta, Shift)</td><td></td></tr>
             <tr><td><code>fill</code></td><td>Clear an input and type into it</td><td><strong>target</strong>, <strong>value</strong></td><td>value is a string; an empty string clears the input, numbers must be quoted</td></tr>
             <tr><td><code>select</code></td><td>Choose dropdown options</td><td><strong>target</strong>, <strong>option</strong></td><td>option is the option's value or visible text; a list selects several</td></tr>
+            <tr><td><code>check</code></td><td>Tick or untick a checkbox or radio button</td><td><strong>target</strong>, checked (default true)</td><td>Does nothing when the element is already in that state; <code>checked: false</code> unticks it</td></tr>
             <tr><td><code>press</code></td><td>Press a key or key combination</td><td><strong>key</strong> (Enter, Tab, Control+A…), target</td><td>Without target the key goes to the focused element</td></tr>
             <tr><td><code>waitFor</code></td><td>Wait for a condition</td><td>target + state (visible, hidden, attached, detached), url + match, loadState</td><td>Exactly one of the three conditions</td></tr>
             <tr><td><code>expect</code></td><td>An in-step check; the step fails if it does not hold</td><td>target with one of state, text, value, count; or no target with one of url, title; match</td><td>state is visible, hidden, enabled, disabled, checked, unchecked or editable</td></tr>
@@ -247,13 +249,26 @@ Outputs: runs/ba-001-20261010-123405-164e7e/output.json
 Report: runs/ba-001-20261010-123405-164e7e/report.html
 $ rpa run scenarios/demo/ba-002.yaml --input runs/ba-001-…/output.json   # unknown inputs are rejected; use -i recordId=… instead</pre>
         <dl class="spec-list">
-          <dt>Order</dt><dd>Input validation (the browser is not started if anything is wrong) → the steps or automation.py in a subprocess → independent assertions (verify or assertion.py) → output conversion and validation → output.json. A failure at any stage leaves no successful outputs.</dd>
+          <dt>Order</dt><dd>Input validation (the browser is not started if anything is wrong) → login check (only for scenarios with <code>login</code>: open the role's check URL; when the logged-in element is not visible, log in automatically, or stop at “login required” <code>needs_login</code> without running any step when that is not possible) → the steps or automation.py in a subprocess → independent assertions (verify or assertion.py) → output conversion and validation → output.json. A failure at any stage leaves no successful outputs.</dd>
           <dt>Deadline</dt><dd>Measured with a monotonic clock; each step may use only the time that remains. A subprocess that runs past the deadline is terminated with its whole process group, and the result is "timed out".</dd>
-          <dt>Options</dt><dd><code>-i NAME=VALUE</code> (converted to the declared type, repeatable), <code>--input FILE.json</code>, <code>--base-url</code>, <code>--browser chromium|firefox</code>, <code>--headed</code>, <code>--deadline MS</code>, <code>--out FOLDER</code> (default runs/), <code>--format json</code>. Exit code: 0 passed, 1 not passed.</dd>
-          <dt>Run directory</dt><dd>input.json, facts.json, steps.json, output.json (only when passed), screenshot.png and the screenshots taken by screenshot steps, automation.log, diagnostic.json (on failure), scenario/ (this run's scenario snapshot), result.json, report.html.</dd>
-          <dt>Secrets</dt><dd>In M2 they are read from environment variables of the same name (for example <code>ERP_PASSWORD</code>), passed only to the subprocess and masked in logs and reports; M8 stores them encrypted.</dd>
-          <dt>Python script scenarios</dt><dd>The remaining deadline is in the environment variable <code>RPA_DEADLINE_SECONDS</code>, the browser in <code>RPA_BROWSER</code> and the current language in <code>RPA_LANG</code> (useful when a script writes messages for people) and whether to show the browser window in <code>RPA_HEADLESS</code> (<code>0</code> headed, <code>1</code> headless); see <code>scenarios/demo/ba-001-script/</code>. Scripts start their own browser and do not use the warmed profile below.</dd>
+          <dt>Options</dt><dd><code>-i NAME=VALUE</code> (converted to the declared type, repeatable), <code>--input FILE.json</code>, <code>--base-url</code>, <code>--browser chromium|firefox</code>, <code>--headed</code>, <code>--deadline MS</code>, <code>--out FOLDER</code> (default runs/), <code>--format json</code>, <code>--storage-state STATE.json</code> (for scenarios with login, load this storageState as is without checking it; checks and manual login are in the management portal). Exit code: 0 passed, 1 not passed.</dd>
+          <dt>Run directory</dt><dd>input.json, facts.json, steps.json, output.json (only when passed), screenshot.png and the screenshots taken by screenshot steps, automation.log, diagnostic.json (on failure), scenario/ (this run's scenario snapshot), result.json, report.html; with a login check also login.json, login.log and login.png. The login state itself is never copied there.</dd>
+          <dt>Secrets</dt><dd>The command line reads them from environment variables of the same name (for example <code>ERP_PASSWORD</code>); the management portal uses the values set under “Logins &amp; secrets” first and falls back to environment variables. They are passed only to the subprocess and masked in logs and reports; M8 stores them encrypted.</dd>
+          <dt>Python script scenarios</dt><dd>The remaining deadline is in the environment variable <code>RPA_DEADLINE_SECONDS</code>, the browser in <code>RPA_BROWSER</code> and the current language in <code>RPA_LANG</code> (useful when a script writes messages for people) and whether to show the browser window in <code>RPA_HEADLESS</code> (<code>0</code> headed, <code>1</code> headless), and for scenarios with login the path of the login state file in <code>RPA_STORAGE_STATE</code> (for <code>browser.new_context(storage_state=…)</code>); see <code>scenarios/demo/ba-001-script/</code>. Scripts start their own browser and do not use the warmed profile below.</dd>
           <dt>Firefox profile</dt><dd>When Firefox starts with a brand-new profile, it stops responding for a few seconds while it sets the profile up (on a busy Windows machine this can exceed a step's timeout). So each computer keeps one already-initialized empty profile per Firefox version; each run uses its own copy, which is deleted afterwards, so every run still starts clean. It is created the first time a run uses Firefox, which takes about 7–10 seconds longer. It lives in the cache folder <code>RPA_CACHE_DIR</code>, by default <code>%LOCALAPPDATA%\rpa\cache</code> on Windows, <code>~/Library/Caches/rpa</code> on macOS and <code>~/.cache/rpa</code> on Linux; deleting it is safe, it is rebuilt next time.</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="record">
+      <div class="panel-header"><h2>Recording: <code>rpa record</code></h2><span class="muted">M4</span></div>
+      <div class="panel-body">
+<pre class="source">$ rpa record https://erp.example.com/login --out erp-login.py --scenario erp-login.yaml
+$ rpa record --from recorded-elsewhere.py --out erp-login.py --scenario erp-login.yaml   # convert only, no recording</pre>
+        <dl class="spec-list">
+          <dt>Recording</dt><dd>Uses Playwright codegen: the browser window and the Inspector open on this computer and recording ends when you close the window; a display is required. <code>--browser chromium|firefox</code>; <code>--load-storage state.json</code> loads a login state first.</dd>
+          <dt>Output</dt><dd><code>--out</code> is the recording with passwords masked as <code>***</code> (the temporary raw recording, which may contain passwords, is deleted after conversion); <code>--scenario</code> is the DSL draft, with <code>--id</code> and <code>--name</code> for its id and name.</dd>
+          <dt>Conversion</dt><dd>goto, click, fill, press, select_option, check and the common expect assertions; typed values become inputs (defaulting to the recorded value), password fields become secrets (named after the scenario id plus <code>_PASSWORD</code>), and lines that cannot be converted stay as comments with their line numbers listed. The management portal's recording uses the same conversion.</dd>
         </dl>
       </div>
     </section>

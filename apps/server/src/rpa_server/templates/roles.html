@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block description %}{{ t("roles.description") }}{% endblock %}
+{% block actions %}
+<button class="button" data-action="new-secret">{{ t("secrets.new") }}</button>
+<button class="button primary" data-action="new-role">{{ t("roles.new") }}</button>
+{% endblock %}
+{% block content %}
+<div class="stack" id="roles" data-display="{{ 'true' if display else 'false' }}"{% if busy %} data-poll{% endif %}>
+  <div class="notice">{{ t("roles.notice") }}</div>
+  {% if not display %}<div class="notice warn">{{ t("roles.no_display") }}</div>{% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("roles.list") }}</h2><span class="muted">{{ roles | length }}</span></div>
+    {% if roles %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr>
+        <th>{{ t("roles.col_role") }}</th><th>{{ t("roles.col_login") }}</th><th>{{ t("roles.col_status") }}</th>
+        <th>{{ t("roles.col_scenes") }}</th><th>{{ t("roles.col_actions") }}</th>
+      </tr></thead>
+      <tbody>
+      {% for role in roles %}
+      {% set session = role.session %}
+      <tr id="role-{{ role.id }}" data-role="{{ role.id }}" data-state="{{ role.activity or '' }}:{{ session.status if session else '' }}:{{ role.status }}">
+        <td><strong>{{ role.name }}</strong> <span class="tag">{{ role.id }}</span>
+          {% if role.description %}<span class="cell-sub">{{ role.description }}</span>{% endif %}
+          <span class="cell-sub">{{ t("roles.engine", engine=role.engine) }} · {{ t("roles.auto_yes") if role.auto_login else t("roles.auto_no") }}</span></td>
+        <td><a href="{{ role.login_url }}" target="_blank" rel="noopener">{{ role.login_url }}</a>
+          <span class="cell-sub">{{ t("roles.check_summary", url=role.check_url or role.login_url) }} <code>{{ check_text(role) }}</code></span></td>
+        <td>{{ m.role_badge(role) }}
+          {% if role.state_saved_at %}<span class="cell-sub">{{ t("roles.saved_at") }} {{ m.time(role.state_saved_at) }}</span>{% endif %}
+          {% if role.checked_at %}<span class="cell-sub">{{ t("roles.checked_at") }} {{ m.time(role.checked_at) }}</span>{% endif %}
+          {% if role.message and not role.activity %}<span class="cell-sub">{{ role.message }}</span>{% endif %}
+          {% if session and role.activity == "login" %}
+          <div class="notice login-session" role="status">{{ t("roles.session_" + session.status) }}
+            {% if session.status == "waiting" %}<span class="actions"><button class="button primary" data-action="finish-login" data-role="{{ role.id }}">{{ t("roles.finish_login") }}</button><button class="button" data-action="cancel-login" data-role="{{ role.id }}">{{ t("roles.cancel_login") }}</button></span>{% endif %}
+          </div>
+          {% elif session and session.status in ("failed", "done") and session.message %}
+          <span class="cell-sub{% if session.status == 'failed' %} text-danger{% endif %}">{{ session.message }}</span>
+          {% endif %}
+        </td>
+        <td>{% for scene in role.used_by %}<a href="/scenes/{{ scene }}">{{ scene }}</a>{% if not loop.last %}{{ t("js.list_separator") }}{% endif %}{% else %}—{% endfor %}</td>
+        <td class="role-actions">
+          <button class="text-btn" data-action="login" data-role="{{ role.id }}"{% if not display or role.activity %} disabled{% endif %} title="{{ t('roles.login_title') }}">{{ t("roles.login") }}</button>
+          <button class="text-btn" data-action="check-role" data-role="{{ role.id }}"{% if role.activity %} disabled{% endif %} title="{{ t('roles.check_title') }}">{{ t("roles.check") }}</button>
+          <button class="text-btn" data-action="edit-role" data-role="{{ role.id }}" data-values="{{ role_values(role) | tojson | forceescape }}">{{ t("roles.edit") }}</button>
+          {% if role.has_state %}<button class="text-btn" data-action="clear-role" data-role="{{ role.id }}" data-name="{{ role.name }}">{{ t("roles.clear") }}</button>{% endif %}
+          {% if not role.used_by %}<button class="text-btn" data-action="delete-role" data-role="{{ role.id }}" data-name="{{ role.name }}">{{ t("roles.delete") }}</button>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("roles.empty") }}</div>{% endif %}
+  </section>
+
+  <section class="panel" id="secrets">
+    <div class="panel-header"><h2>{{ t("secrets.title") }}</h2><span class="muted">{{ t("secrets.hint") }}</span></div>
+    {% if secrets or missing %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("secrets.col_name") }}</th><th>{{ t("secrets.col_status") }}</th><th>{{ t("secrets.col_used") }}</th><th>{{ t("secrets.col_actions") }}</th></tr></thead>
+      <tbody>
+      {% for info in secrets %}
+      <tr data-secret="{{ info.name }}">
+        <td><code>{{ info.name }}</code></td>
+        <td>{{ m.badge("passed", t("secrets.set")) }} <span class="cell-sub">{{ t("secrets.updated") }} {{ m.time(info.updated_at) }}</span></td>
+        <td>{{ (usage.get(info.name) or ["—"]) | join(t("js.list_separator")) }}</td>
+        <td><button class="text-btn" data-action="edit-secret" data-name="{{ info.name }}">{{ t("secrets.replace") }}</button>
+          <button class="text-btn" data-action="delete-secret" data-name="{{ info.name }}">{{ t("secrets.delete") }}</button></td>
+      </tr>
+      {% endfor %}
+      {% for name, users in missing %}
+      <tr data-secret="{{ name }}">
+        <td><code>{{ name }}</code></td>
+        <td>{{ m.badge(("passed" if name in environ else "failed"), (t("secrets.from_env") if name in environ else t("secrets.missing"))) }}</td>
+        <td>{{ users | join(t("js.list_separator")) }}</td>
+        <td><button class="text-btn" data-action="edit-secret" data-name="{{ name }}">{{ t("secrets.set_value") }}</button></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("secrets.empty") }}</div>{% endif %}
+  </section>
+</div>
+
+<template id="role-form">
+  <div class="notice" data-new-only>{{ t("roles.form_notice") }}</div>
+  <label data-new-only>{{ t("roles.form_id") }}<input name="id" pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="erp-clerk" autocomplete="off"></label>
+  <label>{{ t("roles.form_name") }}<input name="name" required maxlength="100" placeholder="{{ t('roles.form_name_placeholder') }}"></label>
+  <label>{{ t("roles.form_description") }}<input name="description" maxlength="2000"></label>
+  <label>{{ t("roles.form_login_url") }}<input name="loginUrl" type="url" required placeholder="https://"></label>
+  <label>{{ t("roles.form_check_url") }}<input name="checkUrl" type="url" placeholder="{{ t('roles.form_check_url_placeholder') }}"></label>
+  <label>{{ t("roles.form_check") }}<input name="check" required class="mono" placeholder="{ testId: current-user }"><span class="cell-sub">{{ t("roles.form_check_hint") }}</span></label>
+  <label>{{ t("roles.form_engine") }}<select name="engine">{% for engine in engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}</select></label>
+  <label>{{ t("roles.form_auto") }}<textarea name="autoLogin" rows="7" class="code-editor" spellcheck="false" placeholder="{{ auto_example }}"></textarea><span class="cell-sub">{{ t("roles.form_auto_hint") }}</span></label>
+  <ul class="checklist form-issues"></ul>
+  <p class="form-error" role="alert"></p>
+</template>
+<template id="secret-form">
+  <div class="notice">{{ t("secrets.form_notice") }}</div>
+  <label>{{ t("secrets.form_name") }}<input name="name" required pattern="[A-Z][A-Z0-9_]{0,63}" maxlength="64" placeholder="ERP_PASSWORD" autocomplete="off" class="mono"></label>
+  <label>{{ t("secrets.form_value") }}<input name="value" type="password" required autocomplete="new-password"></label>
+  <p class="form-error" role="alert"></p>
+</template>
+{% endblock %}

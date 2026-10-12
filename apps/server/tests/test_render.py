@@ -10,16 +10,22 @@ import pytest
 
 from rpa_core.dsl import Scenario, validate_file, validate_text
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, Locale, use_locale
+from rpa_server.debugging import DebugSession
+from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
 from rpa_server.domain import (
     ENGINES,
     DomainRecord,
+    RecordingRecord,
     RevisionRecord,
+    RoleRecord,
     RunRecord,
     SceneCard,
     SceneRecord,
 )
 from rpa_server.i18n import follow_locale, t
 from rpa_server.render import js_messages, render, run_filters
+from rpa_server.secret_store import SecretInfo
+from rpa_server.services import SceneNeeds
 
 ROOT = Path(__file__).resolve().parents[3]
 MOMENT = datetime(2026, 10, 10, 8, 30, tzinfo=UTC)
@@ -119,6 +125,168 @@ def _text(html: str) -> str:
     return " ".join(parser.text)
 
 
+NEEDS = SceneNeeds("testsite-user", True, "needs_login", (("ERP_PASSWORD", False),))
+ROLE = RoleRecord(
+    id="testsite-user",
+    name="測試網站：一般使用者",
+    description="示範帳號 user",
+    login_url="http://127.0.0.1:8765/login",
+    check_url="http://127.0.0.1:8765/account",
+    check_locator={"testId": "current-user"},
+    engine="firefox",
+    auto_login=None,
+    status="logged_in",
+    message=None,
+    checked_at=MOMENT,
+    state_saved_at=MOMENT,
+    used_by=("ba-004",),
+)
+RECORDING = RecordingRecord(
+    id="rec-20261012-080000-abcdef",
+    scene_id="rec-001",
+    scene_name="錄製的場景",
+    new_scene=True,
+    domain_id="testsite",
+    revision_number=1,
+    source="codegen",
+    url="http://127.0.0.1:8765/",
+    engine="chromium",
+    role_id=None,
+    status="done",
+    warnings=[{"line": 12, "message": "hover 還不支援", "source": "page.hover()"}],
+    error=None,
+    created_at=MOMENT,
+    finished_at=MOMENT,
+)
+
+
+def _check_text(role: RoleRecord) -> str:
+    return "{ testId: current-user }"
+
+
+def _role_values(role: RoleRecord) -> dict[str, object]:
+    return {"name": role.name}
+
+
+def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
+    """M4 的頁面：登入與憑證、錄製、錄製詳情、逐步調試（開始前與進行中）。"""
+    role = replace(ROLE, name="User", description="Demo") if english else ROLE
+    recording = (
+        replace(RECORDING, scene_name="Recorded", warnings=[{"line": 3, "message": "x"}])
+        if english
+        else RECORDING
+    )
+    waiting = replace(
+        role,
+        id="manager",
+        activity="login",
+        session={"status": "waiting", "message": None},
+        status="none",
+        state_saved_at=None,
+        used_by=(),
+    )
+    session = DebugSession(
+        id="abc123",
+        scene_id=SCENE.id,
+        revision=2,
+        engine="chromium",
+        headless=True,
+        base_url=None,
+        inputs={"title": "x"},
+        folder=ROOT,
+        scenario=scenario,
+        steps=debug_steps(scenario),
+        status="ready",
+        url="http://127.0.0.1:8765/",
+        screenshot="shot-0001.png",
+        located={
+            "locator": "{ css: main }",
+            "ok": True,
+            "count": 1,
+            "matches": [{"tag": "main", "text": "x"}],
+        },
+    )
+    session.steps[0].status = "passed"
+    session.steps[0].runs = 1
+    session.next_index = 1
+    scene = replace(SCENE, name="Scene", description="About") if english else SCENE
+    domains = (
+        [replace(DOMAIN, name="Lab"), replace(OTHER_DOMAIN, name="Other")] if english else DOMAINS
+    )
+    common: dict[str, object] = {
+        "domain": domains[0],
+        "scene": scene,
+        "scenario": scenario,
+        "revisions": REVISIONS,
+        "shown": 2,
+        "yaml": "schemaVersion: 1\n",
+        "defaults": {"title": "x"},
+        "needs": None if english else NEEDS,
+        "display": True,
+        "engines": ENGINES,
+        "base_url": None,
+        "idle_minutes": 15,
+    }
+    return {
+        "roles": render(
+            "roles.html",
+            page="roles",
+            title="Roles",
+            domains=domains,
+            roles=[role, waiting],
+            secrets=[SecretInfo("ERP_PASSWORD", MOMENT)],
+            usage={"ERP_PASSWORD": ["ba-004"], "OTHER": ["ba-005"]},
+            missing=[("OTHER", ["ba-005"])],
+            environ=set[str](),
+            display=False,
+            busy=True,
+            engines=ENGINES,
+            check_text=_check_text,
+            role_values=_role_values,
+            auto_example="- { id: open, action: goto, url: https://example.com }",
+        ),
+        "recording": render(
+            "recording.html",
+            page="recording",
+            title="Recording",
+            domains=domains,
+            recordings=[recording, replace(recording, id="r2", status="recording")],
+            active=replace(recording, id="r2", status="recording"),
+            scenes=[scene],
+            roles=[role],
+            engines=ENGINES,
+            display=True,
+            default_domain="testsite",
+            default_url="",
+            selected_scene="",
+        ),
+        "recording-detail": render(
+            "recording_detail.html",
+            page="recording",
+            title="Recording",
+            domains=domains,
+            item=recording,
+            files={"raw.py": "page.goto('x')\n", "scenario.yaml": "id: rec-001\n"},
+        ),
+        "debug-start": render(
+            "debug.html",
+            page="domain:testsite",
+            title="Debug",
+            domains=domains,
+            session=None,
+            **common,
+        ),
+        "debug-session": render(
+            "debug.html",
+            page="domain:testsite",
+            title="Debug",
+            domains=domains,
+            session=session,
+            **common,
+        ),
+    }
+
+
 def _pages() -> dict[str, str]:
     scenario = _scenario()
     return {
@@ -163,6 +331,7 @@ def _pages() -> dict[str, str]:
             scenario=scenario,
             default_base_url=scenario.browser.base_url,
             runs=[RUN],
+            needs=NEEDS,
         ),
         "edit": render(
             "edit.html",
@@ -210,6 +379,7 @@ def _pages() -> dict[str, str]:
             result=RESULT,
             files=["report.html", "screenshot.png"],
             can_publish=True,
+            role=None,
         ),
         "run-queued": render(
             "run.html",
@@ -220,8 +390,28 @@ def _pages() -> dict[str, str]:
             result=None,
             files=[],
             can_publish=False,
+            role="testsite-user",
         ),
-        "placeholder": render("placeholder.html", page="recording", title="錄製", milestone="M4"),
+        "run-needs-login": render(
+            "run.html",
+            page="runs",
+            title="執行",
+            run=replace(RUN, status="needs_login", error="角色「一般使用者」需要重新登入"),
+            revision=REVISIONS[0],
+            result={
+                **RESULT,
+                "stages": [
+                    {"name": "login", "status": "needs_login", "message": "x", "durationMs": 9}
+                ],
+            },
+            files=["login.png", "report.html"],
+            can_publish=False,
+            role="testsite-user",
+        ),
+        **_m4_pages(scenario),
+        "placeholder": render(
+            "placeholder.html", page="playground", title="試驗場", milestone="M6"
+        ),
         "error": render("error.html", page="scenes", title="錯誤", status=404, message="找不到"),
     }
 
@@ -275,7 +465,7 @@ def test_side_menu_lists_domains_then_domain_management() -> None:
         html = _pages()["domain"]
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
-    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理"]
+    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證"]
     assert 'href="/domains/testsite" class="active" aria-current="page"' in side
 
 
@@ -365,11 +555,26 @@ def _english_domain_pages() -> dict[str, str]:
                 scenario=scenario,
                 default_base_url=scenario.browser.base_url,
                 runs=[run],
+                needs=None,
             ),
+            **_m4_pages(scenario, english=True),
         }
 
 
-@pytest.mark.parametrize("name", ["domain", "domain-empty", "domains", "scene"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "domain",
+        "domain-empty",
+        "domains",
+        "scene",
+        "roles",
+        "recording",
+        "recording-detail",
+        "debug-start",
+        "debug-session",
+    ],
+)
 def test_new_pages_have_no_untranslated_text(name: str) -> None:
     html = _english_domain_pages()[name]
     for native in NATIVE_NAMES.values():  # 語言切換選單用各語言自己的文字，不翻譯
@@ -449,6 +654,7 @@ def test_run_page_shows_the_browser_window_mode() -> None:
                 result=None,
                 files=[],
                 can_publish=False,
+                role=None,
             )
         )
     assert "Hide (headless mode)" in headless

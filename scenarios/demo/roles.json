@@ -1,0 +1,23 @@
+{
+  "$comment": "「測試網站自動化」的登入角色：匯入範例時，場景用到而還沒登記的角色會依這裡建立。登入狀態要另外在管理 Portal 按「登入」取得（人工登入）。示範帳號與密碼寫在測試網站的登入頁。",
+  "roles": [
+    {
+      "id": "testsite-user",
+      "name": "測試網站：一般使用者",
+      "description": "示範帳號 user（一般使用者）",
+      "loginUrl": "http://127.0.0.1:8765/login",
+      "checkUrl": "http://127.0.0.1:8765/account",
+      "check": { "testId": "current-user" },
+      "engine": "firefox"
+    },
+    {
+      "id": "testsite-manager",
+      "name": "測試網站：主管",
+      "description": "示範帳號 manager（主管）",
+      "loginUrl": "http://127.0.0.1:8765/login",
+      "checkUrl": "http://127.0.0.1:8765/account",
+      "check": { "testId": "current-user" },
+      "engine": "firefox"
+    }
+  ]
+}

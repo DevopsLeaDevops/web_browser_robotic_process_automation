@@ -2,6 +2,9 @@
 
 - ``/``：建立範例紀錄（標題、數量）；``/?view=query``：依紀錄編號查詢
 - ``POST /api/records``、``GET /api/records/<編號>``：資料只存在記憶體，程序結束就消失
+- 登入（M4 的角色與登入狀態）：``/login`` 登入頁、``/account`` 我的帳號（沒登入時轉到登入頁）。
+  兩個示範帳號 user（一般使用者）與 manager（主管）看到的待辦不同；``POST /api/login``、
+  ``POST /api/logout``；``POST /api/sessions/expire`` 讓所有人的登入失效（測試 needs_login 用）
 - ``GET /api/about``：回傳 ``{"name": "rpa-testsite"}``，讓 ``rpa serve`` 認出已經在執行的測試網站
 - 只綁定 127.0.0.1；不連線任何外部系統
 
@@ -9,25 +12,65 @@
 單獨啟動：``uv run python -m testsite --port 8765``。
 """
 
+import html
 import json
 import os
+import secrets
 import threading
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from string import Template
 from typing import Final, cast
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
-__all__ = ["DEFAULT_PORT", "MAX_QUANTITY", "NAME", "PAGE", "create_server", "running"]
+__all__ = [
+    "ACCOUNTS",
+    "DEFAULT_PORT",
+    "MAX_QUANTITY",
+    "NAME",
+    "PAGE",
+    "SESSION_COOKIE",
+    "create_server",
+    "running",
+]
 
 DEFAULT_PORT: Final = 8765
 """範例場景的 browser.baseUrl 指向 http://127.0.0.1:8765。"""
 NAME: Final = "rpa-testsite"
 PAGE: Final = Path(__file__).with_name("index.html")
+LOGIN_PAGE: Final = Path(__file__).with_name("login.html")
 MAX_QUANTITY: Final = 30
+SESSION_COOKIE: Final = "rpa_testsite_session"
 _MAX_BODY: Final = 8192
+
+
+@dataclass(frozen=True, slots=True)
+class Account:
+    """示範帳號；密碼是公開的示範值，只存在這個本機測試網站。"""
+
+    password: str
+    name: str
+    role: str
+    todos: tuple[str, ...]
+
+
+ACCOUNTS: Final = {
+    "user": Account("user-pass", "王小明", "一般使用者", ("填寫出差申請", "確認個人資料")),
+    "manager": Account(
+        "manager-pass",
+        "林主管",
+        "主管",
+        ("核准出差申請", "核准採購單", "檢視部門報表", "確認個人資料"),
+    ),
+}
+"""帳號 → 示範資料。主管的待辦比一般使用者多，用來確認兩個角色的登入狀態沒有混用。"""
+
+ACCOUNT_PAGE: Final = Path(__file__).with_name("account.html")
 
 
 class _Server(ThreadingHTTPServer):
@@ -39,18 +82,88 @@ class _Server(ThreadingHTTPServer):
 def create_server(port: int = 0) -> ThreadingHTTPServer:
     """建立測試網站；port 為 0 時由系統挑一個空的埠號（server.server_port）。"""
     records: dict[str, dict[str, object]] = {}
+    sessions: dict[str, str] = {}
+    """登入憑證 → 帳號；只存在記憶體。"""
     lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             """不輸出存取紀錄。"""
 
-        def _reply(self, status: int, body: bytes, content_type: str) -> None:
+        def _reply(
+            self,
+            status: int,
+            body: bytes,
+            content_type: str,
+            headers: dict[str, str] | None = None,
+        ) -> None:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             self.wfile.write(body)
+
+        def _user(self) -> str | None:
+            """目前登入的帳號（依 cookie）；沒登入或登入已失效時回傳 None。"""
+            try:
+                cookie = SimpleCookie(self.headers.get("Cookie", ""))
+            except CookieError:
+                return None
+            morsel = cookie.get(SESSION_COOKIE)
+            if morsel is None:
+                return None
+            with lock:
+                return sessions.get(morsel.value)
+
+        def _body(self) -> dict[str, object]:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 < size <= _MAX_BODY:
+                raise ValueError("資料大小不符")
+            data = json.loads(self.rfile.read(size))
+            if not isinstance(data, dict):
+                raise TypeError("資料格式不符")
+            return cast("dict[str, object]", data)
+
+        def _account(self) -> None:
+            username = self._user()
+            if username is None:
+                self._reply(
+                    302, b"", "text/plain", {"Location": "/login?next=" + quote("/account")}
+                )
+                return
+            account = ACCOUNTS[username]
+            todos = "".join(f"<li>{html.escape(item)}</li>" for item in account.todos)
+            page = Template(ACCOUNT_PAGE.read_text(encoding="utf-8")).substitute(
+                name=html.escape(account.name),
+                username=html.escape(username),
+                role=html.escape(account.role),
+                todos=todos,
+                count=len(account.todos),
+            )
+            self._reply(200, page.encode(), "text/html; charset=utf-8")
+
+        def _login(self) -> None:
+            try:
+                fields = self._body()
+            except (ValueError, TypeError) as error:
+                self._json(400, {"error": str(error)})
+                return
+            username, password = fields.get("username"), fields.get("password")
+            account = ACCOUNTS.get(username) if isinstance(username, str) else None
+            if account is None or password != account.password:
+                self._json(401, {"error": "帳號或密碼不正確"})
+                return
+            token = secrets.token_urlsafe(24)
+            with lock:
+                sessions[token] = cast("str", username)
+            cookie = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax"
+            body = json.dumps({"name": account.name, "role": account.role}, ensure_ascii=False)
+            self._reply(
+                200, body.encode(), "application/json; charset=utf-8", {"Set-Cookie": cookie}
+            )
 
         def _json(self, status: int, data: dict[str, object]) -> None:
             body = json.dumps(data, ensure_ascii=False).encode()
@@ -60,6 +173,10 @@ def create_server(port: int = 0) -> ThreadingHTTPServer:
             path = urlsplit(self.path).path
             if path == "/":
                 self._reply(200, PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif path == "/login":
+                self._reply(200, LOGIN_PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif path == "/account":
+                self._account()
             elif path == "/api/about":
                 self._json(200, {"name": NAME})
             elif path.startswith("/api/records/"):
@@ -73,17 +190,28 @@ def create_server(port: int = 0) -> ThreadingHTTPServer:
                 self._json(404, {"error": "找不到頁面"})
 
         def do_POST(self) -> None:
-            if self.path != "/api/records":
+            path = urlsplit(self.path).path
+            if path == "/api/login":
+                self._login()
+                return
+            if path == "/api/logout":
+                username = self._user()
+                with lock:
+                    for token in [key for key, value in sessions.items() if value == username]:
+                        del sessions[token]
+                self._json(200, {"loggedOut": username is not None})
+                return
+            if path == "/api/sessions/expire":
+                with lock:
+                    count = len(sessions)
+                    sessions.clear()
+                self._json(200, {"expired": count})
+                return
+            if path != "/api/records":
                 self._json(404, {"error": "找不到介面"})
                 return
             try:
-                size = int(self.headers.get("Content-Length", "0"))
-                if not 0 < size <= _MAX_BODY:
-                    raise ValueError("資料大小不符")
-                data = json.loads(self.rfile.read(size))
-                if not isinstance(data, dict):
-                    raise TypeError("資料格式不符")
-                fields = cast("dict[str, object]", data)
+                fields = self._body()
                 title, quantity = fields.get("title"), fields.get("quantity")
                 if not isinstance(title, str) or not 1 <= len(title.strip()) <= 60:
                     raise ValueError("標題長度不符")

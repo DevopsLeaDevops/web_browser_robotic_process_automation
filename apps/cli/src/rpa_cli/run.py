@@ -16,6 +16,7 @@ from rpa_cli.validate import EXIT_INVALID, display_path, issue_line
 from rpa_core.dsl import validate_file
 from rpa_runner.contract import parse_cli_value
 from rpa_runner.i18n import t as runner_t
+from rpa_runner.login import LoginSettings
 from rpa_runner.run import ScenarioInvalidError, execute
 
 __all__ = ["build_run_command"]
@@ -71,6 +72,11 @@ def build_run_command() -> click.Command:
         help=t("cli.run.browser_help"),
     )
     @click.option("--headed", is_flag=True, help=t("cli.run.headed_help"))
+    @click.option(
+        "--storage-state",
+        type=click.Path(exists=True, dir_okay=False, path_type=Path),
+        help=t("cli.run.storage_state_help"),
+    )
     @click.option("--deadline", type=click.IntRange(min=1), help=t("cli.run.deadline_help"))
     @click.option(
         "--out",
@@ -94,6 +100,7 @@ def build_run_command() -> click.Command:
         base_url: str | None,
         browser: str | None,
         headed: bool,
+        storage_state: Path | None,
         deadline: int | None,
         out: Path,
         output_format: OutputFormat,
@@ -110,6 +117,10 @@ def build_run_command() -> click.Command:
         for name, text in values.items():
             spec = specs.get(name)
             inputs[name] = parse_cli_value(spec, text) if spec is not None else text
+        login = None
+        if checked.scenario is not None and checked.scenario.login is not None and storage_state:
+            # 命令列只載入登入狀態檔，不檢查是否仍然有效（檢查與人工登入在管理 Portal）
+            login = LoginSettings(role=checked.scenario.login.role, state=storage_state)
         try:
             result = execute(
                 scenario,
@@ -119,6 +130,7 @@ def build_run_command() -> click.Command:
                 engine=browser,
                 headed=headed,
                 deadline_ms=deadline,
+                login=login,
             )
         except ScenarioInvalidError as invalid:
             display = display_path(scenario)

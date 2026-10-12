@@ -61,6 +61,63 @@
       "title": "BrowserConfig",
       "type": "object"
     },
+    "CheckStep": {
+      "additionalProperties": false,
+      "description": "勾選或取消勾選核取方塊、選項按鈕；已經是指定的狀態時不動作（不像 click 會切換）。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "action": {
+          "const": "check",
+          "title": "Action",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Locator"
+        },
+        "checked": {
+          "default": true,
+          "title": "Checked",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "target"
+      ],
+      "title": "CheckStep",
+      "type": "object"
+    },
     "ClickStep": {
       "additionalProperties": false,
       "description": "點擊元素。",
@@ -991,6 +1048,21 @@
       "title": "Locator",
       "type": "object"
     },
+    "LoginConfig": {
+      "additionalProperties": false,
+      "description": "登入：以哪個角色的登入狀態執行（M4）。\n\n角色在管理 Portal 登記：登入網址、「已登入」的判斷方式、選用的自動登入步驟；\n登入狀態（Playwright storageState）每個角色一份，角色之間不混用。\n執行前先檢查是否已登入，沒登入時停在 needs_login，不執行任何步驟。",
+      "properties": {
+        "role": {
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "title": "LoginConfig",
+      "type": "object"
+    },
     "OutputSpec": {
       "additionalProperties": false,
       "description": "一個出參：自動化與獨立斷言都通過之後才發布，可以串到下游場景的入參。",
@@ -1625,6 +1697,17 @@
     "browser": {
       "$ref": "#/$defs/BrowserConfig"
     },
+    "login": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "defaults": {
       "$ref": "#/$defs/Defaults"
     },
@@ -1648,6 +1731,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
                 "expect": "#/$defs/ExpectStep",
                 "extract": "#/$defs/ExtractStep",
@@ -1672,6 +1756,9 @@
               },
               {
                 "$ref": "#/$defs/SelectStep"
+              },
+              {
+                "$ref": "#/$defs/CheckStep"
               },
               {
                 "$ref": "#/$defs/PressStep"

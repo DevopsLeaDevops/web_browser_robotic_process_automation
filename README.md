@@ -37,5 +37,6 @@ uv run rpa serve                     # 管理 Portal：http://127.0.0.1:8080，�
 
 方案 v2：結合 MVP 原型（`docs/prototypes/mvp/`），先交付單機、單使用者的 MVP。
 M1 場景 DSL、M1.1 場景契約、M2 Runner 已完成：`rpa run` 在 Chromium 或 Firefox 中真實執行場景，產生執行目錄與報告。
-M3 管理 Portal 進行中：`rpa serve` 在瀏覽器裡建立、驗證、發布、執行場景並查看報告（`docs/design/portal.html`）。
+M3 管理 Portal 已完成：`rpa serve` 在瀏覽器裡建立、驗證、發布、執行場景並查看報告（`docs/design/portal.html`）。
+M4 場景生產與登入進行中：錄製（`rpa record` 或 Portal）轉成 DSL 草稿、逐步調試、每個角色獨立的登入狀態與 needs_login、入參出參的表單編輯。
 範例在 `scenarios/`，規格見 `docs/design/dsl.html`。路線圖見 `docs/roadmap.html`。

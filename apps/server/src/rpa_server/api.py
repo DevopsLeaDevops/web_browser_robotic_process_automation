@@ -2,6 +2,10 @@
 
 欄位名稱用 camelCase，與場景 DSL、result.json 一致。錯誤一律是
 ``{"error": {"code": …, "message": …, …}}``，HTTP 狀態碼：404 找不到、409 狀態衝突、422 內容有問題。
+
+M4：登入角色與 Secrets（/api/roles、/api/secrets）、錄製（/api/recordings）、
+調試工作階段（/api/scenes/{id}/debug、/api/debug/{工作階段}）、入參與出參的表單存檔
+（/api/scenes/{id}/contract）、重新執行（/api/runs/{id}/rerun）。Secrets 的值只寫入、永遠不回傳。
 """
 
 from typing import Annotated
@@ -11,6 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from rpa_server.domain import Engine
+from rpa_server.errors import ServiceError
+from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services
 
 __all__ = ["api_router"]
@@ -61,6 +67,98 @@ class RunCreate(_Body):
     idempotency_key: str | None = Field(default=None, max_length=100)
     headless: bool | None = None
     """無頭模式；沒指定時能顯示瀏覽器視窗就用有頭模式。"""
+
+
+class ContractItem(_Body):
+    """入參或出參表單的一列；previous 是改名前的名稱。"""
+
+    name: str = Field(max_length=64)
+    previous: str | None = Field(default=None, max_length=64)
+    type: str = Field(default="string", max_length=20)
+    description: str | None = Field(default=None, max_length=500)
+    default: object = None
+    enum: list[object] | None = None
+    min_length: int | None = None
+    max_length: int | None = None
+    pattern: str | None = Field(default=None, max_length=500)
+    minimum: float | int | None = None
+    maximum: float | int | None = None
+    from_: str | None = Field(default=None, alias="from", max_length=500)
+
+
+class ContractSave(_Body):
+    base_revision: int = Field(ge=1)
+    inputs: list[ContractItem] = Field(default_factory=list[ContractItem])
+    outputs: list[ContractItem] = Field(default_factory=list[ContractItem])
+    note: str | None = Field(default=None, max_length=500)
+
+
+class RerunRequest(_Body):
+    idempotency_key: str | None = Field(default=None, max_length=100)
+
+
+class RoleBody(_Body):
+    id: str | None = Field(default=None, max_length=64)
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+    login_url: str | None = Field(default=None, max_length=2000)
+    check_url: str | None = Field(default=None, max_length=2000)
+    check: str | dict[str, object] | None = None
+    engine: str | None = Field(default=None, max_length=20)
+    auto_login: str | None = Field(default=None, max_length=20_000)
+
+
+class SecretValue(_Body):
+    value: str = Field(max_length=10_000)
+
+
+class TargetBody(_Body):
+    scene_id: str = Field(max_length=64)
+    new: bool = False
+    name: str | None = Field(default=None, max_length=200)
+    domain_id: str | None = Field(default=None, max_length=64)
+    category: str | None = Field(default=None, max_length=100)
+
+    def target(self) -> RecordingTarget:
+        return RecordingTarget(self.scene_id, self.new, self.name, self.domain_id, self.category)
+
+
+class RecordingStart(_Body):
+    target: TargetBody
+    url: str | None = Field(default=None, max_length=2000)
+    engine: Engine = "chromium"
+    role_id: str | None = Field(default=None, max_length=64)
+
+
+class RecordingImport(RecordingStart):
+    source: str = Field(max_length=1_000_000)
+
+
+class DebugStart(_Body):
+    revision: int | None = Field(default=None, ge=1)
+    inputs: dict[str, object] | None = None
+    engine: Engine | None = None
+    headless: bool | None = None
+    base_url: str | None = Field(default=None, max_length=2000)
+    restart: bool = False
+
+
+class DebugStep(_Body):
+    force: bool = False
+
+
+class DebugLocate(_Body):
+    locator: str | dict[str, object]
+
+
+class DebugReload(_Body):
+    revision: int = Field(ge=1)
+
+
+def _values(body: RoleBody) -> dict[str, object]:
+    """只有使用者送來的欄位（PATCH 沒送的欄位不改）。"""
+    sent = body.model_dump(by_alias=True, exclude_unset=True)
+    return {key: value for key, value in sent.items() if key != "id"}
 
 
 def api_router(services: Services) -> APIRouter:
@@ -114,7 +212,17 @@ def api_router(services: Services) -> APIRouter:
     def get_scene(scene_id: str) -> dict[str, object]:
         scene = services.get_scene(scene_id)
         revisions = services.revisions(scene_id)
-        return {**scene.to_json(), "revisions": [revision.to_json() for revision in revisions]}
+        try:
+            needs = services.scene_needs(
+                services.revision_scenario(scene_id, scene.latest_number)
+            ).to_json()
+        except ServiceError:
+            needs = None
+        return {
+            **scene.to_json(),
+            "revisions": [revision.to_json() for revision in revisions],
+            "needs": needs,
+        }
 
     @router.patch("/scenes/{scene_id}")
     def update_scene(scene_id: str, body: SceneUpdate) -> dict[str, object]:
@@ -162,6 +270,22 @@ def api_router(services: Services) -> APIRouter:
     def publish_revision(scene_id: str, number: int) -> dict[str, object]:
         return services.publish(scene_id, number).to_json()
 
+    @router.put("/scenes/{scene_id}/contract", status_code=201)
+    def save_contract(scene_id: str, body: ContractSave) -> dict[str, object]:
+        """入參與出參的表單：只改寫場景檔的 inputs、outputs 兩段，存成新版本。"""
+
+        def items(rows: list[ContractItem]) -> list[dict[str, object]]:
+            return [row.model_dump(by_alias=True) for row in rows]
+
+        revision = services.save_contract(
+            scene_id,
+            base=body.base_revision,
+            inputs=items(body.inputs),
+            outputs=items(body.outputs),
+            note=body.note,
+        )
+        return revision.to_json()
+
     # ------------------------------------------------------------ 執行
 
     @router.post("/scenes/{scene_id}/runs", status_code=202)
@@ -206,5 +330,168 @@ def api_router(services: Services) -> APIRouter:
     @router.post("/runs/{run_id}/cancel", status_code=202)
     def cancel_run(run_id: str) -> dict[str, object]:
         return services.cancel_run(run_id).to_json()
+
+    @router.post("/runs/{run_id}/rerun", status_code=202)
+    def rerun(run_id: str, body: RerunRequest | None = None) -> dict[str, object]:
+        """同樣的入參與選項再執行一次（例如需要登入的執行，登入之後）。"""
+        key = body.idempotency_key if body is not None else None
+        return services.rerun(run_id, idempotency_key=key).to_json()
+
+    # ------------------------------------------------------------ 登入角色與 Secrets
+
+    roles = services.roles
+
+    @router.get("/roles")
+    def list_roles() -> dict[str, object]:
+        return {
+            "roles": [role.to_json() for role in roles.list_roles()],
+            "secrets": [info.to_json() for info in roles.list_secrets()],
+            "display": services.display,
+        }
+
+    @router.post("/roles", status_code=201)
+    def create_role(body: RoleBody) -> dict[str, object]:
+        return roles.create_role(body.id or "", _values(body)).to_json()
+
+    @router.get("/roles/{role_id}")
+    def get_role(role_id: str) -> dict[str, object]:
+        return roles.get_role(role_id).to_json()
+
+    @router.patch("/roles/{role_id}")
+    def update_role(role_id: str, body: RoleBody) -> dict[str, object]:
+        return roles.update_role(role_id, _values(body)).to_json()
+
+    @router.delete("/roles/{role_id}")
+    def delete_role(role_id: str) -> dict[str, object]:
+        roles.delete_role(role_id)
+        return {"deleted": role_id}
+
+    @router.delete("/roles/{role_id}/state")
+    def clear_role_state(role_id: str) -> dict[str, object]:
+        """登出：刪除這個角色的登入狀態。"""
+        return roles.clear_state(role_id).to_json()
+
+    @router.post("/roles/{role_id}/check", status_code=202)
+    def check_role(role_id: str) -> dict[str, object]:
+        return roles.check(role_id).to_json()
+
+    @router.post("/roles/{role_id}/login", status_code=202)
+    def start_login(role_id: str) -> dict[str, object]:
+        """人工登入：在執行 Portal 的電腦上開瀏覽器視窗到登入網址。"""
+        return roles.start_login(role_id).to_json()
+
+    @router.post("/roles/{role_id}/login/finish", status_code=202)
+    def finish_login(role_id: str) -> dict[str, object]:
+        return roles.finish_login(role_id).to_json()
+
+    @router.post("/roles/{role_id}/login/cancel")
+    def cancel_login(role_id: str) -> dict[str, object]:
+        roles.cancel_login(role_id)
+        return roles.get_role(role_id).to_json()
+
+    @router.get("/secrets")
+    def list_secrets() -> dict[str, object]:
+        return {"secrets": [info.to_json() for info in roles.list_secrets()]}
+
+    @router.put("/secrets/{name}")
+    def set_secret(name: str, body: SecretValue) -> dict[str, object]:
+        return roles.set_secret(name, body.value).to_json()
+
+    @router.delete("/secrets/{name}")
+    def delete_secret(name: str) -> dict[str, object]:
+        roles.delete_secret(name)
+        return {"deleted": name}
+
+    # ------------------------------------------------------------ 錄製
+
+    recordings = services.recordings
+
+    @router.get("/recordings")
+    def list_recordings() -> dict[str, object]:
+        return {
+            "recordings": [item.to_json() for item in recordings.list_recordings()],
+            "display": services.display,
+        }
+
+    @router.post("/recordings", status_code=202)
+    def start_recording(body: RecordingStart) -> dict[str, object]:
+        """在執行 Portal 的電腦上開瀏覽器錄製；關掉視窗後轉換成草稿。"""
+        record = recordings.start(
+            body.target.target(), url=body.url, engine=body.engine, role_id=body.role_id
+        )
+        return record.to_json()
+
+    @router.post("/recordings/import", status_code=201)
+    def import_recording(body: RecordingImport) -> dict[str, object]:
+        """貼上 codegen 的原始錄製稿，直接轉換成草稿。"""
+        record = recordings.import_source(
+            body.source,
+            body.target.target(),
+            url=body.url,
+            engine=body.engine,
+            role_id=body.role_id,
+        )
+        return {**record.to_json(), "files": recordings.files(record.id)}
+
+    @router.get("/recordings/{recording_id}")
+    def get_recording(recording_id: str) -> dict[str, object]:
+        record = recordings.get_recording(recording_id)
+        return {**record.to_json(), "files": recordings.files(recording_id)}
+
+    @router.post("/recordings/{recording_id}/cancel")
+    def cancel_recording(recording_id: str) -> dict[str, object]:
+        return recordings.cancel(recording_id).to_json()
+
+    # ------------------------------------------------------------ 調試工作階段
+
+    debug = services.debug
+
+    @router.post("/scenes/{scene_id}/debug", status_code=202)
+    def start_debug(scene_id: str, body: DebugStart) -> dict[str, object]:
+        """開始調試；這個場景已經有進行中的工作階段時回傳它（restart 為 true 時重新開始）。"""
+        session = debug.start(
+            scene_id,
+            revision=body.revision,
+            inputs=body.inputs,
+            engine=body.engine,
+            headless=body.headless,
+            base_url=body.base_url,
+            restart=body.restart,
+        )
+        return session.to_json()
+
+    @router.get("/debug/{session_id}")
+    def get_debug(session_id: str) -> dict[str, object]:
+        return debug.get(session_id).to_json()
+
+    @router.post("/debug/{session_id}/steps/{index}")
+    def debug_step(session_id: str, index: int, body: DebugStep | None = None) -> dict[str, object]:
+        force = body.force if body is not None else False
+        return debug.run_step(session_id, index, force=force).to_json()
+
+    @router.post("/debug/{session_id}/run-to/{index}")
+    def debug_run_to(session_id: str, index: int) -> dict[str, object]:
+        return debug.run_to(session_id, index).to_json()
+
+    @router.post("/debug/{session_id}/locate")
+    def debug_locate(session_id: str, body: DebugLocate) -> dict[str, object]:
+        return debug.locate(session_id, body.locator).to_json()
+
+    @router.post("/debug/{session_id}/screenshot")
+    def debug_screenshot(session_id: str) -> dict[str, object]:
+        return debug.screenshot(session_id).to_json()
+
+    @router.post("/debug/{session_id}/reset")
+    def debug_reset(session_id: str) -> dict[str, object]:
+        return debug.reset(session_id).to_json()
+
+    @router.post("/debug/{session_id}/reload")
+    def debug_reload(session_id: str, body: DebugReload) -> dict[str, object]:
+        return debug.reload(session_id, body.revision).to_json()
+
+    @router.delete("/debug/{session_id}")
+    def close_debug(session_id: str) -> dict[str, object]:
+        debug.close(session_id)
+        return {"closed": session_id}
 
     return router

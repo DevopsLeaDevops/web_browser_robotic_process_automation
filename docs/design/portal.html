@@ -14,9 +14,9 @@
   <div class="heading">
     <div>
       <h1>管理 Portal</h1>
-      <p>M3：在瀏覽器裡建立場景、驗證、發布、執行並查看報告。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.0。</p>
+      <p>在瀏覽器裡建立場景、驗證、發布、執行並查看報告（M3）；錄製、逐步調試、登入角色與入參出參的表單（M4）。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.0。</p>
     </div>
-    <span class="badge blue">M3</span>
+    <span class="badge blue">M4</span>
   </div>
 
   <div class="stack">
@@ -27,9 +27,9 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>依目標系統或業務劃分場景。</strong>例如「測試網站自動化」「谷歌自動化」「微軟自動化」。每個領域是「場景管理」左側的一個選單，最後一項是「領域管理」。</li>
-          <li><strong>領域頁是場景卡片。</strong>每張卡片有名稱與標籤（DSL 場景、Python 腳本、待發布）、最近一次執行的截圖、說明，「自動化腳本、斷言腳本、執行報告、入參設定、出參設定」五個連結，以及場景編號、最近一次結果、「調試」（驗證最新版本）與「運行」（執行已發布版本）。</li>
+          <li><strong>領域頁是場景卡片。</strong>每張卡片有名稱與標籤（DSL 場景、Python 腳本、待發布）、最近一次執行的截圖、說明，「自動化腳本、斷言腳本、執行報告、入參設定、出參設定」五個連結（DSL 場景另有「逐步調試」），以及場景編號、最近一次結果、「調試」（驗證最新版本）與「運行」（執行已發布版本）。</li>
           <li><strong>領域管理。</strong>新增領域（代號用在網址，建立後不能改）、改名稱與說明、刪除沒有場景的領域。場景頁的「執行設定」可以把場景移到其他領域。</li>
-          <li><strong>測試網站自動化。</strong>第一次啟動時自動建立，放進四個對測試網站執行的真實案例：建立紀錄（BA-001）、查詢紀錄（BA-002，入參是 BA-001 的出參）、查詢不存在的紀錄（BA-003）、Python 腳本版的建立紀錄。它的名稱與說明跟著介面語言顯示，改過之後就照改的內容；場景的名稱與說明是場景檔的內容，不會翻譯。</li>
+          <li><strong>測試網站自動化。</strong>第一次啟動時自動建立，放進對測試網站執行的真實案例：建立紀錄（BA-001）、查詢紀錄（BA-002，入參是 BA-001 的出參）、查詢不存在的紀錄（BA-003）、Python 腳本版的建立紀錄，以及兩個登入範例（BA-004 一般使用者、BA-005 主管）。它的名稱與說明跟著介面語言顯示，改過之後就照改的內容；場景的名稱與說明是場景檔的內容，不會翻譯。</li>
         </ul>
       </div>
     </section>
@@ -71,8 +71,59 @@
           <li><strong>進度。</strong>執行頁每秒查詢一次狀態，階段或狀態改變時重新整理。</li>
           <li><strong>取消。</strong>排隊中的直接取消；執行中的立即終止子程序與瀏覽器，狀態為「已取消」。已經在目標網站完成的動作不會復原。</li>
           <li><strong>不重複送出。</strong>表單每次載入產生一個 <code>idempotencyKey</code>，重複送出只會得到同一個執行。</li>
+          <li><strong>重新執行。</strong>結束的執行都可以用同樣的入參與選項再執行一次（驗證用同一個版本，正式執行用目前發布的版本）。</li>
           <li><strong>伺服器重啟。</strong>啟動時把上次執行到一半的任務標為失敗；排隊中的會繼續執行。</li>
         </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="login">
+      <div class="panel-header"><h2>登入與角色</h2><span class="muted">M4：每個角色一份登入狀態，執行前先檢查</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>場景只寫角色。</strong>需要登入的場景寫 <code>login: { role: 角色代號 }</code>（<a href="dsl.html#scenario">DSL</a>）。怎麼登入、怎麼判斷已登入，在「場景管理 › 登入與憑證」登記：登入網址、確認網址、已登入時看得到的元素（DSL 定位器），以及選用的自動登入步驟。</li>
+          <li><strong>人工登入為主。</strong>按「登入」會在執行 Portal 的這台電腦開瀏覽器視窗到登入網址，由使用者自己登入，所以 SSO、驗證碼、手機或 App 二次驗證都能處理。完成後按「完成登入」或直接關掉視窗；Portal 先用無頭瀏覽器確認真的登入了，才取代原本的登入狀態。這台電腦沒有圖形介面時不能人工登入。</li>
+          <li><strong>自動登入（選用）。</strong>只適合單純帳號密碼的系統：角色附一段 DSL 步驟，密碼用 <code>{{ secrets.名稱 }}</code>。執行前發現沒登入時先自動登入一次。</li>
+          <li><strong>需要登入（needs_login）。</strong>每次執行先在「登入檢查」階段打開確認網址：看得到元素就繼續；沒有（例如被轉到登入頁）而且不能自動登入時，停在「需要登入」，不執行任何步驟，並留下登入檢查的截圖。執行頁有「登入角色」與「重新執行」：登入後用同樣的入參再跑一次。</li>
+          <li><strong>角色互不干擾。</strong>登入狀態（Playwright storageState）每個角色一份，存在資料目錄的 <code>roles/&lt;角色&gt;/state.json</code>，只有本人能讀寫；每次執行開新的瀏覽器 context，只載入場景指定的那個角色。登入狀態不會複製進執行目錄，也不經由網頁或 API 提供。執行的結果也會更新角色的狀態（已登入、需要登入）。</li>
+          <li><strong>Secrets。</strong>同一頁可以設定 Secrets 的值：存在資料目錄的 <code>secrets.json</code>（只有本人能讀寫，M8 改為加密），頁面與 API 只顯示名稱與更新時間，永遠不回傳值。執行時把場景與角色用到的值交給執行引擎；沒有設定的再從同名的環境變數找。頁面也列出場景用到、但還沒設定的 Secrets。</li>
+          <li><strong>測試網站的兩個角色。</strong>匯入範例時，BA-004（一般使用者）與 BA-005（主管）用到的角色依 <code>scenarios/demo/roles.json</code> 一起建立；示範帳號寫在測試網站的登入頁。兩個帳號看到的待辦不同，用來確認角色之間沒有混用。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="recording">
+      <div class="panel-header"><h2>錄製</h2><span class="muted">M4：原始錄製稿 → DSL 草稿</span></div>
+      <div class="panel-body prose">
+        <div class="stepbar"><span>1 錄製草稿</span><span>2 調試與修改</span><span>3 驗證</span><span>4 確認發布</span></div>
+        <ul>
+          <li><strong>在這台電腦錄製。</strong>「場景生產 › 自主腳本錄製」按「開始錄製」，執行 Portal 的電腦會開啟 Playwright codegen 的瀏覽器與 Inspector；照平常的方式操作，完成後關掉瀏覽器視窗。選了登入角色時先載入它的登入狀態。也可以在命令列用 <code>rpa record 網址 --out 錄製稿.py --scenario 草稿.yaml</code>。</li>
+          <li><strong>貼上錄製稿。</strong>在別台電腦錄好的 codegen 原始稿（同步、非同步或 pytest 寫法）可以貼上直接轉換，例如 Portal 跑在沒有圖形介面的電腦時。</li>
+          <li><strong>轉換規則。</strong>goto、click、fill、press、select_option、check 與常見的 expect，以及 get_by_role、label、placeholder、text、test_id、CSS、XPath、first、nth、filter(has_text) 等定位器。第一個網址的來源成為 <code>browser.baseUrl</code>。轉不了的行（hover、上傳、iframe、新分頁…）以註解留在草稿裡並列在錄製詳情。</li>
+          <li><strong>自動參數化。</strong>每個輸入的值變成一個入參，預設值是錄到的值；名稱取自欄位的英數名稱（沒有時叫 field、field_2…），欄位標籤寫在說明，之後在場景頁的表單改名。</li>
+          <li><strong>密碼不落地。</strong>密碼欄位（標籤、提示文字或選擇器含有 password、密碼等字）改成 Secret 引用，原始錄製稿也遮罩成 <code>***</code> 才保存；錄製中的暫存原始稿轉換後就刪除。</li>
+          <li><strong>只產生草稿。</strong>轉換結果存成新場景的 v1，或既有場景的新版本；錄製稿只當來源，一樣要調試、驗證通過才能發布。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="debug">
+      <div class="panel-header"><h2>逐步調試</h2><span class="muted">M4：一個瀏覽器、一次一步</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>開始。</strong>場景頁或卡片的「逐步調試」選版本、入參、瀏覽器與視窗模式。有圖形介面時瀏覽器視窗開在這台電腦上；兩種模式都在頁面上顯示每一步之後的截圖、網址與頁面事實。只支援 DSL 場景。</li>
+          <li><strong>執行。</strong>每一步可以「執行這一步」，或「執行到這裡」（只執行還沒執行過的步驟，遇到失敗就停）。有副作用的步驟（點擊、填寫、選擇、勾選、按鍵）執行過一次後，再執行要先確認；不會自動重複任何步驟。「從頭開始」開新的頁面並重新載入登入狀態。</li>
+          <li><strong>定位器測試。</strong>輸入 DSL 定位器（例如 <code>{ role: button, name: 登入 }</code>），回報找到幾個元素與前幾個的文字，截圖時以紅框標出。</li>
+          <li><strong>修改。</strong>頁面下方直接編輯 YAML，存成新版本後換到新版本繼續；瀏覽器與頁面事實保留，執行過的步驟依 id 保留狀態。</li>
+          <li><strong>限制。</strong>每個場景同一時間一個工作階段；閒置 15 分鐘自動結束，伺服器關閉時全部結束。調試會真的操作目標網站，請用測試環境。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="forms">
+      <div class="panel-header"><h2>入參與出參的表單</h2><span class="muted">M4</span></div>
+      <div class="panel-body prose">
+        <p>場景頁的入參、出參表格按「編輯」可以新增、刪除、改名，修改型別、預設值、必填、說明、限制與出參的取值。存檔時只改寫場景檔的 <code>inputs:</code>、<code>outputs:</code> 兩段，其他內容與註解完全不變；入參改名時，步驟裡引用舊名稱的 <code>{{ inputs.舊名稱 }}</code> 一起改。一樣建立新版本、經過校驗與「不是最新版就 409」的檢查，新版本要重新驗證。Python 腳本場景的出參由 assertion.py 產生，改名也不會改到腳本。</p>
       </div>
     </section>
 
@@ -85,12 +136,15 @@
             <tr><td><code>/scenes</code></td><td>轉到第一個領域；還沒有領域時轉到領域管理</td></tr>
             <tr><td><code>/domains/{代號}</code></td><td>領域頁：場景卡片；新增場景、匯入範例（測試網站自動化）</td></tr>
             <tr><td><code>/domains</code></td><td>領域管理：新增、改名、刪除；還沒分到領域的場景</td></tr>
-            <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、入參與出參、所屬領域與預設網址、最近執行</td></tr>
+            <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、執行前要準備的角色與 Secrets、入參與出參（可以直接編輯）、所屬領域與預設網址、最近執行</td></tr>
+            <tr><td><code>/scenes/{id}/debug</code></td><td>逐步調試：步驟清單、截圖、定位器測試、頁面事實、修改 YAML</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>驗證或執行的表單：入參（JSON，已帶入預設值）、瀏覽器、網址</td></tr>
             <tr><td><code>/runs</code></td><td>執行報告：分類、場景、結果、目的的篩選選單，每一項都可以複選</td></tr>
             <tr><td><code>/runs/{執行編號}</code></td><td>狀態、階段、獨立斷言、入參與出參、截圖、執行目錄的檔案；取消、發布</td></tr>
-            <tr><td><code>/recording</code>、<code>/playground</code></td><td>預留位置：錄製在 M4、自由試驗場在 M6</td></tr>
+            <tr><td><code>/roles</code></td><td>登入與憑證：登入角色（登入、檢查、登出）、Secrets</td></tr>
+            <tr><td><code>/recording</code>、<code>/recordings/{錄製編號}</code></td><td>自主腳本錄製：在這台電腦錄製或貼上錄製稿；最近的錄製；錄製詳情（轉不了的行、轉換結果、遮罩過的原始錄製稿）</td></tr>
+            <tr><td><code>/playground</code></td><td>預留位置：自由試驗場在 M6</td></tr>
           </tbody>
         </table>
       </div>
@@ -114,6 +168,16 @@
             <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不寫時有圖形介面就用有頭模式）、<code>idempotencyKey</code>；驗證也接受同樣的欄位</td></tr>
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
+            <tr><td><code>POST /api/runs/{執行編號}/rerun</code></td><td>同樣的入參與選項再執行一次；202 回新的執行</td></tr>
+            <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>入參與出參的表單存檔：<code>baseRevision</code>、<code>inputs</code>、<code>outputs</code>（每項有 <code>name</code>、改名前的 <code>previous</code>…）、<code>note</code></td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/roles</code>；<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/roles/{角色}</code></td><td>登入角色：<code>name</code>、<code>loginUrl</code>、<code>checkUrl</code>、<code>check</code>（定位器）、<code>engine</code>、<code>autoLogin</code>；還有場景用到時不能刪除</td></tr>
+            <tr><td><code>POST /api/roles/{角色}/login</code>、<code>…/login/finish</code>、<code>…/login/cancel</code></td><td>人工登入：開瀏覽器視窗、完成、取消；進度看角色的 <code>activity</code> 與 <code>session</code></td></tr>
+            <tr><td><code>POST /api/roles/{角色}/check</code>、<code>DELETE /api/roles/{角色}/state</code></td><td>在背景檢查是否已登入（必要時自動登入）；登出</td></tr>
+            <tr><td><code>GET /api/secrets</code>、<code>PUT</code>、<code>DELETE /api/secrets/{名稱}</code></td><td>Secrets：只回傳名稱與更新時間；<code>PUT</code> 的內容是 <code>value</code></td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/recordings</code>、<code>POST /api/recordings/import</code></td><td>錄製清單；在這台電腦錄製（202）；貼上錄製稿直接轉換（201）。都要 <code>target</code>（新場景或既有場景）、<code>url</code>、<code>engine</code>、選用的 <code>roleId</code></td></tr>
+            <tr><td><code>GET /api/recordings/{錄製編號}</code>、<code>…/cancel</code></td><td>錄製狀態、轉不了的行與檔案；取消錄製</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>開始逐步調試（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已經有工作階段時回傳它</td></tr>
+            <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作階段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>調試狀態與結束；執行一步（有副作用而且執行過時 409 <code>confirm_required</code>，帶 <code>force</code> 再送）、執行到第 n 步、測試定位器、截圖、從頭開始、換到新版本</td></tr>
           </tbody>
         </table>
       </div>
@@ -125,14 +189,20 @@
         <div class="panel-header"><h2>資料</h2></div>
         <div class="panel-body">
 <pre class="source">data/
-  rpa.db                     SQLite：domains、scenes、revisions、runs
+  rpa.db                     SQLite：domains、scenes、revisions、runs、roles、recordings
   scenes/&lt;場景 id&gt;/&lt;版本&gt;/   scenario.yaml（腳本場景另有兩支腳本）
-  runs/&lt;執行編號&gt;/            M2 的執行目錄（input.json、report.html…）</pre>
+  runs/&lt;執行編號&gt;/            M2 的執行目錄（input.json、report.html…）
+  roles/&lt;角色&gt;/state.json      角色的登入狀態（只有本人能讀寫）
+  recordings/&lt;錄製編號&gt;/      遮罩過的原始錄製稿與轉換結果
+  debug/&lt;工作階段&gt;/          調試的截圖（工作階段結束就刪除）
+  secrets.json               Secrets 的值（只有本人能讀寫）</pre>
           <dl class="spec-list">
             <dt>domains</dt><dd>代號、名稱、說明、排列順序</dd>
             <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存</dd>
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
             <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間</dd>
+            <dt>roles</dt><dd>代號、名稱、登入網址、確認網址與判斷元素、瀏覽器、自動登入步驟、最近的狀態與檢查時間</dd>
+            <dt>recordings</dt><dd>錄製編號、目標場景與版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
         </div>
@@ -147,7 +217,7 @@
             <dt><code>RPA_LANG</code></dt><dd>預設語言，也是執行報告的語言；頁面右上角可以切換</dd>
             <dt><code>--no-testsite</code></dt><dd>不要一起啟動測試網站（預設會在 <code>127.0.0.1:8765</code> 啟動；已經在執行就沿用）</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「測試網站自動化」的範例資料夾，預設 <code>scenarios/demo</code></dd>
-            <dt>Secrets</dt><dd>與 M2 相同，從伺服器程序的同名環境變數讀取</dd>
+            <dt>Secrets</dt><dd>在「登入與憑證」設定；沒有設定的，從伺服器程序的同名環境變數讀取</dd>
           </dl>
         </div>
       </section>
@@ -161,6 +231,7 @@
           <li><strong>擋掉跨站請求。</strong>寫入請求帶了 <code>Origin</code> 標頭時必須同源，避免其他網站在背景呼叫本機的 API。</li>
           <li><strong>執行目錄的檔案。</strong>只提供執行目錄內的檔案；只有 <code>report.html</code> 當成網頁顯示，並加上只允許內嵌樣式與截圖的內容安全政策。</li>
           <li><strong>腳本場景等同執行任意程式。</strong>與 M2 相同，Python 腳本場景只給信任的人編輯。</li>
+          <li><strong>登入狀態與 Secrets 只在這台電腦。</strong>兩者都在資料目錄、只有本人能讀寫，不經由網頁或 API 提供，也不寫進執行目錄、報告與日誌；錄製稿裡的密碼遮罩後才保存。M8 加密存放。</li>
         </ul>
       </div>
     </section>
@@ -169,7 +240,6 @@
       <div class="panel-header"><h2>之後的里程碑</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>M4</dt><dd>入參與出參的表單編輯；錄製、調試工作階段、登入憑證與 needs_login</dd>
           <dt>M5</dt><dd>AI 助手只改草稿，發布仍走同一個門檻</dd>
           <dt>M6</dt><dd>自由試驗場：場景序列、出參綁定、失敗即停</dd>
           <dt>M8</dt><dd>認證與權限、Secrets 加密、PostgreSQL</dd>

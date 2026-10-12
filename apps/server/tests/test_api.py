@@ -152,9 +152,14 @@ def test_import_examples_once(client: Client) -> None:
         "ba-001-script",
         "ba-002",
         "ba-003",
+        "ba-004",
+        "ba-005",
     ]
+    # BA-004、BA-005 用到的登入角色依 roles.json 一起建立
+    assert first["roles"] == ["testsite-user", "testsite-manager"]
+    assert second["roles"] == []
     assert second["imported"] == []
-    assert len(cast("list[str]", second["skipped"])) == 4
+    assert len(cast("list[str]", second["skipped"])) == 6
     script = body(client.get("/api/scenes/ba-001-script"))
     assert script["kind"] == "script"
     files = cast(
@@ -257,7 +262,8 @@ def test_failed_run_keeps_evidence_and_reports(app: FastAPI, client: Client) -> 
     assert detail["error"] == "入參有 1 個問題，沒有啟動瀏覽器"
     result = cast("JsonObject", detail["result"])
     assert result["problems"] == [
-        "沒有設定 Secret RPA_TEST_SECRET_NOT_SET（環境變數 RPA_TEST_SECRET_NOT_SET）"
+        "沒有設定 Secret RPA_TEST_SECRET_NOT_SET：請在管理 Portal 的「登入與憑證」設定，"
+        "或設定同名的環境變數"
     ]
     assert "report.html" in cast("list[str]", detail["files"])
     assert body(client.get("/api/scenes/needs-secret"))["latestStatus"] == "failed"
@@ -427,7 +433,14 @@ def test_seed_creates_testsite_domain_once(app: FastAPI, client: Client) -> None
     domain = body(client.get("/api/domains/testsite"))
     assert domain["name"] == "測試網站自動化"
     cards = cast("list[JsonObject]", domain["scenes"])
-    assert [card["id"] for card in cards] == ["ba-001", "ba-001-script", "ba-002", "ba-003"]
+    assert [card["id"] for card in cards] == [
+        "ba-001",
+        "ba-001-script",
+        "ba-002",
+        "ba-003",
+        "ba-004",
+        "ba-005",
+    ]
     assert body(client.get("/api/scenes/mine"))["domainId"] is None
     assert services(app).seed_examples_domain() is None
 
@@ -450,8 +463,8 @@ def test_import_goes_into_the_given_domain(client: Client) -> None:
 
     report = body(client.post("/api/scenes/import", json={"domainId": "lab"}))
 
-    assert len(cast("list[str]", report["imported"])) == 4
-    assert body(client.get("/api/domains/lab"))["sceneCount"] == 4
+    assert len(cast("list[str]", report["imported"])) == 6
+    assert body(client.get("/api/domains/lab"))["sceneCount"] == 6
 
 
 def test_card_shows_last_run_and_screenshot(app: FastAPI, client: Client) -> None:

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}<a href="/recording">{{ t("nav.recording") }}</a> › {{ item.id }}{% endblock %}
+{% block description %}{{ t("recording.detail_description", scene=item.scene_id) }}{% endblock %}
+{% block actions %}
+<a class="button" href="/recording">{{ t("edit.back") }}</a>
+{% if item.status == "done" %}
+<a class="button" href="/scenes/{{ item.scene_id }}/edit?revision={{ item.revision_number }}">{{ t("scene.edit") }}</a>
+<a class="button" href="/scenes/{{ item.scene_id }}/run?purpose=validation&amp;revision={{ item.revision_number }}">{{ t("scene.validate_latest", number=item.revision_number) }}</a>
+<a class="button primary" href="/scenes/{{ item.scene_id }}/debug?revision={{ item.revision_number }}">{{ t("scene.debug") }}</a>
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="stack" id="recording-detail" data-recording="{{ item.id }}" data-status="{{ item.status }}"{% if item.status == "recording" %} data-poll{% endif %}>
+  <div class="stepbar" aria-label="{{ t('recording.steps') }}">
+    <span{% if item.status != "done" %} class="active"{% endif %}>{{ t("recording.step_record") }}</span><span{% if item.status == "done" %} class="active"{% endif %}>{{ t("recording.step_debug") }}</span><span>{{ t("recording.step_validate") }}</span><span>{{ t("recording.step_publish") }}</span>
+  </div>
+  {% if item.status == "recording" %}
+  <div class="notice warn" role="status">{{ t("recording.in_progress") }}
+    <span class="actions"><button class="button" data-action="cancel-recording" data-recording="{{ item.id }}">{{ t("recording.cancel") }}</button></span>
+  </div>
+  {% elif item.status == "failed" %}
+  <div class="notice danger" role="alert">{{ item.error }}</div>
+  {% elif item.status == "done" %}
+  <div class="notice">{{ t("recording.done_notice", scene=item.scene_id, number=item.revision_number) }}</div>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.summary") }}</h2>{{ m.recording_badge(item.status) }}</div>
+    <dl class="panel-body spec-list">
+      <dt>{{ t("recording.col_scene") }}</dt><dd>{% if item.status == "done" %}<a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a> v{{ item.revision_number }}{% else %}{{ item.scene_id }}{% endif %} {{ item.scene_name }}{% if item.new_scene %} <span class="tag">{{ t("recording.target_new") }}</span>{% endif %}</dd>
+      <dt>{{ t("recording.col_source") }}</dt><dd>{{ t("recording.source_" + item.source) }}</dd>
+      <dt>{{ t("recording.url") }}</dt><dd>{{ item.url or "—" }}</dd>
+      <dt>{{ t("run.engine") }}</dt><dd>{{ item.engine }}</dd>
+      <dt>{{ t("recording.role") }}</dt><dd>{{ item.role_id or t("recording.no_role") }}</dd>
+      <dt>{{ t("run.created") }}</dt><dd>{{ m.time(item.created_at) }}</dd>
+      <dt>{{ t("run.finished") }}</dt><dd>{{ m.time(item.finished_at) }}</dd>
+    </dl>
+  </section>
+
+  {% if item.warnings %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("recording.warnings") }}</h2><span class="muted">{{ item.warnings | length }}</span></div>
+    <ul class="panel-body checklist">
+      {% for warning in item.warnings %}<li>{{ t("recording.warning_line", line=warning.line, message=warning.message) }}{% if warning.get("source") %}<span class="cell-sub mono">{{ warning.source }}</span>{% endif %}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="field-pair">
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("recording.converted") }}</h2><span class="muted mono">scenario.yaml</span></div>
+      {% if files.get("scenario.yaml") %}<pre class="source">{{ files["scenario.yaml"] }}</pre>{% else %}<div class="empty">—</div>{% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("recording.raw") }}</h2><span class="muted">{{ t("recording.raw_hint") }}</span></div>
+      {% if files.get("raw.py") %}<pre class="source">{{ files["raw.py"] }}</pre>{% else %}<div class="empty">—</div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

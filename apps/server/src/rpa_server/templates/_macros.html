@@ -52,10 +52,10 @@
 </div>
 {% endmacro %}
 
-{% macro spec_tables(scenario) %}
+{% macro spec_tables(scenario, editable=false) %}
 <div class="two-col">
   <section class="panel" id="inputs">
-    <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}</span></div>
+    <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}{% if editable %} <button class="text-btn" type="button" data-action="edit-contract">{{ t("contract.edit") }}</button>{% endif %}</span></div>
     {% if scenario.inputs %}
     <div class="table-scroll"><table class="wrap">
       <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("spec.type") }}</th><th>{{ t("spec.default") }}</th><th>{{ t("spec.rules") }}</th></tr></thead>
@@ -71,7 +71,7 @@
     {% else %}<div class="empty">{{ t("spec.no_inputs") }}</div>{% endif %}
   </section>
   <section class="panel" id="outputs">
-    <div class="panel-header"><h2>{{ t("spec.outputs") }}</h2><span class="muted">{{ scenario.outputs | length }}</span></div>
+    <div class="panel-header"><h2>{{ t("spec.outputs") }}</h2><span class="muted">{{ scenario.outputs | length }}{% if editable %} <button class="text-btn" type="button" data-action="edit-contract">{{ t("contract.edit") }}</button>{% endif %}</span></div>
     {% if scenario.outputs %}
     <div class="table-scroll"><table class="wrap">
       <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("spec.type") }}</th><th>{{ t("spec.from") }}</th><th>{{ t("spec.rules") }}</th></tr></thead>
@@ -106,4 +106,31 @@
     <div class="filter-actions"><button class="text-btn" type="button" data-filter-clear>{{ t("runs.clear_menu") }}</button><button class="button primary" type="submit">{{ t("runs.apply") }}</button></div>
   </div>
 </details>
+{%- endmacro %}
+
+{# 登入角色的狀態：進行中的登入或檢查優先顯示 #}
+{% macro role_badge(role) -%}
+{%- if role.activity == "login" -%}{{ badge("login", t("role_status.login")) }}
+{%- elif role.activity == "checking" -%}{{ badge("checking", t("role_status.checking")) }}
+{%- else -%}{{ badge(role.status, t("role_status." + role.status)) }}{%- endif -%}
+{%- endmacro %}
+
+{% macro recording_badge(status) %}{{ badge(status, t("recording_status." + status)) }}{% endmacro %}
+
+{# 執行前要準備好的：登入角色、Secrets #}
+{% macro needs_notice(needs) -%}
+{%- if needs and (needs.role or needs.secrets) -%}
+<section class="panel" id="needs">
+  <div class="panel-header"><h2>{{ t("needs.title") }}</h2><a class="text-btn" href="/roles">{{ t("nav.roles") }}</a></div>
+  <ul class="panel-body checklist">
+    {% if needs.role %}
+    <li>{% if not needs.role_registered %}{{ badge("failed", t("needs.role_missing")) }}{% else %}{{ badge(needs.role_status or "none", t("role_status." + (needs.role_status or "none"))) }}{% endif %}
+      {{ t("needs.role", role=needs.role) }} <a href="/roles#role-{{ needs.role }}">{{ t("needs.manage_role") }}</a></li>
+    {% endif %}
+    {% for name, ready in needs.secrets %}
+    <li>{% if ready %}{{ badge("passed", t("needs.secret_set")) }}{% else %}{{ badge("failed", t("needs.secret_missing")) }}{% endif %} {{ t("needs.secret", name=name) }}{% if not ready %} <a href="/roles#secrets">{{ t("needs.set_secret") }}</a>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</section>
+{%- endif -%}
 {%- endmacro %}

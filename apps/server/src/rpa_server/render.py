@@ -2,7 +2,7 @@
 
 不依賴 FastAPI：頁面路由（pages.py）只負責取資料再呼叫 :func:`render`，樣板也能單獨測試。
 版面沿用設計系統 v1.0 與 MVP 原型：頂部第一級、左側第二級選單（ADR 0006、0011）。
-「場景管理」的二級選單是領域（資料庫裡的 domains），最後一項是「領域管理」。
+「場景管理」的二級選單是領域（資料庫裡的 domains），最後是「領域管理」與「登入與憑證」（M4）。
 """
 
 import json
@@ -90,7 +90,7 @@ NAV: Final = (
         "PRODUCTION",
         "/runs",
         (
-            NavPage("recording", "/recording", "M4"),
+            NavPage("recording", "/recording"),
             NavPage("runs", "/runs"),
             NavPage("playground", "/playground", "M6"),
         ),
@@ -101,6 +101,14 @@ NAV: Final = (
 _BADGES: Final[Mapping[str, str]] = {
     "passed": "green",
     "published": "green",
+    "logged_in": "green",
+    "done": "green",
+    "needs_login": "amber",
+    "recording": "blue",
+    "checking": "blue",
+    "login": "blue",
+    "starting": "blue",
+    "unknown": "red",
     "failed": "red",
     "timed_out": "red",
     "cancelled": "amber",
@@ -169,7 +177,11 @@ def domain_page(domain_id: str | None) -> str:
 def _side_items(group: NavGroup, domains: Sequence[DomainRecord]) -> list[SideItem]:
     if group.id == "manage":
         items = [SideItem(f"domain:{d.id}", d.name, f"/domains/{d.id}") for d in domains]
-        return [*items, SideItem("domains", t("nav.domains"), "/domains")]
+        return [
+            *items,
+            SideItem("domains", t("nav.domains"), "/domains"),
+            SideItem("roles", t("nav.roles"), "/roles"),
+        ]
     return [SideItem(p.id, t("nav." + p.id), p.href, p.milestone) for p in group.pages]
 
 
@@ -225,6 +237,29 @@ def js_messages() -> dict[str, str]:
         "js.domain_delete_title",
         "js.domain_delete_body",
         "js.domain_delete_action",
+        "js.role_create_title",
+        "js.role_edit_title",
+        "js.role_delete_title",
+        "js.role_delete_body",
+        "js.role_delete_action",
+        "js.role_clear_title",
+        "js.role_clear_body",
+        "js.role_clear_action",
+        "js.secret_create_title",
+        "js.secret_edit_title",
+        "js.secret_delete_title",
+        "js.secret_delete_body",
+        "js.secret_delete_action",
+        "js.recording_started",
+        "js.converted",
+        "js.debug_confirm_title",
+        "js.debug_confirm_action",
+        "js.debug_close_title",
+        "js.debug_close_body",
+        "js.debug_close_action",
+        "js.working",
+        "js.contract_saved",
+        "js.rerun_started",
     )
     return {key.removeprefix("js."): t(key) for key in keys}
 

@@ -14,6 +14,9 @@ __all__ = [
     "DIAGNOSTIC",
     "FACTS",
     "INPUT",
+    "LOGIN",
+    "LOGIN_LOG",
+    "LOGIN_SCREENSHOT",
     "OUTPUT",
     "REPORT",
     "RESULT",
@@ -38,6 +41,11 @@ DIAGNOSTIC: Final = "diagnostic.json"
 SCREENSHOT: Final = "screenshot.png"
 AUTOMATION_LOG: Final = "automation.log"
 ASSERTION_LOG: Final = "assertion.log"
+LOGIN: Final = "login.json"
+"""登入檢查的結果：角色、是否已登入、是否自動登入過（不含登入狀態本身）。"""
+LOGIN_LOG: Final = "login.log"
+LOGIN_SCREENSHOT: Final = "login.png"
+"""需要登入時，確認網址的截圖。"""
 SCENARIO_DIR: Final = "scenario"
 """本次使用的場景快照（含 Python 腳本）。"""
 RESULT: Final = "result.json"

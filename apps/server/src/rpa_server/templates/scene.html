@@ -4,6 +4,8 @@
 {% block description %}<span class="tag">{{ scene.id }}</span> {{ scene.category or t("scenes.no_category") }} · {{ t("kind." + scene.kind) }}{% if scene.archived %} · {{ t("scene.archived") }}{% endif %}{% endblock %}
 {% block actions %}
 <a class="button" href="/scenes/{{ scene.id }}/edit">{{ t("scene.edit") }}</a>
+<a class="button" href="/recording?scene={{ scene.id }}">{{ t("scene.record") }}</a>
+{% if scene.kind == "dsl" %}<a class="button" href="/scenes/{{ scene.id }}/debug">{{ t("scene.debug") }}</a>{% endif %}
 <a class="button" href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("scene.validate_latest", number=scene.latest_number) }}</a>
 {% if scene.published %}
 <a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution">{{ m.arrow() }} {{ t("card.run") }}</a>
@@ -19,6 +21,7 @@
   {% elif scene.published_number != scene.latest_number %}
   <div class="notice">{{ t("scene.newer_draft", published=scene.published_number, latest=scene.latest_number) }}</div>
   {% endif %}
+  {{ m.needs_notice(needs) }}
 
   <section class="panel">
     <div class="panel-header"><h2>{{ t("scene.versions") }}</h2><span class="muted">{{ t("scene.versions_hint") }}</span></div>
@@ -49,7 +52,8 @@
   </section>
 
   {% if scenario %}
-  {{ m.spec_tables(scenario) }}
+  {{ m.spec_tables(scenario, editable=not scene.archived) }}
+  {% include "_contract.html" %}
   {% endif %}
 
   <section class="panel" id="settings">
