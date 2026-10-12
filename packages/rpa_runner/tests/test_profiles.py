@@ -12,7 +12,7 @@ from typing import cast
 import pytest
 from playwright.sync_api import Playwright
 
-from rpa_core.i18n import use_locale
+from rpa_core.i18n import Locale, use_locale
 from rpa_runner.profiles import (
     MIN_BUDGET_SECONDS,
     READY,
@@ -203,16 +203,30 @@ def test_short_deadline_does_not_build_the_template(tmp_path: Path, executable: 
     assert warm.calls == 1
 
 
+@pytest.mark.parametrize(
+    ("locale", "message"),
+    [
+        ("zh-Hant", "無法使用預熱的 Firefox 設定檔，改用全新設定檔：disk full"),
+        ("en", "Could not use the warmed Firefox profile, using a fresh one instead: disk full"),
+    ],
+)
 def test_problems_fall_back_to_a_fresh_profile(
-    tmp_path: Path, executable: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    executable: Path,
+    capsys: pytest.CaptureFixture[str],
+    locale: Locale,
+    message: str,
 ) -> None:
     def warm(folder: Path) -> None:
-        raise OSError("磁碟已滿")
+        raise OSError("disk full")
 
     playwright = fake_playwright(executable)
-    with firefox_profile(playwright, budget_seconds=45, root=tmp_path, warm=warm) as profile:
+    with (
+        use_locale(locale),
+        firefox_profile(playwright, budget_seconds=45, root=tmp_path, warm=warm) as profile,
+    ):
         assert profile is None
-    assert "改用全新設定檔：磁碟已滿" in capsys.readouterr().err
+    assert message in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------- 真的 Firefox

@@ -19,8 +19,10 @@ from typing import Final, Literal, cast
 from playwright.sync_api import Browser, Page, Playwright, ViewportSize, sync_playwright
 
 from rpa_core.dsl import Scenario, validate_file
+from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
 from rpa_runner.browser import Deadline, DeadlineExceeded, plan_records, run_steps
 from rpa_runner.files import DIAGNOSTIC, FACTS, SCREENSHOT, STEPS, write_json
+from rpa_runner.i18n import t
 from rpa_runner.profiles import firefox_profile
 from rpa_runner.secrets import mask, read_secrets
 
@@ -83,7 +85,7 @@ def run(args: argparse.Namespace) -> int:
     out = Path(args.out)
     result = validate_file(Path(args.scenario))
     if result.scenario is None:  # pragma: no cover - 父程序已校驗過
-        sys.stderr.write("場景校驗失敗\n")
+        sys.stderr.write(t("child.invalid_scenario") + "\n")
         return EXIT_FAILED
     scenario = result.scenario
     inputs = cast("dict[str, object]", json.loads(Path(args.input).read_text(encoding="utf-8")))
@@ -116,7 +118,7 @@ def run(args: argparse.Namespace) -> int:
             )
             write_json(out / FACTS, facts)
             page.screenshot(path=out / SCREENSHOT, full_page=True, timeout=deadline.budget(10_000))
-            sys.stdout.write("自動化完成；等待獨立斷言。\n")
+            sys.stdout.write(t("child.done") + "\n")
             return 0
         except BaseException as error:
             timed_out = isinstance(error, DeadlineExceeded) or deadline.remaining_ms() <= 0
@@ -138,6 +140,8 @@ def run(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 父程序用 RPA_LANG 傳入目前的語言（Portal 是伺服器設定，命令列是 --lang），日誌跟著它
+    set_locale(parse_locale(os.environ.get(ENV_VAR, "")) or DEFAULT_LOCALE)
     parser = argparse.ArgumentParser(prog="python -m rpa_runner.child")
     parser.add_argument("--scenario", required=True)
     parser.add_argument("--input", required=True)

@@ -202,7 +202,8 @@
   "js.network_error": "连不上服务器",
   "js.confirm": "确认",
   "js.cancel": "取消",
-  "js.imported": "已导入",
+  "js.imported": "已导入：{{ids}}",
+  "js.list_separator": "、",
   "js.publish_title": "发布",
   "js.publish_body": "发布后，「运行」会改用这个版本；之前发布的版本仍保留在历史中。确定要发布吗？",
   "js.publish_action": "确认发布",
@@ -268,7 +269,7 @@
   "js.save": "保存",
   "js.domain_create_title": "添加领域",
   "js.domain_edit_title": "编辑领域",
-  "js.domain_delete_title": "删除领域",
+  "js.domain_delete_title": "删除领域「{{name}}」",
   "js.domain_delete_body": "删除后左侧菜单就不再显示这个领域。确定要删除吗？",
   "js.domain_delete_action": "确认删除"
 }
