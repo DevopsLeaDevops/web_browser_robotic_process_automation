@@ -6,6 +6,9 @@
   const qs = (selector, root = document) => root.querySelector(selector);
   const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
   const path = value => encodeURIComponent(value);
+  // 訊息裡的 {名稱} 換成值；字詞順序與標點由各語言的訊息決定，程式不拼接
+  const fill = (template, values) =>
+    template.replace(/\{(\w+)\}/g, (whole, key) => (key in values ? String(values[key]) : whole));
 
   async function api(method, url, body) {
     const options = {method, headers: {Accept: 'application/json'}};
@@ -116,7 +119,7 @@
         const result = await api('POST', '/api/scenes/import', {domainId: importButton.dataset.domain || null});
         importButton.disabled = false;
         if (!result.ok) return toast(errorMessage(result));
-        flash(messages.imported + '：' + (result.data.imported.join('、') || '—'));
+        flash(fill(messages.imported, {ids: result.data.imported.join(messages.list_separator) || '—'}));
         location.reload();
       });
     }
@@ -209,7 +212,7 @@
     });
     qsa('[data-action="delete-domain"]').forEach(button => {
       button.addEventListener('click', () => {
-        confirmDialog(messages.domain_delete_title + '：' + button.dataset.name, messages.domain_delete_body, messages.domain_delete_action, async () => {
+        confirmDialog(fill(messages.domain_delete_title, {name: button.dataset.name}), messages.domain_delete_body, messages.domain_delete_action, async () => {
           const result = await api('DELETE', '/api/domains/' + path(button.dataset.domain));
           $('#dialog').close();
           if (!result.ok) return toast(errorMessage(result));

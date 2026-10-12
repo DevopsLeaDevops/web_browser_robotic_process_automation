@@ -29,6 +29,8 @@ from typing import Final
 
 from playwright.sync_api import Playwright
 
+from rpa_runner.i18n import t
+
 __all__ = [
     "MIN_BUDGET_SECONDS",
     "READY",
@@ -175,7 +177,7 @@ def firefox_profile(
             template = ensure_template(base, key, warm or warm_profile(playwright))
             copy = copy_profile(template, base / _RUNS)
     except Exception as error:  # 範本只是加速；做不到就照舊啟動，原因寫進 automation.log
-        sys.stderr.write(f"無法使用預熱的 Firefox 設定檔，改用全新設定檔：{error}\n")
+        sys.stderr.write(t("child.profile_fallback", error=error) + "\n")
         copy = None
     try:
         yield copy

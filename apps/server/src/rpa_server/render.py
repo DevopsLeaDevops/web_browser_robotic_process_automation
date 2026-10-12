@@ -27,6 +27,7 @@ __all__ = [
     "SideItem",
     "badge_color",
     "domain_page",
+    "js_messages",
     "render",
 ]
 
@@ -133,7 +134,7 @@ def _pretty_json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2)
 
 
-def _js_messages() -> dict[str, str]:
+def js_messages() -> dict[str, str]:
     """前端 JavaScript 用到的文字（目前語言）。"""
     keys = (
         "js.saved",
@@ -142,6 +143,7 @@ def _js_messages() -> dict[str, str]:
         "js.confirm",
         "js.cancel",
         "js.imported",
+        "js.list_separator",
         "js.publish_title",
         "js.publish_body",
         "js.publish_action",
@@ -206,6 +208,6 @@ def render(
         domains=domains,
         title=title,
         locale=get_locale(),
-        js_messages=_js_messages(),
+        js_messages=js_messages(),
         **context,
     )
