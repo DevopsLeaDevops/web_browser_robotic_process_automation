@@ -54,6 +54,7 @@ from rpa_runner.files import (
     write_json,
 )
 from rpa_runner.i18n import t
+from rpa_runner.installed import missing_browser_hint
 from rpa_runner.report import render_report
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
 
@@ -77,6 +78,8 @@ _GRACE_SECONDS: Final = 3.0
 _EXIT_DEADLINE: Final = 3
 _POLL_SECONDS: Final = 0.2
 """等待子程序時，每隔這麼久檢查一次是否被取消。"""
+_LOG_TAIL_BYTES: Final = 64 * 1024
+"""自動化失敗時，讀日誌最後這麼多位元組，找「瀏覽器還沒下載」的錯誤。"""
 
 RunStatus = Literal["passed", "failed", "timed_out", "cancelled"]
 StageName = Literal["input", "automation", "verify", "output"]
@@ -216,6 +219,16 @@ def _wait(process: subprocess.Popen[bytes], seconds: float, cancel: threading.Ev
             if left <= 0:
                 _stop(process)
                 raise _StageFailedError("timed_out", t("run.deadline_killed")) from None
+
+
+def _log_tail(log: Path, size: int = _LOG_TAIL_BYTES) -> str:
+    """日誌的最後 size 位元組（腳本可能印很多東西，錯誤在最後面）；讀不到時回傳空字串。"""
+    try:
+        with log.open("rb") as file:
+            file.seek(max(0, log.stat().st_size - size))
+            return file.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
 
 
 def _run_process(
@@ -461,15 +474,25 @@ def _automation_stage(
         command += ["--engine", engine] if engine else []
         command += ["--base-url", base_url] if base_url else []
         command += ["--headed"] if headed else []
+    hint: str | None = None
     try:
         env = _environment(secrets, deadline, engine or scenario.browser.engine)
         _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel)
+    except _StageFailedError as failure:
+        # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌
+        if failure.status == "failed":
+            hint = missing_browser_hint(_log_tail(folder / AUTOMATION_LOG))
+        if hint is None:
+            raise
     finally:
         _timed(stage, started)
         details = read_json_or(folder / DIAGNOSTIC, None)
-        if isinstance(details, dict):
+        if hint is None and isinstance(details, dict):
             error = cast("dict[str, object]", details).get("error", "")
             result.error = mask(str(error), secrets) or None
+    if hint is not None:
+        # 不附上子程序結束碼與英文提示框，只說怎麼修；原始錯誤仍在 automation.log
+        raise _StageFailedError("failed", hint)
     if not (folder / FACTS).exists():
         raise _StageFailedError("failed", t("run.facts_missing"))
     stage.status = "passed"

@@ -172,8 +172,11 @@ def firefox_profile(
     base = (cache_dir() if root is None else root) / _FOLDER
     copy: Path | None = None
     try:
-        key = template_key(Path(playwright.firefox.executable_path))
-        if (base / key / READY).is_file() or budget_seconds >= MIN_BUDGET_SECONDS:
+        executable = Path(playwright.firefox.executable_path)
+        key = template_key(executable)
+        # 還沒下載 Firefox 時不建立範本，讓接下來的啟動直接報告「還沒下載」
+        ready = (base / key / READY).is_file()
+        if executable.exists() and (ready or budget_seconds >= MIN_BUDGET_SECONDS):
             template = ensure_template(base, key, warm or warm_profile(playwright))
             copy = copy_profile(template, base / _RUNS)
     except Exception as error:  # 範本只是加速；做不到就照舊啟動，原因寫進 automation.log

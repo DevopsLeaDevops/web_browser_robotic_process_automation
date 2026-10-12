@@ -1,4 +1,5 @@
-"""`rpa serve` 的埠號：被占用時自動換一個、已經在執行的 Portal 不再開第二個、看得懂的錯誤。
+"""`rpa serve` 的埠號：被占用時自動換一個、已經在執行的 Portal 不再開第二個、看得懂的錯誤；
+以及啟動時提醒還沒下載的瀏覽器。
 
 只測綁定埠號的部分，不真的啟動伺服器（那部分在 apps/server 的端到端測試）。
 """
@@ -16,7 +17,13 @@ from click.testing import CliRunner
 
 from rpa_cli.i18n import install_click_translations
 from rpa_cli.main import build_cli
-from rpa_cli.serve import PORTAL_TITLE, open_listener, portal_url, start_testsite
+from rpa_cli.serve import (
+    PORTAL_TITLE,
+    browser_warning,
+    open_listener,
+    portal_url,
+    start_testsite,
+)
 from rpa_core.i18n import use_locale
 
 HOST = "127.0.0.1"
@@ -151,3 +158,19 @@ def test_testsite_port_used_by_another_program() -> None:
         site, message = start_testsite(busy)
     assert site is None
     assert message.startswith(f"埠號 {busy} 被其他程式占用，沒有啟動測試網站")
+
+
+def test_no_warning_when_browsers_are_downloaded() -> None:
+    assert browser_warning([]) is None
+
+
+def test_warning_says_which_browser_and_the_command() -> None:
+    warning = browser_warning(["firefox"])
+    assert warning == (
+        "這台電腦還沒有下載 Firefox，用到的場景會執行失敗。"
+        "在專案資料夾執行 uv run playwright install firefox 下載即可，不用重新啟動 Portal。"
+    )
+    both = browser_warning(["chromium", "firefox"])
+    assert both is not None
+    assert both.startswith("這台電腦還沒有下載 Chromium、Firefox，")
+    assert "uv run playwright install chromium firefox" in both

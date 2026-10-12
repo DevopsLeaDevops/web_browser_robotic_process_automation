@@ -30,6 +30,8 @@
   "run.candidate_missing": "assertion.py 沒有寫出候選出參",
   "run.output_failed": "出參有 {count} 個問題，沒有發布",
   "run.cancelled": "使用者中止；已停止子程序",
+  "installed.separator": "、",
+  "installed.missing_hint": "這台電腦還沒有下載 {browser}：在專案資料夾執行 {command}，完成後再執行一次即可（管理 Portal 不用重新啟動）。",
   "child.invalid_scenario": "場景校驗失敗",
   "child.done": "自動化完成；等待獨立斷言。",
   "child.profile_fallback": "無法使用預熱的 Firefox 設定檔，改用全新設定檔：{error}",

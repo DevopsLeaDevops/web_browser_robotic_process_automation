@@ -50,5 +50,6 @@
   "cli.serve.testsite_started": "Test site: {url}",
   "cli.serve.testsite_running": "The test site is already running at {url}; using it.",
   "cli.serve.testsite_busy": "Port {port} is used by another program, so the test site was not started and the “Test site automation” cases cannot reach it. Stop that program and restart, or add --no-testsite to skip the test site.",
-  "cli.serve.testsite_failed": "Cannot start the test site ({url}): {error}"
+  "cli.serve.testsite_failed": "Cannot start the test site ({url}): {error}",
+  "cli.serve.browsers_missing": "{browsers} not yet downloaded on this computer; scenes that use them will fail. Run {command} in the project folder; no need to restart the Portal."
 }

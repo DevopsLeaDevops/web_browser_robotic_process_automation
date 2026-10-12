@@ -165,6 +165,7 @@ git pull              # 取得最新代码
             <tr><td>「<span translate="no">已經存在，而且不是空資料夾</span>」</td><td>默认位置被其他东西占用。用 <code>--dir</code>（Windows 是 <code>-Dir</code>）指定别的位置；如果那就是项目，进到文件夹里运行 <code>scripts/setup.sh</code>。</td></tr>
             <tr><td>「<span translate="no">安裝依賴失敗</span>」或「<span translate="no">下載瀏覽器失敗</span>」</td><td>多半是公司网络。设置 <code>UV_INDEX_URL</code> 或 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 后重跑，见<a href="setup.html#faq">开发环境的常见问题</a>；浏览器暂时下载不了，可以先加 <code>--skip-browser</code>。</td></tr>
             <tr><td>Linux：「<span translate="no">瀏覽器缺少系統函式庫</span>」</td><td>脚本会用 sudo 运行 <code>playwright install-deps</code>，需要输入密码。不是 Debian、Ubuntu 时，依错误消息手动安装缺少的函数库。</td></tr>
+            <tr><td>运行场景时「<span translate="no">這台電腦還沒有下載 Firefox</span>」，或英文的 <code>Executable doesn't exist</code></td><td>较早安装的环境只下载了 Chromium，而「测试网站自动化」的示例用 Firefox。在项目文件夹重新运行 <code>./scripts/setup.sh</code>（Windows 是 <code>scripts\setup.ps1</code>），或只运行 <code>uv run playwright install chromium firefox</code>；不用重新启动 <code>rpa serve</code>。每次 <code>git pull</code> 之后都建议重跑一次脚本。</td></tr>
             <tr><td>完成后输入 <code>uv</code> 显示找不到命令</td><td>脚本刚安装 uv，只对新开的终端窗口生效。开一个新窗口；macOS、Linux 也可以运行 <code>source $HOME/.local/bin/env</code>。</td></tr>
             <tr><td>「<span translate="no">測試沒有通過</span>」</td><td>往上找 <code>FAILED</code> 的测试名称与错误。在项目文件夹运行 <code>uv run pytest -x</code> 可以停在第一个失败。</td></tr>
             <tr><td>想整个重来</td><td>删除项目里的 <code>.venv</code>，再运行一次脚本。Mac 特有的问题（Rosetta、<code>xcrun: error</code> 等）见 <a href="macos.html#faq">macOS 本机运行的常见问题</a>。</td></tr>
