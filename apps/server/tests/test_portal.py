@@ -166,9 +166,21 @@ def test_create_validate_publish_run_report(
 
     # 看報告：依場景篩選，打開 HTML 報告
     page.goto(f"{portal}/runs")
+    scene_menu = page.locator("details.filter-menu", has=page.locator('input[name="scene"]'))
+    scene_menu.locator("summary").click()
+    scene_menu.locator('input[name="scene"][value="e2e-demo"]').check()
     with page.expect_navigation():
-        page.locator('select[name="scene"]').select_option("e2e-demo")
+        scene_menu.get_by_role("button", name="套用").click()
     expect(page.locator("tr[data-run]")).to_have_count(2)
+    expect(scene_menu.locator("summary")).to_contain_text("e2e-demo")
+    # 關閉選單也會套用：再勾「通過」，點選單外面
+    status_menu = page.locator("details.filter-menu", has=page.locator('input[name="status"]'))
+    status_menu.locator("summary").click()
+    status_menu.locator('input[name="status"][value="passed"]').check()
+    with page.expect_navigation():
+        page.locator("h1").click()
+    assert "status=passed" in page.url
+    expect(status_menu.locator("summary")).to_contain_text("通過")
     with page.context.expect_page() as opened:
         page.locator(f'tr[data-run="{run_id}"] a[href$="report.html"]').click()
     report = opened.value
