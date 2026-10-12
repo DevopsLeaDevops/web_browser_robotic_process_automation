@@ -12,8 +12,6 @@ from rpa_core.dsl import Scenario, validate_file, validate_text
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, Locale, use_locale
 from rpa_server.domain import (
     ENGINES,
-    PURPOSES,
-    RUN_STATUSES,
     DomainRecord,
     RevisionRecord,
     RunRecord,
@@ -21,7 +19,7 @@ from rpa_server.domain import (
     SceneRecord,
 )
 from rpa_server.i18n import follow_locale, t
-from rpa_server.render import js_messages, render
+from rpa_server.render import js_messages, render, run_filters
 
 ROOT = Path(__file__).resolve().parents[3]
 MOMENT = datetime(2026, 10, 10, 8, 30, tzinfo=UTC)
@@ -191,17 +189,16 @@ def _pages() -> dict[str, str]:
             defaults={"title": "介面驗證範例", "quantity": 12},
             engines=ENGINES,
             base_url="http://127.0.0.1:8765",
+            display=True,
         ),
         "runs": render(
             "runs.html",
             page="runs",
             title="報告",
             runs=[RUN],
-            scenes=[SCENE],
-            categories=["範例資料"],
-            statuses=RUN_STATUSES,
-            purposes=PURPOSES,
-            selected={"scene": ["ba-001"], "category": [], "status": [], "purpose": []},
+            filters=run_filters(
+                scenes=[SCENE], categories=["範例資料"], selected={"scene": ["ba-001"]}
+            ),
             limit=200,
         ),
         "run": render(
@@ -403,3 +400,93 @@ def test_builtin_texts_follow_the_language() -> None:
     with use_locale("en"):
         assert follow_locale("我們的測試", "domain.testsite_name") == "我們的測試"  # 改過的名稱
         assert follow_locale(None, "domain.testsite_description") is None
+
+
+@pytest.mark.parametrize("display", [True, False])
+def test_run_form_offers_headed_mode_when_a_window_can_be_shown(display: bool) -> None:
+    """有圖形介面時預設有頭模式（顯示瀏覽器視窗）；沒有時只能無頭模式。"""
+    scenario = _scenario()
+    with use_locale("zh-Hant"):
+        html = render(
+            "run_form.html",
+            page="domains",
+            title="驗證",
+            domains=DOMAINS,
+            domain=None,
+            scene=SCENE,
+            revision=REVISIONS[0],
+            scenario=scenario,
+            purpose="validation",
+            defaults={},
+            engines=ENGINES,
+            base_url=None,
+            display=display,
+        )
+    headed = html.split('name="headless" value="0"')[1].split(">")[0]
+    headless = html.split('name="headless" value="1"')[1].split(">")[0]
+    text = _text(html)
+    assert "顯示（有頭模式，headed）" in text
+    assert "不顯示（無頭模式，headless）" in text
+    if display:
+        assert "checked" in headed
+        assert "checked" not in headless
+    else:
+        assert "disabled" in headed
+        assert "checked" in headless
+        assert "沒有圖形介面" in text
+
+
+def test_run_page_shows_the_browser_window_mode() -> None:
+    with use_locale("en"):
+        headless = _text(_pages()["run"])
+        headed = _text(
+            render(
+                "run.html",
+                page="runs",
+                title="run",
+                run=replace(RUN, headless=False),
+                revision=REVISIONS[0],
+                result=None,
+                files=[],
+                can_publish=False,
+            )
+        )
+    assert "Hide (headless mode)" in headless
+    assert "Show (headed mode)" in headed
+
+
+def test_run_filters_are_menus_with_checkboxes() -> None:
+    """執行報告的每個篩選條件都是同一種選單：按鈕顯示目前的選擇，點開勾選。"""
+    scenes = [SCENE, replace(SCENE, id="ba-002", name="查詢範例紀錄")]
+    with use_locale("zh-Hant"):
+        filters = run_filters(
+            scenes=scenes,
+            categories=["範例資料"],
+            selected={"scene": ["ba-001", "ba-002"], "status": ["failed"]},
+        )
+        html = render("runs.html", page="runs", title="報告", runs=[], filters=filters, limit=200)
+    assert "<select" not in html.split('class="filters"')[1].split("</form>")[0]
+    summaries = [
+        _text(part.split("</summary>")[0])
+        for part in html.split('<details class="filter-menu" data-filter-menu>')[1:]
+    ]
+    assert [" ".join(text.split()) for text in summaries] == [
+        "分類 全部 ▾",
+        "場景 2 項 ▾",
+        "結果 失敗 ▾",
+        "目的 全部 ▾",
+    ]
+    assert html.count("checked") == 3
+    assert 'name="scene" value="ba-002" checked' in html
+    assert 'href="/runs"' in html  # 有條件時顯示「清除篩選」
+
+
+def test_many_scenes_get_a_search_box() -> None:
+    scenes = [replace(SCENE, id=f"s-{index}") for index in range(9)]
+    with use_locale("en"):
+        few, many = (
+            run_filters(scenes=items, categories=[], selected={})[1]
+            for items in (scenes[:8], scenes)
+        )
+    assert not few.searchable
+    assert many.searchable

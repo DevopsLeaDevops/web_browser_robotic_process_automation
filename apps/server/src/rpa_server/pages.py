@@ -10,10 +10,10 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
 from rpa_server.config import EXAMPLES_DOMAIN
-from rpa_server.domain import ENGINES, PURPOSES, RUN_STATUSES, DomainRecord, Purpose
+from rpa_server.domain import ENGINES, DomainRecord, Purpose
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
-from rpa_server.render import domain_page, render
+from rpa_server.render import domain_page, render, run_filters
 from rpa_server.services import ServiceError, Services
 
 __all__ = ["page_router"]
@@ -153,6 +153,7 @@ def page_router(services: Services) -> APIRouter:
             defaults=defaults,
             engines=ENGINES,
             base_url=record.base_url or scenario.browser.base_url,
+            display=services.display,
         )
 
     @router.get("/runs", include_in_schema=False)
@@ -178,11 +179,11 @@ def page_router(services: Services) -> APIRouter:
                 statuses=selected["status"],
                 purposes=selected["purpose"],
             ),
-            scenes=services.list_scenes(include_archived=True),
-            categories=services.run_categories(),
-            statuses=RUN_STATUSES,
-            purposes=PURPOSES,
-            selected=selected,
+            filters=run_filters(
+                scenes=services.list_scenes(include_archived=True),
+                categories=services.run_categories(),
+                selected=selected,
+            ),
             limit=200,
         )
 

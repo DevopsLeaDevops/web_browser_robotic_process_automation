@@ -41,10 +41,10 @@
         <ol>
           <li><strong>建立或匯入。</strong>新增場景會產生第 1 版草稿（只開一個網頁）；也可以一鍵匯入 <code>scenarios/demo</code> 的範例。場景編號就是 DSL 的 <code>id</code>，建立後不能改、也不會重複使用。</li>
           <li><strong>編輯。</strong>直接編輯 YAML（腳本場景另有兩支腳本）。存檔前先用 <code>rpa validate</code> 同一套規則校驗，有問題時列出行號、步驟與欄位，不會建立新版本。</li>
-          <li><strong>驗證。</strong>用真實瀏覽器執行指定版本，入參、瀏覽器、網址都可以在表單調整。</li>
+          <li><strong>驗證。</strong>用真實瀏覽器執行指定版本，入參、瀏覽器、瀏覽器視窗、網址都可以在表單調整。</li>
           <li><strong>發布。</strong>只有通過驗證的版本可以發布，而且要使用者在對話框確認。</li>
           <li><strong>執行。</strong>一律使用已發布的版本；新的草稿不影響正式執行。</li>
-          <li><strong>看報告。</strong>依分類、場景（多選）、結果與目的篩選；每次執行都有 M2 的 <code>report.html</code>、截圖與完整的執行目錄。</li>
+          <li><strong>看報告。</strong>依分類、場景、結果與目的篩選：每個條件是一個按鈕，顯示目前的選擇，點開勾選一項或多項，按「套用」或關閉選單就更新；沒勾選代表全部。每次執行都有 M2 的 <code>report.html</code>、截圖與完整的執行目錄。</li>
         </ol>
       </div>
     </section>
@@ -67,6 +67,7 @@
         <ul>
           <li><strong>先校驗、再排隊。</strong>請求執行時先檢查入參，不合規則直接回 422，不會排進佇列；通過後回 202 與執行編號。</li>
           <li><strong>背景 worker。</strong><code>rpa-worker</code> 在伺服器程序內的背景執行緒，依建立時間一次執行一個（SQLite 只允許單一程序）。它呼叫 M2 的 <code>rpa_runner.run.execute</code>，總期限、子程序與程序群組的終止都沿用 M2。</li>
+          <li><strong>有頭模式與無頭模式。</strong>執行表單的「瀏覽器視窗」：顯示（有頭模式，headed）會在執行 Portal 的這台電腦上打開瀏覽器視窗，看得到每個步驟；不顯示（無頭模式，headless）在背景執行。預設有頭模式；這台電腦沒有圖形介面（Windows、macOS 以外，又沒有 <code>DISPLAY</code> 或 <code>WAYLAND_DISPLAY</code>）時只能無頭，API 要求有頭會回 422。執行頁會記下用的是哪一種。<code>rpa run</code> 命令列維持無頭，加 <code>--headed</code> 才顯示。</li>
           <li><strong>進度。</strong>執行頁每秒查詢一次狀態，階段或狀態改變時重新整理。</li>
           <li><strong>取消。</strong>排隊中的直接取消；執行中的立即終止子程序與瀏覽器，狀態為「已取消」。已經在目標網站完成的動作不會復原。</li>
           <li><strong>不重複送出。</strong>表單每次載入產生一個 <code>idempotencyKey</code>，重複送出只會得到同一個執行。</li>
@@ -87,7 +88,7 @@
             <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、入參與出參、所屬領域與預設網址、最近執行</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>驗證或執行的表單：入參（JSON，已帶入預設值）、瀏覽器、網址</td></tr>
-            <tr><td><code>/runs</code></td><td>執行報告：分類、場景多選，結果、目的篩選</td></tr>
+            <tr><td><code>/runs</code></td><td>執行報告：分類、場景、結果、目的的篩選選單，每一項都可以複選</td></tr>
             <tr><td><code>/runs/{執行編號}</code></td><td>狀態、階段、獨立斷言、入參與出參、截圖、執行目錄的檔案；取消、發布</td></tr>
             <tr><td><code>/recording</code>、<code>/playground</code></td><td>預留位置：錄製在 M4、自由試驗場在 M6</td></tr>
           </tbody>
@@ -110,7 +111,7 @@
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校驗問題（含行號）</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>驗證；202 回執行</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>發布；不符合發布門檻時 409</td></tr>
-            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>idempotencyKey</code></td></tr>
+            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不寫時有圖形介面就用有頭模式）、<code>idempotencyKey</code>；驗證也接受同樣的欄位</td></tr>
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
           </tbody>
@@ -131,7 +132,7 @@
             <dt>domains</dt><dd>代號、名稱、說明、排列順序</dd>
             <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存</dd>
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
-            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、入參與出參、錯誤、雜湊、時間</dd>
+            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
         </div>

@@ -152,6 +152,7 @@ def run_record(run: Run) -> RunRecord:
         started_at=run.started_at,
         finished_at=run.finished_at,
         duration_seconds=run.duration_seconds,
+        headless=run.headless,
     )
 
 
@@ -175,10 +176,13 @@ class Services:
         storage: Storage,
         *,
         examples_dir: Path | None = None,
+        display: bool = False,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
         self.examples_dir = examples_dir
+        self.display = display
+        """這台電腦能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。"""
         self.on_queued: Callable[[], None] = lambda: None
         """有新的執行排入佇列（叫醒 worker）。"""
         self.on_cancel: Callable[[str], object] = lambda run_id: None
@@ -675,9 +679,17 @@ class Services:
         engine: Engine | None = None,
         base_url: str | None = None,
         idempotency_key: str | None = None,
+        headless: bool | None = None,
     ) -> RunRecord:
-        """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本。"""
+        """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本。
+
+        headless 沒指定時：能顯示瀏覽器視窗就用有頭模式，不能就用無頭模式。
+        """
         inputs = dict(inputs or {})
+        if headless is None:
+            headless = not self.display
+        elif not headless and not self.display:
+            raise _invalid("display_unavailable", t("error.display_unavailable"))
         key = (idempotency_key or "").strip() or None
         with self.sessions() as session:
             if key is not None:
@@ -711,6 +723,7 @@ class Services:
                 status="queued",
                 engine=engine,
                 base_url=_check_base_url(base_url) or scene.base_url,
+                headless=headless,
                 input=inputs,
                 idempotency_key=key,
                 cancel_requested=False,

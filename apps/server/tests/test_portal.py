@@ -114,6 +114,8 @@ def start_run(page: Page, inputs: dict[str, object], engine: str, site: str) -> 
     form.locator('textarea[name="inputs"]').fill(json.dumps(inputs, ensure_ascii=False))
     form.locator('select[name="engine"]').select_option(engine)
     form.locator('input[name="baseUrl"]').fill(site)
+    # 測試一律用無頭模式（CI 沒有圖形介面；有的話也不要在畫面上開視窗）
+    form.locator('input[name="headless"][value="1"]').check()
     form.locator('[data-action="submit-run"]').click()
 
 

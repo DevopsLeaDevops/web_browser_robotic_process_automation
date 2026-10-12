@@ -16,12 +16,13 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_server import __version__
-from rpa_server.domain import DomainRecord
+from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, SceneRecord
 from rpa_server.i18n import t
 
 __all__ = [
     "NAV",
     "TEMPLATES",
+    "FilterMenu",
     "NavGroup",
     "NavPage",
     "SideItem",
@@ -29,6 +30,7 @@ __all__ = [
     "domain_page",
     "js_messages",
     "render",
+    "run_filters",
 ]
 
 TEMPLATES: Final = Path(__file__).with_name("templates")
@@ -49,6 +51,25 @@ class NavGroup:
     href: str
     """頂部選單連到哪裡。"""
     pages: tuple[NavPage, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class FilterMenu:
+    """執行報告的一個篩選條件：按鈕顯示目前的選擇，點開是可以勾選多項的清單。"""
+
+    name: str
+    """查詢參數的名稱，例如 scene。"""
+    label: str
+    options: tuple[tuple[str, str], ...]
+    """（值, 顯示文字）。"""
+    selected: tuple[str, ...] = ()
+    searchable: bool = False
+    """選項很多時在清單上方加搜尋框。"""
+
+    @property
+    def picked(self) -> list[str]:
+        """已勾選項目的顯示文字，依選項順序；沒勾選代表全部。"""
+        return [text for value, text in self.options if value in self.selected]
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +109,46 @@ _BADGES: Final[Mapping[str, str]] = {
     "running": "blue",
     "validating": "blue",
 }
+
+
+def run_filters(
+    *,
+    scenes: Sequence[SceneRecord],
+    categories: Sequence[str],
+    selected: Mapping[str, Sequence[str]],
+) -> list[FilterMenu]:
+    """執行報告的篩選條件：分類、場景、結果、目的；每一項都可以複選，沒選代表全部。"""
+
+    def chosen(name: str) -> tuple[str, ...]:
+        return tuple(selected.get(name, ()))
+
+    return [
+        FilterMenu(
+            "category",
+            t("runs.filter_category"),
+            tuple((item, item) for item in categories),
+            chosen("category"),
+        ),
+        FilterMenu(
+            "scene",
+            t("runs.filter_scene"),
+            tuple((scene.id, f"{scene.id} · {scene.name}") for scene in scenes),
+            chosen("scene"),
+            searchable=len(scenes) > 8,
+        ),
+        FilterMenu(
+            "status",
+            t("runs.filter_status"),
+            tuple((status, t(f"status.{status}")) for status in RUN_STATUSES),
+            chosen("status"),
+        ),
+        FilterMenu(
+            "purpose",
+            t("runs.filter_purpose"),
+            tuple((purpose, t(f"purpose.{purpose}")) for purpose in PURPOSES),
+            chosen("purpose"),
+        ),
+    ]
 
 
 def badge_color(status: str) -> str:

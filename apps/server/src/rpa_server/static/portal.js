@@ -87,9 +87,50 @@
     });
   }
 
-  function bindAutoSubmit() {
-    qsa('form[data-auto-submit]').forEach(form => {
-      qsa('select', form).forEach(select => select.addEventListener('change', () => form.requestSubmit()));
+  // ---------------------------------------------------------------- 篩選選單
+
+  // 每個選單是 <details>：點開勾選，按「套用」或關閉選單（點外面、Esc、再點一次按鈕）時有變動就套用
+  function bindFilters() {
+    qsa('form[data-filters]').forEach(form => {
+      const menus = qsa('[data-filter-menu]', form);
+      const state = menu => qsa('input[type=checkbox]', menu).map(box => box.checked).join();
+      menus.forEach(menu => {
+        let opened = state(menu);
+        menu.addEventListener('toggle', () => {
+          if (menu.open) {
+            menus.filter(other => other !== menu).forEach(other => { other.open = false; });
+            opened = state(menu);
+            const search = qs('[data-filter-search]', menu);
+            (search || qs('input', menu) || menu).focus();
+          } else if (state(menu) !== opened) {
+            form.requestSubmit();
+          }
+        });
+        qs('[data-filter-clear]', menu).addEventListener('click', () => {
+          qsa('input[type=checkbox]', menu).forEach(box => { box.checked = false; });
+        });
+        const search = qs('[data-filter-search]', menu);
+        if (search) {
+          search.addEventListener('input', () => {
+            const words = search.value.trim().toLowerCase();
+            qsa('.filter-options label', menu).forEach(label => {
+              label.hidden = words !== '' && !label.textContent.toLowerCase().includes(words);
+            });
+          });
+          // 搜尋框裡按 Enter 不送出表單
+          search.addEventListener('keydown', event => { if (event.key === 'Enter') event.preventDefault(); });
+        }
+      });
+      document.addEventListener('click', event => {
+        menus.filter(menu => menu.open && !menu.contains(event.target)).forEach(menu => { menu.open = false; });
+      });
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        menus.filter(menu => menu.open).forEach(menu => {
+          menu.open = false;
+          qs('summary', menu).focus();
+        });
+      });
     });
   }
 
@@ -302,6 +343,7 @@
         inputs,
         engine: field('engine').value || null,
         baseUrl: field('baseUrl').value.trim() || null,
+        headless: field('headless').value === '1',
         idempotencyKey: key,
       });
       if (result.ok) {
@@ -345,7 +387,7 @@
 
   localizeTimes();
   bindLanguage();
-  bindAutoSubmit();
+  bindFilters();
   bindPublish();
   bindScenes();
   bindDomains();
