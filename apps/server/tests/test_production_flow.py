@@ -242,7 +242,7 @@ def test_auto_login_from_secret(app: FastAPI, client: Client, site: str, engine:
     role = wait_for(
         lambda: body(client.get("/api/roles/auto-manager")), lambda role: not role["activity"]
     )
-    assert role["status"] == "logged_in", role
+    assert role["status"] == "logged_in", role["message"]
     assert role["message"]  # 自動登入過
     assert services(app).storage.role_state("auto-manager").is_file()
 

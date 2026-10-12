@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
 from typing import cast
@@ -116,6 +117,39 @@ def test_manual_login_needs_a_display(client: Client) -> None:
     assert response.status_code == 422
     assert error(response)["code"] == "display_unavailable"
     assert error(client.post("/api/roles/erp-clerk/login/finish"))["code"] == "login_not_active"
+
+
+def test_role_status_is_never_stale_when_a_check_ends(app: FastAPI, client: Client) -> None:
+    """背景檢查剛好在讀取時結束：不能讀到舊的狀態卻同時顯示「沒有在檢查」。
+
+    之前 CI 的 macOS 偶爾發生：先讀資料庫再看是否檢查中，中間檢查結束，就拿到舊狀態。
+    這裡在讀完資料庫之後（看登入狀態檔的時間時）讓檢查結束，重現那個時間點。
+    """
+    body(client.post("/api/roles", json=ROLE), 201)
+    roles = services(app).roles
+    original = roles._state_time  # pyright: ignore[reportPrivateUsage]
+    finished = False
+
+    def state_time(role_id: str) -> datetime | None:
+        nonlocal finished
+        if not finished:
+            finished = True
+            # 背景檢查正好在這時結束：先寫入結果，再清掉「檢查中」
+            with roles.sessions() as session:
+                role = session.get(Role, role_id)
+                assert role is not None
+                role.status = "needs_login"
+                session.commit()
+            roles._checking.discard(role_id)  # pyright: ignore[reportPrivateUsage]
+        return original(role_id)
+
+    roles._checking.add("erp-clerk")  # pyright: ignore[reportPrivateUsage]
+    roles._state_time = state_time  # pyright: ignore[reportPrivateUsage]
+    first = body(client.get("/api/roles/erp-clerk"), 200)
+    # 讀到舊狀態時一定還標示檢查中，呼叫端會繼續等
+    assert first["activity"] == "checking" or first["status"] == "needs_login", first
+    second = body(client.get("/api/roles/erp-clerk"), 200)
+    assert (second["activity"], second["status"]) == (None, "needs_login")
 
 
 def test_secret_values_are_never_returned(app: FastAPI, client: Client) -> None:

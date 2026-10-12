@@ -216,14 +216,33 @@ class RoleService:
         except OSError:
             return None
 
-    def _record(self, role: Role, used: Mapping[str, str]) -> RoleRecord:
-        saved = self._state_time(role.id)
+    def _activities(self) -> dict[str, tuple[str | None, "_LoginSession | None"]]:
+        """每個角色現在的背景工作（checking、login）與人工登入的工作階段。
+
+        要在讀資料庫**之前**取得：背景工作都是先把結果寫進資料庫才結束，
+        所以這裡看到「沒有在做」時，之後讀到的一定是最後的結果，不會拿到舊的狀態卻以為已經做完。
+        """
         with self._lock:
-            login = self._logins.get(role.id)
-            checking = role.id in self._checking
-        activity = (
-            "login" if login is not None and login.active else ("checking" if checking else None)
-        )
+            roles = self._checking | self._logins.keys()
+            activities: dict[str, tuple[str | None, _LoginSession | None]] = {}
+            for role_id in roles:
+                login = self._logins.get(role_id)
+                if login is not None and login.active:
+                    activities[role_id] = ("login", login)
+                elif role_id in self._checking:
+                    activities[role_id] = ("checking", login)
+                else:
+                    activities[role_id] = (None, login)
+        return activities
+
+    def _record(
+        self,
+        role: Role,
+        used: Mapping[str, str],
+        activities: Mapping[str, tuple[str | None, "_LoginSession | None"]],
+    ) -> RoleRecord:
+        saved = self._state_time(role.id)
+        activity, login = activities.get(role.id, (None, None))
         # 登入狀態檔不見了就不算已登入；檢查失敗（需要登入、無法確認）照資料庫的紀錄顯示
         status = cast(
             "RoleStatus", "none" if saved is None and role.status == "logged_in" else role.status
@@ -249,14 +268,16 @@ class RoleService:
 
     def list_roles(self) -> list[RoleRecord]:
         used = self.scene_roles()
+        activities = self._activities()
         with self.sessions() as session:
             roles = session.scalars(select(Role).order_by(Role.id))
-            return [self._record(role, used) for role in roles]
+            return [self._record(role, used, activities) for role in roles]
 
     def get_role(self, role_id: str) -> RoleRecord:
         used = self.scene_roles()
+        activities = self._activities()
         with self.sessions() as session:
-            return self._record(self._get(session, role_id), used)
+            return self._record(self._get(session, role_id), used, activities)
 
     def exists(self, role_id: str) -> bool:
         with self.sessions() as session:
