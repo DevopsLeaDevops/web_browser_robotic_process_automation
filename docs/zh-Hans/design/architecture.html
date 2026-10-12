@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>系统架构 · 浏览器 RPA 工程文档</title>
+<title>系統架構 · 瀏覽器 RPA 工程文檔</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
 <script defer src="../../assets/nav.js"></script>
@@ -26,126 +26,126 @@
 <main id="main">
   <div class="heading">
     <div>
-      <h1>系统架构</h1>
-      <p>组件、数据流与目录结构。平台全部部署在内网，worker 直接连到目标系统。</p>
+      <h1>系統架構</h1>
+      <p>元件、資料流與目錄結構。平台全部部署在內網，worker 直接連到目標系統。</p>
     </div>
   </div>
 
   <div class="stack">
     <section class="panel">
-      <div class="panel-header"><h2>组件总览</h2><span class="muted">M9 完成后的样貌</span></div>
+      <div class="panel-header"><h2>元件總覽</h2><span class="muted">M9 完成後的樣貌</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
-          <title id="arch-title">系统组件图</title>
-          <desc id="arch-desc">用户通过管理 Portal（由 API 服务以 Jinja 渲染）或 CLI 调用 API 服务；API 读写 PostgreSQL 并调用 LLM 生成场景；调度器创建任务；worker 主动连到 PostgreSQL 领取任务（不是由数据库调用 worker），以 Playwright 操作目标内部系统，产物存入对象存储。</desc>
+          <title id="arch-title">系統元件圖</title>
+          <desc id="arch-desc">使用者透過管理 Portal（由 API 服務以 Jinja 渲染）或 CLI 呼叫 API 服務；API 讀寫 PostgreSQL 並呼叫 LLM 生成場景；排程器建立任務；worker 主動連到 PostgreSQL 領取任務（不是由資料庫呼叫 worker），以 Playwright 操作目標內部系統，產物存入物件儲存。</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
             </marker>
           </defs>
 
-          <!-- 用户端 -->
+          <!-- 使用者端 -->
           <rect class="frame" x="16" y="40" width="192" height="232" rx="10"/>
-          <text class="frame-label" x="28" y="60">用户端</text>
+          <text class="frame-label" x="28" y="60">使用者端</text>
           <rect class="box" x="32" y="76" width="160" height="60" rx="8"/>
           <text class="title" x="46" y="100">管理 Portal</text>
-          <text class="sub" x="46" y="120">FastAPI + Jinja 页面</text>
+          <text class="sub" x="46" y="120">FastAPI + Jinja 頁面</text>
           <rect class="box" x="32" y="160" width="160" height="92" rx="8"/>
           <text class="title" x="46" y="184">CLI（rpa）</text>
-          <text class="sub" x="46" y="204">验证、运行、推送</text>
-          <text class="sub" x="46" y="224">rpa record 本机录制</text>
+          <text class="sub" x="46" y="204">驗證、執行、推送</text>
+          <text class="sub" x="46" y="224">rpa record 本機錄製</text>
           <text class="sub" x="46" y="242">rpa generate 生成</text>
 
           <!-- 平台 -->
           <rect class="frame" x="240" y="24" width="536" height="356" rx="10"/>
-          <text class="frame-label" x="252" y="44">平台（部署于内网）</text>
+          <text class="frame-label" x="252" y="44">平台（部署於內網）</text>
 
           <rect class="box key" x="264" y="64" width="216" height="168" rx="8"/>
-          <text class="title" x="280" y="90">API 服务（FastAPI）</text>
-          <text class="sub" x="280" y="116">认证、权限、审核</text>
-          <text class="sub" x="280" y="140">场景与版本管理</text>
-          <text class="sub" x="280" y="164">AI 生成与校验</text>
-          <text class="sub" x="280" y="188">运行记录与产物查询</text>
+          <text class="title" x="280" y="90">API 服務（FastAPI）</text>
+          <text class="sub" x="280" y="116">認證、權限、稽核</text>
+          <text class="sub" x="280" y="140">場景與版本管理</text>
+          <text class="sub" x="280" y="164">AI 生成與校驗</text>
+          <text class="sub" x="280" y="188">執行紀錄與產物查詢</text>
           <text class="sub" x="280" y="212">Secrets 加密存放</text>
 
           <rect class="box" x="264" y="272" width="216" height="72" rx="8"/>
-          <text class="title" x="280" y="298">调度器</text>
-          <text class="sub" x="280" y="320">依 cron 定时创建运行任务</text>
+          <text class="title" x="280" y="298">排程器</text>
+          <text class="sub" x="280" y="320">依 cron 定時建立執行任務</text>
 
           <rect class="box" x="520" y="64" width="232" height="96" rx="8"/>
           <text class="title" x="536" y="90">PostgreSQL</text>
-          <text class="sub" x="536" y="114">场景、版本、用户、运行记录</text>
-          <text class="sub" x="536" y="138">任务队列（Procrastinate）</text>
+          <text class="sub" x="536" y="114">場景、版本、使用者、執行紀錄</text>
+          <text class="sub" x="536" y="138">任務佇列（Procrastinate）</text>
 
           <rect class="box key" x="520" y="196" width="232" height="72" rx="8"/>
           <text class="title" x="536" y="222">Worker × N</text>
           <text class="sub" x="536" y="244">Runner + Playwright（Chromium）</text>
 
           <rect class="box" x="520" y="304" width="232" height="56" rx="8"/>
-          <text class="title" x="536" y="328">对象存储（S3 兼容）</text>
-          <text class="sub" x="536" y="346">截图、Trace、下载文件</text>
+          <text class="title" x="536" y="328">物件儲存（S3 相容）</text>
+          <text class="sub" x="536" y="346">截圖、Trace、下載檔</text>
 
           <!-- 外部 -->
           <rect class="box ext" x="808" y="64" width="176" height="72" rx="8"/>
-          <text class="title" x="822" y="90">LLM 服务</text>
-          <text class="sub" x="822" y="112">外部 API 或自建模型</text>
+          <text class="title" x="822" y="90">LLM 服務</text>
+          <text class="sub" x="822" y="112">外部 API 或自架模型</text>
 
           <rect class="box ext" x="808" y="196" width="176" height="72" rx="8"/>
-          <text class="title" x="822" y="222">目标内部系统</text>
-          <text class="sub" x="822" y="244">登录、表单、报表、下载</text>
+          <text class="title" x="822" y="222">目標內部系統</text>
+          <text class="sub" x="822" y="244">登入、表單、報表、下載</text>
 
-          <!-- 连接 -->
+          <!-- 連線 -->
           <path class="link" d="M192 106H262" marker-end="url(#arrow)"/>
           <path class="link" d="M192 206H262" marker-end="url(#arrow)"/>
           <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
           <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
           <path class="link" d="M636 194V162" marker-end="url(#arrow)"/>
-          <text class="label" x="644" y="182">worker 领取任务</text>
+          <text class="label" x="644" y="182">worker 領取任務</text>
           <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
-          <text class="label" x="644" y="290">上传产物</text>
+          <text class="label" x="644" y="290">上傳產物</text>
           <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
           <text class="label" x="758" y="224">操作</text>
           <path class="link" d="M372 64V36H896V62" marker-end="url(#arrow)"/>
-          <text class="label" x="790" y="30">生成请求</text>
+          <text class="label" x="790" y="30">生成請求</text>
         </svg>
       </div>
-      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统。这是 M9 完成后的样貌；MVP 阶段的样貌见下一节。</div>
+      <div class="diagram-caption">藍框為核心元件；灰底為平台外部的系統。這是 M9 完成後的樣貌；MVP 階段的樣貌見下一節。</div>
     </section>
 
     <section class="panel" id="mvp">
-      <div class="panel-header"><h2>MVP 阶段的样貌</h2><span class="muted">M2～M6：单机、单用户、串行运行</span></div>
+      <div class="panel-header"><h2>MVP 階段的樣貌</h2><span class="muted">M2～M6：單機、單使用者、序列執行</span></div>
       <div class="panel-body">
         <div class="four-col">
-          <div class="notice"><strong>管理 Portal</strong><p>浏览器打开；页面由 API 服务以 Jinja 渲染，沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>的版面（M3 起）。</p></div>
-          <div class="notice"><strong>API 服务</strong><p>FastAPI：场景、版本与发布门槛、入参出参、运行、报告、调试工作阶段（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>）。</p></div>
-          <div class="notice"><strong>背景 worker</strong><p>同一台电脑；每次运行以子进程跑 Runner，应用总期限与取消，失败或超时就终止整个进程组。</p></div>
-          <div class="notice"><strong>数据与产物</strong><p>SQLite 存元数据（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；文件目录存场景版本快照与每次运行的目录。</p></div>
+          <div class="notice"><strong>管理 Portal</strong><p>瀏覽器開啟；頁面由 API 服務以 Jinja 渲染，沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>的版面（M3 起）。</p></div>
+          <div class="notice"><strong>API 服務</strong><p>FastAPI：場景、版本與發布門檻、入參出參、執行、報告、調試工作階段（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>）。</p></div>
+          <div class="notice"><strong>背景 worker</strong><p>同一台電腦；每次執行以子程序跑 Runner，套用總期限與取消，失敗或逾時就終止整個程序群組。</p></div>
+          <div class="notice"><strong>資料與產物</strong><p>SQLite 存元資料（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；檔案目錄存場景版本快照與每次執行的目錄。</p></div>
         </div>
-        <p class="muted">请求方向：Portal → API → worker。worker 写入运行状态与产物，Portal 以轮询或服务器推送事件读取进度；长任务不阻塞网页请求。M2 之前只有 CLI 与 Runner，直接在本机运行。</p>
-<pre class="source">runs/&lt;运行编号&gt;/
-  input.json          # 校验后的本次入参
-  facts.json          # 自动化抽取的页面事实
-  output.json         # 只有独立断言与出参校验都通过才产生
+        <p class="muted">請求方向：Portal → API → worker。worker 寫入執行狀態與產物，Portal 以輪詢或伺服器推送事件讀取進度；長任務不阻塞網頁請求。M2 之前只有 CLI 與 Runner，直接在本機執行。</p>
+<pre class="source">runs/&lt;執行編號&gt;/
+  input.json          # 校驗後的本次入參
+  facts.json          # 自動化抽取的頁面事實
+  output.json         # 只有獨立斷言與出參校驗都通過才產生
   screenshot.png、trace.zip
   automation.log、assertion.log
-  scenario/           # 本次使用的场景版本快照（含 Python 脚本）
+  scenario/           # 本次使用的場景版本快照（含 Python 腳本）
   result.json、report.html</pre>
       </div>
     </section>
 
     <section class="panel">
-      <div class="panel-header"><h2>包职责</h2><span class="muted">uv workspace，每个包可单独测试</span></div>
+      <div class="panel-header"><h2>套件職責</h2><span class="muted">uv workspace，每個套件可單獨測試</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>包</th><th>职责</th><th>依赖</th><th>起始</th></tr></thead>
+          <thead><tr><th>套件</th><th>職責</th><th>依賴</th><th>起始</th></tr></thead>
           <tbody>
-            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 加载与校验、表达式引擎、JSON Schema 导出、多语言消息目录。不碰浏览器、不碰数据库。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>运行引擎：入参校验、步骤处理器注册表、浏览器与上下文管理、独立断言、出参发布、运行目录与报告；也运行 Python 脚本场景。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
-            <tr><td><code>rpa-recorder</code></td><td>录制：在隔离的浏览器中记录用户操作，保存原始录制稿并转成 DSL 草稿。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
-            <tr><td><code>rpa-generator</code></td><td>AI 助手：对话调试、自然语言 → DSL、校验失败反馈修正、选择器自愈；只能修改草稿。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
-            <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述包、click</td><td>M0</td></tr>
-            <tr><td><code>rpa-server</code></td><td>API 与管理页面、数据库模型、版本与发布门槛、调试工作阶段；权限（M8）、调度（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
-            <tr><td><code>rpa-worker</code></td><td>取出待运行的任务，以子进程调用 rpa-runner，应用总期限与取消，回写结果与产物。M3 在同一台电脑，M9 改为分布式。</td><td>rpa-runner；Procrastinate（M9）</td><td>M3</td></tr>
+            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出、多語言訊息目錄。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>執行引擎：入參校驗、步驟處理器註冊表、瀏覽器與上下文管理、登入檢查與人工登入、獨立斷言、出參發布、執行目錄與報告；也執行 Python 腳本場景，並提供逐步調試用的子程序。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td>錄製</td><td>在隔離的瀏覽器中記錄使用者操作，保存原始錄製稿並轉成 DSL 草稿。M4 沒有另外做套件：錄製用 Playwright codegen，轉換是 rpa-core 的 <code>rpa_core.recording</code>（不碰瀏覽器，可以單獨測試）。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
+            <tr><td><code>rpa-generator</code></td><td>AI 助手：對話調試、自然語言 → DSL、校驗失敗回饋修正、選擇器自癒；只能修改草稿。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
+            <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述套件、click</td><td>M0</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API 與管理頁面、資料庫模型、版本與發布門檻、調試工作階段；權限（M8）、排程（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>取出待執行的任務，以子程序呼叫 rpa-runner，套用總期限與取消，回寫結果與產物。M3 在同一台電腦，M9 改為分散式。</td><td>rpa-runner；Procrastinate（M9）</td><td>M3</td></tr>
           </tbody>
         </table>
       </div>
@@ -153,40 +153,39 @@
 
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>目录结构</h2></div>
+        <div class="panel-header"><h2>目錄結構</h2></div>
         <div class="panel-body">
 <pre class="source tree">web_browser_robotic_process_automation/
-├── packages/            # 可重用的函数库
+├── packages/            # 可重用的函式庫
 │   ├── rpa_core/        # M0
 │   ├── rpa_runner/      # M2
-│   ├── rpa_recorder/    # M4
 │   └── rpa_generator/   # M5
-├── apps/                # 可运行的程序
+├── apps/                # 可執行的程式
 │   ├── cli/             # M0
 │   ├── server/          # M3（FastAPI + Jinja）
 │   ├── worker/          # M3
-│   └── testsite/        # 模拟内部系统的测试网站（M2；rpa serve 一起启动）
-├── scenarios/           # 示例场景：examples/、demo/（测试网站的 BA-001～BA-003）
-├── schema/              # 场景 DSL 的 JSON Schema（rpa schema 产生）
-├── tests/               # 跨包测试：冒烟、文档检查
-├── deploy/              # Docker Compose 与配置示例（M9）
-├── tools/               # 开发工具：多语言同步（i18n.py）
-└── docs/                # 本文档站（繁中）与界面设计系统
-    ├── prototypes/mvp/  # MVP 原型（原样收录）
+│   └── testsite/        # 模擬內部系統的測試網站（M2；rpa serve 一起啟動）
+├── scenarios/           # 範例場景：examples/、demo/（測試網站的 BA-001～BA-005）
+├── schema/              # 場景 DSL 的 JSON Schema（rpa schema 產生）
+├── tests/               # 跨套件測試：冒煙、文檔檢查
+├── deploy/              # Docker Compose 與設定範例（M9）
+├── tools/               # 開發工具：多語言同步（i18n.py）
+└── docs/                # 本文檔站（繁中）與介面設計系統
+    ├── prototypes/mvp/  # MVP 原型（原樣收錄）
     ├── en/              # 英文版
-    └── zh-Hans/         # 简中版（自动产生）</pre>
+    └── zh-Hans/         # 簡中版（自動產生）</pre>
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>一次运行的数据流</h2></div>
+        <div class="panel-header"><h2>一次執行的資料流</h2></div>
         <div class="panel-body prose">
           <ol>
-            <li>用户在管理 Portal 或 CLI 触发运行（M9 起也可以由调度器创建）。</li>
-            <li>API 检查已发布的版本，在启动浏览器前校验入参，写入一笔运行记录与一个任务。</li>
-            <li>worker 领取任务，以子进程启动 Runner，传入场景版本快照、入参与 Secrets（只在内存中），并设置总期限。</li>
-            <li>Runner 打开独立的浏览器上下文逐步运行，记下页面事实；每一步回报状态。</li>
-            <li>独立断言比较页面事实与入参；通过后出参校验，才写出 output.json。</li>
-            <li>截图、Trace、日志与报告存入运行目录（M9 改为对象存储）；失败时标出出错的阶段、步骤与截图。</li>
+            <li>使用者在管理 Portal 或 CLI 觸發執行（M9 起也可以由排程器建立）。</li>
+            <li>API 檢查已發布的版本，在啟動瀏覽器前校驗入參，寫入一筆執行紀錄與一個任務。</li>
+            <li>worker 領取任務，以子程序啟動 Runner，傳入場景版本快照、入參與 Secrets（只在記憶體中），並設定總期限。</li>
+            <li>Runner 開啟獨立的瀏覽器上下文逐步執行，記下頁面事實；每一步回報狀態。</li>
+            <li>獨立斷言比對頁面事實與入參；通過後出參校驗，才寫出 output.json。</li>
+            <li>截圖、Trace、日誌與報告存入執行目錄（M9 改為物件儲存）；失敗時標出出錯的階段、步驟與截圖。</li>
           </ol>
         </div>
       </section>

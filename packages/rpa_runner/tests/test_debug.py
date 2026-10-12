@@ -5,6 +5,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -86,23 +87,18 @@ def session(engine: str, tmp_path: Path) -> Iterator[tuple[Session, Path]]:
 
 def test_steps_one_at_a_time(session: tuple[Session, Path]) -> None:
     debug, out = session
-    for index in range(4):
-        reply = debug.send("step", index=index)
-        record = reply["record"]
-        assert isinstance(record, dict)
-        assert record["status"] == "passed", record
-    assert str(reply["url"]).endswith("/")
-    shot = reply["screenshot"]
+    replies = [debug.send("step", index=index) for index in range(4)]
+    for reply in replies:
+        assert cast("dict[str, object]", reply["record"])["status"] == "passed", reply
+    last = replies[-1]
+    assert str(last["url"]).endswith("/")
+    shot = last["screenshot"]
     assert isinstance(shot, str)
     assert (out / shot).is_file()
 
-    reply = debug.send("step", index=4)  # 等收據出現
-    reply = debug.send("step", index=5)  # 讀取紀錄
-    facts = reply["facts"]
-    assert isinstance(facts, dict)
-    record = facts["record"]
-    assert isinstance(record, dict)
-    assert record["title"] == "調試範例"
+    debug.send("step", index=4)  # 等收據出現
+    facts = cast("dict[str, object]", debug.send("step", index=5)["facts"])  # 讀取紀錄
+    assert cast("dict[str, object]", facts["record"])["title"] == "調試範例"
 
 
 def test_failed_step_does_not_end_the_session(session: tuple[Session, Path]) -> None:

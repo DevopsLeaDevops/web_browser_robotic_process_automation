@@ -32,8 +32,8 @@
             <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>九個核心動作、定位器模型、YAML 載入與校驗、<code>rpa validate</code>、<code>rpa schema</code></td><td><code>rpa validate</code> 能指出錯誤所在的檔案行號、步驟與欄位</td><td><span class="badge green">已完成</span></td></tr>
             <tr><td><span class="milestone">M1.1</span></td><td>場景契約</td><td>入參 inputs、出參 outputs、獨立斷言 verify、總期限 deadline、分類 category；Python 腳本逃生門；原型 BA-001、BA-002 的 DSL 版；匯入 MVP 原型；文件改為 v2</td><td><code>rpa validate</code> 通過 BA-001、BA-002</td><td><span class="badge green">已完成</span></td></tr>
             <tr><td><span class="milestone">M2</span></td><td>Runner 與執行契約</td><td><code>rpa run</code>；子程序執行、總期限與取消；入參校驗 → 步驟 → 頁面事實 → 獨立斷言 → 發布出參；執行目錄與 HTML 報告；<code>{{ }}</code> 在沙箱求值；Python 腳本場景；測試網站（沿用原型的本機測試頁）</td><td>BA-001 → BA-002 在 Chromium 與 Firefox 真實串聯；原型的五個回歸情境通過</td><td><span class="badge green">已完成</span></td></tr>
-            <tr class="current"><td><span class="milestone">M3</span></td><td>管理 Portal</td><td><code>rpa serve</code>：FastAPI + Jinja 伺服器 + SQLite + 背景 worker；場景卡片與分類、YAML 編輯與校驗、不可變版本與發布門檻、驗證與執行、取消、報告篩選；入參出參的表單編輯延到 M4（<a href="design/portal.html">管理 Portal</a>）</td><td>在瀏覽器內完成「建立 → 驗證 → 發布 → 執行 → 看報告」</td><td><span class="badge blue">進行中</span></td></tr>
-            <tr><td><span class="milestone">M4</span></td><td>場景生產與登入</td><td>原始錄製稿 → DSL 草稿 → 調試工作階段（隔離瀏覽器）→ 候選版本驗證 → 人工發布；登入憑證識別碼、每個角色獨立的登入狀態、needs_login 引導人工重新登入</td><td>錄製一段操作後發布並執行成功；兩個角色互不干擾</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M3</span></td><td>管理 Portal</td><td><code>rpa serve</code>：FastAPI + Jinja 伺服器 + SQLite + 背景 worker；場景卡片與分類、YAML 編輯與校驗、不可變版本與發布門檻、驗證與執行、取消、報告篩選；入參出參的表單編輯延到 M4（<a href="design/portal.html">管理 Portal</a>）</td><td>在瀏覽器內完成「建立 → 驗證 → 發布 → 執行 → 看報告」</td><td><span class="badge green">已完成</span></td></tr>
+            <tr class="current"><td><span class="milestone">M4</span></td><td>場景生產與登入</td><td>原始錄製稿（Playwright codegen、<code>rpa record</code>、貼上錄製稿）→ DSL 草稿（入參自動參數化、密碼改成 Secret）→ 逐步調試（一個瀏覽器、一次一步、定位器測試）→ 候選版本驗證 → 人工發布；場景的 <code>login: { role }</code> 與 <code>check</code> 動作；每個角色獨立的登入狀態、人工登入為主、選用的自動登入、執行前的登入檢查與 needs_login、重新執行；Secrets 在頁面設定；入參出參的表單編輯（<a href="design/portal.html#login">登入與角色</a>）</td><td>錄製一段操作後發布並執行成功；兩個角色互不干擾</td><td><span class="badge blue">進行中</span></td></tr>
             <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>對話調試、受限的工具、自然語言生成 DSL、校驗失敗自動修正、選擇器自癒</td><td>助手只改草稿、發布要使用者確認；一句話描述生成可通過驗證的場景</td><td><span class="badge">未開始</span></td></tr>
             <tr><td><span class="milestone">M6</span></td><td>自由試驗場</td><td>把已發布場景排成序列；固定版本；上游出參綁定到下游入參；失敗即停</td><td>原型的試驗場流程以真實執行跑通。<strong>MVP 完成</strong></td><td><span class="badge">未開始</span></td></tr>
             <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、iframe、多分頁、上傳與下載、子場景、資料驅動</td><td>複雜範例場景通過</td><td><span class="badge">未開始</span></td></tr>
@@ -63,7 +63,7 @@
         <div class="panel-body">
           <dl class="spec-list">
             <dt>AI 模型</dt><dd>M5 前決定。需先確認內部系統的頁面內容能否送到外部 API；不行就接自架模型。</dd>
-            <dt>登入方式</dt><dd>M4 前確認目標系統的登入流程（帳密、SSO、驗證碼）與需要的角色。</dd>
+            <dt>登入方式</dt><dd>M4 先以人工登入為主（任何登入流程都能處理），單純帳密的系統可以加自動登入；測試網站用「一般使用者」「主管」兩個角色。還要確認目標系統的實際登入流程與需要的角色。</dd>
             <dt>SSO 類型</dt><dd>M8 前確認公司使用 OIDC 還是 LDAP / AD。</dd>
             <dt>部署環境</dt><dd>M9 前確認是單機 Docker Compose 還是 Kubernetes。</dd>
             <dt>物件儲存</dt><dd>M9 前選定 S3 相容的產品，例如 SeaweedFS、Garage 或公司現有的儲存；原定的 MinIO 社群版已停止維護。</dd>

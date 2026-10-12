@@ -12,7 +12,7 @@ window.DOCS_NAV = {
   "subtitle": "ENGINEERING DOCS",
   "text": {
     "title": {"zh-Hant": "瀏覽器 RPA", "zh-Hans": "浏览器 RPA", "en": "Browser RPA"},
-    "badge": {"zh-Hant": "文檔 · M3", "zh-Hans": "文档 · M3", "en": "Docs · M3"},
+    "badge": {"zh-Hant": "文檔 · M4", "zh-Hans": "文档 · M4", "en": "Docs · M4"},
     "skip": {"zh-Hant": "跳至主要內容", "zh-Hans": "跳至主要内容", "en": "Skip to main content"},
     "topnav": {"zh-Hant": "第一級選單", "zh-Hans": "第一级菜单", "en": "Primary navigation"},
     "sidenav": {"zh-Hant": "第二級選單", "zh-Hans": "第二级菜单", "en": "Section navigation"},

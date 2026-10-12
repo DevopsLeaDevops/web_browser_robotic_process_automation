@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>路线图 · 浏览器 RPA 工程文档</title>
+<title>路線圖 · 瀏覽器 RPA 工程文檔</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
 <script defer src="../assets/nav.js"></script>
@@ -14,60 +14,60 @@
 <main id="main">
   <div class="heading">
     <div>
-      <h1>路线图</h1>
-      <p>方案 v2：结合 MVP 原型，先交付单机、单用户的 MVP，再扩充流程能力、多用户与营运。每一步：先说明设计 → 确认 → 写程序与测试 → 开 PR → review 后合并。</p>
+      <h1>路線圖</h1>
+      <p>方案 v2：結合 MVP 原型，先交付單機、單使用者的 MVP，再擴充流程能力、多用戶與營運。每一步：先說明設計 → 確認 → 寫程式與測試 → 開 PR → review 後合併。</p>
     </div>
     <span class="badge blue">方案 v2</span>
   </div>
 
   <div class="stack">
-    <div class="notice">v2 的决策见 <a href="adr/0010-mvp-first.html">ADR 0010</a>；MVP 的页面与流程以 <a href="../prototypes/mvp/index.html">MVP 原型</a>为准。</div>
+    <div class="notice">v2 的決策見 <a href="adr/0010-mvp-first.html">ADR 0010</a>；MVP 的頁面與流程以 <a href="../prototypes/mvp/index.html">MVP 原型</a>為準。</div>
 
     <section class="panel">
-      <div class="panel-header"><h2>里程碑</h2><span class="muted">状态随每个 PR 更新</span></div>
+      <div class="panel-header"><h2>里程碑</h2><span class="muted">狀態隨每個 PR 更新</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>阶段</th><th>名称</th><th>内容</th><th>验收方式</th><th>状态</th></tr></thead>
+          <thead><tr><th>階段</th><th>名稱</th><th>內容</th><th>驗收方式</th><th>狀態</th></tr></thead>
           <tbody>
-            <tr><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；设计文档与 ADR；界面设计系统 v1.0；多语言（繁中、简中、英文）；一键安装脚本；依赖锁定</td><td>CI 全绿；文档链接检查通过</td><td><span class="badge green">已完成</span></td></tr>
-            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>九个核心动作、定位器模型、YAML 加载与校验、<code>rpa validate</code>、<code>rpa schema</code></td><td><code>rpa validate</code> 能指出错误所在的文件行号、步骤与字段</td><td><span class="badge green">已完成</span></td></tr>
-            <tr><td><span class="milestone">M1.1</span></td><td>场景契约</td><td>入参 inputs、出参 outputs、独立断言 verify、总期限 deadline、分类 category；Python 脚本逃生门；原型 BA-001、BA-002 的 DSL 版；导入 MVP 原型；文档改为 v2</td><td><code>rpa validate</code> 通过 BA-001、BA-002</td><td><span class="badge green">已完成</span></td></tr>
-            <tr><td><span class="milestone">M2</span></td><td>Runner 与运行契约</td><td><code>rpa run</code>；子进程运行、总期限与取消；入参校验 → 步骤 → 页面事实 → 独立断言 → 发布出参；运行目录与 HTML 报告；<code>{{ }}</code> 在沙箱求值；Python 脚本场景；测试网站（沿用原型的本机测试页）</td><td>BA-001 → BA-002 在 Chromium 与 Firefox 真实串联；原型的五个回归情境通过</td><td><span class="badge green">已完成</span></td></tr>
-            <tr class="current"><td><span class="milestone">M3</span></td><td>管理 Portal</td><td><code>rpa serve</code>：FastAPI + Jinja 服务器 + SQLite + 背景 worker；场景卡片与分类、YAML 编辑与校验、不可变版本与发布门槛、验证与运行、取消、报告筛选；入参出参的表单编辑延到 M4（<a href="design/portal.html">管理 Portal</a>）</td><td>在浏览器内完成「创建 → 验证 → 发布 → 运行 → 看报告」</td><td><span class="badge blue">进行中</span></td></tr>
-            <tr><td><span class="milestone">M4</span></td><td>场景生产与登录</td><td>原始录制稿 → DSL 草稿 → 调试工作阶段（隔离浏览器）→ 候选版本验证 → 人工发布；登录凭证识别码、每个角色独立的登录状态、needs_login 引导人工重新登录</td><td>录制一段操作后发布并运行成功；两个角色互不干扰</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>对话调试、受限的工具、自然语言生成 DSL、校验失败自动修正、选择器自愈</td><td>助手只改草稿、发布要用户确认；一句话描述生成可通过验证的场景</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M6</span></td><td>自由试验场</td><td>把已发布场景排成序列；固定版本；上游出参绑定到下游入参；失败即停</td><td>原型的试验场流程以真实运行跑通。<strong>MVP 完成</strong></td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>条件、循环、错误处理、重试（只用于无副作用的步骤）、iframe、多标签页、上传与下载、子场景、数据驱动</td><td>复杂示例场景通过</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M8</span></td><td>多用户与治理</td><td>认证（OIDC 或 LDAP）、项目权限、Secrets 加密、审核；正式环境 PostgreSQL</td><td>API 测试在 SQLite 与 PostgreSQL 上都通过</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M9</span></td><td>营运能力</td><td>分布式 worker 与调度、并发、通知、S3 兼容对象存储、Docker Compose 部署</td><td><code>docker compose up</code> 一键启动</td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M0</span></td><td>工程骨架</td><td>uv workspace、ruff、pyright、pytest、pre-commit、CI；設計文件與 ADR；介面設計系統 v1.0；多語言（繁中、簡中、英文）；一鍵安裝腳本；依賴鎖定</td><td>CI 全綠；文檔連結檢查通過</td><td><span class="badge green">已完成</span></td></tr>
+            <tr><td><span class="milestone">M1</span></td><td>DSL v0</td><td>九個核心動作、定位器模型、YAML 載入與校驗、<code>rpa validate</code>、<code>rpa schema</code></td><td><code>rpa validate</code> 能指出錯誤所在的檔案行號、步驟與欄位</td><td><span class="badge green">已完成</span></td></tr>
+            <tr><td><span class="milestone">M1.1</span></td><td>場景契約</td><td>入參 inputs、出參 outputs、獨立斷言 verify、總期限 deadline、分類 category；Python 腳本逃生門；原型 BA-001、BA-002 的 DSL 版；匯入 MVP 原型；文件改為 v2</td><td><code>rpa validate</code> 通過 BA-001、BA-002</td><td><span class="badge green">已完成</span></td></tr>
+            <tr><td><span class="milestone">M2</span></td><td>Runner 與執行契約</td><td><code>rpa run</code>；子程序執行、總期限與取消；入參校驗 → 步驟 → 頁面事實 → 獨立斷言 → 發布出參；執行目錄與 HTML 報告；<code>{{ }}</code> 在沙箱求值；Python 腳本場景；測試網站（沿用原型的本機測試頁）</td><td>BA-001 → BA-002 在 Chromium 與 Firefox 真實串聯；原型的五個回歸情境通過</td><td><span class="badge green">已完成</span></td></tr>
+            <tr><td><span class="milestone">M3</span></td><td>管理 Portal</td><td><code>rpa serve</code>：FastAPI + Jinja 伺服器 + SQLite + 背景 worker；場景卡片與分類、YAML 編輯與校驗、不可變版本與發布門檻、驗證與執行、取消、報告篩選；入參出參的表單編輯延到 M4（<a href="design/portal.html">管理 Portal</a>）</td><td>在瀏覽器內完成「建立 → 驗證 → 發布 → 執行 → 看報告」</td><td><span class="badge green">已完成</span></td></tr>
+            <tr class="current"><td><span class="milestone">M4</span></td><td>場景生產與登入</td><td>原始錄製稿（Playwright codegen、<code>rpa record</code>、貼上錄製稿）→ DSL 草稿（入參自動參數化、密碼改成 Secret）→ 逐步調試（一個瀏覽器、一次一步、定位器測試）→ 候選版本驗證 → 人工發布；場景的 <code>login: { role }</code> 與 <code>check</code> 動作；每個角色獨立的登入狀態、人工登入為主、選用的自動登入、執行前的登入檢查與 needs_login、重新執行；Secrets 在頁面設定；入參出參的表單編輯（<a href="design/portal.html#login">登入與角色</a>）</td><td>錄製一段操作後發布並執行成功；兩個角色互不干擾</td><td><span class="badge blue">進行中</span></td></tr>
+            <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>對話調試、受限的工具、自然語言生成 DSL、校驗失敗自動修正、選擇器自癒</td><td>助手只改草稿、發布要使用者確認；一句話描述生成可通過驗證的場景</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M6</span></td><td>自由試驗場</td><td>把已發布場景排成序列；固定版本；上游出參綁定到下游入參；失敗即停</td><td>原型的試驗場流程以真實執行跑通。<strong>MVP 完成</strong></td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、iframe、多分頁、上傳與下載、子場景、資料驅動</td><td>複雜範例場景通過</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M8</span></td><td>多用戶與治理</td><td>認證（OIDC 或 LDAP）、專案權限、Secrets 加密、稽核；正式環境 PostgreSQL</td><td>API 測試在 SQLite 與 PostgreSQL 上都通過</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M9</span></td><td>營運能力</td><td>分散式 worker 與排程、併發、通知、S3 相容物件儲存、Docker Compose 部署</td><td><code>docker compose up</code> 一鍵啟動</td><td><span class="badge">未開始</span></td></tr>
           </tbody>
         </table>
       </div>
-      <div class="diagram-caption">原方案的页面原型（原 M6）已由 MVP 原型交付；原 Web UI（原 M8）拆进 M3～M6，每个阶段交付自己的页面。</div>
+      <div class="diagram-caption">原方案的頁面原型（原 M6）已由 MVP 原型交付；原 Web UI（原 M8）拆進 M3～M6，每個階段交付自己的頁面。</div>
     </section>
 
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>为什么是这个顺序</h2></div>
+        <div class="panel-header"><h2>為什麼是這個順序</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>先打通一条真实链路。</strong>M2 用 CLI 跑通 BA-001 → BA-002，管理界面只是在上面加一层。</li>
-            <li><strong>MVP 先行。</strong>单机、单用户、串行运行；SQLite 与文件目录就够用（<a href="adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。多用户、分布式等 MVP 验证后再做。</li>
-            <li><strong>成功要有证据。</strong>从 M2 起，出参只在独立断言通过后发布；界面上的模拟结果不能当成发布依据。</li>
-            <li><strong>生成只产生草稿。</strong>录制与 AI 的输出都要经过真实验证与人工发布，验证的版本必须就是发布的版本。</li>
-            <li><strong>Runner 从一开始就无状态。</strong>只吃场景、入参与 Secrets，输出结果与产物；M3 的背景 worker 与 M9 的分布式 worker 直接沿用。</li>
+            <li><strong>先打通一條真實鏈路。</strong>M2 用 CLI 跑通 BA-001 → BA-002，管理介面只是在上面加一層。</li>
+            <li><strong>MVP 先行。</strong>單機、單使用者、序列執行；SQLite 與檔案目錄就夠用（<a href="adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。多用戶、分散式等 MVP 驗證後再做。</li>
+            <li><strong>成功要有證據。</strong>從 M2 起，出參只在獨立斷言通過後發布；介面上的模擬結果不能當成發布依據。</li>
+            <li><strong>生成只產生草稿。</strong>錄製與 AI 的輸出都要經過真實驗證與人工發布，驗證的版本必須就是發布的版本。</li>
+            <li><strong>Runner 從一開始就無狀態。</strong>只吃場景、入參與 Secrets，輸出結果與產物；M3 的背景 worker 與 M9 的分散式 worker 直接沿用。</li>
           </ul>
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>尚待决定</h2></div>
+        <div class="panel-header"><h2>尚待決定</h2></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>AI 模型</dt><dd>M5 前决定。需先确认内部系统的页面内容能否送到外部 API；不行就接自建模型。</dd>
-            <dt>登录方式</dt><dd>M4 前确认目标系统的登录流程（帐密、SSO、验证码）与需要的角色。</dd>
-            <dt>SSO 类型</dt><dd>M8 前确认公司使用 OIDC 还是 LDAP / AD。</dd>
-            <dt>部署环境</dt><dd>M9 前确认是单机 Docker Compose 还是 Kubernetes。</dd>
-            <dt>对象存储</dt><dd>M9 前选定 S3 兼容的产品，例如 SeaweedFS、Garage 或公司现有的保存；原定的 MinIO 社区版已停止维护。</dd>
+            <dt>AI 模型</dt><dd>M5 前決定。需先確認內部系統的頁面內容能否送到外部 API；不行就接自架模型。</dd>
+            <dt>登入方式</dt><dd>M4 先以人工登入為主（任何登入流程都能處理），單純帳密的系統可以加自動登入；測試網站用「一般使用者」「主管」兩個角色。還要確認目標系統的實際登入流程與需要的角色。</dd>
+            <dt>SSO 類型</dt><dd>M8 前確認公司使用 OIDC 還是 LDAP / AD。</dd>
+            <dt>部署環境</dt><dd>M9 前確認是單機 Docker Compose 還是 Kubernetes。</dd>
+            <dt>物件儲存</dt><dd>M9 前選定 S3 相容的產品，例如 SeaweedFS、Garage 或公司現有的儲存；原定的 MinIO 社群版已停止維護。</dd>
           </dl>
         </div>
       </section>
