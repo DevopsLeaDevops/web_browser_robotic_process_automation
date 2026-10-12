@@ -1,4 +1,4 @@
-"""步驟：M1 的九個動作。
+"""步驟：M1 的九個動作，加上 M4 為錄製稿加入的 check（勾選）。
 
 每個步驟以 ``action`` 區分種類，共同欄位是 id、name、timeout。
 步驟內欄位之間的規則（例如 waitFor 三選一）在各模型的 model_validator 檢查；
@@ -29,6 +29,7 @@ from rpa_core.dsl.locators import Locator
 
 __all__ = [
     "ACTIONS",
+    "CheckStep",
     "ClickStep",
     "ExpectStep",
     "ExtractField",
@@ -135,6 +136,15 @@ class SelectStep(StepBase):
     target: Locator
     option: OneOrMany
     """選項的值或顯示文字；寫成清單代表多選。"""
+
+
+class CheckStep(StepBase):
+    """勾選或取消勾選核取方塊、選項按鈕；已經是指定的狀態時不動作（不像 click 會切換）。"""
+
+    action: Literal["check"]
+    target: Locator
+    checked: bool = True
+    """true 勾選、false 取消勾選。"""
 
 
 class PressStep(StepBase):
@@ -304,6 +314,7 @@ Step = Annotated[
     | ClickStep
     | FillStep
     | SelectStep
+    | CheckStep
     | PressStep
     | WaitForStep
     | ExpectStep
@@ -318,10 +329,11 @@ ACTIONS: Final = (
     "click",
     "fill",
     "select",
+    "check",
     "press",
     "waitFor",
     "expect",
     "extract",
     "screenshot",
 )
-"""M1 支援的動作。"""
+"""支援的動作。"""

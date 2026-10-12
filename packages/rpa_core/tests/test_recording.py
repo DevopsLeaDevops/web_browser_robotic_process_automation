@@ -1,0 +1,298 @@
+"""錄製稿轉換：codegen 的 Python → DSL 草稿。不需要瀏覽器。"""
+
+from datetime import UTC, datetime
+from textwrap import dedent
+from typing import cast
+
+import pytest
+
+from rpa_core.dsl import validate_text
+from rpa_core.i18n import use_locale
+from rpa_core.recording import Conversion, ConversionError, convert_recording, mask_source
+
+NOW = datetime(2026, 10, 12, 8, 0, tzinfo=UTC)
+
+SYNC = dedent(
+    """\
+    import re
+    from playwright.sync_api import Playwright, sync_playwright, expect
+
+
+    def run(playwright: Playwright) -> None:
+        browser = playwright.chromium.launch(headless=False)
+        context = browser.new_context()
+        page = context.new_page()
+        page.goto("http://127.0.0.1:8765/")
+        page.get_by_label("標題").click()
+        page.get_by_label("標題").fill("示範紀錄")
+        page.get_by_label("數量").fill("3")
+        page.get_by_role("button", name="建立紀錄").click()
+        expect(page.locator("#record-status")).to_contain_text("已建立")
+        page.get_by_role("link", name="查詢紀錄").click()
+        page.locator("#lookup-id").fill("DEMO-1")
+        page.locator("#lookup-id").press("Enter")
+        page.close()
+
+        # ---------------------
+        context.close()
+        browser.close()
+
+
+    with sync_playwright() as playwright:
+        run(playwright)
+    """
+)
+
+
+def convert(
+    source: str,
+    *,
+    scene_id: str = "rec-demo",
+    url: str | None = None,
+    engine: str | None = None,
+    role: str | None = None,
+    category: str | None = None,
+) -> tuple[dict[str, object], Conversion]:
+    with use_locale("zh-Hant"):
+        result = convert_recording(
+            source,
+            scene_id=scene_id,
+            name="錄製的範例",
+            url=url,
+            engine=engine,
+            role=role,
+            category=category,
+            now=NOW,
+        )
+    checked = validate_text(result.scenario)
+    assert checked.scenario is not None, checked.issues
+    return checked.scenario.model_dump(mode="json", by_alias=True, exclude_none=True), result
+
+
+def steps_of(data: dict[str, object]) -> list[dict[str, object]]:
+    return cast("list[dict[str, object]]", data["steps"])
+
+
+def test_sync_recording_becomes_a_valid_draft() -> None:
+    data, result = convert(SYNC, engine="chromium")
+
+    steps = steps_of(data)
+    assert [step["action"] for step in steps] == [
+        "goto",
+        "fill",
+        "fill",
+        "click",
+        "expect",
+        "click",
+        "fill",
+        "press",
+    ]
+    assert steps[0]["url"] == "/"
+    assert data["browser"] == {
+        "engine": "chromium",
+        "headless": True,
+        "baseUrl": "http://127.0.0.1:8765",
+    }
+    # 先點擊再填寫同一個欄位：點擊沒有意義，不保留
+    assert steps[1]["target"] == {"label": "標題"}
+    assert steps[3]["target"] == {"role": "button", "name": "建立紀錄"}
+    assert steps[4] == {
+        "id": "expect-5",
+        "name": "確認「#record-status」",
+        "action": "expect",
+        "target": {"css": "#record-status"},
+        "text": "已建立",
+        "match": "contains",
+    }
+    assert result.warnings == ()
+
+
+def test_fill_values_become_inputs_with_recorded_defaults() -> None:
+    data, result = convert(SYNC)
+
+    inputs = data["inputs"]
+    assert inputs == {
+        "field": {"type": "string", "description": "標題", "default": "示範紀錄"},
+        "field_2": {"type": "string", "description": "數量", "default": "3"},
+        "lookup_id": {"type": "string", "description": "#lookup-id", "default": "DEMO-1"},
+    }
+    assert steps_of(data)[1]["value"] == "{{ inputs.field }}"
+    assert result.inputs == ("field", "field_2", "lookup_id")
+
+
+def test_password_fields_become_secrets_and_are_masked() -> None:
+    source = dedent(
+        """\
+        page.goto("https://erp.example.com/login")
+        page.get_by_placeholder("Password").fill("s3cret-pass")
+        page.get_by_label("密碼").type("another-secret")
+        page.locator("#username").fill("alice")
+        """
+    )
+    data, result = convert(source, scene_id="erp-login")
+
+    assert data["secrets"] == ["ERP_LOGIN_PASSWORD", "ERP_LOGIN_PASSWORD_2"]
+    steps = steps_of(data)
+    assert steps[1]["value"] == "{{ secrets.ERP_LOGIN_PASSWORD }}"
+    assert steps[2]["value"] == "{{ secrets.ERP_LOGIN_PASSWORD_2 }}"
+    assert data["inputs"] == {
+        "username": {"type": "string", "description": "#username", "default": "alice"}
+    }
+    masked = result.masked_source
+    assert "s3cret-pass" not in masked
+    assert "another-secret" not in masked
+    assert 'fill("***")' in masked
+    assert "alice" in masked
+    assert "s3cret" not in result.scenario
+
+
+def test_password_on_unsupported_line_is_masked_in_comments() -> None:
+    source = dedent(
+        """\
+        page.goto("https://erp.example.com/login")
+        page.frame_locator("#login").get_by_label("Password").fill("top-secret")
+        """
+    )
+    data, result = convert(source)
+
+    assert len(steps_of(data)) == 1
+    assert "top-secret" not in result.scenario
+    assert "top-secret" not in result.masked_source
+    assert "iframe" in result.warnings[0].message
+
+
+def test_unsupported_lines_stay_as_comments_with_warnings() -> None:
+    source = dedent(
+        """\
+        page.goto("http://127.0.0.1:8765/")
+        page.get_by_text("選單").hover()
+        with page.expect_popup() as page1_info:
+            page.get_by_role("link", name="說明").click()
+        page1 = page1_info.value
+        page1.get_by_role("button", name="關閉").click()
+        page.locator("#file").set_input_files("a.txt")
+        """
+    )
+    data, result = convert(source)
+
+    assert [step["action"] for step in steps_of(data)] == ["goto", "click"]
+    warnings = result.warnings
+    assert [warning.line for warning in warnings] == [2, 3, 6, 7]
+    assert warnings[0].source == 'page.get_by_text("選單").hover()'
+    text = result.scenario
+    assert "# 錄製稿第 2 行轉不了" in text
+    assert '#   page.get_by_text("選單").hover()' in text
+    assert "有 4 行轉不了" in text
+
+
+def test_locator_variants() -> None:
+    source = dedent(
+        """\
+        page.goto("http://127.0.0.1:8765/")
+        page.get_by_role("cell", name="已建立", exact=True).click()
+        page.get_by_text("下一頁").first.click()
+        page.get_by_role("row").nth(2).click()
+        page.locator("div").filter(has_text=re.compile(r"^記住我$")).get_by_role("checkbox").check()
+        page.get_by_test_id("agree").uncheck()
+        page.locator("li").filter(has_text="訂單").last.click()
+        page.locator("xpath=//button[1]").dblclick()
+        page.get_by_role("combobox").select_option(["a", "b"])
+        page.get_by_text(re.compile(r"^完成$")).click(button="right")
+        expect(page.get_by_role("checkbox")).to_be_checked()
+        expect(page.locator("#name")).to_have_value("小明")
+        expect(page).to_have_url("http://127.0.0.1:8765/done")
+        """
+    )
+    data, result = convert(source)
+
+    steps = steps_of(data)
+    assert [step["target"] for step in steps[1:9]] == [
+        {"role": "cell", "name": "已建立", "exact": True},
+        {"text": "下一頁", "nth": 0},
+        {"role": "row", "nth": 2},
+        {"role": "checkbox", "within": {"css": 'div:text-is("記住我")'}},
+        {"testId": "agree"},
+        {"css": "li", "hasText": "訂單", "nth": -1},
+        {"xpath": "//button[1]"},
+        {"role": "combobox"},
+    ]
+    assert steps[4]["action"] == "check"
+    assert steps[5]["checked"] is False
+    assert steps[7]["clickCount"] == 2
+    assert steps[8]["option"] == ["a", "b"]
+    assert steps[9]["target"] == {"text": "完成", "exact": True}
+    assert steps[9]["button"] == "right"
+    assert steps[10]["state"] == "checked"
+    assert (steps[11]["value"], steps[11]["match"]) == ("小明", "equals")
+    assert (steps[12]["url"], steps[12]["match"]) == ("/done", "equals")
+    assert result.warnings == ()
+
+
+def test_async_and_pytest_styles() -> None:
+    asynchronous = dedent(
+        """\
+        async def run(playwright):
+            page = await context.new_page()
+            await page.goto("https://example.com/")
+            await page.get_by_role("link", name="More").click()
+        """
+    )
+    pytest_style = dedent(
+        """\
+        def test_example(page: Page) -> None:
+            page.goto("https://example.com/")
+            page.get_by_role("link", name="More").click()
+        """
+    )
+    first, _ = convert(asynchronous)
+    second, _ = convert(pytest_style)
+
+    assert steps_of(first) == steps_of(second)
+    assert [step["action"] for step in steps_of(first)] == ["goto", "click"]
+
+
+def test_start_url_used_when_recording_has_no_goto() -> None:
+    data, _ = convert('page.get_by_role("button", name="OK").click()\n', url="https://a.example/x")
+
+    steps = steps_of(data)
+    assert steps[0]["action"] == "goto"
+    assert steps[0]["url"] == "/x"
+    assert data["browser"] == {
+        "engine": "chromium",
+        "headless": True,
+        "baseUrl": "https://a.example",
+    }
+
+
+def test_role_and_category_are_written() -> None:
+    data, _ = convert(SYNC, role="testsite-user", category="錄製")
+
+    assert data["login"] == {"role": "testsite-user"}
+    assert data["category"] == "錄製"
+
+
+def test_other_origins_stay_absolute() -> None:
+    source = 'page.goto("https://a.example/")\npage.goto("https://b.example/next")\n'
+    data, _ = convert(source)
+
+    assert [step["url"] for step in steps_of(data)] == ["/", "https://b.example/next"]
+
+
+def test_errors() -> None:
+    with pytest.raises(ConversionError):
+        convert_recording("def (", scene_id="x", name="x")
+    with pytest.raises(ConversionError):
+        convert_recording("print('hello')\n", scene_id="x", name="x")
+
+
+def test_english_names() -> None:
+    with use_locale("en"):
+        result = convert_recording(SYNC, scene_id="rec", name="Recorded", now=NOW)
+    assert 'name: "Fill in \\"標題\\""' in result.scenario
+
+
+def test_mask_source_handles_multibyte_columns() -> None:
+    source = 'x = "密碼"; page.fill("值")\n'
+    start = len('x = "密碼"; page.fill('.encode())
+    masked = mask_source(source, [(1, start, 1, start + len('"值"'.encode()))])
+    assert masked == 'x = "密碼"; page.fill("***")\n'

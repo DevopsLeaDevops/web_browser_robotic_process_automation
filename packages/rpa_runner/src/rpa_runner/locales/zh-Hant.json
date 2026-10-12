@@ -13,7 +13,7 @@
   "contract.input_unknown": "不認得的入參 {name}",
   "contract.input_missing": "缺少入參 {name}",
   "contract.input_invalid": "入參 {name} 不符合限制：{rule}",
-  "contract.secret_missing": "沒有設定 Secret {name}（環境變數 {name}）",
+  "contract.secret_missing": "沒有設定 Secret {name}：請在管理 Portal 的「登入與憑證」設定，或設定同名的環境變數",
   "contract.check_name": "第 {number} 條斷言",
   "contract.output_error": "出參 {name} 無法取值：{detail}",
   "contract.output_invalid": "出參 {name} 不符合限制：{rule}",
@@ -56,5 +56,15 @@
   "report.files": "檔案",
   "report.hash": "場景版本 SHA-256：{hash}",
   "report.no_error": "沒有錯誤。",
-  "report.none": "無。"
+  "report.none": "無。",
+  "status.needs_login": "需要登入",
+  "stage.login": "登入檢查",
+  "run.login_missing": "這個場景要以角色 {role} 登入，但這個角色還沒有登記；請在管理 Portal 的「登入與憑證」新增",
+  "run.login_state_missing": "角色「{role}」的登入狀態檔不存在",
+  "run.login_not_checked": "已載入登入狀態（沒有檢查是否仍然有效）",
+  "run.login_secret_missing": "角色「{role}」的自動登入需要 Secret：{names}",
+  "run.needs_login": "角色「{role}」需要重新登入；沒有執行任何步驟。登入後可以重新執行。",
+  "run.login_refreshed": "角色「{role}」沒有登入或登入已過期，已自動登入",
+  "login.browser_closed": "瀏覽器已經關閉，沒有取得登入狀態；請重新登入，登入完成後在管理 Portal 按「完成登入」",
+  "debug.ready": "調試工作階段已就緒"
 }

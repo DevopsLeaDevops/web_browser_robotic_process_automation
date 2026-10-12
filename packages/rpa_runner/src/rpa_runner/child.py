@@ -5,6 +5,7 @@
 
 寫出 facts.json、steps.json、screenshot.png；失敗時另寫 diagnostic.json。
 Firefox 從預熱設定檔的複本啟動，避免每次初始化全新設定檔而卡住（見 profiles.py）。
+場景有 login 時，``--storage-state`` 是角色的登入狀態檔（已在登入檢查階段確認過）。
 退出碼：0 成功、1 步驟失敗、3 總期限已到。父程序另外設有硬期限，逾時會終止整個程序群組。
 """
 
@@ -14,16 +15,16 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Final, Literal, cast
+from typing import Final, cast
 
-from playwright.sync_api import Browser, Page, Playwright, ViewportSize, sync_playwright
+from playwright.sync_api import Page, Playwright, ViewportSize, sync_playwright
 
 from rpa_core.dsl import Scenario, validate_file
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
 from rpa_runner.browser import Deadline, DeadlineExceeded, plan_records, run_steps
+from rpa_runner.contexts import Engine, open_context
 from rpa_runner.files import DIAGNOSTIC, FACTS, SCREENSHOT, STEPS, write_json
 from rpa_runner.i18n import t
-from rpa_runner.profiles import firefox_profile
 from rpa_runner.secrets import mask, read_secrets
 
 __all__ = ["EXIT_DEADLINE", "EXIT_FAILED", "main"]
@@ -31,26 +32,10 @@ __all__ = ["EXIT_DEADLINE", "EXIT_FAILED", "main"]
 EXIT_FAILED: Final = 1
 EXIT_DEADLINE: Final = 3
 
-Engine = Literal["chromium", "firefox", "webkit"]
-
-
-def _launch(playwright: Playwright, engine: Engine, *, headed: bool, timeout_ms: int) -> Browser:
-    browser_type = {
-        "chromium": playwright.chromium,
-        "firefox": playwright.firefox,
-        "webkit": playwright.webkit,
-    }[engine]
-    return browser_type.launch(headless=not headed, timeout=max(1, timeout_ms))
-
 
 def _viewport(scenario: Scenario) -> ViewportSize | None:
     viewport = scenario.browser.viewport
     return {"width": viewport.width, "height": viewport.height} if viewport else None
-
-
-def _new_page(browser: Browser, scenario: Scenario) -> Page:
-    context = browser.new_context(viewport=_viewport(scenario), locale=scenario.browser.locale)
-    return context.new_page()
 
 
 def _open_page(
@@ -61,24 +46,21 @@ def _open_page(
     headed: bool,
     deadline: Deadline,
     stack: contextlib.ExitStack,
+    storage_state: Path | None = None,
 ) -> Page:
     """開瀏覽器與頁面；關閉的動作登記在 stack，離開時依相反順序執行。"""
-    if engine == "firefox":
-        budget = deadline.remaining_ms() / 1000
-        profile = stack.enter_context(firefox_profile(playwright, budget_seconds=budget))
-        if profile is not None:
-            context = playwright.firefox.launch_persistent_context(
-                profile,
-                headless=not headed,
-                timeout=max(1, deadline.remaining_ms()),
-                viewport=_viewport(scenario),
-                locale=scenario.browser.locale,
-            )
-            stack.callback(context.close)
-            return context.pages[0] if context.pages else context.new_page()
-    browser = _launch(playwright, engine, headed=headed, timeout_ms=deadline.remaining_ms())
-    stack.callback(browser.close)
-    return _new_page(browser, scenario)
+    context = open_context(
+        playwright,
+        engine,
+        headed=headed,
+        timeout_ms=deadline.remaining_ms(),
+        budget_seconds=deadline.remaining_ms() / 1000,
+        stack=stack,
+        viewport=_viewport(scenario),
+        locale=scenario.browser.locale,
+        storage_state=storage_state,
+    )
+    return context.pages[0] if context.pages else context.new_page()
 
 
 def run(args: argparse.Namespace) -> int:
@@ -104,7 +86,13 @@ def run(args: argparse.Namespace) -> int:
     with sync_playwright() as playwright, contextlib.ExitStack() as stack:
         try:
             page = _open_page(
-                playwright, engine, scenario, headed=args.headed, deadline=deadline, stack=stack
+                playwright,
+                engine,
+                scenario,
+                headed=args.headed,
+                deadline=deadline,
+                stack=stack,
+                storage_state=Path(args.storage_state) if args.storage_state else None,
             )
             facts = run_steps(
                 page,
@@ -150,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", choices=["chromium", "firefox", "webkit"])
     parser.add_argument("--base-url")
     parser.add_argument("--headed", action="store_true")
+    parser.add_argument("--storage-state", help="要載入的登入狀態檔（場景有 login 時）")
     return run(parser.parse_args(argv))
 
 

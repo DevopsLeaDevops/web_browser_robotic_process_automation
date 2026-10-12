@@ -23,6 +23,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "BrowserConfig",
     "Defaults",
+    "LoginConfig",
     "Scenario",
     "Viewport",
 ]
@@ -68,6 +69,18 @@ class Defaults(DslModel):
     """步驟預設逾時（毫秒）；沒寫由執行引擎決定。"""
 
 
+class LoginConfig(DslModel):
+    """登入：以哪個角色的登入狀態執行（M4）。
+
+    角色在管理 Portal 登記：登入網址、「已登入」的判斷方式、選用的自動登入步驟；
+    登入狀態（Playwright storageState）每個角色一份，角色之間不混用。
+    執行前先檢查是否已登入，沒登入時停在 needs_login，不執行任何步驟。
+    """
+
+    role: Slug
+    """角色代號，例如 erp-clerk。"""
+
+
 class Scenario(DslModel):
     """一個瀏覽器自動化場景。
 
@@ -89,6 +102,8 @@ class Scenario(DslModel):
     secrets: list[SecretName] = Field(default_factory=list[str])
     """執行時注入的機密名稱。值不寫在場景裡，日誌與截圖說明會遮罩。"""
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
+    login: LoginConfig | None = None
+    """以某個角色的登入狀態執行；沒寫代表不需要登入。"""
     defaults: Defaults = Field(default_factory=Defaults)
     deadline: TimeoutMs | None = None
     """整次執行的總期限（毫秒），從啟動瀏覽器算到發布出參；每一步只能用剩下的時間。"""

@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../schema/scenario.v1.json
+#
+# M4 的登入範例：以「主管」角色的登入狀態查看我的帳號。
+# 場景只寫 login.role；怎麼登入、怎麼判斷已登入由管理 Portal 的「登入與憑證」登記（scenarios/demo/roles.json）。
+# 執行前先檢查是否已登入；沒登入時停在「需要登入」，不執行任何步驟。
+# 與 BA-004（一般使用者）一起執行，可以確認兩個角色的登入狀態互不干擾。
+
+schemaVersion: 1
+id: ba-005
+name: 主管查看我的帳號
+category: 登入範例
+description: 以主管登入，讀取帳號頁上的姓名、角色與待辦數；確認看到的是主管的資料，沒有和一般使用者混用。
+
+outputs:
+  userName:
+    type: string
+    from: '{{ facts.account.name }}'
+  todoCount:
+    type: integer
+    minimum: 0
+    from: '{{ facts.account.todoCount }}'
+
+browser:
+  engine: firefox
+  baseUrl: http://127.0.0.1:8765
+
+login:
+  role: testsite-manager
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /account
+    waitUntil: domcontentloaded
+
+  - id: read-account
+    name: 讀取帳號頁
+    action: extract
+    target: { css: main }
+    as: account
+    fields:
+      name: { target: { testId: current-user } }
+      role: { target: { css: '#account-role' } }
+      todoCount: { target: { css: '#todo-count' } }
+
+  - id: evidence
+    action: screenshot
+
+verify:
+  - name: 登入的是主管
+    value: '{{ facts.account.role }}'
+    equals: 主管
+  - name: 看到主管的待辦（4 項）
+    value: '{{ facts.account.todoCount }}'
+    equals: '4'
