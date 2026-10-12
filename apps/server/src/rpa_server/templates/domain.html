@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}{{ domain.name }}{% endblock %}
+{% block description %}{{ domain.description or "" }}{% endblock %}
+{% block actions %}
+<span class="muted count">{{ t("domain.count", count=cards | length) }}</span>
+{% if can_import %}<button class="button" data-action="import" data-domain="{{ domain.id }}">{{ t("scenes.import") }}</button>{% endif %}
+<button class="button" data-action="new-scene" data-domain="{{ domain.id }}">{{ t("scenes.new") }}</button>
+<a class="button" href="/domains">{{ t("domain.manage") }} {{ m.arrow() }}</a>
+{% endblock %}
+{% block content %}
+{% if cards %}
+<div class="grid scene-grid" id="cards">
+  {% for card in cards %}
+  {% set scene = card.scene %}
+  {% set last = card.last_run %}
+  <article class="panel panel-body scene-card" data-scene="{{ scene.id }}">
+    <div class="scene-card-head">
+      <h2><a href="/scenes/{{ scene.id }}">{{ scene.name }}</a></h2>
+      <span class="chip" data-tag>{% if not scene.published %}{{ t("card.tag_unpublished") }}{% else %}{{ t("card.tag_" + scene.kind) }}{% endif %}</span>
+    </div>
+    <div class="scene-card-body">
+      {% if card.screenshot_run %}
+      <a class="shot" href="/runs/{{ card.screenshot_run }}" title="{{ t('card.screenshot_title') }}"><img src="/runs/{{ card.screenshot_run }}/files/screenshot.png" alt="{{ t('card.screenshot_alt', name=scene.name) }}" loading="lazy"></a>
+      {% else %}
+      <div class="shot empty-shot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>{{ t("card.no_screenshot") }}</span></div>
+      {% endif %}
+      <p class="clamp">{{ scene.description or t("card.no_description") }}</p>
+    </div>
+    <nav class="card-links scene-card-links" aria-label="{{ scene.name }}">
+      <a href="/scenes/{{ scene.id }}/edit{% if scene.kind == 'script' %}?file=automation.py{% endif %}">{{ t("card.automation") }}</a>
+      <a href="/scenes/{{ scene.id }}/edit?{% if scene.kind == 'script' %}file=assertion.py{% else %}focus=verify{% endif %}">{{ t("card.assertion") }}</a>
+      <a href="/runs?scene={{ scene.id }}">{{ t("card.reports") }}</a>
+      <a href="/scenes/{{ scene.id }}#inputs">{{ t("card.inputs") }}</a>
+      <a href="/scenes/{{ scene.id }}#outputs">{{ t("card.outputs") }}</a>
+    </nav>
+    <div class="scene-card-foot">
+      <span class="tag">{{ scene.id }}</span>
+      {% if last %}<a href="/runs/{{ last.id }}" class="status-link">{{ m.run_badge(last.status) }}</a>{% else %}{{ m.badge("none", t("card.status_none")) }}{% endif %}
+      <span class="grow"></span>
+      <a class="button" href="/scenes/{{ scene.id }}/run?purpose=validation" title="{{ t('card.debug_title', number=scene.latest_number) }}" data-action="debug">{{ t("card.debug") }}</a>
+      {% if scene.published %}
+      <a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution" data-action="run">{{ m.arrow() }} {{ t("card.run") }}</a>
+      {% else %}
+      <span class="button primary is-disabled" aria-disabled="true" title="{{ t('scenes.run_disabled') }}">{{ m.arrow() }} {{ t("card.not_published") }}</span>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="panel empty">{{ t("domain.empty") }}</div>
+{% endif %}
+<template id="new-scene-form">
+  <div class="notice">{{ t("scenes.new_notice") }}</div>
+  <label>{{ t("scenes.new_id") }}<input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="demo-001" autocomplete="off"></label>
+  <label>{{ t("scenes.new_name") }}<input name="name" required maxlength="200"></label>
+  <label>{{ t("scenes.new_category") }}<input name="category" maxlength="100"></label>
+  <p class="form-error" role="alert"></p>
+</template>
+{% endblock %}

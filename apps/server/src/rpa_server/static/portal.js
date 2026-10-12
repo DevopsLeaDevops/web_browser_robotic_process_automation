@@ -113,7 +113,7 @@
     if (importButton) {
       importButton.addEventListener('click', async () => {
         importButton.disabled = true;
-        const result = await api('POST', '/api/scenes/import');
+        const result = await api('POST', '/api/scenes/import', {domainId: importButton.dataset.domain || null});
         importButton.disabled = false;
         if (!result.ok) return toast(errorMessage(result));
         flash(messages.imported + '：' + (result.data.imported.join('、') || '—'));
@@ -128,7 +128,10 @@
           run: async () => {
             const dialog = qs('#dialog-content');
             const value = name => qs('[name="' + name + '"]', dialog).value.trim();
-            const result = await api('POST', '/api/scenes', {id: value('id'), name: value('name'), category: value('category') || null});
+            const result = await api('POST', '/api/scenes', {
+              id: value('id'), name: value('name'), category: value('category') || null,
+              domainId: newButton.dataset.domain || null,
+            });
             if (!result.ok) {
               qs('.form-error', dialog).textContent = errorMessage(result);
               return;
@@ -150,8 +153,69 @@
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const value = form.elements.namedItem('baseUrl').value.trim();
-      const result = await api('PATCH', '/api/scenes/' + path(form.dataset.scene), {baseUrl: value || null});
-      toast(result.ok ? messages.saved : errorMessage(result));
+      const domain = form.elements.namedItem('domainId').value;
+      const result = await api('PATCH', '/api/scenes/' + path(form.dataset.scene), {baseUrl: value || null, domainId: domain || null});
+      if (!result.ok) return toast(errorMessage(result));
+      flash(messages.saved);
+      location.reload();
+    });
+  }
+
+  // ---------------------------------------------------------------- 領域管理
+
+  function domainDialog(title, values, run) {
+    modal(title, qs('#domain-form').innerHTML, {label: messages.save, run});
+    const dialog = qs('#dialog-content');
+    const editing = values !== null;
+    qsa('[data-new-only]', dialog).forEach(element => { element.hidden = editing; });
+    if (editing) {
+      qs('[name="name"]', dialog).value = values.name;
+      qs('[name="description"]', dialog).value = values.description;
+    }
+    const first = qs(editing ? '[name="name"]' : '[name="id"]', dialog);
+    if (first) first.focus();
+    return dialog;
+  }
+
+  function bindDomains() {
+    const create = qs('[data-action="new-domain"]');
+    if (create) {
+      create.addEventListener('click', () => {
+        const dialog = domainDialog(messages.domain_create_title, null, async () => {
+          const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+          const result = await api('POST', '/api/domains', {id: value('id'), name: value('name'), description: value('description') || null});
+          if (!result.ok) {
+            qs('.form-error', dialog).textContent = errorMessage(result);
+            return;
+          }
+          location.href = '/domains/' + path(result.data.id);
+        });
+      });
+    }
+    qsa('[data-action="edit-domain"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const values = {name: button.dataset.name, description: button.dataset.description};
+        const dialog = domainDialog(messages.domain_edit_title, values, async () => {
+          const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+          const result = await api('PATCH', '/api/domains/' + path(button.dataset.domain), {name: value('name'), description: value('description')});
+          if (!result.ok) {
+            qs('.form-error', dialog).textContent = errorMessage(result);
+            return;
+          }
+          flash(messages.saved);
+          location.reload();
+        });
+      });
+    });
+    qsa('[data-action="delete-domain"]').forEach(button => {
+      button.addEventListener('click', () => {
+        confirmDialog(messages.domain_delete_title + '：' + button.dataset.name, messages.domain_delete_body, messages.domain_delete_action, async () => {
+          const result = await api('DELETE', '/api/domains/' + path(button.dataset.domain));
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.reload();
+        });
+      });
     });
   }
 
@@ -170,6 +234,19 @@
         qsa('[data-file]', form).forEach(section => { section.hidden = section.dataset.file !== tab.dataset.fileTab; });
       });
     });
+    // 從卡片的「斷言腳本」等連結進來：跳到 YAML 裡對應的段落
+    const focus = form.dataset.focus;
+    const area = qs('section:not([hidden]) textarea.code-editor', form);
+    if (focus && area) {
+      const match = new RegExp('^' + focus + ':', 'm').exec(area.value);
+      if (match) {
+        area.focus();
+        area.setSelectionRange(match.index, match.index + focus.length);
+        const lines = area.value.slice(0, match.index).split('\n').length - 1;
+        area.scrollTop = Math.max(0, lines - 2) * parseFloat(getComputedStyle(area).lineHeight || '20');
+        area.closest('section').scrollIntoView({block: 'start'});
+      }
+    }
     const save = qs('[data-action="save-revision"]');
     form.addEventListener('submit', event => event.preventDefault());
     save.addEventListener('click', async () => {
@@ -268,6 +345,7 @@
   bindAutoSubmit();
   bindPublish();
   bindScenes();
+  bindDomains();
   bindSceneSettings();
   bindEditor();
   bindRunForm();

@@ -5,7 +5,9 @@
 | ``RPA_DATA_DIR`` | ``data`` | 資料目錄：SQLite 檔、場景版本、執行目錄 |
 | ``RPA_DATABASE_URL`` | ``sqlite:///<資料目錄>/rpa.db`` | 正式環境改成 PostgreSQL（M8，ADR 0008） |
 | ``RPA_LANG`` | ``zh-Hant`` | 頁面的預設語言，也是執行報告的語言 |
-| ``RPA_EXAMPLES_DIR`` | ``scenarios/demo``（存在時） | 「匯入範例」從這裡讀取場景 |
+| ``RPA_EXAMPLES_DIR`` | ``scenarios/demo``（存在時） | 「測試網站自動化」領域的範例場景 |
+
+第一次啟動（還沒有任何領域）時，建立「測試網站自動化」領域並匯入範例場景（seed_examples）。
 """
 
 import os
@@ -15,9 +17,11 @@ from pathlib import Path
 
 from rpa_core.i18n import DEFAULT_LOCALE, Locale, parse_locale
 
-__all__ = ["DEFAULT_EXAMPLES", "Settings", "sqlite_url"]
+__all__ = ["DEFAULT_EXAMPLES", "EXAMPLES_DOMAIN", "Settings", "sqlite_url"]
 
 DEFAULT_EXAMPLES = Path("scenarios") / "demo"
+EXAMPLES_DOMAIN = "testsite"
+"""範例場景所屬的領域代號：「測試網站自動化」，案例都對本機測試網站執行。"""
 
 
 def sqlite_url(path: Path) -> str:
@@ -33,6 +37,8 @@ class Settings:
     examples_dir: Path | None = None
     start_worker: bool = True
     """測試可以關掉背景 worker，改成手動 ``worker.run_once()``。"""
+    seed_examples: bool = True
+    """還沒有任何領域時，建立「測試網站自動化」並匯入範例場景。"""
 
     @property
     def uses_sqlite(self) -> bool:

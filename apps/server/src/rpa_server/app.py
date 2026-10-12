@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
+from rpa_core.i18n import use_locale
 from rpa_server import __version__
 from rpa_server.api import api_router
 from rpa_server.config import Settings
@@ -54,6 +55,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         interrupted = services.recover()
         if interrupted:
             logger.warning(t("server.recovered", count=interrupted))
+        if settings.seed_examples:
+            with use_locale(settings.locale):
+                services.seed_examples_domain()
         if settings.start_worker:
             worker.start()
         try:
@@ -82,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "error.html",
             page="scenes",
             title=t("error_page.title"),
+            domains=services.list_domains(),
             status=error.status,
             message=error.message,
         )

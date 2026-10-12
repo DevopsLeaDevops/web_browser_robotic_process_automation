@@ -2,12 +2,15 @@
 
 - ``/``：建立範例紀錄（標題、數量）；``/?view=query``：依紀錄編號查詢
 - ``POST /api/records``、``GET /api/records/<編號>``：資料只存在記憶體，程序結束就消失
+- ``GET /api/about``：回傳 ``{"name": "rpa-testsite"}``，讓 ``rpa serve`` 認出已經在執行的測試網站
 - 只綁定 127.0.0.1；不連線任何外部系統
 
-測試用 ``running()`` 在隨機埠號啟動；手動試用：``uv run python -m testsite --port 8765``。
+``rpa serve`` 會在 8765 一起啟動；測試用 ``running()`` 在隨機埠號啟動；
+單獨啟動：``uv run python -m testsite --port 8765``。
 """
 
 import json
+import os
 import threading
 import uuid
 from collections.abc import Generator
@@ -17,11 +20,20 @@ from pathlib import Path
 from typing import Final, cast
 from urllib.parse import unquote, urlsplit
 
-__all__ = ["MAX_QUANTITY", "PAGE", "create_server", "running"]
+__all__ = ["DEFAULT_PORT", "MAX_QUANTITY", "NAME", "PAGE", "create_server", "running"]
 
+DEFAULT_PORT: Final = 8765
+"""範例場景的 browser.baseUrl 指向 http://127.0.0.1:8765。"""
+NAME: Final = "rpa-testsite"
 PAGE: Final = Path(__file__).with_name("index.html")
 MAX_QUANTITY: Final = 30
 _MAX_BODY: Final = 8192
+
+
+class _Server(ThreadingHTTPServer):
+    # Windows 的 SO_REUSEADDR 會搶走別人已經在用的埠號，只在其他系統開啟
+    allow_reuse_address = os.name != "nt"
+    daemon_threads = True
 
 
 def create_server(port: int = 0) -> ThreadingHTTPServer:
@@ -48,6 +60,8 @@ def create_server(port: int = 0) -> ThreadingHTTPServer:
             path = urlsplit(self.path).path
             if path == "/":
                 self._reply(200, PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif path == "/api/about":
+                self._json(200, {"name": NAME})
             elif path.startswith("/api/records/"):
                 with lock:
                     record = records.get(unquote(path.removeprefix("/api/records/")))
@@ -88,7 +102,7 @@ def create_server(port: int = 0) -> ThreadingHTTPServer:
                 records[str(record["recordId"])] = record
             self._json(201, record)
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return _Server(("127.0.0.1", port), Handler)
 
 
 @contextmanager

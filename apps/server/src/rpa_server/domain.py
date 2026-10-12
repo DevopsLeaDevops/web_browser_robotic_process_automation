@@ -10,6 +10,7 @@
 - 執行目的：驗證 validation（任何版本，結果決定版本能不能發布）、執行 execution（只用已發布版本）。
 """
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Final, Literal
@@ -17,18 +18,20 @@ from typing import Final, Literal
 from rpa_core.dsl import Issue, format_issue
 
 __all__ = [
+    "DOMAIN_ID",
     "ENGINES",
     "FINISHED",
     "PURPOSES",
     "RUN_STATUSES",
+    "DomainRecord",
     "Engine",
     "Purpose",
     "RevisionRecord",
     "RevisionStatus",
     "RunRecord",
     "RunStatus",
+    "SceneCard",
     "SceneRecord",
-    "Stats",
     "issue_json",
     "now",
 ]
@@ -49,6 +52,8 @@ RUN_STATUSES: Final[tuple[RunStatus, ...]] = (
 FINISHED: Final[frozenset[str]] = frozenset({"passed", "failed", "timed_out", "cancelled"})
 PURPOSES: Final[tuple[Purpose, ...]] = ("validation", "execution")
 ENGINES: Final[tuple[Engine, ...]] = ("chromium", "firefox")
+DOMAIN_ID: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
+"""領域代號的規則（與場景 id 相同）。"""
 
 
 def now() -> datetime:
@@ -76,11 +81,35 @@ def issue_json(issue: Issue) -> dict[str, object]:
 
 
 @dataclass(frozen=True, slots=True)
+class DomainRecord:
+    """領域：場景管理的一個二級選單，例如「測試網站自動化」「谷歌自動化」。"""
+
+    id: str
+    name: str
+    description: str | None
+    position: int
+    scene_count: int
+    created_at: datetime
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "position": self.position,
+            "sceneCount": self.scene_count,
+            "createdAt": _iso(self.created_at),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class SceneRecord:
     id: str
     name: str
     category: str | None
     description: str | None
+    domain_id: str | None
+    """所屬領域；None 代表還沒分到任何領域。"""
     kind: str
     """最新版本的種類：dsl 或 script。"""
     base_url: str | None
@@ -102,6 +131,7 @@ class SceneRecord:
             "name": self.name,
             "category": self.category,
             "description": self.description,
+            "domainId": self.domain_id,
             "kind": self.kind,
             "baseUrl": self.base_url,
             "latestRevision": self.latest_number,
@@ -193,8 +223,21 @@ class RunRecord:
 
 
 @dataclass(frozen=True, slots=True)
-class Stats:
-    scenes: int
-    published: int
-    runs: int
-    passed: int
+class SceneCard:
+    """領域頁的一張場景卡片：場景、最近一次執行、最近一張執行截圖。"""
+
+    scene: SceneRecord
+    last_run: RunRecord | None
+    screenshot_run: str | None
+    """有 screenshot.png 的最近一次執行的編號。"""
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            **self.scene.to_json(),
+            "lastRun": self.last_run.to_json() if self.last_run is not None else None,
+            "screenshotUrl": (
+                f"/runs/{self.screenshot_run}/files/screenshot.png"
+                if self.screenshot_run is not None
+                else None
+            ),
+        }

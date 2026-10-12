@@ -9,6 +9,10 @@
 {% if items %}<code>{{ items | join(", ") }}</code>{% else %}—{% endif %}
 {% endmacro %}
 
+{% macro arrow() %}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>{% endmacro %}
+
+{% macro scene_crumb(scene, domain) %}{% if domain %}<a href="/domains/{{ domain.id }}">{{ domain.name }}</a>{% else %}<a href="/domains">{{ t("nav.domains") }}</a>{% endif %} › <a href="/scenes/{{ scene.id }}">{{ scene.id }}</a>{% endmacro %}
+
 {% macro badge(status, label) %}<span class="badge {{ badge_color(status) }}" data-status="{{ status }}">{{ label }}</span>{% endmacro %}
 
 {% macro run_badge(status) %}{{ badge(status, t("status." + status)) }}{% endmacro %}
@@ -50,7 +54,7 @@
 
 {% macro spec_tables(scenario) %}
 <div class="two-col">
-  <section class="panel">
+  <section class="panel" id="inputs">
     <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}</span></div>
     {% if scenario.inputs %}
     <div class="table-scroll"><table class="wrap">
@@ -66,7 +70,7 @@
     </table></div>
     {% else %}<div class="empty">{{ t("spec.no_inputs") }}</div>{% endif %}
   </section>
-  <section class="panel">
+  <section class="panel" id="outputs">
     <div class="panel-header"><h2>{{ t("spec.outputs") }}</h2><span class="muted">{{ scenario.outputs | length }}</span></div>
     {% if scenario.outputs %}
     <div class="table-scroll"><table class="wrap">

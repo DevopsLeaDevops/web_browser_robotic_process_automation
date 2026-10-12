@@ -21,7 +21,19 @@
   </div>
 
   <div class="stack">
-    <div class="notice">启动：<code>uv run rpa serve</code>，再打开 <code>http://127.0.0.1:8080</code>。数据放在 <code>data/</code>（或 <code>--data</code> 指定的文件夹）。没有登录保护，默认只开放本机连接。</div>
+    <div class="notice">启动：<code>uv run rpa serve</code>，再打开 <code>http://127.0.0.1:8080</code>。会一起在 <code>127.0.0.1:8765</code> 启动本机测试网站，「测试网站自动化」的案例直接就能运行。数据放在 <code>data/</code>（或 <code>--data</code> 指定的文件夹）。没有登录保护，默认只开放本机连接。</div>
+
+    <section class="panel" id="domains">
+      <div class="panel-header"><h2>领域</h2><span class="muted">场景管理的二级菜单</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>依目标系统或业务划分场景。</strong>例如「测试网站自动化」「谷歌自动化」「微软自动化」。每个领域是「场景管理」左侧的一个菜单，最后一项是「领域管理」。</li>
+          <li><strong>领域页是场景卡片。</strong>每张卡片有名称与标签（DSL 场景、Python 脚本、待发布）、最近一次运行的截图、说明，「自动化脚本、断言脚本、运行报告、入参设置、出参设置」五个链接，以及场景编号、最近一次结果、「调试」（验证最新版本）与「运行」（运行已发布版本）。</li>
+          <li><strong>领域管理。</strong>添加领域（代号用在网址，创建后不能改）、改名称与说明、删除没有场景的领域。场景页的「运行设置」可以把场景移到其他领域。</li>
+          <li><strong>测试网站自动化。</strong>第一次启动时自动创建，放进四个对测试网站运行的真实案例：创建记录（BA-001）、查询记录（BA-002，入参是 BA-001 的出参）、查询不存在的记录（BA-003）、Python 脚本版的创建记录。</li>
+        </ul>
+      </div>
+    </section>
 
     <section class="panel" id="flow">
       <div class="panel-header"><h2>流程</h2><span class="muted">验收：在浏览器内走完一次</span></div>
@@ -70,8 +82,10 @@
         <table class="wrap">
           <thead><tr><th>路径</th><th>内容</th></tr></thead>
           <tbody>
-            <tr><td><code>/scenes</code></td><td>统计、搜索与分类筛选、场景卡片；添加场景、导入示例</td></tr>
-            <tr><td><code>/scenes/{id}</code></td><td>版本清单与状态、发布、入参与出参、默认网址、最近运行</td></tr>
+            <tr><td><code>/scenes</code></td><td>转到第一个领域；还没有领域时转到领域管理</td></tr>
+            <tr><td><code>/domains/{代号}</code></td><td>领域页：场景卡片；添加场景、导入示例（测试网站自动化）</td></tr>
+            <tr><td><code>/domains</code></td><td>领域管理：添加、改名、删除；还没分到领域的场景</td></tr>
+            <tr><td><code>/scenes/{id}</code></td><td>版本清单与状态、发布、入参与出参、所属领域与默认网址、最近运行</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>编辑 YAML 与脚本，存成新版本；校验问题列在页面上</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>验证或运行的表单：入参（JSON，已带入默认值）、浏览器、网址</td></tr>
             <tr><td><code>/runs</code></td><td>运行报告：分类、场景多选，结果、目的筛选</td></tr>
@@ -88,9 +102,11 @@
         <table class="wrap">
           <thead><tr><th>界面</th><th>用途</th></tr></thead>
           <tbody>
-            <tr><td><code>GET /api/scenes</code>、<code>POST /api/scenes</code></td><td>场景列表（<code>q</code>、<code>category</code>）；创建场景</td></tr>
-            <tr><td><code>POST /api/scenes/import</code></td><td>导入示例文件夹的场景，已存在的略过</td></tr>
-            <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>场景与版本清单；修改默认网址、封存</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/domains</code></td><td>领域清单；添加领域（<code>id</code>、<code>name</code>、<code>description</code>）</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代号}</code></td><td>领域与它的场景卡片（最近一次运行、截图）；改名称与说明；删除没有场景的领域</td></tr>
+            <tr><td><code>GET /api/scenes</code>、<code>POST /api/scenes</code></td><td>场景列表（<code>q</code>、<code>category</code>、<code>domain</code>）；创建场景（可带 <code>domainId</code>）</td></tr>
+            <tr><td><code>POST /api/scenes/import</code></td><td>导入示例文件夹的场景，已存在的略过；可带 <code>domainId</code>，默认放进测试网站自动化</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>场景与版本清单；修改所属领域、默认网址、封存</td></tr>
             <tr><td><code>GET /api/scenes/{id}/revisions/{n}</code></td><td>版本与文件内容</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校验问题（含行号）</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>验证；202 回运行</td></tr>
@@ -109,11 +125,12 @@
         <div class="panel-header"><h2>数据</h2></div>
         <div class="panel-body">
 <pre class="source">data/
-  rpa.db                     SQLite：scenes、revisions、runs
+  rpa.db                     SQLite：domains、scenes、revisions、runs
   scenes/&lt;场景 id&gt;/&lt;版本&gt;/   scenario.yaml（脚本场景另有两支脚本）
   runs/&lt;运行编号&gt;/            M2 的运行目录（input.json、report.html…）</pre>
           <dl class="spec-list">
-            <dt>scenes</dt><dd>id、名称与分类（取自最新版本）、默认网址、最新与已发布的版本号码、封存</dd>
+            <dt>domains</dt><dd>代号、名称、说明、排列顺序</dd>
+            <dt>scenes</dt><dd>id、名称与分类（取自最新版本）、所属领域、默认网址、最新与已发布的版本号码、封存</dd>
             <dt>revisions</dt><dd>场景、版本号码（唯一）、内容哈希、种类、状态、说明、发布时间</dd>
             <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、入参与出参、错误、哈希、时间</dd>
           </dl>
@@ -124,11 +141,12 @@
         <div class="panel-header"><h2>设置</h2></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt><code>--host</code>、<code>--port</code></dt><dd>默认 <code>127.0.0.1:8080</code></dd>
+            <dt><code>--host</code>、<code>--port</code></dt><dd>默认 <code>127.0.0.1:8080</code>；没有指定端口号而 8080 被其他程序占用时，自动改用下一个空的端口号（到 8089）。占用的如果就是管理 Portal，只显示它的网址，不再开第二个</dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>数据文件夹，默认 <code>data</code>；也可以用 <code>--data</code></dd>
             <dt><code>RPA_DATABASE_URL</code></dt><dd>默认 SQLite；PostgreSQL 在 M8</dd>
             <dt><code>RPA_LANG</code></dt><dd>默认语言，也是运行报告的语言；页面右上角可以切换</dd>
-            <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「导入示例」的文件夹，默认 <code>scenarios/demo</code></dd>
+            <dt><code>--no-testsite</code></dt><dd>不要一起启动测试网站（默认会在 <code>127.0.0.1:8765</code> 启动；已经在运行就沿用）</dd>
+            <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「测试网站自动化」的示例文件夹，默认 <code>scenarios/demo</code></dd>
             <dt>Secrets</dt><dd>与 M2 相同，从服务器进程的同名环境变量读取</dd>
           </dl>
         </div>

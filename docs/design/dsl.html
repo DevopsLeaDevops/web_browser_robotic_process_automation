@@ -251,7 +251,8 @@ $ rpa run scenarios/demo/ba-002.yaml --input runs/ba-001-…/output.json   # 不
           <dt>選項</dt><dd><code>-i 名稱=值</code>（依型別轉換，可重複）、<code>--input 檔.json</code>、<code>--base-url</code>、<code>--browser chromium|firefox</code>、<code>--headed</code>、<code>--deadline 毫秒</code>、<code>--out 資料夾</code>（預設 runs/）、<code>--format json</code>。退出碼：0 通過、1 未通過。</dd>
           <dt>執行目錄</dt><dd>input.json、facts.json、steps.json、output.json（只有通過時）、screenshot.png 與 screenshot 步驟的截圖、automation.log、diagnostic.json（失敗時）、scenario/（本次的場景快照）、result.json、report.html。</dd>
           <dt>Secrets</dt><dd>M2 從同名的環境變數讀取（例如 <code>ERP_PASSWORD</code>），只傳給子程序，日誌與報告中會遮罩；M8 改為加密存放。</dd>
-          <dt>Python 腳本場景</dt><dd>剩下的總期限在環境變數 <code>RPA_DEADLINE_SECONDS</code>，瀏覽器在 <code>RPA_BROWSER</code>；範例見 <code>scenarios/demo/ba-001-script/</code>。</dd>
+          <dt>Python 腳本場景</dt><dd>剩下的總期限在環境變數 <code>RPA_DEADLINE_SECONDS</code>，瀏覽器在 <code>RPA_BROWSER</code>；範例見 <code>scenarios/demo/ba-001-script/</code>。腳本自己啟動瀏覽器，不使用下面的預熱設定檔。</dd>
+          <dt>Firefox 設定檔</dt><dd>Firefox 每次用全新的設定檔啟動時，會先初始化設定檔而停止回應幾秒（Windows 上機器忙時可能超過步驟的逾時）。所以每台電腦、每個 Firefox 版本會保留一份預先初始化過的空白設定檔，每次執行複製一份來用，結束後刪除，每次執行仍然是乾淨的。第一次用 Firefox 執行時建立，約多花 7～10 秒。放在快取資料夾 <code>RPA_CACHE_DIR</code>，預設是 Windows 的 <code>%LOCALAPPDATA%\rpa\cache</code>、macOS 的 <code>~/Library/Caches/rpa</code>、Linux 的 <code>~/.cache/rpa</code>；刪掉也沒關係，下次會重建。</dd>
         </dl>
       </div>
     </section>

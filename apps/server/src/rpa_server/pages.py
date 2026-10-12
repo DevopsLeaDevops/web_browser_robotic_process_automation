@@ -9,10 +9,11 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
-from rpa_server.domain import ENGINES, PURPOSES, RUN_STATUSES, Purpose
+from rpa_server.config import EXAMPLES_DOMAIN
+from rpa_server.domain import ENGINES, PURPOSES, RUN_STATUSES, DomainRecord, Purpose
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
-from rpa_server.render import render
+from rpa_server.render import domain_page, render
 from rpa_server.services import ServiceError, Services
 
 __all__ = ["page_router"]
@@ -26,8 +27,21 @@ def _html(content: str) -> HTMLResponse:
     return HTMLResponse(content, headers={"Cache-Control": "no-store"})
 
 
+_SCRIPT_FILES: Final = ("automation.py", "assertion.py")
+_FOCUS: Final = frozenset({"steps", "verify", "inputs", "outputs"})
+
+
 def page_router(services: Services) -> APIRouter:
     router = APIRouter()
+
+    def page(name: str, *, page: str, title: str, **context: object) -> HTMLResponse:
+        """渲染一頁；每一頁都帶著領域清單（場景管理的二級選單）。"""
+        return _html(
+            render(name, page=page, title=title, domains=services.list_domains(), **context)
+        )
+
+    def domain_of(domain_id: str | None) -> DomainRecord | None:
+        return services.get_domain(domain_id) if domain_id else None
 
     @router.get("/", include_in_schema=False)
     def home() -> RedirectResponse:
@@ -45,19 +59,31 @@ def page_router(services: Services) -> APIRouter:
         return response
 
     @router.get("/scenes", include_in_schema=False)
-    def scenes(q: str = "", category: str = "") -> HTMLResponse:
-        return _html(
-            render(
-                "scenes.html",
-                page="scenes",
-                title=t("nav.scenes"),
-                scenes=services.list_scenes(query=q, category=category or None),
-                categories=services.categories(),
-                stats=services.stats(),
-                query=q,
-                category=category,
-                can_import=services.examples_dir is not None and services.examples_dir.is_dir(),
-            )
+    def scenes() -> RedirectResponse:
+        """場景管理：到第一個領域；還沒有領域時到領域管理。"""
+        domains = services.list_domains()
+        return RedirectResponse(f"/domains/{domains[0].id}" if domains else "/domains", 303)
+
+    @router.get("/domains", include_in_schema=False)
+    def domains() -> HTMLResponse:
+        return page(
+            "domains.html",
+            page="domains",
+            title=t("nav.domains"),
+            unassigned=services.unassigned_scenes(),
+        )
+
+    @router.get("/domains/{domain_id}", include_in_schema=False)
+    def domain(domain_id: str) -> HTMLResponse:
+        record = services.get_domain(domain_id)
+        examples = services.examples_dir
+        return page(
+            "domain.html",
+            page=domain_page(domain_id),
+            title=record.name,
+            domain=record,
+            cards=services.scene_cards(domain_id),
+            can_import=domain_id == EXAMPLES_DOMAIN and examples is not None and examples.is_dir(),
         )
 
     @router.get("/scenes/{scene_id}", include_in_schema=False)
@@ -67,32 +93,37 @@ def page_router(services: Services) -> APIRouter:
             scenario = services.revision_scenario(scene_id, record.latest_number)
         except ServiceError:
             scenario = None
-        return _html(
-            render(
-                "scene.html",
-                page="scenes",
-                title=record.name,
-                scene=record,
-                revisions=services.revisions(scene_id),
-                scenario=scenario,
-                default_base_url=scenario.browser.base_url if scenario else None,
-                runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
-            )
+        return page(
+            "scene.html",
+            page=domain_page(record.domain_id),
+            title=record.name,
+            scene=record,
+            domain=domain_of(record.domain_id),
+            revisions=services.revisions(scene_id),
+            scenario=scenario,
+            default_base_url=scenario.browser.base_url if scenario else None,
+            runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
         )
 
     @router.get("/scenes/{scene_id}/edit", include_in_schema=False)
-    def edit(scene_id: str, revision: int | None = None) -> HTMLResponse:
+    def edit(
+        scene_id: str, revision: int | None = None, file: str = "", focus: str = ""
+    ) -> HTMLResponse:
         record = services.get_scene(scene_id)
         shown = services.get_revision(scene_id, revision)
-        return _html(
-            render(
-                "edit.html",
-                page="scenes",
-                title=t("edit.title", name=record.name),
-                scene=record,
-                revision=shown,
-                files=services.revision_files(scene_id, shown.number),
-            )
+        files = services.revision_files(scene_id, shown.number)
+        # 卡片上的「自動化腳本」「斷言腳本」直接打開對應的檔案或段落
+        selected = file if file in files and file in (*_SCRIPT_FILES, "scenario.yaml") else ""
+        return page(
+            "edit.html",
+            page=domain_page(record.domain_id),
+            title=t("edit.title", name=record.name),
+            scene=record,
+            domain=domain_of(record.domain_id),
+            revision=shown,
+            files=files,
+            selected=selected or next(iter(files)),
+            focus=focus if focus in _FOCUS else "",
         )
 
     @router.get("/scenes/{scene_id}/run", include_in_schema=False)
@@ -110,19 +141,18 @@ def page_router(services: Services) -> APIRouter:
             name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
         }
         defaults |= {name: "" for name, spec in scenario.inputs.items() if spec.default is None}
-        return _html(
-            render(
-                "run_form.html",
-                page="scenes",
-                title=t(f"run_form.title_{purpose}", name=record.name, number=shown.number),
-                scene=record,
-                revision=shown,
-                scenario=scenario,
-                purpose=purpose,
-                defaults=defaults,
-                engines=ENGINES,
-                base_url=record.base_url or scenario.browser.base_url,
-            )
+        return page(
+            "run_form.html",
+            page=domain_page(record.domain_id),
+            title=t(f"run_form.title_{purpose}", name=record.name, number=shown.number),
+            scene=record,
+            domain=domain_of(record.domain_id),
+            revision=shown,
+            scenario=scenario,
+            purpose=purpose,
+            defaults=defaults,
+            engines=ENGINES,
+            base_url=record.base_url or scenario.browser.base_url,
         )
 
     @router.get("/runs", include_in_schema=False)
@@ -138,24 +168,22 @@ def page_router(services: Services) -> APIRouter:
             "status": [item for item in status or [] if item],
             "purpose": [item for item in purpose or [] if item],
         }
-        return _html(
-            render(
-                "runs.html",
-                page="runs",
-                title=t("nav.runs"),
-                runs=services.list_runs(
-                    scenes=selected["scene"],
-                    categories=selected["category"],
-                    statuses=selected["status"],
-                    purposes=selected["purpose"],
-                ),
-                scenes=services.list_scenes(include_archived=True),
-                categories=services.run_categories(),
-                statuses=RUN_STATUSES,
-                purposes=PURPOSES,
-                selected=selected,
-                limit=200,
-            )
+        return page(
+            "runs.html",
+            page="runs",
+            title=t("nav.runs"),
+            runs=services.list_runs(
+                scenes=selected["scene"],
+                categories=selected["category"],
+                statuses=selected["status"],
+                purposes=selected["purpose"],
+            ),
+            scenes=services.list_scenes(include_archived=True),
+            categories=services.run_categories(),
+            statuses=RUN_STATUSES,
+            purposes=PURPOSES,
+            selected=selected,
+            limit=200,
         )
 
     @router.get("/runs/{run_id}", include_in_schema=False)
@@ -169,17 +197,15 @@ def page_router(services: Services) -> APIRouter:
             and not revision.published
             and record.scenario_hash == revision.content_hash
         )
-        return _html(
-            render(
-                "run.html",
-                page="runs",
-                title=t("run.title", id=record.id),
-                run=record,
-                revision=revision,
-                result=services.run_result(run_id) if record.finished else None,
-                files=services.storage.run_files(run_id) if record.finished else [],
-                can_publish=can_publish,
-            )
+        return page(
+            "run.html",
+            page="runs",
+            title=t("run.title", id=record.id),
+            run=record,
+            revision=revision,
+            result=services.run_result(run_id) if record.finished else None,
+            files=services.storage.run_files(run_id) if record.finished else [],
+            can_publish=can_publish,
         )
 
     @router.get("/runs/{run_id}/files/{relative:path}", include_in_schema=False)
@@ -204,14 +230,12 @@ def page_router(services: Services) -> APIRouter:
 
     @router.get("/recording", include_in_schema=False)
     def recording() -> HTMLResponse:
-        return _html(
-            render("placeholder.html", page="recording", title=t("nav.recording"), milestone="M4")
-        )
+        return page("placeholder.html", page="recording", title=t("nav.recording"), milestone="M4")
 
     @router.get("/playground", include_in_schema=False)
     def playground() -> HTMLResponse:
-        return _html(
-            render("placeholder.html", page="playground", title=t("nav.playground"), milestone="M6")
+        return page(
+            "placeholder.html", page="playground", title=t("nav.playground"), milestone="M6"
         )
 
     return router

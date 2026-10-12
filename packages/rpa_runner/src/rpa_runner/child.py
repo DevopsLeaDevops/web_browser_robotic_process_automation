@@ -4,6 +4,7 @@
         --out 執行目錄 --deadline 秒數
 
 寫出 facts.json、steps.json、screenshot.png；失敗時另寫 diagnostic.json。
+Firefox 從預熱設定檔的複本啟動，避免每次初始化全新設定檔而卡住（見 profiles.py）。
 退出碼：0 成功、1 步驟失敗、3 總期限已到。父程序另外設有硬期限，逾時會終止整個程序群組。
 """
 
@@ -15,11 +16,12 @@ import sys
 from pathlib import Path
 from typing import Final, Literal, cast
 
-from playwright.sync_api import Browser, Page, Playwright, sync_playwright
+from playwright.sync_api import Browser, Page, Playwright, ViewportSize, sync_playwright
 
 from rpa_core.dsl import Scenario, validate_file
 from rpa_runner.browser import Deadline, DeadlineExceeded, plan_records, run_steps
 from rpa_runner.files import DIAGNOSTIC, FACTS, SCREENSHOT, STEPS, write_json
+from rpa_runner.profiles import firefox_profile
 from rpa_runner.secrets import mask, read_secrets
 
 __all__ = ["EXIT_DEADLINE", "EXIT_FAILED", "main"]
@@ -39,13 +41,42 @@ def _launch(playwright: Playwright, engine: Engine, *, headed: bool, timeout_ms:
     return browser_type.launch(headless=not headed, timeout=max(1, timeout_ms))
 
 
-def _new_page(browser: Browser, scenario: Scenario) -> Page:
+def _viewport(scenario: Scenario) -> ViewportSize | None:
     viewport = scenario.browser.viewport
-    context = browser.new_context(
-        viewport={"width": viewport.width, "height": viewport.height} if viewport else None,
-        locale=scenario.browser.locale,
-    )
+    return {"width": viewport.width, "height": viewport.height} if viewport else None
+
+
+def _new_page(browser: Browser, scenario: Scenario) -> Page:
+    context = browser.new_context(viewport=_viewport(scenario), locale=scenario.browser.locale)
     return context.new_page()
+
+
+def _open_page(
+    playwright: Playwright,
+    engine: Engine,
+    scenario: Scenario,
+    *,
+    headed: bool,
+    deadline: Deadline,
+    stack: contextlib.ExitStack,
+) -> Page:
+    """開瀏覽器與頁面；關閉的動作登記在 stack，離開時依相反順序執行。"""
+    if engine == "firefox":
+        budget = deadline.remaining_ms() / 1000
+        profile = stack.enter_context(firefox_profile(playwright, budget_seconds=budget))
+        if profile is not None:
+            context = playwright.firefox.launch_persistent_context(
+                profile,
+                headless=not headed,
+                timeout=max(1, deadline.remaining_ms()),
+                viewport=_viewport(scenario),
+                locale=scenario.browser.locale,
+            )
+            stack.callback(context.close)
+            return context.pages[0] if context.pages else context.new_page()
+    browser = _launch(playwright, engine, headed=headed, timeout_ms=deadline.remaining_ms())
+    stack.callback(browser.close)
+    return _new_page(browser, scenario)
 
 
 def run(args: argparse.Namespace) -> int:
@@ -68,12 +99,11 @@ def run(args: argparse.Namespace) -> int:
 
     save_steps()
     page: Page | None = None
-    with sync_playwright() as playwright:
-        browser = _launch(
-            playwright, engine, headed=args.headed, timeout_ms=deadline.remaining_ms()
-        )
+    with sync_playwright() as playwright, contextlib.ExitStack() as stack:
         try:
-            page = _new_page(browser, scenario)
+            page = _open_page(
+                playwright, engine, scenario, headed=args.headed, deadline=deadline, stack=stack
+            )
             facts = run_steps(
                 page,
                 scenario,
@@ -105,8 +135,6 @@ def run(args: argparse.Namespace) -> int:
                     page.screenshot(path=out / SCREENSHOT, timeout=deadline.budget(5_000))
             sys.stderr.write(mask(f"{type(error).__name__}: {error}", secrets) + "\n")
             return EXIT_DEADLINE if timed_out else EXIT_FAILED
-        finally:
-            browser.close()
 
 
 def main(argv: list[str] | None = None) -> int:

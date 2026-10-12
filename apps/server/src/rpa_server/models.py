@@ -11,11 +11,23 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from rpa_server.db import NAMING_CONVENTION, JsonType, UtcDateTime
 
-__all__ = ["Base", "Revision", "Run", "Scene"]
+__all__ = ["Base", "Domain", "Revision", "Run", "Scene"]
 
 
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+class Domain(Base):
+    """領域：場景管理的二級選單，依目標系統或業務劃分場景。"""
+
+    __tablename__ = "domains"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class Scene(Base):
@@ -27,6 +39,7 @@ class Scene(Base):
     name: Mapped[str] = mapped_column(String(200))
     category: Mapped[str | None] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(Text)
+    domain_id: Mapped[str | None] = mapped_column(ForeignKey("domains.id"), index=True)
     base_url: Mapped[str | None] = mapped_column(String(2000))
     latest_number: Mapped[int] = mapped_column(default=0)
     published_number: Mapped[int | None] = mapped_column()

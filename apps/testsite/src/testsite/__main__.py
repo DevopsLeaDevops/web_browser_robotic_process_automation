@@ -3,12 +3,12 @@
 import argparse
 import sys
 
-from testsite.server import create_server
+from testsite.server import DEFAULT_PORT, create_server
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="本機測試網站（只綁定 127.0.0.1）")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     port = parser.parse_args().port
     server = create_server(port)
     sys.stderr.write(f"測試網站：http://127.0.0.1:{server.server_port}/（Ctrl+C 結束）\n")

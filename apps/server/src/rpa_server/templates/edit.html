@@ -1,12 +1,13 @@
 {% extends "base.html" %}
-{% block crumb %}<a href="/scenes">{{ t("nav.scenes") }}</a> › <a href="/scenes/{{ scene.id }}">{{ scene.id }}</a> › {{ t("edit.crumb") }}{% endblock %}
+{% import "_macros.html" as m %}
+{% block crumb %}{{ m.scene_crumb(scene, domain) }} › {{ t("edit.crumb") }}{% endblock %}
 {% block description %}{{ t("edit.description", shown=revision.number, next=scene.latest_number + 1) }}{% endblock %}
 {% block actions %}
 <a class="button" href="/scenes/{{ scene.id }}">{{ t("edit.back") }}</a>
 <button class="button primary" data-action="save-revision">{{ t("edit.save") }}</button>
 {% endblock %}
 {% block content %}
-<form class="stack" id="revision-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}">
+<form class="stack" id="revision-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-focus="{{ focus or '' }}">
   {% if revision.number != scene.latest_number %}
   <div class="notice warn">{{ t("edit.older", shown=revision.number, latest=scene.latest_number) }}</div>
   {% endif %}
@@ -18,12 +19,12 @@
   {% if files | length > 1 %}
   <div class="segmented" role="tablist">
     {% for path in files %}
-    <button type="button" role="tab" data-file-tab="{{ path }}"{% if loop.first %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ path }}</button>
+    <button type="button" role="tab" data-file-tab="{{ path }}"{% if path == selected %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ path }}</button>
     {% endfor %}
   </div>
   {% endif %}
   {% for path, text in files.items() %}
-  <section class="panel" data-file="{{ path }}"{% if not loop.first %} hidden{% endif %}>
+  <section class="panel" data-file="{{ path }}"{% if path != selected %} hidden{% endif %}>
     <div class="panel-header"><h2 class="mono">{{ path }}</h2></div>
     <div class="panel-body">
       <textarea class="code-editor" name="{{ path }}" rows="28" spellcheck="false" aria-label="{{ path }}">

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block crumb %}<a href="/scenes">{{ t("nav.scenes") }}</a> › {{ scene.id }}{% endblock %}
+{% block crumb %}{% if domain %}<a href="/domains/{{ domain.id }}">{{ domain.name }}</a>{% else %}<a href="/domains">{{ t("nav.domains") }}</a>{% endif %} › {{ scene.id }}{% endblock %}
 {% block description %}<span class="tag">{{ scene.id }}</span> {{ scene.category or t("scenes.no_category") }} · {{ t("kind." + scene.kind) }}{% if scene.archived %} · {{ t("scene.archived") }}{% endif %}{% endblock %}
 {% block actions %}
 <a class="button" href="/scenes/{{ scene.id }}/edit">{{ t("scene.edit") }}</a>
 <a class="button" href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("scene.validate_latest", number=scene.latest_number) }}</a>
 {% if scene.published %}
-<a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution">{{ t("scenes.run") }}</a>
+<a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution">{{ m.arrow() }} {{ t("card.run") }}</a>
 {% else %}
-<button class="button primary" disabled title="{{ t('scenes.run_disabled') }}">{{ t("scenes.run") }}</button>
+<span class="button primary is-disabled" aria-disabled="true" title="{{ t('scenes.run_disabled') }}">{{ m.arrow() }} {{ t("card.not_published") }}</span>
 {% endif %}
 {% endblock %}
 {% block content %}
@@ -52,9 +52,15 @@
   {{ m.spec_tables(scenario) }}
   {% endif %}
 
-  <section class="panel">
+  <section class="panel" id="settings">
     <div class="panel-header"><h2>{{ t("scene.settings") }}</h2></div>
     <form class="panel-body stack" data-action="scene-settings" data-scene="{{ scene.id }}">
+      <label class="field">{{ t("scene.domain") }}
+        <select name="domainId">
+          <option value="">{{ t("scene.no_domain") }}</option>
+          {% for item in domains %}<option value="{{ item.id }}"{% if item.id == scene.domain_id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}
+        </select>
+      </label>
       <label class="field">{{ t("scene.base_url") }}
         <input type="url" name="baseUrl" value="{{ scene.base_url or '' }}" placeholder="{{ default_base_url or 'https://' }}">
         <span class="cell-sub">{{ t("scene.base_url_hint", default=default_base_url or "—") }}</span>

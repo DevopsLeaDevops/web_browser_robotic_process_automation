@@ -6,8 +6,9 @@ requires-python = ">=3.12"
 dependencies = [
   "rpa-core",
   "rpa-runner",
-  # rpa serve 啟動管理 Portal
+  # rpa serve 啟動管理 Portal，並一起啟動本機測試網站
   "rpa-server",
+  "rpa-testsite",
   "click>=8.5.0",
 ]
 
@@ -18,6 +19,7 @@ rpa = "rpa_cli.main:main"
 rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
 rpa-server = { workspace = true }
+rpa-testsite = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]

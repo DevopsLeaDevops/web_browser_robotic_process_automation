@@ -8,6 +8,7 @@ members = [
     "rpa-core",
     "rpa-runner",
     "rpa-server",
+    "rpa-testsite",
     "rpa-worker",
 ]
 
@@ -22,6 +23,7 @@ dev = [
     { name = "rpa-core", editable = "packages/rpa_core" },
     { name = "rpa-runner", editable = "packages/rpa_runner" },
     { name = "rpa-server", editable = "apps/server" },
+    { name = "rpa-testsite", editable = "apps/testsite" },
     { name = "rpa-worker", editable = "apps/worker" },
     { name = "ruff", specifier = ">=0.16.10" },
 ]
@@ -756,6 +758,7 @@ dependencies = [
     { name = "rpa-core" },
     { name = "rpa-runner" },
     { name = "rpa-server" },
+    { name = "rpa-testsite" },
 ]
 
 [package.metadata]
@@ -764,6 +767,7 @@ requires-dist = [
     { name = "rpa-core", editable = "packages/rpa_core" },
     { name = "rpa-runner", editable = "packages/rpa_runner" },
     { name = "rpa-server", editable = "apps/server" },
+    { name = "rpa-testsite", editable = "apps/testsite" },
 ]
 
 [[package]]
@@ -824,6 +828,11 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.1.4" },
     { name = "uvicorn", specifier = ">=0.54.0" },
 ]
+
+[[package]]
+name = "rpa-testsite"
+version = "0.1.0"
+source = { editable = "apps/testsite" }
 
 [[package]]
 name = "rpa-worker"

@@ -14,6 +14,7 @@ rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
 rpa-worker = { workspace = true }
 rpa-server = { workspace = true }
+rpa-testsite = { workspace = true }
 rpa-cli = { workspace = true }
 
 [dependency-groups]
@@ -23,6 +24,7 @@ dev = [
   "rpa-runner",
   "rpa-worker",
   "rpa-server",
+  "rpa-testsite",
   "rpa-cli",
   # 工具鏈
   "ruff>=0.16.10",
@@ -74,7 +76,7 @@ quote-style = "double"
 
 # ---------------------------------------------------------------- pyright
 [tool.pyright]
-include = ["packages", "apps", "tests", "tools", "testsite"]
+include = ["packages", "apps", "tests", "tools"]
 exclude = ["**/.venv", "docs"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
