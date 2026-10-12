@@ -30,6 +30,8 @@
   "run.candidate_missing": "assertion.py 没有写出候选出参",
   "run.output_failed": "出参有 {count} 个问题，没有发布",
   "run.cancelled": "用户中止；已停止子进程",
+  "installed.separator": "、",
+  "installed.missing_hint": "这台电脑还没有下载 {browser}：在项目文件夹运行 {command}，完成后再运行一次即可（管理 Portal 不用重新启动）。",
   "report.meta": "{run_id} · {kind} · {engine} · {started} · {seconds} 秒",
   "report.stages": "阶段",
   "report.stage": "阶段",
