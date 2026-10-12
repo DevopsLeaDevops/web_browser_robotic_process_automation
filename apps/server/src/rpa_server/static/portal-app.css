@@ -38,3 +38,15 @@ h2 a:hover{color:var(--blue-strong)}
 .scene-card-foot .grow{flex:1}
 .status-link{text-decoration:none}
 @media(min-width:1600px){.scene-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* 執行選項的單選（有頭／無頭模式） */
+fieldset.choice{border:0;margin:0;padding:0;display:grid;gap:6px;font-size:12px}fieldset.choice legend{padding:0;margin-bottom:6px}fieldset.choice label{display:flex;gap:8px;align-items:center}fieldset.choice input{min-height:0;margin:0}fieldset.choice input:disabled+*,fieldset.choice label:has(input:disabled){color:var(--muted)}
+/* 執行報告的篩選選單（按鈕＋可複選的下拉清單） */
+.panel.has-filters{overflow:visible}.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.filter-menu{position:relative;border:0;padding:0}.filter-menu>summary{list-style:none;gap:6px;max-width:320px}.filter-menu>summary::-webkit-details-marker{display:none}
+.filter-menu>summary strong{font-weight:600;overflow:hidden;text-overflow:ellipsis}.filter-menu>summary .caret{color:var(--muted);font-size:10px}
+.filter-menu>summary.is-active{border-color:#9bbfe6;background:var(--active);color:var(--blue-strong)}.filter-menu[open]>summary{border-color:#9bbfe6}
+.filter-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:20;min-width:240px;max-width:min(440px,calc(100vw - 32px));background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 32px #24334a1f;padding:8px}
+.filter-search{width:100%;margin-bottom:6px}.filter-options{max-height:280px;overflow:auto;display:grid;gap:1px}
+.filter-options label{display:flex;gap:8px;align-items:center;padding:5px 6px;border-radius:5px;cursor:pointer;white-space:nowrap}.filter-options label:hover{background:#f6f9fd}.filter-options input{min-height:0;margin:0}
+.filter-options p{padding:6px}.filter-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
+@media(max-width:700px){.filter-menu>summary{max-width:calc(100vw - 48px)}.filter-panel{position:fixed;left:16px;right:16px;top:auto;max-width:none}}

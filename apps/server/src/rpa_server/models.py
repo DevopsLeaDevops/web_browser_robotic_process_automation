@@ -6,7 +6,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Float, ForeignKey, MetaData, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, MetaData, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from rpa_server.db import NAMING_CONVENTION, JsonType, UtcDateTime
@@ -81,6 +81,8 @@ class Run(Base):
     stage: Mapped[str | None] = mapped_column(String(20))
     engine: Mapped[str | None] = mapped_column(String(20))
     base_url: Mapped[str | None] = mapped_column(String(2000))
+    headless: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    """無頭模式（不顯示瀏覽器視窗）；False 是有頭模式。之前的執行都是無頭。"""
     input: Mapped[dict[str, object]] = mapped_column(JsonType)
     output: Mapped[dict[str, object] | None] = mapped_column(JsonType)
     error: Mapped[str | None] = mapped_column(Text)

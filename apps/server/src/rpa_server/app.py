@@ -43,7 +43,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = create_db_engine(settings.database_url)
     upgrade(engine)
     sessions = sessionmaker(engine, expire_on_commit=False)
-    services = Services(sessions, storage, examples_dir=settings.examples_dir)
+    services = Services(
+        sessions, storage, examples_dir=settings.examples_dir, display=settings.display
+    )
     worker = Worker(RunQueue(sessions, storage), locale=settings.locale)
     services.on_queued = worker.wake
     services.on_cancel = worker.cancel

@@ -36,6 +36,8 @@ class Job:
     engine: str | None = None
     base_url: str | None = None
     deadline_ms: int | None = None
+    headless: bool = True
+    """無頭模式（不顯示瀏覽器視窗）；False 是有頭模式。"""
 
 
 class JobSource(Protocol):
@@ -69,6 +71,7 @@ class Executor(Protocol):
         out_root: Path,
         base_url: str | None = None,
         engine: str | None = None,
+        headed: bool = False,
         deadline_ms: int | None = None,
         run_id: str | None = None,
         cancel: threading.Event | None = None,
@@ -192,6 +195,7 @@ class Worker:
                 out_root=job.out_root,
                 base_url=job.base_url,
                 engine=job.engine,
+                headed=not job.headless,
                 deadline_ms=job.deadline_ms,
                 run_id=job.run_id,
                 cancel=cancel,

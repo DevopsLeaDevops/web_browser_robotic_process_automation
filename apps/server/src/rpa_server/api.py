@@ -59,6 +59,8 @@ class RunCreate(_Body):
     engine: Engine | None = None
     base_url: str | None = Field(default=None, max_length=2000)
     idempotency_key: str | None = Field(default=None, max_length=100)
+    headless: bool | None = None
+    """無頭模式；沒指定時能顯示瀏覽器視窗就用有頭模式。"""
 
 
 def api_router(services: Services) -> APIRouter:
@@ -152,6 +154,7 @@ def api_router(services: Services) -> APIRouter:
             engine=body.engine,
             base_url=body.base_url,
             idempotency_key=body.idempotency_key,
+            headless=body.headless,
         )
         return run.to_json()
 
@@ -170,6 +173,7 @@ def api_router(services: Services) -> APIRouter:
             engine=body.engine,
             base_url=body.base_url,
             idempotency_key=body.idempotency_key,
+            headless=body.headless,
         )
         return run.to_json()
 

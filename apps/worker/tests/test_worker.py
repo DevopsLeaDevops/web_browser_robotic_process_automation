@@ -159,3 +159,51 @@ def test_real_run_and_cancel_while_running(tmp_path: Path) -> None:
     assert source.results["ok"].status == "passed", source.results["ok"].error
     assert source.results["ok"].output is not None
     assert source.results["stop"].status == "cancelled"
+
+
+WINDOW_PROBE = {
+    "scenario.yaml": """\
+schemaVersion: 1
+id: window-probe
+name: Window probe
+outputs:
+  headless: {type: string}
+script: {automation: automation.py, assertion: assertion.py}
+""",
+    "automation.py": """\
+import argparse, json, os
+from pathlib import Path
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "screenshot", "target-url"):
+    parser.add_argument("--" + name)
+args = parser.parse_args()
+Path(args.facts).write_text(json.dumps({"headless": os.environ["RPA_HEADLESS"]}), encoding="utf-8")
+""",
+    "assertion.py": """\
+import argparse
+from pathlib import Path
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "output"):
+    parser.add_argument("--" + name)
+args = parser.parse_args()
+Path(args.output).write_text(Path(args.facts).read_text(encoding="utf-8"), encoding="utf-8")
+""",
+}
+
+
+@pytest.mark.parametrize(("headless", "expected"), [(False, "0"), (True, "1")])
+def test_job_runs_headed_or_headless(tmp_path: Path, headless: bool, expected: str) -> None:
+    """任務的 headless 傳到執行：有頭模式時子程序拿到 RPA_HEADLESS=0。不開瀏覽器。"""
+    folder = tmp_path / "probe"
+    folder.mkdir()
+    for name, text in WINDOW_PROBE.items():
+        (folder / name).write_text(text, encoding="utf-8")
+    source = FakeSource(
+        Job("probe", folder / "scenario.yaml", {}, out_root=tmp_path / "runs", headless=headless)
+    )
+
+    assert Worker(source).run_once() is True
+
+    result = source.results["probe"]
+    assert result.status == "passed", result.error
+    assert result.output == {"headless": expected}

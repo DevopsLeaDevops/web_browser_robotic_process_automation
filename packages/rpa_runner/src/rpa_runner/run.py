@@ -304,16 +304,22 @@ def _snapshot(path: Path, scenario: Scenario, folder: Path) -> tuple[Path, str]:
 
 
 def _environment(
-    secrets: Mapping[str, str], deadline: Deadline, engine: str | None = None
+    secrets: Mapping[str, str],
+    deadline: Deadline,
+    engine: str | None = None,
+    headed: bool | None = None,
 ) -> dict[str, str]:
     """子程序的環境變數：Secrets、剩餘秒數 RPA_DEADLINE_SECONDS、瀏覽器 RPA_BROWSER。
 
-    另外用 RPA_LANG 傳入目前的語言，子程序的日誌與它一致。
+    另外用 RPA_LANG 傳入目前的語言，子程序的日誌與它一致；自動化階段再用 RPA_HEADLESS
+    （1 無頭、0 有頭）告訴 Python 腳本要不要顯示瀏覽器視窗。
     """
     env = {**os.environ, **secrets, "PYTHONIOENCODING": "utf-8", ENV_VAR: get_locale()}
     env["RPA_DEADLINE_SECONDS"] = f"{max(0, deadline.remaining_ms()) / 1000:.3f}"
     if engine:
         env["RPA_BROWSER"] = engine
+    if headed is not None:
+        env["RPA_HEADLESS"] = "0" if headed else "1"
     return env
 
 
@@ -476,7 +482,7 @@ def _automation_stage(
         command += ["--headed"] if headed else []
     hint: str | None = None
     try:
-        env = _environment(secrets, deadline, engine or scenario.browser.engine)
+        env = _environment(secrets, deadline, engine or scenario.browser.engine, headed)
         _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel)
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌

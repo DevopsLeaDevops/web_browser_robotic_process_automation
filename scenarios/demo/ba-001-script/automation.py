@@ -28,7 +28,9 @@ def main() -> None:
 
     with sync_playwright() as playwright:
         browser_type = getattr(playwright, os.environ.get("RPA_BROWSER", "firefox"))
-        browser = browser_type.launch(timeout=remaining())
+        # RPA_HEADLESS：0 顯示瀏覽器視窗（有頭模式），其他或沒設定是無頭模式
+        headless = os.environ.get("RPA_HEADLESS", "1") != "0"
+        browser = browser_type.launch(headless=headless, timeout=remaining())
         page = browser.new_context(viewport={"width": 1280, "height": 800}).new_page()
         try:
             page.goto(args.target_url, wait_until="domcontentloaded", timeout=remaining())

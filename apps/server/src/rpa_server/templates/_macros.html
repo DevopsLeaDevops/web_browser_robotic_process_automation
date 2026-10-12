@@ -88,3 +88,22 @@
   </section>
 </div>
 {% endmacro %}
+
+{# 篩選選單：按鈕顯示「標籤 目前選擇」，點開可以勾選多項；關閉時有變動就套用。 #}
+{% macro filter_menu(menu) -%}
+{%- set picked = menu.picked -%}
+<details class="filter-menu" data-filter-menu>
+  <summary class="button{% if picked %} is-active{% endif %}"><span class="muted">{{ menu.label }}</span><strong>{% if not picked %}{{ t("runs.all") }}{% elif picked | length == 1 %}{{ picked[0] }}{% else %}{{ t("runs.picked", count=picked | length) }}{% endif %}</strong><span class="caret" aria-hidden="true">▾</span></summary>
+  <div class="filter-panel" role="group" aria-label="{{ menu.label }}">
+    {% if menu.searchable %}<input type="search" class="filter-search" placeholder="{{ t('runs.search') }}" aria-label="{{ t('runs.search') }}" data-filter-search>{% endif %}
+    <div class="filter-options">
+      {%- for value, text in menu.options %}
+      <label><input type="checkbox" name="{{ menu.name }}" value="{{ value }}"{% if value in menu.selected %} checked{% endif %}><span>{{ text }}</span></label>
+      {%- else %}
+      <p class="muted">{{ t("runs.no_options") }}</p>
+      {%- endfor %}
+    </div>
+    <div class="filter-actions"><button class="text-btn" type="button" data-filter-clear>{{ t("runs.clear_menu") }}</button><button class="button primary" type="submit">{{ t("runs.apply") }}</button></div>
+  </div>
+</details>
+{%- endmacro %}

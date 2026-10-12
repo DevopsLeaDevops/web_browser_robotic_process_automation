@@ -52,6 +52,7 @@ class RunQueue:
                         out_root=self.storage.runs,
                         engine=run.engine,
                         base_url=run.base_url,
+                        headless=run.headless,
                     )
             return None
 

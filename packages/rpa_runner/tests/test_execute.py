@@ -96,6 +96,7 @@ id: lang-probe
 name: Language probe
 outputs:
   lang: {type: string}
+  headless: {type: string}
 script: {automation: automation.py, assertion: assertion.py}
 """
 PROBE_AUTOMATION = """\
@@ -105,7 +106,8 @@ parser = argparse.ArgumentParser()
 for name in ("input", "facts", "screenshot", "target-url"):
     parser.add_argument("--" + name)
 args = parser.parse_args()
-Path(args.facts).write_text(json.dumps({"lang": os.environ["RPA_LANG"]}), encoding="utf-8")
+facts = {"lang": os.environ["RPA_LANG"], "headless": os.environ.get("RPA_HEADLESS")}
+Path(args.facts).write_text(json.dumps(facts), encoding="utf-8")
 """
 PROBE_ASSERTION = """\
 import argparse
@@ -131,7 +133,25 @@ def test_child_processes_get_the_current_language(tmp_path: Path, locale: Locale
         result = execute(folder / "scenario.yaml", {}, out_root=tmp_path / "runs")
 
     assert result.status == "passed", result.error
-    assert result.output == {"lang": locale}
+    assert result.output == {"lang": locale, "headless": "1"}
+
+
+@pytest.mark.parametrize(("headed", "expected"), [(True, "0"), (False, "1")])
+def test_script_scenarios_are_told_whether_to_show_the_browser(
+    tmp_path: Path, headed: bool, expected: str
+) -> None:
+    """Python 腳本場景自己啟動瀏覽器：用 RPA_HEADLESS 告訴它有頭（0）或無頭（1）。"""
+    folder = tmp_path / "probe"
+    folder.mkdir()
+    (folder / "scenario.yaml").write_text(LANGUAGE_PROBE, encoding="utf-8")
+    (folder / "automation.py").write_text(PROBE_AUTOMATION, encoding="utf-8")
+    (folder / "assertion.py").write_text(PROBE_ASSERTION, encoding="utf-8")
+
+    result = execute(folder / "scenario.yaml", {}, out_root=tmp_path / "runs", headed=headed)
+
+    assert result.status == "passed", result.error
+    assert result.output is not None
+    assert result.output["headless"] == expected
 
 
 @pytest.mark.parametrize(

@@ -31,6 +31,7 @@
       <dt>{{ t("run.finished") }}</dt><dd>{{ m.time(run.finished_at) }}</dd>
       <dt>{{ t("runs.col_duration") }}</dt><dd>{% if run.duration_seconds is not none %}{{ "%.1f"|format(run.duration_seconds) }} s{% else %}—{% endif %}</dd>
       <dt>{{ t("run.engine") }}</dt><dd>{{ (result.engine if result else none) or run.engine or t("run.engine_scenario") }}</dd>
+      <dt>{{ t("run_form.window") }}</dt><dd>{{ t("run_form.window_headless") if run.headless else t("run_form.window_headed") }}</dd>
       <dt>{{ t("run.base_url") }}</dt><dd>{{ run.base_url or t("run.base_url_scenario") }}</dd>
       {% if run.scenario_hash %}<dt>{{ t("scene.col_hash") }}</dt><dd><code class="mono">{{ run.scenario_hash }}</code></dd>{% endif %}
     </dl>

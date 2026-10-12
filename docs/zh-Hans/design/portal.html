@@ -42,10 +42,10 @@
         <ol>
           <li><strong>创建或导入。</strong>添加场景会产生第 1 版草稿（只开一个网页）；也可以一键导入 <code>scenarios/demo</code> 的示例。场景编号就是 DSL 的 <code>id</code>，创建后不能改、也不会重复使用。</li>
           <li><strong>编辑。</strong>直接编辑 YAML（脚本场景另有两支脚本）。保存前先用 <code>rpa validate</code> 同一套规则校验，有问题时列出行号、步骤与字段，不会创建新版本。</li>
-          <li><strong>验证。</strong>用真实浏览器运行指定版本，入参、浏览器、网址都可以在表单调整。</li>
+          <li><strong>验证。</strong>用真实浏览器运行指定版本，入参、浏览器、浏览器窗口、网址都可以在表单调整。</li>
           <li><strong>发布。</strong>只有通过验证的版本可以发布，而且要用户在对话框确认。</li>
           <li><strong>运行。</strong>一律使用已发布的版本；新的草稿不影响正式运行。</li>
-          <li><strong>看报告。</strong>依分类、场景（多选）、结果与目的筛选；每次运行都有 M2 的 <code>report.html</code>、截图与完整的运行目录。</li>
+          <li><strong>看报告。</strong>依分类、场景、结果与目的筛选：每个条件是一个按钮，显示目前的选择，点开勾选一项或多项，按「应用」或关闭菜单就更新；没勾选代表全部。每次运行都有 M2 的 <code>report.html</code>、截图与完整的运行目录。</li>
         </ol>
       </div>
     </section>
@@ -68,6 +68,7 @@
         <ul>
           <li><strong>先校验、再排队。</strong>请求运行时先检查入参，不合规则直接回 422，不会排进队列；通过后回 202 与运行编号。</li>
           <li><strong>背景 worker。</strong><code>rpa-worker</code> 在服务器进程内的背景线程，依创建时间一次运行一个（SQLite 只允许单一进程）。它调用 M2 的 <code>rpa_runner.run.execute</code>，总期限、子进程与进程组的终止都沿用 M2。</li>
+          <li><strong>有头模式与无头模式。</strong>运行表单的「浏览器窗口」：显示（有头模式，headed）会在运行 Portal 的这台电脑上打开浏览器窗口，看得到每个步骤；不显示（无头模式，headless）在背景运行。默认有头模式；这台电脑没有图形界面（Windows、macOS 以外，又没有 <code>DISPLAY</code> 或 <code>WAYLAND_DISPLAY</code>）时只能无头，API 要求有头会回 422。运行页会记下用的是哪一种。<code>rpa run</code> 命令行维持无头，加 <code>--headed</code> 才显示。</li>
           <li><strong>进度。</strong>运行页每秒查询一次状态，阶段或状态改变时刷新。</li>
           <li><strong>取消。</strong>排队中的直接取消；运行中的立即终止子进程与浏览器，状态为「已取消」。已经在目标网站完成的动作不会复原。</li>
           <li><strong>不重复送出。</strong>表单每次加载产生一个 <code>idempotencyKey</code>，重复送出只会得到同一个运行。</li>
@@ -88,7 +89,7 @@
             <tr><td><code>/scenes/{id}</code></td><td>版本清单与状态、发布、入参与出参、所属领域与默认网址、最近运行</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>编辑 YAML 与脚本，存成新版本；校验问题列在页面上</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>验证或运行的表单：入参（JSON，已带入默认值）、浏览器、网址</td></tr>
-            <tr><td><code>/runs</code></td><td>运行报告：分类、场景多选，结果、目的筛选</td></tr>
+            <tr><td><code>/runs</code></td><td>运行报告：分类、场景、结果、目的的筛选菜单，每一项都可以复选</td></tr>
             <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图、运行目录的文件；取消、发布</td></tr>
             <tr><td><code>/recording</code>、<code>/playground</code></td><td>预留位置：录制在 M4、自由试验场在 M6</td></tr>
           </tbody>
@@ -111,7 +112,7 @@
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校验问题（含行号）</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>验证；202 回运行</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>发布；不符合发布门槛时 409</td></tr>
-            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已发布版本运行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>idempotencyKey</code></td></tr>
+            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已发布版本运行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不写时有图形界面就用有头模式）、<code>idempotencyKey</code>；验证也接受同样的字段</td></tr>
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{运行编号}</code></td><td>报告清单（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重复）；单次状态、<code>result.json</code> 与文件清单</td></tr>
             <tr><td><code>POST /api/runs/{运行编号}/cancel</code></td><td>取消</td></tr>
           </tbody>
@@ -132,7 +133,7 @@
             <dt>domains</dt><dd>代号、名称、说明、排列顺序</dd>
             <dt>scenes</dt><dd>id、名称与分类（取自最新版本）、所属领域、默认网址、最新与已发布的版本号码、封存</dd>
             <dt>revisions</dt><dd>场景、版本号码（唯一）、内容哈希、种类、状态、说明、发布时间</dd>
-            <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、入参与出参、错误、哈希、时间</dd>
+            <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、有头或无头模式、入参与出参、错误、哈希、时间</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，结构变更走 Alembic 迁移（服务器启动时自动升级）；测试会比较迁移与模型是否一致。</p>
         </div>

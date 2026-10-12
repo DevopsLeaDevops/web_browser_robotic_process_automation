@@ -191,6 +191,8 @@ class RunRecord:
     started_at: datetime | None
     finished_at: datetime | None
     duration_seconds: float | None
+    headless: bool = True
+    """無頭模式（不顯示瀏覽器視窗）；False 是有頭模式。"""
 
     @property
     def finished(self) -> bool:
@@ -208,6 +210,7 @@ class RunRecord:
             "stage": self.stage,
             "engine": self.engine,
             "baseUrl": self.base_url,
+            "headless": self.headless,
             "input": self.input,
             "output": self.output,
             "error": self.error,

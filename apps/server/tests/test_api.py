@@ -210,6 +210,30 @@ def test_validation_is_queued_once_per_idempotency_key(client: Client) -> None:
     assert body(client.get("/api/scenes/ba-001"))["latestStatus"] == "validating"
 
 
+def test_browser_window_follows_the_display(app: FastAPI, client: Client) -> None:
+    """有圖形介面時預設有頭模式；沒有時預設無頭，要求有頭會被拒絕。"""
+    client.post("/api/scenes/import")
+    url = "/api/scenes/ba-001/revisions/1/validate"
+
+    assert body(client.post(url, json={"inputs": {}}))["headless"] is True
+    refused = client.post(url, json={"inputs": {}, "headless": False})
+    assert refused.status_code == 422
+    assert error_code(refused) == "display_unavailable"
+
+    services(app).display = True
+    headed = body(client.post(url, json={"inputs": {}}))
+    assert headed["headless"] is False
+    assert body(client.post(url, json={"inputs": {}, "headless": True}))["headless"] is True
+
+    job = worker(app).source.claim()  # 依排入順序：第一個是無頭
+    assert job is not None
+    assert job.headless is True
+    job = worker(app).source.claim()
+    assert job is not None
+    assert job.headless is False
+    assert body(client.get(f"/api/runs/{headed['id']}"))["headless"] is False
+
+
 def test_cancel_queued_validation(app: FastAPI, client: Client) -> None:
     client.post("/api/scenes/import")
     run = body(client.post("/api/scenes/ba-001/revisions/1/validate", json={"inputs": {}}))
