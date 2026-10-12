@@ -533,5 +533,7 @@
   "js.rerun_started": "已重新執行",
   "recording.role_option": "{name}（{status}）",
   "debug.locator_placeholder": "{{ role: button, name: 登入 }}",
-  "role.secret_missing": "沒有登入；自動登入需要的 Secret 還沒設定：{names}"
+  "role.secret_missing": "沒有登入；自動登入需要的 Secret 還沒設定：{names}",
+  "recording.scene_id": "場景編號（小寫英數字、- 或 _）",
+  "role.needs_login_run": "執行 {id} 發現沒有登入"
 }

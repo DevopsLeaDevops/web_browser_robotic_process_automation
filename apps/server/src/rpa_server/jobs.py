@@ -113,7 +113,9 @@ class RunQueue:
         login = result.login
         if self.roles is not None and result.role is not None and login is not None:
             status = str(login.get("status"))
-            message = result.error if status == "needs_login" else None
+            message = (
+                t("role.needs_login_run", id=result.run_id) if status == "needs_login" else None
+            )
             self.roles.record_result(result.role, status, message)
 
     def fail(self, job: Job, error: Exception) -> None:

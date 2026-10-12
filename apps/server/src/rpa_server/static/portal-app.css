@@ -73,3 +73,6 @@ fieldset.choice{border:0;margin:0;padding:0;display:grid;gap:6px;font-size:12px}
 .form-issues{color:var(--danger)}
 @media(max-width:1100px){.debug-layout{grid-template-columns:1fr}.contract-main,.contract-row[data-kind="output"] .contract-main{grid-template-columns:1fr 1fr}.contract-rule-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){.contract-main,.contract-row[data-kind="output"] .contract-main,.contract-rule-fields{grid-template-columns:1fr}}
+.contract-main input,.contract-main select,.contract-rule-fields input{min-width:0;width:100%;box-sizing:border-box}
+.contract-main label.check input{width:auto}
+#recording-form .field-pair{align-items:end}

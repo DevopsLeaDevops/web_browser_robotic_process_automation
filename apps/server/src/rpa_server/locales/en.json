@@ -533,5 +533,7 @@
   "js.rerun_started": "Started again",
   "recording.role_option": "{name} ({status})",
   "debug.locator_placeholder": "{{ role: button, name: Log in }}",
-  "role.secret_missing": "Not logged in; automatic login needs secrets that are not set: {names}"
+  "role.secret_missing": "Not logged in; automatic login needs secrets that are not set: {names}",
+  "recording.scene_id": "Scenario id (lowercase letters, digits, - or _)",
+  "role.needs_login_run": "Run {id} found it was not logged in"
 }

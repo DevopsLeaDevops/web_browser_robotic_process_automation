@@ -15,6 +15,7 @@ import click
 import rpa_cli
 import rpa_core
 from rpa_cli.i18n import LANG_OPTION, install_click_translations, resolve_locale, t
+from rpa_cli.record import build_record_command
 from rpa_cli.run import build_run_command
 from rpa_cli.serve import build_serve_command
 from rpa_cli.validate import build_schema_command, build_validate_command
@@ -67,6 +68,7 @@ def build_cli() -> click.Group:
     cli.add_command(build_schema_command())
     cli.add_command(build_run_command())
     cli.add_command(build_serve_command())
+    cli.add_command(build_record_command())
     return cli
 
 

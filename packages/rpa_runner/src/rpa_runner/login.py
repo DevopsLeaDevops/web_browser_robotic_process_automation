@@ -33,6 +33,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, cast
+from urllib.parse import urlsplit
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 from playwright.sync_api import Error as PlaywrightError
@@ -66,6 +67,7 @@ _EXIT_DEADLINE: Final = 3
 CHECK_TIMEOUT_MS: Final = 10_000
 """等「已登入時看得到的元素」出現的時間。"""
 _PUMP_MS: Final = 300
+_POLL_MS: Final = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,17 +161,37 @@ def save_state(context: BrowserContext, path: Path) -> None:
     temporary.replace(path)
 
 
+def _login_path(settings: LoginSettings) -> str | None:
+    """被轉到這個路徑就代表沒登入（登入網址與確認網址不同時才判斷）。"""
+    if not settings.login_url or settings.login_url == settings.check_url:
+        return None
+    login, check = urlsplit(settings.login_url), urlsplit(settings.check_url or "")
+    if (login.netloc, login.path) == (check.netloc, check.path):
+        return None
+    return login.path
+
+
 def is_logged_in(page: Page, settings: LoginSettings, timeout_ms: int) -> bool:
-    """打開確認網址，在 timeout_ms 內看到「已登入時看得到的元素」就算已登入。"""
+    """打開確認網址，在時限內看到「已登入時看得到的元素」就算已登入。
+
+    網站把人轉到登入網址時不必等到時限：馬上判定沒登入。
+    """
     if settings.check_url is None or settings.check is None:
         return True
     page.goto(settings.check_url, wait_until="domcontentloaded", timeout=timeout_ms)
-    locator = resolve(page, Locator.model_validate(dict(settings.check)))
-    try:
-        locator.first.wait_for(state="visible", timeout=min(timeout_ms, CHECK_TIMEOUT_MS))
-    except PlaywrightTimeoutError:
-        return False
-    return True
+    locator = resolve(page, Locator.model_validate(dict(settings.check))).first
+    login_path = _login_path(settings)
+    end = time.monotonic() + min(timeout_ms, CHECK_TIMEOUT_MS) / 1000
+    while True:
+        try:
+            locator.wait_for(state="visible", timeout=_POLL_MS)
+            return True
+        except PlaywrightTimeoutError:
+            pass
+        if login_path is not None and urlsplit(page.url).path == login_path:
+            return False
+        if time.monotonic() >= end:
+            return False
 
 
 def _auto_login(
