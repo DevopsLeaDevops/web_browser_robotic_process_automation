@@ -63,14 +63,14 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>仓库现况</h2><span class="muted">M4 进行中</span></div>
+        <div class="panel-header"><h2>仓库现况</h2><span class="muted">M9a 进行中</span></div>
         <div class="panel-body">
           <dl class="spec-list">
             <dt>rpa-core</dt><dd>场景 DSL 与场景契约的模型、YAML 加载与校验、录制稿转 DSL 草稿；示例在 <code>scenarios/</code></dd>
             <dt>rpa-runner</dt><dd>运行引擎：入参校验、登录检查、在 Chromium 或 Firefox 中运行步骤、独立断言、出参发布、运行报告；人工登录与逐步调试的子进程</dd>
-            <dt>rpa-worker</dt><dd>背景 worker：领取任务、以子进程运行、取消；不依赖数据库</dd>
-            <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 与 Jinja 页面、SQLite、版本与发布门槛、运行队列、登录角色与 Secrets、录制、逐步调试</dd>
-            <dt>rpa-cli</dt><dd><code>rpa serve</code> 启动管理 Portal；<code>rpa run</code> 运行场景；<code>rpa record</code> 录制并转成场景草稿；<code>rpa validate</code> 校验场景并指出行号、步骤与字段，<code>rpa schema</code> 输出 DSL 或单一场景入参、出参的 JSON Schema；<code>--lang</code> 切换繁中、简中、英文</dd>
+            <dt>rpa-worker</dt><dd>背景 worker：领取任务、以子进程运行、取消；不依赖数据库。也可以在另一台电脑当远程 worker，经由管理 Portal 的 Worker API 领取（M9a）</dd>
+            <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 与 Jinja 页面、SQLite、版本与发布门槛、运行队列、登录角色与 Secrets、录制、逐步调试、自由试验场、远程 worker 的登记与分派</dd>
+            <dt>rpa-cli</dt><dd><code>rpa serve</code> 启动管理 Portal（<code>--worker-port</code> 开放给远程 worker）；<code>rpa worker</code> 在另一台电脑当远程 worker；<code>rpa run</code> 运行场景；<code>rpa record</code> 录制并转成场景草稿；<code>rpa validate</code> 校验场景并指出行号、步骤与字段，<code>rpa schema</code> 输出 DSL 或单一场景入参、出参的 JSON Schema；<code>--lang</code> 切换繁中、简中、英文</dd>
             <dt>工具链</dt><dd>uv（依赖以 <code>uv.lock</code> 锁定）、ruff、pyright（strict）、pytest、pre-commit</dd>
             <dt>CI</dt><dd>静态检查，Python 3.12 / 3.13 测试，含 Chromium 冒烟测试；一键安装脚本每周在 macOS、Ubuntu、Windows 实际运行</dd>
             <dt>文档</dt><dd>本站，繁中、简中、英文三种语言，含链接与翻译同步的自动检查</dd>

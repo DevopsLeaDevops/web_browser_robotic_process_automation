@@ -1,0 +1,122 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/remote-worker.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>远程 worker · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="remote-worker" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>远程 worker</h1>
+      <p>把运行交给另一台电脑：管理 Portal、数据库与文件留在你的电脑，浏览器窗口出现在 worker 机器上，你的电脑不再被有头模式占住。以 Windows 当 worker 机器为例；macOS、Linux 的命令也列在旁边。设计见 <a href="../adr/0012-remote-workers.html">ADR 0012</a>。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">两台电脑要在同一个区网（或 VPN），而且 <strong>worker 机器连得到你的电脑</strong>；你的电脑不需要连 worker。两台都要能连到被测试的网站。Secrets 与角色的登录状态会以 HTTP 经过区网，只在信任的网络使用。</div>
+
+    <div class="two-col">
+      <section class="panel" id="portal">
+        <div class="panel-header"><h2>1. 你的电脑：开放 Worker API</h2></div>
+        <div class="panel-body prose">
+          <p>先用 Ctrl+C 停掉原本的 <code>rpa serve</code>，再加上 <code>--worker-port</code> 重新启动：</p>
+<pre class="source">uv run rpa serve --worker-port 8081</pre>
+          <p>启动消息会多一行 <code>Worker API：http://192.168.1.10:8081</code>（地址是猜的区网 IP）。第一次启动时，macOS 会询问是否允许 Python 接受传入连接，请按「允许」；Windows 的防火墙也会询问。</p>
+          <p>管理页面仍然只在 <code>http://127.0.0.1:8080</code>；8081 这个端口只有 Worker API，每个请求都要权杖。</p>
+        </div>
+      </section>
+      <section class="panel" id="register">
+        <div class="panel-header"><h2>2. 登记 worker、取得权杖</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>管理 Portal 的「场景生产 › 远程 Worker」按「添加 worker」。</li>
+            <li>代号例如 <code>win-01</code>，名称例如「测试用 Windows 电脑」，按「产生权杖」。</li>
+            <li>对话框显示权杖与两组启动命令。<strong>权杖只显示这一次</strong>，先拷贝下来；遗失时按「重新产生权杖」（旧的立刻失效）。</li>
+          </ol>
+          <p>命令里的网址是猜的；如果 worker 连不上，换成你的电脑在区网上的 IP（macOS：系统设置 › 网络；Windows：<code>ipconfig</code>）。</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="install">
+        <div class="panel-header"><h2>3. worker 机器：安装</h2><span class="muted">和平常的安装一样</span></div>
+        <div class="panel-body prose">
+          <p>用<a href="quickstart.html#windows">本机从零运行</a>的一键脚本安装（在 PowerShell 运行）：</p>
+<pre class="source">irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1</pre>
+          <p>代码会下载到 <code>%USERPROFILE%\code\web_browser_robotic_process_automation</code>，也会下载 Chromium 与 Firefox。<strong>两台电脑要是同一个版本</strong>：之后你的电脑 <code>git pull</code>，worker 机器也要 <code>git pull</code> 并重跑脚本。版本不同时 worker 页会标出来。</p>
+        </div>
+      </section>
+      <section class="panel" id="start">
+        <div class="panel-header"><h2>4. worker 机器：启动</h2></div>
+        <div class="panel-body prose">
+          <p>在项目文件夹，粘贴对话框里的命令：</p>
+<pre class="source"># Windows PowerShell
+cd $env:USERPROFILE\code\web_browser_robotic_process_automation
+$env:RPA_WORKER_TOKEN = "（权杖）"
+uv run rpa worker --server http://192.168.1.10:8081 --name win-01
+
+# macOS、Linux
+export RPA_WORKER_TOKEN='（权杖）'
+uv run rpa worker --server http://192.168.1.10:8081 --name win-01</pre>
+          <p>看到「已连上管理 Portal」就好了；worker 页的状态变成「在线」。按 Ctrl+C 停止：运行中的任务会被取消并回报。</p>
+          <p>权杖也可以放在文件里：<code>--token-file token.txt</code>（不要提交到 git）。</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="use">
+      <div class="panel-header"><h2>5. 把运行交给 worker</h2></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>运行位置。</strong>登记了远程 worker 之后，验证、运行与「运行串行」的表单多一个「运行位置」：本机、远程 worker、任一（谁有空谁运行）。有头模式的浏览器窗口出现在运行的那台电脑。</li>
+          <li><strong>默认运行位置。</strong>在 worker 页设置；默认是本机（和以前一样）。主要用 worker 时改成「远程 worker」，就不必每次选。</li>
+          <li><strong>报告。</strong>worker 运行完把整个运行目录（报告、截图、Trace、日志）传回来；运行报告标出「在 win-01 运行」，看起来和本机运行一样。</li>
+          <li><strong>测试网站。</strong><code>rpa worker</code> 也在 worker 机器启动自己的测试网站（127.0.0.1:8765），所以「测试网站自动化」的示例照样能跑；它的数据和你电脑上的测试网站是分开的。其他写成 127.0.0.1 或 localhost 的网址，在 worker 上指的是 worker 自己。</li>
+          <li><strong>试验场串行</strong>整个在同一台 worker：第一个节点由哪台领取，后面的节点就都给它。</li>
+          <li><strong>登录角色。</strong>人工登录仍在你的电脑（要人操作）；登录状态在运行时送到 worker，用完就删。worker 自动登录后的新状态会传回来。</li>
+          <li><strong>只让 worker 运行。</strong><code>rpa serve --worker-port 8081 --no-local-worker</code>：你的电脑完全不运行，全部交给 worker。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="autostart">
+      <div class="panel-header"><h2>开机后自动启动（Windows，选用）</h2></div>
+      <div class="panel-body prose">
+        <p>有头模式需要用户已经登录桌面，所以用「登录时」启动，不要做成系统服务。在项目文件夹创建 <code>start-worker.cmd</code>（不要提交到 git）：</p>
+<pre class="source">@echo off
+cd /d %USERPROFILE%\code\web_browser_robotic_process_automation
+set RPA_WORKER_TOKEN=（权杖）
+uv run rpa worker --server http://192.168.1.10:8081 --name win-01</pre>
+        <p>然后按 Win+R 输入 <code>shell:startup</code>，在打开的文件夹放一个指向 <code>start-worker.cmd</code> 的捷径。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>常见问题</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>状况</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td>「<span translate="no">連不上管理 Portal</span>」一直重试</td><td>确认 Portal 有加 <code>--worker-port</code>、网址的 IP 与端口号正确、你电脑的防火墙允许传入连接。在 worker 机器用浏览器打开 <code>http://IP:8081/worker-api/v1/hello</code>：看到 <code>405</code> 或 <code>Method Not Allowed</code> 代表连得到。</td></tr>
+            <tr><td>「<span translate="no">管理 Portal 拒絕這台 worker</span>」</td><td>权杖不对、已经重新产生，或 worker 被禁用。到 worker 页重新产生权杖或激活。</td></tr>
+            <tr><td>运行一直是「排队中」</td><td>worker 页看它是不是「在线」；有头模式的任务只给能显示窗口的 worker；场景要用的浏览器在 worker 机器要下载过（重跑安装脚本）。</td></tr>
+            <tr><td>运行失败「<span translate="no">判定失聯</span>」</td><td>worker 超过一分钟没有回报（关机、断网、程序被关掉）。那次运行不会自动重跑，因为可能已经在网站上做了部分操作；确认后再重新运行。</td></tr>
+            <tr><td>worker 页标出「版本不同」</td><td>两台都 <code>git pull</code> 到同一个版本，worker 机器重跑安装脚本后重新启动 <code>rpa worker</code>。</td></tr>
+            <tr><td>只想暂时不用 worker</td><td>worker 页按「禁用」，或在 worker 机器按 Ctrl+C；默认运行位置改回本机。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
