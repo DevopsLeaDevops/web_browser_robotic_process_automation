@@ -34,5 +34,7 @@ test-results/
 # rpa run 的執行目錄
 runs/
 
-# rpa serve 的資料目錄（SQLite、場景版本、執行目錄）
+# rpa serve 的資料目錄（SQLite、場景版本、執行目錄、登入狀態、Secrets）
+# 也忽略 --data 另外指定的 data-*（例如 data-m4），避免把登入狀態與 Secrets 提交進去
 /data/
+/data-*/
