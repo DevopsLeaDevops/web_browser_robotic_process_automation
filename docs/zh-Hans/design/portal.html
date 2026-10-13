@@ -15,9 +15,9 @@
   <div class="heading">
     <div>
       <h1>管理 Portal</h1>
-      <p>在浏览器里创建场景、验证、发布、运行并查看报告（M3）；录制、逐步调试、登录角色与入参出参的表单（M4）。单机、单用户（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>与设计系统 v1.1。</p>
+      <p>在浏览器里创建场景、验证、发布、运行并查看报告（M3）；录制、逐步调试、登录角色与入参出参的表单（M4）；自由试验场的串行（M6）。单机、单用户（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>与设计系统 v1.1。</p>
     </div>
-    <span class="badge blue">M4</span>
+    <span class="badge blue">M6</span>
   </div>
 
   <div class="stack">
@@ -150,10 +150,27 @@
       </div>
     </section>
 
-    <section class="panel" id="manual-check">
-      <div class="panel-header"><h2>手动验收</h2><span class="muted">M4：录制与人工登录要有人操作，自动测试用预先录好的录制稿</span></div>
+    <section class="panel" id="playground">
+      <div class="panel-header"><h2>自由试验场</h2><span class="muted">M6：已发布场景的固定版本排成序列，上游出参交给下游入参，失败即停</span></div>
       <div class="panel-body prose">
-        <p>在有图形界面的电脑（macOS、Windows，或有桌面的 Linux）上，用一个全新的文件夹走一次，大约十五分钟：</p>
+        <ul>
+          <li><strong>串行。</strong>「场景生产 › 自由试验场」添加串行，从左边的场景库把场景加到串行最后；中间是依序运行的节点（n1、n2…），右边设置选取的节点，可以上移、下移、移除。改动先留在页面上，按「保存」才保存；保存要带目前是第几次保存，别的分页已经存过就回 409。</li>
+          <li><strong>只用发布过的版本，而且固定。</strong>场景库只列出发布过的场景；加入时固定在目前发布的版本，之后场景发布新版本也不影响串行（节点设置会提示，要用就自己切换）。版本只能选发布过的，所以串行里每个节点都是通过验证的内容。</li>
+          <li><strong>入参的来源。</strong>每个入参三选一：场景的默认值、固定值、前面某个节点的出参（只能选类型兼容的，整数可以给数字）。加入节点时，名称相同、类型兼容的入参自动接上最近的上游，例如 BA-002 的 recordId 接上 BA-001 的出参。必填的入参一定要有来源。</li>
+          <li><strong>先检查、再运行。</strong>每次修改都会检查：场景存在而且没有封存、版本发布过、只取前面节点的出参、那个出参存在、类型兼容、必填入参有来源、固定值符合入参的规则。有问题时列在上方与节点上，不能运行。</li>
+          <li><strong>依序运行、失败即停。</strong>「运行串行」可以选浏览器（默认照各场景）与窗口模式。节点一个一个排入队列；每个节点就是一次一般的运行（目的「试验场」），有自己的运行目录与报告，也出现在运行报告。通过之后才取它发布的出参、排下一个节点；没有通过（失败、超时、取消、需要登录）就停在那个节点，后面的节点略过。绑定的值不符合下游入参的规则时，下游不启动浏览器就停下。</li>
+          <li><strong>串行运行页。</strong>每个节点的状态、入参的值与来源（固定值、默认值、<code>← n1.recordId</code>）、出参，以及那次运行与报告的链接；运行中每秒更新。开始运行时记下串行的快照，之后改串行不影响这次运行。</li>
+          <li><strong>从停下的节点继续、从头再运行。</strong>「从 n2 继续」沿用前面已通过节点的出参，从停下的节点开始，不会重复前面的操作（例如再创建一次记录），适合登录之后接着跑；「从头再运行」用同一份快照从第一个节点开始。取消会停止目前的节点，已经在目标网站完成的动作不会复原。</li>
+          <li><strong>导出与导入。</strong>「导出 JSON」下载串行的名称、说明与定义；清单页「导入 JSON」用它创建新的串行。定义的格式：<code>{"version": 1, "mode": "serial", "onFailure": "stop", "nodes": [{"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "试验"}}}, {"id": "n2", "sceneId": "ba-002", "revision": 1, "inputs": {"recordId": {"node": "n1", "output": "recordId"}}}]}</code>。没写的入参用默认值；<code>value</code> 是固定值，<code>node</code> 与 <code>output</code> 是前面节点的出参。规则在 <code>rpa_core.workflow</code>。</li>
+          <li><strong>范围。</strong>MVP 只有序列，不做条件、分支与平行；节点与其他运行排在同一个队列，一次运行一个。删除串行不会删除运行记录（串行运行有定义的快照）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="manual-check">
+      <div class="panel-header"><h2>手动验收</h2><span class="muted">M4、M6：录制、人工登录与试验场的画面要有人操作；自动测试用预先录好的录制稿</span></div>
+      <div class="panel-body prose">
+        <p>在有图形界面的电脑（macOS、Windows，或有桌面的 Linux）上，用一个全新的文件夹走一次，大约二十分钟：</p>
         <ol>
           <li><strong>启动。</strong><code>uv run rpa serve --data data-check</code>，打开 <code>http://127.0.0.1:8080</code>；「测试网站自动化」已经有 BA-001～BA-005。</li>
           <li><strong>录制新场景。</strong>「场景生产 › 自主脚本录制」选「新场景」，起始网址 <code>http://127.0.0.1:8765/</code>，按「开始录制」。在测试页填标题与数量、按「创建记录」，在 Inspector 用「Assert text」点一下记录编号，关掉浏览器。录制详情应该有 goto、两个 fill、click、一个 extract，入参 2 个、出参 1 个、断言 1 条。</li>
@@ -161,6 +178,7 @@
           <li><strong>接着现有步骤录制。</strong>选「既有场景的新版本」与刚才的场景，再选「接着现有步骤录制」：浏览器先自动跑完原有步骤，停在创建结果的页面，再录一个动作；新版本的步骤接在原有内容后面，原本的注释不变。</li>
           <li><strong>两个角色。</strong>「场景管理 › 登录与凭证」对 <code>testsite-user</code> 按「登录」，在跳出的窗口用 user / user-pass 登录后按「完成登录」；<code>testsite-manager</code> 用 manager / manager-pass。再分别运行 BA-004、BA-005：两份报告看到的待办不同。</li>
           <li><strong>需要登录与重新运行。</strong>对 <code>testsite-user</code> 按「注销」，再运行 BA-004：停在「需要登录」，没有运行任何步骤；点运行页的登录角色回到「登录与凭证」再登录一次，回到运行页按「重新运行」，结果是「通过」。</li>
+          <li><strong>自由试验场。</strong>先验证并发布 BA-001，再用它验证时创建的记录编号验证并发布 BA-002。「场景生产 › 自由试验场」按「添加串行」，从场景库加入 BA-001、BA-002：BA-002 的 recordId 自动接上 n1 的出参。按「运行串行」，两个节点都通过，n2 查到的就是 n1 刚创建的记录。再把 n2 上移到最前面：串行会提示 recordId 只能取前面节点的出参，不能运行。</li>
         </ol>
         <p>结束后停止管理 Portal，删掉 <code>data-check</code> 文件夹即可。</p>
       </div>
@@ -184,7 +202,9 @@
             <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图、运行目录的文件；取消、发布</td></tr>
             <tr><td><code>/roles</code></td><td>登录与凭证：登录角色（登录、检查、注销）、Secrets</td></tr>
             <tr><td><code>/recording</code>、<code>/recordings/{录制编号}</code></td><td>自主脚本录制：在这台电脑录制或粘贴录制稿；最近的录制；录制详情（转不了的行、转换结果、遮罩过的原始录制稿）</td></tr>
-            <tr><td><code>/playground</code></td><td>预留位置：自由试验场在 M6</td></tr>
+            <tr><td><code>/playground</code></td><td>自由试验场：串行清单（节点、问题、最近一次运行）与最近的串行运行；添加、导入、删除串行</td></tr>
+            <tr><td><code>/playground/{串行}</code></td><td>编辑串行：场景库、串行、节点设置（固定版本、入参的来源）；保存、运行、导出</td></tr>
+            <tr><td><code>/playground/runs/{串行运行}</code></td><td>串行的运行：每个节点的状态、入参的值与来源、出参、报告；取消、从头再运行、从停下的节点继续</td></tr>
           </tbody>
         </table>
       </div>
@@ -220,6 +240,13 @@
             <tr><td><code>GET /api/recordings/{录制编号}</code>、<code>…/cancel</code></td><td>录制状态、转不了的行与文件；取消录制</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>开始逐步调试（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已经有工作阶段时回传它</td></tr>
             <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作阶段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>调试状态与结束；运行一步（有副作用而且运行过时 409 <code>confirm_required</code>，带 <code>force</code> 再送）、运行到第 n 步、测试定位器、截图、从头开始、换到新版本</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>串行清单（含问题与最近一次运行）；添加串行（<code>name</code>、<code>description</code>、选用的 <code>definition</code>，带了就是导入）</td></tr>
+            <tr><td><code>GET /api/workflows/library</code></td><td>场景库：发布过的场景版本，以及它们的入参、出参与登录角色</td></tr>
+            <tr><td><code>POST /api/workflows/check</code></td><td>检查一份定义（不保存），回传 <code>problems</code></td></tr>
+            <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{串行}</code></td><td>串行与最近的运行；保存（<code>baseVersion</code>、<code>name</code>、<code>description</code>、<code>definition</code>；不是目前的保存次数就 409）；删除（运行中不能删）</td></tr>
+            <tr><td><code>POST /api/workflows/{串行}/runs</code></td><td>运行串行（<code>engine</code>、<code>headless</code>、<code>idempotencyKey</code>）；有问题时 422 并列出 <code>problems</code>；202 回串行的运行</td></tr>
+            <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{串行运行}</code></td><td>串行运行清单（可用 <code>workflow</code> 筛选）；单次的状态与每个节点（状态、入参的来源、那次运行）</td></tr>
+            <tr><td><code>POST /api/workflow-runs/{串行运行}/cancel</code>、<code>…/rerun</code></td><td>取消；再运行一次（<code>resume: true</code> 从停下的节点继续，否则从头）</td></tr>
           </tbody>
         </table>
       </div>
@@ -245,9 +272,11 @@
             <dt>domains</dt><dd>代号、名称、说明、排列顺序</dd>
             <dt>scenes</dt><dd>id、名称与分类（取自最新版本）、所属领域、默认网址、最新与已发布的版本号码、封存</dd>
             <dt>revisions</dt><dd>场景、版本号码（唯一）、内容哈希、种类、状态、说明、发布时间</dd>
-            <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、有头或无头模式、入参与出参、错误、哈希、时间</dd>
+            <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、有头或无头模式、入参与出参、错误、哈希、时间；试验场节点的串行运行与节点代号</dd>
             <dt>roles</dt><dd>代号、名称、登录网址、确认网址与判断元素、浏览器、自动登录步骤、最近的状态与检查时间</dd>
             <dt>recordings</dt><dd>录制编号、目标场景与版本、方式（新场景、接着现有步骤、整份换掉）与接续的版本、来源（录制或粘贴）、网址、浏览器、角色、状态、转不了的行</dd>
+            <dt>workflows</dt><dd>试验场的串行：名称、说明、定义（JSON）、保存次数</dd>
+            <dt>workflow_runs</dt><dd>串行的运行：串行与当时的名称、定义的快照、状态、停在哪个节点与原因、沿用的节点（从停下的节点继续时）、浏览器与窗口模式、时间</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，结构变更走 Alembic 迁移（服务器启动时自动升级）；测试会比较迁移与模型是否一致。</p>
         </div>
@@ -285,7 +314,6 @@
       <div class="panel-header"><h2>之后的里程碑</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>M6</dt><dd>自由试验场：场景序列、出参绑定、失败即停（下一个里程碑，先于 M5）</dd>
           <dt>M5</dt><dd>AI 助手只改草稿，发布仍走同一个门槛</dd>
           <dt>M8</dt><dd>认证与权限、Secrets 加密、PostgreSQL</dd>
           <dt>M9</dt><dd>分布式 worker、服务器推送事件取代轮询</dd>
