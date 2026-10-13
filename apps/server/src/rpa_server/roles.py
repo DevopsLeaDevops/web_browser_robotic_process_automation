@@ -405,6 +405,29 @@ class RoleService:
 
     # ------------------------------------------------------------ 執行結果
 
+    def save_state(self, role_id: str, data: bytes) -> None:
+        """遠端 worker 自動登入後傳回的登入狀態（M9a）：先寫暫存檔再改名，只有本人能讀寫。
+
+        內容必須是 Playwright storageState 的 JSON 物件（cookies、origins 是清單），
+        否則拋出 ValueError。
+        """
+        state: object = json.loads(data.decode("utf-8"))
+        if not isinstance(state, dict):
+            raise ValueError("storage state must be an object")
+        values = cast("dict[str, object]", state)
+        if not all(isinstance(values.get(key, []), list) for key in ("cookies", "origins")):
+            raise ValueError("cookies and origins must be lists")
+        with self.sessions() as session:
+            if session.get(Role, role_id) is None:
+                raise ValueError(f"unknown role: {role_id}")
+        path = self.storage.role_state(role_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.remote")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+        temporary.replace(path)
+
     def record_result(self, role_id: str, status: str, message: str | None = None) -> None:
         """執行的登入檢查結果：passed → 已登入，needs_login → 需要登入。"""
         mapped = {"passed": "logged_in", "needs_login": "needs_login"}.get(status)

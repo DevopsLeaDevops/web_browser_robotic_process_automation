@@ -33,8 +33,10 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "roles",
             "runs",
             "scenes",
+            "settings",
             "workflow_runs",
             "workflows",
+            "workers",
         ]
     finally:
         engine.dispose()

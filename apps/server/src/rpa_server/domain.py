@@ -12,6 +12,9 @@
   試驗場序列的節點 workflow（序列固定的版本，只能是發布過的版本；M6）。
 - 序列的執行：running → passed／failed／timed_out／cancelled／needs_login；節點依序排入佇列，
   一個節點沒有通過就停在那裡，後面的節點是略過 skipped（M6）。
+- 執行位置：本機 local（管理 Portal 這台電腦）、遠端 remote（遠端 worker）、任一 any（M9a）。
+  遠端 worker 的狀態：線上 online（最近有報到）、忙碌 busy（正在執行）、離線 offline、
+  停用 disabled。
 """
 
 import re
@@ -26,9 +29,11 @@ __all__ = [
     "DOMAIN_ID",
     "ENGINES",
     "FINISHED",
+    "LOCAL_WORKER",
     "PURPOSES",
     "ROLE_STATUSES",
     "RUN_STATUSES",
+    "TARGETS",
     "DomainRecord",
     "Engine",
     "NodeStatus",
@@ -42,6 +47,9 @@ __all__ = [
     "RunStatus",
     "SceneCard",
     "SceneRecord",
+    "Target",
+    "WorkerRecord",
+    "WorkerStatus",
     "WorkflowNodeState",
     "WorkflowRecord",
     "WorkflowRunRecord",
@@ -88,6 +96,11 @@ NodeStatus = Literal[
 ]
 """序列裡一個節點：還沒輪到、執行中或結束（同執行的狀態）、因為前面停下而略過、沿用上一次的結果。"""
 ENGINES: Final[tuple[Engine, ...]] = ("chromium", "firefox")
+Target = Literal["local", "remote", "any"]
+TARGETS: Final[tuple[Target, ...]] = ("local", "remote", "any")
+LOCAL_WORKER: Final = "local"
+"""本機 worker（管理 Portal 程序裡的執行緒）在 runs.worker_id 的代號。"""
+WorkerStatus = Literal["online", "busy", "offline", "disabled"]
 DOMAIN_ID: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """領域代號的規則（與場景 id 相同）。"""
 
@@ -232,6 +245,10 @@ class RunRecord:
     workflow_run_id: str | None = None
     """屬於哪一次序列的執行（M6）。"""
     node_id: str | None = None
+    target: Target = "local"
+    """執行位置（M9a）。"""
+    worker_id: str | None = None
+    """由哪台 worker 執行；local 是本機，還沒開始時是 None。"""
 
     @property
     def finished(self) -> bool:
@@ -263,6 +280,8 @@ class RunRecord:
             "reportUrl": f"/runs/{self.id}/files/report.html" if self.finished else None,
             "workflowRunId": self.workflow_run_id,
             "nodeId": self.node_id,
+            "target": self.target,
+            "workerId": self.worker_id,
         }
 
 
@@ -464,6 +483,9 @@ class WorkflowRunRecord:
     created_at: datetime
     finished_at: datetime | None
     nodes: tuple[WorkflowNodeState, ...] = ()
+    target: Target = "local"
+    worker_id: str | None = None
+    """第一個節點由哪台 worker 領取，後面的節點都給它（M9a）。"""
 
     @property
     def finished(self) -> bool:
@@ -496,4 +518,47 @@ class WorkflowRunRecord:
             "finished": self.finished,
             "resumable": self.resumable,
             "nodes": [node.to_json() for node in self.nodes],
+            "target": self.target,
+            "workerId": self.worker_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerRecord:
+    """一台遠端 worker（M9a）。"""
+
+    id: str
+    name: str
+    status: WorkerStatus
+    disabled: bool
+    created_at: datetime
+    last_seen_at: datetime | None
+    current_run: str | None
+    protocol: int | None
+    fingerprint: str | None
+    same_version: bool
+    """程式指紋和管理 Portal 相同（還沒上線過時視為相同）。"""
+    os: str | None
+    python: str | None
+    host: str | None
+    browsers: tuple[str, ...]
+    display: bool
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "status": self.status,
+            "disabled": self.disabled,
+            "createdAt": _iso(self.created_at),
+            "lastSeenAt": _iso(self.last_seen_at),
+            "currentRun": self.current_run,
+            "protocol": self.protocol,
+            "fingerprint": self.fingerprint,
+            "sameVersion": self.same_version,
+            "os": self.os,
+            "python": self.python,
+            "host": self.host,
+            "browsers": list(self.browsers),
+            "display": self.display,
         }

@@ -1,6 +1,7 @@
 """背景 worker：從任務來源領取任務，一次執行一個。
 
-- 任務來源（:class:`JobSource`）由使用的一方實作：M3 是 rpa-server 的資料庫，M9 換成分散式佇列。
+- 任務來源（:class:`JobSource`）由使用的一方實作：本機是 rpa-server 的資料庫（M3），
+  遠端 worker 是管理 Portal 的 Worker API（:mod:`rpa_worker.remote`，M9a）。
 - 每個任務交給 :func:`rpa_runner.run.execute`：子程序、總期限、取消都由 runner 處理。
 - 取消：:meth:`Worker.cancel` 讓執行中的任務立即終止程序群組；任務還沒開始時先記下來，
   一開始就取消（領取與開始執行之間的空檔不會漏掉）。
@@ -43,6 +44,8 @@ class Job:
     """場景有 login 時，角色的登入設定。"""
     secrets: Mapping[str, str] = field(default_factory=dict[str, str])
     """Secrets 的值（只放在記憶體）；沒有的由 runner 從同名的環境變數找。"""
+    locale: Locale | None = None
+    """報告與訊息的語言；None 用 worker 的語言（遠端任務帶著管理 Portal 的語言，M9a）。"""
 
 
 class JobSource(Protocol):
@@ -174,10 +177,11 @@ class Worker:
             return False
         if job is None:
             return False
-        if self.locale is None:
+        locale = job.locale or self.locale
+        if locale is None:
             self._execute(job)
         else:
-            with use_locale(self.locale):
+            with use_locale(locale):
                 self._execute(job)
         return True
 

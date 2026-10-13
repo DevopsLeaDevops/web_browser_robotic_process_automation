@@ -1,7 +1,8 @@
 """rpa_worker：背景 worker。
 
 從任務來源領取待執行的任務，以子程序呼叫 rpa-runner（總期限、取消），把結果交回任務來源。
-本身不碰資料庫：任務來源由使用的一方實作（M3 是 rpa-server 的 SQLite，M9 換成分散式佇列）。
+本身不碰資料庫：任務來源由使用的一方實作——本機是 rpa-server 的 SQLite（M3），
+遠端 worker 經由管理 Portal 的 Worker API 領取（rpa_worker.remote，M9a，ADR 0012）。
 """
 
 from importlib.metadata import version
