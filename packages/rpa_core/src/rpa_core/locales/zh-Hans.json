@@ -117,8 +117,8 @@
   "recording.step.uncheck": "取消勾选「{target}」",
   "recording.step.expect": "确认「{target}」",
   "recording.step.waitFor": "等网址变成 {url}",
-  "recording.step.extract": "讀取「{target}」",
-  "recording.output": "「{target}」的內容（錄製時是「{value}」）",
-  "recording.verify.equals": "「{target}」與入參 {input} 相同",
-  "recording.verify.not_empty": "取得「{target}」（錄製時是「{value}」）"
+  "recording.step.extract": "读取「{target}」",
+  "recording.output": "「{target}」的内容（录制时是「{value}」）",
+  "recording.verify.equals": "「{target}」与入参 {input} 相同",
+  "recording.verify.not_empty": "取得「{target}」（录制时是「{value}」）"
 }

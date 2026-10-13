@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>技術選型 · 瀏覽器 RPA 工程文檔</title>
+<title>技术选型 · 浏览器 RPA 工程文档</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
 <script defer src="../../assets/nav.js"></script>
@@ -14,47 +14,47 @@
 <main id="main">
   <div class="heading">
     <div>
-      <h1>技術選型</h1>
-      <p>前端以外全部使用 Python。重要選擇另有決策紀錄說明背景與取捨。</p>
+      <h1>技术选型</h1>
+      <p>前端以外全部使用 Python。重要选择另有决策记录说明背景与取舍。</p>
     </div>
   </div>
 
   <div class="stack">
     <section class="panel">
-      <div class="panel-header"><h2>各層選型</h2></div>
+      <div class="panel-header"><h2>各层选型</h2></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>層面</th><th>選型</th><th>備選</th><th>理由</th><th>起始</th></tr></thead>
+          <thead><tr><th>层面</th><th>选型</th><th>备选</th><th>理由</th><th>起始</th></tr></thead>
           <tbody>
-            <tr><td>瀏覽器驅動</td><td>Playwright for Python；支援 Chromium 與 Firefox，CI 都測</td><td>Selenium</td><td>多瀏覽器、自動等待、語意化定位（get_by_role）、Trace Viewer；每次執行在獨立的子程序與瀏覽器上下文中進行；一個程序只跑一次執行，所以 Runner 用同步 API<small><a href="../adr/0010-mvp-first.html">ADR 0010</a></small></td><td>M2</td></tr>
-            <tr><td>DSL 模型與校驗</td><td>Pydantic v2</td><td>marshmallow</td><td>判別聯合很適合「每種動作一個模型」；可直接導出 JSON Schema 給 AI 和前端<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
-            <tr><td>YAML 解析</td><td>PyYAML（只用解析器）</td><td>ruamel.yaml</td><td>解析出的節點樹帶有行號與列號，校驗錯誤能指出檔案位置；轉型改用自己實作的 YAML 1.2 core 規則並拒絕重複的鍵；有型別標註，pyright strict 可用。M1 實作時由 ruamel.yaml 改選，見<a href="dsl.html#yaml">場景 DSL</a></td><td>M1</td></tr>
-            <tr><td>表達式 <code>{{ }}</code></td><td>Jinja2 沙箱環境</td><td>自行實作</td><td>成熟，可以限制場景能存取的內容，防止執行任意程式碼；M1.1 解析與檢查引用，M2 求值<small><a href="../adr/0009-scenario-contract.html">ADR 0009</a></small></td><td>M1.1</td></tr>
-            <tr><td>命令列</td><td>click</td><td>Typer、argparse</td><td>成熟穩定、子命令與測試工具完整</td><td>M0</td></tr>
-            <tr><td>後端 API</td><td>FastAPI</td><td>Django</td><td>與 DSL 共用同一套 Pydantic 模型，自動產生 OpenAPI；同一個服務也渲染管理頁面<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
-            <tr><td>資料庫</td><td>SQLite（開發、原型）與 PostgreSQL（正式環境），SQLAlchemy 2.0 + Alembic</td><td>只用 PostgreSQL</td><td>開發不必安裝資料庫；正式環境需要併發寫入與多個 worker；CI 兩種都測<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M3</td></tr>
-            <tr><td>任務佇列與排程</td><td>PostgreSQL 佇列（Procrastinate）；SQLite 模式在 API 程序內執行</td><td>Celery + Redis</td><td>少一個元件，原生 asyncio，支援定時任務<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
-            <tr><td>產物存儲</td><td>S3 相容的物件儲存（產品在 M9 前選定）</td><td>共用磁碟</td><td>多個 worker 的截圖、Trace、下載檔需要集中存放；程式只依賴 S3 介面，換產品不用改程式碼；本機開發用本地目錄。原定的 MinIO 社群版已在 2026 年 4 月停止維護</td><td>M9</td></tr>
-            <tr><td>管理介面</td><td>Jinja2 伺服器端渲染 + 設計系統的 CSS 與少量 JavaScript</td><td>React + TypeScript（原 ADR 0004）、Flask</td><td>MVP 原型的頁面全是卡片、表單、篩選與編排，不需要框架；整個工程只有 Python<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
-            <tr><td>介面樣式</td><td>介面設計系統 v1.1</td><td>—</td><td>同事交付的視覺契約，文檔站、MVP 原型與管理介面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
-            <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支援多套件；ruff 一個工具處理 lint 與格式化</td><td>M0</td></tr>
-            <tr><td>多語言</td><td>各套件的 JSON 訊息目錄；簡中以 OpenCC 由繁中產生</td><td>gettext、Babel</td><td>繁中為主要語言，Web UI 也要讀同一份翻譯；只需人工維護繁中與英文<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
-            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>倉庫在 GitHub；Python 3.12 / 3.13 兩個版本並行測試</td><td>M0</td></tr>
-            <tr><td>部署</td><td>Docker Compose</td><td>Kubernetes</td><td>起步夠用，之後可以遷移</td><td>M9</td></tr>
+            <tr><td>浏览器驱动</td><td>Playwright for Python；支持 Chromium 与 Firefox，CI 都测</td><td>Selenium</td><td>多浏览器、自动等待、语意化定位（get_by_role）、Trace Viewer；每次运行在独立的子进程与浏览器上下文中进行；一个进程只跑一次运行，所以 Runner 用同步 API<small><a href="../adr/0010-mvp-first.html">ADR 0010</a></small></td><td>M2</td></tr>
+            <tr><td>DSL 模型与校验</td><td>Pydantic v2</td><td>marshmallow</td><td>判别联合很适合「每种动作一个模型」；可直接导出 JSON Schema 给 AI 和前端<small><a href="../adr/0001-dsl-as-source-of-truth.html">ADR 0001</a></small></td><td>M1</td></tr>
+            <tr><td>YAML 解析</td><td>PyYAML（只用解析器）</td><td>ruamel.yaml</td><td>解析出的节点树带有行号与列号，校验错误能指出文件位置；转型改用自己实现的 YAML 1.2 core 规则并拒绝重复的键；有类型标注，pyright strict 可用。M1 实现时由 ruamel.yaml 改选，见<a href="dsl.html#yaml">场景 DSL</a></td><td>M1</td></tr>
+            <tr><td>表达式 <code>{{ }}</code></td><td>Jinja2 沙箱环境</td><td>自行实现</td><td>成熟，可以限制场景能访问的内容，防止运行任意代码；M1.1 解析与检查引用，M2 求值<small><a href="../adr/0009-scenario-contract.html">ADR 0009</a></small></td><td>M1.1</td></tr>
+            <tr><td>命令行</td><td>click</td><td>Typer、argparse</td><td>成熟稳定、子命令与测试工具完整</td><td>M0</td></tr>
+            <tr><td>后端 API</td><td>FastAPI</td><td>Django</td><td>与 DSL 共用同一套 Pydantic 模型，自动产生 OpenAPI；同一个服务也渲染管理页面<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
+            <tr><td>数据库</td><td>SQLite（开发、原型）与 PostgreSQL（正式环境），SQLAlchemy 2.0 + Alembic</td><td>只用 PostgreSQL</td><td>开发不必安装数据库；正式环境需要并发写入与多个 worker；CI 两种都测<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M3</td></tr>
+            <tr><td>任务队列与调度</td><td>PostgreSQL 队列（Procrastinate）；SQLite 模式在 API 进程内运行</td><td>Celery + Redis</td><td>少一个组件，原生 asyncio，支持定时任务<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
+            <tr><td>产物存储</td><td>S3 兼容的对象存储（产品在 M9 前选定）</td><td>共用磁盘</td><td>多个 worker 的截图、Trace、下载文件需要集中存放；程序只依赖 S3 界面，换产品不用改代码；本机开发用本地目录。原定的 MinIO 社区版已在 2026 年 4 月停止维护</td><td>M9</td></tr>
+            <tr><td>管理界面</td><td>Jinja2 服务器端渲染 + 设计系统的 CSS 与少量 JavaScript</td><td>React + TypeScript（原 ADR 0004）、Flask</td><td>MVP 原型的页面全是卡片、表单、筛选与编排，不需要框架；整个工程只有 Python<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
+            <tr><td>界面样式</td><td>界面设计系统 v1.1</td><td>—</td><td>同事交付的视觉契约，文档站、MVP 原型与管理界面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
+            <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支持多包；ruff 一个工具处理 lint 与格式化</td><td>M0</td></tr>
+            <tr><td>多语言</td><td>各包的 JSON 消息目录；简中以 OpenCC 由繁中产生</td><td>gettext、Babel</td><td>繁中为主要语言，Web UI 也要读同一份翻译；只需人工维护繁中与英文<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
+            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>仓库在 GitHub；Python 3.12 / 3.13 两个版本并行测试</td><td>M0</td></tr>
+            <tr><td>部署</td><td>Docker Compose</td><td>Kubernetes</td><td>起步够用，之后可以迁移</td><td>M9</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <section class="panel">
-      <div class="panel-header"><h2>版本基準</h2><span class="muted">M0 設定</span></div>
+      <div class="panel-header"><h2>版本基准</h2><span class="muted">M0 设置</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>Python</dt><dd>3.12 以上（CI 測 3.12 與 3.13；本機預設 3.13，見 <code>.python-version</code>）</dd>
+          <dt>Python</dt><dd>3.12 以上（CI 测 3.12 与 3.13；本机默认 3.13，见 <code>.python-version</code>）</dd>
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
-          <dt>型別檢查</dt><dd>pyright strict 模式，新程式碼一律完整標註型別</dd>
-          <dt>依賴鎖定</dt><dd><code>uv.lock</code> 記錄每個套件的確切版本並提交到倉庫；CI 以 <code>uv sync --locked</code> 安裝，鎖檔與 <code>pyproject.toml</code> 不一致時失敗</dd>
-          <dt>依賴更新</dt><dd>Dependabot 每週檢查 GitHub Actions 與 Python 依賴</dd>
+          <dt>类型检查</dt><dd>pyright strict 模式，新代码一律完整标注类型</dd>
+          <dt>依赖锁定</dt><dd><code>uv.lock</code> 记录每个包的确切版本并提交到仓库；CI 以 <code>uv sync --locked</code> 安装，锁文件与 <code>pyproject.toml</code> 不一致时失败</dd>
+          <dt>依赖更新</dt><dd>Dependabot 每周检查 GitHub Actions 与 Python 依赖</dd>
         </dl>
       </div>
     </section>
