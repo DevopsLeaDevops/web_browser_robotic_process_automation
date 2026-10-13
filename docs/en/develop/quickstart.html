@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:6a611f2c2b5f5cc3">
+<meta name="translation-source" content="sha256:3ed7767ef1d2f532">
 <title>Run locally from scratch · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -151,6 +151,7 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
 git pull              # get the latest code
 ./scripts/setup.sh    # installs only what changed in dependencies or browsers, then reruns the tests; scripts\setup.ps1 on Windows</pre>
         <p>To update dependencies without the full run, <code>uv sync</code> is enough. Other common commands are in <a href="setup.html">Dev environment</a>.</p>
+        <p>The management portal keeps its data (scenarios, runs, login states, secrets) in the project's <code>data</code> folder. For a separate, brand-new one (for example to try a new version), start it with <code>--data</code>, such as <code>uv run rpa serve --data data-m4</code>, and use the same folder every time after that. See <a href="../design/portal.html#data-folder">Management portal › Data folder</a>.</p>
       </div>
     </section>
 
@@ -169,6 +170,7 @@ git pull              # get the latest code
             <tr><td>Running a scene says "<span translate="no">這台電腦還沒有下載 Firefox</span>" (Firefox has not been downloaded on this computer), or <code>Executable doesn't exist</code></td><td>Environments set up early downloaded only Chromium, and the Test site automation examples use Firefox. Run <code>./scripts/setup.sh</code> again in the project folder (<code>scripts\setup.ps1</code> on Windows), or just <code>uv run playwright install chromium firefox</code>; no need to restart <code>rpa serve</code>. Rerunning the script after every <code>git pull</code> is recommended.</td></tr>
             <tr><td><code>uv</code> is not found after the script finishes</td><td>The script just installed uv, which only takes effect in new terminal windows. Open a new window; on macOS and Linux you can also run <code>source $HOME/.local/bin/env</code>.</td></tr>
             <tr><td>"<span translate="no">測試沒有通過</span>" (tests did not pass)</td><td>Scroll up to find the <code>FAILED</code> test names and errors. Running <code>uv run pytest -x</code> in the project folder stops at the first failure.</td></tr>
+            <tr><td>Start the management portal over</td><td>Stop <code>rpa serve</code> (Ctrl+C in its terminal), delete the project's <code>data</code> folder (or the <code>--data</code> folder you use) and start it again. Scenarios, runs, login states and secrets are all removed; copy the folder first to keep them.</td></tr>
             <tr><td>Start over completely</td><td>Delete <code>.venv</code> in the project and run the script again. For Mac-specific issues (Rosetta, <code>xcrun: error</code> and so on) see the <a href="macos.html#faq">Run on macOS FAQ</a>.</td></tr>
           </tbody>
         </table>
