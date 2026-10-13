@@ -14,9 +14,9 @@
   <div class="heading">
     <div>
       <h1>管理 Portal</h1>
-      <p>在瀏覽器裡建立場景、驗證、發布、執行並查看報告（M3）；錄製、逐步調試、登入角色與入參出參的表單（M4）。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.1。</p>
+      <p>在瀏覽器裡建立場景、驗證、發布、執行並查看報告（M3）；錄製、逐步調試、登入角色與入參出參的表單（M4）；自由試驗場的序列（M6）。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.1。</p>
     </div>
-    <span class="badge blue">M4</span>
+    <span class="badge blue">M6</span>
   </div>
 
   <div class="stack">
@@ -149,10 +149,27 @@
       </div>
     </section>
 
-    <section class="panel" id="manual-check">
-      <div class="panel-header"><h2>手動驗收</h2><span class="muted">M4：錄製與人工登入要有人操作，自動測試用預先錄好的錄製稿</span></div>
+    <section class="panel" id="playground">
+      <div class="panel-header"><h2>自由試驗場</h2><span class="muted">M6：已發布場景的固定版本排成序列，上游出參交給下游入參，失敗即停</span></div>
       <div class="panel-body prose">
-        <p>在有圖形介面的電腦（macOS、Windows，或有桌面的 Linux）上，用一個全新的資料夾走一次，大約十五分鐘：</p>
+        <ul>
+          <li><strong>序列。</strong>「場景生產 › 自由試驗場」新增序列，從左邊的場景庫把場景加到序列最後；中間是依序執行的節點（n1、n2…），右邊設定選取的節點，可以上移、下移、移除。改動先留在頁面上，按「儲存」才存檔；存檔要帶目前是第幾次存檔，別的分頁已經存過就回 409。</li>
+          <li><strong>只用發布過的版本，而且固定。</strong>場景庫只列出發布過的場景；加入時固定在目前發布的版本，之後場景發布新版本也不影響序列（節點設定會提示，要用就自己切換）。版本只能選發布過的，所以序列裡每個節點都是通過驗證的內容。</li>
+          <li><strong>入參的來源。</strong>每個入參三選一：場景的預設值、固定值、前面某個節點的出參（只能選型別相容的，整數可以給數字）。加入節點時，名稱相同、型別相容的入參自動接上最近的上游，例如 BA-002 的 recordId 接上 BA-001 的出參。必填的入參一定要有來源。</li>
+          <li><strong>先檢查、再執行。</strong>每次修改都會檢查：場景存在而且沒有封存、版本發布過、只取前面節點的出參、那個出參存在、型別相容、必填入參有來源、固定值符合入參的規則。有問題時列在上方與節點上，不能執行。</li>
+          <li><strong>依序執行、失敗即停。</strong>「執行序列」可以選瀏覽器（預設照各場景）與視窗模式。節點一個一個排入佇列；每個節點就是一次一般的執行（目的「試驗場」），有自己的執行目錄與報告，也出現在執行報告。通過之後才取它發布的出參、排下一個節點；沒有通過（失敗、逾時、取消、需要登入）就停在那個節點，後面的節點略過。綁定的值不符合下游入參的規則時，下游不啟動瀏覽器就停下。</li>
+          <li><strong>序列執行頁。</strong>每個節點的狀態、入參的值與來源（固定值、預設值、<code>← n1.recordId</code>）、出參，以及那次執行與報告的連結；執行中每秒更新。開始執行時記下序列的快照，之後改序列不影響這次執行。</li>
+          <li><strong>從停下的節點繼續、從頭再執行。</strong>「從 n2 繼續」沿用前面已通過節點的出參，從停下的節點開始，不會重複前面的操作（例如再建立一次紀錄），適合登入之後接著跑；「從頭再執行」用同一份快照從第一個節點開始。取消會停止目前的節點，已經在目標網站完成的動作不會復原。</li>
+          <li><strong>匯出與匯入。</strong>「匯出 JSON」下載序列的名稱、說明與定義；清單頁「匯入 JSON」用它建立新的序列。定義的格式：<code>{"version": 1, "mode": "serial", "onFailure": "stop", "nodes": [{"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "試驗"}}}, {"id": "n2", "sceneId": "ba-002", "revision": 1, "inputs": {"recordId": {"node": "n1", "output": "recordId"}}}]}</code>。沒寫的入參用預設值；<code>value</code> 是固定值，<code>node</code> 與 <code>output</code> 是前面節點的出參。規則在 <code>rpa_core.workflow</code>。</li>
+          <li><strong>範圍。</strong>MVP 只有序列，不做條件、分支與平行；節點與其他執行排在同一個佇列，一次執行一個。刪除序列不會刪除執行紀錄（序列執行有定義的快照）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="manual-check">
+      <div class="panel-header"><h2>手動驗收</h2><span class="muted">M4、M6：錄製、人工登入與試驗場的畫面要有人操作；自動測試用預先錄好的錄製稿</span></div>
+      <div class="panel-body prose">
+        <p>在有圖形介面的電腦（macOS、Windows，或有桌面的 Linux）上，用一個全新的資料夾走一次，大約二十分鐘：</p>
         <ol>
           <li><strong>啟動。</strong><code>uv run rpa serve --data data-check</code>，打開 <code>http://127.0.0.1:8080</code>；「測試網站自動化」已經有 BA-001～BA-005。</li>
           <li><strong>錄製新場景。</strong>「場景生產 › 自主腳本錄製」選「新場景」，起始網址 <code>http://127.0.0.1:8765/</code>，按「開始錄製」。在測試頁填標題與數量、按「建立紀錄」，在 Inspector 用「Assert text」點一下紀錄編號，關掉瀏覽器。錄製詳情應該有 goto、兩個 fill、click、一個 extract，入參 2 個、出參 1 個、斷言 1 條。</li>
@@ -160,6 +177,7 @@
           <li><strong>接著現有步驟錄製。</strong>選「既有場景的新版本」與剛才的場景，再選「接著現有步驟錄製」：瀏覽器先自動跑完原有步驟，停在建立結果的頁面，再錄一個動作；新版本的步驟接在原有內容後面，原本的註解不變。</li>
           <li><strong>兩個角色。</strong>「場景管理 › 登入與憑證」對 <code>testsite-user</code> 按「登入」，在跳出的視窗用 user / user-pass 登入後按「完成登入」；<code>testsite-manager</code> 用 manager / manager-pass。再分別運行 BA-004、BA-005：兩份報告看到的待辦不同。</li>
           <li><strong>需要登入與重新執行。</strong>對 <code>testsite-user</code> 按「登出」，再運行 BA-004：停在「需要登入」，沒有執行任何步驟；點執行頁的登入角色回到「登入與憑證」再登入一次，回到執行頁按「重新執行」，結果是「通過」。</li>
+          <li><strong>自由試驗場。</strong>先驗證並發布 BA-001，再用它驗證時建立的紀錄編號驗證並發布 BA-002。「場景生產 › 自由試驗場」按「新增序列」，從場景庫加入 BA-001、BA-002：BA-002 的 recordId 自動接上 n1 的出參。按「執行序列」，兩個節點都通過，n2 查到的就是 n1 剛建立的紀錄。再把 n2 上移到最前面：序列會提示 recordId 只能取前面節點的出參，不能執行。</li>
         </ol>
         <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可。</p>
       </div>
@@ -183,7 +201,9 @@
             <tr><td><code>/runs/{執行編號}</code></td><td>狀態、階段、獨立斷言、入參與出參、截圖、執行目錄的檔案；取消、發布</td></tr>
             <tr><td><code>/roles</code></td><td>登入與憑證：登入角色（登入、檢查、登出）、Secrets</td></tr>
             <tr><td><code>/recording</code>、<code>/recordings/{錄製編號}</code></td><td>自主腳本錄製：在這台電腦錄製或貼上錄製稿；最近的錄製；錄製詳情（轉不了的行、轉換結果、遮罩過的原始錄製稿）</td></tr>
-            <tr><td><code>/playground</code></td><td>預留位置：自由試驗場在 M6</td></tr>
+            <tr><td><code>/playground</code></td><td>自由試驗場：序列清單（節點、問題、最近一次執行）與最近的序列執行；新增、匯入、刪除序列</td></tr>
+            <tr><td><code>/playground/{序列}</code></td><td>編輯序列：場景庫、序列、節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
+            <tr><td><code>/playground/runs/{序列執行}</code></td><td>序列的執行：每個節點的狀態、入參的值與來源、出參、報告；取消、從頭再執行、從停下的節點繼續</td></tr>
           </tbody>
         </table>
       </div>
@@ -219,6 +239,13 @@
             <tr><td><code>GET /api/recordings/{錄製編號}</code>、<code>…/cancel</code></td><td>錄製狀態、轉不了的行與檔案；取消錄製</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>開始逐步調試（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已經有工作階段時回傳它</td></tr>
             <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作階段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>調試狀態與結束；執行一步（有副作用而且執行過時 409 <code>confirm_required</code>，帶 <code>force</code> 再送）、執行到第 n 步、測試定位器、截圖、從頭開始、換到新版本</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>序列清單（含問題與最近一次執行）；新增序列（<code>name</code>、<code>description</code>、選用的 <code>definition</code>，帶了就是匯入）</td></tr>
+            <tr><td><code>GET /api/workflows/library</code></td><td>場景庫：發布過的場景版本，以及它們的入參、出參與登入角色</td></tr>
+            <tr><td><code>POST /api/workflows/check</code></td><td>檢查一份定義（不存檔），回傳 <code>problems</code></td></tr>
+            <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{序列}</code></td><td>序列與最近的執行；存檔（<code>baseVersion</code>、<code>name</code>、<code>description</code>、<code>definition</code>；不是目前的存檔次數就 409）；刪除（執行中不能刪）</td></tr>
+            <tr><td><code>POST /api/workflows/{序列}/runs</code></td><td>執行序列（<code>engine</code>、<code>headless</code>、<code>idempotencyKey</code>）；有問題時 422 並列出 <code>problems</code>；202 回序列的執行</td></tr>
+            <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{序列執行}</code></td><td>序列執行清單（可用 <code>workflow</code> 篩選）；單次的狀態與每個節點（狀態、入參的來源、那次執行）</td></tr>
+            <tr><td><code>POST /api/workflow-runs/{序列執行}/cancel</code>、<code>…/rerun</code></td><td>取消；再執行一次（<code>resume: true</code> 從停下的節點繼續，否則從頭）</td></tr>
           </tbody>
         </table>
       </div>
@@ -244,9 +271,11 @@
             <dt>domains</dt><dd>代號、名稱、說明、排列順序</dd>
             <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存</dd>
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
-            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間</dd>
+            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間；試驗場節點的序列執行與節點代號</dd>
             <dt>roles</dt><dd>代號、名稱、登入網址、確認網址與判斷元素、瀏覽器、自動登入步驟、最近的狀態與檢查時間</dd>
             <dt>recordings</dt><dd>錄製編號、目標場景與版本、方式（新場景、接著現有步驟、整份換掉）與接續的版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
+            <dt>workflows</dt><dd>試驗場的序列：名稱、說明、定義（JSON）、存檔次數</dd>
+            <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
         </div>
@@ -284,7 +313,6 @@
       <div class="panel-header"><h2>之後的里程碑</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>M6</dt><dd>自由試驗場：場景序列、出參綁定、失敗即停（下一個里程碑，先於 M5）</dd>
           <dt>M5</dt><dd>AI 助手只改草稿，發布仍走同一個門檻</dd>
           <dt>M8</dt><dd>認證與權限、Secrets 加密、PostgreSQL</dd>
           <dt>M9</dt><dd>分散式 worker、伺服器推送事件取代輪詢</dd>

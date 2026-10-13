@@ -51,7 +51,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         display=settings.display,
         locale=settings.locale,
     )
-    worker = Worker(RunQueue(sessions, storage, services.roles), locale=settings.locale)
+    queue = RunQueue(sessions, storage, services.roles)
+    queue.on_finished = services.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
+    worker = Worker(queue, locale=settings.locale)
     services.on_queued = worker.wake
     services.on_cancel = worker.cancel
 

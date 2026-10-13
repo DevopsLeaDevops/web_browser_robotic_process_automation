@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}<a href="/playground">{{ t("nav.playground") }}</a> › {% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %} › {{ run.id }}{% endblock %}
+{% block description %}{{ t("workflow_run.description", name=run.workflow_name, count=run.nodes | length) }}{% endblock %}
+{% block actions %}
+{% if workflow_exists %}<a class="button" href="/playground/{{ run.workflow_id }}">{{ t("workflow_run.back") }}</a>{% endif %}
+{% if not run.finished %}
+<button class="button" data-action="cancel-workflow-run"{% if run.cancel_requested %} disabled{% endif %}>{{ t("workflow_run.cancel") }}</button>
+{% else %}
+<button class="button{% if not run.resumable %} primary{% endif %}" data-action="rerun-workflow" data-resume="0" title="{{ t('workflow_run.rerun_title') }}">{{ t("workflow_run.rerun") }}</button>
+{% if run.resumable %}<button class="button primary" data-action="rerun-workflow" data-resume="1" title="{{ t('workflow_run.resume_title') }}">{{ t("workflow_run.resume", node=run.failed_node) }}</button>{% endif %}
+{% endif %}
+{% endblock %}
+{% block content %}
+{% set signature = run.status ~ "|" ~ (run.nodes | map(attribute="status") | join(",")) %}
+<div class="stack" id="workflow-run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-signature="{{ signature }}"{% if not run.finished %} data-poll{% endif %}>
+  {% if not run.finished %}<div class="notice">{{ t("workflow_run.polling") }}</div>{% endif %}
+  {% if run.status == "needs_login" %}
+  <div class="notice warn" role="alert">{{ run.error }}
+    {% if role %}<span class="actions"><a class="button" href="/roles#role-{{ role }}">{{ t("run.go_login", role=role) }}</a></span>{% endif %}
+    <span class="cell-sub">{{ t("workflow_run.needs_login_hint", node=run.failed_node) }}</span>
+  </div>
+  {% elif run.error and run.status != "cancelled" %}<div class="notice danger" role="alert">{{ run.error }}</div>
+  {% elif run.error %}<div class="notice warn">{{ run.error }}</div>{% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.summary") }}</h2>{{ m.run_badge(run.status) }}</div>
+    <dl class="kv-grid">
+      <div><dt>{{ t("playground.col_progress") }}</dt><dd><strong>{{ t("playground.progress", passed=run.passed_count, total=run.nodes | length) }}</strong></dd></div>
+      <div><dt>{{ t("run.created") }}</dt><dd>{{ m.time(run.created_at) }}</dd></div>
+      <div><dt>{{ t("run.finished") }}</dt><dd>{{ m.time(run.finished_at) }}</dd></div>
+      <div><dt>{{ t("run.engine") }}</dt><dd>{{ run.engine or t("workflow.engine_scene") }}</dd></div>
+      <div><dt>{{ t("run_form.window") }}</dt><dd>{{ t("run_form.window_headless") if run.headless else t("run_form.window_headed") }}</dd></div>
+      {% if run.resumed_from %}<div><dt>{{ t("workflow_run.resumed_from") }}</dt><dd><a class="mono" href="/playground/runs/{{ run.resumed_from }}">{{ run.resumed_from }}</a></dd></div>{% endif %}
+    </dl>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("workflow_run.nodes") }} <span class="count">{{ run.nodes | length }}</span></h2><span class="muted">{{ t("workflow_run.nodes_hint") }}</span></div>
+    <div class="table-scroll"><table class="wrap workflow-nodes">
+      <thead><tr><th>{{ t("workflow_run.col_node") }}</th><th>{{ t("workflow_run.col_inputs") }}</th><th>{{ t("runs.col_status") }}</th><th>{{ t("workflow_run.col_outputs") }}</th><th>{{ t("runs.col_actions") }}</th></tr></thead>
+      <tbody>
+      {% for node in run.nodes %}
+        <tr data-node="{{ node.id }}" data-status="{{ node.status }}"{% if node.id == run.failed_node %} class="is-stopped"{% endif %}>
+          <td><span class="tag mono">{{ node.id }}</span> <a href="/scenes/{{ node.scene_id }}">{{ node.scene_id }}</a> <span class="muted">v{{ node.revision }}</span><span class="cell-sub">{{ node.scene_name }}</span></td>
+          <td>
+            {% if node.sources %}
+            <ul class="io-list">
+              {% for name, source in node.sources.items() %}
+              {% set given = node.run is not none and name in node.run.input %}
+              <li><code>{{ name }}</code>{% if given %} = <code>{{ node.run.input[name] | compact_json }}</code>{% elif source.kind in ("value", "default") %} = <code>{{ source.value | compact_json }}</code>{% endif %} {{ m.input_source(source) }}</li>
+              {% endfor %}
+            </ul>
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ m.badge(node.status, t("status." + node.status)) }}{% if node.error %}<span class="cell-sub text-danger">{{ node.error }}</span>{% elif node.run and node.run.error and node.status not in ("passed", "reused") %}<span class="cell-sub">{{ node.run.error }}</span>{% endif %}{% if node.status == "reused" %}<span class="cell-sub">{{ t("workflow_run.reused_hint") }}</span>{% endif %}</td>
+          <td>{% if node.run and node.run.output %}
+            <ul class="io-list">{% for key, value in node.run.output.items() %}<li><code>{{ key }}</code> = <code>{{ value | compact_json }}</code></li>{% endfor %}</ul>
+            {% else %}—{% endif %}</td>
+          <td class="nowrap">{% if node.run %}<a class="text-btn" href="/runs/{{ node.run.id }}">{{ t("runs.view") }}</a>{% if node.run.finished %} <a class="text-btn" href="/runs/{{ node.run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div>
+<script type="application/json" id="workflow-messages">{{ messages | tojson }}</script>
+{% endblock %}

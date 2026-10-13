@@ -117,7 +117,7 @@
       <div class="panel-body">
         <div class="four-col">
           <div class="notice"><strong>管理 Portal</strong><p>浏览器打开；页面由 API 服务以 Jinja 渲染，沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>的版面（M3 起）。</p></div>
-          <div class="notice"><strong>API 服务</strong><p>FastAPI：场景、版本与发布门槛、入参出参、运行、报告、调试工作阶段（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>）。</p></div>
+          <div class="notice"><strong>API 服务</strong><p>FastAPI：场景、版本与发布门槛、入参出参、运行、报告、调试工作阶段、试验场的串行（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>）。</p></div>
           <div class="notice"><strong>背景 worker</strong><p>同一台电脑；每次运行以子进程跑 Runner，应用总期限与取消，失败或超时就终止整个进程组。</p></div>
           <div class="notice"><strong>数据与产物</strong><p>SQLite 存元数据（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；文件目录存场景版本快照与每次运行的目录。</p></div>
         </div>
@@ -139,12 +139,12 @@
         <table class="wrap">
           <thead><tr><th>包</th><th>职责</th><th>依赖</th><th>起始</th></tr></thead>
           <tbody>
-            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 加载与校验、表达式引擎、JSON Schema 导出、多语言消息目录。不碰浏览器、不碰数据库。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 加载与校验、表达式引擎、JSON Schema 导出、多语言消息目录；试验场串行的定义与检查（<code>rpa_core.workflow</code>，M6）。不碰浏览器、不碰数据库。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
             <tr><td><code>rpa-runner</code></td><td>运行引擎：入参校验、步骤处理器注册表、浏览器与上下文管理、登录检查与人工登录、独立断言、出参发布、运行目录与报告；也运行 Python 脚本场景，并提供逐步调试用的子进程。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
             <tr><td>录制</td><td>在隔离的浏览器中记录用户操作，保存原始录制稿并转成 DSL 草稿。M4 没有另外做包：录制用 Playwright codegen，转换是 rpa-core 的 <code>rpa_core.recording</code>（不碰浏览器，可以单独测试）。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI 助手：对话调试、自然语言 → DSL、校验失败反馈修正、选择器自愈；只能修改草稿。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述包、click</td><td>M0</td></tr>
-            <tr><td><code>rpa-server</code></td><td>API 与管理页面、数据库模型、版本与发布门槛、调试工作阶段；权限（M8）、调度（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API 与管理页面、数据库模型、版本与发布门槛、调试工作阶段、试验场串行的运行（M6）；权限（M8）、调度（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
             <tr><td><code>rpa-worker</code></td><td>取出待运行的任务，以子进程调用 rpa-runner，应用总期限与取消，回写结果与产物。M3 在同一台电脑，M9 改为分布式。</td><td>rpa-runner；Procrastinate（M9）</td><td>M3</td></tr>
           </tbody>
         </table>

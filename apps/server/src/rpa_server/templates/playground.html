@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block description %}{{ t("playground.description") }}{% endblock %}
+{% block actions %}
+<button class="button" data-action="import-workflow">{{ t("playground.import") }}</button>
+<button class="button primary" data-action="create-workflow">{{ t("playground.new") }}</button>
+{% endblock %}
+{% block content %}
+<div class="stack" id="playground">
+  {% if not has_published %}<div class="notice warn">{{ t("playground.no_published") }}</div>{% endif %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("playground.sequences") }} <span class="count">{{ workflows | length }}</span></h2></div>
+    {% if workflows %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("playground.col_name") }}</th><th>{{ t("playground.col_nodes") }}</th><th>{{ t("playground.col_last_run") }}</th><th>{{ t("playground.col_actions") }}</th></tr></thead>
+      <tbody>
+      {% for item in workflows %}
+        <tr data-workflow="{{ item.id }}">
+          <td><a href="/playground/{{ item.id }}"><strong>{{ item.name }}</strong></a>{% if item.description %}<span class="cell-sub">{{ item.description }}</span>{% endif %}</td>
+          <td>{% if item.workflow.nodes %}<span class="flow-chain">{% for node in item.workflow.nodes %}<code>{{ node.scene_id }}</code> <span class="muted">v{{ node.revision }}</span>{% if not loop.last %} <span class="muted">→</span> {% endif %}{% endfor %}</span>{% else %}<span class="muted">{{ t("playground.no_nodes") }}</span>{% endif %}
+            {% if item.problems %}<span class="cell-sub">{{ m.badge("failed", t("playground.problems", count=item.problems | length)) }}</span>{% endif %}</td>
+          <td>{% if item.last_run %}<a class="status-link" href="/playground/runs/{{ item.last_run.id }}">{{ m.run_badge(item.last_run.status) }}</a><span class="cell-sub">{{ m.time(item.last_run.created_at) }}</span>{% else %}—{% endif %}</td>
+          <td class="nowrap"><a class="text-btn" href="/playground/{{ item.id }}">{{ t("playground.open") }}</a>
+            <button class="text-btn" data-action="delete-workflow" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ t("playground.delete") }}</button></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("playground.empty") }}</div>{% endif %}
+  </section>
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("playground.recent_runs") }}</h2></div>
+    {% if runs %}{{ m.workflow_run_rows(runs) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}
+  </section>
+</div>
+<template id="workflow-form">
+  <label>{{ t("playground.form_name") }}<input name="name" required maxlength="200" placeholder="{{ t('playground.form_name_placeholder') }}" autocomplete="off"></label>
+  <label>{{ t("playground.form_description") }}<textarea name="description" rows="3" maxlength="2000"></textarea></label>
+  <p class="form-error" role="alert"></p>
+</template>
+<template id="workflow-import-form">
+  <div class="notice">{{ t("playground.import_notice") }}</div>
+  <label>{{ t("playground.import_file") }}<input type="file" name="file" accept="application/json,.json"></label>
+  <label>{{ t("playground.import_text") }}<textarea class="code-editor compact" name="text" rows="8" spellcheck="false"></textarea></label>
+  <label>{{ t("playground.form_name") }}<input name="name" maxlength="200" placeholder="{{ t('playground.import_name_placeholder') }}" autocomplete="off"></label>
+  <p class="form-error" role="alert"></p>
+</template>
+<script type="application/json" id="workflow-messages">{{ messages | tojson }}</script>
+{% endblock %}

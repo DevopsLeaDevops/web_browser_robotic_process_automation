@@ -1,5 +1,6 @@
 'use strict';
-// 管理 Portal 的頁面互動：呼叫 /api、輪詢執行狀態、對話框；M4 加上登入與憑證、錄製、逐步調試、入參出參表單。
+// 管理 Portal 的頁面互動：呼叫 /api、輪詢執行狀態、對話框；M4 加上登入與憑證、錄製、逐步調試、入參出參表單；
+// M6 加上自由試驗場（序列清單、編輯序列、序列的執行）。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -1117,6 +1118,525 @@
     });
   }
 
+  // ---------------------------------------------------------------- 自由試驗場（M6）
+
+  // 試驗場頁面的文字（訊息目錄的 wfjs.*），放在頁面的 #workflow-messages
+  function pageText() {
+    const element = qs('#workflow-messages');
+    return element ? JSON.parse(element.textContent) : {};
+  }
+
+  function problemLines(result) {
+    const error = result.data && result.data.error;
+    return error && Array.isArray(error.problems) ? error.problems.map(item => item.message) : [];
+  }
+
+  function workflowDialog(title, values, label, run) {
+    modal(title, qs('#workflow-form').innerHTML, {label, run});
+    const dialog = qs('#dialog-content');
+    if (values) {
+      qs('[name="name"]', dialog).value = values.name;
+      qs('[name="description"]', dialog).value = values.description || '';
+    }
+    qs('[name="name"]', dialog).focus();
+    return dialog;
+  }
+
+  function bindPlayground() {
+    if (!qs('#playground')) return;
+    const text = pageText();
+    qs('[data-action="create-workflow"]').addEventListener('click', () => {
+      const dialog = workflowDialog(text.create_title, null, text.create_action, async () => {
+        const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+        const result = await api('POST', '/api/workflows', {name: value('name'), description: value('description') || null});
+        if (!result.ok) {
+          qs('.form-error', dialog).textContent = errorMessage(result);
+          return;
+        }
+        location.href = '/playground/' + path(result.data.id);
+      });
+    });
+    qs('[data-action="import-workflow"]').addEventListener('click', () => {
+      modal(text.import_title, qs('#workflow-import-form').innerHTML, {label: text.import_action, run: async () => {
+        const dialog = qs('#dialog-content');
+        const error = qs('.form-error', dialog);
+        let data = null;
+        try {
+          data = JSON.parse(qs('[name="text"]', dialog).value);
+        } catch {
+          data = null;
+        }
+        if (!data || typeof data !== 'object' || Array.isArray(data)) {
+          error.textContent = text.import_invalid;
+          return;
+        }
+        // 匯出的檔案是 {name, description, …定義}；名稱與說明另外送
+        const {name, description, ...definition} = data;
+        const given = qs('[name="name"]', dialog).value.trim();
+        const result = await api('POST', '/api/workflows', {
+          name: given || (typeof name === 'string' && name.trim()) || text.imported_name,
+          description: typeof description === 'string' ? description : null,
+          definition,
+        });
+        if (!result.ok) {
+          error.textContent = [errorMessage(result), ...problemLines(result)].join('\n');
+          return;
+        }
+        location.href = '/playground/' + path(result.data.id);
+      }});
+      const dialog = qs('#dialog-content');
+      qs('[name="file"]', dialog).addEventListener('change', async event => {
+        const file = event.target.files[0];
+        if (file) qs('[name="text"]', dialog).value = await file.text();
+      });
+    });
+    qsa('[data-action="delete-workflow"]').forEach(button => {
+      button.addEventListener('click', () => {
+        confirmDialog(fill(text.delete_title, {name: button.dataset.name}), text.delete_body, text.delete_action, async () => {
+          const result = await api('DELETE', '/api/workflows/' + path(button.dataset.workflow));
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.reload();
+        });
+      });
+    });
+  }
+
+  // 編輯序列：左邊場景庫、中間序列、右邊節點設定；改動先留在頁面上，按「儲存」才存檔
+  function bindWorkflowEditor() {
+    const root = qs('#workflow');
+    if (!root) return;
+    const text = pageText();
+    const data = JSON.parse(qs('#workflow-data').textContent);
+    const library = new Map(data.library.map(scene => [scene.id, scene]));
+    const definition = JSON.parse(JSON.stringify(data.definition));
+    let version = data.version;
+    let selected = definition.nodes.length ? 0 : -1;
+    let problems = data.problems;
+    let dirty = false;
+    let checkTimer = null;
+    let checkSeq = 0;
+    const saveButton = qs('[data-action="workflow-save"]');
+    const json = value => JSON.stringify(value);
+    const hasDefault = spec => spec.default !== undefined && spec.default !== null;
+    const compatible = (output, input) => output === input || (output === 'integer' && input === 'number');
+
+    const sceneOf = node => library.get(node.sceneId) || null;
+    function revisionOf(node) {
+      const scene = sceneOf(node);
+      return scene ? scene.revisions.find(item => item.number === node.revision) || null : null;
+    }
+
+    function newNodeId() {
+      const used = new Set(definition.nodes.map(node => node.id));
+      let number = definition.nodes.length + 1;
+      while (used.has('n' + number)) number += 1;
+      return 'n' + number;
+    }
+
+    // 新節點：入參名稱與前面某個節點的出參相同、型別相容時，自動接上最近的那一個
+    function autoBind(node, index) {
+      const revision = revisionOf(node);
+      if (!revision) return;
+      for (const [name, spec] of revision.inputs) {
+        for (let i = index - 1; i >= 0; i -= 1) {
+          const upstream = revisionOf(definition.nodes[i]);
+          const output = upstream && upstream.outputs.find(([key]) => key === name);
+          if (output && compatible(output[1].type, spec.type)) {
+            node.inputs[name] = {node: definition.nodes[i].id, output: name};
+            break;
+          }
+        }
+      }
+    }
+
+    function bindingText(node, name, spec) {
+      const binding = node.inputs[name];
+      if (binding && 'value' in binding) return fill(text.binding_value, {name, value: json(binding.value)});
+      if (binding) return fill(text.binding_output, {name, node: binding.node, output: binding.output});
+      if (hasDefault(spec)) return fill(text.binding_default, {name, value: json(spec.default)});
+      return fill(text.binding_missing, {name});
+    }
+
+    function renderLibrary() {
+      const words = qs('#library-search').value.trim().toLowerCase();
+      const scenes = data.library.filter(scene => !scene.archived && scene.revisions.length);
+      const shown = scenes.filter(scene => {
+        const haystack = [scene.id, scene.name, scene.domainName || '', scene.category || ''].join(' ').toLowerCase();
+        return !words || haystack.includes(words);
+      });
+      const groups = new Map();
+      shown.forEach(scene => {
+        const key = scene.domainName || text.no_domain;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(scene);
+      });
+      const list = qs('#library-list');
+      if (!shown.length) {
+        list.innerHTML = '<div class="empty">' + esc(scenes.length ? text.no_match : text.library_empty) + '</div>';
+        return;
+      }
+      list.innerHTML = [...groups].map(([group, items]) => '<h3 class="library-group">' + esc(group) + '</h3>' + items.map(scene =>
+        '<button type="button" class="library-item" data-add="' + esc(scene.id) + '"><strong>' + esc(scene.id) + '</strong>' +
+        '<span>' + esc(scene.name) + '</span><small>' + esc(fill(text.add, {number: scene.publishedRevision || scene.revisions[0].number})) + '</small></button>').join('')).join('');
+    }
+
+    function renderBoard() {
+      const stage = qs('#flow-stage');
+      if (!definition.nodes.length) {
+        stage.innerHTML = '<div class="empty">' + esc(text.board_empty) + '</div>';
+        return;
+      }
+      stage.innerHTML = definition.nodes.map((node, index) => {
+        const scene = sceneOf(node);
+        const revision = revisionOf(node);
+        const count = problems.filter(item => item.node === node.id).length;
+        const lines = revision ? revision.inputs.map(([name, spec]) => {
+          const missing = !node.inputs[name] && !hasDefault(spec);
+          return '<li' + (missing ? ' class="text-danger"' : '') + '>' + esc(bindingText(node, name, spec)) + '</li>';
+        }).join('') : '';
+        const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
+        return '<div class="flow-node' + (index === selected ? ' selected' : '') + '" data-index="' + index + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '">' +
+          '<span class="flow-node-head"><span class="tag mono">' + esc(node.id) + '</span> ' + esc(fill(text.node_label, {number: index + 1})) +
+          ' · <code>' + esc(node.sceneId) + '</code> <span class="muted">v' + esc(node.revision) + '</span></span>' +
+          '<strong>' + esc(title) + '</strong>' +
+          (lines ? '<ul class="flow-bindings">' + lines + '</ul>' : '') +
+          (count ? '<span class="badge red">' + esc(fill(text.problem_count, {count})) + '</span>' : '') +
+          '</div>' + (index < definition.nodes.length - 1 ? '<div class="flow-arrow" aria-hidden="true">↓</div>' : '');
+      }).join('');
+    }
+
+    function sourceOf(node, name, spec) {
+      const binding = node.inputs[name];
+      if (!binding) return hasDefault(spec) ? 'default' : '';
+      return 'value' in binding ? 'value' : 'out:' + binding.node + ':' + binding.output;
+    }
+
+    function valueField(name, spec, binding) {
+      const current = binding && 'value' in binding ? binding.value : '';
+      const attrs = ' data-value="' + esc(name) + '" aria-label="' + esc(fill(text.value_label, {name})) + '"';
+      if (spec.type === 'boolean' || Array.isArray(spec.enum)) {
+        const values = spec.type === 'boolean' ? [true, false] : spec.enum;
+        return '<select' + attrs + '>' + values.map((value, index) =>
+          '<option value="' + index + '"' + (json(value) === json(current) ? ' selected' : '') + '>' + esc(json(value)) + '</option>').join('') + '</select>';
+      }
+      const type = spec.type === 'integer' || spec.type === 'number' ? 'number' : 'text';
+      const step = spec.type === 'number' ? ' step="any"' : '';
+      return '<input type="' + type + '"' + step + attrs + ' value="' + esc(current === '' ? '' : String(current)) + '">';
+    }
+
+    function inputRow(node, index, name, spec) {
+      const binding = node.inputs[name];
+      const current = sourceOf(node, name, spec);
+      const option = (value, label, disabled) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + esc(label) + '</option>';
+      let options = hasDefault(spec)
+        ? option('default', fill(text.source_default, {value: json(spec.default)}))
+        : option('', text.source_missing, true);
+      options += option('value', text.source_value);
+      let outputs = '';
+      let found = current === '' || current === 'default' || current === 'value';
+      definition.nodes.slice(0, index).forEach(upstream => {
+        const revision = revisionOf(upstream);
+        (revision ? revision.outputs : []).forEach(([output, outSpec]) => {
+          const value = 'out:' + upstream.id + ':' + output;
+          found = found || value === current;
+          const label = fill(text.source_output, {node: upstream.id, scene: upstream.sceneId, output, type: outSpec.type});
+          outputs += option(value, label, !compatible(outSpec.type, spec.type) && value !== current);
+        });
+      });
+      if (!found) options += option(current, fill(text.source_broken, {node: binding.node, output: binding.output}));
+      if (outputs) options += '<optgroup label="' + esc(text.source_outputs) + '">' + outputs + '</optgroup>';
+      const required = hasDefault(spec) ? '' : ' <span class="tag">' + esc(text.required) + '</span>';
+      const description = spec.description ? '<span class="cell-sub">' + esc(spec.description) + '</span>' : '';
+      return '<div class="input-source" data-input="' + esc(name) + '">' +
+        '<label class="field"><span><code>' + esc(name) + '</code> <span class="muted">' + esc(spec.type) + '</span>' + required + description + '</span>' +
+        '<select data-source="' + esc(name) + '">' + options + '</select></label>' +
+        (current === 'value' ? valueField(name, spec, binding) : '') + '</div>';
+    }
+
+    function renderSettings() {
+      const box = qs('#node-settings');
+      const node = definition.nodes[selected];
+      if (!node) {
+        box.innerHTML = '<p class="muted">' + esc(text.settings_empty) + '</p>';
+        return;
+      }
+      const scene = sceneOf(node);
+      const revision = revisionOf(node);
+      const options = (scene ? scene.revisions : [{number: node.revision}]).map(item => {
+        const label = scene && item.number === scene.publishedRevision ? text.revision_current : text.revision_option;
+        return '<option value="' + item.number + '"' + (item.number === node.revision ? ' selected' : '') + '>' + esc(fill(label, {number: item.number})) + '</option>';
+      });
+      if (scene && !scene.revisions.some(item => item.number === node.revision)) {
+        options.push('<option value="' + node.revision + '" selected>' + esc(fill(text.revision_option, {number: node.revision})) + '</option>');
+      }
+      let html = '<div class="stack">';
+      html += '<div><span class="tag mono">' + esc(node.id) + '</span> <a href="/scenes/' + path(node.sceneId) + '">' + esc(node.sceneId) + '</a>' +
+        (revision ? '<span class="cell-sub">' + esc(revision.name) + '</span>' : '') +
+        (scene && scene.archived ? ' <span class="badge amber">' + esc(text.archived) + '</span>' : '') + '</div>';
+      html += '<label class="field">' + esc(text.revision) + '<select data-field="revision">' + options.join('') + '</select></label>';
+      if (scene && scene.publishedRevision && scene.publishedRevision !== node.revision) {
+        html += '<p class="cell-sub">' + esc(fill(text.newer_revision, {number: scene.publishedRevision, current: node.revision})) + '</p>';
+      }
+      if (revision && revision.role) html += '<p class="cell-sub">' + esc(fill(text.role, {role: revision.role})) + '</p>';
+      html += '<h3 class="section-title">' + esc(text.inputs) + '</h3>';
+      if (!revision) html += '<p class="muted">' + esc(text.no_contract) + '</p>';
+      else if (!revision.inputs.length) html += '<p class="muted">' + esc(text.no_inputs) + '</p>';
+      else html += revision.inputs.map(([name, spec]) => inputRow(node, selected, name, spec)).join('');
+      if (revision) {
+        html += '<h3 class="section-title">' + esc(text.outputs) + '</h3>';
+        html += revision.outputs.length
+          ? '<ul class="io-list">' + revision.outputs.map(([name, spec]) => '<li><code>' + esc(name) + '</code> <span class="muted">' + esc(spec.type) + '</span></li>').join('') + '</ul>'
+          : '<p class="muted">' + esc(text.no_outputs) + '</p>';
+      }
+      const last = definition.nodes.length - 1;
+      html += '<div class="actions">' +
+        '<button type="button" class="button" data-move="-1"' + (selected === 0 ? ' disabled' : '') + '>' + esc(text.move_up) + '</button>' +
+        '<button type="button" class="button" data-move="1"' + (selected === last ? ' disabled' : '') + '>' + esc(text.move_down) + '</button>' +
+        '<button type="button" class="button danger" data-remove>' + esc(text.remove) + '</button></div>';
+      box.innerHTML = html + '</div>';
+    }
+
+    function renderProblems() {
+      const panel = qs('#workflow-problems');
+      qs('.count', panel).textContent = problems.length;
+      qs('ul', panel).innerHTML = problems.map(item => '<li>' + esc(item.message) + '</li>').join('');
+      panel.hidden = problems.length === 0;
+    }
+
+    function render({settings = true} = {}) {
+      renderBoard();
+      if (settings) renderSettings();
+      renderProblems();
+      saveButton.disabled = !dirty;
+      saveButton.title = dirty ? text.unsaved : '';
+    }
+
+    // 每次修改後（稍等一下）請伺服器檢查，問題列在上方與節點上
+    function scheduleCheck() {
+      clearTimeout(checkTimer);
+      checkTimer = setTimeout(async () => {
+        const sequence = ++checkSeq;
+        const result = await api('POST', '/api/workflows/check', {definition});
+        if (!result.ok || sequence !== checkSeq) return;
+        problems = result.data.problems;
+        render({settings: false});
+      }, 300);
+    }
+
+    function changed(options) {
+      dirty = true;
+      render(options);
+      scheduleCheck();
+    }
+
+    async function save() {
+      busy(saveButton, true);
+      const result = await api('PUT', '/api/workflows/' + path(data.id), {baseVersion: version, definition});
+      busy(saveButton, false);
+      if (!result.ok) {
+        saveButton.disabled = false;
+        if (result.status === 409) toast(text.stale);
+        else toast(errorMessage(result));
+        return false;
+      }
+      version = result.data.version;
+      problems = result.data.problems;
+      dirty = false;
+      render({settings: false});
+      toast(text.saved);
+      return true;
+    }
+
+    qs('#library-search').addEventListener('input', renderLibrary);
+    qs('#library-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-add]');
+      if (!button) return;
+      const scene = library.get(button.dataset.add);
+      const node = {id: newNodeId(), sceneId: scene.id, revision: scene.publishedRevision || scene.revisions[0].number, inputs: {}};
+      autoBind(node, definition.nodes.length);
+      definition.nodes.push(node);
+      selected = definition.nodes.length - 1;
+      changed();
+    });
+    const stage = qs('#flow-stage');
+    const pick = target => {
+      const card = target.closest('[data-index]');
+      if (!card) return;
+      selected = Number(card.dataset.index);
+      render();
+    };
+    stage.addEventListener('click', event => pick(event.target));
+    stage.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      pick(event.target);
+    });
+
+    const settings = qs('#node-settings');
+    settings.addEventListener('change', event => {
+      const node = definition.nodes[selected];
+      if (!node) return;
+      const target = event.target;
+      if (target.dataset.field === 'revision') {
+        node.revision = Number(target.value);
+        const revision = revisionOf(node);
+        if (revision) {
+          const names = new Set(revision.inputs.map(([name]) => name));
+          Object.keys(node.inputs).forEach(name => { if (!names.has(name)) delete node.inputs[name]; });
+        }
+        changed();
+      } else if (target.dataset.source !== undefined) {
+        const name = target.dataset.source;
+        const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
+        const value = target.value;
+        if (value === 'default' || value === '') {
+          delete node.inputs[name];
+        } else if (value === 'value') {
+          const initial = hasDefault(spec) ? spec.default
+            : spec.type === 'boolean' ? false
+            : Array.isArray(spec.enum) ? spec.enum[0]
+            : spec.type === 'integer' || spec.type === 'number' ? 0 : '';
+          node.inputs[name] = {value: initial};
+        } else {
+          const [, upstream, output] = value.split(':');
+          node.inputs[name] = {node: upstream, output};
+        }
+        changed();
+      } else if (target.dataset.value !== undefined && target.tagName === 'SELECT') {
+        const name = target.dataset.value;
+        const spec = new Map(revisionOf(node).inputs).get(name);
+        const values = spec.type === 'boolean' ? [true, false] : spec.enum;
+        node.inputs[name] = {value: values[Number(target.value)]};
+        changed({settings: false});
+      }
+    });
+    // 打字時只更新序列與檢查，不重畫設定（游標才不會跳走）
+    settings.addEventListener('input', event => {
+      const target = event.target;
+      const node = definition.nodes[selected];
+      if (!node || target.dataset.value === undefined || target.tagName !== 'INPUT') return;
+      const name = target.dataset.value;
+      const spec = new Map(revisionOf(node).inputs).get(name);
+      let value = target.value;
+      if (spec.type === 'integer' && /^-?\d+$/.test(value.trim())) value = parseInt(value, 10);
+      else if (spec.type === 'number' && value.trim() !== '' && !Number.isNaN(Number(value))) value = Number(value);
+      node.inputs[name] = {value};
+      changed({settings: false});
+    });
+    settings.addEventListener('click', event => {
+      const move = event.target.closest('[data-move]');
+      const remove = event.target.closest('[data-remove]');
+      if (move) {
+        const next = selected + Number(move.dataset.move);
+        if (next < 0 || next >= definition.nodes.length) return;
+        [definition.nodes[next], definition.nodes[selected]] = [definition.nodes[selected], definition.nodes[next]];
+        selected = next;
+        changed();
+      } else if (remove) {
+        definition.nodes.splice(selected, 1);
+        selected = Math.min(selected, definition.nodes.length - 1);
+        changed();
+      }
+    });
+
+    saveButton.addEventListener('click', save);
+
+    qs('[data-action="workflow-rename"]').addEventListener('click', () => {
+      const dialog = workflowDialog(text.rename_title, {name: data.name, description: data.description}, messages.save, async () => {
+        const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+        const result = await api('PUT', '/api/workflows/' + path(data.id), {baseVersion: version, name: value('name'), description: value('description')});
+        if (!result.ok) {
+          qs('.form-error', dialog).textContent = result.status === 409 ? text.stale : errorMessage(result);
+          return;
+        }
+        version = result.data.version;
+        data.name = result.data.name;
+        data.description = result.data.description || '';
+        qs('#title').textContent = data.name;
+        qs('#description').textContent = data.description || text.description;
+        $('#dialog').close();
+        toast(text.saved);
+      });
+    });
+
+    qs('[data-action="workflow-export"]').addEventListener('click', () => {
+      const exported = {name: data.name, description: data.description || undefined, ...definition};
+      download('workflow-' + data.id + '.json', JSON.stringify(exported, null, 2) + '\n');
+    });
+
+    qs('[data-action="workflow-run"]').addEventListener('click', async () => {
+      if (dirty && !(await save())) return;
+      if (problems.length) {
+        qs('#workflow-problems').scrollIntoView({block: 'nearest'});
+        return toast(text.fix_problems);
+      }
+      const key = newKey();
+      modal(text.run_title, qs('#workflow-run-form').innerHTML, {label: text.run_action, run: async () => {
+        const dialog = qs('#dialog-content');
+        const engine = qs('[name="engine"]', dialog).value || null;
+        const headless = (qs('[name="headless"]:checked', dialog) || {value: '1'}).value === '1';
+        busy($('#dialog-action'), true);
+        const result = await api('POST', '/api/workflows/' + path(data.id) + '/runs', {engine, headless, idempotencyKey: key});
+        busy($('#dialog-action'), false);
+        if (!result.ok) {
+          qs('.form-error', dialog).textContent = errorMessage(result);
+          const list = qs('.form-issues', dialog);
+          const lines = problemLines(result);
+          list.innerHTML = lines.map(line => '<li>' + esc(line) + '</li>').join('');
+          list.hidden = lines.length === 0;
+          return;
+        }
+        location.href = '/playground/runs/' + path(result.data.id);
+      }});
+    });
+
+    window.addEventListener('beforeunload', event => {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+
+    renderLibrary();
+    render();
+  }
+
+  function bindWorkflowRun() {
+    const root = qs('#workflow-run');
+    if (!root) return;
+    const text = pageText();
+    const run = root.dataset.run;
+    const cancel = qs('[data-action="cancel-workflow-run"]');
+    if (cancel) {
+      cancel.addEventListener('click', () => {
+        confirmDialog(text.cancel_title, text.cancel_body, text.cancel_action, async () => {
+          const result = await api('POST', '/api/workflow-runs/' + path(run) + '/cancel');
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          flash(messages.cancel_requested);
+          location.reload();
+        });
+      });
+    }
+    qsa('[data-action="rerun-workflow"]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const resume = button.dataset.resume === '1';
+        busy(button, true);
+        const result = await api('POST', '/api/workflow-runs/' + path(run) + '/rerun', {resume, idempotencyKey: newKey()});
+        if (!result.ok) {
+          busy(button, false);
+          return toast([errorMessage(result), ...problemLines(result)].join(messages.list_separator));
+        }
+        flash(resume ? text.resumed : messages.rerun_started);
+        location.href = '/playground/runs/' + path(result.data.id);
+      });
+    });
+    if (root.hasAttribute('data-poll')) {
+      pollUntilChanged('/api/workflow-runs/' + path(run), root.dataset.signature,
+        data => data.status + '|' + data.nodes.map(node => node.status).join(','));
+    }
+  }
+
   localizeTimes();
   bindLanguage();
   bindFilters();
@@ -1134,5 +1654,8 @@
   bindDebug();
   bindContract();
   bindRerun();
+  bindPlayground();
+  bindWorkflowEditor();
+  bindWorkflowRun();
   showFlash();
 })();
