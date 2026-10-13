@@ -9,7 +9,7 @@
   "app.menu": "Open the workspace menu",
   "app.close": "Close",
   "app.footer": "Automation workbench",
-  "app.footer_note": "M4 management portal · local use only",
+  "app.footer_note": "Management portal · local use only",
   "nav.manage": "Scenarios",
   "nav.produce": "Production",
   "nav.recording": "Recording",

@@ -9,7 +9,7 @@
   "app.menu": "展開第二級選單",
   "app.close": "關閉",
   "app.footer": "自動化工作台",
-  "app.footer_note": "M4 管理 Portal · 只在本機使用",
+  "app.footer_note": "管理 Portal · 只在本機使用",
   "nav.manage": "場景管理",
   "nav.produce": "場景生產",
   "nav.recording": "自主腳本錄製",

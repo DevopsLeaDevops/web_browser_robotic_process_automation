@@ -119,6 +119,7 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .flow-node .badge{margin-top:6px}
 .library-group{font-size:11px;color:var(--muted);margin:10px 0 0;font-weight:600}
 .library-list{max-height:560px;overflow:auto}
+#library-search{width:100%;min-width:0}
 .input-source{display:grid;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
 .input-source select,.input-source input{width:100%}
 .flow-settings .section-title{font-size:12px;margin:6px 0 0}
