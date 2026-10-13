@@ -477,7 +477,7 @@ class RemoteJobSource:
     def _send_fail(self, run_id: str, kind: str, detail: str, *, retry: bool = False) -> bool:
         return self._deliver(
             lambda: self.client.call(
-                "POST", f"/runs/{run_id}/fail", {"kind": kind, "detail": detail}
+                "POST", f"/runs/{run_id}/fail", {"kind": kind, "detail": detail[:2000]}
             ),
             retry=retry,
         )

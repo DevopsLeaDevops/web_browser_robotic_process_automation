@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:720d3b98b8afc656">
+<title>ADR 0012 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0012" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0012: Remote workers claim jobs from the management portal over HTTP</h1>
+      <p>Runs can be handed to another computer. A remote worker never connects to the database; it claims jobs, reports progress and results through the Worker API on a separate portal port, using a token. Local mode stays as it is.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-13</dd>
+        <dt>Scope</dt><dd>rpa-worker, rpa-server, rpa-cli (from M9a); deployment (M9)</dd>
+        <dt>Related</dt><dd>Partly supersedes <a href="0003-postgres-queue.html">ADR 0003</a> (workers do not connect to the database); <a href="0008-sqlite-and-postgresql.html">ADR 0008</a>, <a href="0010-mvp-first.html">ADR 0010</a>; <a href="../develop/remote-worker.html">Remote workers</a>, <a href="../design/portal.html#remote-workers">Management portal › Remote workers</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The management portal, database, worker and files all lived on one computer. Tests mostly run headed, and once a browser window opens that computer cannot be used for anything else. The user has another computer that can be dedicated to running, so a small part of “distributed workers” from roadmap M9 is brought forward (M9a).</p>
+          <p>The original plan (ADR 0003) had workers connect directly to PostgreSQL and claim jobs with Procrastinate. The MVP uses SQLite, which allows a single process only (ADR 0008); and giving another computer database credentials and network access to the database is not a burden the MVP should carry.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Only the management portal touches the database.</strong> Remote workers use the Worker API (<code>/worker-api/v1</code>) to come online, long-poll for jobs, send a heartbeat every 5 seconds, upload the run directory and report the result.</li>
+            <li><strong>Workers connect to the portal.</strong> The worker computer only needs to reach one portal port; the portal never connects to workers.</li>
+            <li><strong>The Worker API has its own port and every request needs a token.</strong> <code>rpa serve --worker-port</code> opens it, listening on all network interfaces by default; the portal pages and <code>/api</code> stay on the original address (127.0.0.1 by default). Each worker has its own token, stored only as a hash.</li>
+            <li><strong>Leases, no automatic retries.</strong> Claiming grants a 60-second lease that heartbeats extend; when it expires the run is marked failed as “worker lost”, because it may already have had side effects. Anything the worker reports later is refused.</li>
+            <li><strong>The local worker stays.</strong> The same <code>rpa_worker.Worker</code> is used with a different job source; with no remote worker registered nothing changes. Runs gain a “where to run”: this computer, remote, or any.</li>
+            <li><strong>The rules for results do not change.</strong> The hash computed by the remote runner still goes through the publishing gate; artifacts are uploaded into the portal's run directory, so reports look the same as local ones.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Worker computers need no database credentials and no network access to the database; this still works after moving to PostgreSQL or adding more workers.</li>
+            <li>Headed browser windows appear on the worker computer, so your own computer is no longer taken over.</li>
+            <li>Local and remote runs share the runner, the run directory and the publishing gate; there is no second execution path.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>Secrets and role login states have to reach the worker (only in memory and in temporary files during the run); over HTTP they cross the LAN in plain text, so use it only on a trusted network. HTTPS can come later.</li>
+            <li>One more port is open to the LAN; the operating system's firewall must allow it.</li>
+            <li>When a worker is lost, that run simply fails and a person must check before running it again.</li>
+            <li>A playground sequence is pinned to the worker of its first node; if that worker goes offline, the remaining nodes wait.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Workers connect directly to PostgreSQL (Procrastinate, ADR 0003)</td><td>The MVP uses SQLite; worker computers would need database credentials and network access to the database.</td></tr>
+              <tr><td>The portal pushes jobs to workers</td><td>The portal would have to reach every worker, which reverses the network setup and is harder; only worth it if workers cannot reach the portal.</td></tr>
+              <tr><td>A message queue such as Redis</td><td>One more service to deploy and maintain; HTTP long polling is enough for the current load.</td></tr>
+              <tr><td>Open the whole management portal to the LAN</td><td>The portal has no sign-in (that comes in M8), so anyone on the LAN could use it.</td></tr>
+              <tr><td>Watch runs over remote desktop</td><td>Only solves seeing the run, not freeing your computer; and it means connecting by hand every time.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

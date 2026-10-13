@@ -280,7 +280,10 @@ def build_serve_command() -> click.Command:
                 click.echo(t("cli.serve.worker_api", url=f"http://{shown}:{worker_port}"), err=True)
             if not local_worker:
                 click.echo(t("cli.serve.local_worker_off"), err=True)
-            config = uvicorn.Config(app, host=host, port=chosen, log_level="info")
+            # 遠端 worker 的長輪詢最多 25 秒：Ctrl+C 時不必等它們結束
+            config = uvicorn.Config(
+                app, host=host, port=chosen, log_level="info", timeout_graceful_shutdown=5
+            )
             uvicorn.Server(config).run(sockets=sockets)
         finally:
             sock.close()

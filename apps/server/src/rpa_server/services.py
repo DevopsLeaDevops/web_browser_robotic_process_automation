@@ -1041,7 +1041,8 @@ class Services:
                 settled = True
             elif run.status == "running":
                 run.cancel_requested = True
-                notify = True
+                # 本機的執行馬上通知 worker；遠端 worker 在下一次心跳得知（M9a）
+                notify = run.worker_id in (None, LOCAL_WORKER)
             session.commit()
             record = run_record(run)
         if notify:

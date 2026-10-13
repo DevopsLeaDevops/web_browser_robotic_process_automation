@@ -29,7 +29,7 @@ from typing import Final, cast
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from rpa_core.i18n import Locale
+from rpa_core.i18n import Locale, use_locale
 from rpa_server.domain import (
     DOMAIN_ID,
     LOCAL_WORKER,
@@ -128,7 +128,8 @@ class WorkerHub:
     def _reap_loop(self) -> None:
         while not self._closing.wait(REAP_SECONDS):
             try:
-                self.expire_leases()
+                with use_locale(self.locale):  # 「worker 失聯」的訊息用伺服器的語言
+                    self.expire_leases()
             except Exception:
                 logger.exception("檢查 worker 租約失敗")
 

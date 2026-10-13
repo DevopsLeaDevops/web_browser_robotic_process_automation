@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:76f44c51197a013f">
+<meta name="translation-source" content="sha256:298209258233fae1">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -167,8 +167,26 @@
       </div>
     </section>
 
+    <section class="panel" id="remote-workers">
+      <div class="panel-header"><h2>Remote workers</h2><span class="muted">M9a: hand runs to another computer so browser windows no longer take over this one (<a href="../adr/0012-remote-workers.html">ADR 0012</a>)</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>Two ports.</strong> <code>rpa serve --worker-port 8081</code> opens a second port that only serves the Worker API (<code>/worker-api/v1</code>) and listens on all network interfaces by default; the portal pages and <code>/api</code> stay on <code>--host</code> (127.0.0.1 by default). Each port blocks the other's paths: the Worker API port shows no portal pages, and the portal port cannot call the Worker API.</li>
+          <li><strong>Registration and tokens.</strong> “Production › Remote workers” adds a worker (ID and name); its token is shown only once and only its hash is stored. A worker can be disabled, given a new token (the old one stops working immediately) or deleted (not while running; queued runs assigned to it are marked failed). The page lists each worker's status (online, busy, offline, disabled), last report, operating system, browsers, whether it can run headed, and whether its code matches the portal's.</li>
+          <li><strong>Claiming.</strong> The worker runs <code>rpa worker --server …</code>. When it comes online it reports its protocol version (a mismatch is refused), code fingerprint (a mismatch only warns), browsers and whether it can show windows, then long-polls (up to 25 seconds) for jobs. It only gets jobs it can run: placed on remote or any, using a browser it has, headed only if it can show windows, and those pinned to it. First in, first out.</li>
+          <li><strong>What a job carries.</strong> The revision's files (sent byte for byte, so the hash matches the portal's), inputs, browser, URL, window mode and language; for scenarios with a login role, the login settings and current login state, plus the values of the secrets it uses. The worker keeps them only in memory and in private temporary files during the run, deleted afterwards.</li>
+          <li><strong>Heartbeats, cancelling, losing contact.</strong> While running, the worker sends a heartbeat every 5 seconds with the current stage; cancelling in the portal stops the browser at the next heartbeat. Claiming grants a 60-second lease that each heartbeat extends; when it expires the run is marked failed (“worker lost”) and is <strong>not retried automatically</strong> (it may already have had side effects), and anything the worker reports later is refused. When the portal restarts, remote runs get one lease period to report again; local runs are still marked interrupted.</li>
+          <li><strong>Results.</strong> The worker uploads the whole run directory as a zip (only safe relative paths, with limits on file count and size) and then reports the contents of result.json; it is recorded with the same rules as a local run, including the hash check for validations. A login state refreshed by automatic login is sent back to the role.</li>
+          <li><strong>Where to run.</strong> Once a remote worker is registered, the validation, run and “Run sequence” forms gain “Where to run”: this computer, remote worker or any; the default is set on the workers page (this computer when unset). Whether headed mode is available follows the chosen place. Run reports and run pages show which computer ran it.</li>
+          <li><strong>Playground sequences.</strong> The whole sequence uses one place to run, and whichever worker claims the first node gets all later nodes (so the test site's data and login states match); if it goes offline the later nodes wait and can be cancelled. “Continue from the stopped node” stays on the same worker too.</li>
+          <li><strong>Workers only.</strong> <code>--no-local-worker</code>: this computer runs nothing, “this computer” cannot be chosen, and the default becomes any.</li>
+          <li><strong>What stays on this computer.</strong> Recording, step-by-step debugging and manual logins need a person, so they still run on the computer running the portal.</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="manual-check">
-      <div class="panel-header"><h2>Manual acceptance</h2><span class="muted">M4, M6: recording, manual login and the playground screens need a person; the automated tests use a pre-recorded script</span></div>
+      <div class="panel-header"><h2>Manual acceptance</h2><span class="muted">M4, M6, M9a: recording, manual login, the playground and remote workers need a person; the automated tests use a pre-recorded script</span></div>
       <div class="panel-body prose">
         <p>On a computer with a graphical desktop (macOS, Windows, or Linux with a desktop), go through this once with a fresh folder; it takes about twenty minutes:</p>
         <ol>
@@ -179,8 +197,9 @@
           <li><strong>Two roles.</strong> In “Scenarios › Logins &amp; secrets” press “Log in” for <code>testsite-user</code>, log in as user / user-pass in the window that opens and press “Finish login”; use manager / manager-pass for <code>testsite-manager</code>. Then run BA-004 and BA-005: the two reports show different to-do items.</li>
           <li><strong>Needs login and run again.</strong> Press “Log out” for <code>testsite-user</code> and run BA-004: it stops at “Login required” without running any step; follow the login role on the run page back to “Logins &amp; secrets”, log in again, return to the run page and press “Run again”: the result is “Passed”.</li>
           <li><strong>Playground.</strong> Validate and publish BA-001, then validate and publish BA-002 with the record number created by that validation. In “Production › Playground” press “New sequence” and add BA-001 and BA-002 from the library: BA-002's recordId is connected to n1's output. Press “Run sequence”: both nodes pass, and n2 finds the record n1 just created. Then move n2 to the top: the sequence reports that recordId can only use outputs of earlier nodes and cannot run.</li>
+          <li><strong>Remote worker (two computers, M9a).</strong> Start the portal with <code>uv run rpa serve --data data-check --worker-port 8081</code> instead; add <code>win-01</code> under “Production › Remote workers” and start <code>rpa worker</code> on the other computer with the command from the dialog (steps in <a href="../develop/remote-worker.html">Remote workers</a>); the workers page shows it online. Run BA-001 on “Remote worker” in headed mode: the browser window appears on the worker computer and nothing pops up on this one; the report passes, the run page says “Ran on: win-01” and the screenshot is there. Then run the sequence from step 7 on “Remote worker”: both nodes run on win-01. Press Ctrl+C on the worker computer during a run: that run becomes “Cancelled” in the portal.</li>
         </ol>
-        <p>Afterwards stop the management portal and delete the <code>data-check</code> folder.</p>
+        <p>Afterwards stop the management portal and delete the <code>data-check</code> folder; the <code>worker-data</code> folder on the worker computer can be deleted too.</p>
       </div>
     </section>
 
@@ -205,6 +224,7 @@
             <tr><td><code>/playground</code></td><td>Playground: the list of sequences (nodes, problems, last run) and recent sequence runs; create, import and delete sequences</td></tr>
             <tr><td><code>/playground/{sequence}</code></td><td>Edit a sequence: library, sequence, node settings (pinned revision, input sources); save, run, export</td></tr>
             <tr><td><code>/playground/runs/{sequence run}</code></td><td>A sequence run: each node's status, input values and sources, outputs, reports; cancel, run again from the start, continue from the stopped node</td></tr>
+            <tr><td><code>/workers</code></td><td>Remote workers: register (token and start command), status, disable, new token, delete; the default place to run</td></tr>
           </tbody>
         </table>
       </div>
@@ -225,7 +245,7 @@
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>Save a new revision: <code>baseRevision</code>, <code>files</code>, <code>note</code>; 409 if not based on the latest, 422 with validation problems (including line numbers)</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>Validate; 202 with the run</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>Publish; 409 if the publishing gate is not met</td></tr>
-            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>Run the published revision: <code>inputs</code>, <code>engine</code>, <code>baseUrl</code>, <code>headless</code> (when omitted, headed if the computer has a graphical desktop), <code>idempotencyKey</code>; validation accepts the same fields</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>Run the published revision: <code>inputs</code>, <code>engine</code>, <code>baseUrl</code>, <code>headless</code> (when omitted, headed if the computer that runs it has a graphical desktop), <code>target</code> (where to run; the default when omitted), <code>idempotencyKey</code>; validation accepts the same fields</td></tr>
             <tr><td><code>GET /api/runs</code>, <code>GET /api/runs/{run ID}</code></td><td>List runs (<code>scene</code>, <code>category</code>, <code>status</code>, <code>purpose</code> can repeat); one run with its <code>result.json</code> and file list</td></tr>
             <tr><td><code>POST /api/runs/{run ID}/cancel</code></td><td>Cancel</td></tr>
             <tr><td><code>POST /api/runs/{run ID}/rerun</code></td><td>Run again with the same inputs and options; 202 with the new run</td></tr>
@@ -244,9 +264,13 @@
             <tr><td><code>GET /api/workflows/library</code></td><td>The library: published scenario revisions with their inputs, outputs and login role</td></tr>
             <tr><td><code>POST /api/workflows/check</code></td><td>Check a definition without saving it; returns <code>problems</code></td></tr>
             <tr><td><code>GET</code>, <code>PUT</code>, <code>DELETE /api/workflows/{sequence}</code></td><td>The sequence and its recent runs; save (<code>baseVersion</code>, <code>name</code>, <code>description</code>, <code>definition</code>; 409 when the save count is not the current one); delete (not while running)</td></tr>
-            <tr><td><code>POST /api/workflows/{sequence}/runs</code></td><td>Run the sequence (<code>engine</code>, <code>headless</code>, <code>idempotencyKey</code>); 422 with the <code>problems</code> when it has any; 202 with the sequence run</td></tr>
+            <tr><td><code>POST /api/workflows/{sequence}/runs</code></td><td>Run the sequence (<code>engine</code>, <code>headless</code>, <code>target</code>, <code>idempotencyKey</code>); 422 with the <code>problems</code> when it has any; 202 with the sequence run</td></tr>
             <tr><td><code>GET /api/workflow-runs</code>, <code>GET /api/workflow-runs/{sequence run}</code></td><td>Sequence runs (filter with <code>workflow</code>); one run's status and every node (status, input sources, its run)</td></tr>
             <tr><td><code>POST /api/workflow-runs/{sequence run}/cancel</code>, <code>…/rerun</code></td><td>Cancel; run again (<code>resume: true</code> continues from the stopped node, otherwise from the start)</td></tr>
+            <tr><td><code>GET</code>, <code>POST /api/workers</code></td><td>Remote workers (with the default place to run, whether this computer runs jobs, and the portal's code fingerprint); register one (<code>id</code>, <code>name</code>) — the <code>token</code> in the response is available only this once</td></tr>
+            <tr><td><code>GET</code>, <code>PATCH</code>, <code>DELETE /api/workers/{id}</code>; <code>POST …/token</code></td><td>Status; rename or disable (<code>disabled</code>); delete (409 while running); create a new token</td></tr>
+            <tr><td><code>PUT /api/settings/default-target</code></td><td>Default place to run (<code>target</code>: <code>local</code>, <code>remote</code>, <code>any</code>)</td></tr>
+            <tr><td><code>/worker-api/v1/…</code></td><td>Only on the Worker API port, token required: <code>hello</code>, <code>claim</code>, <code>runs/{run ID}/heartbeat</code>, <code>…/artifacts</code> (zip), <code>…/role-state</code>, <code>…/finish</code>, <code>…/fail</code>; the formats are in <code>rpa_worker.protocol</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -272,11 +296,13 @@
             <dt>domains</dt><dd>ID, name, description, order</dd>
             <dt>scenes</dt><dd>ID, name and category (from the latest revision), domain, default URL, latest and published revision numbers, archived</dd>
             <dt>revisions</dt><dd>Scenario, revision number (unique), content hash, kind, status, note, publishing time</dd>
-            <dt>runs</dt><dd>Run ID, scenario and revision, the name and category at the time, purpose, status and stage, headed or headless mode, inputs and outputs, error, hash, times; for playground nodes, the sequence run and node ID</dd>
+            <dt>runs</dt><dd>Run ID, scenario and revision, the name and category at the time, purpose, status and stage, headed or headless mode, inputs and outputs, error, hash, times; for playground nodes, the sequence run and node ID; where to run, the pinned worker, the worker that ran it and its lease</dd>
             <dt>roles</dt><dd>Id, name, login URL, check URL and element, browser, automatic login steps, the latest status and check time</dd>
             <dt>recordings</dt><dd>Recording ID, target scenario and revision, mode (new scenario, continue after the existing steps, replace everything) and the revision it continues, source (recorded or pasted), URL, browser, role, status, lines not converted</dd>
             <dt>workflows</dt><dd>Playground sequences: name, description, definition (JSON), save count</dd>
-            <dt>workflow_runs</dt><dd>Sequence runs: the sequence and its name at the time, a snapshot of the definition, status, the node it stopped at and why, reused nodes (when continuing from a stopped node), browser and window mode, times</dd>
+            <dt>workflow_runs</dt><dd>Sequence runs: the sequence and its name at the time, a snapshot of the definition, status, the node it stopped at and why, reused nodes (when continuing from a stopped node), browser and window mode, times; where to run and the pinned worker</dd>
+            <dt>workers</dt><dd>Remote workers: ID, name, token hash, disabled, the details reported when coming online, current run, last report time</dd>
+            <dt>settings</dt><dd>Settings (the default place to run)</dd>
           </dl>
           <p class="muted">The models use SQLAlchemy 2; schema changes go through Alembic migrations, applied automatically when the server starts. A test checks that the migrations match the models.</p>
         </div>
@@ -291,7 +317,9 @@
             <dt><code>RPA_LANG</code></dt><dd>Default language, also used for run reports; pages can switch at the top right</dd>
             <dt><code>--no-testsite</code></dt><dd>Do not start the test site (by default it starts at <code>127.0.0.1:8765</code>, or the running one is reused)</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>Examples folder of “Test site automation”, default <code>scenarios/demo</code></dd>
-            <dt>Secrets</dt><dd>Set them under “Logins &amp; secrets”; anything not set there is read from an environment variable of the same name in the server process</dd>
+            <dt>Secrets</dt><dd>Set them under “Logins &amp; secrets”; anything not set there is read from an environment variable of the same name in the server process (in the worker process when a remote worker runs it)</dd>
+            <dt><code>--worker-port</code>, <code>--worker-host</code></dt><dd>Open the Worker API to remote workers (M9a): a separate port, listening on <code>0.0.0.0</code> by default; only <code>/worker-api</code>, token required</dd>
+            <dt><code>--no-local-worker</code></dt><dd>This computer runs nothing; every job goes to remote workers</dd>
           </dl>
         </div>
       </section>
@@ -305,7 +333,8 @@
           <li><strong>Cross-site requests are blocked.</strong> A write request that carries an <code>Origin</code> header must come from the same origin, so other websites cannot call the local API in the background.</li>
           <li><strong>Files in run folders.</strong> Only files inside the run folder are served; only <code>report.html</code> is shown as a web page, with a content security policy that allows nothing but inline styles and the screenshots.</li>
           <li><strong>Script scenarios run arbitrary code.</strong> As in M2, only trusted people should edit Python script scenarios.</li>
-          <li><strong>Login states and secrets stay on this computer.</strong> Both live in the data folder, readable only by you; they are never served by pages or the API nor written to run directories, reports or logs, and passwords in recordings are masked before saving. M8 encrypts them.</li>
+          <li><strong>Login states and secrets are stored on this computer.</strong> Both live in the data folder, readable only by you; they are never served by pages or <code>/api</code> nor written to run directories, reports or logs, and passwords in recordings are masked before saving. M8 encrypts them.</li>
+          <li><strong>Remote workers receive the secrets and login states a run needs.</strong> Only in the claim response; the worker keeps them in memory and in private temporary files during the run, deleted afterwards. Over HTTP the Worker API is plain text on the LAN: use it only on a trusted network; tokens are stored only as hashes and can be disabled or replaced at any time.</li>
         </ul>
       </div>
     </section>
@@ -316,7 +345,7 @@
         <dl class="spec-list">
           <dt>M5</dt><dd>The AI assistant only edits drafts; publishing goes through the same gate</dd>
           <dt>M8</dt><dd>Authentication and permissions, encrypted secrets, PostgreSQL</dd>
-          <dt>M9</dt><dd>Distributed workers; server-sent events instead of polling</dd>
+          <dt>M9</dt><dd>Scheduling, worker labels and concurrency, HTTPS, server-sent events instead of polling (remote workers arrived early in M9a)</dd>
         </dl>
       </div>
     </section>

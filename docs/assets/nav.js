@@ -12,7 +12,7 @@ window.DOCS_NAV = {
   "subtitle": "ENGINEERING DOCS",
   "text": {
     "title": {"zh-Hant": "瀏覽器 RPA", "zh-Hans": "浏览器 RPA", "en": "Browser RPA"},
-    "badge": {"zh-Hant": "文檔 · M4", "zh-Hans": "文档 · M4", "en": "Docs · M4"},
+    "badge": {"zh-Hant": "文檔 · M9a", "zh-Hans": "文档 · M9a", "en": "Docs · M9a"},
     "skip": {"zh-Hant": "跳至主要內容", "zh-Hans": "跳至主要内容", "en": "Skip to main content"},
     "topnav": {"zh-Hant": "第一級選單", "zh-Hans": "第一级菜单", "en": "Primary navigation"},
     "sidenav": {"zh-Hant": "第二級選單", "zh-Hans": "第二级菜单", "en": "Section navigation"},
@@ -143,6 +143,11 @@ window.DOCS_NAV = {
           "id": "adr-0011",
           "href": "adr/0011-fastapi-jinja.html",
           "name": {"zh-Hant": "0011 FastAPI + Jinja", "zh-Hans": "0011 FastAPI + Jinja", "en": "0011 FastAPI + Jinja"}
+        },
+        {
+          "id": "adr-0012",
+          "href": "adr/0012-remote-workers.html",
+          "name": {"zh-Hant": "0012 遠端 worker", "zh-Hans": "0012 远程 worker", "en": "0012 Remote workers"}
         }
       ]
     },
@@ -165,6 +170,11 @@ window.DOCS_NAV = {
           "id": "macos",
           "href": "develop/macos.html",
           "name": {"zh-Hant": "macOS 本機運行", "zh-Hans": "macOS 本机运行", "en": "Run on macOS"}
+        },
+        {
+          "id": "remote-worker",
+          "href": "develop/remote-worker.html",
+          "name": {"zh-Hant": "遠端 worker", "zh-Hans": "远程 worker", "en": "Remote workers"}
         },
         {
           "id": "conventions",

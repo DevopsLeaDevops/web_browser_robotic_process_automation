@@ -21,6 +21,7 @@
 
   <div class="stack">
     <div class="notice"><a href="0008-sqlite-and-postgresql.html">ADR 0008</a> 補充：本決策適用於使用 PostgreSQL 的正式環境。開發與原型使用 SQLite 時，佇列與排程改在 API 程序內執行，只有單一 worker。</div>
+    <div class="notice"><a href="0012-remote-workers.html">ADR 0012</a> 部分取代：worker 不直接連資料庫，遠端 worker 經由管理 Portal 的 Worker API 領取任務；佇列本身仍在資料庫。</div>
 
     <section class="panel panel-body">
       <dl class="spec-list">

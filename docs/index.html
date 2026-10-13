@@ -62,14 +62,14 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M4 進行中</span></div>
+        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M9a 進行中</span></div>
         <div class="panel-body">
           <dl class="spec-list">
             <dt>rpa-core</dt><dd>場景 DSL 與場景契約的模型、YAML 載入與校驗、錄製稿轉 DSL 草稿；範例在 <code>scenarios/</code></dd>
             <dt>rpa-runner</dt><dd>執行引擎：入參校驗、登入檢查、在 Chromium 或 Firefox 中執行步驟、獨立斷言、出參發布、執行報告；人工登入與逐步調試的子程序</dd>
-            <dt>rpa-worker</dt><dd>背景 worker：領取任務、以子程序執行、取消；不依賴資料庫</dd>
-            <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 與 Jinja 頁面、SQLite、版本與發布門檻、執行佇列、登入角色與 Secrets、錄製、逐步調試</dd>
-            <dt>rpa-cli</dt><dd><code>rpa serve</code> 啟動管理 Portal；<code>rpa run</code> 執行場景；<code>rpa record</code> 錄製並轉成場景草稿；<code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa schema</code> 輸出 DSL 或單一場景入參、出參的 JSON Schema；<code>--lang</code> 切換繁中、簡中、英文</dd>
+            <dt>rpa-worker</dt><dd>背景 worker：領取任務、以子程序執行、取消；不依賴資料庫。也可以在另一台電腦當遠端 worker，經由管理 Portal 的 Worker API 領取（M9a）</dd>
+            <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 與 Jinja 頁面、SQLite、版本與發布門檻、執行佇列、登入角色與 Secrets、錄製、逐步調試、自由試驗場、遠端 worker 的登記與分派</dd>
+            <dt>rpa-cli</dt><dd><code>rpa serve</code> 啟動管理 Portal（<code>--worker-port</code> 開放給遠端 worker）；<code>rpa worker</code> 在另一台電腦當遠端 worker；<code>rpa run</code> 執行場景；<code>rpa record</code> 錄製並轉成場景草稿；<code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa schema</code> 輸出 DSL 或單一場景入參、出參的 JSON Schema；<code>--lang</code> 切換繁中、簡中、英文</dd>
             <dt>工具鏈</dt><dd>uv（依賴以 <code>uv.lock</code> 鎖定）、ruff、pyright（strict）、pytest、pre-commit</dd>
             <dt>CI</dt><dd>靜態檢查，Python 3.12 / 3.13 測試，含 Chromium 冒煙測試；一鍵安裝腳本每週在 macOS、Ubuntu、Windows 實際執行</dd>
             <dt>文檔</dt><dd>本站，繁中、簡中、英文三種語言，含連結與翻譯同步的自動檢查</dd>
