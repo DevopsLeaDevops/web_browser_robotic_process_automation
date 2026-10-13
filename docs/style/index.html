@@ -77,9 +77,9 @@
       <div class="panel-header"><h2>v1.1 補充的規則</h2><span class="muted">2026-10-13 · 範例見設計系統的「編輯與摘要」</span></div>
       <div class="panel-body">
         <ul class="points">
-          <li><strong>卡片連結固定一列。</strong>依文字長短分配寬度，多一個連結也不換行；真的放不下才以 … 結尾（<code>card-links even</code>）。</li>
+          <li><strong>卡片網格與卡片連結。</strong>卡片每張至少 272px（<code>card-grid</code>），1440 寬一列 4 張；卡片等高，同一列的截圖、連結與按鈕對齊。連結固定一列、11px、分隔線上下貫通，依文字長短分配寬度，真的放不下才以 … 結尾（<code>card-links even</code>）。</li>
           <li><strong>第二級選單名稱不換行。</strong>太長時以 … 結尾，完整名稱放在 title。</li>
-          <li><strong>重點突出。</strong>面板標題 14px／650，右側說明與數字 12px；摘要用鍵值格（<code>kv-grid</code>，4 欄），重點數字放進結果數字列（<code>result-strip</code>）。</li>
+          <li><strong>重點突出。</strong>面板標題 14px／650，項目數放在標題旁（<code>h2 .count</code>），右側說明 12px 或操作按鈕；連結做的按鈕用主要文字色；摘要用鍵值格（<code>kv-grid</code>，4 欄），重點數字放進結果數字列（<code>result-strip</code>）。</li>
           <li><strong>同一份資料兩種檢視。</strong>表格內直接編輯（<code>edit-table</code>，一列一筆、補充欄位在下一列）與原文編輯；切換時先校驗，不悄悄丟掉修改。原文編輯器右側是固定寬度的參考欄，點名稱插入（<code>editor-layout</code>、<code>chip-btn</code>）。</li>
           <li><strong>不撐開整頁。</strong>長內容的表格欄位換行（<code>table.wrap</code>）、程式碼在框內捲動（<code>code-view</code>）。</li>
         </ul>

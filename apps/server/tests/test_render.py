@@ -518,6 +518,13 @@ def test_scene_card_follows_the_design() -> None:
     assert "未執行" in _text(draft)
     assert 'aria-disabled="true"' in draft
     assert 'href="/scenes/ba-009/edit?file=assertion.py"' in draft
+    # 連結列只有設計稿的五項；「調試」：DSL 場景打開逐步調試，腳本場景驗證最新版本
+    links = published.split('class="card-links')[1].split("</nav>")[0]
+    assert links.count("<a ") == 5
+    assert "逐步調試" not in _text(published)
+    assert 'href="/scenes/ba-001/debug" title=' in published
+    assert 'href="/scenes/ba-009/run?purpose=validation"' in draft
+    assert "範例資料" in _text(published)  # 右上角是分類
     assert "2 個場景" in _text(html)
 
 

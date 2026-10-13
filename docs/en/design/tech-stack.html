@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:3ef3b3310791bd55">
+<meta name="translation-source" content="sha256:a1bf2a18a3e6ad95">
 <title>Tech stack · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -54,7 +54,7 @@
           <dt>uv</dt><dd>0.11 or later (<code>required-version</code> in <code>pyproject.toml</code>)</dd>
           <dt>Type checking</dt><dd>pyright in strict mode; all new code is fully annotated</dd>
           <dt>Dependency locking</dt><dd><code>uv.lock</code> records the exact version of every package and is committed to the repository; CI installs with <code>uv sync --locked</code> and fails when the lock file and <code>pyproject.toml</code> disagree</dd>
-          <dt>Dependency updates</dt><dd>Dependabot checks GitHub Actions and Python dependencies weekly</dd>
+          <dt>Dependency updates</dt><dd>Dependabot checks GitHub Actions weekly; Python dependencies are updated by the weekly <code>uv-upgrade</code> workflow, which runs <code>uv lock --upgrade</code>, pushes the <code>deps/uv-upgrade</code> branch and opens a PR (Dependabot does not support uv workspaces yet)</dd>
         </dl>
       </div>
     </section>

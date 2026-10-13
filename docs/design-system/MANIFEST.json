@@ -5,11 +5,11 @@
   "files": [
     {
       "path": "README.txt",
-      "sha256": "da825a8f60dd5c9e86ecc6e408058a1e09f12a2e5598fe172ebf335ad60325f9"
+      "sha256": "a342e6605a3c0650a8820931586d4092ef75b4f5b36d2ecde66b71941d2f6673"
     },
     {
       "path": "assets/portal.css",
-      "sha256": "12490c371d62d1dd0af81cd0eb411d580b4cfd4fdc7ed4ca8e249aa8eb69cdb4"
+      "sha256": "2d10dce146a09f8fb452e33e354ef680f835e98cd75a948d08bc85ee48ecf494"
     },
     {
       "path": "assets/shell.js",
@@ -21,7 +21,7 @@
     },
     {
       "path": "assets/visual.js",
-      "sha256": "008966be402a76ad68cebf8cb0013d041d9a0489536a7a32c5dfc8323f90f45a"
+      "sha256": "0b8b7979c5e240d7264d2e6dee95b60dbce0f08357288ec0e7e0ce09bf17e925"
     },
     {
       "path": "index.html",
@@ -37,7 +37,7 @@
     },
     {
       "path": "驗證紀錄.txt",
-      "sha256": "e238583b3ddddf8ea66a0ae46cb3d7933e1fe675090ecdb09cee8ec3c33f7670"
+      "sha256": "9979c157ce9f0f8be5e186e7fbc3078533a9b24285423db14e2bacc20e067443"
     }
   ]
 }

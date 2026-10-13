@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:f5fd54722aaa1170">
+<meta name="translation-source" content="sha256:4332d84e4da764ca">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -43,7 +43,7 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>Scenarios are grouped by target system or business area.</strong> For example “Test site automation”, “Google automation” or “Microsoft automation”. Each domain is an item in the Scenarios side menu; the last item is “Domains”.</li>
-          <li><strong>A domain page shows scenario cards.</strong> Each card has the name and a label (DSL scenario, Python script, not published), the screenshot of the latest run, the description, five links (automation, assertions, run reports, inputs, outputs; DSL scenarios also have “Step debugging”), and the scenario ID, the latest result, “Debug” (validate the latest revision) and “Run” (run the published revision).</li>
+          <li><strong>A domain page shows scenario cards.</strong> Four per row at 1440 pixels wide (each at least 272px). Each card has the name and the category (DSL scenario or Python script when there is none), the screenshot of the latest run, the description, five links (automation, assertions, reports, inputs, outputs), and the scenario ID, the latest result, “Debug” (step debugging for DSL scenarios, where you can go on to validate; Python script scenarios validate the latest revision directly) and “Run” (run the published revision; “Draft” until one is published).</li>
           <li><strong>Managing domains.</strong> Create a domain (its ID is used in addresses and cannot change), rename it or edit its description, and delete domains without scenarios. A scenario's Run settings move it to another domain.</li>
           <li><strong>Test site automation.</strong> Created on the first start with real cases that run against the test site: create a record (BA-001), look it up (BA-002, whose input is BA-001's output), look up a record that does not exist (BA-003), the Python script version of creating a record, and two login examples (BA-004 regular user, BA-005 manager). Its name and description follow the interface language until someone edits them; scenario names and descriptions come from the scenario files and are not translated.</li>
         </ul>
@@ -130,7 +130,7 @@
       <div class="panel-header"><h2>Step debugging</h2><span class="muted">M4: one browser, one step at a time</span></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>Start.</strong> “Step debugging” on the scenario page or card asks for the revision, inputs, browser and window mode. With a display, the browser window opens on this computer; in both modes the page shows a screenshot, the URL and the page facts after every step. DSL scenarios only.</li>
+          <li><strong>Start.</strong> “Step debugging” on the scenario page or “Debug” on the card asks for the revision, inputs, browser and window mode. With a display, the browser window opens on this computer; in both modes the page shows a screenshot, the URL and the page facts after every step. DSL scenarios only.</li>
           <li><strong>Run.</strong> Each step has “Run this step” and “Run to here” (which runs only steps that have not run yet and stops at the first failure). Steps with side effects (click, fill, select, check, press) ask for confirmation before running a second time; no step is ever repeated automatically. “Start over” opens a new page and reloads the login state.</li>
           <li><strong>Locator test.</strong> Enter a DSL locator (for example <code>{ role: button, name: Log in }</code>) to see how many elements match and the text of the first few, outlined in red in the screenshot.</li>
           <li><strong>Edit.</strong> Edit the YAML below and save it as a new revision to keep debugging with it; the browser and page facts stay, and steps that already ran keep their state by id.</li>

@@ -45,14 +45,14 @@
 
   {% if item.warnings %}
   <section class="panel">
-    <div class="panel-header"><h2>{{ t("recording.warnings") }}</h2><span class="muted">{{ item.warnings | length }}</span></div>
+    <div class="panel-header"><h2>{{ t("recording.warnings") }} <span class="count">{{ item.warnings | length }}</span></h2></div>
     <ul class="panel-body checklist">
       {% for warning in item.warnings %}<li>{{ t("recording.warning_line", line=warning.line, message=warning.message) }}{% if warning.get("source") %}<span class="cell-sub mono">{{ warning.source }}</span>{% endif %}</li>{% endfor %}
     </ul>
   </section>
   {% endif %}
 
-  <div class="field-pair">
+  <div class="field-pair top">
     <section class="panel">
       <div class="panel-header"><h2>{{ t("recording.converted") }}</h2><span class="muted mono">scenario.yaml</span></div>
       {% if files.get("scenario.yaml") %}<pre class="source code-view">{{ files["scenario.yaml"] }}</pre>{% else %}<div class="empty">—</div>{% endif %}

@@ -10,14 +10,14 @@
 {% endblock %}
 {% block content %}
 {% if cards %}
-<div class="grid scene-grid" id="cards">
+<div class="card-grid scene-grid" id="cards">
   {% for card in cards %}
   {% set scene = card.scene %}
   {% set last = card.last_run %}
   <article class="panel panel-body scene-card" data-scene="{{ scene.id }}">
     <div class="scene-card-head">
       <h2><a href="/scenes/{{ scene.id }}">{{ scene.name }}</a></h2>
-      <span class="chip" data-tag>{% if not scene.published %}{{ t("card.tag_unpublished") }}{% else %}{{ t("card.tag_" + scene.kind) }}{% endif %}</span>
+      <span class="chip" data-tag title="{{ t('card.tag_title') }}">{{ scene.category or t("card.tag_" + scene.kind) }}</span>
     </div>
     <div class="scene-card-body">
       {% if card.screenshot_run %}
@@ -33,13 +33,16 @@
       <a href="/runs?scene={{ scene.id }}">{{ t("card.reports") }}</a>
       <a href="/scenes/{{ scene.id }}#inputs">{{ t("card.inputs") }}</a>
       <a href="/scenes/{{ scene.id }}#outputs">{{ t("card.outputs") }}</a>
-      {% if scene.kind == "dsl" %}<a href="/scenes/{{ scene.id }}/debug">{{ t("card.step_debug") }}</a>{% endif %}
     </nav>
     <div class="scene-card-foot">
-      <span class="tag">{{ scene.id }}</span>
+      <span class="tag" title="{{ scene.id }}">{{ scene.id }}</span>
       {% if last %}<a href="/runs/{{ last.id }}" class="status-link">{{ m.run_badge(last.status) }}</a>{% else %}{{ m.badge("none", t("card.status_none")) }}{% endif %}
       <span class="grow"></span>
+      {% if scene.kind == "dsl" %}
+      <a class="button" href="/scenes/{{ scene.id }}/debug" title="{{ t('card.step_debug_title') }}" data-action="debug">{{ t("card.debug") }}</a>
+      {% else %}
       <a class="button" href="/scenes/{{ scene.id }}/run?purpose=validation" title="{{ t('card.debug_title', number=scene.latest_number) }}" data-action="debug">{{ t("card.debug") }}</a>
+      {% endif %}
       {% if scene.published %}
       <a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution" data-action="run">{{ m.arrow() }} {{ t("card.run") }}</a>
       {% else %}

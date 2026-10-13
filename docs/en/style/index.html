@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e7f0023cc36a1fbf">
+<meta name="translation-source" content="sha256:01b89bbd33954651">
 <title>Style overview · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -78,9 +78,9 @@
       <div class="panel-header"><h2>Rules added in v1.1</h2><span class="muted">2026-10-13 · examples on the design system's “編輯與摘要” page</span></div>
       <div class="panel-body">
         <ul class="points">
-          <li><strong>Card links stay on one row.</strong> Width is shared by text length, so one more link does not wrap; text ends with … only when it truly cannot fit (<code>card-links even</code>).</li>
+          <li><strong>Card grid and card links.</strong> Cards are at least 272px wide (<code>card-grid</code>), four per row at 1440 pixels; cards in a row have the same height, with screenshots, links and buttons aligned. Links stay on one row at 11px with full-height separators; width is shared by text length and text ends with … only when it truly cannot fit (<code>card-links even</code>).</li>
           <li><strong>Side menu names do not wrap.</strong> Long names end with …, with the full name in the title.</li>
-          <li><strong>Key points stand out.</strong> Panel titles 14px/650, the notes and numbers on the right 12px; summaries use a key-value grid (<code>kv-grid</code>, 4 columns) and key numbers go into a result strip (<code>result-strip</code>).</li>
+          <li><strong>Key points stand out.</strong> Panel titles 14px/650 with the item count beside them (<code>h2 .count</code>), notes (12px) or action buttons on the right; buttons made from links use the main text color; summaries use a key-value grid (<code>kv-grid</code>, 4 columns) and key numbers go into a result strip (<code>result-strip</code>).</li>
           <li><strong>One set of data, two views.</strong> Editing directly in a table (<code>edit-table</code>, one row per entry, extra fields on the row below) and editing the source; switching validates first and never silently drops changes. The source editor has a fixed-width reference column on the right whose names insert at the cursor (<code>editor-layout</code>, <code>chip-btn</code>).</li>
           <li><strong>Never widen the page.</strong> Long table cells wrap (<code>table.wrap</code>) and code scrolls inside its box (<code>code-view</code>).</li>
         </ul>

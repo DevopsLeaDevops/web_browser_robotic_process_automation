@@ -45,7 +45,7 @@
       </section>
       {% endif %}
       <section class="panel">
-        <div class="panel-header"><h2>{{ t("section.facts") }}</h2><span class="muted">{{ facts | length }}</span></div>
+        <div class="panel-header"><h2>{{ t("section.facts") }} <span class="count">{{ facts | length }}</span></h2></div>
         <div class="panel-body chip-list">
           {% for name, fields in facts %}
           <button class="chip-btn" type="button" data-insert="{{ '{{ facts.' ~ name ~ ' }}' }}">facts.{{ name }}</button>
@@ -54,7 +54,7 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}</span></div>
+        <div class="panel-header"><h2>{{ t("spec.inputs") }} <span class="count">{{ scenario.inputs | length }}</span></h2></div>
         <div class="panel-body chip-list">
           {% for name in scenario.inputs %}<button class="chip-btn" type="button" data-insert="{{ '{{ inputs.' ~ name ~ ' }}' }}">inputs.{{ name }}</button>
           {% else %}<p class="muted">{{ t("spec.no_inputs") }}</p>{% endfor %}

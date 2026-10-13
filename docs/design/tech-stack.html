@@ -53,7 +53,7 @@
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
           <dt>型別檢查</dt><dd>pyright strict 模式，新程式碼一律完整標註型別</dd>
           <dt>依賴鎖定</dt><dd><code>uv.lock</code> 記錄每個套件的確切版本並提交到倉庫；CI 以 <code>uv sync --locked</code> 安裝，鎖檔與 <code>pyproject.toml</code> 不一致時失敗</dd>
-          <dt>依賴更新</dt><dd>Dependabot 每週檢查 GitHub Actions 與 Python 依賴</dd>
+          <dt>依賴更新</dt><dd>Dependabot 每週檢查 GitHub Actions；Python 依賴由每週的 <code>uv-upgrade</code> workflow 執行 <code>uv lock --upgrade</code>、推到 <code>deps/uv-upgrade</code> 分支並開 PR（Dependabot 還不支援 uv workspace）</dd>
         </dl>
       </div>
     </section>

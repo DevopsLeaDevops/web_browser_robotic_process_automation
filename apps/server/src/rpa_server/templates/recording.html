@@ -12,7 +12,7 @@
     <span class="actions"><a class="button" href="/recordings/{{ active.id }}">{{ t("recording.view") }}</a><button class="button" data-action="cancel-recording" data-recording="{{ active.id }}">{{ t("recording.cancel") }}</button></span>
   </div>
   {% endif %}
-  <div class="two-col">
+  <div class="two-col top">
     <section class="panel">
       <div class="panel-header"><h2>{{ t("recording.new") }}</h2></div>
       <form class="panel-body stack" id="recording-form" data-display="{{ 'true' if display else 'false' }}">
@@ -23,7 +23,7 @@
         <p class="hint" data-for="record">{{ t("recording.record_hint") }}</p>
         <p class="hint" data-for="paste" hidden>{{ t("recording.paste_hint") }}</p>
         {% if not display %}<div class="notice warn" data-for="record">{{ t("recording.no_display") }}</div>{% endif %}
-        <fieldset class="field choice">
+        <fieldset class="field choice inline">
           <legend>{{ t("recording.target") }}</legend>
           <label><input type="radio" name="targetKind" value="new"{% if not selected_scene %} checked{% endif %}> {{ t("recording.target_new") }}</label>
           <label><input type="radio" name="targetKind" value="existing"{% if not scenes %} disabled{% elif selected_scene %} checked{% endif %}> {{ t("recording.target_existing") }}</label>
@@ -40,7 +40,7 @@
           <label class="field">{{ t("recording.scene") }}
             <select name="existingId">{% for scene in scenes %}<option value="{{ scene.id }}"{% if scene.id == selected_scene %} selected{% endif %}>{{ scene.id }} · {{ scene.name }}</option>{% endfor %}</select>
           </label>
-          <fieldset class="field choice">
+          <fieldset class="field choice inline">
             <legend>{{ t("recording.existing_mode") }}</legend>
             <label><input type="radio" name="existingMode" value="continue" checked> {{ t("recording.mode_continue") }}</label>
             <label><input type="radio" name="existingMode" value="replace"> {{ t("recording.mode_replace") }}</label>
@@ -68,7 +68,7 @@
       </form>
     </section>
     <section class="panel">
-      <div class="panel-header"><h2>{{ t("recording.recent") }}</h2><span class="muted">{{ recordings | length }}</span></div>
+      <div class="panel-header"><h2>{{ t("recording.recent") }} <span class="count">{{ recordings | length }}</span></h2></div>
       {% if recordings %}
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>{{ t("recording.col_scene") }}</th><th>{{ t("recording.col_status") }}</th><th>{{ t("runs.col_actions") }}</th></tr></thead>

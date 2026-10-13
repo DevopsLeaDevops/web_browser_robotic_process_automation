@@ -13,11 +13,19 @@
 .panel-header h2{font-weight:650}
 .panel-header>.muted,.panel-header>span,.panel-header .muted{font-size:12px}
 .panel-header .header-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+/* 面板標題旁的數量（項目數），和分段切換的數量同一種樣式；標題列右側的按鈕縮小一號 */
+.panel-header h2 .count{display:inline-block;min-width:18px;margin-left:6px;padding:0 6px;border-radius:9px;background:#eef2f7;color:var(--muted);font-size:11px;font-weight:500;line-height:17px;text-align:center;vertical-align:1px}
+.panel-header>.button,.panel-header .actions>.button{min-height:26px;padding:2px 10px}
+/* 卡片網格：每張至少 272px，1440 寬一列 4 張、1280 寬 3 張；卡片等高 */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:var(--gap)}
 /* 卡片連結：固定一列、依文字長短分配（多一個連結也不換行），真的放不下才以 … 結尾 */
-.card-links.even{display:flex;flex-wrap:nowrap;gap:0;padding:7px 0}
-.card-links.even>a,.card-links.even>button{flex:1 1 auto;min-width:0;min-height:0;display:block;text-align:center;padding:0 3px;border:0;border-left:1px solid var(--line);border-radius:0;background:none;font-size:inherit;line-height:1.6;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-links.even{display:flex;flex-wrap:nowrap;gap:0;padding:0}
+.card-links.even>a,.card-links.even>button{flex:1 1 auto;min-width:0;min-height:0;display:block;text-align:center;padding:7px 3px;border:0;border-left:1px solid var(--line);border-radius:0;background:none;font-size:inherit;line-height:1.6;color:#4f6a8c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card-links.even>:first-child{border-left:0}
 .card-links.even>:hover{color:var(--blue-strong)}
+/* 連結做成的按鈕（a.button）和按鈕一樣用主要文字色，不是連結的藍色 */
+a.button{color:var(--ink)}
+a.button.primary{color:#fff}
 /* 分段切換也可以是連結（例如在同一資源的幾個檢視之間切換），可帶數量 */
 .segmented a{display:inline-flex;align-items:center;gap:6px;border-radius:4px;font-size:12px;padding:4px 10px;color:var(--ink)}
 .segmented a.active,.segmented button.active{background:#fff;color:var(--blue-strong);box-shadow:0 1px 3px #24334a12;font-weight:600}
@@ -53,9 +61,8 @@
 .editor-layout>aside{position:sticky;top:calc(var(--header) + 12px);display:grid;gap:12px}
 .editor-layout .code-editor{min-height:52vh}
 /* 摘要：鍵值成格排列（4 欄），一眼看完，不要一列一個 */
-.kv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0}
-.kv-grid>div{padding:9px 12px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
-.kv-grid>div:nth-child(4n){border-right:0}
+.kv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;overflow:hidden}
+.kv-grid>div{padding:9px 12px;min-width:0;box-shadow:1px 0 0 var(--line),0 1px 0 var(--line)}
 .kv-grid dt{font-size:11px;color:var(--muted)}
 .kv-grid dd{margin:2px 0 0;font-size:13px;overflow-wrap:anywhere}
 .kv-grid .wide{grid-column:span 2}
@@ -68,6 +75,7 @@
 .result-strip .warn strong{color:var(--warn)}
 /* 可以換行的表格（table.wrap）：內容長的欄位換行，不撐寬表格 */
 table.wrap{white-space:normal}
+table.wrap th,table.wrap .numeric{white-space:nowrap}
 table.wrap code{overflow-wrap:break-word}
 /* 程式碼檢視：太長時在框內捲動，不把整頁拉長 */
 pre.source.code-view{max-height:70vh;overflow:auto;white-space:pre}
@@ -76,5 +84,5 @@ pre.source.code-view{max-height:70vh;overflow:auto;white-space:pre}
 .field-row>label.field{flex:1 1 220px;margin:0}
 .field-row>label.field+label.field{margin:0}
 .hint{font-size:11px;color:var(--muted);line-height:1.6}
-@media(max-width:1100px){.editor-layout{grid-template-columns:1fr}.editor-layout>aside{position:static}.kv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.kv-grid>div:nth-child(4n){border-right:1px solid var(--line)}.kv-grid>div:nth-child(2n){border-right:0}}
-@media(max-width:700px){.kv-grid{grid-template-columns:1fr}.kv-grid>div{border-right:0}.kv-grid .wide{grid-column:auto}}
+@media(max-width:1100px){.editor-layout{grid-template-columns:1fr}.editor-layout>aside{position:static}.kv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.kv-grid{grid-template-columns:1fr}.kv-grid .wide{grid-column:auto}}

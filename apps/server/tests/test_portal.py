@@ -205,8 +205,10 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     expect(card).to_contain_text("查詢不存在的紀錄")
     expect(card.locator('[data-status="none"]')).to_be_visible()
 
-    # 從卡片調試（驗證最新版本），結果與截圖回到卡片上
+    # 卡片的「調試」打開逐步調試頁；從那裡驗證最新版本，結果與截圖回到卡片上
     card.locator('[data-action="debug"]').click()
+    page.wait_for_url(f"{portal}/scenes/ba-003/debug")
+    page.locator('[data-action="validate"]').click()
     start_run(page, {"recordId": "DEMO-NOTFOUND"}, engine, site)
     wait_for_run(page)
     expect(page.locator("pre.source").nth(1)).to_contain_text("查無紀錄")

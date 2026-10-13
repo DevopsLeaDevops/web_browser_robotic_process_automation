@@ -4,14 +4,14 @@
 {% block content %}
 <div class="stack">
   <section class="panel">
-    <div class="panel-header"><h2>{{ t("domains.list") }}</h2><span class="muted">{{ domains | length }}</span></div>
+    <div class="panel-header"><h2>{{ t("domains.list") }} <span class="count">{{ domains | length }}</span></h2></div>
     {% if domains %}
     <div class="table-scroll"><table class="wrap">
       <thead><tr><th>{{ t("domains.col_name") }}</th><th>{{ t("domains.col_id") }}</th><th>{{ t("domains.col_description") }}</th><th class="numeric">{{ t("domains.col_scenes") }}</th><th>{{ t("domains.col_actions") }}</th></tr></thead>
       <tbody>
       {% for domain in domains %}
         <tr data-domain="{{ domain.id }}">
-          <td><a href="/domains/{{ domain.id }}">{{ domain.name }}</a></td>
+          <td class="nowrap"><a href="/domains/{{ domain.id }}">{{ domain.name }}</a></td>
           <td><span class="tag">{{ domain.id }}</span></td>
           <td>{{ domain.description or "—" }}</td>
           <td class="numeric">{{ domain.scene_count }}</td>
