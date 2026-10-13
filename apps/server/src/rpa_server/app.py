@@ -59,6 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         display=settings.display,
         locale=settings.locale,
         local_worker=settings.local_worker,
+        worker_port=settings.worker_port,
     )
     worker = Worker(services.queue, locale=settings.locale)
     hub = services.workers

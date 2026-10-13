@@ -96,6 +96,7 @@ NAV: Final = (
             NavPage("recording", "/recording"),
             NavPage("runs", "/runs"),
             NavPage("playground", "/playground"),
+            NavPage("workers", "/workers"),
         ),
     ),
 )
@@ -108,6 +109,9 @@ _BADGES: Final[Mapping[str, str]] = {
     "done": "green",
     "reused": "green",
     "needs_login": "amber",
+    "online": "green",
+    "busy": "blue",
+    "disabled": "amber",
     "recording": "blue",
     "checking": "blue",
     "login": "blue",
@@ -265,6 +269,17 @@ def js_messages() -> dict[str, str]:
         "js.contract_saved",
         "js.rerun_started",
         "js.section_line",
+        "js.worker_create_title",
+        "js.worker_create_action",
+        "js.worker_token_title",
+        "js.worker_rotate_title",
+        "js.worker_rotate_body",
+        "js.worker_rotate_action",
+        "js.worker_delete_title",
+        "js.worker_delete_body",
+        "js.worker_delete_action",
+        "js.worker_disabled",
+        "js.worker_enabled",
     )
     return {key.removeprefix("js."): t(key) for key in keys}
 
@@ -327,8 +342,12 @@ def render(
     domains: Sequence[DomainRecord] = (),
     **context: object,
 ) -> str:
-    """渲染一頁：page 是選單中目前的頁面，title 是頁面標題，domains 是場景管理的二級選單。"""
+    """渲染一頁：page 是選單中目前的頁面，title 是頁面標題，domains 是場景管理的二級選單。
+
+    context 的 worker_names 是 worker 代號 → 名稱（執行報告顯示由哪台執行；M9a），沒給時只有本機。
+    """
     group = _group_of(page)
+    context.setdefault("worker_names", {"local": t("worker.local")})
     return _env.get_template(name).render(
         page=page,
         group=group,

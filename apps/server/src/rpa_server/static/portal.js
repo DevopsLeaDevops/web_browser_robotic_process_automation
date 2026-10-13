@@ -1,6 +1,6 @@
 'use strict';
 // 管理 Portal 的頁面互動：呼叫 /api、輪詢執行狀態、對話框；M4 加上登入與憑證、錄製、逐步調試、入參出參表單；
-// M6 加上自由試驗場（序列清單、編輯序列、序列的執行）。
+// M6 加上自由試驗場（序列清單、編輯序列、序列的執行）；M9a 加上遠端 worker 頁與執行位置。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -318,9 +318,37 @@
 
   // ---------------------------------------------------------------- 執行表單
 
+  // ---------------------------------------------------------------- 執行位置（M9a）
+
+  function chosenTarget(root) {
+    const checked = qs('[name="target"]:checked', root);
+    return checked ? checked.value : null;
+  }
+
+  // 換執行位置時，有頭模式能不能選跟著那個位置（本機看這台電腦，遠端看 worker）
+  function bindTargetChoice(root) {
+    const choice = qs('[data-target-choice]', root);
+    if (!choice) return;
+    const display = JSON.parse(choice.dataset.display || '{}');
+    const update = () => {
+      const target = chosenTarget(root);
+      const headed = qs('[name="headless"][value="0"]', root);
+      const headless = qs('[name="headless"][value="1"]', root);
+      if (!target || !headed || !headless) return;
+      const allowed = display[target] === true;
+      headed.disabled = !allowed;
+      if (!allowed && headed.checked) headless.checked = true;
+      const hint = qs('[data-window-hint]', root);
+      if (hint) hint.textContent = allowed ? hint.dataset.hint : hint.dataset.unavailable;
+    };
+    qsa('[name="target"]', root).forEach(input => input.addEventListener('change', update));
+    update();
+  }
+
   function bindRunForm() {
     const form = qs('#run-form');
     if (!form) return;
+    bindTargetChoice(form);
     const key = newKey();
     const button = qs('[data-action="submit-run"]', form);
     form.addEventListener('submit', async event => {
@@ -345,6 +373,7 @@
         engine: field('engine').value || null,
         baseUrl: field('baseUrl').value.trim() || null,
         headless: field('headless').value === '1',
+        target: chosenTarget(form),
         idempotencyKey: key,
       });
       if (result.ok) {
@@ -1576,8 +1605,9 @@
         const dialog = qs('#dialog-content');
         const engine = qs('[name="engine"]', dialog).value || null;
         const headless = (qs('[name="headless"]:checked', dialog) || {value: '1'}).value === '1';
+        const target = chosenTarget(dialog);
         busy($('#dialog-action'), true);
-        const result = await api('POST', '/api/workflows/' + path(data.id) + '/runs', {engine, headless, idempotencyKey: key});
+        const result = await api('POST', '/api/workflows/' + path(data.id) + '/runs', {engine, headless, target, idempotencyKey: key});
         busy($('#dialog-action'), false);
         if (!result.ok) {
           qs('.form-error', dialog).textContent = errorMessage(result);
@@ -1589,6 +1619,7 @@
         }
         location.href = '/playground/runs/' + path(result.data.id);
       }});
+      bindTargetChoice(qs('#dialog-content'));
     });
 
     window.addEventListener('beforeunload', event => {
@@ -1638,6 +1669,93 @@
   }
 
   localizeTimes();
+  // ---------------------------------------------------------------- 遠端 worker（M9a）
+
+  function showToken(worker, token) {
+    modal(fill(messages.worker_token_title, {name: worker.name}), qs('#worker-token').innerHTML, null);
+    const dialog = qs('#dialog-content');
+    const root = qs('#workers');
+    const server = root.dataset.apiUrl || 'http://<IP>:8081';
+    qs('[name="token"]', dialog).value = token;
+    const run = 'uv run rpa worker --server ' + server + ' --name ' + worker.id;
+    qs('[data-command="windows"]', dialog).textContent = '$env:RPA_WORKER_TOKEN = "' + token + '"\n' + run;
+    qs('[data-command="unix"]', dialog).textContent = "export RPA_WORKER_TOKEN='" + token + "'\n" + run;
+    const field = qs('[name="token"]', dialog);
+    field.focus();
+    field.select();
+    $('#dialog').addEventListener('close', () => location.reload(), {once: true});
+  }
+
+  function bindWorkers() {
+    const root = qs('#workers');
+    if (!root) return;
+    qs('[data-action="new-worker"]').addEventListener('click', () => {
+      modal(messages.worker_create_title, qs('#worker-form').innerHTML, {label: messages.worker_create_action, run: async () => {
+        const dialog = qs('#dialog-content');
+        const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+        const result = await api('POST', '/api/workers', {id: value('id'), name: value('name') || null});
+        if (!result.ok) return dialogError(dialog, result);
+        showToken(result.data.worker, result.data.token);
+      }});
+      qs('[name="id"]', qs('#dialog-content')).focus();
+    });
+    const patch = async (button, disabled) => {
+      busy(button, true);
+      const result = await api('PATCH', '/api/workers/' + path(button.dataset.worker), {disabled});
+      if (!result.ok) {
+        busy(button, false);
+        return toast(errorMessage(result));
+      }
+      flash(disabled ? messages.worker_disabled : messages.worker_enabled);
+      location.reload();
+    };
+    qsa('[data-action="disable-worker"]').forEach(button => button.addEventListener('click', () => patch(button, true)));
+    qsa('[data-action="enable-worker"]').forEach(button => button.addEventListener('click', () => patch(button, false)));
+    qsa('[data-action="rotate-worker"]').forEach(button => {
+      button.addEventListener('click', () => {
+        confirmDialog(fill(messages.worker_rotate_title, {name: button.dataset.name}), messages.worker_rotate_body, messages.worker_rotate_action, async () => {
+          const result = await api('POST', '/api/workers/' + path(button.dataset.worker) + '/token');
+          if (!result.ok) {
+            $('#dialog').close();
+            return toast(errorMessage(result));
+          }
+          showToken(result.data.worker, result.data.token);
+        });
+      });
+    });
+    qsa('[data-action="delete-worker"]').forEach(button => {
+      button.addEventListener('click', () => {
+        confirmDialog(fill(messages.worker_delete_title, {name: button.dataset.name}), messages.worker_delete_body, messages.worker_delete_action, async () => {
+          const result = await api('DELETE', '/api/workers/' + path(button.dataset.worker));
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.reload();
+        });
+      });
+    });
+    qsa('[name="default-target"]').forEach(input => {
+      input.addEventListener('change', async () => {
+        const result = await api('PUT', '/api/settings/default-target', {target: input.value});
+        toast(result.ok ? messages.saved : errorMessage(result));
+      });
+    });
+    // 狀態（上線、忙碌、離線）改變時重新載入；對話框開著時不打擾
+    if (root.hasAttribute('data-poll')) {
+      const states = () => qsa('tr[data-worker]').map(row => row.dataset.state).join('|');
+      const current = states();
+      const timer = setInterval(async () => {
+        if ($('#dialog').open) return;
+        const result = await api('GET', '/api/workers');
+        if (!result.ok) return;
+        const next = result.data.workers.map(worker => worker.status + ':' + (worker.currentRun || '')).join('|');
+        if (next !== current) {
+          clearInterval(timer);
+          location.reload();
+        }
+      }, 5000);
+    }
+  }
+
   bindLanguage();
   bindFilters();
   bindPublish();
@@ -1657,5 +1775,6 @@
   bindPlayground();
   bindWorkflowEditor();
   bindWorkflowRun();
+  bindWorkers();
   showFlash();
 })();

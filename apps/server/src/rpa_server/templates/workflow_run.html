@@ -31,6 +31,7 @@
       <div><dt>{{ t("run.finished") }}</dt><dd>{{ m.time(run.finished_at) }}</dd></div>
       <div><dt>{{ t("run.engine") }}</dt><dd>{{ run.engine or t("workflow.engine_scene") }}</dd></div>
       <div><dt>{{ t("run_form.window") }}</dt><dd>{{ t("run_form.window_headless") if run.headless else t("run_form.window_headed") }}</dd></div>
+      {% if run.target != "local" or (run.worker_id and run.worker_id != "local") %}<div><dt>{{ t("run.worker") }}</dt><dd>{{ m.worker_text(run.target, run.worker_id, worker_names) }}</dd></div>{% endif %}
       {% if run.resumed_from %}<div><dt>{{ t("workflow_run.resumed_from") }}</dt><dd><a class="mono" href="/playground/runs/{{ run.resumed_from }}">{{ run.resumed_from }}</a></dd></div>{% endif %}
     </dl>
   </section>

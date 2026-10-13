@@ -22,6 +22,7 @@ __all__ = [
     "code_fingerprint",
     "has_display",
     "installed_browsers",
+    "lan_address",
 ]
 
 PROTOCOL: Final = 1
@@ -43,6 +44,17 @@ def has_display(environ: Mapping[str, str] | None = None, platform_name: str | N
     if system in ("win32", "darwin"):
         return True
     return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"))
+
+
+def lan_address() -> str | None:
+    """這台電腦在區網上的位址（猜測，給遠端 worker 的 --server 用）。不會真的送出封包。"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("192.0.2.1", 9))  # 文件用的保留位址：只用來選出對外的網路介面
+            address = str(probe.getsockname()[0])
+    except OSError:
+        return None
+    return None if address.startswith("127.") or address == "0.0.0.0" else address
 
 
 def installed_browsers(engines: Sequence[str] = _ENGINES) -> list[str]:

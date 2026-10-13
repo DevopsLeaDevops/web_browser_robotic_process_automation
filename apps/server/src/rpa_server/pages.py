@@ -2,7 +2,8 @@
 
 import mimetypes
 import os
-from typing import Annotated, Final, Literal
+import socket
+from typing import Annotated, Final, Literal, cast
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Query
@@ -15,13 +16,14 @@ from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
-from rpa_server.domain import ENGINES, DomainRecord, RoleRecord
+from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
 from rpa_server.render import domain_page, render, run_filters, workflow_messages
 from rpa_server.services import Services
 from rpa_server.storage import SCENARIO_FILE
+from rpa_worker.environment import lan_address
 
 __all__ = ["page_router"]
 
@@ -106,11 +108,19 @@ def _role_values(role: RoleRecord) -> dict[str, object]:
     }
 
 
+def _location_context(services: Services) -> dict[str, object]:
+    """執行表單用：執行位置的選項，以及預設位置能不能有頭模式（display）。"""
+    locations = services.locations()
+    display = cast("dict[str, bool]", locations["display"])
+    return {"locations": locations, "display": display[str(locations["default"])]}
+
+
 def page_router(services: Services) -> APIRouter:
     router = APIRouter()
 
     def page(name: str, *, page: str, title: str, **context: object) -> HTMLResponse:
         """渲染一頁；每一頁都帶著領域清單（場景管理的二級選單）。"""
+        context.setdefault("worker_names", services.workers.names())
         return _html(
             render(name, page=page, title=title, domains=services.list_domains(), **context)
         )
@@ -250,7 +260,7 @@ def page_router(services: Services) -> APIRouter:
             defaults=defaults,
             engines=ENGINES,
             base_url=record.base_url or scenario.browser.base_url,
-            display=services.display,
+            **_location_context(services),
         )
 
     @router.get("/runs", include_in_schema=False)
@@ -434,6 +444,25 @@ def page_router(services: Services) -> APIRouter:
 
     workflows = services.workflows
 
+    @router.get("/workers", include_in_schema=False)
+    def workers_page() -> HTMLResponse:
+        """遠端 worker：登記、權杖、狀態，以及預設執行位置（M9a）。"""
+        port = services.worker_port
+        api_url = f"http://{lan_address() or socket.gethostname()}:{port}" if port else None
+        records = services.workers.list_workers()
+        return page(
+            "workers.html",
+            page="workers",
+            title=t("nav.workers"),
+            workers=records,
+            default_target=services.locations()["default"],
+            targets=TARGETS,
+            local_worker=services.local_worker,
+            worker_port=port,
+            api_url=api_url,
+            fingerprint=services.workers.fingerprint,
+        )
+
     @router.get("/playground", include_in_schema=False)
     def playground() -> HTMLResponse:
         """序列清單與最近的序列執行。"""
@@ -459,8 +488,8 @@ def page_router(services: Services) -> APIRouter:
             "definition": record.workflow.to_json(),
             "problems": [problem.to_json() for problem in record.problems],
             "library": workflows.library(),
-            "display": services.display,
             "engines": list(ENGINES),
+            **_location_context(services),
         }
         return page(
             "workflow.html",

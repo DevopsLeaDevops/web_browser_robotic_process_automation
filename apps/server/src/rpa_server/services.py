@@ -42,6 +42,7 @@ from rpa_server.dispatch import WorkerHub
 from rpa_server.domain import (
     DOMAIN_ID,
     LOCAL_WORKER,
+    TARGETS,
     DomainRecord,
     Engine,
     Purpose,
@@ -286,6 +287,7 @@ class Services:
         display: bool = False,
         locale: Locale = DEFAULT_LOCALE,
         local_worker: bool = True,
+        worker_port: int | None = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -294,6 +296,8 @@ class Services:
         """這台電腦能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。"""
         self.local_worker = local_worker
         """這台電腦執不執行（rpa serve --no-local-worker 時不執行，只給遠端 worker；M9a）。"""
+        self.worker_port = worker_port
+        """Worker API 的埠；None 代表沒有開放遠端 worker 連線（頁面提示怎麼開啟）。"""
         self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
         self.roles = RoleService(
             sessions,
@@ -920,6 +924,21 @@ class Services:
             return local
         remote = self.workers.has_remote() and self.workers.remote_display()
         return remote if target == "remote" else local or remote
+
+    def locations(self) -> dict[str, object]:
+        """執行表單的「執行位置」：有沒有遠端 worker、本機執不執行、預設、各位置能不能有頭模式。"""
+        remote = self.workers.has_remote()
+        default = self.workers.default_target()
+        if default == "local" and not self.local_worker:
+            default = "any"
+        if default == "remote" and not remote:
+            default = "local" if self.local_worker else "any"
+        return {
+            "remote": remote,
+            "local": self.local_worker,
+            "default": default,
+            "display": {target: self.can_display(target) for target in TARGETS},
+        }
 
     def resolve_headless(self, headless: bool | None, target: Target) -> bool:
         if headless is None:
