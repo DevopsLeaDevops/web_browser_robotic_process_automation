@@ -82,7 +82,7 @@ def test_validate_publish_run_and_chain(
     output = cast("JsonObject", executed["output"])
     assert (output["title"], output["quantity"]) == ("正式執行", 5)
 
-    # 上游的出參交給下游當入參（M6 會自動串接）
+    # 上游的出參交給下游當入參（自由試驗場的序列會自動串接，見 test_workflow_flow.py）
     chained = run_next(
         app,
         client,

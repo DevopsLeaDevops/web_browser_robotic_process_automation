@@ -6,6 +6,8 @@
 M4：登入角色與 Secrets（/api/roles、/api/secrets）、錄製（/api/recordings）、
 調試工作階段（/api/scenes/{id}/debug、/api/debug/{工作階段}）、入參與出參的表單存檔
 （/api/scenes/{id}/contract）、重新執行（/api/runs/{id}/rerun）。Secrets 的值只寫入、永遠不回傳。
+
+M6：自由試驗場的序列（/api/workflows）與序列的執行（/api/workflow-runs）。
 """
 
 from typing import Annotated, Literal
@@ -172,6 +174,36 @@ class DebugLocate(_Body):
 
 class DebugReload(_Body):
     revision: int = Field(ge=1)
+
+
+class WorkflowCreate(_Body):
+    name: str = Field(max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    definition: dict[str, object] | None = None
+    """序列的定義（匯出的 JSON）；沒帶就是空的序列。"""
+
+
+class WorkflowUpdate(_Body):
+    base_version: int = Field(ge=1)
+    name: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    definition: dict[str, object] | None = None
+
+
+class WorkflowCheck(_Body):
+    definition: dict[str, object]
+
+
+class WorkflowRunCreate(_Body):
+    engine: Engine | None = None
+    headless: bool | None = None
+    idempotency_key: str | None = Field(default=None, max_length=100)
+
+
+class WorkflowRerun(_Body):
+    resume: bool = False
+    """True：從停下的節點繼續，沿用前面節點的出參；False：從頭再執行一次。"""
+    idempotency_key: str | None = Field(default=None, max_length=100)
 
 
 def _values(body: RoleBody) -> dict[str, object]:
@@ -546,5 +578,85 @@ def api_router(services: Services) -> APIRouter:
     def close_debug(session_id: str) -> dict[str, object]:
         debug.close(session_id)
         return {"closed": session_id}
+
+    # ------------------------------------------------------------ 自由試驗場（M6）
+
+    workflows = services.workflows
+
+    @router.get("/workflows")
+    def list_workflows() -> dict[str, object]:
+        return {"workflows": [item.to_json() for item in workflows.list_workflows()]}
+
+    @router.post("/workflows", status_code=201)
+    def create_workflow(body: WorkflowCreate) -> dict[str, object]:
+        """新增序列；帶 definition 就是匯入。"""
+        return workflows.create_workflow(body.name, body.description, body.definition).to_json()
+
+    @router.get("/workflows/library")
+    def workflow_library() -> dict[str, object]:
+        """場景庫：發布過的場景版本與它們的入參、出參（編輯序列用）。"""
+        return {"scenes": workflows.library(), "display": services.display}
+
+    @router.post("/workflows/check")
+    def check_workflow(body: WorkflowCheck) -> dict[str, object]:
+        """檢查一份定義（不存檔）：格式、場景與版本、綁定、必填入參。"""
+        _, problems = workflows.parse(body.definition)
+        return {"ok": not problems, "problems": [problem.to_json() for problem in problems]}
+
+    @router.get("/workflows/{workflow_id}")
+    def get_workflow(workflow_id: int) -> dict[str, object]:
+        record = workflows.get_workflow(workflow_id)
+        runs = workflows.list_runs(workflow_id=workflow_id, limit=10)
+        return {**record.to_json(), "runs": [run.to_json() for run in runs]}
+
+    @router.put("/workflows/{workflow_id}")
+    def update_workflow(workflow_id: int, body: WorkflowUpdate) -> dict[str, object]:
+        record = workflows.update_workflow(
+            workflow_id,
+            base_version=body.base_version,
+            name=body.name,
+            description=body.description,
+            definition=body.definition,
+        )
+        return record.to_json()
+
+    @router.delete("/workflows/{workflow_id}")
+    def delete_workflow(workflow_id: int) -> dict[str, object]:
+        workflows.delete_workflow(workflow_id)
+        return {"deleted": workflow_id}
+
+    @router.post("/workflows/{workflow_id}/runs", status_code=202)
+    def run_workflow(workflow_id: int, body: WorkflowRunCreate) -> dict[str, object]:
+        """執行序列：有問題時 422（problems 列出每個問題），沒有問題就排入第一個節點。"""
+        record = workflows.start(
+            workflow_id,
+            engine=body.engine,
+            headless=body.headless,
+            idempotency_key=body.idempotency_key,
+        )
+        return record.to_json()
+
+    @router.get("/workflow-runs")
+    def list_workflow_runs(
+        workflow: int | None = None,
+        limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    ) -> dict[str, object]:
+        runs = workflows.list_runs(workflow_id=workflow, limit=limit)
+        return {"runs": [run.to_json() for run in runs]}
+
+    @router.get("/workflow-runs/{run_id}")
+    def get_workflow_run(run_id: str) -> dict[str, object]:
+        return workflows.get_run(run_id).to_json()
+
+    @router.post("/workflow-runs/{run_id}/cancel", status_code=202)
+    def cancel_workflow_run(run_id: str) -> dict[str, object]:
+        return workflows.cancel(run_id).to_json()
+
+    @router.post("/workflow-runs/{run_id}/rerun", status_code=202)
+    def rerun_workflow(run_id: str, body: WorkflowRerun | None = None) -> dict[str, object]:
+        """再執行一次：resume 為 true 時從停下的節點繼續（沿用前面節點的出參）。"""
+        body = body or WorkflowRerun()
+        record = workflows.rerun(run_id, resume=body.resume, idempotency_key=body.idempotency_key)
+        return record.to_json()
 
     return router

@@ -33,6 +33,7 @@ __all__ = [
     "js_messages",
     "render",
     "run_filters",
+    "workflow_messages",
 ]
 
 TEMPLATES: Final = Path(__file__).with_name("templates")
@@ -94,7 +95,7 @@ NAV: Final = (
         (
             NavPage("recording", "/recording"),
             NavPage("runs", "/runs"),
-            NavPage("playground", "/playground", "M6"),
+            NavPage("playground", "/playground"),
         ),
     ),
 )
@@ -105,6 +106,7 @@ _BADGES: Final[Mapping[str, str]] = {
     "published": "green",
     "logged_in": "green",
     "done": "green",
+    "reused": "green",
     "needs_login": "amber",
     "recording": "blue",
     "checking": "blue",
@@ -265,6 +267,19 @@ def js_messages() -> dict[str, str]:
         "js.section_line",
     )
     return {key.removeprefix("js."): t(key) for key in keys}
+
+
+def workflow_messages() -> dict[str, str]:
+    """自由試驗場頁面的 JavaScript 用到的文字（訊息目錄裡 wfjs. 開頭的鍵，目前語言）。
+
+    放在試驗場頁面的 #workflow-messages，不加進每一頁都有的 js_messages。與 js_messages 相同：
+    訊息目錄裡寫 ``{{名稱}}``，取出後是 ``{名稱}``，由 portal.js 代入。
+    """
+    return {
+        key.removeprefix("wfjs."): t(key)
+        for key in t.messages(get_locale())
+        if key.startswith("wfjs.")
+    }
 
 
 _SINGLE_EXPRESSION: Final = re.compile(r"^\{\{\s*([^{}]+?)\s*\}\}$")
