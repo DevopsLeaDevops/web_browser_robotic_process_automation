@@ -116,5 +116,9 @@
   "recording.step.check": "Check \"{target}\"",
   "recording.step.uncheck": "Uncheck \"{target}\"",
   "recording.step.expect": "Verify \"{target}\"",
-  "recording.step.waitFor": "Wait for the URL {url}"
+  "recording.step.waitFor": "Wait for the URL {url}",
+  "recording.step.extract": "Read “{target}”",
+  "recording.output": "Content of “{target}” (“{value}” when recorded)",
+  "recording.verify.equals": "“{target}” equals input {input}",
+  "recording.verify.not_empty": "“{target}” was read (“{value}” when recorded)"
 }

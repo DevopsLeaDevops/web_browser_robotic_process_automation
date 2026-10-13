@@ -8,16 +8,19 @@ M4：登入角色與 Secrets（/api/roles、/api/secrets）、錄製（/api/reco
 （/api/scenes/{id}/contract）、重新執行（/api/runs/{id}/rerun）。Secrets 的值只寫入、永遠不回傳。
 """
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from rpa_core.dsl.editing import SECTION_KEYS, section_text
 from rpa_server.domain import Engine
 from rpa_server.errors import ServiceError
+from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
-from rpa_server.services import Services
+from rpa_server.services import Services, render_contract
+from rpa_server.storage import SCENARIO_FILE
 
 __all__ = ["api_router"]
 
@@ -88,8 +91,20 @@ class ContractItem(_Body):
 
 class ContractSave(_Body):
     base_revision: int = Field(ge=1)
-    inputs: list[ContractItem] = Field(default_factory=list[ContractItem])
-    outputs: list[ContractItem] = Field(default_factory=list[ContractItem])
+    inputs: list[ContractItem] | None = None
+    """None：入參不動（只編輯出參時）。"""
+    outputs: list[ContractItem] | None = None
+    note: str | None = Field(default=None, max_length=500)
+
+
+class ContractRender(_Body):
+    key: Literal["inputs", "outputs"]
+    items: list[ContractItem] = Field(default_factory=list[ContractItem])
+
+
+class SectionSave(_Body):
+    base_revision: int = Field(ge=1)
+    text: str = Field(max_length=200_000)
     note: str | None = Field(default=None, max_length=500)
 
 
@@ -118,9 +133,13 @@ class TargetBody(_Body):
     name: str | None = Field(default=None, max_length=200)
     domain_id: str | None = Field(default=None, max_length=64)
     category: str | None = Field(default=None, max_length=100)
+    mode: Literal["continue", "replace"] = "continue"
+    """既有場景：continue 先執行既有步驟再接著錄製，replace 整份換成錄製的草稿。"""
 
     def target(self) -> RecordingTarget:
-        return RecordingTarget(self.scene_id, self.new, self.name, self.domain_id, self.category)
+        return RecordingTarget(
+            self.scene_id, self.new, self.name, self.domain_id, self.category, self.mode
+        )
 
 
 class RecordingStart(_Body):
@@ -274,8 +293,8 @@ def api_router(services: Services) -> APIRouter:
     def save_contract(scene_id: str, body: ContractSave) -> dict[str, object]:
         """入參與出參的表單：只改寫場景檔的 inputs、outputs 兩段，存成新版本。"""
 
-        def items(rows: list[ContractItem]) -> list[dict[str, object]]:
-            return [row.model_dump(by_alias=True) for row in rows]
+        def items(rows: list[ContractItem] | None) -> list[dict[str, object]] | None:
+            return None if rows is None else [row.model_dump(by_alias=True) for row in rows]
 
         revision = services.save_contract(
             scene_id,
@@ -285,6 +304,40 @@ def api_router(services: Services) -> APIRouter:
             note=body.note,
         )
         return revision.to_json()
+
+    @router.post("/contract/render")
+    def contract_render(body: ContractRender) -> dict[str, object]:
+        """入參或出參的表格 → 段落的 YAML 原文（表格切換成 YAML 時用；不存檔）。"""
+        items = [row.model_dump(by_alias=True) for row in body.items]
+        return {"key": body.key, "text": render_contract(body.key, items)}
+
+    @router.get("/scenes/{scene_id}/sections/{key}")
+    def section(scene_id: str, key: str, revision: int | None = None) -> dict[str, object]:
+        """場景檔一段的原文（steps、verify、inputs、outputs）。"""
+        shown = services.get_revision(scene_id, revision)
+        text = services.revision_files(scene_id, shown.number)[SCENARIO_FILE]
+        if key not in SECTION_KEYS:
+            raise ServiceError(404, "section_unknown", t("error.section_unknown", key=key))
+        return {"key": key, "revision": shown.number, "text": section_text(text, key)}
+
+    @router.put("/scenes/{scene_id}/sections/{key}", status_code=201)
+    def save_section(scene_id: str, key: str, body: SectionSave) -> dict[str, object]:
+        """直接編輯一段的原文：只換掉這一段，存成新版本。"""
+        revision = services.save_section(
+            scene_id, key, base=body.base_revision, text=body.text, note=body.note
+        )
+        return revision.to_json()
+
+    @router.post("/scenes/{scene_id}/sections/{key}/preview")
+    def preview_section(scene_id: str, key: str, body: SectionSave) -> dict[str, object]:
+        """換掉一段之後校驗（不存檔）；入參、出參回傳表格用的資料（原文切換回表格時用）。"""
+        scenario = services.preview_section(scene_id, key, base=body.base_revision, text=body.text)
+        specs = {"inputs": scenario.inputs, "outputs": scenario.outputs}.get(key, {})
+        items = {
+            name: spec.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for name, spec in specs.items()
+        }
+        return {"key": key, "ok": True, "items": items}
 
     # ------------------------------------------------------------ 執行
 

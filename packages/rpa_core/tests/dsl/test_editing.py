@@ -1,6 +1,7 @@
 """改寫場景檔的入參、出參段落（表單編輯），以及產生 YAML 片段。"""
 
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
 
@@ -184,3 +185,57 @@ def test_rename_input() -> None:
         "{{ inputs.b }} {{ inputs.ab }} {{ facts.inputs.a }}"
     )
     assert rename_input("{{ inputs['a'] }}", "a", "b") == "{{ inputs['b'] }}"
+
+
+SECTIONS = dedent(
+    """\
+    schemaVersion: 1
+    id: demo
+    name: 範例
+
+    steps:
+    - id: open  # 第一欄開始的清單也是 steps 的內容
+      action: goto
+      url: https://example.com/
+
+    # 斷言的說明
+    verify:
+      - value: "{{ facts.x }}"
+        notEmpty: true
+    """
+)
+
+
+def test_section_text_and_replace_section() -> None:
+    from rpa_core.dsl.editing import replace_section, section_text
+
+    steps = section_text(SECTIONS, "steps")
+    assert steps.splitlines()[0] == "steps:"
+    assert steps.splitlines()[-1] == "  url: https://example.com/"
+    assert section_text(SECTIONS, "inputs") == ""
+
+    verify = 'verify:\n  - value: "{{ facts.y }}"\n    equals: a'
+    replaced = replace_section(SECTIONS, "verify", verify)
+    assert "# 斷言的說明" in replaced  # 段落前的註解保留
+    assert "facts.x" not in replaced
+    assert "facts.y" in replaced
+    assert replaced.startswith(SECTIONS.split("verify:")[0])
+
+    added = replace_section(SECTIONS, "inputs", "inputs:\n  q: { type: string }")
+    assert added.index("inputs:") < added.index("steps:")
+    removed = replace_section(added, "inputs", "")
+    assert removed == SECTIONS
+
+
+def test_append_items_follows_the_existing_indentation() -> None:
+    from rpa_core.dsl.editing import append_items
+
+    item = ["  - id: next", "    action: goto", "    url: https://example.com/next"]
+    appended = append_items(SECTIONS, "steps", item, whole=["steps:", *item])
+    assert "\n- id: next\n  action: goto\n" in appended
+    assert appended.index("- id: next") < appended.index("# 斷言的說明")
+
+    flow = "schemaVersion: 1\nsecrets: [A]\n"
+    assert append_items(flow, "secrets", ["  - B"], whole=["secrets:", "  - A", "  - B"]) == (
+        "schemaVersion: 1\nsecrets:\n  - A\n  - B\n"
+    )

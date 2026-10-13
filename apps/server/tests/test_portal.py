@@ -205,8 +205,10 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     expect(card).to_contain_text("查詢不存在的紀錄")
     expect(card.locator('[data-status="none"]')).to_be_visible()
 
-    # 從卡片調試（驗證最新版本），結果與截圖回到卡片上
+    # 卡片的「調試」打開逐步調試頁；從那裡驗證最新版本，結果與截圖回到卡片上
     card.locator('[data-action="debug"]').click()
+    page.wait_for_url(f"{portal}/scenes/ba-003/debug")
+    page.locator('[data-action="validate"]').click()
     start_run(page, {"recordId": "DEMO-NOTFOUND"}, engine, site)
     wait_for_run(page)
     expect(page.locator("pre.source").nth(1)).to_contain_text("查無紀錄")
@@ -220,11 +222,15 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     width = card.locator("img").evaluate("image => image.decode().then(() => image.naturalWidth)")
     assert width > 0
 
-    # 卡片上的「斷言腳本」打開編輯頁並跳到 verify
+    # 卡片上的「斷言腳本」只打開場景檔的 verify 段；點頁面事實插入到游標的位置
     card.locator("a", has_text="斷言腳本").click()
-    page.wait_for_url(re.compile(r"/scenes/ba-003/edit\?focus=verify$"))
-    selected = page.locator('textarea[name="scenario.yaml"]').evaluate(
-        "area => area.value.slice(area.selectionStart, area.selectionEnd)"
-    )
-    assert selected == "verify"
+    page.wait_for_url(re.compile(r"/scenes/ba-003/edit\?part=verify$"))
+    area = page.locator('#section-form textarea[name="text"]')
+    expect(area).to_have_value(re.compile(r"^verify:"))
+    area.evaluate("area => area.setSelectionRange(area.value.length, area.value.length)")
+    page.locator("[data-insert]", has_text="facts.").first.click()
+    assert area.input_value().rstrip().endswith("}}")
+    page.locator('a.active[href$="part=verify"]').wait_for()
+    page.locator('a[href$="part=steps"]').click()
+    expect(area).to_have_value(re.compile(r"^steps:"))
     assert errors == []

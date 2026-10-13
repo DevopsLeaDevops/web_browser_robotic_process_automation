@@ -1,11 +1,12 @@
 """頁面渲染：Jinja2 樣板（rpa_server/templates）與共用的導覽、狀態標籤。
 
 不依賴 FastAPI：頁面路由（pages.py）只負責取資料再呼叫 :func:`render`，樣板也能單獨測試。
-版面沿用設計系統 v1.0 與 MVP 原型：頂部第一級、左側第二級選單（ADR 0006、0011）。
+版面沿用設計系統 v1.1 與 MVP 原型：頂部第一級、左側第二級選單（ADR 0006、0011）。
 「場景管理」的二級選單是領域（資料庫裡的 domains），最後是「領域管理」與「登入與憑證」（M4）。
 """
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Final, cast
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
+from markupsafe import Markup, escape
 
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_server import __version__
@@ -260,8 +262,22 @@ def js_messages() -> dict[str, str]:
         "js.working",
         "js.contract_saved",
         "js.rerun_started",
+        "js.section_line",
     )
     return {key.removeprefix("js."): t(key) for key in keys}
+
+
+_SINGLE_EXPRESSION: Final = re.compile(r"^\{\{\s*([^{}]+?)\s*\}\}$")
+
+
+def _expression(text: str) -> Markup:
+    """只有一個 ``{{ }}`` 的運算式顯示成裡面的內容（facts.record.recordId），比較短也比較好讀。
+
+    在「.」後面加上斷行點：欄位窄的時候在名稱之間換行，不把名稱從中間切開。
+    """
+    match = _SINGLE_EXPRESSION.match(text.strip())
+    shown = match.group(1) if match else text
+    return Markup(".<wbr>").join(escape(part) for part in shown.split("."))
 
 
 _env = Environment(
@@ -285,6 +301,7 @@ cast("dict[str, object]", _env.globals).update(
 _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number
 _env.filters["compact_json"] = _compact_json
+_env.filters["expression"] = _expression
 
 
 def render(

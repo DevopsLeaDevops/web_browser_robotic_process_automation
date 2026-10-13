@@ -268,7 +268,7 @@ $ rpa record --from 别台电脑录的.py --out erp-login.py --scenario erp-logi
         <dl class="spec-list">
           <dt>录制</dt><dd>用 Playwright codegen：浏览器窗口与 Inspector 开在这台电脑上，操作完关掉窗口即结束；需要图形界面。<code>--browser chromium|firefox</code>，<code>--load-storage state.json</code> 先加载登录状态。</dd>
           <dt>输出</dt><dd><code>--out</code> 是密码遮罩成 <code>***</code> 的录制稿（含密码的暂存原始稿转换后删除）；<code>--scenario</code> 是 DSL 草稿，<code>--id</code>、<code>--name</code> 指定场景 id 与名称。</dd>
-          <dt>转换</dt><dd>goto、click、fill、press、select_option、check 与常见的 expect；输入的值变成入参（默认值是录到的值），密码字段变成 Secret（名称是场景 id 加上 <code>_PASSWORD</code>），转不了的行以注释保留并列出行号。管理 Portal 的录制用同一套转换。</dd>
+          <dt>转换</dt><dd>goto、click、fill、press、select_option、check 与常见的 expect；Inspector 的「Assert text」「Assert value」变成 <code>extract</code> 步骤＋出参＋<code>verify</code> 检查（录到的值等于某个输入时检查等于该入参，否则检查有内容）；输入的值变成入参（默认值是录到的值），密码字段变成 Secret（名称是场景 id 加上 <code>_PASSWORD</code>），转不了的行以注释保留并列出行号。管理 Portal 的录制用同一套转换。</dd>
         </dl>
       </div>
     </section>

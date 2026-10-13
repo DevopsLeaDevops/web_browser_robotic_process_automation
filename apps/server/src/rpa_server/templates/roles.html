@@ -11,7 +11,7 @@
   {% if not display %}<div class="notice warn">{{ t("roles.no_display") }}</div>{% endif %}
 
   <section class="panel">
-    <div class="panel-header"><h2>{{ t("roles.list") }}</h2><span class="muted">{{ roles | length }}</span></div>
+    <div class="panel-header"><h2>{{ t("roles.list") }} <span class="count">{{ roles | length }}</span></h2></div>
     {% if roles %}
     <div class="table-scroll"><table class="wrap">
       <thead><tr>

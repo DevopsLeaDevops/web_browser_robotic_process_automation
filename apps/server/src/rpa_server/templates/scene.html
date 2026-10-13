@@ -58,18 +58,20 @@
 
   <section class="panel" id="settings">
     <div class="panel-header"><h2>{{ t("scene.settings") }}</h2></div>
-    <form class="panel-body stack" data-action="scene-settings" data-scene="{{ scene.id }}">
-      <label class="field">{{ t("scene.domain") }}
-        <select name="domainId">
-          <option value="">{{ t("scene.no_domain") }}</option>
-          {% for item in domains %}<option value="{{ item.id }}"{% if item.id == scene.domain_id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}
-        </select>
-      </label>
-      <label class="field">{{ t("scene.base_url") }}
-        <input type="url" name="baseUrl" value="{{ scene.base_url or '' }}" placeholder="{{ default_base_url or 'https://' }}">
-        <span class="cell-sub">{{ t("scene.base_url_hint", default=default_base_url or "—") }}</span>
-      </label>
-      <div><button class="button" type="submit">{{ t("scene.save_settings") }}</button></div>
+    <form class="panel-body" data-action="scene-settings" data-scene="{{ scene.id }}">
+      <div class="field-row">
+        <label class="field settings-domain">{{ t("scene.domain") }}
+          <select name="domainId">
+            <option value="">{{ t("scene.no_domain") }}</option>
+            {% for item in domains %}<option value="{{ item.id }}"{% if item.id == scene.domain_id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field settings-url">{{ t("scene.base_url") }}
+          <input type="url" name="baseUrl" value="{{ scene.base_url or '' }}" placeholder="{{ default_base_url or 'https://' }}">
+        </label>
+        <button class="button" type="submit">{{ t("scene.save_settings") }}</button>
+      </div>
+      <p class="hint">{{ t("scene.base_url_hint", default=default_base_url or "—") }}</p>
     </form>
   </section>
 

@@ -9,7 +9,14 @@
   first／last／nth、filter(has_text=…) 與串接（外層 → within）。
 - 轉不了的行（例如 hover、上傳檔案、iframe、新分頁）以註解留在草稿裡，並列在警告中。
 - **自動參數化**：每個 fill 的值變成一個入參，預設值是錄到的值，名稱取自欄位的英數名稱
-  （test id、CSS 的 #id 等），沒有英數名稱時叫 field、field_2…，欄位的標籤寫在入參說明。
+  （test id、CSS 的 #id 等），沒有英數名稱時依欄位種類叫 text、number…，欄位的標籤寫在入參說明；
+  數字欄位（spinbutton）填的是整數時入參是 integer。
+- **斷言 → 出參與獨立斷言**：Inspector 的 assert text、assert value（``to_contain_text``、
+  ``to_have_text``、``to_have_value``）代表「這裡的內容是要取得的結果」：在那個位置抽取成頁面事實，
+  成為一個出參，並在 verify 檢查它有值；錄到的值剛好是前面輸入的值時，改成檢查與那個入參相同。
+  assert visibility 等其他斷言是步驟內的檢查（expect），不產生出參。
+- **接著既有場景錄製**：``existing`` 是既有場景時，新的名稱（入參、Secret、步驟 id、頁面事實、出參）
+  避開既有的名稱；:func:`merge_recording` 把轉換結果接在既有場景檔的最後，原有內容一個字都不動。
 - **密碼不落地**：看起來是密碼欄位的輸入改成 Secret 引用，原始錄製稿裡的值也遮罩成 ``***``。
 - 第一個網址的來源（例如 http://127.0.0.1:8765）成為 browser.baseUrl，同來源的 goto 改寫成相對路徑。
 """
@@ -23,7 +30,9 @@ from datetime import UTC, datetime
 from typing import Final, cast
 from urllib.parse import urlsplit
 
+from rpa_core.dsl.editing import append_items
 from rpa_core.dsl.fields import catalog
+from rpa_core.dsl.scenario import Scenario
 from rpa_core.dsl.validation import validate_text
 from rpa_core.dsl.yaml_writer import block, scalar
 
@@ -35,6 +44,7 @@ __all__ = [
     "ConversionWarning",
     "convert_recording",
     "mask_source",
+    "merge_recording",
 ]
 
 PASSWORD_WORDS: Final = ("password", "passwd", "passcode", "pwd", "密碼", "密码", "口令")
@@ -102,14 +112,30 @@ class Conversion:
     secrets: tuple[str, ...]
     """密碼欄位改成的 Secret 名稱；值要另外設定。"""
     steps: int
+    outputs: tuple[str, ...] = ()
+    """由 assert text、assert value 產生的出參名稱。"""
+    parts: "ConversionParts | None" = None
+    """各段落的內容，接在既有場景後面時用（:func:`merge_recording`）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
             "warnings": [warning.to_json() for warning in self.warnings],
             "inputs": list(self.inputs),
             "secrets": list(self.secrets),
+            "outputs": list(self.outputs),
             "steps": self.steps,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ConversionParts:
+    """轉換結果的各段落：步驟（已寫好的 YAML 項目，含註解）與入參、出參、斷言。"""
+
+    step_lines: tuple[str, ...]
+    inputs: Mapping[str, Mapping[str, object]]
+    secrets: tuple[str, ...]
+    outputs: Mapping[str, Mapping[str, object]]
+    verify: tuple[Mapping[str, object], ...]
 
 
 # ---------------------------------------------------------------- 呼叫鏈
@@ -371,6 +397,41 @@ def _unique(name: str, used: set[str]) -> str:
     return candidate
 
 
+_ROLE_NAMES: Final = {
+    "textbox": "text",
+    "searchbox": "search",
+    "spinbutton": "number",
+    "combobox": "option",
+}
+"""欄位沒有英數名稱時，依角色取的入參名稱。"""
+_INTEGER: Final = re.compile(r"-?[0-9]{1,15}")
+
+
+def _input_name(target: Mapping[str, object], used: set[str]) -> str:
+    candidates = (_identifier_from(word) for word in _words(target))
+    found = next((item for item in candidates if item), None)
+    role = target.get("role")
+    fallback = _ROLE_NAMES.get(role, "field") if isinstance(role, str) else "field"
+    return _unique(found or fallback, used)
+
+
+def _camel(name: str) -> str:
+    """record_id → recordId（出參沿用範例場景的 camelCase）。"""
+    head, *rest = name.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in rest if part)
+
+
+def _output_name(target: Mapping[str, object], fallback: str, used: set[str]) -> str:
+    candidates = (_identifier_from(word) for word in _words(target))
+    found = next((item for item in candidates if item), None)
+    return _unique(_camel(found) if found else fallback, used)
+
+
+def _short(text: str, size: int = 40) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= size else text[: size - 1] + "…"
+
+
 def _secret_name(scene_id: str, used: set[str]) -> str:
     base = re.sub(r"[^A-Z0-9]+", "_", scene_id.upper()).strip("_") or "SCENE"
     if not base[0].isalpha():
@@ -400,8 +461,17 @@ class _State:
     warnings: list[ConversionWarning] = field(default_factory=list[ConversionWarning])
     inputs: dict[str, dict[str, object]] = field(default_factory=dict[str, dict[str, object]])
     secrets: list[str] = field(default_factory=list[str])
+    outputs: dict[str, dict[str, object]] = field(default_factory=dict[str, dict[str, object]])
+    verify: list[dict[str, object]] = field(default_factory=list[dict[str, object]])
+    typed: dict[str, str] = field(default_factory=dict[str, str])
+    """入參名稱 → 錄到的輸入文字（斷言的值剛好是輸入的值時，改成和入參比較）。"""
     used_inputs: set[str] = field(default_factory=set[str])
     used_secrets: set[str] = field(default_factory=set[str])
+    used_facts: set[str] = field(default_factory=set[str])
+    """頁面事實與出參的名稱（兩者用同一個名稱）。"""
+    used_ids: set[str] = field(default_factory=set[str])
+    first_number: int = 1
+    """步驟 id 的編號從這裡開始（接在既有步驟後面時不重複）。"""
     other_pages: set[str] = field(default_factory=set[str])
 
     def warn(self, node: ast.AST, message: str) -> None:
@@ -670,9 +740,12 @@ def _fill(state: _State, target: dict[str, object], text: str, described: str) -
     if not text:
         state.add("fill", {"target": target, "value": ""}, described)
         return
-    candidates = (_identifier_from(word) for word in _words(target))
-    name = _unique(next((item for item in candidates if item), None) or "field", state.used_inputs)
-    state.inputs[name] = {"type": "string", "description": _describe(target), "default": text}
+    name = _input_name(target, state.used_inputs)
+    spec: dict[str, object] = {"type": "string", "description": _describe(target), "default": text}
+    if target.get("role") == "spinbutton" and _INTEGER.fullmatch(text):
+        spec = {**spec, "type": "integer", "default": int(text)}
+    state.inputs[name] = spec
+    state.typed[name] = text
     state.add("fill", {"target": target, "value": f"{{{{ inputs.{name} }}}}"}, described)
 
 
@@ -712,9 +785,8 @@ def _assertion(state: _State, statement: ast.Expr, node: ast.Call, inner: ast.Ca
         field_name, expected = _ELEMENT_EXPECTS[method]
         fields[field_name] = expected
     elif method in ("to_contain_text", "to_have_text", "to_have_value") and value is not None:
-        fields["value" if method == "to_have_value" else "text"] = value
-        if method != "to_contain_text":
-            fields["match"] = "equals"
+        _result(state, target, value, method == "to_have_value")
+        return
     elif method == "to_be_empty":
         fields["value"] = ""
         fields["match"] = "equals"
@@ -722,6 +794,50 @@ def _assertion(state: _State, statement: ast.Expr, node: ast.Call, inner: ast.Ca
         state.warn(statement, catalog("recording.unsupported.assertion", name=method))
         return
     state.add("expect", fields, _describe(target))
+
+
+def _result(state: _State, target: dict[str, object], value: str, is_value: bool) -> None:
+    """assert text／assert value：在這裡取得結果 → 頁面事實、出參與獨立斷言。
+
+    錄到的值只是錄製當時的結果（例如新紀錄的編號），之後每次執行都可能不同，所以不直接比較；
+    斷言檢查「有取得內容」。錄到的值剛好是前面輸入的值時，檢查它與那個入參相同。
+    """
+    described = _describe(target)
+    name = _output_name(target, "value" if is_value else "text", state.used_facts)
+    if not is_value:
+        # 等內容出現再讀，避免讀到還沒更新的畫面
+        state.add("expect", {"target": target, "state": "visible"}, described)
+    fields: dict[str, object] = {"target": target, "as": name}
+    if is_value:
+        fields["get"] = "value"
+    state.add("extract", fields, described)
+    fact = f"{{{{ facts.{name} }}}}"
+    state.outputs[name] = {
+        "type": "string",
+        "description": catalog("recording.output", target=described, value=_short(value)),
+        "from": fact,
+    }
+    typed = next(
+        (item for item, text in state.typed.items() if text.strip() == value.strip()), None
+    )
+    if typed is not None:
+        state.verify.append(
+            {
+                "name": catalog("recording.verify.equals", target=described, input=typed),
+                "value": fact,
+                "equals": f"{{{{ inputs.{typed} }}}}",
+            }
+        )
+    else:
+        state.verify.append(
+            {
+                "name": catalog(
+                    "recording.verify.not_empty", target=described, value=_short(value)
+                ),
+                "value": fact,
+                "notEmpty": True,
+            }
+        )
 
 
 def mask_source(source: str, spans: Sequence[Span]) -> str:
@@ -737,6 +853,19 @@ def mask_source(source: str, spans: Sequence[Span]) -> str:
     return "".join(lines)
 
 
+def _seed(state: _State, existing: Scenario) -> None:
+    """接在既有場景後面：新的名稱避開既有的名稱。"""
+    state.used_inputs.update(existing.inputs)
+    state.used_secrets.update(existing.secrets)
+    state.used_facts.update(existing.outputs)
+    for step in existing.steps or []:
+        state.used_ids.add(step.id)
+        fact = getattr(step, "as_", None)
+        if isinstance(fact, str):
+            state.used_facts.add(fact)
+    state.first_number = len(existing.steps or []) + 1
+
+
 def convert_recording(
     source: str,
     *,
@@ -747,18 +876,27 @@ def convert_recording(
     role: str | None = None,
     category: str | None = None,
     now: datetime | None = None,
+    existing: Scenario | None = None,
+    prepend_goto: bool = True,
 ) -> Conversion:
     """把 codegen 的錄製稿轉成場景草稿。
 
     ``url`` 是錄製時的起始網址（錄製稿第一步不是 goto 時，補一個 goto 到這裡）；
     ``engine`` 是錄製用的瀏覽器；``role`` 是錄製時載入的登入角色，寫成 ``login: { role: … }``。
+    ``existing`` 是要接著錄製的既有場景（名稱避開它的名稱）；``prepend_goto=False`` 時不補 goto
+    （接著既有步驟錄製時，瀏覽器已經在既有步驟最後的頁面）。
     """
     try:
         tree = ast.parse(source)
     except SyntaxError as error:
         raise ConversionError(catalog("recording.syntax", line=error.lineno or 0)) from error
     start = _first_goto(tree) or url
-    state = _State(scene_id=scene_id, origin=_origin(start), source=source)
+    origin = _origin(start)
+    if existing is not None and existing.browser.base_url:
+        origin = _origin(existing.browser.base_url) or origin
+    state = _State(scene_id=scene_id, origin=origin, source=source)
+    if existing is not None:
+        _seed(state, existing)
     for statement in _statements(tree.body):
         if isinstance(statement, ast.Assign | ast.AnnAssign):
             _assignment(state, statement)
@@ -767,7 +905,7 @@ def convert_recording(
         elif isinstance(statement, ast.Expr):
             _expression(state, statement)
     steps = state.steps
-    if not steps or steps[0].action != "goto":
+    if prepend_goto and (not steps or steps[0].action != "goto"):
         if start is None:
             raise ConversionError(catalog("recording.empty"))
         first = state.relative(start)
@@ -777,11 +915,17 @@ def convert_recording(
                 "goto", {"url": first}, catalog("recording.step.goto", url=first, target="", key="")
             ),
         )
-    text = _render(state, name=name, engine=engine, role=role, category=category, now=now)
-    checked = validate_text(text)
-    if not checked.ok:  # pragma: no cover - 轉換器本身的錯誤，測試會發現
-        details = "; ".join(issue.message for issue in checked.issues)
-        raise ConversionError(catalog("recording.invalid", detail=details))
+    if not state.steps:
+        raise ConversionError(catalog("recording.empty"))
+    step_lines = _step_lines(state)
+    text = _render(
+        state, step_lines, name=name, engine=engine, role=role, category=category, now=now
+    )
+    if existing is None:
+        checked = validate_text(text)
+        if not checked.ok:  # pragma: no cover - 轉換器本身的錯誤，測試會發現
+            details = "; ".join(issue.message for issue in checked.issues)
+            raise ConversionError(catalog("recording.invalid", detail=details))
     return Conversion(
         scenario=text,
         masked_source=mask_source(source, sorted(state.masked)),
@@ -789,11 +933,51 @@ def convert_recording(
         inputs=tuple(state.inputs),
         secrets=tuple(state.secrets),
         steps=len(state.steps),
+        outputs=tuple(state.outputs),
+        parts=ConversionParts(
+            step_lines=tuple(step_lines),
+            inputs=state.inputs,
+            secrets=tuple(state.secrets),
+            outputs=state.outputs,
+            verify=tuple(state.verify),
+        ),
     )
+
+
+def _step_lines(state: _State) -> list[str]:
+    """步驟的 YAML 項目（兩格縮排），轉不了的行以註解夾在中間。"""
+    lines: list[str] = []
+    number = state.first_number
+    for entry in state.entries:
+        if isinstance(entry, ConversionWarning):
+            note = catalog("recording.comment", line=entry.line, message=entry.message)
+            lines.append(f"  # {note}")
+            if entry.source:
+                lines.append(f"  #   {entry.source}")
+            continue
+        step_id = f"{entry.action.lower()}-{number}"
+        while step_id in state.used_ids:
+            number += 1
+            step_id = f"{entry.action.lower()}-{number}"
+        state.used_ids.add(step_id)
+        number += 1
+        step: dict[str, object] = {
+            "id": step_id,
+            "name": entry.name,
+            "action": entry.action,
+            **entry.fields,
+        }
+        lines += block({"steps": [step]}, flow_keys=frozenset({"target"}))[1:]
+    return lines
+
+
+def _contract(name: str, specs: Mapping[str, Mapping[str, object]]) -> list[str]:
+    return block({name: {item: dict(spec) for item, spec in specs.items()}})
 
 
 def _render(
     state: _State,
+    step_lines: Sequence[str],
     *,
     name: str,
     engine: str | None,
@@ -814,7 +998,9 @@ def _render(
     if category:
         lines.append(f"category: {scalar(category)}")
     if state.inputs:
-        lines += ["", *block({"inputs": state.inputs})]
+        lines += ["", *_contract("inputs", state.inputs)]
+    if state.outputs:
+        lines += ["", *_contract("outputs", state.outputs)]
     if state.secrets:
         lines += ["", "secrets:", *(f"  - {scalar(secret)}" for secret in state.secrets)]
     browser: dict[str, object] = {}
@@ -826,21 +1012,61 @@ def _render(
         lines += ["", *block({"browser": browser})]
     if role:
         lines += ["", *block({"login": {"role": role}})]
-    lines += ["", "steps:"]
-    number = 0
-    for entry in state.entries:
-        if isinstance(entry, ConversionWarning):
-            note = catalog("recording.comment", line=entry.line, message=entry.message)
-            lines.append(f"  # {note}")
-            if entry.source:
-                lines.append(f"  #   {entry.source}")
-            continue
-        number += 1
-        step: dict[str, object] = {
-            "id": f"{entry.action.lower()}-{number}",
-            "name": entry.name,
-            "action": entry.action,
-            **entry.fields,
-        }
-        lines += block({"steps": [step]}, flow_keys=frozenset({"target"}))[1:]
+    lines += ["", "steps:", *step_lines]
+    if state.verify:
+        lines += ["", *block({"verify": state.verify})]
     return "\n".join(lines) + "\n"
+
+
+def merge_recording(text: str, existing: Scenario, conversion: Conversion) -> str:
+    """把接著既有場景錄製的結果接在既有場景檔的最後；原有內容（包含註解）一個字都不動。
+
+    步驟接在 steps 最後；新的入參、Secret、出參與獨立斷言接在各段落最後（沒有這段時新增）。
+    結果沒有通過校驗時拋出 :class:`ConversionError`。
+    """
+    parts = conversion.parts
+    if parts is None:  # pragma: no cover - convert_recording 一定會填
+        raise ConversionError(catalog("recording.empty"))
+    text = append_items(text, "steps", parts.step_lines, whole=["steps:", *parts.step_lines])
+    if parts.inputs:
+        items = _contract("inputs", parts.inputs)
+        merged = {
+            **{
+                n: s.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for n, s in existing.inputs.items()
+            },
+            **parts.inputs,
+        }
+        text = append_items(text, "inputs", items[1:], whole=_contract("inputs", merged))
+    if parts.secrets:
+        items = [f"  - {scalar(secret)}" for secret in parts.secrets]
+        whole = [
+            "secrets:",
+            *(f"  - {scalar(item)}" for item in [*existing.secrets, *parts.secrets]),
+        ]
+        text = append_items(text, "secrets", items, whole=whole)
+    if parts.outputs:
+        items = _contract("outputs", parts.outputs)
+        merged = {
+            **{
+                n: s.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for n, s in existing.outputs.items()
+            },
+            **parts.outputs,
+        }
+        text = append_items(text, "outputs", items[1:], whole=_contract("outputs", merged))
+    if parts.verify:
+        items = block({"verify": list(parts.verify)})
+        merged_verify = [
+            *(
+                check.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for check in existing.verify or []
+            ),
+            *parts.verify,
+        ]
+        text = append_items(text, "verify", items[1:], whole=block({"verify": merged_verify}))
+    checked = validate_text(text)
+    if not checked.ok:
+        details = "; ".join(issue.message for issue in checked.issues)
+        raise ConversionError(catalog("recording.invalid", detail=details))
+    return text

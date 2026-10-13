@@ -8,10 +8,6 @@ updates:
       actions:
         patterns: ["*"]
 
-  - package-ecosystem: uv
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      python:
-        patterns: ["*"]
+  # Python 依賴不用 Dependabot：它還不支援 uv workspace（解析失敗「your workspace requires rpa-cli」，
+  # https://github.com/dependabot/dependabot-core/issues/12072 ）。改由 .github/workflows/uv-upgrade.yml
+  # 每週執行 uv lock --upgrade 並開 PR。

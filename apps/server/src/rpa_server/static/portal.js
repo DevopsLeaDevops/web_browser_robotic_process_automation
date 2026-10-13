@@ -594,19 +594,48 @@
       });
       qsa('[data-for]', form).forEach(element => { element.hidden = element.dataset.for !== mode; });
     };
-    qsa('[data-mode]', form).forEach(tab => tab.addEventListener('click', () => showMode(tab.dataset.mode)));
+    const defaults = JSON.parse((qs('#recording-defaults') || {}).textContent || '{}');
+    const checked = name => form.querySelector('[name="' + name + '"]:checked');
+    // 既有場景：顯示對應的說明；接著錄製時不用起始網址（從現有步驟最後的畫面開始）
     const showTarget = () => {
-      const kind = form.querySelector('[name="targetKind"]:checked').value;
+      const kind = checked('targetKind').value;
       qsa('[data-target]', form).forEach(element => { element.hidden = element.dataset.target !== kind; });
+      const scene = defaults[field('existingId') ? field('existingId').value : ''] || {};
+      const continueRadio = form.querySelector('[name="existingMode"][value="continue"]');
+      if (continueRadio) {
+        continueRadio.disabled = Boolean(scene.script);
+        if (scene.script) form.querySelector('[name="existingMode"][value="replace"]').checked = true;
+      }
+      const existingMode = kind === 'existing' && checked('existingMode') ? checked('existingMode').value : '';
+      const hint = existingMode === 'continue' ? 'continue-' + mode : existingMode;
+      qsa('[data-hint]', form).forEach(element => {
+        element.hidden = element.dataset.hint !== hint && !(element.dataset.hint === 'script' && kind === 'existing' && scene.script);
+      });
+      const continuing = existingMode === 'continue';
+      qs('[data-url]', form).hidden = continuing;
+      qs('[data-url-continue]', form).hidden = !continuing;
     };
-    qsa('[name="targetKind"]', form).forEach(radio => radio.addEventListener('change', showTarget));
+    // 選既有場景時，預先填入它的起始網址、瀏覽器與登入角色
+    const fillDefaults = () => {
+      if (checked('targetKind').value !== 'existing') return;
+      const scene = defaults[field('existingId').value];
+      if (!scene) return;
+      field('url').value = scene.url || '';
+      if (scene.engine && qs('option[value="' + scene.engine + '"]', field('engine'))) field('engine').value = scene.engine;
+      field('roleId').value = scene.roleId && qs('option[value="' + scene.roleId + '"]', field('roleId')) ? scene.roleId : '';
+    };
+    qsa('[data-mode]', form).forEach(tab => tab.addEventListener('click', () => { showMode(tab.dataset.mode); showTarget(); }));
+    qsa('[name="targetKind"]', form).forEach(radio => radio.addEventListener('change', () => { fillDefaults(); showTarget(); }));
+    qsa('[name="existingMode"]', form).forEach(radio => radio.addEventListener('change', showTarget));
+    if (field('existingId')) field('existingId').addEventListener('change', () => { fillDefaults(); showTarget(); });
+    fillDefaults();
     showTarget();
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      const kind = form.querySelector('[name="targetKind"]:checked').value;
+      const kind = checked('targetKind').value;
       const target = kind === 'new'
         ? {sceneId: field('sceneId').value.trim(), new: true, name: field('name').value.trim(), domainId: field('domainId').value || null, category: field('category').value.trim() || null}
-        : {sceneId: field('existingId').value, new: false};
+        : {sceneId: field('existingId').value, new: false, mode: checked('existingMode').value};
       const body = {target, url: field('url').value.trim() || null, engine: field('engine').value, roleId: field('roleId').value || null};
       const button = qs('[data-for="' + mode + '"][type="submit"]', form);
       const list = qs('.form-issues', form);
@@ -693,12 +722,17 @@
     }
     const base = '/api/debug/' + path(session);
     const command = async (button, method, url, body) => {
-      qsa('#debug button, #page-actions button').forEach(element => { element.disabled = true; });
+      const controls = qsa('#debug button, #page-actions button');
+      const before = controls.map(element => element.disabled);
+      controls.forEach(element => { element.disabled = true; });
       busy(button, true);
       const result = await api(method, url, body);
       if (!result.ok) {
         const error = result.data && result.data.error;
         if (result.status === 409 && error && error.code === 'confirm_required') {
+          // 先把畫面還原：使用者關掉確認對話框（不再執行）時，頁面要能繼續操作
+          busy(button, false);
+          controls.forEach((element, index) => { element.disabled = before[index]; });
           return confirmDialog(messages.debug_confirm_title, error.message, messages.debug_confirm_action, async () => {
             $('#dialog').close();
             await command(button, method, url, {...(body || {}), force: true});
@@ -768,6 +802,85 @@
     }
   }
 
+  // ---------------------------------------------------------------- 自動化腳本、斷言腳本（只編輯一段）
+
+  // 在文字框游標的位置插入文字，插入後選取插入的內容
+  function insertAt(area, text) {
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    area.setRangeText(text, start, end, 'end');
+    area.focus();
+    area.dispatchEvent(new Event('input'));
+  }
+
+  // 第 line 行（從 1 開始）整行選取並捲到看得見的位置
+  function selectLine(area, line) {
+    const lines = area.value.split('\n');
+    const start = lines.slice(0, line - 1).reduce((sum, item) => sum + item.length + 1, 0);
+    area.focus();
+    area.setSelectionRange(start, start + (lines[line - 1] || '').length);
+    const height = parseFloat(getComputedStyle(area).lineHeight) || 20;
+    area.scrollTop = Math.max(0, (line - 4) * height);
+  }
+
+  // 校驗問題：落在這一段的標出段落裡的行號，點一下選到那一行
+  function showSectionIssues(list, result, area) {
+    const error = result.data && result.data.error;
+    const issues = error && Array.isArray(error.issues) ? error.issues : [];
+    list.innerHTML = '<li>' + esc(errorMessage(result)) + '</li>' + issues.map((issue, index) => {
+      const where = issue.sectionLine ? fill(messages.section_line, {line: issue.sectionLine}) + '  ' : '';
+      return '<li><button type="button" class="text-btn" data-issue="' + index + '">' + esc(where + (issue.message || issue.text || '')) + '</button></li>';
+    }).join('');
+    list.closest('section').hidden = false;
+    qsa('[data-issue]', list).forEach(button => {
+      const issue = issues[Number(button.dataset.issue)];
+      button.disabled = !issue.sectionLine;
+      button.addEventListener('click', () => selectLine(area, issue.sectionLine));
+    });
+    list.closest('section').scrollIntoView({block: 'nearest'});
+  }
+
+  function bindSection() {
+    const form = qs('#section-form');
+    if (!form) return;
+    const area = form.elements.namedItem('text');
+    const key = form.dataset.key;
+    qsa('[data-insert]').forEach(chip => chip.addEventListener('click', () => insertAt(area, chip.dataset.insert)));
+    // 斷言範本：接在最後，縮排跟著現有的項目
+    const rules = {notEmpty: 'notEmpty: true', equals: 'equals: ""', contains: 'contains: ""', matches: 'matches: "^$"'};
+    qsa('[data-insert-check]').forEach(button => button.addEventListener('click', () => {
+      const found = /^( *)- /m.exec(area.value.replace(/^verify:.*$/m, ''));
+      const indent = found ? found[1] : '  ';
+      let text = area.value.replace(/\s+$/, '');
+      if (!/^verify\s*:/m.test(text)) text = (text ? text + '\n' : '') + 'verify:';
+      const item = [indent + '- name: ', indent + '  value: "{{ facts. }}"', indent + '  ' + rules[button.dataset.insertCheck]];
+      area.value = text + '\n' + item.join('\n') + '\n';
+      const position = area.value.lastIndexOf('- name: ') + '- name: '.length;
+      area.focus();
+      area.setSelectionRange(position, position);
+    }));
+    const save = qs('[data-action="save-section"]');
+    const list = qs('#issue-list');
+    const submit = async () => {
+      qs('#issues').hidden = true;
+      busy(save, true);
+      const result = await api('PUT', '/api/scenes/' + path(form.dataset.scene) + '/sections/' + path(key), {
+        baseRevision: Number(form.dataset.base),
+        text: area.value,
+        note: form.elements.namedItem('note').value.trim() || null,
+      });
+      if (!result.ok) {
+        busy(save, false);
+        if (result.status === 409 && result.data && result.data.error && result.data.error.code === 'stale_base') return toast(messages.stale_base);
+        return showSectionIssues(list, result, area);
+      }
+      flash(messages.saved + ' v' + result.data.number);
+      location.href = '/scenes/' + path(form.dataset.scene) + '/edit?part=' + path(key);
+    };
+    if (save) save.addEventListener('click', submit);
+    form.addEventListener('submit', event => { event.preventDefault(); submit(); });
+  }
+
   // ---------------------------------------------------------------- 入參與出參的表單
 
   // 表單上的文字 → 型別正確的值；轉不了就保留原文，讓伺服器的校驗說明哪裡不對
@@ -775,7 +888,7 @@
     const value = text.trim();
     if (value === '') return null;
     if (type === 'integer' && /^[-+]?\d+$/.test(value)) return Number(value);
-    if (type === 'number' && value !== '' && !Number.isNaN(Number(value))) return Number(value);
+    if (type === 'number' && !Number.isNaN(Number(value))) return Number(value);
     if (type === 'boolean' && (value === 'true' || value === 'false')) return value === 'true';
     return value;
   }
@@ -789,78 +902,201 @@
     return value.split(/[,，\n]/).map(item => item.trim()).filter(Boolean).map(item => typed(item, type));
   }
 
-  function contractRow(row) {
-    const get = name => {
-      const field = qs('[name="' + name + '"]', row);
-      return field ? field.value : '';
+  const RULE_KEYS = ['minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'enum'];
+
+  // 一列的限制摘要（DSL 的寫法，各語言相同）；沒有限制時顯示 —
+  function ruleSummary(row) {
+    const parts = RULE_KEYS.filter(key => {
+      const field = qs('[name="' + key + '"]', row.nextElementSibling);
+      return field && !field.closest('label').hidden && field.value.trim() !== '';
+    });
+    return parts.length ? parts.join(' · ') : '—';
+  }
+
+  // 依型別只顯示用得到的限制；預設值的輸入框跟著型別換
+  function applyType(row) {
+    const type = qs('[name="type"]', row).value;
+    const rules = row.nextElementSibling;
+    qsa('[data-types]', rules).forEach(item => { item.hidden = !item.dataset.types.split(' ').includes(type); });
+    const fallback = qs('[name="default"]', row);
+    if (fallback) {
+      fallback.inputMode = type === 'integer' || type === 'number' ? 'decimal' : 'text';
+      fallback.placeholder = type === 'boolean' ? 'true / false' : fallback.dataset.placeholder;
+    }
+    qs('[data-rule-summary]', row).textContent = ruleSummary(row);
+  }
+
+  function setRequired(row) {
+    const required = qs('[name="required"]', row);
+    const fallback = qs('[name="default"]', row);
+    if (!required || !fallback) return;
+    fallback.disabled = required.checked;
+    if (required.checked) fallback.value = '';
+  }
+
+  function contractRowFrom(editor, name, spec) {
+    const fragment = qs('template[data-row]', editor).content.cloneNode(true);
+    const row = qs('tr.edit-row', fragment);
+    const rules = qs('tr.rule-row', fragment);
+    const set = (root, key, value) => {
+      const field = qs('[name="' + key + '"]', root);
+      if (field && value !== undefined && value !== null) field.value = typeof value === 'string' ? value : JSON.stringify(value);
     };
-    const number = name => (get(name).trim() === '' ? null : Number(get(name)));
-    const type = get('type');
+    row.dataset.previous = name || '';
+    set(row, 'name', name);
+    set(row, 'type', spec.type || 'string');
+    set(row, 'description', spec.description);
+    set(row, 'from', spec.from);
+    const fallback = qs('[name="default"]', row);
+    if (fallback) {
+      fallback.dataset.placeholder = fallback.placeholder;
+      qs('[name="required"]', row).checked = name !== '' && (spec.default === undefined || spec.default === null);
+      set(row, 'default', spec.default);
+    }
+    RULE_KEYS.forEach(key => set(rules, key, key === 'enum' && Array.isArray(spec.enum) ? spec.enum.join(', ') : spec[key]));
+    return fragment;
+  }
+
+  function contractItem(row) {
+    const rules = row.nextElementSibling;
+    const get = (root, name) => {
+      const field = qs('[name="' + name + '"]', root);
+      return field && !(field.closest('label') && field.closest('label').hidden) ? field.value : '';
+    };
+    const number = name => (get(rules, name).trim() === '' ? null : Number(get(rules, name)));
+    const type = get(row, 'type');
     const item = {
-      name: get('name').trim(),
+      name: get(row, 'name').trim(),
       previous: row.dataset.previous || null,
       type,
-      description: get('description').trim() || null,
-      enum: enumValues(get('enum'), type),
+      description: get(row, 'description').trim() || null,
+      enum: enumValues(get(rules, 'enum'), type),
       minLength: number('minLength'),
       maxLength: number('maxLength'),
-      pattern: get('pattern').trim() || null,
+      pattern: get(rules, 'pattern').trim() || null,
       minimum: number('minimum'),
       maximum: number('maximum'),
     };
-    if (row.dataset.kind === 'input') {
-      const required = qs('[name="required"]', row).checked;
-      item.default = required ? null : typed(get('default'), type);
-    } else if (qs('[name="from"]', row)) {
-      item.from = get('from').trim() || null;
+    const required = qs('[name="required"]', row);
+    if (required) {
+      // 必填＝沒有預設值；不是必填的文字入參，預設值可以是空字串
+      const text = get(row, 'default');
+      item.default = required.checked ? null : (text.trim() === '' && type === 'string' ? '' : typed(text, type));
     }
+    if (qs('[name="from"]', row)) item.from = get(row, 'from').trim() || null;
     return item;
   }
 
   function bindContract() {
-    const editor = qs('#contract-editor');
-    if (!editor) return;
-    const form = qs('#contract-form');
-    qsa('[data-action="edit-contract"]').forEach(button => {
-      button.addEventListener('click', () => {
-        editor.hidden = false;
-        editor.scrollIntoView({block: 'start'});
-        const first = qs('input', form);
-        if (first) first.focus();
+    const host = qs('.contract-editors');
+    if (!host) return;
+    const data = JSON.parse(qs('#contract-data').textContent || '{}');
+    const scene = host.dataset.scene;
+    const base = Number(host.dataset.base);
+    const fillRows = (editor, specs) => {
+      const body = qs('[data-rows]', editor);
+      body.innerHTML = '';
+      // 頁面帶的初始資料是 [名稱, 規格] 的清單（保留順序）；原文切回表格時是物件
+      (Array.isArray(specs) ? specs : Object.entries(specs || {})).forEach(([name, spec]) => body.appendChild(contractRowFrom(editor, name, spec)));
+      qsa('tr.edit-row', body).forEach(row => { applyType(row); setRequired(row); });
+    };
+    const items = editor => qsa('tr.edit-row', editor).map(contractItem);
+    const view = editor => qs('[data-view].active', editor).dataset.view;
+    const issues = (editor, result) => {
+      const list = qs('.form-issues', editor);
+      const error = result.data && result.data.error;
+      const found = error && Array.isArray(error.issues) ? error.issues : [];
+      const lines = found.map(issue => (issue.sectionLine ? fill(messages.section_line, {line: issue.sectionLine}) + '  ' : '') + (issue.message || issue.text || ''));
+      const problems = error && Array.isArray(error.problems) ? error.problems.map(item => item.message) : [];
+      list.innerHTML = [errorMessage(result), ...lines, ...problems].map(item => '<li>' + esc(item) + '</li>').join('');
+      list.hidden = false;
+    };
+    const showView = async (editor, next) => {
+      if (view(editor) === next) return;
+      const kind = editor.dataset.kind;
+      const area = qs('[name="yaml"]', editor);
+      qs('.form-issues', editor).hidden = true;
+      // 表格 → YAML：由伺服器產生和存檔一樣的寫法；YAML → 表格：先校驗，再用結果重建表格
+      const result = next === 'yaml'
+        ? await api('POST', '/api/contract/render', {key: kind, items: items(editor)})
+        : await api('POST', '/api/scenes/' + path(scene) + '/sections/' + kind + '/preview', {baseRevision: base, text: area.value});
+      if (!result.ok) return issues(editor, result);
+      if (next === 'yaml') area.value = result.data.text;
+      else fillRows(editor, result.data.items);
+      qsa('[data-view]', editor).forEach(tab => {
+        const active = tab.dataset.view === next;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', String(active));
+      });
+      qsa('[data-view-panel]', editor).forEach(panel => { panel.hidden = panel.dataset.viewPanel !== next; });
+    };
+    qsa('.contract-editor').forEach(editor => {
+      const kind = editor.dataset.kind;
+      fillRows(editor, data[kind]);
+      qsa('[data-view]', editor).forEach(tab => tab.addEventListener('click', () => showView(editor, tab.dataset.view)));
+      editor.addEventListener('change', event => {
+        const row = event.target.closest('tr.edit-row') || (event.target.closest('tr.rule-row') || {}).previousElementSibling;
+        if (!row) return;
+        if (event.target.name === 'type') applyType(row);
+        if (event.target.name === 'required') setRequired(row);
+        qs('[data-rule-summary]', row).textContent = ruleSummary(row);
+      });
+      editor.addEventListener('click', event => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+        const row = button.closest('tr.edit-row');
+        const action = button.dataset.action;
+        if (action === 'toggle-rules') {
+          const rules = row.nextElementSibling;
+          rules.hidden = !rules.hidden;
+          button.setAttribute('aria-expanded', String(!rules.hidden));
+        } else if (action === 'remove-row') {
+          row.nextElementSibling.remove();
+          row.remove();
+        } else if (action === 'move-up' && row.previousElementSibling) {
+          const before = row.previousElementSibling.previousElementSibling;
+          before.before(row, row.nextElementSibling);
+        } else if (action === 'move-down' && row.nextElementSibling.nextElementSibling) {
+          const after = row.nextElementSibling.nextElementSibling.nextElementSibling;
+          after.after(row, row.nextElementSibling);
+        } else if (action === 'add-row') {
+          const body = qs('[data-rows]', editor);
+          body.appendChild(contractRowFrom(editor, '', {type: 'string'}));
+          const added = qsa('tr.edit-row', body).pop();
+          applyType(added);
+          qs('[name="name"]', added).focus();
+        } else if (action === 'close-contract') {
+          editor.hidden = true;
+          fillRows(editor, data[kind]);
+        } else if (action === 'save-contract') {
+          save(editor, button);
+        }
       });
     });
-    qs('[data-action="close-contract"]', form).addEventListener('click', () => { editor.hidden = true; });
-    form.addEventListener('click', event => {
-      const remove = event.target.closest('[data-action="remove-contract-row"]');
-      if (remove) remove.closest('.contract-row').remove();
-      const add = event.target.closest('[data-action="add-contract-row"]');
-      if (add) {
-        const template = qs('#contract-' + add.dataset.kind + '-row');
-        qs('[data-rows="' + add.dataset.kind + '"]', form).insertAdjacentHTML('beforeend', template.innerHTML);
-        const rows = qsa('[data-rows="' + add.dataset.kind + '"] .contract-row', form);
-        qs('[name="name"]', rows[rows.length - 1]).focus();
-      }
-    });
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      const list = qs('.form-issues', form);
-      list.hidden = true;
-      const rows = kind => qsa('[data-rows="' + kind + '"] .contract-row', form).map(contractRow);
-      const button = qs('[type="submit"]', form);
+    const save = async (editor, button) => {
+      const kind = editor.dataset.kind;
+      qs('.form-issues', editor).hidden = true;
+      const note = qs('[name="note"]', editor).value.trim() || null;
       busy(button, true);
-      const result = await api('PUT', '/api/scenes/' + path(form.dataset.scene) + '/contract', {
-        baseRevision: Number(form.dataset.base),
-        inputs: rows('input'),
-        outputs: rows('output'),
-        note: form.elements.namedItem('note').value.trim() || null,
-      });
+      const result = view(editor) === 'yaml'
+        ? await api('PUT', '/api/scenes/' + path(scene) + '/sections/' + kind, {baseRevision: base, text: qs('[name="yaml"]', editor).value, note})
+        : await api('PUT', '/api/scenes/' + path(scene) + '/contract', {baseRevision: base, [kind]: items(editor), note});
       if (!result.ok) {
         busy(button, false);
         if (result.status === 409 && result.data && result.data.error && result.data.error.code === 'stale_base') return toast(messages.stale_base);
-        return showIssues(list, result);
+        return issues(editor, result);
       }
       flash(messages.contract_saved + ' v' + result.data.number);
-      location.href = '/scenes/' + path(form.dataset.scene);
+      location.href = '/scenes/' + path(scene) + '#' + kind;
+    };
+    qsa('[data-action="edit-contract"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const editor = qs('#contract-' + button.dataset.kind);
+        editor.hidden = false;
+        editor.scrollIntoView({block: 'start', behavior: 'smooth'});
+        const first = qs('input[name="name"]', editor);
+        if (first) first.focus({preventScroll: true});
+      });
     });
   }
 
@@ -889,6 +1125,7 @@
   bindDomains();
   bindSceneSettings();
   bindEditor();
+  bindSection();
   bindRunForm();
   bindRun();
   bindRoles();

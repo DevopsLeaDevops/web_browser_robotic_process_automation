@@ -36,7 +36,7 @@
             <tr><td>任务队列与调度</td><td>PostgreSQL 队列（Procrastinate）；SQLite 模式在 API 进程内运行</td><td>Celery + Redis</td><td>少一个组件，原生 asyncio，支持定时任务<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
             <tr><td>产物存储</td><td>S3 兼容的对象存储（产品在 M9 前选定）</td><td>共用磁盘</td><td>多个 worker 的截图、Trace、下载文件需要集中存放；程序只依赖 S3 界面，换产品不用改代码；本机开发用本地目录。原定的 MinIO 社区版已在 2026 年 4 月停止维护</td><td>M9</td></tr>
             <tr><td>管理界面</td><td>Jinja2 服务器端渲染 + 设计系统的 CSS 与少量 JavaScript</td><td>React + TypeScript（原 ADR 0004）、Flask</td><td>MVP 原型的页面全是卡片、表单、筛选与编排，不需要框架；整个工程只有 Python<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
-            <tr><td>界面样式</td><td>界面设计系统 v1.0</td><td>—</td><td>同事交付的视觉契约，文档站、MVP 原型与管理界面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
+            <tr><td>界面样式</td><td>界面设计系统 v1.1</td><td>—</td><td>同事交付的视觉契约，文档站、MVP 原型与管理界面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支持多包；ruff 一个工具处理 lint 与格式化</td><td>M0</td></tr>
             <tr><td>多语言</td><td>各包的 JSON 消息目录；简中以 OpenCC 由繁中产生</td><td>gettext、Babel</td><td>繁中为主要语言，Web UI 也要读同一份翻译；只需人工维护繁中与英文<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
             <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>仓库在 GitHub；Python 3.12 / 3.13 两个版本并行测试</td><td>M0</td></tr>
@@ -54,7 +54,7 @@
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
           <dt>类型检查</dt><dd>pyright strict 模式，新代码一律完整标注类型</dd>
           <dt>依赖锁定</dt><dd><code>uv.lock</code> 记录每个包的确切版本并提交到仓库；CI 以 <code>uv sync --locked</code> 安装，锁文件与 <code>pyproject.toml</code> 不一致时失败</dd>
-          <dt>依赖更新</dt><dd>Dependabot 每周检查 GitHub Actions 与 Python 依赖</dd>
+          <dt>依赖更新</dt><dd>Dependabot 每周检查 GitHub Actions；Python 依赖由每周的 <code>uv-upgrade</code> workflow 运行 <code>uv lock --upgrade</code>、推到 <code>deps/uv-upgrade</code> 分支并开 PR（Dependabot 还不支持 uv workspace）</dd>
         </dl>
       </div>
     </section>

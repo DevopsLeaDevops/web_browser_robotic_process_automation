@@ -23,8 +23,14 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from rpa_core.dsl import Scenario, validate_file
-from rpa_core.dsl.editing import replace_contract
+from rpa_core.dsl import GotoStep, Scenario, validate_file
+from rpa_core.dsl.editing import (
+    SECTION_KEYS,
+    contract_section,
+    find_block,
+    replace_contract,
+    replace_section,
+)
 from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_runner.contract import check_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
@@ -90,6 +96,62 @@ _CONTRACT_KEYS: Final = frozenset(
         "from",
     }
 )
+
+
+def _contract_specs(
+    items: Sequence[Mapping[str, object]],
+) -> tuple[dict[str, dict[str, object]], dict[str, str]]:
+    """表格的每一列 → (名稱 → DSL 寫法的欄位, 改名的「舊名稱 → 新名稱」)。"""
+    converted: dict[str, dict[str, object]] = {}
+    renames: dict[str, str] = {}
+    for item in items:
+        name = str(item.get("name") or "").strip()
+        if not name:
+            raise _invalid("contract_name_missing", t("error.contract_name_missing"))
+        if name in converted:
+            raise _invalid("contract_duplicate", t("error.contract_duplicate", name=name))
+        previous = str(item.get("previous") or "").strip()
+        if previous and previous != name:
+            renames[previous] = name
+        converted[name] = {
+            key: value
+            for key, value in item.items()
+            if key in _CONTRACT_KEYS and value is not None and value not in ("", [])
+        }
+    return converted, renames
+
+
+def render_contract(key: str, items: Sequence[Mapping[str, object]]) -> str:
+    """表格切換成 YAML：入參或出參段落的原文（不存檔、不校驗）。"""
+    if key not in ("inputs", "outputs"):
+        raise _not_found("section_unknown", t("error.section_unknown", key=key))
+    specs, _ = _contract_specs(items)
+    return contract_section(key, specs)
+
+
+def _section_lines(issues: list[dict[str, object]], text: str, key: str) -> None:
+    """校驗問題落在這一段時，加上段落裡的行號 sectionLine（第一行是 ``key:``）。"""
+    found = find_block(text.splitlines(), key)
+    if found is None:
+        return
+    start, end = found
+    for issue in issues:
+        line = issue.get("line")
+        if isinstance(line, int) and start < line <= end:
+            issue["sectionLine"] = line - start
+
+
+def _check_section(key: str, section: str) -> None:
+    """段落的原文要以 ``key:`` 開頭，而且只能有這一段（不能順便改其他最上層的鍵）。"""
+    if not section.strip():
+        return
+    keys = [
+        match.group(1)
+        for line in section.splitlines()
+        if (match := re.match(r"^([A-Za-z_][\w-]*)\s*:", line))
+    ]
+    if keys != [key]:
+        raise _invalid("section_key", t("error.section_key", key=key))
 
 
 _not_found = not_found
@@ -976,6 +1038,36 @@ class Services:
                 usage.setdefault(name, []).append(t("secrets.role_user", id=role.id))
         return usage
 
+    def recording_defaults(self) -> dict[str, dict[str, object]]:
+        """錄製頁選「既有場景的新版本」時預先填入的值：起始網址、瀏覽器、登入角色。
+
+        起始網址是最新版本第一個開啟網址的步驟（以 / 開頭時接上預設網址）；腳本場景只能重新錄製。
+        """
+        defaults: dict[str, dict[str, object]] = {}
+        for scene in self.list_scenes():
+            try:
+                scenario = self.revision_scenario(scene.id, scene.latest_number)
+            except ServiceError:
+                continue
+            base = scene.base_url or scenario.browser.base_url
+            first = next(
+                (step.url for step in scenario.steps or [] if isinstance(step, GotoStep)), None
+            )
+            url = first or base
+            if url and url.startswith("/") and base:
+                url = base.rstrip("/") + url
+            if url and ("{{" in url or not url.startswith(("http://", "https://"))):
+                url = base
+            defaults[scene.id] = {
+                "url": url,
+                "engine": scenario.browser.engine,
+                "roleId": scenario.login.role if scenario.login is not None else None,
+                "script": scenario.script is not None,
+                "steps": len(scenario.steps or []),
+                "revision": scene.latest_number,
+            }
+        return defaults
+
     def scene_needs(self, scenario: Scenario) -> SceneNeeds:
         """場景版本執行前要準備好的角色與 Secrets。"""
         stored = {info.name for info in self.roles.list_secrets()}
@@ -994,34 +1086,25 @@ class Services:
         scene_id: str,
         *,
         base: int,
-        inputs: Sequence[Mapping[str, object]],
-        outputs: Sequence[Mapping[str, object]],
+        inputs: Sequence[Mapping[str, object]] | None,
+        outputs: Sequence[Mapping[str, object]] | None,
         note: str | None = None,
     ) -> RevisionRecord:
         """入參、出參的表單存檔：只改寫場景檔的這兩段，其他內容與註解不變，存成新版本。
 
         每一項是 ``{"name": 名稱, "previous": 原本的名稱, "type": …, …}``；入參改名時，
-        場景裡引用舊名稱的 ``{{ inputs.舊名稱 }}`` 一起改。
+        場景裡引用舊名稱的 ``{{ inputs.舊名稱 }}`` 一起改。``None`` 代表那一段不動。
         """
         files = dict(self.revision_files(scene_id, base))
         renames: dict[str, str] = {}
-        specs: list[dict[str, dict[str, object]]] = []
+        specs: list[dict[str, dict[str, object]] | None] = []
         for items, rename in ((inputs, True), (outputs, False)):
-            converted: dict[str, dict[str, object]] = {}
-            for item in items:
-                name = str(item.get("name") or "").strip()
-                if not name:
-                    raise _invalid("contract_name_missing", t("error.contract_name_missing"))
-                if name in converted:
-                    raise _invalid("contract_duplicate", t("error.contract_duplicate", name=name))
-                previous = str(item.get("previous") or "").strip()
-                if rename and previous and previous != name:
-                    renames[previous] = name
-                converted[name] = {
-                    key: value
-                    for key, value in item.items()
-                    if key in _CONTRACT_KEYS and value is not None and value not in ("", [])
-                }
+            if items is None:
+                specs.append(None)
+                continue
+            converted, found = _contract_specs(items)
+            if rename:
+                renames.update(found)
             specs.append(converted)
         files[SCENARIO_FILE] = replace_contract(
             files[SCENARIO_FILE], inputs=specs[0], outputs=specs[1], renames=renames
@@ -1029,6 +1112,59 @@ class Services:
         return self.save_revision(
             scene_id, base=base, files=files, note=note or t("revision.note_contract")
         )
+
+    def _section_files(self, scene_id: str, key: str, base: int, text: str) -> dict[str, str]:
+        if key not in SECTION_KEYS:
+            raise _not_found("section_unknown", t("error.section_unknown", key=key))
+        files = dict(self.revision_files(scene_id, base))
+        if self._load_scenario(scene_id, base).script is not None and key in ("steps", "verify"):
+            raise _invalid("section_script", t("error.section_script"))
+        section = text.replace("\r\n", "\n").strip("\n")
+        _check_section(key, section)
+        files[SCENARIO_FILE] = replace_section(files[SCENARIO_FILE], key, section)
+        return files
+
+    def preview_section(self, scene_id: str, key: str, *, base: int, text: str) -> Scenario:
+        """換掉一段之後的場景（不存檔）；有問題時 422，問題附上段落裡的行號。"""
+        files = self._section_files(scene_id, key, base, text)
+        checked = self.storage.check(files, scene_id=scene_id)
+        if not checked.ok or checked.scenario is None:
+            issues = [issue_json(issue) for issue in checked.issues]
+            _section_lines(issues, files[SCENARIO_FILE], key)
+            raise _invalid(
+                "revision_invalid",
+                t("error.revision_invalid", count=len(issues)),
+                issues=issues,
+            )
+        return checked.scenario
+
+    def save_section(
+        self,
+        scene_id: str,
+        key: str,
+        *,
+        base: int,
+        text: str,
+        note: str | None = None,
+    ) -> RevisionRecord:
+        """直接編輯場景檔的一段（steps、verify、inputs、outputs）：只換掉這一段，存成新版本。
+
+        ``text`` 是這一段的原文（以 ``key:`` 開頭）；空白時移除這一段。校驗問題的行號另外附上
+        段落裡的行號（``sectionLine``），方便在只顯示這一段的編輯器裡對照。
+        """
+        files = self._section_files(scene_id, key, base, text)
+        try:
+            return self.save_revision(
+                scene_id,
+                base=base,
+                files=files,
+                note=note or t("revision.note_section", section=t(f"section.{key}")),
+            )
+        except ServiceError as error:
+            issues = error.details.get("issues")
+            if isinstance(issues, list):
+                _section_lines(cast("list[dict[str, object]]", issues), files[SCENARIO_FILE], key)
+            raise
 
     def rerun(self, run_id: str, *, idempotency_key: str | None = None) -> RunRecord:
         """用同樣的入參與選項再執行一次（例如登入之後）。驗證用同一個版本，正式執行用目前發布的版本。"""

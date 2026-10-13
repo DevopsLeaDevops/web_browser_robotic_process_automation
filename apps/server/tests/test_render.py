@@ -168,6 +168,13 @@ def _role_values(role: RoleRecord) -> dict[str, object]:
     return {"name": role.name}
 
 
+CONTRACT: dict[str, object] = {
+    "inputs": {"title": {"type": "string", "default": "示範", "minLength": 1}},
+    "outputs": {"recordId": {"type": "string", "from": "{{ facts.record.recordId }}"}},
+}
+FACTS = [("record", ["recordId", "status"])]
+
+
 def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
     """M4 的頁面：登入與憑證、錄製、錄製詳情、逐步調試（開始前與進行中）。"""
     role = replace(ROLE, name="User", description="Demo") if english else ROLE
@@ -259,6 +266,16 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
             default_domain="testsite",
             default_url="",
             selected_scene="",
+            scene_defaults={
+                scene.id: {
+                    "url": "http://127.0.0.1:8765/",
+                    "engine": "firefox",
+                    "roleId": None,
+                    "script": False,
+                    "steps": 3,
+                    "revision": 2,
+                }
+            },
         ),
         "recording-detail": render(
             "recording_detail.html",
@@ -267,6 +284,7 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
             domains=domains,
             item=recording,
             files={"raw.py": "page.goto('x')\n", "scenario.yaml": "id: rec-001\n"},
+            counts={"steps": 4, "inputs": 2, "outputs": 1, "verify": 1, "secrets": 0},
         ),
         "debug-start": render(
             "debug.html",
@@ -332,6 +350,21 @@ def _pages() -> dict[str, str]:
             default_base_url=scenario.browser.base_url,
             runs=[RUN],
             needs=NEEDS,
+            contract_data=CONTRACT,
+            facts=FACTS,
+        ),
+        "section": render(
+            "section.html",
+            page="domain:testsite",
+            title="斷言腳本",
+            domains=DOMAINS,
+            domain=DOMAIN,
+            scene=SCENE,
+            revision=REVISIONS[1],
+            part="verify",
+            text="verify:\n  - value: '{{ facts.record.status }}'\n    notEmpty: true",
+            scenario=scenario,
+            facts=FACTS,
         ),
         "edit": render(
             "edit.html",
@@ -454,7 +487,7 @@ def test_running_page_polls() -> None:
 
 @pytest.mark.parametrize("name", ["portal.css", "shell.js"])
 def test_design_system_assets_are_unchanged_copies(name: str) -> None:
-    """Portal 的 portal.css、shell.js 是設計系統 v1.0 的原檔；要改請先改設計系統再複製過來。"""
+    """Portal 的 portal.css、shell.js 是設計系統的原檔；要改請先改 docs/design-system 再複製。"""
     static = ROOT / "apps" / "server" / "src" / "rpa_server" / "static" / name
     original = ROOT / "docs" / "design-system" / "assets" / name
     assert static.read_bytes() == original.read_bytes()
@@ -466,7 +499,8 @@ def test_side_menu_lists_domains_then_domain_management() -> None:
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
     assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證"]
-    assert 'href="/domains/testsite" class="active" aria-current="page"' in side
+    current = 'href="/domains/testsite" title="測試網站自動化" class="active" aria-current="page"'
+    assert current in side
 
 
 def test_scene_card_follows_the_design() -> None:
@@ -478,11 +512,19 @@ def test_scene_card_follows_the_design() -> None:
         assert label in text, label
     assert 'src="/runs/ba-001-20261010-083000-abcdef/files/screenshot.png"' in published
     assert 'data-status="passed"' in published
-    assert 'href="/scenes/ba-001/edit?focus=verify"' in published
+    assert 'href="/scenes/ba-001/edit?part=steps"' in published
+    assert 'href="/scenes/ba-001/edit?part=verify"' in published
     assert "暫無執行截圖" in _text(draft)
     assert "未執行" in _text(draft)
     assert 'aria-disabled="true"' in draft
     assert 'href="/scenes/ba-009/edit?file=assertion.py"' in draft
+    # 連結列只有設計稿的五項；「調試」：DSL 場景打開逐步調試，腳本場景驗證最新版本
+    links = published.split('class="card-links')[1].split("</nav>")[0]
+    assert links.count("<a ") == 5
+    assert "逐步調試" not in _text(published)
+    assert 'href="/scenes/ba-001/debug" title=' in published
+    assert 'href="/scenes/ba-009/run?purpose=validation"' in draft
+    assert "範例資料" in _text(published)  # 右上角是分類
     assert "2 個場景" in _text(html)
 
 
@@ -556,6 +598,21 @@ def _english_domain_pages() -> dict[str, str]:
                 default_base_url=scenario.browser.base_url,
                 runs=[run],
                 needs=None,
+                contract_data=CONTRACT,
+                facts=FACTS,
+            ),
+            "section": render(
+                "section.html",
+                page="domain:testsite",
+                title="Assertions",
+                domains=domains,
+                domain=domain,
+                scene=scene,
+                revision=REVISIONS[1],
+                part="steps",
+                text="steps:\n  - { id: open, action: goto, url: / }",
+                scenario=scenario,
+                facts=FACTS,
             ),
             **_m4_pages(scenario, english=True),
         }

@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
@@ -282,21 +282,169 @@ def test_pasted_recording_becomes_a_new_scene(client: Client) -> None:
     assert "rec-001" in page
 
 
-def test_pasted_recording_becomes_a_new_revision(client: Client) -> None:
+def test_pasted_recording_replaces_an_existing_scene(client: Client) -> None:
     body(client.post("/api/scenes/import"))
     created = body(
         client.post(
             "/api/recordings/import",
-            json={"source": RECORDING, "target": {"sceneId": "ba-001"}, "roleId": "testsite-user"},
+            json={
+                "source": RECORDING,
+                "target": {"sceneId": "ba-001", "mode": "replace"},
+                "roleId": "testsite-user",
+            },
         ),
         201,
     )
-    assert created["revision"] == 2
+    assert (created["revision"], created["mode"]) == (2, "replace")
     revision = body(client.get("/api/scenes/ba-001/revisions/2"))
     text = cast("dict[str, str]", revision["files"])["scenario.yaml"]
     assert "id: ba-001" in text
     assert "role: testsite-user" in text
+    assert "建立範例紀錄" in text  # 名稱沿用
     assert revision["note"] == f"由錄製 {created['id']} 轉換"
+
+
+CONTINUED = dedent(
+    """\
+    def run(playwright: Playwright) -> None:
+        page.get_by_role("link", name="查詢紀錄").click()
+        page.locator("#lookup-id").fill("DEMO-1")
+        expect(page.locator("#lookup-status")).to_contain_text("已建立")
+        page.close()
+    """
+)
+
+
+def test_pasted_recording_continues_an_existing_scene(client: Client) -> None:
+    """接著既有場景：轉換結果接在最後，原有內容（包含註解）一字不動。"""
+    body(client.post("/api/scenes/import"))
+    before = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/1"))["files"])
+    created = body(
+        client.post(
+            "/api/recordings/import",
+            json={"source": CONTINUED, "target": {"sceneId": "ba-001"}},
+        ),
+        201,
+    )
+    assert (created["revision"], created["mode"], created["baseRevision"]) == (2, "continue", 1)
+    after = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/2"))["files"])
+    old, new = before["scenario.yaml"], after["scenario.yaml"]
+    assert all(line in new.splitlines() for line in old.splitlines())
+    assert "as: lookupStatus" in new
+    assert "lookupStatus:" in new.split("outputs:", 1)[1]
+    assert "lookup_id:" in new.split("inputs:", 1)[1]
+    assert new.index("id: evidence") < new.index("id: click-")
+
+
+FAKE_RECORDER = dedent(
+    """\
+    import json
+    import sys
+    from pathlib import Path
+
+    args = sys.argv
+    output = Path(args[args.index("--output") + 1])
+    inputs = json.loads(Path(args[args.index("--input") + 1]).read_text(encoding="utf-8"))
+    print(json.dumps({"event": "replaying", "inputs": inputs}), flush=True)
+    if "--fail" in args:
+        print(json.dumps({"event": "error", "step": "submit", "message": "逾時"}), flush=True)
+        sys.exit(3)
+    output.write_text(Path(args[-1]).read_text(encoding="utf-8"), encoding="utf-8")
+    """
+)
+
+
+def _fake_recorder(
+    tmp_path: Path, seen: list[list[str]], fail: list[bool]
+) -> "Callable[..., subprocess.Popen[str]]":
+    script = tmp_path / "fake_recorder.py"
+    script.write_text(FAKE_RECORDER, encoding="utf-8")
+    source = tmp_path / "continued.py"
+    source.write_text(CONTINUED, encoding="utf-8")
+
+    def launcher(command: list[str], **options: object) -> subprocess.Popen[str]:
+        seen.append(command)
+        log = cast("Path", options["log"])
+        with log.open("ab") as handle:
+            return subprocess.Popen(
+                [
+                    sys.executable,
+                    str(script),
+                    *command[3:],
+                    *(["--fail"] if fail[0] else []),
+                    str(source),
+                ],
+                text=True,
+                stdout=handle,
+                cwd=cast("Path", options["cwd"]),
+            )
+
+    return launcher
+
+
+def _wait_recording(client: Client, recording_id: object) -> JsonObject:
+    record: JsonObject = {}
+    for _ in range(100):
+        record = body(client.get(f"/api/recordings/{recording_id}"))
+        if record["status"] != "recording":
+            break
+        time.sleep(0.1)
+    return record
+
+
+def test_recording_continues_after_the_existing_steps(
+    app: FastAPI, client: Client, tmp_path: Path
+) -> None:
+    """接著錄製：子程序先執行目前版本的步驟（入參用預設值），錄到的內容接在最後。"""
+    body(client.post("/api/scenes/import"))
+    recordings = services(app).recordings
+    recordings.display = True
+    seen: list[list[str]] = []
+    fail = [False]
+    recordings.launcher = _fake_recorder(tmp_path, seen, fail)
+
+    started = body(
+        client.post(
+            "/api/recordings",
+            json={"target": {"sceneId": "ba-001"}, "engine": "firefox"},
+        ),
+        202,
+    )
+    assert (started["mode"], started["baseRevision"]) == ("continue", 1)
+    command = seen[0]
+    assert command[1:3] == ["-m", "rpa_runner.record"]
+    assert Path(command[command.index("--scenario") + 1]).name == "base.yaml"
+    assert command[command.index("--engine") + 1] == "firefox"
+    record = _wait_recording(client, started["id"])
+    assert record["status"] == "done", record
+    files = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/2"))["files"])
+    assert "as: lookupStatus" in files["scenario.yaml"]
+
+    # 現有步驟執行失敗：不建立新版本，說明是哪一步
+    fail[0] = True
+    failed = body(client.post("/api/recordings", json={"target": {"sceneId": "ba-001"}}), 202)
+    record = _wait_recording(client, failed["id"])
+    assert record["status"] == "failed"
+    assert "submit" in str(record["error"])
+    assert "逾時" in str(record["error"])
+    assert body(client.get("/api/scenes/ba-001"))["latestRevision"] == 2
+
+
+def test_recording_continue_needs_input_defaults(app: FastAPI, client: Client) -> None:
+    body(client.post("/api/scenes/import"))
+    services(app).recordings.display = True
+    # BA-002 的 recordId 沒有預設值：不能先執行現有步驟
+    problem = error(
+        client.post(
+            "/api/recordings",
+            json={"target": {"sceneId": "ba-002"}, "engine": "chromium"},
+        )
+    )
+    assert problem["code"] == "recording_continue_needs"
+    assert "recordId" in str(problem["message"])
+    # Python 腳本場景只能重新錄製
+    script = error(client.post("/api/recordings", json={"target": {"sceneId": "ba-001-script"}}))
+    assert script["code"] == "recording_script"
 
 
 def test_recording_errors(client: Client) -> None:
@@ -487,10 +635,132 @@ def test_scene_and_card_pages_link_to_debugging(client: Client) -> None:
     client.patch("/api/scenes/ba-001", json={"domainId": "lab"})
     scene = client.get("/scenes/ba-001").text
     assert 'href="/scenes/ba-001/debug"' in scene
-    assert 'id="contract-editor"' in scene
+    assert 'id="contract-inputs"' in scene
+    assert 'id="contract-outputs"' in scene
+    assert '<option value="{{ facts.record.recordId }}">' in scene  # 出參取值可以選頁面事實
+    data = json.loads(scene.split('id="contract-data">')[1].split("</script>")[0])
+    # 編輯器的列和場景檔的順序一樣（不是依名稱排序）
+    assert [name for name, _ in data["inputs"]] == ["title", "quantity"]
+    assert [name for name, _ in data["outputs"]] == ["recordId", "title", "quantity"]
+    domain = client.get("/domains/lab").text
+    # 卡片的「自動化腳本」「斷言腳本」分別打開場景檔的 steps、verify 兩段
+    assert 'href="/scenes/ba-001/edit?part=steps"' in domain
+    assert 'href="/scenes/ba-001/edit?part=verify"' in domain
     assert 'href="/recording?scene=ba-001"' in scene
     script = client.get("/scenes/ba-001-script").text
     assert 'href="/scenes/ba-001-script/debug"' not in script
     debug = client.get("/scenes/ba-001/debug").text
     assert 'id="debug-start"' in debug
     assert client.get("/recording?scene=ba-001").status_code == 200
+
+
+# ---------------------------------------------------------------- 只編輯一段
+
+
+def test_automation_and_assertion_are_edited_separately(client: Client) -> None:
+    body(client.post("/api/scenes/import"))
+    original = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/1"))["files"])
+    verify = body(client.get("/api/scenes/ba-001/sections/verify"))
+    assert str(verify["text"]).startswith("verify:")
+
+    page = client.get("/scenes/ba-001/edit?part=verify").text
+    assert 'id="section-form"' in page
+    assert "facts.record" in page  # 列出可以引用的頁面事實
+    assert client.get("/scenes/ba-001/edit?part=steps").status_code == 200
+
+    text = (
+        str(verify["text"])
+        + "\n  - name: 狀態有值\n    value: '{{ facts.record.status }}'\n    notEmpty: true"
+    )
+    saved = body(
+        client.put(
+            "/api/scenes/ba-001/sections/verify",
+            json={"baseRevision": 1, "text": text, "note": None},
+        ),
+        201,
+    )
+    assert saved["number"] == 2
+    after = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/2"))["files"])
+    # 只有 verify 這一段改變，其他行（含註解）一字不動
+    before_lines = original["scenario.yaml"].split("verify:")[0]
+    assert after["scenario.yaml"].startswith(before_lines)
+    assert "狀態有值" in after["scenario.yaml"]
+    assert "編輯斷言腳本" in str(body(client.get("/api/scenes/ba-001/revisions/2"))["note"])
+
+    # 校驗問題附上段落裡的行號
+    broken = client.put(
+        "/api/scenes/ba-001/sections/verify",
+        json={
+            "baseRevision": 2,
+            "text": "verify:\n  - value: '{{ facts.nope }}'\n    notEmpty: true",
+        },
+    )
+    problem = error(broken)
+    issues = cast("list[JsonObject]", problem["issues"])
+    assert any(issue.get("sectionLine") == 2 for issue in issues), issues
+    # 只能改這一段
+    other = client.put(
+        "/api/scenes/ba-001/sections/verify",
+        json={"baseRevision": 2, "text": "verify: []\nname: 改名"},
+    )
+    assert error(other)["code"] == "section_key"
+    script = client.put(
+        "/api/scenes/ba-001-script/sections/steps", json={"baseRevision": 1, "text": "steps: []"}
+    )
+    assert error(script)["code"] == "section_script"
+
+
+def test_input_table_and_yaml_views(client: Client) -> None:
+    body(client.post("/api/scenes/import"))
+    # 表格 → YAML：伺服器產生和存檔相同的寫法
+    rendered = body(
+        client.post(
+            "/api/contract/render",
+            json={
+                "key": "inputs",
+                "items": [
+                    {"name": "title", "type": "string", "default": "標題", "minLength": 1},
+                    {"name": "quantity", "type": "integer", "default": 3},
+                ],
+            },
+        )
+    )
+    assert rendered["text"] == (
+        "inputs:\n  title:\n    type: string\n    default: 標題\n    minLength: 1\n"
+        "  quantity:\n    type: integer\n    default: 3"
+    )
+    # YAML → 表格：先校驗（不存檔），回傳表格用的資料
+    preview = body(
+        client.post(
+            "/api/scenes/ba-001/sections/inputs/preview",
+            json={"baseRevision": 1, "text": rendered["text"]},
+        )
+    )
+    items = cast("dict[str, JsonObject]", preview["items"])
+    assert items["quantity"] == {"type": "integer", "default": 3}
+    assert body(client.get("/api/scenes/ba-001"))["latestRevision"] == 1
+    bad = client.post(
+        "/api/scenes/ba-001/sections/inputs/preview",
+        json={"baseRevision": 1, "text": "inputs:\n  title: { type: string, default: 3 }"},
+    )
+    assert error(bad)["code"] == "revision_invalid"
+
+    # 只存入參：出參不動
+    saved = body(
+        client.put(
+            "/api/scenes/ba-001/contract",
+            json={
+                "baseRevision": 1,
+                "inputs": [
+                    {"name": "title", "previous": "title", "type": "string", "default": "x"},
+                    {"name": "quantity", "previous": "quantity", "type": "integer", "default": 2},
+                ],
+            },
+        ),
+        201,
+    )
+    files = cast(
+        "dict[str, str]",
+        body(client.get(f"/api/scenes/ba-001/revisions/{saved['number']}"))["files"],
+    )
+    assert "recordId:" in files["scenario.yaml"].split("outputs:", 1)[1]

@@ -1,0 +1,80 @@
+# 每週更新 Python 依賴：uv lock --upgrade，重新產生簡中與 JSON Schema，推到 deps/uv-upgrade 分支並開 PR。
+#
+# 為什麼不用 Dependabot：Dependabot 還不支援 uv workspace（根目錄的 pyproject.toml 以
+# workspace = true 引用 rpa-cli 等成員時，它解析失敗：「your workspace requires rpa-cli」）。
+# 見 https://github.com/dependabot/dependabot-core/issues/12072 。GitHub Actions 的更新仍由 Dependabot 處理。
+#
+# GITHUB_TOKEN 推送或開的 PR 不會觸發 CI，所以最後手動觸發一次 CI（workflow_dispatch 不受這個限制），
+# 結果會顯示在 PR 上。開 PR 需要儲存庫設定允許 GitHub Actions 建立 PR
+# （Settings → Actions → General → Allow GitHub Actions to create and approve pull requests）；
+# 沒開的話分支照樣推上去，日誌會印出開 PR 的網址。
+name: uv 依賴更新
+
+on:
+  schedule:
+    - cron: "17 2 * * 1" # 每週一 02:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: uv-upgrade
+  cancel-in-progress: false
+
+env:
+  BRANCH: deps/uv-upgrade
+
+jobs:
+  upgrade:
+    name: uv lock --upgrade
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: uv lock --upgrade
+        run: uv lock --upgrade
+      - name: 有沒有更新
+        id: diff
+        run: |
+          if git diff --quiet -- uv.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "沒有可以更新的依賴"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 安裝依賴
+        if: steps.diff.outputs.changed == 'true'
+        run: uv sync --locked
+      - name: 重新產生簡中與 JSON Schema
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          uv run python tools/i18n.py sync
+          uv run rpa schema > schema/scenario.v1.json
+      - name: 推送並開 PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add uv.lock docs apps packages schema
+          git commit -m "chore(deps): 更新 Python 依賴（uv lock --upgrade）"
+          git push --force origin "$BRANCH"
+          body="由 .github/workflows/uv-upgrade.yml 自動產生：uv lock --upgrade，並重新產生簡中與 JSON Schema。CI 由同一個 workflow 觸發，結果顯示在下方。"
+          existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            echo "更新既有的 PR #$existing"
+          elif ! gh pr create --base main --head "$BRANCH" --title "chore(deps): 更新 Python 依賴" --body "$body"; then
+            echo "::warning::沒有權限開 PR，請手動開：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${BRANCH}"
+          fi
+      - name: 觸發 CI
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref "$BRANCH"

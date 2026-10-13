@@ -1,9 +1,10 @@
-/* rpa-server：設計系統 v1.0 沒有的少數樣式，沿用同一組設計變數。設計系統本身（portal.css）不改。 */
+/* rpa-server：設計系統（portal.css，v1.1）沒有的、只有這個 Portal 用到的樣式，沿用同一組設計變數。
+   通用的規則（例如表格內編輯、卡片連結一列、分段切換的連結）先加進設計系統，再複製 portal.css 過來。 */
 .notice.danger{background:#fff0ef;color:var(--danger);border-color:#f2cfcd}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .language select{min-height:28px;padding:2px 6px;font-size:12px}
 td code{white-space:normal}
-td.rules code{overflow-wrap:anywhere}
+.rule-list{display:flex;flex-wrap:wrap;gap:4px}.rule-list code{white-space:nowrap;font-size:11px;padding:1px 6px;border-radius:4px;background:#f3f6fa;border:1px solid var(--line)}
 .panel>pre.source{margin:12px}
 .dialog-body>.notice{margin-bottom:4px}
 .form-error{color:var(--danger);font-size:12px;margin:0}
@@ -11,35 +12,43 @@ td.rules code{overflow-wrap:anywhere}
 .checklist li{font-size:12px;padding:3px 0;list-style:none}
 .checklist{margin:0}
 .screenshot{display:block;max-width:100%;border:1px solid var(--line);border-radius:6px}
-.file-list{margin:0;padding-left:18px;columns:2;font-size:12px;line-height:1.9}
+.file-list{margin:0;padding:10px 12px 10px 30px;columns:2;font-size:12px;line-height:1.9}
 .sidenav small{font-size:10px}
 h2 a{color:inherit;text-decoration:none}
 h2 a:hover{color:var(--blue-strong)}
 @media(max-width:700px){.file-list{columns:1}}
-/* 領域頁的場景卡片（依設計樣例：標題與標籤、截圖與說明、五個連結、編號與結果、調試與運行） */
+/* 領域頁的場景卡片（依設計稿：1440 寬一列 4 張；標題與分類、截圖與說明、五個連結、編號與結果、調試與運行；
+   卡片等高，多出的高度留在標題下面，讓同一列的截圖、連結與按鈕對齊） */
 .icon{width:14px;height:14px;flex:none}
 .heading .actions .count{font-size:12px;margin-right:4px}
 .button.is-disabled{opacity:.45;pointer-events:none;cursor:default}
 .scene-card{display:flex;flex-direction:column;gap:10px}
 .scene-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.scene-card-head h2{margin:0;font-size:15px;line-height:1.45;font-weight:600}
-.chip{flex:none;font-size:11px;line-height:1.5;padding:2px 7px;border-radius:4px;background:#f1f4f8;color:var(--muted);border:1px solid var(--line);white-space:nowrap}
-.scene-card-body{display:flex;gap:12px;align-items:flex-start}
-.shot{flex:none;width:124px;height:78px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#f3f6fa;display:grid;place-items:center;color:var(--muted);font-size:11px;text-decoration:none}
+.scene-card-head h2{margin:0;font-size:14px;line-height:1.45;font-weight:650;color:#315b89;min-width:0;overflow-wrap:anywhere}
+.chip{flex:none;max-width:50%;overflow:hidden;text-overflow:ellipsis;font-size:11px;line-height:1.5;padding:2px 7px;border-radius:4px;background:#f3f5f8;color:#8592a3;border:1px solid var(--line);white-space:nowrap}
+.scene-card-body{display:flex;gap:10px;align-items:flex-start;margin-top:auto}
+.shot{flex:none;width:96px;height:60px;border:1px solid #dfe8f3;border-radius:6px;overflow:hidden;background:#f3f7fd;display:grid;place-items:center;color:var(--muted);font-size:10px;text-decoration:none}
 .shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:top left}
-.empty-shot{align-content:center;gap:4px;text-align:center}
-.empty-shot svg{width:18px;height:18px;margin:0 auto;color:#8aa7c7}
-.clamp{margin:0;font-size:13px;line-height:1.7;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.scene-card-links{gap:0;margin-top:0}
-.scene-card-links a{padding:0 9px;border-left:1px solid var(--line);color:var(--ink);text-decoration:none;white-space:nowrap}
-.scene-card-links a:first-child{padding-left:0;border-left:0}
-.scene-card-links a:hover{color:var(--blue-strong)}
-.scene-card-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto}
-.scene-card-foot .grow{flex:1}
-.status-link{text-decoration:none}
-@media(min-width:1600px){.scene-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-/* 執行選項的單選（有頭／無頭模式） */
+.empty-shot{align-content:center;gap:3px;text-align:center;line-height:1.3}
+.empty-shot svg{width:16px;height:16px;margin:0 auto;color:#8aa7c7}
+.clamp{margin:0;min-width:0;font-size:12px;line-height:1.65;color:#5d6d84;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.scene-card-links{margin-top:0;font-size:11px}
+.scene-card-foot{display:flex;align-items:center;gap:5px}
+.scene-card-foot .tag{display:block;font-size:12px;font-weight:650;padding:3px 6px;color:#315b89;flex:0 1 auto;min-width:24px;overflow:hidden;text-overflow:ellipsis}
+.scene-card-foot .badge{font-size:12px;padding:3px 6px;flex:none}
+.scene-card-foot .badge:before{display:none}
+.scene-card-foot .button{flex:none;padding:5px 10px}
+.scene-card-foot .button.primary{padding:5px 12px}
+.scene-card-foot .grow{flex:1 1 0;min-width:0}
+.status-link{text-decoration:none;flex:none}
+/* 執行選項的單選（有頭／無頭模式）；inline：選項排成一列 */
 fieldset.choice{border:0;margin:0;padding:0;display:grid;gap:6px;font-size:12px}fieldset.choice legend{padding:0;margin-bottom:6px}fieldset.choice label{display:flex;gap:8px;align-items:center}fieldset.choice input{min-height:0;margin:0}fieldset.choice input:disabled+*,fieldset.choice label:has(input:disabled){color:var(--muted)}
+fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
+/* 用 grid 排列的區塊，段落的間距交給 gap；兩欄上緣對齊、不拉成等高 */
+.stack>p{margin:0}
+.panel-body>p:last-child{margin-bottom:0}
+.stack>label.field+label.field{margin-top:0}
+.two-col.top,.field-pair.top{align-items:start}
 /* 執行報告的篩選選單（按鈕＋可複選的下拉清單） */
 .panel.has-filters{overflow:visible}.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);font-size:12px}
 .filter-menu{position:relative;border:0;padding:0}.filter-menu>summary{list-style:none;gap:6px;max-width:320px}.filter-menu>summary::-webkit-details-marker{display:none}
@@ -61,18 +70,39 @@ fieldset.choice{border:0;margin:0;padding:0;display:grid;gap:6px;font-size:12px}
 .debug-steps tr.is-next td{background:#f6faff}
 .debug-steps tr.is-next td:first-child{box-shadow:inset 3px 0 0 var(--blue-strong)}
 .debug-steps .chip{font-size:10px;padding:0 5px}
-.contract-rows{display:grid;gap:8px}
-.contract-row{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:0;display:grid;gap:6px}
-.contract-main{display:grid;grid-template-columns:minmax(120px,1fr) 110px auto minmax(110px,1fr) minmax(160px,2fr) auto;gap:8px;align-items:end}
-.contract-main label,.contract-rule-fields label{display:grid;gap:3px;font-size:12px}
-.contract-main label.check{display:flex;align-items:center;gap:6px;padding-bottom:6px;white-space:nowrap}
-.contract-main label.check input{min-height:0;margin:0}
-.contract-row[data-kind="output"] .contract-main{grid-template-columns:minmax(120px,1fr) 110px minmax(160px,2fr) minmax(160px,2fr) auto}
-.contract-rules summary{font-size:12px;color:var(--muted);cursor:pointer}
-.contract-rule-fields{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:6px}
 .form-issues{color:var(--danger)}
-@media(max-width:1100px){.debug-layout{grid-template-columns:1fr}.contract-main,.contract-row[data-kind="output"] .contract-main{grid-template-columns:1fr 1fr}.contract-rule-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:700px){.contract-main,.contract-row[data-kind="output"] .contract-main,.contract-rule-fields{grid-template-columns:1fr}}
-.contract-main input,.contract-main select,.contract-rule-fields input{min-width:0;width:100%;box-sizing:border-box}
-.contract-main label.check input{width:auto}
+@media(max-width:1100px){.debug-layout{grid-template-columns:1fr}}
 #recording-form .field-pair{align-items:end}
+/* 入參、出參的編輯器（表格／YAML） */
+.contract-editors{display:grid;gap:12px;min-width:0}
+.contract-editors:not(:has(.contract-editor:not([hidden]))){display:none}
+.contract-editor{border-color:#cfe0f3;box-shadow:0 2px 12px #147fe614}
+.contract-editor .panel-header{flex-wrap:wrap}
+.contract-editor .edit-table .col-name{width:18%}
+.contract-editor .edit-table .col-type{width:112px}
+.contract-editor .edit-table .col-value{width:16%}
+.contract-editor .edit-table .col-from{width:28%}
+.contract-editor .edit-table .col-rules{width:200px}
+.rule-toggle{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-height:28px;padding:3px 8px;border:1px dashed #d5dfeb;border-radius:6px;background:#fff;font:11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.rule-toggle:hover,.rule-toggle[aria-expanded="true"]{border-color:#9bbfe6;color:var(--blue-strong)}
+.rule-toggle .caret{font-size:9px;flex:none}
+.contract-note{border-top:1px solid var(--line)}
+.contract-note label.field{grid-template-columns:auto 1fr;align-items:center;gap:10px}
+.contract-editor .form-issues{border-bottom:1px solid var(--line);background:#fff8f7}
+/* 自動化腳本、斷言腳本（只編輯一段） */
+.section-tabs{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.section-tabs>.muted{font-size:12px}
+.issue-links .text-btn{text-align:left;white-space:normal}
+.spec-list.compact{grid-template-columns:auto 1fr;column-gap:12px}
+.spec-list.compact dd{overflow-wrap:anywhere}
+/* 執行頁：摘要成格、左邊結果、右邊截圖 */
+.run-layout{align-items:start}
+.screenshot.fit{width:100%;max-height:560px;object-fit:cover;object-position:top}
+/* 場景頁的執行設定：一列 */
+.settings-domain{flex:0 1 260px!important}
+.settings-url{flex:2 1 320px!important}
+/* 入參、出參兩張表並排：一樣寬（出參的取值比較長） */
+.two-col.spec-pair{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:1100px){.two-col.spec-pair{grid-template-columns:1fr}}
+/* 入參的 JSON：內容通常只有幾行，不需要很高 */
+.code-editor.compact{min-height:180px}
