@@ -8,7 +8,10 @@
   改內容就是新版本，舊版本的驗證結果不能拿來發布新內容。
 - 執行：queued → running → passed／failed／timed_out／cancelled；場景要以角色登入而角色沒登入時
   是 needs_login（沒有執行任何步驟，登入後可以重新執行）。
-- 執行目的：驗證 validation（任何版本，結果決定版本能不能發布）、執行 execution（只用已發布版本）。
+- 執行目的：驗證 validation（任何版本，結果決定版本能不能發布）、執行 execution（只用已發布版本）、
+  試驗場序列的節點 workflow（序列固定的版本，只能是發布過的版本；M6）。
+- 序列的執行：running → passed／failed／timed_out／cancelled／needs_login；節點依序排入佇列，
+  一個節點沒有通過就停在那裡，後面的節點是略過 skipped（M6）。
 """
 
 import re
@@ -17,6 +20,7 @@ from datetime import UTC, datetime
 from typing import Final, Literal
 
 from rpa_core.dsl import Issue, format_issue
+from rpa_core.workflow import Workflow, WorkflowProblem
 
 __all__ = [
     "DOMAIN_ID",
@@ -27,6 +31,7 @@ __all__ = [
     "RUN_STATUSES",
     "DomainRecord",
     "Engine",
+    "NodeStatus",
     "Purpose",
     "RecordingRecord",
     "RevisionRecord",
@@ -37,6 +42,10 @@ __all__ = [
     "RunStatus",
     "SceneCard",
     "SceneRecord",
+    "WorkflowNodeState",
+    "WorkflowRecord",
+    "WorkflowRunRecord",
+    "WorkflowRunStatus",
     "issue_json",
     "now",
 ]
@@ -47,7 +56,7 @@ RunStatus = Literal[
 ]
 RoleStatus = Literal["none", "logged_in", "needs_login", "unknown"]
 """角色：還沒登入過、已登入、需要登入、不確定（檢查時出錯）。"""
-Purpose = Literal["validation", "execution"]
+Purpose = Literal["validation", "execution", "workflow"]
 Engine = Literal["chromium", "firefox"]
 
 RUN_STATUSES: Final[tuple[RunStatus, ...]] = (
@@ -63,7 +72,21 @@ FINISHED: Final[frozenset[str]] = frozenset(
     {"passed", "failed", "timed_out", "cancelled", "needs_login"}
 )
 ROLE_STATUSES: Final[tuple[RoleStatus, ...]] = ("none", "logged_in", "needs_login", "unknown")
-PURPOSES: Final[tuple[Purpose, ...]] = ("validation", "execution")
+PURPOSES: Final[tuple[Purpose, ...]] = ("validation", "execution", "workflow")
+WorkflowRunStatus = Literal["running", "passed", "failed", "timed_out", "cancelled", "needs_login"]
+NodeStatus = Literal[
+    "pending",
+    "queued",
+    "running",
+    "passed",
+    "failed",
+    "timed_out",
+    "cancelled",
+    "needs_login",
+    "skipped",
+    "reused",
+]
+"""序列裡一個節點：還沒輪到、執行中或結束（同執行的狀態）、因為前面停下而略過、沿用上一次的結果。"""
 ENGINES: Final[tuple[Engine, ...]] = ("chromium", "firefox")
 DOMAIN_ID: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """領域代號的規則（與場景 id 相同）。"""
@@ -206,6 +229,9 @@ class RunRecord:
     duration_seconds: float | None
     headless: bool = True
     """無頭模式（不顯示瀏覽器視窗）；False 是有頭模式。"""
+    workflow_run_id: str | None = None
+    """屬於哪一次序列的執行（M6）。"""
+    node_id: str | None = None
 
     @property
     def finished(self) -> bool:
@@ -235,6 +261,8 @@ class RunRecord:
             "durationSeconds": self.duration_seconds,
             "finished": self.finished,
             "reportUrl": f"/runs/{self.id}/files/report.html" if self.finished else None,
+            "workflowRunId": self.workflow_run_id,
+            "nodeId": self.node_id,
         }
 
 
@@ -355,4 +383,117 @@ class RecordingRecord:
             "finished": self.finished,
             "mode": self.mode,
             "baseRevision": self.base_revision,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowRecord:
+    """自由試驗場的一個序列（M6）。"""
+
+    id: int
+    name: str
+    description: str | None
+    workflow: Workflow
+    version: int
+    created_at: datetime
+    updated_at: datetime
+    problems: tuple[WorkflowProblem, ...] = ()
+    """執行前的檢查發現的問題；有問題時不能執行。"""
+    last_run: "WorkflowRunRecord | None" = None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "definition": self.workflow.to_json(),
+            "version": self.version,
+            "createdAt": _iso(self.created_at),
+            "updatedAt": _iso(self.updated_at),
+            "problems": [problem.to_json() for problem in self.problems],
+            "lastRun": self.last_run.to_json() if self.last_run is not None else None,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowNodeState:
+    """序列執行中的一個節點：狀態、入參的來源與值、那次執行。"""
+
+    index: int
+    id: str
+    scene_id: str
+    scene_name: str
+    revision: int
+    status: NodeStatus
+    sources: dict[str, dict[str, object]]
+    """入參名稱 → 來源（rpa_core.workflow.InputSource 的 JSON），依場景檔的順序。"""
+    run: RunRecord | None = None
+    """這個節點的執行；沿用的節點是原本那次執行。"""
+    error: str | None = None
+    """沒有開始執行的原因（例如綁定的值不符合入參規則）。"""
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "index": self.index,
+            "id": self.id,
+            "sceneId": self.scene_id,
+            "sceneName": self.scene_name,
+            "revision": self.revision,
+            "status": self.status,
+            "sources": self.sources,
+            "run": self.run.to_json() if self.run is not None else None,
+            "error": self.error,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowRunRecord:
+    """一次序列的執行（M6）。"""
+
+    id: str
+    workflow_id: int | None
+    workflow_name: str
+    workflow_version: int
+    status: WorkflowRunStatus
+    engine: str | None
+    headless: bool
+    error: str | None
+    failed_node: str | None
+    resumed_from: str | None
+    cancel_requested: bool
+    created_at: datetime
+    finished_at: datetime | None
+    nodes: tuple[WorkflowNodeState, ...] = ()
+
+    @property
+    def finished(self) -> bool:
+        return self.status != "running"
+
+    @property
+    def passed_count(self) -> int:
+        return sum(node.status in ("passed", "reused") for node in self.nodes)
+
+    @property
+    def resumable(self) -> bool:
+        """停在某個節點（失敗、逾時、取消、需要登入），可以從那個節點繼續。"""
+        return self.finished and self.status != "passed" and self.failed_node is not None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "workflowId": self.workflow_id,
+            "workflowName": self.workflow_name,
+            "workflowVersion": self.workflow_version,
+            "status": self.status,
+            "engine": self.engine,
+            "headless": self.headless,
+            "error": self.error,
+            "failedNode": self.failed_node,
+            "resumedFrom": self.resumed_from,
+            "cancelRequested": self.cancel_requested,
+            "createdAt": _iso(self.created_at),
+            "finishedAt": _iso(self.finished_at),
+            "finished": self.finished,
+            "resumable": self.resumable,
+            "nodes": [node.to_json() for node in self.nodes],
         }

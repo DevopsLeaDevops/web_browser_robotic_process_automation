@@ -120,5 +120,17 @@
   "recording.step.extract": "Read “{target}”",
   "recording.output": "Content of “{target}” (“{value}” when recorded)",
   "recording.verify.equals": "“{target}” equals input {input}",
-  "recording.verify.not_empty": "“{target}” was read (“{value}” when recorded)"
+  "recording.verify.not_empty": "“{target}” was read (“{value}” when recorded)",
+  "dsl.workflow.value_null": "A fixed value cannot be null; to use the scenario's default, leave this input out",
+  "dsl.workflow.node_duplicate": "Node id {node} is used twice",
+  "dsl.workflow.empty": "The sequence has no nodes yet",
+  "dsl.workflow.input_unknown": "Node {node}: the scenario has no input {input}",
+  "dsl.workflow.input_missing": "Node {node}: input {input} has no default; give it a fixed value or an output of an earlier node",
+  "dsl.workflow.value_invalid": "Node {node}: the fixed value of input {input} does not satisfy {rule}",
+  "dsl.workflow.source_unknown": "Node {node}: input {input} comes from node {source}, which does not exist",
+  "dsl.workflow.source_order": "Node {node}: input {input} can only use outputs of earlier nodes, and {source} is not before it",
+  "dsl.workflow.output_unknown": "Node {node}: input {input} comes from output {output} of {source}, but that scenario revision has no such output",
+  "dsl.workflow.type_mismatch": "Node {node}: input {input} ({input_type}) comes from output {output} of {source} ({output_type}); the types do not match",
+  "dsl.workflow.source_not_passed": "Node {node}: input {input} comes from {source}, which did not pass",
+  "dsl.workflow.output_missing": "Node {node}: {source} passed but did not publish output {output}"
 }

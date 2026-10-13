@@ -7,7 +7,11 @@
 <button class="button" data-action="cancel-run" data-run="{{ run.id }}"{% if run.cancel_requested %} disabled{% endif %}>{{ t("run.cancel") }}</button>
 {% else %}
 <a class="button" href="/runs/{{ run.id }}/files/report.html" target="_blank" rel="noopener" data-action="open-report">{{ t("run.open_report") }}</a>
+{% if run.workflow_run_id %}
+<a class="button{% if run.status == 'needs_login' %} primary{% endif %}" href="/playground/runs/{{ run.workflow_run_id }}">{{ t("run.back_to_workflow") }}</a>
+{% else %}
 <button class="button{% if run.status == 'needs_login' %} primary{% endif %}" data-action="rerun" data-run="{{ run.id }}" title="{{ t('run.rerun_title') }}">{{ t("run.rerun") }}</button>
+{% endif %}
 {% endif %}
 {% if can_publish %}
 <button class="button primary" data-action="publish" data-scene="{{ run.scene_id }}" data-revision="{{ run.revision_number }}">{{ t("run.publish", number=run.revision_number) }}</button>
@@ -18,10 +22,13 @@
   {% if not run.finished %}
   <div class="notice">{{ t("run.polling") }}</div>
   {% endif %}
+  {% if run.workflow_run_id %}
+  <div class="notice">{{ t("run.workflow_node", node=run.node_id) }} <a href="/playground/runs/{{ run.workflow_run_id }}">{{ run.workflow_run_id }}</a></div>
+  {% endif %}
   {% if run.status == "needs_login" %}
   <div class="notice warn" role="alert">{{ run.error }}
     {% if role %}<span class="actions"><a class="button" href="/roles#role-{{ role }}">{{ t("run.go_login", role=role) }}</a></span>{% endif %}
-    <span class="cell-sub">{{ t("run.needs_login_hint") }}</span>
+    <span class="cell-sub">{{ t("run.needs_login_hint_workflow") if run.workflow_run_id else t("run.needs_login_hint") }}</span>
   </div>
   {% elif run.error %}<div class="notice danger" role="alert">{{ run.error }}</div>{% endif %}
   {% if run.purpose == "validation" and run.status == "passed" and not can_publish and revision and not revision.published %}

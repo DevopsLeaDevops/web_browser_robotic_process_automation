@@ -3,8 +3,10 @@
 M3 是單機、單一 worker（ADR 0008：SQLite 只允許單一程序），依建立時間先進先出。
 領取時用「狀態還是 queued 才改成 running」的條件更新，避免和取消同時發生時互相覆蓋。
 場景有 login 時，任務帶著角色的登入設定與 Secrets；結束後依登入檢查的結果更新角色狀態（M4）。
+每個任務結束後呼叫 ``on_finished``：試驗場序列的節點由它接著排下一個節點（M6）。
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -31,6 +33,8 @@ class RunQueue:
         self.sessions = sessions
         self.storage = storage
         self.roles = roles
+        self.on_finished: Callable[[str], None] = lambda run_id: None
+        """任務結束（資料庫已更新）之後呼叫，參數是執行編號。"""
 
     def _extras(self, path: Path) -> tuple[LoginSettings | None, dict[str, str]]:
         """場景要的登入設定與 Secrets 的值（只交給 runner，不寫進資料庫）。"""
@@ -117,6 +121,7 @@ class RunQueue:
                 t("role.needs_login_run", id=result.run_id) if status == "needs_login" else None
             )
             self.roles.record_result(result.role, status, message)
+        self.on_finished(job.run_id)
 
     def fail(self, job: Job, error: Exception) -> None:
         if isinstance(error, ScenarioInvalidError):
@@ -136,3 +141,4 @@ class RunQueue:
                 if revision is not None:
                     revision.status = "failed"
             session.commit()
+        self.on_finished(job.run_id)

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}<a href="/playground">{{ t("nav.playground") }}</a> › {{ workflow.name }}{% endblock %}
+{% block description %}{{ workflow.description or t("workflow.description") }}{% endblock %}
+{% block actions %}
+<button class="button" data-action="workflow-rename">{{ t("workflow.rename") }}</button>
+<button class="button" data-action="workflow-export">{{ t("workflow.export") }}</button>
+<button class="button" data-action="workflow-save" disabled>{{ t("workflow.save") }}</button>
+<button class="button primary" data-action="workflow-run">{{ t("workflow.run") }}</button>
+{% endblock %}
+{% block content %}
+<div class="stack" id="workflow" data-workflow="{{ workflow.id }}">
+  <div class="notice">{{ t("workflow.notice") }}</div>
+  <section class="panel" id="workflow-problems"{% if not workflow.problems %} hidden{% endif %}>
+    <div class="panel-header"><h2>{{ t("workflow.problems") }} <span class="count">{{ workflow.problems | length }}</span></h2><span class="muted">{{ t("workflow.problems_hint") }}</span></div>
+    <ul class="panel-body checklist">{% for problem in workflow.problems %}<li>{{ problem.message }}</li>{% endfor %}</ul>
+  </section>
+  <div class="flow-layout workflow-editor">
+    <section class="panel flow-library" aria-labelledby="library-title">
+      <div class="panel-header"><h2 id="library-title">{{ t("workflow.library") }}</h2></div>
+      <div class="panel-body stack">
+        <span class="cell-sub">{{ t("workflow.library_hint") }}</span>
+        <input type="search" id="library-search" placeholder="{{ t('workflow.search') }}" aria-label="{{ t('workflow.search') }}">
+        <div id="library-list" class="library-list"></div>
+      </div>
+    </section>
+    <section class="panel flow-board" aria-labelledby="board-title">
+      <h2 class="visually-hidden" id="board-title">{{ t("workflow.board") }}</h2>
+      <div class="flow-stage" id="flow-stage"></div>
+    </section>
+    <section class="panel flow-settings" aria-labelledby="settings-title">
+      <div class="panel-header"><h2 id="settings-title">{{ t("workflow.settings") }}</h2></div>
+      <div class="panel-body" id="node-settings"></div>
+    </section>
+  </div>
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("workflow.runs") }} <span class="count">{{ runs | length }}</span></h2></div>
+    {% if runs %}{{ m.workflow_run_rows(runs, show_workflow=false) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}
+  </section>
+</div>
+<template id="workflow-form">
+  <label>{{ t("playground.form_name") }}<input name="name" required maxlength="200" autocomplete="off"></label>
+  <label>{{ t("playground.form_description") }}<textarea name="description" rows="3" maxlength="2000"></textarea></label>
+  <p class="form-error" role="alert"></p>
+</template>
+<template id="workflow-run-form">
+  <div class="notice">{{ t("workflow.run_notice") }}</div>
+  <label>{{ t("run_form.engine") }}
+    <select name="engine">
+      <option value="">{{ t("workflow.engine_scene") }}</option>
+      {% for engine in data.engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}
+    </select>
+  </label>
+  <fieldset class="choice">
+    <legend>{{ t("run_form.window") }}</legend>
+    <label><input type="radio" name="headless" value="0"{% if data.display %} checked{% else %} disabled{% endif %}> {{ t("run_form.window_headed") }}</label>
+    <label><input type="radio" name="headless" value="1"{% if not data.display %} checked{% endif %}> {{ t("run_form.window_headless") }}</label>
+    {% if not data.display %}<span class="cell-sub">{{ t("run_form.window_unavailable") }}</span>{% endif %}
+  </fieldset>
+  <ul class="checklist form-issues" hidden></ul>
+  <p class="form-error" role="alert"></p>
+</template>
+<script type="application/json" id="workflow-data">{{ data | tojson }}</script>
+<script type="application/json" id="workflow-messages">{{ messages | tojson }}</script>
+{% endblock %}

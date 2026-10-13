@@ -106,3 +106,25 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 @media(max-width:1100px){.two-col.spec-pair{grid-template-columns:1fr}}
 /* 入參的 JSON：內容通常只有幾行，不需要很高 */
 .code-editor.compact{min-height:180px}
+/* M6：自由試驗場。編輯序列沿用設計系統的 flow-layout（MVP 原型的試驗場）：場景庫、序列、節點設定；
+   節點設定要放入參的來源與固定值，比原型寬一些 */
+.flow-layout.workflow-editor{grid-template-columns:220px minmax(0,1fr) 340px;align-items:start}
+.workflow-editor .flow-board{min-height:420px;max-height:none}
+.workflow-editor .flow-node{width:300px;max-width:100%;text-align:left}
+.workflow-editor .flow-node:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.workflow-editor .library-item small{color:var(--blue-strong)}
+.flow-node-head{display:block;font-size:12px}
+.flow-bindings{margin:6px 0 0;padding-left:16px;font-size:11px;color:#5d6d84;line-height:1.7}
+.flow-bindings li{overflow-wrap:anywhere}
+.flow-node .badge{margin-top:6px}
+.library-group{font-size:11px;color:var(--muted);margin:10px 0 0;font-weight:600}
+.library-list{max-height:560px;overflow:auto}
+.input-source{display:grid;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
+.input-source select,.input-source input{width:100%}
+.flow-settings .section-title{font-size:12px;margin:6px 0 0}
+.io-list{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:12px}
+.io-list code{white-space:normal;overflow-wrap:anywhere}
+.flow-chain{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
+.workflow-nodes tr.is-stopped td{background:#fff8f7}
+.dialog-body .form-error{white-space:pre-line}
+@media(max-width:1100px){.flow-layout.workflow-editor{grid-template-columns:1fr}.workflow-editor .flow-board{min-height:0}}
