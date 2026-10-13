@@ -19,7 +19,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">目前是 M0（工程骨架）。「能運行」指的是：<code>rpa</code> 命令可以執行、全部測試通過、Playwright 能啟動 Chromium、文檔站能在瀏覽器開啟。校驗、執行、錄製場景等子命令會在後續里程碑加入，見<a href="../roadmap.html">路線圖</a>。</div>
+    <div class="notice">「能運行」指的是：<code>rpa</code> 命令可以執行（目前有 <code>rpa validate</code>、<code>rpa schema</code>、<code>rpa run</code>、<code>rpa record</code> 與 <code>rpa serve</code>）、全部測試通過、Playwright 能啟動 Chromium 與 Firefox、文檔站能在瀏覽器開啟。自由試驗場、AI 助手等功能會在後續里程碑加入，見<a href="../roadmap.html">路線圖</a>。</div>
 
     <div class="two-col">
       <section class="panel">
@@ -55,8 +55,8 @@ open docs/index.html</pre>
             <dt>電腦</dt><dd>Apple 晶片（M 系列）或 Intel 的 Mac 都可以。建議使用仍在接收更新的 macOS 版本。</dd>
             <dt>終端機</dt><dd>系統內建的「終端機」（應用程式 › 工具程式）。預設 shell 是 zsh，本頁命令都在 zsh 中執行。</dd>
             <dt>網路</dt><dd>需要連得到 GitHub、PyPI 與 Playwright 的瀏覽器下載站。公司網路先看<a href="#faq">常見問題</a>。</dd>
-            <dt>磁碟空間</dt><dd>預留約 1 GB，給 Python、套件與 Chromium。</dd>
-            <dt>不需要</dt><dd>不用自己裝 Python、Homebrew 或 Node.js。Python 由 uv 自動下載；Node.js 到 M8 做前端時才需要。</dd>
+            <dt>磁碟空間</dt><dd>預留約 1.5 GB，給 Python、套件、Chromium 與 Firefox。</dd>
+            <dt>不需要</dt><dd>不用自己裝 Python、Homebrew 或 Node.js。Python 由 uv 自動下載；管理 Portal 是伺服器端渲染（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），不需要 Node.js。</dd>
           </dl>
         </div>
       </section>
@@ -114,12 +114,12 @@ cd web_browser_robotic_process_automation</pre>
 <pre class="source"># 依 .python-version 準備 Python 3.13（沒有就自動下載），建立 .venv，安裝全部套件與開發工具
 uv sync
 
-# 下載 Playwright 使用的 Chromium
+# 下載 Playwright 使用的 Chromium 與 Firefox
 uv run playwright install chromium firefox</pre>
         <dl class="spec-list">
           <dt>.venv/</dt><dd>專案自己的虛擬環境，就在專案資料夾內。不需要手動啟用，<code>uv run</code> 會自動使用它。</dd>
           <dt>Python</dt><dd>uv 下載的 Python 放在 <code>~/.local/share/uv/python</code>，不會動到系統的 Python。</dd>
-          <dt>Chromium</dt><dd>放在 <code>~/Library/Caches/ms-playwright</code>。macOS 不需要加 <code>--with-deps</code>，那是 Linux 用來安裝系統函式庫的。</dd>
+          <dt>瀏覽器</dt><dd>Chromium 與 Firefox 放在 <code>~/Library/Caches/ms-playwright</code>。macOS 不需要加 <code>--with-deps</code>，那是 Linux 用來安裝系統函式庫的。</dd>
           <dt>uv.lock</dt><dd>倉庫裡的鎖檔，記錄每個套件的確切版本；<code>uv sync</code> 依它安裝，所以每個人裝到的版本相同。</dd>
         </dl>
       </div>
@@ -132,9 +132,9 @@ uv run playwright install chromium firefox</pre>
           <thead><tr><th>命令</th><th>預期結果</th></tr></thead>
           <tbody>
             <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.1.0（rpa-core 0.1.0）</code></td></tr>
-            <tr><td><code>uv run rpa -h</code></td><td>顯示用法與說明「瀏覽器自動化場景的生成、管理與執行工具。」M0 還沒有子命令。</td></tr>
+            <tr><td><code>uv run rpa -h</code></td><td>顯示用法與說明「瀏覽器自動化場景的生成、管理與執行工具。」，以及 validate、schema、run、record、serve 子命令。</td></tr>
             <tr><td><code>uv run pytest</code></td><td>最後一行只有 <code>passed</code>，沒有 <code>failed</code>，也沒有 <code>skipped</code>。</td></tr>
-            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>2 passed</code>（Chromium 與 Firefox 各一；其餘測試顯示為 deselected）。這是瀏覽器冒煙測試，跟 CI 一樣缺瀏覽器就失敗，而不是略過。</td></tr>
+            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td>只有 <code>passed</code>（需要瀏覽器的測試，Chromium 與 Firefox 都會跑；其餘測試顯示為 deselected）。跟 CI 一樣缺瀏覽器就失敗，而不是略過。</td></tr>
           </tbody>
         </table>
       </div>

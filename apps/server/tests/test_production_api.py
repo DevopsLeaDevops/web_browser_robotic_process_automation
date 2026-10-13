@@ -654,6 +654,56 @@ def test_scene_and_card_pages_link_to_debugging(client: Client) -> None:
     assert client.get("/recording?scene=ba-001").status_code == 200
 
 
+FAKE_DEBUGGER = dedent(
+    """\
+    import sys
+
+    print('{"event": "ready"}', flush=True)
+    for _ in sys.stdin:
+        pass
+    """
+)
+
+
+def test_idle_debug_sessions_are_closed(app: FastAPI, client: Client, tmp_path: Path) -> None:
+    """閒置太久的調試工作階段自動結束（背景執行緒定期呼叫 reap），截圖目錄一起刪除。
+
+    調試子程序換成假的：印出 ready 後等標準輸入關閉，不開瀏覽器。
+    """
+    from rpa_server.processes import launch
+
+    body(client.post("/api/scenes/import"))
+    script = tmp_path / "fake_debugger.py"
+    script.write_text(FAKE_DEBUGGER, encoding="utf-8")
+    manager = services(app).debug
+
+    def launcher(command: list[str], **options: object) -> subprocess.Popen[str]:
+        assert command[1:3] == ["-m", "rpa_runner.debug"]
+        env = cast("dict[str, str]", options["env"])
+        return launch([sys.executable, str(script)], env=env, log=cast("Path", options["log"]))
+
+    manager.launcher = launcher
+    session = str(body(client.post("/api/scenes/ba-001/debug", json={}), 202)["id"])
+    state: JsonObject = {}
+    for _ in range(100):
+        state = body(client.get(f"/api/debug/{session}"))
+        if state["status"] != "starting":
+            break
+        time.sleep(0.1)
+    assert state["status"] == "ready", state
+    assert manager.reap() == 0  # 剛開始，還沒閒置
+
+    manager.idle_seconds = 0
+    time.sleep(0.01)
+    assert manager.reap() == 1
+    assert client.get(f"/api/debug/{session}").status_code == 404
+    assert not services(app).storage.debug_dir(session).exists()
+    # 同一個場景可以再開新的工作階段
+    again = str(body(client.post("/api/scenes/ba-001/debug", json={}), 202)["id"])
+    assert again != session
+    assert body(client.delete(f"/api/debug/{again}"))["closed"] == again
+
+
 # ---------------------------------------------------------------- 只編輯一段
 
 
