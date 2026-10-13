@@ -3,19 +3,23 @@
 需要真實瀏覽器的登入、調試流程在 test_production_flow.py。
 """
 
+import dataclasses
 import json
 import os
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
 from typing import cast
 
+import pytest
 from fastapi import FastAPI
 from httpx2 import Client, Response
 
+from rpa_server.config import Settings, sqlite_url
 from rpa_server.models import Role
 from rpa_server.services import Services
 from rpa_worker import Worker
@@ -327,18 +331,44 @@ FAKE_CODEGEN = dedent(
 )
 
 
+@pytest.fixture
+def relative_app(
+    settings: Settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[tuple[FastAPI, Client]]:
+    """資料目錄用相對路徑（像 ``rpa serve --data data-m4``）的伺服器。"""
+    from fastapi.testclient import TestClient
+
+    from rpa_server.app import create_app
+
+    monkeypatch.chdir(tmp_path)
+    relative = dataclasses.replace(
+        settings, data_dir=Path("data"), database_url=sqlite_url(Path("data") / "rpa.db")
+    )
+    app = create_app(relative)
+    with TestClient(app) as client:
+        yield app, client
+
+
 def test_recording_on_this_computer_with_a_fake_codegen(
-    app: FastAPI, client: Client, tmp_path: Path
+    relative_app: tuple[FastAPI, Client], tmp_path: Path
 ) -> None:
-    """codegen 換成假的：把錄製稿寫到 --output 後結束（像使用者關掉視窗）。"""
+    """codegen 換成假的：把錄製稿寫到 --output 後結束（像使用者關掉視窗）。
+
+    資料目錄是相對路徑、codegen 在錄製資料夾裡執行：之前 --output 也是相對路徑而寫錯地方，
+    錄製一開始就失敗（使用者在 Mac 上遇到）。
+    """
+    app, client = relative_app
     script = tmp_path / "fake_codegen.py"
     script.write_text(FAKE_CODEGEN, encoding="utf-8")
     seen: list[list[str]] = []
 
     def launcher(command: list[str], **options: object) -> subprocess.Popen[str]:
         seen.append(command)
+        # 跟真的一樣在錄製資料夾裡執行：--output 是相對路徑時會寫錯地方
         return subprocess.Popen(
-            [sys.executable, str(script), *command[3:-1], RECORDING, command[-1]], text=True
+            [sys.executable, str(script), *command[3:-1], RECORDING, command[-1]],
+            text=True,
+            cwd=cast("Path", options["cwd"]),
         )
 
     recordings = services(app).recordings
@@ -360,6 +390,7 @@ def test_recording_on_this_computer_with_a_fake_codegen(
     assert command[1:4] == ["-m", "playwright", "codegen"]
     assert command[-1] == "http://127.0.0.1:8765/"
     assert "--load-storage" not in command
+    assert Path(command[command.index("--output") + 1]).is_absolute()
 
     record: JsonObject = {}
     for _ in range(100):

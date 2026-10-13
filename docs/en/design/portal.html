@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:bae85724d054dc25">
+<meta name="translation-source" content="sha256:2c8f91e0844f6331">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -21,7 +21,22 @@
   </div>
 
   <div class="stack">
-    <div class="notice">Start it with <code>uv run rpa serve</code> and open <code>http://127.0.0.1:8080</code>. It also starts the local test site at <code>127.0.0.1:8765</code>, so the “Test site automation” cases run right away. Data is kept in <code>data/</code> (or the folder given with <code>--data</code>). There is no sign-in, so by default only this computer can connect.</div>
+    <div class="notice">Start it with <code>uv run rpa serve</code> and open <code>http://127.0.0.1:8080</code>. It also starts the local test site at <code>127.0.0.1:8765</code>, so the “Test site automation” cases run right away. Data is kept in <code>data/</code> (or the folder given with <code>--data</code>; see <a href="#data-folder">Data folder</a>). There is no sign-in, so by default only this computer can connect.</div>
+
+    <section class="panel" id="data-folder">
+      <div class="panel-header"><h2>Data folder</h2><span class="muted">Everything the management portal keeps is in one folder</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>What it is.</strong> Domains, scenarios and the files of every revision, runs and their reports, the login states of login roles, secrets and recordings are all stored in one folder (its contents are listed under <a href="#data">Data</a> below). A different folder is a separate, brand-new management portal.</li>
+          <li><strong>Default and choosing one.</strong> The default is <code>data</code> in the folder where you run the command (the project's <code>data</code> when you run it in the project folder). <code>uv run rpa serve --data FOLDER</code> or the environment variable <code>RPA_DATA_DIR</code> picks another one, for example <code>--data data-m4</code>; a relative path is taken from the folder where you run the command, and the folder is created if it does not exist.</li>
+          <li><strong>Use the same one every time.</strong> To see the same content, start with the same folder every time; without <code>--data</code> you are back to <code>data</code>.</li>
+          <li><strong>A new folder.</strong> On the first start (when there are no domains yet) “Test site automation” is created with the examples and login roles from <code>scenarios/demo</code>. Handy for trying a new version without touching the data you normally use.</li>
+          <li><strong>An existing folder.</strong> A new version upgrades the database the first time it opens the folder and keeps the existing scenarios and records; examples added by the new version are imported with “Import examples” in “Test site automation”.</li>
+          <li><strong>Starting over and backups.</strong> Stop the management portal first (Ctrl+C in its terminal): deleting the folder starts over, copying the whole folder is a backup.</li>
+          <li><strong>Do not commit or share it.</strong> It holds login states and secret values (readable only by you). Git already ignores <code>data/</code> and <code>data-*/</code> in the project; take care yourself with other names or locations.</li>
+        </ul>
+      </div>
+    </section>
 
     <section class="panel" id="domains">
       <div class="panel-header"><h2>Domains</h2><span class="muted">The side menu of Scenarios</span></div>
@@ -189,14 +204,17 @@
       <section class="panel" id="data">
         <div class="panel-header"><h2>Data</h2></div>
         <div class="panel-body">
-<pre class="source">data/
-  rpa.db                      SQLite: domains, scenes, revisions, runs, roles, recordings
-  scenes/&lt;scenario id&gt;/&lt;n&gt;/   scenario.yaml (script scenarios also have two scripts)
-  runs/&lt;run ID&gt;/              the M2 run folder (input.json, report.html…)
-  roles/&lt;role&gt;/state.json      a role's login state (readable only by you)
-  recordings/&lt;recording ID&gt;/  masked raw recording and converted draft
-  debug/&lt;session&gt;/           debugging screenshots (deleted when the session ends)
-  secrets.json                secret values (readable only by you)</pre>
+          <p>By default the project's <code>data/</code>; the folder given with <code>--data</code> otherwise (see <a href="#data-folder">Data folder</a>). It contains:</p>
+          <dl class="spec-list">
+            <dt><code>rpa.db</code></dt><dd>SQLite database (tables below)</dd>
+            <dt><code>scenes/<wbr>&lt;scenario id&gt;/<wbr>&lt;n&gt;/</code></dt><dd>scenario.yaml (script scenarios also have two scripts)</dd>
+            <dt><code>runs/<wbr>&lt;run ID&gt;/</code></dt><dd>the M2 run folder (input.json, report.html…)</dd>
+            <dt><code>roles/<wbr>&lt;role&gt;/<wbr>state.json</code></dt><dd>a role's login state (readable only by you)</dd>
+            <dt><code>recordings/<wbr>&lt;recording ID&gt;/</code></dt><dd>masked raw recording and converted draft</dd>
+            <dt><code>debug/<wbr>&lt;session&gt;/</code></dt><dd>debugging screenshots (deleted when the session ends)</dd>
+            <dt><code>secrets.json</code></dt><dd>secret values (readable only by you)</dd>
+          </dl>
+          <p class="muted">Database tables:</p>
           <dl class="spec-list">
             <dt>domains</dt><dd>ID, name, description, order</dd>
             <dt>scenes</dt><dd>ID, name and category (from the latest revision), domain, default URL, latest and published revision numbers, archived</dd>
@@ -213,7 +231,7 @@
         <div class="panel-body">
           <dl class="spec-list">
             <dt><code>--host</code>, <code>--port</code></dt><dd>Default <code>127.0.0.1:8080</code>; without <code>--port</code>, if another program uses 8080 the next free port up to 8089 is used. If the port is taken by the management portal itself, only its address is shown and no second one is started</dd>
-            <dt><code>RPA_DATA_DIR</code></dt><dd>Data folder, default <code>data</code>; or use <code>--data</code></dd>
+            <dt><code>RPA_DATA_DIR</code></dt><dd>Data folder, default <code>data</code>; or use <code>--data</code> (see <a href="#data-folder">Data folder</a>)</dd>
             <dt><code>RPA_DATABASE_URL</code></dt><dd>SQLite by default; PostgreSQL comes in M8</dd>
             <dt><code>RPA_LANG</code></dt><dd>Default language, also used for run reports; pages can switch at the top right</dd>
             <dt><code>--no-testsite</code></dt><dd>Do not start the test site (by default it starts at <code>127.0.0.1:8765</code>, or the running one is reused)</dd>
