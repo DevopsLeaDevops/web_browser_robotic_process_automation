@@ -283,7 +283,7 @@
   "nav.roles": "登录与凭证",
   "status.needs_login": "需要登录",
   "stage.login": "登录检查",
-  "card.step_debug_title": "逐步调试：一次执行一步，看截图、网址与页面事实；调试页可以接着验证",
+  "card.step_debug_title": "逐步调试：一次运行一步，看截图、网址与页面事实；调试页可以接着验证",
   "scene.debug": "逐步调试",
   "scene.record": "录制新版本",
   "role_status.none": "还没登录",
