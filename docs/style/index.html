@@ -14,7 +14,7 @@
   <div class="heading">
     <div>
       <h1>風格總覽</h1>
-      <p>介面設計系統 v1.0：同事交付的視覺契約，原樣收錄在 <code>docs/design-system/</code>。</p>
+      <p>介面設計系統 v1.1：同事交付的視覺契約（v1.0），加上做出管理 Portal 後補充的規則（v1.1，v1.0 的規則不變），收錄在 <code>docs/design-system/</code>。</p>
     </div>
     <div class="actions">
       <a class="button" href="../design-system/tokens.json" download>下載設計變數</a>
@@ -73,6 +73,19 @@
       </section>
     </div>
 
+    <section class="panel" id="v1-1">
+      <div class="panel-header"><h2>v1.1 補充的規則</h2><span class="muted">2026-10-13 · 範例見設計系統的「編輯與摘要」</span></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>卡片連結固定一列。</strong>依文字長短分配寬度，多一個連結也不換行；真的放不下才以 … 結尾（<code>card-links even</code>）。</li>
+          <li><strong>第二級選單名稱不換行。</strong>太長時以 … 結尾，完整名稱放在 title。</li>
+          <li><strong>重點突出。</strong>面板標題 14px／650，右側說明與數字 12px；摘要用鍵值格（<code>kv-grid</code>，4 欄），重點數字放進結果數字列（<code>result-strip</code>）。</li>
+          <li><strong>同一份資料兩種檢視。</strong>表格內直接編輯（<code>edit-table</code>，一列一筆、補充欄位在下一列）與原文編輯；切換時先校驗，不悄悄丟掉修改。原文編輯器右側是固定寬度的參考欄，點名稱插入（<code>editor-layout</code>、<code>chip-btn</code>）。</li>
+          <li><strong>不撐開整頁。</strong>長內容的表格欄位換行（<code>table.wrap</code>）、程式碼在框內捲動（<code>code-view</code>）。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="panel-header"><h2>在本工程的應用</h2></div>
       <div class="table-scroll">
@@ -80,6 +93,7 @@
           <thead><tr><th>用途</th><th>做法</th><th>階段</th><th>狀態</th></tr></thead>
           <tbody>
             <tr><td>文檔站</td><td>直接引用 <code>portal.css</code>；補充樣式在 <code>docs/assets/docs.css</code></td><td>M0</td><td><span class="badge green">已套用</span></td></tr>
+            <tr><td>管理 Portal</td><td>複製 <code>portal.css</code>、<code>shell.js</code>（測試確認和設計系統的檔案完全相同）；頁面專用樣式在 <code>portal-app.css</code></td><td>M3–M4</td><td><span class="badge green">已套用</span></td></tr>
             <tr><td>頁面原型</td><td>以 <code>starter.html</code> 為基礎製作登入、場景庫、步驟編輯器、執行詳情、使用者與權限頁</td><td>M6</td><td><span class="badge">未開始</span></td></tr>
             <tr><td>Web UI</td><td><code>portal.css</code> 與設計變數移植到 React，外殼改寫為元件</td><td>M8</td><td><span class="badge">未開始</span></td></tr>
           </tbody>

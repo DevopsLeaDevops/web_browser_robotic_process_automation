@@ -44,7 +44,7 @@
   </div>
   <div class="panel-body" data-view-panel="yaml" hidden>
     <textarea class="code-editor" name="yaml" rows="16" spellcheck="false" aria-label="{{ t('contract.title_' + kind) }}"></textarea>
-    <p class="cell-sub">{{ t("contract.yaml_hint_" + kind) }}</p>
+    <p class="hint">{{ t("contract.yaml_hint_" + kind) }}</p>
   </div>
   <div class="panel-body contract-note"><label class="field">{{ t("edit.note") }}<input name="note" maxlength="500" placeholder="{{ t('contract.note_placeholder') }}"></label></div>
   <template data-row>
@@ -65,7 +65,7 @@
         <button class="icon-btn danger" type="button" data-action="remove-row" title="{{ t('contract.remove') }}" aria-label="{{ t('contract.remove') }}">✕</button>
       </td>
     </tr>
-    <tr class="rule-row" hidden><td colspan="{{ 7 if kind == 'inputs' else (6 if not script else 5) }}"><div class="rule-fields">{{ rule_fields() }}</div></td></tr>
+    <tr class="rule-row sub-row" hidden><td colspan="{{ 7 if kind == 'inputs' else (6 if not script else 5) }}"><div class="inline-fields">{{ rule_fields() }}</div></td></tr>
   </template>
 </section>
 {% endmacro %}

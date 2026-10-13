@@ -3,3 +3,78 @@
 /* 共用可讀性與窄屏補充 */
 .toolbar label{white-space:nowrap}.toolbar .grow input{flex:1;width:auto;min-width:100px}.panel-body>h2{margin:3px 0 9px}.panel-body>p{margin:8px 0}.panel-body>label:not(.field){display:block;font-size:12px}.panel-body>label input:not([type=checkbox]),.panel-body>label select{max-width:100%}.dialog-body>label{display:block;margin:12px 0 6px;font-size:12px}.dialog-body>label input:not([type=checkbox]){display:block;width:100%;margin-top:6px}.dialog-body>label input[type=checkbox]{min-height:0}.swatch strong,.swatch code{display:block;padding:6px 8px 0;font-size:11px}.swatch code{padding-bottom:8px}.card-meta .mini-preview{width:96px;height:60px;flex-shrink:0}.card-meta .mini-top{height:10px}.card-meta .mini-side{top:10px;width:20px}.card-meta .mini-main{margin:6px 5px 0 26px;gap:3px}.mini-main i{display:block;height:12px;background:white;border:1px solid var(--line)}.mini-main i:last-child{grid-column:1/-1}.flow-layout .library-item{display:grid;gap:3px;text-align:left;width:100%;border:1px solid var(--line);border-radius:6px;background:white;margin:8px 0}.flow-node strong,.flow-node>.muted{display:block;margin-top:6px}.flow-layout>.panel:last-child>.button{margin-top:8px}.flow-layout>.panel:last-child{align-self:start}.flow-layout hr{border:0;border-top:1px solid var(--line);margin:14px 0}.stepbar{margin:12px 0}#flow-result{margin-top:10px}#page-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:1100px) and (min-width:701px){.flow-layout>.panel:last-child{grid-column:1/-1}}@media(max-width:700px){.toolbar .grow{flex-basis:100%}.toolbar .grow input{width:100%;flex-basis:100%}.env{max-width:145px;overflow:hidden;text-overflow:ellipsis}.flow-stage{min-width:270px}.flow-board{padding:16px}.flow-node{width:260px}}
+/* ---- v1.1（2026-10-13）：實際做出 Portal 後補上的規則；v1.0 的規則都不變 ---- */
+/* 第二級選單：名稱不換行，太長時以 … 結尾（完整名稱放在 title） */
+.sidenav a{gap:8px;padding:9px 10px}
+.sidenav a>span:not(.nav-icon){min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 頁首：說明太長時在左邊換行，右上角的操作不要被擠到下一列 */
+.heading>div:first-child{flex:1 1 420px;min-width:0}
+/* 面板標題列：標題粗一點、右側的說明與數字一律 12px，重點留給標題與內容 */
+.panel-header h2{font-weight:650}
+.panel-header>.muted,.panel-header>span,.panel-header .muted{font-size:12px}
+.panel-header .header-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+/* 卡片連結：固定一列、依文字長短分配（多一個連結也不換行），真的放不下才以 … 結尾 */
+.card-links.even{display:flex;flex-wrap:nowrap;gap:0;padding:7px 0}
+.card-links.even>a,.card-links.even>button{flex:1 1 auto;min-width:0;min-height:0;display:block;text-align:center;padding:0 3px;border:0;border-left:1px solid var(--line);border-radius:0;background:none;font-size:inherit;line-height:1.6;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-links.even>:first-child{border-left:0}
+.card-links.even>:hover{color:var(--blue-strong)}
+/* 分段切換也可以是連結（例如在同一資源的幾個檢視之間切換），可帶數量 */
+.segmented a{display:inline-flex;align-items:center;gap:6px;border-radius:4px;font-size:12px;padding:4px 10px;color:var(--ink)}
+.segmented a.active,.segmented button.active{background:#fff;color:var(--blue-strong);box-shadow:0 1px 3px #24334a12;font-weight:600}
+.segmented .count{min-width:18px;padding:0 5px;border-radius:9px;background:#e1e8f1;color:var(--muted);font-size:10px;line-height:16px;text-align:center;font-weight:500}
+.segmented .active .count{background:var(--active);color:var(--blue-strong)}
+/* 可點的代號（插入到編輯器、篩選條件等） */
+.chip-list{display:flex;flex-wrap:wrap;gap:6px}
+.chip-btn{display:inline-flex;align-items:center;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;padding:2px 7px;border-radius:4px;border:1px solid #dce7f6;background:#f4f8fd;color:var(--blue-strong);cursor:pointer;white-space:nowrap}
+.chip-btn:hover{background:var(--active);border-color:#9bbfe6}
+.chip-btn.sub{color:#4b6a8e;background:#fff}
+/* 小方形圖示按鈕（上移、下移、移除） */
+.icon-btn{display:inline-grid;place-items:center;width:26px;height:26px;padding:0;border:1px solid #dfe6ef;border-radius:5px;background:#fff;color:var(--muted);font-size:12px;line-height:1}
+.icon-btn:hover{border-color:#9bbfe6;color:var(--blue-strong)}
+.icon-btn.danger:hover{border-color:#edc6c4;color:var(--danger)}
+/* 表格的捲動容器也是定位的基準：表格裡的絕對定位元素（例如只給螢幕閱讀器的文字）不會撐寬整頁 */
+.table-scroll{position:relative}
+/* 表格內直接編輯：一列一筆，輸入框填滿儲存格；補充欄位放在下一列（預設收起） */
+.edit-table{table-layout:auto}
+.edit-table th{padding:7px 8px}
+.edit-table td{padding:5px 8px;vertical-align:middle;line-height:1.4}
+.edit-table input:not([type=checkbox]),.edit-table select{width:100%;min-width:0;min-height:28px;padding:3px 8px}
+.edit-table .col-check{width:56px;text-align:center}
+.edit-table .col-actions{width:96px;white-space:nowrap;text-align:right}
+.edit-table tr.edit-row:hover td{background:#fafcff}
+.edit-table tr.sub-row td{background:#f8fafd;padding:8px 12px}
+.edit-table-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--line);font-size:12px}
+.inline-fields{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:12px}
+.inline-fields label{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.inline-fields input{min-height:28px;padding:3px 8px;width:120px}
+.inline-fields .wide input{width:220px}
+/* 編輯器＋右側參考欄：右欄固定寬度、捲動時跟著 */
+.editor-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.editor-layout>aside{position:sticky;top:calc(var(--header) + 12px);display:grid;gap:12px}
+.editor-layout .code-editor{min-height:52vh}
+/* 摘要：鍵值成格排列（4 欄），一眼看完，不要一列一個 */
+.kv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0}
+.kv-grid>div{padding:9px 12px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.kv-grid>div:nth-child(4n){border-right:0}
+.kv-grid dt{font-size:11px;color:var(--muted)}
+.kv-grid dd{margin:2px 0 0;font-size:13px;overflow-wrap:anywhere}
+.kv-grid .wide{grid-column:span 2}
+/* 結果數字列：重點數字放大、說明縮小，一列排開 */
+.result-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line)}
+.result-strip>div{flex:1 1 100px;padding:10px 14px;border-right:1px solid var(--line);display:flex;align-items:baseline;gap:6px}
+.result-strip>div:last-child{border-right:0}
+.result-strip strong{font-size:22px;font-weight:620;line-height:1.2;font-variant-numeric:tabular-nums}
+.result-strip span{font-size:11px;color:var(--muted)}
+.result-strip .warn strong{color:var(--warn)}
+/* 可以換行的表格（table.wrap）：內容長的欄位換行，不撐寬表格 */
+table.wrap{white-space:normal}
+table.wrap code{overflow-wrap:break-word}
+/* 程式碼檢視：太長時在框內捲動，不把整頁拉長 */
+pre.source.code-view{max-height:70vh;overflow:auto;white-space:pre}
+/* 表單的一列：欄位並排、按鈕與欄位底部對齊 */
+.field-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.field-row>label.field{flex:1 1 220px;margin:0}
+.field-row>label.field+label.field{margin:0}
+.hint{font-size:11px;color:var(--muted);line-height:1.6}
+@media(max-width:1100px){.editor-layout{grid-template-columns:1fr}.editor-layout>aside{position:static}.kv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.kv-grid>div:nth-child(4n){border-right:1px solid var(--line)}.kv-grid>div:nth-child(2n){border-right:0}}
+@media(max-width:700px){.kv-grid{grid-template-columns:1fr}.kv-grid>div{border-right:0}.kv-grid .wide{grid-column:auto}}

@@ -227,7 +227,7 @@
   "js.create_action": "Create",
   "nav.domains": "Domains",
   "domain.testsite_name": "Test site automation",
-  "domain.testsite_description": "Real cases that run against the local test site (started with rpa serve at http://127.0.0.1:8765): create a record, look it up, look up a record that does not exist, and the Python script version of creating a record.",
+  "domain.testsite_description": "Real cases that run against the local test site (started by rpa serve at http://127.0.0.1:8765): create a record, look it up, look up a record that does not exist, the Python script version of creating a record, and examples for two login roles.",
   "domain.count": "{count} scenario(s)",
   "domain.manage": "Manage domains",
   "domain.empty": "No scenarios in this domain yet. Create one, or move a scenario here from its Run settings.",
@@ -589,5 +589,12 @@
   "contract.yaml_hint_outputs": "Edit the outputs section of the scenario file directly (starting with outputs:); it is validated before switching back to the table.",
   "contract.default_placeholder": "Required when empty",
   "contract.move_up": "Move up",
-  "contract.move_down": "Move down"
+  "contract.move_down": "Move down",
+  "run.full_size": "Full size",
+  "recording.count_steps": "steps",
+  "recording.count_inputs": "inputs",
+  "recording.count_outputs": "outputs",
+  "recording.count_verify": "assertions",
+  "recording.count_secrets": "secrets",
+  "recording.count_warnings": "lines not converted"
 }

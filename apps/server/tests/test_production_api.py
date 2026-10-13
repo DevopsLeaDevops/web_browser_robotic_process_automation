@@ -638,6 +638,10 @@ def test_scene_and_card_pages_link_to_debugging(client: Client) -> None:
     assert 'id="contract-inputs"' in scene
     assert 'id="contract-outputs"' in scene
     assert '<option value="{{ facts.record.recordId }}">' in scene  # 出參取值可以選頁面事實
+    data = json.loads(scene.split('id="contract-data">')[1].split("</script>")[0])
+    # 編輯器的列和場景檔的順序一樣（不是依名稱排序）
+    assert [name for name, _ in data["inputs"]] == ["title", "quantity"]
+    assert [name for name, _ in data["outputs"]] == ["recordId", "title", "quantity"]
     domain = client.get("/domains/lab").text
     # 卡片的「自動化腳本」「斷言腳本」分別打開場景檔的 steps、verify 兩段
     assert 'href="/scenes/ba-001/edit?part=steps"' in domain

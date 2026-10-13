@@ -27,15 +27,20 @@
 
   <section class="panel">
     <div class="panel-header"><h2>{{ t("run.summary") }}</h2>{{ m.recording_badge(item.status) }}</div>
-    <dl class="panel-body spec-list">
-      <dt>{{ t("recording.col_scene") }}</dt><dd>{% if item.status == "done" %}<a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a> v{{ item.revision_number }}{% else %}{{ item.scene_id }}{% endif %} {{ item.scene_name }}{% if item.new_scene %} <span class="tag">{{ t("recording.target_new") }}</span>{% endif %}</dd>
-      <dt>{{ t("recording.col_source") }}</dt><dd>{{ t("recording.source_" + item.source) }}</dd>
-      <dt>{{ t("recording.url") }}</dt><dd>{{ item.url or "—" }}</dd>
-      <dt>{{ t("run.engine") }}</dt><dd>{{ item.engine }}</dd>
-      <dt>{{ t("recording.role") }}</dt><dd>{{ item.role_id or t("recording.no_role") }}</dd>
-      <dt>{{ t("run.created") }}</dt><dd>{{ m.time(item.created_at) }}</dd>
-      <dt>{{ t("run.finished") }}</dt><dd>{{ m.time(item.finished_at) }}</dd>
+    <dl class="kv-grid">
+      <div class="wide"><dt>{{ t("recording.col_scene") }}</dt><dd>{% if item.status == "done" %}<a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a> v{{ item.revision_number }}{% else %}{{ item.scene_id }}{% endif %} {{ item.scene_name }}{% if item.new_scene %} <span class="tag">{{ t("recording.target_new") }}</span>{% endif %}</dd></div>
+      <div><dt>{{ t("recording.col_source") }}</dt><dd>{{ t("recording.source_" + item.source) }} · {{ t("recording.kind_" + item.mode) }}{% if item.base_revision %} (v{{ item.base_revision }}){% endif %}</dd></div>
+      <div><dt>{{ t("run.engine") }}</dt><dd>{{ item.engine }}</dd></div>
+      <div class="wide"><dt>{{ t("recording.url") }}</dt><dd>{{ item.url or "—" }}</dd></div>
+      <div><dt>{{ t("recording.role") }}</dt><dd>{{ item.role_id or t("recording.no_role") }}</dd></div>
+      <div><dt>{{ t("run.finished") }}</dt><dd>{{ m.time(item.finished_at) }}</dd></div>
     </dl>
+    {% if counts %}
+    <div class="result-strip">
+      {% for key in ("steps", "inputs", "outputs", "verify", "secrets") %}<div><strong>{{ counts[key] }}</strong><span>{{ t("recording.count_" + key) }}</span></div>{% endfor %}
+      <div{% if item.warnings %} class="warn"{% endif %}><strong>{{ item.warnings | length }}</strong><span>{{ t("recording.count_warnings") }}</span></div>
+    </div>
+    {% endif %}
   </section>
 
   {% if item.warnings %}
@@ -50,11 +55,11 @@
   <div class="field-pair">
     <section class="panel">
       <div class="panel-header"><h2>{{ t("recording.converted") }}</h2><span class="muted mono">scenario.yaml</span></div>
-      {% if files.get("scenario.yaml") %}<pre class="source">{{ files["scenario.yaml"] }}</pre>{% else %}<div class="empty">—</div>{% endif %}
+      {% if files.get("scenario.yaml") %}<pre class="source code-view">{{ files["scenario.yaml"] }}</pre>{% else %}<div class="empty">—</div>{% endif %}
     </section>
     <section class="panel">
       <div class="panel-header"><h2>{{ t("recording.raw") }}</h2><span class="muted">{{ t("recording.raw_hint") }}</span></div>
-      {% if files.get("raw.py") %}<pre class="source">{{ files["raw.py"] }}</pre>{% else %}<div class="empty">—</div>{% endif %}
+      {% if files.get("raw.py") %}<pre class="source code-view">{{ files["raw.py"] }}</pre>{% else %}<div class="empty">—</div>{% endif %}
     </section>
   </div>
 </div>

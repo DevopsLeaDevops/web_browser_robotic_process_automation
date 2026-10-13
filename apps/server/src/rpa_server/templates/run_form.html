@@ -15,7 +15,7 @@
       <div class="panel-header"><h2>{{ t("run_form.inputs") }}</h2><span class="muted">JSON</span></div>
       <div class="panel-body stack">
         <label class="field">{{ t("run_form.inputs_label") }}
-          <textarea class="code-editor" name="inputs" rows="10" spellcheck="false">
+          <textarea class="code-editor compact" name="inputs" rows="10" spellcheck="false">
 {{ defaults | pretty_json }}</textarea>
         </label>
         <span class="cell-sub">{{ t("run_form.inputs_hint") }}</span>

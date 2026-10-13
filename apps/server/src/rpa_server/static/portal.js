@@ -996,7 +996,8 @@
     const fillRows = (editor, specs) => {
       const body = qs('[data-rows]', editor);
       body.innerHTML = '';
-      Object.entries(specs || {}).forEach(([name, spec]) => body.appendChild(contractRowFrom(editor, name, spec)));
+      // 頁面帶的初始資料是 [名稱, 規格] 的清單（保留順序）；原文切回表格時是物件
+      (Array.isArray(specs) ? specs : Object.entries(specs || {})).forEach(([name, spec]) => body.appendChild(contractRowFrom(editor, name, spec)));
       qsa('tr.edit-row', body).forEach(row => { applyType(row); setRequired(row); });
     };
     const items = editor => qsa('tr.edit-row', editor).map(contractItem);

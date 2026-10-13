@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:2c8f91e0844f6331">
+<meta name="translation-source" content="sha256:f5fd54722aaa1170">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,7 +15,7 @@
   <div class="heading">
     <div>
       <h1>Management portal</h1>
-      <p>Create scenarios, validate, publish and run them, and read the reports in the browser (M3); recording, step debugging, login roles and input/output forms (M4). Single machine, single user (<a href="../adr/0010-mvp-first.html">ADR 0010</a>), FastAPI + Jinja (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>), SQLite (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>); the layout follows the <a href="../../prototypes/mvp/index.html">MVP prototype</a> and design system v1.0.</p>
+      <p>Create scenarios, validate, publish and run them, and read the reports in the browser (M3); recording, step debugging, login roles and input/output forms (M4). Single machine, single user (<a href="../adr/0010-mvp-first.html">ADR 0010</a>), FastAPI + Jinja (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>), SQLite (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>); the layout follows the <a href="../../prototypes/mvp/index.html">MVP prototype</a> and design system v1.1.</p>
     </div>
     <span class="badge blue">M4</span>
   </div>
@@ -114,11 +114,14 @@
         <div class="stepbar"><span>1 Record a draft</span><span>2 Debug and edit</span><span>3 Validate</span><span>4 Publish</span></div>
         <ul>
           <li><strong>Record on this computer.</strong> “Production › Script recording” → “Start recording” opens Playwright codegen's browser and Inspector on the computer running the Portal; work as usual and close the browser window when you are done. With a login role selected, its login state is loaded first. On the command line: <code>rpa record URL --out recording.py --scenario draft.yaml</code>.</li>
+          <li><strong>Three targets.</strong> A new scenario (saved as v1); an existing scenario, “continue after the existing steps”: the recording browser first runs the latest revision's steps with the default inputs and stops on the last step's page, then recording starts, and the recorded steps, outputs and checks are appended to the existing content (which stays as it is, comments included; if an existing step fails, recording stops and nothing is saved); or an existing scenario, “replace with the recording”: record again from the start URL and save it as a new revision. With an existing scenario, the start URL, browser and login role are filled in from its settings.</li>
+          <li><strong>The Inspector's code cannot be edited.</strong> The code on the right of the Inspector is generated live by Playwright from your actions and is read-only (Playwright's own design, not a restriction of this project); the Locator tab accepts and tests locators. To change the result, edit the scenario's “Automation script” and “Assertion script” after conversion.</li>
           <li><strong>Paste a recording.</strong> A codegen recording made elsewhere (sync, async or pytest style) can be pasted and converted directly, for example when the Portal runs on a computer without a display.</li>
-          <li><strong>What is converted.</strong> goto, click, fill, press, select_option, check and the common expect assertions, with get_by_role, label, placeholder, text, test_id, CSS, XPath, first, nth and filter(has_text) locators. The origin of the first URL becomes <code>browser.baseUrl</code>. Lines that cannot be converted (hover, uploads, iframes, new tabs…) stay in the draft as comments and are listed on the recording page.</li>
+          <li><strong>Assertions become outputs.</strong> The Inspector's “Assert text” and “Assert value” (<code>expect(…).to_contain_text</code>, <code>to_have_value</code>, <code>to_have_text</code>) are not kept as checks inside the steps. Instead the automation script gets an <code>extract</code> that reads the element (after waiting for it), the outputs get an entry taken from that page fact, and the assertion script (<code>verify:</code>) gets a check: “equals that input” when the recorded value equals a typed value, otherwise “has content”. Output names come from the element's ASCII name and can be changed later.</li>
+          <li><strong>What is converted.</strong> goto, click, fill, press, select_option, check and the other common expect assertions, with get_by_role, label, placeholder, text, test_id, CSS, XPath, first, nth and filter(has_text) locators. The origin of the first URL becomes <code>browser.baseUrl</code>. Lines that cannot be converted (hover, uploads, iframes, new tabs…) stay in the draft as comments and are listed on the recording page.</li>
           <li><strong>Inputs from typed values.</strong> Every typed value becomes an input whose default is the recorded value; the name comes from the field's ASCII name (field, field_2… when there is none) and the field's label goes into the description, so you can rename it later in the scenario's form.</li>
           <li><strong>Passwords never stored.</strong> Password fields (label, placeholder or selector containing password, 密碼 and similar words) become secret references, and the raw recording is saved with the value masked as <code>***</code>; the temporary raw recording is deleted after conversion.</li>
-          <li><strong>Drafts only.</strong> The result is saved as v1 of a new scenario or a new revision of an existing one; the recording is only the source and still has to be debugged and validated before publishing.</li>
+          <li><strong>Drafts only.</strong> The result is saved as v1 of a new scenario or a new revision of an existing one; the recording is only the source and still has to be debugged and validated before publishing. The recording page counts the steps, inputs, outputs, checks and lines not converted.</li>
         </ul>
       </div>
     </section>
@@ -137,9 +140,13 @@
     </section>
 
     <section class="panel" id="forms">
-      <div class="panel-header"><h2>Input and output forms</h2><span class="muted">M4</span></div>
+      <div class="panel-header"><h2>Section editing: automation script, assertion script, inputs, outputs</h2><span class="muted">M4</span></div>
       <div class="panel-body prose">
-        <p>“Edit” on the scenario page's input and output tables adds, removes and renames entries and changes their type, default, required flag, description, constraints and the outputs' <code>from</code>. Saving rewrites only the <code>inputs:</code> and <code>outputs:</code> sections of the scenario file, leaving everything else, comments included, untouched; renaming an input also renames <code>{{ inputs.OLD }}</code> references in the steps. It creates a new revision like any other save, with validation and the “409 if not the latest revision” check, and the new revision has to be validated again. Outputs of Python script scenarios come from assertion.py, and renames do not touch the scripts.</p>
+        <ul>
+          <li><strong>Automation and assertion scripts are separate.</strong> DSL scenarios have “Automation script” (<code>steps:</code>) and “Assertion script” (<code>verify:</code>) on the card and the scenario page, each showing and rewriting only its section of the scenario file. A run executes the automation steps first, then checks the page facts with the assertion script, and publishes the outputs only when every check passes. The assertion script page inserts notEmpty, equals, contains and matches checks with one click, and clicking a page fact or input name inserts it at the cursor. Saving validates first and reports problems with line numbers inside the section.</li>
+          <li><strong>Inputs and outputs: table and YAML source views.</strong> “Edit” on the scenario page's inputs or outputs opens a table with one row per entry where you change the name, type, required flag, default, the outputs' <code>from</code> and the description directly; constraints sit on the row below (minLength, pattern, minimum, enum… depending on the type), and rows can be added, moved up or down and removed. “YAML source” edits the section's raw text, which is validated before switching back to the table.</li>
+          <li><strong>Only that section is rewritten.</strong> Saving replaces only that section of the scenario file, leaving everything else, comments included, untouched; renaming an input also renames <code>{{ inputs.OLD }}</code> references in the steps. It creates a new revision like any other save, with validation and the “409 if not the latest revision” check, and the new revision has to be validated again. Outputs of Python script scenarios come from assertion.py, and renames do not touch the scripts.</li>
+        </ul>
       </div>
     </section>
 
@@ -154,6 +161,7 @@
             <tr><td><code>/domains</code></td><td>Domains: create, rename, delete; scenarios without a domain</td></tr>
             <tr><td><code>/scenes/{id}</code></td><td>Revisions and their status, publishing, the roles and secrets a run needs, inputs and outputs (editable in place), domain and default URL, recent runs</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>Edit the YAML and scripts and save a new revision; validation problems are listed on the page</td></tr>
+            <tr><td><code>/scenes/{id}/edit?part=steps</code>, <code>?part=verify</code></td><td>A DSL scenario's automation script and assertion script: edit only that section, with page facts, inputs and checks to insert on the right</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>Form to validate or run: inputs (JSON with the defaults filled in), browser, URL</td></tr>
             <tr><td><code>/runs</code></td><td>Run reports: filter menus for category, scenario, result and purpose, each allowing several choices</td></tr>
             <tr><td><code>/runs/{run ID}</code></td><td>Status, stages, independent assertions, inputs and outputs, screenshot, files in the run folder; cancel, publish</td></tr>
@@ -185,12 +193,14 @@
             <tr><td><code>GET /api/runs</code>, <code>GET /api/runs/{run ID}</code></td><td>List runs (<code>scene</code>, <code>category</code>, <code>status</code>, <code>purpose</code> can repeat); one run with its <code>result.json</code> and file list</td></tr>
             <tr><td><code>POST /api/runs/{run ID}/cancel</code></td><td>Cancel</td></tr>
             <tr><td><code>POST /api/runs/{run ID}/rerun</code></td><td>Run again with the same inputs and options; 202 with the new run</td></tr>
-            <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>Save the input/output forms: <code>baseRevision</code>, <code>inputs</code>, <code>outputs</code> (each with <code>name</code>, the previous name in <code>previous</code>…), <code>note</code></td></tr>
+            <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>Save the input/output tables: <code>baseRevision</code>, <code>inputs</code>, <code>outputs</code> (each with <code>name</code>, the previous name in <code>previous</code>…; a section left out stays as it is), <code>note</code></td></tr>
+            <tr><td><code>POST /api/contract/render</code></td><td>Turn a table's content (<code>key</code>, <code>items</code>) into the same YAML a save writes; used when switching to the source view</td></tr>
+            <tr><td><code>GET</code>, <code>PUT /api/scenes/{id}/sections/{section}</code>; <code>POST …/preview</code></td><td>One section of the scenario file (<code>steps</code>, <code>verify</code>, <code>inputs</code>, <code>outputs</code>): read it, replace only that section and save a new revision (<code>baseRevision</code>, <code>text</code>, <code>note</code>), or validate the replacement without saving (inputs and outputs return the table data); problems carry the line inside the section in <code>sectionLine</code></td></tr>
             <tr><td><code>GET</code>, <code>POST /api/roles</code>; <code>GET</code>, <code>PATCH</code>, <code>DELETE /api/roles/{role}</code></td><td>Login roles: <code>name</code>, <code>loginUrl</code>, <code>checkUrl</code>, <code>check</code> (a locator), <code>engine</code>, <code>autoLogin</code>; a role still used by scenarios cannot be deleted</td></tr>
             <tr><td><code>POST /api/roles/{role}/login</code>, <code>…/login/finish</code>, <code>…/login/cancel</code></td><td>Manual login: open the browser window, finish, cancel; progress is in the role's <code>activity</code> and <code>session</code></td></tr>
             <tr><td><code>POST /api/roles/{role}/check</code>, <code>DELETE /api/roles/{role}/state</code></td><td>Check in the background whether the role is logged in (logging in automatically when possible); log out</td></tr>
             <tr><td><code>GET /api/secrets</code>, <code>PUT</code>, <code>DELETE /api/secrets/{name}</code></td><td>Secrets: only names and update times are returned; <code>PUT</code> takes <code>value</code></td></tr>
-            <tr><td><code>GET</code>, <code>POST /api/recordings</code>, <code>POST /api/recordings/import</code></td><td>List recordings; record on this computer (202); convert a pasted recording (201). Both take <code>target</code> (a new or existing scenario), <code>url</code>, <code>engine</code> and an optional <code>roleId</code></td></tr>
+            <tr><td><code>GET</code>, <code>POST /api/recordings</code>, <code>POST /api/recordings/import</code></td><td>List recordings; record on this computer (202); convert a pasted recording (201). Both take <code>target</code> (a new scenario, or an existing one with <code>mode</code>: <code>continue</code> after the existing steps or <code>replace</code> everything), <code>url</code>, <code>engine</code> and an optional <code>roleId</code></td></tr>
             <tr><td><code>GET /api/recordings/{recording ID}</code>, <code>…/cancel</code></td><td>Recording status, lines not converted and files; cancel a recording</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>Start step debugging (<code>revision</code>, <code>inputs</code>, <code>engine</code>, <code>headless</code>, <code>baseUrl</code>); returns the running session if there is one</td></tr>
             <tr><td><code>GET</code>, <code>DELETE /api/debug/{session}</code>; <code>POST …/steps/{n}</code>, <code>…/run-to/{n}</code>, <code>…/locate</code>, <code>…/screenshot</code>, <code>…/reset</code>, <code>…/reload</code></td><td>Session state and closing; run one step (409 <code>confirm_required</code> for a step with side effects that already ran; send again with <code>force</code>), run up to step n, test a locator, take a screenshot, start over, switch to a new revision</td></tr>
@@ -221,7 +231,7 @@
             <dt>revisions</dt><dd>Scenario, revision number (unique), content hash, kind, status, note, publishing time</dd>
             <dt>runs</dt><dd>Run ID, scenario and revision, the name and category at the time, purpose, status and stage, headed or headless mode, inputs and outputs, error, hash, times</dd>
             <dt>roles</dt><dd>Id, name, login URL, check URL and element, browser, automatic login steps, the latest status and check time</dd>
-            <dt>recordings</dt><dd>Recording ID, target scenario and revision, source (recorded or pasted), URL, browser, role, status, lines not converted</dd>
+            <dt>recordings</dt><dd>Recording ID, target scenario and revision, mode (new scenario, continue after the existing steps, replace everything) and the revision it continues, source (recorded or pasted), URL, browser, role, status, lines not converted</dd>
           </dl>
           <p class="muted">The models use SQLAlchemy 2; schema changes go through Alembic migrations, applied automatically when the server starts. A test checks that the migrations match the models.</p>
         </div>

@@ -14,7 +14,7 @@
   <div class="heading">
     <div>
       <h1>管理 Portal</h1>
-      <p>在瀏覽器裡建立場景、驗證、發布、執行並查看報告（M3）；錄製、逐步調試、登入角色與入參出參的表單（M4）。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.0。</p>
+      <p>在瀏覽器裡建立場景、驗證、發布、執行並查看報告（M3）；錄製、逐步調試、登入角色與入參出參的表單（M4）。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.1。</p>
     </div>
     <span class="badge blue">M4</span>
   </div>
@@ -113,11 +113,14 @@
         <div class="stepbar"><span>1 錄製草稿</span><span>2 調試與修改</span><span>3 驗證</span><span>4 確認發布</span></div>
         <ul>
           <li><strong>在這台電腦錄製。</strong>「場景生產 › 自主腳本錄製」按「開始錄製」，執行 Portal 的電腦會開啟 Playwright codegen 的瀏覽器與 Inspector；照平常的方式操作，完成後關掉瀏覽器視窗。選了登入角色時先載入它的登入狀態。也可以在命令列用 <code>rpa record 網址 --out 錄製稿.py --scenario 草稿.yaml</code>。</li>
+          <li><strong>三種目標。</strong>新場景（存成 v1）；既有場景「接著現有步驟錄製」：先在錄製的瀏覽器裡用入參預設值執行最新版本的步驟，停在最後一步的頁面，再開始錄製，錄到的步驟、出參與斷言接在原有內容後面（原有的內容與註解不變；既有步驟執行失敗時錄製停止，不會存檔）；既有場景「整份換成錄製的內容」：從起始網址重新錄，存成新版本。選既有場景時，起始網址、瀏覽器、登入角色自動帶入它的設定。</li>
+          <li><strong>Inspector 的程式碼不能直接改。</strong>Inspector 右側的程式碼是 Playwright 依操作即時產生的，只能看、複製（Playwright 本身的設計，不是本工程限制）；Locator 分頁可以輸入並測試定位器。要修改請在轉換後到場景的「自動化腳本」「斷言腳本」編輯。</li>
           <li><strong>貼上錄製稿。</strong>在別台電腦錄好的 codegen 原始稿（同步、非同步或 pytest 寫法）可以貼上直接轉換，例如 Portal 跑在沒有圖形介面的電腦時。</li>
-          <li><strong>轉換規則。</strong>goto、click、fill、press、select_option、check 與常見的 expect，以及 get_by_role、label、placeholder、text、test_id、CSS、XPath、first、nth、filter(has_text) 等定位器。第一個網址的來源成為 <code>browser.baseUrl</code>。轉不了的行（hover、上傳、iframe、新分頁…）以註解留在草稿裡並列在錄製詳情。</li>
+          <li><strong>斷言變成出參。</strong>Inspector 的「Assert text」「Assert value」（<code>expect(…).to_contain_text</code>、<code>to_have_value</code>、<code>to_have_text</code>）不當成步驟裡的檢查，而是：自動化腳本多一個 <code>extract</code> 讀取那個元素（先等它出現），出參多一項取自這個頁面事實，斷言腳本（<code>verify:</code>）多一條檢查——錄到的值等於某個輸入的值時檢查「等於該入參」，否則檢查「有取得內容」。出參名稱取自元素的英數名稱，之後可以改。</li>
+          <li><strong>轉換規則。</strong>goto、click、fill、press、select_option、check 與其他常見的 expect，以及 get_by_role、label、placeholder、text、test_id、CSS、XPath、first、nth、filter(has_text) 等定位器。第一個網址的來源成為 <code>browser.baseUrl</code>。轉不了的行（hover、上傳、iframe、新分頁…）以註解留在草稿裡並列在錄製詳情。</li>
           <li><strong>自動參數化。</strong>每個輸入的值變成一個入參，預設值是錄到的值；名稱取自欄位的英數名稱（沒有時叫 field、field_2…），欄位標籤寫在說明，之後在場景頁的表單改名。</li>
           <li><strong>密碼不落地。</strong>密碼欄位（標籤、提示文字或選擇器含有 password、密碼等字）改成 Secret 引用，原始錄製稿也遮罩成 <code>***</code> 才保存；錄製中的暫存原始稿轉換後就刪除。</li>
-          <li><strong>只產生草稿。</strong>轉換結果存成新場景的 v1，或既有場景的新版本；錄製稿只當來源，一樣要調試、驗證通過才能發布。</li>
+          <li><strong>只產生草稿。</strong>轉換結果存成新場景的 v1，或既有場景的新版本；錄製稿只當來源，一樣要調試、驗證通過才能發布。錄製詳情列出步驟、入參、出參、斷言與轉不了的行的數量。</li>
         </ul>
       </div>
     </section>
@@ -136,9 +139,13 @@
     </section>
 
     <section class="panel" id="forms">
-      <div class="panel-header"><h2>入參與出參的表單</h2><span class="muted">M4</span></div>
+      <div class="panel-header"><h2>分段編輯：自動化腳本、斷言腳本、入參、出參</h2><span class="muted">M4</span></div>
       <div class="panel-body prose">
-        <p>場景頁的入參、出參表格按「編輯」可以新增、刪除、改名，修改型別、預設值、必填、說明、限制與出參的取值。存檔時只改寫場景檔的 <code>inputs:</code>、<code>outputs:</code> 兩段，其他內容與註解完全不變；入參改名時，步驟裡引用舊名稱的 <code>{{ inputs.舊名稱 }}</code> 一起改。一樣建立新版本、經過校驗與「不是最新版就 409」的檢查，新版本要重新驗證。Python 腳本場景的出參由 assertion.py 產生，改名也不會改到腳本。</p>
+        <ul>
+          <li><strong>自動化腳本與斷言腳本分開。</strong>DSL 場景的卡片與場景頁有「自動化腳本」（<code>steps:</code>）與「斷言腳本」（<code>verify:</code>）兩個入口，各自只顯示、只改寫場景檔的那一段；執行時先跑自動化步驟，再用斷言腳本檢查取得的頁面事實，全部通過才發布出參。斷言腳本右側可以一鍵插入 notEmpty、equals、contains、matches 的檢查，點一下頁面事實或入參的名稱就插入到游標位置。存檔前校驗，問題標出段落裡的行號。</li>
+          <li><strong>入參、出參：表格與 YAML 原文兩種檢視。</strong>場景頁的入參、出參按「編輯」：表格一列一筆，直接修改名稱、型別、必填、預設值、出參的取值與說明，限制收在下一列（依型別顯示 minLength、pattern、minimum、enum…），可以新增、上移、下移、刪除；切到「YAML 原文」直接修改那一段的原始寫法，切回表格前先校驗。</li>
+          <li><strong>只改寫那一段。</strong>存檔時只換掉場景檔的那一段，其他內容與註解完全不變；入參改名時，步驟裡引用舊名稱的 <code>{{ inputs.舊名稱 }}</code> 一起改。一樣建立新版本、經過校驗與「不是最新版就 409」的檢查，新版本要重新驗證。Python 腳本場景的出參由 assertion.py 產生，改名也不會改到腳本。</li>
+        </ul>
       </div>
     </section>
 
@@ -154,6 +161,7 @@
             <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、執行前要準備的角色與 Secrets、入參與出參（可以直接編輯）、所屬領域與預設網址、最近執行</td></tr>
             <tr><td><code>/scenes/{id}/debug</code></td><td>逐步調試：步驟清單、截圖、定位器測試、頁面事實、修改 YAML</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上</td></tr>
+            <tr><td><code>/scenes/{id}/edit?part=steps</code>、<code>?part=verify</code></td><td>DSL 場景的自動化腳本、斷言腳本：只編輯那一段，右側可插入頁面事實、入參與檢查</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>驗證或執行的表單：入參（JSON，已帶入預設值）、瀏覽器、網址</td></tr>
             <tr><td><code>/runs</code></td><td>執行報告：分類、場景、結果、目的的篩選選單，每一項都可以複選</td></tr>
             <tr><td><code>/runs/{執行編號}</code></td><td>狀態、階段、獨立斷言、入參與出參、截圖、執行目錄的檔案；取消、發布</td></tr>
@@ -184,12 +192,14 @@
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/rerun</code></td><td>同樣的入參與選項再執行一次；202 回新的執行</td></tr>
-            <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>入參與出參的表單存檔：<code>baseRevision</code>、<code>inputs</code>、<code>outputs</code>（每項有 <code>name</code>、改名前的 <code>previous</code>…）、<code>note</code></td></tr>
+            <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>入參與出參的表格存檔：<code>baseRevision</code>、<code>inputs</code>、<code>outputs</code>（每項有 <code>name</code>、改名前的 <code>previous</code>…；不帶的那一段不動）、<code>note</code></td></tr>
+            <tr><td><code>POST /api/contract/render</code></td><td>表格的內容（<code>key</code>、<code>items</code>）轉成和存檔一樣的 YAML 寫法，切到原文檢視時用</td></tr>
+            <tr><td><code>GET</code>、<code>PUT /api/scenes/{id}/sections/{段}</code>；<code>POST …/preview</code></td><td>場景檔的一段（<code>steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code>）：讀取、只換掉這一段存成新版本（<code>baseRevision</code>、<code>text</code>、<code>note</code>）、換掉後校驗但不存檔（入參、出參回傳表格用的資料）；問題帶段落裡的行號 <code>sectionLine</code></td></tr>
             <tr><td><code>GET</code>、<code>POST /api/roles</code>；<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/roles/{角色}</code></td><td>登入角色：<code>name</code>、<code>loginUrl</code>、<code>checkUrl</code>、<code>check</code>（定位器）、<code>engine</code>、<code>autoLogin</code>；還有場景用到時不能刪除</td></tr>
             <tr><td><code>POST /api/roles/{角色}/login</code>、<code>…/login/finish</code>、<code>…/login/cancel</code></td><td>人工登入：開瀏覽器視窗、完成、取消；進度看角色的 <code>activity</code> 與 <code>session</code></td></tr>
             <tr><td><code>POST /api/roles/{角色}/check</code>、<code>DELETE /api/roles/{角色}/state</code></td><td>在背景檢查是否已登入（必要時自動登入）；登出</td></tr>
             <tr><td><code>GET /api/secrets</code>、<code>PUT</code>、<code>DELETE /api/secrets/{名稱}</code></td><td>Secrets：只回傳名稱與更新時間；<code>PUT</code> 的內容是 <code>value</code></td></tr>
-            <tr><td><code>GET</code>、<code>POST /api/recordings</code>、<code>POST /api/recordings/import</code></td><td>錄製清單；在這台電腦錄製（202）；貼上錄製稿直接轉換（201）。都要 <code>target</code>（新場景或既有場景）、<code>url</code>、<code>engine</code>、選用的 <code>roleId</code></td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/recordings</code>、<code>POST /api/recordings/import</code></td><td>錄製清單；在這台電腦錄製（202）；貼上錄製稿直接轉換（201）。都要 <code>target</code>（新場景，或既有場景加 <code>mode</code>：<code>continue</code> 接著現有步驟、<code>replace</code> 整份換掉）、<code>url</code>、<code>engine</code>、選用的 <code>roleId</code></td></tr>
             <tr><td><code>GET /api/recordings/{錄製編號}</code>、<code>…/cancel</code></td><td>錄製狀態、轉不了的行與檔案；取消錄製</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>開始逐步調試（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已經有工作階段時回傳它</td></tr>
             <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作階段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>調試狀態與結束；執行一步（有副作用而且執行過時 409 <code>confirm_required</code>，帶 <code>force</code> 再送）、執行到第 n 步、測試定位器、截圖、從頭開始、換到新版本</td></tr>
@@ -220,7 +230,7 @@
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
             <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間</dd>
             <dt>roles</dt><dd>代號、名稱、登入網址、確認網址與判斷元素、瀏覽器、自動登入步驟、最近的狀態與檢查時間</dd>
-            <dt>recordings</dt><dd>錄製編號、目標場景與版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
+            <dt>recordings</dt><dd>錄製編號、目標場景與版本、方式（新場景、接著現有步驟、整份換掉）與接續的版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
         </div>

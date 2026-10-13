@@ -14,6 +14,26 @@ def follow_locale(value: str | None, key: str) -> str | None:
     資料庫裡存的是建立當時語言的版本；只要還等於某種語言的預設文字，就換成目前語言的版本。
     使用者改過的文字不等於任何語言的預設文字，照原樣顯示。
     """
-    if value is not None and any(t.messages(locale).get(key) == value for locale in LOCALES):
+    if value is None:
+        return value
+    if any(t.messages(locale).get(key) == value for locale in LOCALES) or value in _PREVIOUS.get(
+        key, ()
+    ):
         return t(key)
     return value
+
+
+_PREVIOUS: dict[str, tuple[str, ...]] = {
+    # 之前版本的預設文字：已經存進資料庫的也當成沒改過，跟著目前的版本與語言顯示
+    "domain.testsite_description": (
+        "對本機測試網站（rpa serve 一起啟動，http://127.0."
+        "0.1:8765）執行的真實案例：建立紀錄、查詢紀錄、查詢不存在的紀錄，"
+        "以及 Python 腳本版的建立紀錄。",
+        "对本机测试网站（rpa serve 一起启动，http://127.0."
+        "0.1:8765）运行的真实案例：创建记录、查询记录、查询不存在的记录，"
+        "以及 Python 脚本版的创建记录。",
+        "Real cases that run against the local test site (started with rpa serve at http:"
+        "//127.0.0.1:8765): create a record, look it up, look up a record that does not e"
+        "xist, and the Python script version of creating a record.",
+    ),
+}

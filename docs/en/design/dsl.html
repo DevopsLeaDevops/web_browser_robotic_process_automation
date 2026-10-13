@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:5822fd9ed0ff983b">
+<meta name="translation-source" content="sha256:964cf6c96f754dd0">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -268,7 +268,7 @@ $ rpa record --from recorded-elsewhere.py --out erp-login.py --scenario erp-logi
         <dl class="spec-list">
           <dt>Recording</dt><dd>Uses Playwright codegen: the browser window and the Inspector open on this computer and recording ends when you close the window; a display is required. <code>--browser chromium|firefox</code>; <code>--load-storage state.json</code> loads a login state first.</dd>
           <dt>Output</dt><dd><code>--out</code> is the recording with passwords masked as <code>***</code> (the temporary raw recording, which may contain passwords, is deleted after conversion); <code>--scenario</code> is the DSL draft, with <code>--id</code> and <code>--name</code> for its id and name.</dd>
-          <dt>Conversion</dt><dd>goto, click, fill, press, select_option, check and the common expect assertions; typed values become inputs (defaulting to the recorded value), password fields become secrets (named after the scenario id plus <code>_PASSWORD</code>), and lines that cannot be converted stay as comments with their line numbers listed. The management portal's recording uses the same conversion.</dd>
+          <dt>Conversion</dt><dd>goto, click, fill, press, select_option, check and the common expect assertions; the Inspector's “Assert text” and “Assert value” become an <code>extract</code> step plus an output plus a <code>verify</code> check (equals the input when the recorded value equals a typed value, otherwise has content); typed values become inputs (defaulting to the recorded value), password fields become secrets (named after the scenario id plus <code>_PASSWORD</code>), and lines that cannot be converted stay as comments with their line numbers listed. The management portal's recording uses the same conversion.</dd>
         </dl>
       </div>
     </section>

@@ -6,7 +6,7 @@
 {% if spec.pattern is not none %}{% set _ = items.append("pattern: " ~ spec.pattern) %}{% endif %}
 {% if spec.minimum is not none %}{% set _ = items.append("minimum: " ~ (spec.minimum | num)) %}{% endif %}
 {% if spec.maximum is not none %}{% set _ = items.append("maximum: " ~ (spec.maximum | num)) %}{% endif %}
-{% if items %}<code>{{ items | join(", ") }}</code>{% else %}—{% endif %}
+{% if items %}<span class="rule-list">{% for item in items %}<code>{{ item }}</code>{% endfor %}</span>{% else %}—{% endif %}
 {% endmacro %}
 
 {% macro arrow() %}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>{% endmacro %}
@@ -53,7 +53,7 @@
 {% endmacro %}
 
 {% macro spec_tables(scenario, editable=false) %}
-<div class="two-col">
+<div class="two-col spec-pair">
   <section class="panel" id="inputs">
     <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}{% if editable %} <button class="text-btn" type="button" data-action="edit-contract" data-kind="inputs">{{ t("contract.edit") }}</button>{% endif %}</span></div>
     {% if scenario.inputs %}
@@ -79,7 +79,7 @@
       {% for name, spec in scenario.outputs.items() %}
         <tr><td><code>{{ name }}</code>{% if spec.description %}<span class="cell-sub">{{ spec.description }}</span>{% endif %}</td>
           <td>{{ spec.type }}</td>
-          <td>{% if spec.from_ %}<code>{{ spec.from_ }}</code>{% else %}{{ t("spec.from_script") }}{% endif %}</td>
+          <td>{% if spec.from_ %}<code title="{{ spec.from_ }}">{{ spec.from_ | expression }}</code>{% else %}{{ t("spec.from_script") }}{% endif %}</td>
           <td class="rules">{{ rules(spec) }}</td></tr>
       {% endfor %}
       </tbody>

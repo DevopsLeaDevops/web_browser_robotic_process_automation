@@ -1,9 +1,10 @@
-/* rpa-server：設計系統 v1.0 沒有的少數樣式，沿用同一組設計變數。設計系統本身（portal.css）不改。 */
+/* rpa-server：設計系統（portal.css，v1.1）沒有的、只有這個 Portal 用到的樣式，沿用同一組設計變數。
+   通用的規則（例如表格內編輯、卡片連結一列、分段切換的連結）先加進設計系統，再複製 portal.css 過來。 */
 .notice.danger{background:#fff0ef;color:var(--danger);border-color:#f2cfcd}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .language select{min-height:28px;padding:2px 6px;font-size:12px}
 td code{white-space:normal}
-td.rules code{overflow-wrap:anywhere}
+.rule-list{display:flex;flex-wrap:wrap;gap:4px}.rule-list code{white-space:nowrap;font-size:11px;padding:1px 6px;border-radius:4px;background:#f3f6fa;border:1px solid var(--line)}
 .panel>pre.source{margin:12px}
 .dialog-body>.notice{margin-bottom:4px}
 .form-error{color:var(--danger);font-size:12px;margin:0}
@@ -30,11 +31,10 @@ h2 a:hover{color:var(--blue-strong)}
 .empty-shot{align-content:center;gap:4px;text-align:center}
 .empty-shot svg{width:18px;height:18px;margin:0 auto;color:#8aa7c7}
 .clamp{margin:0;font-size:13px;line-height:1.7;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.scene-card-links{gap:0;margin-top:0}
-.scene-card-links a{padding:0 9px;border-left:1px solid var(--line);color:var(--ink);text-decoration:none;white-space:nowrap}
-.scene-card-links a:first-child{padding-left:0;border-left:0}
-.scene-card-links a:hover{color:var(--blue-strong)}
+.scene-card-links{margin-top:0;font-size:12px}
 .scene-card-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto}
+.scene-card-foot .tag{font-size:12px;font-weight:600;padding:3px 8px}
+.scene-card-foot .button{min-height:32px;padding:5px 14px;font-size:13px}
 .scene-card-foot .grow{flex:1}
 .status-link{text-decoration:none}
 @media(min-width:1600px){.scene-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
@@ -61,18 +61,39 @@ fieldset.choice{border:0;margin:0;padding:0;display:grid;gap:6px;font-size:12px}
 .debug-steps tr.is-next td{background:#f6faff}
 .debug-steps tr.is-next td:first-child{box-shadow:inset 3px 0 0 var(--blue-strong)}
 .debug-steps .chip{font-size:10px;padding:0 5px}
-.contract-rows{display:grid;gap:8px}
-.contract-row{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:0;display:grid;gap:6px}
-.contract-main{display:grid;grid-template-columns:minmax(120px,1fr) 110px auto minmax(110px,1fr) minmax(160px,2fr) auto;gap:8px;align-items:end}
-.contract-main label,.contract-rule-fields label{display:grid;gap:3px;font-size:12px}
-.contract-main label.check{display:flex;align-items:center;gap:6px;padding-bottom:6px;white-space:nowrap}
-.contract-main label.check input{min-height:0;margin:0}
-.contract-row[data-kind="output"] .contract-main{grid-template-columns:minmax(120px,1fr) 110px minmax(160px,2fr) minmax(160px,2fr) auto}
-.contract-rules summary{font-size:12px;color:var(--muted);cursor:pointer}
-.contract-rule-fields{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:6px}
 .form-issues{color:var(--danger)}
-@media(max-width:1100px){.debug-layout{grid-template-columns:1fr}.contract-main,.contract-row[data-kind="output"] .contract-main{grid-template-columns:1fr 1fr}.contract-rule-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:700px){.contract-main,.contract-row[data-kind="output"] .contract-main,.contract-rule-fields{grid-template-columns:1fr}}
-.contract-main input,.contract-main select,.contract-rule-fields input{min-width:0;width:100%;box-sizing:border-box}
-.contract-main label.check input{width:auto}
+@media(max-width:1100px){.debug-layout{grid-template-columns:1fr}}
 #recording-form .field-pair{align-items:end}
+/* 入參、出參的編輯器（表格／YAML） */
+.contract-editors{display:grid;gap:12px;min-width:0}
+.contract-editors:not(:has(.contract-editor:not([hidden]))){display:none}
+.contract-editor{border-color:#cfe0f3;box-shadow:0 2px 12px #147fe614}
+.contract-editor .panel-header{flex-wrap:wrap}
+.contract-editor .edit-table .col-name{width:18%}
+.contract-editor .edit-table .col-type{width:112px}
+.contract-editor .edit-table .col-value{width:16%}
+.contract-editor .edit-table .col-from{width:28%}
+.contract-editor .edit-table .col-rules{width:200px}
+.rule-toggle{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-height:28px;padding:3px 8px;border:1px dashed #d5dfeb;border-radius:6px;background:#fff;font:11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.rule-toggle:hover,.rule-toggle[aria-expanded="true"]{border-color:#9bbfe6;color:var(--blue-strong)}
+.rule-toggle .caret{font-size:9px;flex:none}
+.contract-note{border-top:1px solid var(--line)}
+.contract-note label.field{grid-template-columns:auto 1fr;align-items:center;gap:10px}
+.contract-editor .form-issues{border-bottom:1px solid var(--line);background:#fff8f7}
+/* 自動化腳本、斷言腳本（只編輯一段） */
+.section-tabs{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.section-tabs>.muted{font-size:12px}
+.issue-links .text-btn{text-align:left;white-space:normal}
+.spec-list.compact{grid-template-columns:auto 1fr;column-gap:12px}
+.spec-list.compact dd{overflow-wrap:anywhere}
+/* 執行頁：摘要成格、左邊結果、右邊截圖 */
+.run-layout{align-items:start}
+.screenshot.fit{width:100%;max-height:560px;object-fit:cover;object-position:top}
+/* 場景頁的執行設定：一列 */
+.settings-domain{flex:0 1 260px!important}
+.settings-url{flex:2 1 320px!important}
+/* 入參、出參兩張表並排：一樣寬（出參的取值比較長） */
+.two-col.spec-pair{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:1100px){.two-col.spec-pair{grid-template-columns:1fr}}
+/* 入參的 JSON：內容通常只有幾行，不需要很高 */
+.code-editor.compact{min-height:180px}

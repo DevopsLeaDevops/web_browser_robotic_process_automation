@@ -284,6 +284,7 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
             domains=domains,
             item=recording,
             files={"raw.py": "page.goto('x')\n", "scenario.yaml": "id: rec-001\n"},
+            counts={"steps": 4, "inputs": 2, "outputs": 1, "verify": 1, "secrets": 0},
         ),
         "debug-start": render(
             "debug.html",
@@ -486,7 +487,7 @@ def test_running_page_polls() -> None:
 
 @pytest.mark.parametrize("name", ["portal.css", "shell.js"])
 def test_design_system_assets_are_unchanged_copies(name: str) -> None:
-    """Portal 的 portal.css、shell.js 是設計系統 v1.0 的原檔；要改請先改設計系統再複製過來。"""
+    """Portal 的 portal.css、shell.js 是設計系統的原檔；要改請先改 docs/design-system 再複製。"""
     static = ROOT / "apps" / "server" / "src" / "rpa_server" / "static" / name
     original = ROOT / "docs" / "design-system" / "assets" / name
     assert static.read_bytes() == original.read_bytes()
@@ -498,7 +499,8 @@ def test_side_menu_lists_domains_then_domain_management() -> None:
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
     assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證"]
-    assert 'href="/domains/testsite" class="active" aria-current="page"' in side
+    current = 'href="/domains/testsite" title="測試網站自動化" class="active" aria-current="page"'
+    assert current in side
 
 
 def test_scene_card_follows_the_design() -> None:

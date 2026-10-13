@@ -30,14 +30,14 @@
       <div class="panel-body">
         <textarea class="code-editor" name="text" rows="26" spellcheck="false" aria-label="{{ t('section.heading_' + part) }}">
 {{ text }}</textarea>
-        <p class="cell-sub">{{ t("section.hint_" + part) }}</p>
+        <p class="hint">{{ t("section.hint_" + part) }}</p>
       </div>
     </section>
-    <aside class="stack editor-aside">
+    <aside>
       {% if part == "verify" %}
       <section class="panel">
         <div class="panel-header"><h2>{{ t("section.add_check") }}</h2></div>
-        <div class="panel-body chip-row">
+        <div class="panel-body chip-list">
           {% for rule in ("notEmpty", "equals", "contains", "matches") %}
           <button class="button" type="button" data-insert-check="{{ rule }}">{{ t("section.rule_" + rule) }}</button>
           {% endfor %}
@@ -48,17 +48,17 @@
         <div class="panel-header"><h2>{{ t("section.facts") }}</h2><span class="muted">{{ facts | length }}</span></div>
         <div class="panel-body chip-list">
           {% for name, fields in facts %}
-          <button class="chip mono" type="button" data-insert="{{ '{{ facts.' ~ name ~ ' }}' }}">facts.{{ name }}</button>
-          {% for item in fields %}<button class="chip mono sub" type="button" data-insert="{{ '{{ facts.' ~ name ~ '.' ~ item ~ ' }}' }}">.{{ item }}</button>{% endfor %}
+          <button class="chip-btn" type="button" data-insert="{{ '{{ facts.' ~ name ~ ' }}' }}">facts.{{ name }}</button>
+          {% for item in fields %}<button class="chip-btn sub" type="button" data-insert="{{ '{{ facts.' ~ name ~ '.' ~ item ~ ' }}' }}">.{{ item }}</button>{% endfor %}
           {% else %}<p class="muted">{{ t("section.no_facts") }}</p>{% endfor %}
         </div>
       </section>
       <section class="panel">
         <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}</span></div>
         <div class="panel-body chip-list">
-          {% for name in scenario.inputs %}<button class="chip mono" type="button" data-insert="{{ '{{ inputs.' ~ name ~ ' }}' }}">inputs.{{ name }}</button>
+          {% for name in scenario.inputs %}<button class="chip-btn" type="button" data-insert="{{ '{{ inputs.' ~ name ~ ' }}' }}">inputs.{{ name }}</button>
           {% else %}<p class="muted">{{ t("spec.no_inputs") }}</p>{% endfor %}
-          {% for name in scenario.secrets %}<button class="chip mono" type="button" data-insert="{{ '{{ secrets.' ~ name ~ ' }}' }}">secrets.{{ name }}</button>{% endfor %}
+          {% for name in scenario.secrets %}<button class="chip-btn" type="button" data-insert="{{ '{{ secrets.' ~ name ~ ' }}' }}">secrets.{{ name }}</button>{% endfor %}
         </div>
       </section>
       {% if part == "verify" %}
@@ -73,7 +73,7 @@
         </div>
       </section>
       {% endif %}
-      <p class="cell-sub">{{ t("section.insert_hint") }}</p>
+      <p class="hint">{{ t("section.insert_hint") }}</p>
     </aside>
   </div>
   <label class="field">{{ t("edit.note") }}<input name="note" maxlength="500" placeholder="{{ t('edit.note_placeholder') }}"></label>

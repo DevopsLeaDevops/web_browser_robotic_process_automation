@@ -227,7 +227,7 @@
   "js.create_action": "创建",
   "nav.domains": "领域管理",
   "domain.testsite_name": "测试网站自动化",
-  "domain.testsite_description": "对本机测试网站（rpa serve 一起启动，http://127.0.0.1:8765）运行的真实案例：创建记录、查询记录、查询不存在的记录，以及 Python 脚本版的创建记录。",
+  "domain.testsite_description": "對本機測試網站（rpa serve 一起啟動，http://127.0.0.1:8765）執行的真實案例：建立紀錄、查詢紀錄、查詢不存在的紀錄、Python 腳本版的建立紀錄，以及兩個登入角色的範例。",
   "domain.count": "{count} 个场景",
   "domain.manage": "管理领域",
   "domain.empty": "这个领域还没有场景。可以添加场景，或到场景页的「运行设置」把其他场景移过来。",
@@ -589,5 +589,12 @@
   "contract.yaml_hint_outputs": "直接編輯場景檔的 outputs 段（以 outputs: 開頭）；切回表格前會先校驗。",
   "contract.default_placeholder": "沒有預設值時是必填",
   "contract.move_up": "上移",
-  "contract.move_down": "下移"
+  "contract.move_down": "下移",
+  "run.full_size": "原尺寸",
+  "recording.count_steps": "個步驟",
+  "recording.count_inputs": "個入參",
+  "recording.count_outputs": "個出參",
+  "recording.count_verify": "條斷言",
+  "recording.count_secrets": "個 Secret",
+  "recording.count_warnings": "行轉不了"
 }
