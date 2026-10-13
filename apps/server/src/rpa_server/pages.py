@@ -2,7 +2,7 @@
 
 import mimetypes
 import os
-from typing import Annotated, Final
+from typing import Annotated, Final, Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Query
@@ -15,15 +15,18 @@ from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
-from rpa_server.domain import ENGINES, DomainRecord, Purpose, RoleRecord
+from rpa_server.domain import ENGINES, DomainRecord, RoleRecord
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
-from rpa_server.render import domain_page, render, run_filters
+from rpa_server.render import domain_page, render, run_filters, workflow_messages
 from rpa_server.services import Services
 from rpa_server.storage import SCENARIO_FILE
 
 __all__ = ["page_router"]
+
+FormPurpose = Literal["validation", "execution"]
+"""執行表單的目的（試驗場序列的節點不從表單執行）。"""
 
 _TEXT_TYPES: Final = {".log": "text/plain", ".py": "text/plain", ".yaml": "text/plain"}
 _RECENT_RUNS: Final = 10
@@ -222,7 +225,7 @@ def page_router(services: Services) -> APIRouter:
 
     @router.get("/scenes/{scene_id}/run", include_in_schema=False)
     def run_form(
-        scene_id: str, purpose: Purpose = "execution", revision: int | None = None
+        scene_id: str, purpose: FormPurpose = "execution", revision: int | None = None
     ) -> HTMLResponse:
         record = services.get_scene(scene_id)
         if purpose == "execution":
@@ -427,10 +430,74 @@ def page_router(services: Services) -> APIRouter:
             raise ServiceError(404, "file_not_found", t("error.file_not_found", path=name))
         return FileResponse(path, media_type="image/png", headers=_SHOT_HEADERS)
 
+    # ------------------------------------------------------------ 自由試驗場（M6）
+
+    workflows = services.workflows
+
     @router.get("/playground", include_in_schema=False)
     def playground() -> HTMLResponse:
+        """序列清單與最近的序列執行。"""
         return page(
-            "placeholder.html", page="playground", title=t("nav.playground"), milestone="M6"
+            "playground.html",
+            page="playground",
+            title=t("nav.playground"),
+            workflows=workflows.list_workflows(),
+            runs=workflows.list_runs(limit=_RECENT_RUNS * 2),
+            has_published=bool(workflows.library()),
+            messages=workflow_messages(),
+        )
+
+    @router.get("/playground/{workflow_id}", include_in_schema=False)
+    def workflow(workflow_id: int) -> HTMLResponse:
+        """編輯序列：場景庫、序列、節點設定（頁面上的 JavaScript 依 workflow-data 畫出來）。"""
+        record = workflows.get_workflow(workflow_id)
+        data = {
+            "id": record.id,
+            "name": record.name,
+            "description": record.description or "",
+            "version": record.version,
+            "definition": record.workflow.to_json(),
+            "problems": [problem.to_json() for problem in record.problems],
+            "library": workflows.library(),
+            "display": services.display,
+            "engines": list(ENGINES),
+        }
+        return page(
+            "workflow.html",
+            page="playground",
+            title=record.name,
+            workflow=record,
+            data=data,
+            messages=workflow_messages(),
+            runs=workflows.list_runs(workflow_id=workflow_id, limit=_RECENT_RUNS),
+        )
+
+    @router.get("/playground/runs/{run_id}", include_in_schema=False)
+    def workflow_run(run_id: str) -> HTMLResponse:
+        """一次序列的執行：每個節點的狀態、入參的值與來源、出參、那次執行的報告。"""
+        record = workflows.get_run(run_id)
+        exists = True
+        if record.workflow_id is not None:
+            try:
+                workflows.get_workflow(record.workflow_id)
+            except ServiceError:
+                exists = False
+        role = None
+        stopped = next((node for node in record.nodes if node.id == record.failed_node), None)
+        if record.status == "needs_login" and stopped is not None:
+            try:
+                login = services.revision_scenario(stopped.scene_id, stopped.revision).login
+            except ServiceError:
+                login = None
+            role = login.role if login is not None else None
+        return page(
+            "workflow_run.html",
+            page="playground",
+            title=t("workflow_run.title", id=record.id),
+            run=record,
+            workflow_exists=exists and record.workflow_id is not None,
+            role=role,
+            messages=workflow_messages(),
         )
 
     return router

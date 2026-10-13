@@ -120,5 +120,17 @@
   "recording.step.extract": "讀取「{target}」",
   "recording.output": "「{target}」的內容（錄製時是「{value}」）",
   "recording.verify.equals": "「{target}」與入參 {input} 相同",
-  "recording.verify.not_empty": "取得「{target}」（錄製時是「{value}」）"
+  "recording.verify.not_empty": "取得「{target}」（錄製時是「{value}」）",
+  "dsl.workflow.value_null": "固定值不能是 null；要用場景的預設值時，不要寫這個入參",
+  "dsl.workflow.node_duplicate": "節點代號 {node} 重複",
+  "dsl.workflow.empty": "序列裡還沒有節點",
+  "dsl.workflow.input_unknown": "節點 {node}：場景沒有入參 {input}",
+  "dsl.workflow.input_missing": "節點 {node}：入參 {input} 沒有預設值，請指定固定值或前面節點的出參",
+  "dsl.workflow.value_invalid": "節點 {node}：入參 {input} 的固定值不符合 {rule}",
+  "dsl.workflow.source_unknown": "節點 {node}：入參 {input} 取自不存在的節點 {source}",
+  "dsl.workflow.source_order": "節點 {node}：入參 {input} 只能取前面節點的出參，{source} 不在它前面",
+  "dsl.workflow.output_unknown": "節點 {node}：入參 {input} 取自 {source} 的出參 {output}，但那個場景版本沒有這個出參",
+  "dsl.workflow.type_mismatch": "節點 {node}：入參 {input}（{input_type}）取自 {source} 的出參 {output}（{output_type}），型別不相容",
+  "dsl.workflow.source_not_passed": "節點 {node}：入參 {input} 取自 {source}，但 {source} 沒有通過",
+  "dsl.workflow.output_missing": "節點 {node}：{source} 通過了，但沒有發布出參 {output}"
 }

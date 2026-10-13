@@ -7,7 +7,8 @@ API 轉成 JSON、頁面轉成錯誤頁。
 磁碟上的內容也還是同一個雜湊。改內容就是新版本，要重新驗證。
 
 M4 的登入角色與 Secrets（roles.py）、錄製（recordings.py）、調試工作階段（debugging.py）
-各自一個模組，由這裡建立：``services.roles``、``services.recordings``、``services.debug``。
+各自一個模組，由這裡建立：``services.roles``、``services.recordings``、``services.debug``；
+M6 的自由試驗場序列（workflows.py）是 ``services.workflows``。
 """
 
 import json
@@ -58,6 +59,7 @@ from rpa_server.recordings import RecordingService
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
+from rpa_server.workflows import WorkflowService
 
 __all__ = [
     "ROLES_FILE",
@@ -250,6 +252,8 @@ def run_record(run: Run) -> RunRecord:
         finished_at=run.finished_at,
         duration_seconds=run.duration_seconds,
         headless=run.headless,
+        workflow_run_id=run.workflow_run_id,
+        node_id=run.node_id,
     )
 
 
@@ -294,6 +298,7 @@ class Services:
             sessions, storage, self, self.roles, display=display, locale=locale
         )
         self.debug = DebugManager(storage, self, self.roles, display=display, locale=locale)
+        self.workflows = WorkflowService(sessions, self)
         self.on_queued: Callable[[], None] = lambda: None
         """有新的執行排入佇列（叫醒 worker）。"""
         self.on_cancel: Callable[[str], object] = lambda run_id: None
@@ -802,8 +807,11 @@ class Services:
         base_url: str | None = None,
         idempotency_key: str | None = None,
         headless: bool | None = None,
+        workflow_run_id: str | None = None,
+        node_id: str | None = None,
     ) -> RunRecord:
-        """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本。
+        """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本；
+        試驗場序列的節點（workflow）用序列固定的版本，只能是發布過的版本（M6）。
 
         headless 沒指定時：能顯示瀏覽器視窗就用有頭模式，不能就用無頭模式。
         """
@@ -826,6 +834,11 @@ class Services:
                     raise _conflict("not_published", t("error.not_published", id=scene_id))
                 number = scene.published_number
             revision = self._revision(session, scene_id, number or scene.latest_number)
+            if purpose == "workflow" and revision.published_at is None:
+                raise _conflict(
+                    "revision_unpublished",
+                    t("error.revision_unpublished", id=scene_id, number=revision.number),
+                )
             scenario = self._load_scenario(scene_id, revision.number)
             _, problems = check_inputs(scenario, inputs)
             if problems:
@@ -850,6 +863,8 @@ class Services:
                 idempotency_key=key,
                 cancel_requested=False,
                 created_at=now(),
+                workflow_run_id=workflow_run_id,
+                node_id=node_id,
             )
             session.add(run)
             if purpose == "validation":
@@ -944,6 +959,7 @@ class Services:
     def cancel_run(self, run_id: str) -> RunRecord:
         """取消：排隊中的直接取消；執行中的通知 worker 終止。不回滾已經發生的外部動作。"""
         notify = False
+        settled = False
         with self.sessions() as session:
             run = session.get(Run, run_id)
             if run is None:
@@ -956,6 +972,7 @@ class Services:
                 run.cancel_requested = True
                 if run.purpose == "validation":
                     self._settle_revision(session, run.revision_id)
+                settled = True
             elif run.status == "running":
                 run.cancel_requested = True
                 notify = True
@@ -963,7 +980,13 @@ class Services:
             record = run_record(run)
         if notify:
             self.on_cancel(run_id)
+        if settled:
+            self.run_finished(run_id)
         return record
+
+    def run_finished(self, run_id: str) -> None:
+        """一次執行結束了（worker 執行完、排隊中被取消）：屬於試驗場序列時，接著排下一個節點。"""
+        self.workflows.node_finished(run_id)
 
     @staticmethod
     def _settle_revision(session: Session, revision_id: int) -> None:
@@ -1003,7 +1026,8 @@ class Services:
                 if run.purpose == "validation":
                     self._settle_revision(session, run.revision_id)
             session.commit()
-            return len(runs)
+        self.workflows.recover()
+        return len(runs)
 
     # ------------------------------------------------------------ M4：角色、入參出參、重新執行
 
@@ -1167,12 +1191,14 @@ class Services:
             raise
 
     def rerun(self, run_id: str, *, idempotency_key: str | None = None) -> RunRecord:
-        """用同樣的入參與選項再執行一次（例如登入之後）。驗證用同一個版本，正式執行用目前發布的版本。"""
+        """用同樣的入參與選項再執行一次（例如登入之後）。驗證用同一個版本，正式執行用目前發布的版本；
+        試驗場序列的節點只重新執行這一個節點（同一個版本），不接著執行序列，序列請從序列執行頁繼續。
+        """
         run = self.get_run(run_id)
         return self.request_run(
             run.scene_id,
             purpose=run.purpose,
-            number=run.revision_number if run.purpose == "validation" else None,
+            number=run.revision_number if run.purpose != "execution" else None,
             inputs=run.input,
             engine=cast("Engine | None", run.engine),
             base_url=run.base_url,

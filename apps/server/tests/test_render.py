@@ -10,6 +10,7 @@ import pytest
 
 from rpa_core.dsl import Scenario, validate_file, validate_text
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, Locale, use_locale
+from rpa_core.workflow import Workflow, WorkflowProblem
 from rpa_server.debugging import DebugSession
 from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
 from rpa_server.domain import (
@@ -21,9 +22,12 @@ from rpa_server.domain import (
     RunRecord,
     SceneCard,
     SceneRecord,
+    WorkflowNodeState,
+    WorkflowRecord,
+    WorkflowRunRecord,
 )
 from rpa_server.i18n import follow_locale, t
-from rpa_server.render import js_messages, render, run_filters
+from rpa_server.render import js_messages, render, run_filters, workflow_messages
 from rpa_server.secret_store import SecretInfo
 from rpa_server.services import SceneNeeds
 
@@ -305,6 +309,184 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
     }
 
 
+CHAIN = Workflow.model_validate(
+    {
+        "nodes": [
+            {"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "x"}}},
+            {
+                "id": "n2",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "n1", "output": "recordId"}},
+            },
+        ]
+    }
+)
+
+
+def _source(kind: str, **fields: object) -> dict[str, object]:
+    return {"kind": kind, "node": None, "output": None, "value": None, **fields}
+
+
+def _m6_pages(*, english: bool = False) -> dict[str, str]:
+    """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）。"""
+    name = "Create then look up" if english else "建立後查詢"
+    run = (
+        replace(RUN, scene_name="Scene", input={"title": "x"}, output={"recordId": "DEMO-1"})
+        if english
+        else RUN
+    )
+    first = WorkflowNodeState(
+        0,
+        "n1",
+        "ba-001",
+        run.scene_name,
+        1,
+        "passed",
+        {"title": _source("value", value="x"), "quantity": _source("default", value=12)},
+        replace(run, purpose="workflow", workflow_run_id="wf1-x", node_id="n1"),
+    )
+    second = WorkflowNodeState(
+        1,
+        "n2",
+        "ba-002",
+        "Look up" if english else "查詢範例紀錄",
+        1,
+        "passed",
+        {"recordId": _source("output", node="n1", output="recordId")},
+        replace(run, id="ba-002-x", purpose="workflow", workflow_run_id="wf1-x", node_id="n2"),
+    )
+    passed = WorkflowRunRecord(
+        id="wf1-20261013-083000-abcdef",
+        workflow_id=1,
+        workflow_name=name,
+        workflow_version=2,
+        status="passed",
+        engine=None,
+        headless=True,
+        error=None,
+        failed_node=None,
+        resumed_from=None,
+        cancel_requested=False,
+        created_at=MOMENT,
+        finished_at=MOMENT,
+        nodes=(first, second),
+    )
+    login = replace(
+        passed,
+        id="wf1-20261013-084000-abcdef",
+        status="needs_login",
+        error="Node n2 stopped" if english else "節點 n2 需要登入",
+        failed_node="n2",
+        resumed_from=passed.id,
+        nodes=(replace(first, status="reused"), replace(second, status="needs_login")),
+    )
+    running = replace(
+        passed,
+        status="running",
+        finished_at=None,
+        nodes=(replace(first, status="running"), replace(second, status="pending", run=None)),
+    )
+    blocked = replace(
+        passed,
+        status="failed",
+        error="Node n2 did not start" if english else "節點 n2 沒有開始執行",
+        failed_node="n2",
+        nodes=(first, replace(second, status="failed", run=None, error="recordId")),
+    )
+    problem = WorkflowProblem(
+        "workflow.input_missing", "Node n2: no source" if english else "缺少來源", "n2", "recordId"
+    )
+    record = WorkflowRecord(1, name, None, CHAIN, 2, MOMENT, MOMENT, (problem,), passed)
+    data = {
+        "id": 1,
+        "name": name,
+        "description": "",
+        "version": 2,
+        "definition": CHAIN.to_json(),
+        "problems": [problem.to_json()],
+        "library": [],
+        "display": False,
+        "engines": list(ENGINES),
+    }
+    common: dict[str, object] = {"messages": workflow_messages()}
+    return {
+        "playground": render(
+            "playground.html",
+            page="playground",
+            domains=DOMAINS,
+            title=t("nav.playground"),
+            workflows=[
+                record,
+                replace(record, id=2, workflow=Workflow(), problems=(), last_run=None),
+            ],
+            runs=[passed, login, running],
+            has_published=True,
+            **common,
+        ),
+        "playground-empty": render(
+            "playground.html",
+            page="playground",
+            domains=DOMAINS,
+            title=t("nav.playground"),
+            workflows=[],
+            runs=[],
+            has_published=False,
+            **common,
+        ),
+        "workflow": render(
+            "workflow.html",
+            page="playground",
+            domains=DOMAINS,
+            title=name,
+            workflow=record,
+            data=data,
+            runs=[passed],
+            **common,
+        ),
+        "workflow-run": render(
+            "workflow_run.html",
+            page="playground",
+            domains=DOMAINS,
+            title=passed.id,
+            run=passed,
+            workflow_exists=True,
+            role=None,
+            **common,
+        ),
+        "workflow-run-login": render(
+            "workflow_run.html",
+            page="playground",
+            domains=DOMAINS,
+            title=login.id,
+            run=login,
+            workflow_exists=False,
+            role="testsite-user",
+            **common,
+        ),
+        "workflow-running": render(
+            "workflow_run.html",
+            page="playground",
+            domains=DOMAINS,
+            title=running.id,
+            run=running,
+            workflow_exists=True,
+            role=None,
+            **common,
+        ),
+        "workflow-blocked": render(
+            "workflow_run.html",
+            page="playground",
+            domains=DOMAINS,
+            title=blocked.id,
+            run=blocked,
+            workflow_exists=True,
+            role=None,
+            **common,
+        ),
+    }
+
+
 def _pages() -> dict[str, str]:
     scenario = _scenario()
     return {
@@ -442,9 +624,7 @@ def _pages() -> dict[str, str]:
             role="testsite-user",
         ),
         **_m4_pages(scenario),
-        "placeholder": render(
-            "placeholder.html", page="playground", title="試驗場", milestone="M6"
-        ),
+        **_m6_pages(),
         "error": render("error.html", page="scenes", title="錯誤", status=404, message="找不到"),
     }
 
@@ -615,6 +795,7 @@ def _english_domain_pages() -> dict[str, str]:
                 facts=FACTS,
             ),
             **_m4_pages(scenario, english=True),
+            **_m6_pages(english=True),
         }
 
 
@@ -630,6 +811,13 @@ def _english_domain_pages() -> dict[str, str]:
         "recording-detail",
         "debug-start",
         "debug-session",
+        "playground",
+        "playground-empty",
+        "workflow",
+        "workflow-run",
+        "workflow-run-login",
+        "workflow-running",
+        "workflow-blocked",
     ],
 )
 def test_new_pages_have_no_untranslated_text(name: str) -> None:
@@ -753,3 +941,39 @@ def test_many_scenes_get_a_search_box() -> None:
         )
     assert not few.searchable
     assert many.searchable
+
+
+def test_workflow_pages_show_sources_and_actions() -> None:
+    """序列執行頁：入參的值與來源、停下的節點可以「繼續」、執行中會輪詢；節點執行頁連回序列。"""
+    with use_locale("zh-Hant"):
+        pages = _m6_pages()
+        node_run = render(
+            "run.html",
+            page="runs",
+            title="n2",
+            domains=DOMAINS,
+            role=None,
+            run=replace(RUN, purpose="workflow", workflow_run_id="wf1-x", node_id="n2"),
+            revision=REVISIONS[0],
+            result=RESULT,
+            files=[],
+            can_publish=False,
+        )
+    passed = pages["workflow-run"]
+    assert "<code>title</code> = <code>&#34;甲&#34;</code>" in passed  # 那次執行實際的入參
+    assert "<code>n1.recordId</code>" in passed
+    assert 'data-resume="1"' not in passed
+    login = pages["workflow-run-login"]
+    assert 'data-resume="1"' in login
+    assert "從 n2 繼續" in login
+    assert 'href="/roles#role-testsite-user"' in login
+    assert 'data-status="reused"' in login
+    assert "data-poll" in pages["workflow-running"]
+    assert 'data-signature="running|running,pending"' in pages["workflow-running"]
+    assert 'data-node="n2" data-status="failed" class="is-stopped"' in pages["workflow-blocked"]
+    editor = pages["workflow"]
+    assert 'id="workflow-data"' in editor
+    assert "缺少來源" in editor
+    assert '"binding_output": "{name} \\u2190 {node}.{output}"' in editor  # tojson 跳脫非 ASCII
+    assert 'href="/playground/runs/wf1-x"' in node_run
+    assert 'data-action="rerun"' not in node_run

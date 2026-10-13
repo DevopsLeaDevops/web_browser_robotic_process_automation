@@ -1,4 +1,5 @@
-"""資料庫模型：場景 scenes、版本 revisions、執行 runs；M4 加上登入角色 roles 與錄製 recordings。
+"""資料庫模型：場景 scenes、版本 revisions、執行 runs；M4 加上登入角色 roles 與錄製 recordings；
+M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs。
 
 版本內容（場景檔與腳本）不放資料庫，放在資料目錄（storage.py）；資料庫只記雜湊與狀態。
 改了模型就要新增遷移（rpa_server/migrations/versions），測試會比對兩者是否一致。
@@ -11,7 +12,17 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from rpa_server.db import NAMING_CONVENTION, JsonType, UtcDateTime
 
-__all__ = ["Base", "Domain", "Recording", "Revision", "Role", "Run", "Scene"]
+__all__ = [
+    "Base",
+    "Domain",
+    "Recording",
+    "Revision",
+    "Role",
+    "Run",
+    "Scene",
+    "Workflow",
+    "WorkflowRun",
+]
 
 
 class Base(DeclarativeBase):
@@ -93,6 +104,10 @@ class Run(Base):
     started_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     duration_seconds: Mapped[float | None] = mapped_column(Float)
+    workflow_run_id: Mapped[str | None] = mapped_column(ForeignKey("workflow_runs.id"), index=True)
+    """屬於哪一次序列的執行（M6，目的是 workflow）；單獨的驗證與執行是 None。"""
+    node_id: Mapped[str | None] = mapped_column(String(64))
+    """序列裡的節點代號。"""
 
 
 class Role(Base):
@@ -152,5 +167,51 @@ class Recording(Base):
     """recording → done／failed／cancelled。"""
     warnings: Mapped[list[dict[str, object]]] = mapped_column(JsonType)
     error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class Workflow(Base):
+    """自由試驗場的一個序列（M6）：已發布場景的固定版本，上游出參綁定到下游入參。
+
+    定義是 rpa_core.workflow 的 JSON；每次存檔 version 加一，存檔要帶目前的 version。
+    """
+
+    __tablename__ = "workflows"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text)
+    definition: Mapped[dict[str, object]] = mapped_column(JsonType)
+    version: Mapped[int] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class WorkflowRun(Base):
+    """一次序列的執行（M6）。每個節點是一筆 runs（目的 workflow），依序排入佇列。
+
+    定義存一份開始時的快照：之後改序列不影響這次執行，重新執行與從失敗的節點繼續也用它。
+    序列刪除後執行紀錄仍然保留，所以 workflow_id 不設外鍵。
+    """
+
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    workflow_id: Mapped[int | None] = mapped_column(index=True)
+    workflow_name: Mapped[str] = mapped_column(String(200))
+    workflow_version: Mapped[int] = mapped_column()
+    definition: Mapped[dict[str, object]] = mapped_column(JsonType)
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    """running → passed／failed／timed_out／cancelled／needs_login；停在哪個節點見 failed_node。"""
+    engine: Mapped[str | None] = mapped_column(String(20))
+    headless: Mapped[bool] = mapped_column(Boolean)
+    error: Mapped[str | None] = mapped_column(Text)
+    failed_node: Mapped[str | None] = mapped_column(String(64))
+    reused: Mapped[dict[str, object]] = mapped_column(JsonType)
+    """從失敗的節點繼續時沿用的節點：節點代號 → 原本那次通過的執行編號。"""
+    resumed_from: Mapped[str | None] = mapped_column(String(120))
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), unique=True)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())

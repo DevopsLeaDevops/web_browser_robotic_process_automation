@@ -234,3 +234,76 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     page.locator('a[href$="part=steps"]').click()
     expect(area).to_have_value(re.compile(r"^steps:"))
     assert errors == []
+
+
+@pytest.mark.parametrize("portal", [DEMO], indirect=True)
+def test_playground_chains_published_scenarios(
+    portal: str, page: Page, site: str, engine: str
+) -> None:
+    """M6 驗收：在自由試驗場把 BA-001、BA-002 排成序列，recordId 自動接上，真實執行通過。"""
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    api = page.request
+    for scene in ("ba-001", "ba-002"):
+        assert api.patch(f"{portal}/api/scenes/{scene}", data={"baseUrl": site}).ok
+
+    def validate_and_publish(scene: str, inputs: dict[str, object]) -> dict[str, object]:
+        options = {"inputs": inputs, "engine": engine, "headless": True}
+        queued = api.post(f"{portal}/api/scenes/{scene}/revisions/1/validate", data=options)
+        assert queued.ok, queued.text()
+        deadline = time.monotonic() + RUN_TIMEOUT_MS / 1000
+        while True:
+            run: dict[str, object] = api.get(f"{portal}/api/runs/{queued.json()['id']}").json()
+            if run["finished"]:
+                break
+            assert time.monotonic() < deadline, "驗證沒有結束"
+            time.sleep(0.5)
+        assert run["status"] == "passed", run["error"]
+        assert api.post(f"{portal}/api/scenes/{scene}/revisions/1/publish").ok
+        return run
+
+    created = validate_and_publish("ba-001", {})
+    output = created["output"]
+    assert isinstance(output, dict)
+    validate_and_publish("ba-002", {"recordId": output["recordId"]})
+
+    # 新增序列，從場景庫加入兩個場景：BA-002 的 recordId 自動接上 BA-001 的出參
+    page.goto(f"{portal}/playground")
+    page.locator('[data-action="create-workflow"]').click()
+    dialog = page.locator("#dialog")
+    dialog.locator('input[name="name"]').fill("建立後查詢")
+    dialog.locator("#dialog-action").click()
+    page.wait_for_url(re.compile(r"/playground/\d+$"))
+    page.locator('[data-add="ba-001"]').click()
+    page.locator('[data-add="ba-002"]').click()
+    second = page.locator('#flow-stage [data-index="1"]')
+    expect(second).to_contain_text("recordId ← n1.recordId")
+
+    # n1 的標題改成固定值
+    first = page.locator('#flow-stage [data-index="0"]')
+    first.click()
+    page.locator('select[data-source="title"]').select_option("value")
+    page.locator('input[data-value="title"]').fill("畫面串接")
+    expect(first).to_contain_text('title = "畫面串接"')
+    expect(page.locator("#workflow-problems")).to_be_hidden()
+
+    # 執行序列（先自動存檔），到序列執行頁等結果
+    page.locator('[data-action="workflow-run"]').click()
+    dialog.locator('select[name="engine"]').select_option(engine)
+    dialog.locator('input[name="headless"][value="1"]').check()
+    dialog.locator("#dialog-action").click()
+    page.wait_for_url(re.compile(r"/playground/runs/"))
+    page.wait_for_selector('#workflow-run:not([data-status="running"])', timeout=RUN_TIMEOUT_MS * 2)
+    root = page.locator("#workflow-run")
+    expect(root).to_have_attribute("data-status", "passed")
+    expect(page.locator('tr[data-node="n1"]')).to_contain_text("畫面串接")
+    expect(page.locator('tr[data-node="n2"]')).to_contain_text("畫面串接")
+    expect(page.locator('tr[data-node="n2"] [data-status="passed"]')).to_be_visible()
+
+    # 清單頁看得到序列與最近一次執行
+    page.goto(f"{portal}/playground")
+    expect(page.locator("tr[data-workflow]")).to_contain_text("ba-001")
+    expect(
+        page.locator("tr[data-workflow-run]").first.locator('[data-status="passed"]')
+    ).to_be_visible()
+    assert errors == []
