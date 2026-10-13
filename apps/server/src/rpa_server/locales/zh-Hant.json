@@ -735,5 +735,6 @@
   "wfjs.cancel_title": "取消序列執行",
   "wfjs.cancel_body": "目前的節點會立即停止，後面的節點不執行；已經在目標網站完成的動作不會復原。",
   "wfjs.cancel_action": "確認取消",
-  "wfjs.resumed": "已從停下的節點繼續"
+  "wfjs.resumed": "已從停下的節點繼續",
+  "error.back": "回到場景管理"
 }

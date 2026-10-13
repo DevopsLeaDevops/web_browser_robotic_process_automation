@@ -735,5 +735,6 @@
   "wfjs.cancel_title": "取消串行运行",
   "wfjs.cancel_body": "目前的节点会立即停止，后面的节点不运行；已经在目标网站完成的动作不会复原。",
   "wfjs.cancel_action": "确认取消",
-  "wfjs.resumed": "已从停下的节点继续"
+  "wfjs.resumed": "已从停下的节点继续",
+  "error.back": "回到场景管理"
 }

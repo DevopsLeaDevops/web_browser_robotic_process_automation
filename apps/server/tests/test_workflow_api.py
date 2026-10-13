@@ -176,7 +176,7 @@ def get(client: Client, run_id: object) -> JsonObject:
 
 
 def test_save_check_and_version_conflict(app: FastAPI, client: Client) -> None:
-    body(client.post("/api/scenes/import"))
+    services(app).seed_examples_domain()  # 「測試網站自動化」領域與範例
     publish(app, "ba-001")
     publish(app, "ba-002")
 

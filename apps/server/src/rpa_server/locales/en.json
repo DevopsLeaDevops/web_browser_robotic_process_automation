@@ -735,5 +735,6 @@
   "wfjs.cancel_title": "Cancel the sequence run",
   "wfjs.cancel_body": "The current node stops at once and the later nodes do not run; actions already completed on the target site are not undone.",
   "wfjs.cancel_action": "Cancel run",
-  "wfjs.resumed": "Continued from the node that stopped"
+  "wfjs.resumed": "Continued from the node that stopped",
+  "error.back": "Back to scenarios"
 }

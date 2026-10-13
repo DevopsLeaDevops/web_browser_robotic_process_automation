@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:48b18afbacc52f3c">
+<meta name="translation-source" content="sha256:8ab9c1e3c410dde8">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -117,7 +117,7 @@
       <div class="panel-body">
         <div class="four-col">
           <div class="notice"><strong>Management portal</strong><p>Opened in a browser; the API service renders the pages with Jinja, following the layout of the <a href="../../prototypes/mvp/index.html">MVP prototype</a> (from M3).</p></div>
-          <div class="notice"><strong>API service</strong><p>FastAPI: scenarios, revisions and the publishing gate, inputs and outputs, runs, reports, debugging sessions (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>).</p></div>
+          <div class="notice"><strong>API service</strong><p>FastAPI: scenarios, revisions and the publishing gate, inputs and outputs, runs, reports, debugging sessions, playground sequences (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>).</p></div>
           <div class="notice"><strong>Background worker</strong><p>On the same computer; every run starts the runner in a subprocess with an overall deadline and cancellation, and the whole process group is terminated on failure or timeout.</p></div>
           <div class="notice"><strong>Data and artifacts</strong><p>SQLite for metadata (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>); a file directory for scenario revision snapshots and one directory per run.</p></div>
         </div>
@@ -139,12 +139,12 @@
         <table class="wrap">
           <thead><tr><th>Package</th><th>Responsibility</th><th>Depends on</th><th>Starts</th></tr></thead>
           <tbody>
-            <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs. No browser, no database.</td><td>Pydantic, PyYAML, Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs; definitions and checks of playground sequences (<code>rpa_core.workflow</code>, M6). No browser, no database.</td><td>Pydantic, PyYAML, Jinja2</td><td>M0</td></tr>
             <tr><td><code>rpa-runner</code></td><td>Execution engine: input validation, step handler registry, browser and context management, login checks and manual login, independent assertions, output publishing, run directory and report; also runs Python script scenarios and provides the subprocess used for step debugging. Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
             <tr><td>Recording</td><td>Records user actions in an isolated browser, keeps the raw recording and turns it into a DSL draft. M4 does not add a separate package: recording uses Playwright codegen and the conversion is <code>rpa_core.recording</code> in rpa-core (no browser, testable on its own).</td><td>rpa-core, Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI assistant: conversational debugging, natural language → DSL, validation failures fed back for correction, self-healing selectors; it can only edit drafts.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, run, record, generate, push.</td><td>The packages above, click</td><td>M0</td></tr>
-            <tr><td><code>rpa-server</code></td><td>API and management pages, database models, revisions and the publishing gate, debugging sessions; permissions (M8), scheduling (M9).</td><td>rpa-core, FastAPI, Jinja2, SQLAlchemy</td><td>M3</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API and management pages, database models, revisions and the publishing gate, debugging sessions, running playground sequences (M6); permissions (M8), scheduling (M9).</td><td>rpa-core, FastAPI, Jinja2, SQLAlchemy</td><td>M3</td></tr>
             <tr><td><code>rpa-worker</code></td><td>Takes pending tasks, runs rpa-runner in a subprocess with an overall deadline and cancellation, and writes back results and artifacts. On the same computer in M3, distributed in M9.</td><td>rpa-runner; Procrastinate (M9)</td><td>M3</td></tr>
           </tbody>
         </table>

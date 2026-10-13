@@ -331,7 +331,11 @@ def _source(kind: str, **fields: object) -> dict[str, object]:
 def _m6_pages(*, english: bool = False) -> dict[str, str]:
     """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）。"""
     name = "Create then look up" if english else "建立後查詢"
-    run = replace(RUN, scene_name="Scene", input={"title": "x"}) if english else RUN
+    run = (
+        replace(RUN, scene_name="Scene", input={"title": "x"}, output={"recordId": "DEMO-1"})
+        if english
+        else RUN
+    )
     first = WorkflowNodeState(
         0,
         "n1",
@@ -970,6 +974,6 @@ def test_workflow_pages_show_sources_and_actions() -> None:
     editor = pages["workflow"]
     assert 'id="workflow-data"' in editor
     assert "缺少來源" in editor
-    assert '"binding_output": "{name} ← {node}.{output}"' in editor
+    assert '"binding_output": "{name} \\u2190 {node}.{output}"' in editor  # tojson 跳脫非 ASCII
     assert 'href="/playground/runs/wf1-x"' in node_run
     assert 'data-action="rerun"' not in node_run
