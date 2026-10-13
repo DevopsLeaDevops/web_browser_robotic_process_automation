@@ -8,6 +8,8 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
+from rpa_core.dsl import ExtractStep, Scenario
+from rpa_core.dsl.editing import section_text
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
@@ -19,6 +21,7 @@ from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
 from rpa_server.render import domain_page, render, run_filters
 from rpa_server.services import Services
+from rpa_server.storage import SCENARIO_FILE
 
 __all__ = ["page_router"]
 
@@ -33,6 +36,30 @@ def _html(content: str) -> HTMLResponse:
 
 _SCRIPT_FILES: Final = ("automation.py", "assertion.py")
 _FOCUS: Final = frozenset({"steps", "verify", "inputs", "outputs"})
+_PARTS: Final = ("steps", "verify")
+"""DSL 場景分開編輯的兩段：自動化步驟、獨立斷言。"""
+
+
+def _contract_data(scenario: Scenario) -> dict[str, object]:
+    """入參、出參編輯器的初始資料（DSL 寫法的欄位，camelCase）。"""
+    return {
+        key: {
+            name: spec.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for name, spec in specs.items()
+        }
+        for key, specs in (("inputs", scenario.inputs), ("outputs", scenario.outputs))
+    }
+
+
+def _facts(scenario: Scenario) -> list[tuple[str, list[str]]]:
+    """步驟產生的頁面事實：(名稱, 欄位)；斷言與出參的編輯器列出來方便引用。"""
+    found: list[tuple[str, list[str]]] = []
+    for step in scenario.steps or []:
+        if isinstance(step, ExtractStep):
+            found.append((step.as_, list(step.fields or {})))
+    return found
+
+
 _AUTO_LOGIN_EXAMPLE: Final = """- { id: open, action: goto, url: https://erp.example.com/login }
 - { id: user, action: fill, target: { label: 帳號 }, value: clerk01 }
 - { id: password, action: fill, target: { label: 密碼 }, value: '{{ secrets.ERP_PASSWORD }}' }
@@ -130,15 +157,36 @@ def page_router(services: Services) -> APIRouter:
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
+            contract_data=_contract_data(scenario) if scenario is not None else {},
+            facts=_facts(scenario) if scenario is not None else [],
         )
 
     @router.get("/scenes/{scene_id}/edit", include_in_schema=False)
     def edit(
-        scene_id: str, revision: int | None = None, file: str = "", focus: str = ""
+        scene_id: str,
+        revision: int | None = None,
+        file: str = "",
+        focus: str = "",
+        part: str = "",
     ) -> HTMLResponse:
         record = services.get_scene(scene_id)
         shown = services.get_revision(scene_id, revision)
         files = services.revision_files(scene_id, shown.number)
+        scenario = services.revision_scenario(scene_id, shown.number)
+        if part in _PARTS and scenario.script is None:
+            # DSL 場景的「自動化腳本」「斷言腳本」：只顯示、只改寫場景檔的那一段
+            return page(
+                "section.html",
+                page=domain_page(record.domain_id),
+                title=t(f"section.title_{part}", name=record.name),
+                scene=record,
+                domain=domain_of(record.domain_id),
+                revision=shown,
+                part=part,
+                text=section_text(files[SCENARIO_FILE], part),
+                scenario=scenario,
+                facts=_facts(scenario),
+            )
         # 卡片上的「自動化腳本」「斷言腳本」直接打開對應的檔案或段落
         selected = file if file in files and file in (*_SCRIPT_FILES, "scenario.yaml") else ""
         return page(
@@ -280,6 +328,7 @@ def page_router(services: Services) -> APIRouter:
             default_domain=domains[0].id if domains else "",
             default_url="",
             selected_scene=scene,
+            scene_defaults=services.recording_defaults(),
         )
 
     @router.get("/recordings/{recording_id}", include_in_schema=False)

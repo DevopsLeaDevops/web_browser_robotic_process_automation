@@ -141,6 +141,10 @@ class Recording(Base):
     revision_number: Mapped[int | None] = mapped_column()
     source: Mapped[str] = mapped_column(String(20))
     """codegen（在這台電腦錄製）或 import（貼上錄製稿）。"""
+    mode: Mapped[str] = mapped_column(String(20), server_default="new")
+    """new（新場景）、continue（接在既有步驟後面）、replace（既有場景整份換成錄製的草稿）。"""
+    base_revision: Mapped[int | None] = mapped_column()
+    """接著錄製時，執行的是哪一個版本的步驟；存檔時以它為基礎（期間有新版本就不存）。"""
     url: Mapped[str | None] = mapped_column(String(2000))
     engine: Mapped[str] = mapped_column(String(20))
     role_id: Mapped[str | None] = mapped_column(String(64))

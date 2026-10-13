@@ -260,6 +260,7 @@ def js_messages() -> dict[str, str]:
         "js.working",
         "js.contract_saved",
         "js.rerun_started",
+        "js.section_line",
     )
     return {key.removeprefix("js."): t(key) for key in keys}
 

@@ -3,6 +3,7 @@
 {% block description %}{{ t("recording.description") }}{% endblock %}
 {% block content %}
 <div class="stack" id="recording"{% if active %} data-poll="{{ active.id }}"{% endif %}>
+  <script type="application/json" id="recording-defaults">{{ scene_defaults | tojson }}</script>
   <div class="stepbar" aria-label="{{ t('recording.steps') }}">
     <span class="active">{{ t("recording.step_record") }}</span><span>{{ t("recording.step_debug") }}</span><span>{{ t("recording.step_validate") }}</span><span>{{ t("recording.step_publish") }}</span>
   </div>
@@ -35,11 +36,22 @@
           </label>
           <label class="field">{{ t("scenes.new_category") }}<input name="category" maxlength="100"></label>
         </div>
-        <label class="field" data-target="existing" hidden>{{ t("recording.scene") }}
-          <select name="existingId">{% for scene in scenes %}<option value="{{ scene.id }}"{% if scene.id == selected_scene %} selected{% endif %}>{{ scene.id }} · {{ scene.name }}</option>{% endfor %}</select>
-          <span class="cell-sub">{{ t("recording.existing_hint") }}</span>
-        </label>
-        <label class="field">{{ t("recording.url") }}<input name="url" type="url" placeholder="https://" value="{{ default_url }}"><span class="cell-sub" data-for="paste" hidden>{{ t("recording.url_paste_hint") }}</span></label>
+        <div class="stack" data-target="existing" hidden>
+          <label class="field">{{ t("recording.scene") }}
+            <select name="existingId">{% for scene in scenes %}<option value="{{ scene.id }}"{% if scene.id == selected_scene %} selected{% endif %}>{{ scene.id }} · {{ scene.name }}</option>{% endfor %}</select>
+          </label>
+          <fieldset class="field choice">
+            <legend>{{ t("recording.existing_mode") }}</legend>
+            <label><input type="radio" name="existingMode" value="continue" checked> {{ t("recording.mode_continue") }}</label>
+            <label><input type="radio" name="existingMode" value="replace"> {{ t("recording.mode_replace") }}</label>
+          </fieldset>
+          <p class="cell-sub" data-hint="continue-record">{{ t("recording.mode_continue_hint") }}</p>
+          <p class="cell-sub" data-hint="continue-paste" hidden>{{ t("recording.mode_continue_paste_hint") }}</p>
+          <p class="cell-sub" data-hint="replace" hidden>{{ t("recording.mode_replace_hint") }}</p>
+          <p class="cell-sub" data-hint="script" hidden>{{ t("recording.script_no_continue") }}</p>
+        </div>
+        <label class="field" data-url>{{ t("recording.url") }}<input name="url" type="url" placeholder="https://" value="{{ default_url }}"><span class="cell-sub" data-for="paste" hidden>{{ t("recording.url_paste_hint") }}</span></label>
+        <p class="cell-sub" data-url-continue hidden>{{ t("recording.url_continue") }}</p>
         <div class="field-pair">
           <label class="field">{{ t("run_form.engine") }}<select name="engine">{% for engine in engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}</select></label>
           <label class="field">{{ t("recording.role") }}
@@ -63,7 +75,7 @@
         <tbody>
         {% for item in recordings %}
         <tr data-recording="{{ item.id }}">
-          <td><span class="tag mono">{{ item.id }}</span><span class="cell-sub">{{ m.time(item.created_at) }} · {{ t("recording.source_" + item.source) }}</span></td>
+          <td><span class="tag mono">{{ item.id }}</span><span class="cell-sub">{{ m.time(item.created_at) }} · {{ t("recording.source_" + item.source) }} · {{ t("recording.kind_" + item.mode) }}</span></td>
           <td>{% if item.status == "done" %}<a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a> v{{ item.revision_number }}{% else %}{{ item.scene_id }}{% endif %}<span class="cell-sub">{{ item.scene_name }}</span></td>
           <td>{{ m.recording_badge(item.status) }}{% if item.warnings %}<span class="cell-sub">{{ t("recording.warning_count", count=item.warnings | length) }}</span>{% endif %}</td>
           <td><a class="text-btn" href="/recordings/{{ item.id }}">{{ t("runs.view") }}</a>{% if item.status == "done" %} <a class="text-btn" href="/scenes/{{ item.scene_id }}/debug?revision={{ item.revision_number }}">{{ t("scene.debug") }}</a>{% endif %}</td>

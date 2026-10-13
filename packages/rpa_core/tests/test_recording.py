@@ -83,6 +83,7 @@ def test_sync_recording_becomes_a_valid_draft() -> None:
         "fill",
         "click",
         "expect",
+        "extract",
         "click",
         "fill",
         "press",
@@ -96,14 +97,39 @@ def test_sync_recording_becomes_a_valid_draft() -> None:
     # 先點擊再填寫同一個欄位：點擊沒有意義，不保留
     assert steps[1]["target"] == {"label": "標題"}
     assert steps[3]["target"] == {"role": "button", "name": "建立紀錄"}
+    # assert text：等內容出現、讀成頁面事實，成為出參，並在獨立斷言檢查有取得內容
     assert steps[4] == {
         "id": "expect-5",
         "name": "確認「#record-status」",
         "action": "expect",
         "target": {"css": "#record-status"},
-        "text": "已建立",
+        "state": "visible",
         "match": "contains",
     }
+    assert steps[5] == {
+        "id": "extract-6",
+        "name": "讀取「#record-status」",
+        "action": "extract",
+        "target": {"css": "#record-status"},
+        "as": "recordStatus",
+        "get": "text",
+        "multiple": False,
+    }
+    assert data["outputs"] == {
+        "recordStatus": {
+            "type": "string",
+            "description": "「#record-status」的內容（錄製時是「已建立」）",
+            "from": "{{ facts.recordStatus }}",
+        }
+    }
+    assert data["verify"] == [
+        {
+            "name": "取得「#record-status」（錄製時是「已建立」）",
+            "value": "{{ facts.recordStatus }}",
+            "notEmpty": True,
+        }
+    ]
+    assert result.outputs == ("recordStatus",)
     assert result.warnings == ()
 
 
@@ -223,9 +249,39 @@ def test_locator_variants() -> None:
     assert steps[9]["target"] == {"text": "完成", "exact": True}
     assert steps[9]["button"] == "right"
     assert steps[10]["state"] == "checked"
-    assert (steps[11]["value"], steps[11]["match"]) == ("小明", "equals")
+    # assert value：讀取欄位的值（不用先等出現）
+    assert (steps[11]["action"], steps[11]["as"], steps[11]["get"]) == ("extract", "name", "value")
     assert (steps[12]["url"], steps[12]["match"]) == ("/done", "equals")
+    assert result.outputs == ("name",)
     assert result.warnings == ()
+
+
+def test_asserted_text_that_was_typed_is_compared_with_the_input() -> None:
+    source = dedent(
+        """        page.goto("http://127.0.0.1:8765/")
+        page.get_by_role("textbox", name="標題").fill("示範紀錄")
+        page.get_by_role("spinbutton", name="數量").fill("12")
+        page.get_by_role("button", name="建立紀錄").click()
+        expect(page.get_by_test_id("record-title")).to_have_text("示範紀錄")
+        expect(page.locator("#record-id")).to_contain_text("DEMO-ABC")
+        expect(page.locator("#record-id")).to_contain_text("DEMO-ABC")
+        """
+    )
+    data, result = convert(source)
+
+    # 沒有英數名稱的欄位依角色取名；數字欄位填整數時是 integer
+    assert data["inputs"] == {
+        "text": {"type": "string", "description": "標題", "default": "示範紀錄"},
+        "number": {"type": "integer", "description": "數量", "default": 12},
+    }
+    assert result.outputs == ("recordTitle", "recordId", "recordId_2")
+    verify = cast("list[dict[str, object]]", data["verify"])
+    assert verify[0] == {
+        "name": "「record-title」與入參 text 相同",
+        "value": "{{ facts.recordTitle }}",
+        "equals": "{{ inputs.text }}",
+    }
+    assert verify[1]["notEmpty"] is True
 
 
 def test_async_and_pytest_styles() -> None:
@@ -296,3 +352,88 @@ def test_mask_source_handles_multibyte_columns() -> None:
     start = len('x = "密碼"; page.fill('.encode())
     masked = mask_source(source, [(1, start, 1, start + len('"值"'.encode()))])
     assert masked == 'x = "密碼"; page.fill("***")\n'
+
+
+EXISTING = dedent(
+    """\
+    # 既有的場景：註解與寫法都要原樣保留
+    schemaVersion: 1
+    id: rec-demo
+    name: 既有場景
+
+    inputs:
+      title: { type: string, default: 舊標題 }
+
+    browser:
+      baseUrl: http://127.0.0.1:8765
+
+    steps:
+    - id: open
+      action: goto
+      url: /
+    - id: fill-2  # 舊的填寫
+      action: fill
+      target: { label: 標題 }
+      value: "{{ inputs.title }}"
+    """
+)
+
+CONTINUED = dedent(
+    """\
+    def run(playwright: Playwright) -> None:
+        browser = playwright.chromium.launch(headless=False)
+        context = browser.new_context()
+        page.get_by_role("textbox", name="title").fill("新標題")
+        page.get_by_role("button", name="建立紀錄").click()
+        expect(page.locator("#record-id")).to_contain_text("DEMO-1")
+        page.close()
+    """
+)
+
+
+def test_continue_recording_appends_to_the_existing_scenario() -> None:
+    from rpa_core.recording import merge_recording
+
+    existing = validate_text(EXISTING).scenario
+    assert existing is not None
+    with use_locale("zh-Hant"):
+        result = convert_recording(
+            CONTINUED,
+            scene_id="rec-demo",
+            name="既有場景",
+            existing=existing,
+            prepend_goto=False,
+            now=NOW,
+        )
+        merged = merge_recording(EXISTING, existing, result)
+
+    # 原有內容一字不動，新的內容接在各段落最後
+    for line in EXISTING.splitlines():
+        assert line in merged.splitlines()
+    checked = validate_text(merged)
+    assert checked.scenario is not None, checked.issues
+    scenario = checked.scenario
+    assert [step.id for step in scenario.steps or []] == [
+        "open",
+        "fill-2",
+        "fill-3",
+        "click-4",
+        "expect-5",
+        "extract-6",
+    ]
+    # 新的入參避開既有的名稱；清單的縮排跟著原本的寫法（項目從第一欄開始）
+    assert list(scenario.inputs) == ["title", "title_2"]
+    assert "\n- id: fill-3\n" in merged
+    assert list(scenario.outputs) == ["recordId"]
+    assert scenario.verify is not None
+    assert scenario.verify[0].not_empty is True
+    assert result.steps == 4
+
+
+def test_continue_recording_without_new_steps_is_an_error() -> None:
+    existing = validate_text(EXISTING).scenario
+    assert existing is not None
+    with use_locale("zh-Hant"), pytest.raises(ConversionError, match="沒有可以轉換的操作"):
+        convert_recording(
+            "page.close()\n", scene_id="rec-demo", name="x", existing=existing, prepend_goto=False
+        )

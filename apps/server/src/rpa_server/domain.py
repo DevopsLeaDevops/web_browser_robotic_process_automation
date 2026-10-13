@@ -327,6 +327,9 @@ class RecordingRecord:
     error: str | None
     created_at: datetime
     finished_at: datetime | None
+    mode: str = "new"
+    """new（新場景）、continue（接在既有步驟後面）、replace（既有場景整份換成錄製的草稿）。"""
+    base_revision: int | None = None
 
     @property
     def finished(self) -> bool:
@@ -350,4 +353,6 @@ class RecordingRecord:
             "createdAt": _iso(self.created_at),
             "finishedAt": _iso(self.finished_at),
             "finished": self.finished,
+            "mode": self.mode,
+            "baseRevision": self.base_revision,
         }

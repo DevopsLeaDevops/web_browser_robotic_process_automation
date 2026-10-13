@@ -55,7 +55,7 @@
 {% macro spec_tables(scenario, editable=false) %}
 <div class="two-col">
   <section class="panel" id="inputs">
-    <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}{% if editable %} <button class="text-btn" type="button" data-action="edit-contract">{{ t("contract.edit") }}</button>{% endif %}</span></div>
+    <div class="panel-header"><h2>{{ t("spec.inputs") }}</h2><span class="muted">{{ scenario.inputs | length }}{% if editable %} <button class="text-btn" type="button" data-action="edit-contract" data-kind="inputs">{{ t("contract.edit") }}</button>{% endif %}</span></div>
     {% if scenario.inputs %}
     <div class="table-scroll"><table class="wrap">
       <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("spec.type") }}</th><th>{{ t("spec.default") }}</th><th>{{ t("spec.rules") }}</th></tr></thead>
@@ -71,7 +71,7 @@
     {% else %}<div class="empty">{{ t("spec.no_inputs") }}</div>{% endif %}
   </section>
   <section class="panel" id="outputs">
-    <div class="panel-header"><h2>{{ t("spec.outputs") }}</h2><span class="muted">{{ scenario.outputs | length }}{% if editable %} <button class="text-btn" type="button" data-action="edit-contract">{{ t("contract.edit") }}</button>{% endif %}</span></div>
+    <div class="panel-header"><h2>{{ t("spec.outputs") }}</h2><span class="muted">{{ scenario.outputs | length }}{% if editable %} <button class="text-btn" type="button" data-action="edit-contract" data-kind="outputs">{{ t("contract.edit") }}</button>{% endif %}</span></div>
     {% if scenario.outputs %}
     <div class="table-scroll"><table class="wrap">
       <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("spec.type") }}</th><th>{{ t("spec.from") }}</th><th>{{ t("spec.rules") }}</th></tr></thead>
