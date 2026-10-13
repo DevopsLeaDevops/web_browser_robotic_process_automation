@@ -22,6 +22,7 @@
 
   <div class="stack">
     <div class="notice">v2 的决策见 <a href="adr/0010-mvp-first.html">ADR 0010</a>；MVP 的页面与流程以 <a href="../prototypes/mvp/index.html">MVP 原型</a>为准。</div>
+    <div class="notice"><strong>顺序调整（2026-10-13）：</strong>M4 完成后先做 M6 自由试验场，再做 M5 AI 助手，MVP 改在 M5 完成；里程碑编号不变。原因见下方「为什么是这个顺序」。</div>
 
     <section class="panel">
       <div class="panel-header"><h2>里程碑</h2><span class="muted">状态随每个 PR 更新</span></div>
@@ -34,9 +35,9 @@
             <tr><td><span class="milestone">M1.1</span></td><td>场景契约</td><td>入参 inputs、出参 outputs、独立断言 verify、总期限 deadline、分类 category；Python 脚本逃生门；原型 BA-001、BA-002 的 DSL 版；导入 MVP 原型；文档改为 v2</td><td><code>rpa validate</code> 通过 BA-001、BA-002</td><td><span class="badge green">已完成</span></td></tr>
             <tr><td><span class="milestone">M2</span></td><td>Runner 与运行契约</td><td><code>rpa run</code>；子进程运行、总期限与取消；入参校验 → 步骤 → 页面事实 → 独立断言 → 发布出参；运行目录与 HTML 报告；<code>{{ }}</code> 在沙箱求值；Python 脚本场景；测试网站（沿用原型的本机测试页）</td><td>BA-001 → BA-002 在 Chromium 与 Firefox 真实串联；原型的五个回归情境通过</td><td><span class="badge green">已完成</span></td></tr>
             <tr><td><span class="milestone">M3</span></td><td>管理 Portal</td><td><code>rpa serve</code>：FastAPI + Jinja 服务器 + SQLite + 背景 worker；场景卡片与分类、YAML 编辑与校验、不可变版本与发布门槛、验证与运行、取消、报告筛选；入参出参的表单编辑延到 M4（<a href="design/portal.html">管理 Portal</a>）</td><td>在浏览器内完成「创建 → 验证 → 发布 → 运行 → 看报告」</td><td><span class="badge green">已完成</span></td></tr>
-            <tr class="current"><td><span class="milestone">M4</span></td><td>场景生产与登录</td><td>原始录制稿（Playwright codegen、<code>rpa record</code>、粘贴录制稿）→ DSL 草稿（入参自动参数化、密码改成 Secret）→ 逐步调试（一个浏览器、一次一步、定位器测试）→ 候选版本验证 → 人工发布；场景的 <code>login: { role }</code> 与 <code>check</code> 动作；每个角色独立的登录状态、人工登录为主、选用的自动登录、运行前的登录检查与 needs_login、重新运行；Secrets 在页面设置；入参出参的表单编辑（<a href="design/portal.html#login">登录与角色</a>）</td><td>录制一段操作后发布并运行成功；两个角色互不干扰</td><td><span class="badge blue">进行中</span></td></tr>
-            <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>对话调试、受限的工具、自然语言生成 DSL、校验失败自动修正、选择器自愈</td><td>助手只改草稿、发布要用户确认；一句话描述生成可通过验证的场景</td><td><span class="badge">未开始</span></td></tr>
-            <tr><td><span class="milestone">M6</span></td><td>自由试验场</td><td>把已发布场景排成序列；固定版本；上游出参绑定到下游入参；失败即停</td><td>原型的试验场流程以真实运行跑通。<strong>MVP 完成</strong></td><td><span class="badge">未开始</span></td></tr>
+            <tr><td><span class="milestone">M4</span></td><td>场景生产与登录</td><td>原始录制稿（Playwright codegen、<code>rpa record</code>、粘贴录制稿）→ DSL 草稿（入参自动参数化、密码改成 Secret）→ 逐步调试（一个浏览器、一次一步、定位器测试）→ 候选版本验证 → 人工发布；场景的 <code>login: { role }</code> 与 <code>check</code> 动作；每个角色独立的登录状态、人工登录为主、选用的自动登录、运行前的登录检查与 needs_login、重新运行；Secrets 在页面设置；入参出参的表单编辑（<a href="design/portal.html#login">登录与角色</a>）</td><td>录制一段操作后发布并运行成功；两个角色互不干扰</td><td><span class="badge green">已完成</span></td></tr>
+            <tr class="current"><td><span class="milestone">M6</span></td><td>自由试验场</td><td>把已发布场景排成序列；固定版本；上游出参绑定到下游入参；失败即停</td><td>原型的试验场流程以真实运行跑通</td><td><span class="badge blue">进行中</span></td></tr>
+            <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>对话调试、受限的工具、自然语言生成 DSL、校验失败自动修正、选择器自愈</td><td>助手只改草稿、发布要用户确认；一句话描述生成可通过验证的场景。<strong>MVP 完成</strong></td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>条件、循环、错误处理、重试（只用于无副作用的步骤）、iframe、多标签页、上传与下载、子场景、数据驱动</td><td>复杂示例场景通过</td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M8</span></td><td>多用户与治理</td><td>认证（OIDC 或 LDAP）、项目权限、Secrets 加密、审核；正式环境 PostgreSQL</td><td>API 测试在 SQLite 与 PostgreSQL 上都通过</td><td><span class="badge">未开始</span></td></tr>
             <tr><td><span class="milestone">M9</span></td><td>营运能力</td><td>分布式 worker 与调度、并发、通知、S3 兼容对象存储、Docker Compose 部署</td><td><code>docker compose up</code> 一键启动</td><td><span class="badge">未开始</span></td></tr>
@@ -54,6 +55,7 @@
             <li><strong>先打通一条真实链路。</strong>M2 用 CLI 跑通 BA-001 → BA-002，管理界面只是在上面加一层。</li>
             <li><strong>MVP 先行。</strong>单机、单用户、串行运行；SQLite 与文件目录就够用（<a href="adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。多用户、分布式等 MVP 验证后再做。</li>
             <li><strong>成功要有证据。</strong>从 M2 起，出参只在独立断言通过后发布；界面上的模拟结果不能当成发布依据。</li>
+            <li><strong>先串接、再生成（M6 先于 M5）。</strong>试验场只用已发布的场景，不需要新的外部服务，可以马上开工；M5 要先决定 AI 模型（内部页面能否送到外部 API）。先有试验场，M5 生成的场景也能直接放进串行验证。</li>
             <li><strong>生成只产生草稿。</strong>录制与 AI 的输出都要经过真实验证与人工发布，验证的版本必须就是发布的版本。</li>
             <li><strong>Runner 从一开始就无状态。</strong>只吃场景、入参与 Secrets，输出结果与产物；M3 的背景 worker 与 M9 的分布式 worker 直接沿用。</li>
           </ul>

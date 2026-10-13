@@ -149,6 +149,22 @@
       </div>
     </section>
 
+    <section class="panel" id="manual-check">
+      <div class="panel-header"><h2>手動驗收</h2><span class="muted">M4：錄製與人工登入要有人操作，自動測試用預先錄好的錄製稿</span></div>
+      <div class="panel-body prose">
+        <p>在有圖形介面的電腦（macOS、Windows，或有桌面的 Linux）上，用一個全新的資料夾走一次，大約十五分鐘：</p>
+        <ol>
+          <li><strong>啟動。</strong><code>uv run rpa serve --data data-check</code>，打開 <code>http://127.0.0.1:8080</code>；「測試網站自動化」已經有 BA-001～BA-005。</li>
+          <li><strong>錄製新場景。</strong>「場景生產 › 自主腳本錄製」選「新場景」，起始網址 <code>http://127.0.0.1:8765/</code>，按「開始錄製」。在測試頁填標題與數量、按「建立紀錄」，在 Inspector 用「Assert text」點一下紀錄編號，關掉瀏覽器。錄製詳情應該有 goto、兩個 fill、click、一個 extract，入參 2 個、出參 1 個、斷言 1 條。</li>
+          <li><strong>調試、驗證、發布、運行。</strong>在新場景按「調試」，逐步執行到最後一步並看截圖；回到場景頁驗證 v1，通過後發布，再從卡片按「運行」，報告是「通過」，出參有紀錄編號。</li>
+          <li><strong>接著現有步驟錄製。</strong>選「既有場景的新版本」與剛才的場景，再選「接著現有步驟錄製」：瀏覽器先自動跑完原有步驟，停在建立結果的頁面，再錄一個動作；新版本的步驟接在原有內容後面，原本的註解不變。</li>
+          <li><strong>兩個角色。</strong>「場景管理 › 登入與憑證」對 <code>testsite-user</code> 按「登入」，在跳出的視窗用 user / user-pass 登入後按「完成登入」；<code>testsite-manager</code> 用 manager / manager-pass。再分別運行 BA-004、BA-005：兩份報告看到的待辦不同。</li>
+          <li><strong>需要登入與重新執行。</strong>對 <code>testsite-user</code> 按「登出」，再運行 BA-004：停在「需要登入」，沒有執行任何步驟；點執行頁的登入角色回到「登入與憑證」再登入一次，回到執行頁按「重新執行」，結果是「通過」。</li>
+        </ol>
+        <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可。</p>
+      </div>
+    </section>
+
     <section class="panel" id="pages">
       <div class="panel-header"><h2>頁面</h2><span class="muted">頂部第一級、左側第二級，與 MVP 原型相同</span></div>
       <div class="table-scroll">
@@ -268,8 +284,8 @@
       <div class="panel-header"><h2>之後的里程碑</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
+          <dt>M6</dt><dd>自由試驗場：場景序列、出參綁定、失敗即停（下一個里程碑，先於 M5）</dd>
           <dt>M5</dt><dd>AI 助手只改草稿，發布仍走同一個門檻</dd>
-          <dt>M6</dt><dd>自由試驗場：場景序列、出參綁定、失敗即停</dd>
           <dt>M8</dt><dd>認證與權限、Secrets 加密、PostgreSQL</dd>
           <dt>M9</dt><dd>分散式 worker、伺服器推送事件取代輪詢</dd>
         </dl>

@@ -24,6 +24,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-10</dd>
+        <dt>修订</dt><dd><span class="mono">2026-10-13</span>：M4 完成后先做 M6 自由试验场，再做 M5 AI 助手，MVP 改在 M5 完成；里程碑编号不变（见<a href="../roadmap.html">路线图</a>）。</dd>
         <dt>影响范围</dt><dd>路线图、系统架构、多用户设计、M2 之后的所有里程碑</dd>
         <dt>相关</dt><dd><a href="../roadmap.html">路线图</a>、<a href="0008-sqlite-and-postgresql.html">ADR 0008</a>、<a href="0009-scenario-contract.html">ADR 0009</a>、<a href="0011-fastapi-jinja.html">ADR 0011</a>、<a href="../../prototypes/mvp/index.html">MVP 原型</a></dd>
       </dl>
@@ -42,7 +43,7 @@
         <div class="panel-body">
           <ul class="points">
             <li><strong>MVP 范围。</strong>单机、单用户、串行运行；SQLite 存元数据，文件目录存脚本快照与运行产物。</li>
-            <li><strong>新的里程碑顺序。</strong>M1.1 场景契约 → M2 Runner → M3 管理 Portal → M4 场景生产与登录 → M5 AI 助手 → M6 自由试验场（MVP 完成）→ M7 流程能力 → M8 多用户与治理 → M9 营运。</li>
+            <li><strong>新的里程碑顺序。</strong>M1.1 场景契约 → M2 Runner → M3 管理 Portal → M4 场景生产与登录 → M6 自由试验场 → M5 AI 助手（MVP 完成）→ M7 流程能力 → M8 多用户与治理 → M9 营运。M6 原排在 M5 之后，2026-10-13 调到 M5 之前：试验场不需要新的外部服务，AI 模型还待决定。</li>
             <li><strong>原型就是页面原型。</strong>原 M6 的页面原型由 MVP 原型交付；原 Web UI 拆进 M3～M6，每个阶段交付自己的页面，沿用原型的顶部一级、左侧二级版面。</li>
             <li><strong>原型收进仓库。</strong>放在 <code>docs/prototypes/mvp/</code>，比照设计系统以 MANIFEST.json 校验，不改写、不翻译；原型的模拟结果不能当成真实验证。</li>
             <li><strong>版本与发布门槛。</strong>场景版本不可变：草稿 → 验证中 → 通过或失败 → 已发布；改过脚本、Schema 或默认值就要重新验证，发布的版本必须就是验证通过的版本。</li>

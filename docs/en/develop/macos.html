@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:16efd691718e0cd1">
+<meta name="translation-source" content="sha256:b14d54e1155202f7">
 <title>Run on macOS · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -20,7 +20,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">This is M0 (project skeleton). "Working" means: the <code>rpa</code> command runs, all tests pass, Playwright can start Chromium, and the docs site opens in a browser. Subcommands for validating, running and recording scenarios arrive in later milestones; see the <a href="../roadmap.html">Roadmap</a>.</div>
+    <div class="notice">"Working" means: the <code>rpa</code> command runs (currently <code>rpa validate</code>, <code>rpa schema</code>, <code>rpa run</code>, <code>rpa record</code> and <code>rpa serve</code>), all tests pass, Playwright can start Chromium and Firefox, and the docs site opens in a browser. The playground, the AI assistant and other features arrive in later milestones; see the <a href="../roadmap.html">Roadmap</a>.</div>
 
     <div class="two-col">
       <section class="panel">
@@ -56,8 +56,8 @@ open docs/index.html</pre>
             <dt>Computer</dt><dd>Any Mac with Apple silicon (M series) or Intel. A macOS version that still receives updates is recommended.</dd>
             <dt>Terminal</dt><dd>The built-in Terminal app (Applications › Utilities). The default shell is zsh, and every command on this page runs in zsh.</dd>
             <dt>Network</dt><dd>Access to GitHub, PyPI and Playwright's browser downloads. On a company network, read the <a href="#faq">FAQ</a> first.</dd>
-            <dt>Disk space</dt><dd>About 1 GB for Python, packages and Chromium.</dd>
-            <dt>Not needed</dt><dd>You do not install Python, Homebrew or Node.js yourself. uv downloads Python; Node.js is only needed when frontend work starts in M8.</dd>
+            <dt>Disk space</dt><dd>About 1.5 GB for Python, packages, Chromium and Firefox.</dd>
+            <dt>Not needed</dt><dd>You do not install Python, Homebrew or Node.js yourself. uv downloads Python; the management portal is rendered on the server (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>), so Node.js is not needed.</dd>
           </dl>
         </div>
       </section>
@@ -115,12 +115,12 @@ cd web_browser_robotic_process_automation</pre>
 <pre class="source"># Prepare Python 3.13 per .python-version (downloaded if missing), create .venv, install all packages and dev tools
 uv sync
 
-# Download the Chromium used by Playwright
+# Download the Chromium and Firefox used by Playwright
 uv run playwright install chromium firefox</pre>
         <dl class="spec-list">
           <dt>.venv/</dt><dd>The project's own virtual environment, inside the project folder. No need to activate it: <code>uv run</code> uses it automatically.</dd>
           <dt>Python</dt><dd>Python downloaded by uv lives in <code>~/.local/share/uv/python</code> and leaves the system Python alone.</dd>
-          <dt>Chromium</dt><dd>Lives in <code>~/Library/Caches/ms-playwright</code>. macOS does not need <code>--with-deps</code>; that installs system libraries on Linux.</dd>
+          <dt>Browsers</dt><dd>Chromium and Firefox live in <code>~/Library/Caches/ms-playwright</code>. macOS does not need <code>--with-deps</code>; that installs system libraries on Linux.</dd>
           <dt>uv.lock</dt><dd>The repository's lock file, recording the exact version of every package; <code>uv sync</code> installs from it, so everyone gets the same versions.</dd>
         </dl>
       </div>
@@ -133,9 +133,9 @@ uv run playwright install chromium firefox</pre>
           <thead><tr><th>Command</th><th>Expected result</th></tr></thead>
           <tbody>
             <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.1.0（rpa-core 0.1.0）</code>; with <code>--lang en</code>: <code>rpa 0.1.0 (rpa-core 0.1.0)</code></td></tr>
-            <tr><td><code>uv run rpa -h</code></td><td>Shows the usage and the description; in English (<code>--lang en</code>): "Generate, manage and run browser automation scenarios." M0 has no subcommands yet.</td></tr>
+            <tr><td><code>uv run rpa -h</code></td><td>Shows the usage and the description; in English (<code>--lang en</code>): "Generate, manage and run browser automation scenarios.", plus the validate, schema, run, record and serve subcommands.</td></tr>
             <tr><td><code>uv run pytest</code></td><td>The last line shows only <code>passed</code>: no <code>failed</code> and no <code>skipped</code>.</td></tr>
-            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td><code>2 passed</code> (one each for Chromium and Firefox; the other tests show as deselected). This is the browser smoke test; like CI, a missing browser fails instead of being skipped.</td></tr>
+            <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td>Only <code>passed</code> (the tests that need a browser, run in both Chromium and Firefox; the other tests show as deselected). Like CI, a missing browser fails instead of being skipped.</td></tr>
           </tbody>
         </table>
       </div>

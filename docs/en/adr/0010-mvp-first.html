@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:bd0617180a5c3623">
+<meta name="translation-source" content="sha256:288bbc9059b1fa2a">
 <title>ADR 0010 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -24,6 +24,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>Date</dt><dd class="mono">2026-10-10</dd>
+        <dt>Amended</dt><dd><span class="mono">2026-10-13</span>: after M4, M6 Playground comes before M5 AI assistant, so the MVP is done with M5; milestone numbers stay the same (see the <a href="../roadmap.html">roadmap</a>).</dd>
         <dt>Scope</dt><dd>Roadmap, system architecture, multi-user design, every milestone from M2 on</dd>
         <dt>Related</dt><dd><a href="../roadmap.html">Roadmap</a>, <a href="0008-sqlite-and-postgresql.html">ADR 0008</a>, <a href="0009-scenario-contract.html">ADR 0009</a>, <a href="0011-fastapi-jinja.html">ADR 0011</a>, <a href="../../prototypes/mvp/index.html">MVP prototype</a></dd>
       </dl>
@@ -42,7 +43,7 @@
         <div class="panel-body">
           <ul class="points">
             <li><strong>MVP scope.</strong> Single machine, single user, serial execution; SQLite for metadata and a file directory for script snapshots and run artifacts.</li>
-            <li><strong>New milestone order.</strong> M1.1 scenario contract → M2 runner → M3 management portal → M4 scenario production and login → M5 AI assistant → M6 playground (MVP done) → M7 flow features → M8 multiple users and governance → M9 operations.</li>
+            <li><strong>New milestone order.</strong> M1.1 scenario contract → M2 runner → M3 management portal → M4 scenario production and login → M6 playground → M5 AI assistant (MVP done) → M7 flow features → M8 multiple users and governance → M9 operations. M6 originally came after M5 and moved ahead of it on 2026-10-13: the playground needs no new external service, while the AI model is still to be decided.</li>
             <li><strong>The prototype is the page prototype.</strong> The page prototypes of the old M6 are delivered by the MVP prototype; the old Web UI is split across M3–M6, each delivering its own pages with the prototype's top-level and left-side navigation.</li>
             <li><strong>The prototype lives in the repository.</strong> It is kept in <code>docs/prototypes/mvp/</code> and checked against MANIFEST.json like the design system, without edits or translation; its simulated results never count as real validation.</li>
             <li><strong>Revisions and the publishing gate.</strong> Scenario revisions are immutable: draft → validating → passed or failed → published. Changing scripts, schemas or defaults requires validating again, and the published revision must be exactly the one that passed.</li>
