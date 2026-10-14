@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from rpa_core.dsl import ExtractStep, Scenario, validate_text
-from rpa_core.dsl.editing import section_text
+from rpa_core.dsl.editing import contract_section, section_text
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
@@ -61,18 +61,31 @@ def _counts(text: str | None) -> dict[str, int] | None:
     }
 
 
-def _contract_data(scenario: Scenario) -> dict[str, object]:
+def _contract_data(scenario: Scenario, source: str | None = None) -> dict[str, object]:
     """入參、出參編輯器的初始資料（DSL 寫法的欄位，camelCase）。
 
     用 [名稱, 規格] 的清單保留場景檔裡的順序（模板的 tojson 會把物件的鍵排序）。
     """
-    return {
+    data: dict[str, object] = {
         key: [
             [name, spec.model_dump(mode="json", by_alias=True, exclude_none=True)]
             for name, spec in specs.items()
         ]
         for key, specs in (("inputs", scenario.inputs), ("outputs", scenario.outputs))
     }
+    data["yaml"] = {
+        key: section_text(source, key)
+        if source is not None
+        else contract_section(
+            key,
+            {
+                name: spec.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for name, spec in specs.items()
+            },
+        )
+        for key, specs in (("inputs", scenario.inputs), ("outputs", scenario.outputs))
+    }
+    return data
 
 
 def _facts(scenario: Scenario) -> list[tuple[str, list[str]]]:
@@ -189,7 +202,11 @@ def page_router(services: Services) -> APIRouter:
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
-            contract_data=_contract_data(scenario) if scenario is not None else {},
+            contract_data=_contract_data(
+                scenario, services.revision_files(scene_id, record.latest_number)[SCENARIO_FILE]
+            )
+            if scenario is not None
+            else {},
             facts=_facts(scenario) if scenario is not None else [],
         )
 

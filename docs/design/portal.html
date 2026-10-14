@@ -143,8 +143,9 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>自動化腳本與斷言腳本分開。</strong>DSL 場景的卡片與場景頁有「自動化腳本」（<code>steps:</code>）與「斷言腳本」（<code>verify:</code>）兩個入口，各自只顯示、只改寫場景檔的那一段；執行時先跑自動化步驟，再用斷言腳本檢查取得的頁面事實，全部通過才發布出參。斷言腳本右側可以一鍵插入 notEmpty、equals、contains、matches 的檢查，點一下頁面事實或入參的名稱就插入到游標位置。存檔前校驗，問題標出段落裡的行號。</li>
-          <li><strong>入參、出參：表格與 YAML 原文兩種檢視。</strong>場景頁的入參、出參按「編輯」：表格一列一筆，直接修改名稱、型別、必填、預設值、出參的取值與說明，限制收在下一列（依型別顯示 minLength、pattern、minimum、enum…），可以新增、上移、下移、刪除；切到「YAML 原文」直接修改那一段的原始寫法，切回表格前先校驗。</li>
-          <li><strong>只改寫那一段。</strong>存檔時只換掉場景檔的那一段，其他內容與註解完全不變；入參改名時，步驟裡引用舊名稱的 <code>{{ inputs.舊名稱 }}</code> 一起改。一樣建立新版本、經過校驗與「不是最新版就 409」的檢查，新版本要重新驗證。Python 腳本場景的出參由 assertion.py 產生，改名也不會改到腳本。</li>
+          <li><strong>入參與出參左右編輯。</strong>場景頁優先呈現契約工作台，預設左右兩欄 YAML 原文；表格仍可新增、排序、改名與設定限制。切換檢視保留兩欄草稿，統一「儲存入參與出參」會一起校驗並建立一個版本，任一欄有錯不會部分保存。錯誤標示欄位及段落行號；版本衝突回 409，保留草稿。</li>
+          <li><strong>三個唯讀預覽。</strong>同行依序為「預設入參」「出參樣例」「出參提取映射」。預設入參由目前草稿產生，沒有預設值的必填項另列，不偽造值。出參樣例只取該已儲存版本最近一次成功執行的真實出參，標明版本與執行編號；沒有結果時明確顯示空狀態，草稿已修改時提示尚未驗證。提取映射來自草稿的 outputs.from；Python 場景明示由 assertion.py 產生。三個預覽不接受編輯保存。</li>
+          <li><strong>修改與驗證動線。</strong>契約、完整檔案與腳本分段保存後留在原頁，更新版本並顯示「驗證這個版本」。發布後留在報告，顯示已發布版本與執行入口。離開有修改的編輯器會提示。契約保存只替換 inputs／outputs，其他段落與註解保留；表格改名同步更新 DSL 引用，YAML 改名需自行調整引用。新版本仍需重新驗證、發布；不修改 Python 腳本。</li>
         </ul>
       </div>
     </section>
@@ -153,8 +154,10 @@
       <div class="panel-header"><h2>自由試驗場與組合場景</h2><span class="muted">DAG：可分叉、可匯合，成功出參傳給下游，失敗即停</span></div>
       <div class="panel-body prose"><ul>
         <li><strong>管理與生產。</strong>「場景管理 › 組合場景自動化」沿用測試網站自動化的卡片風格，以真實節點座標和依賴產生 DAG 縮圖，管理名稱、節點、問題與最近執行；卡片的「執行組合場景」可直接選引擎、執行位置與視窗模式；「場景生產 › 自由試驗場」建立、開啟與編輯畫布。場景生產選單依序為自主腳本錄製、自由試驗場、運行報告、遠端 Worker。</li>
-        <li><strong>依賴畫布。</strong>場景庫可點選加入或拖入畫布。拖動節點或用方向鍵微調位置；點上游右側圓點，再點下游左側圓點建立連線。點連線設定下游入參，也可以從右側加入上游。縮放與適應只改視角，不改座標。節點座標隨組合場景保存；畫布位置和節點陣列順序不代表執行順序。頂部名稱與操作合併成一列，說明收在「說明」，執行歷史預設折疊。中間的入參區固定高度並獨立捲動，以入參／型別、來源、取值三欄呈現。</li>
+        <li><strong>依賴畫布。</strong>場景庫可點選加入或拖入畫布。拖動節點或用方向鍵微調位置；點上游右側圓點，再點下游左側圓點建立連線。點連線設定下游入參，也可以從右側加入上游。縮放與適應只改視角，不改座標。節點座標隨組合場景保存；畫布位置和節點陣列順序不代表執行順序。頂部名稱與操作合併成一列，說明收在「說明」，執行歷史預設折疊。畫布下方的全寬參數區獨立捲動，並列上游出參、下游入參、匹配方式、取值／來源；點選 DAG 連線會切到該組上游與下游。多上游可切換來源節點。</li>
         <li><strong>四種入參來源。</strong>同名匹配僅搜尋直接連線的上游，唯一同名且型別相容時取其出參，沒有命中則用場景預設，多個命中必須指定來源；場景預設強制忽略上游同名值；人工指定只覆蓋此節點；指定上游出參可以跨欄位綁定。選擇出參會建立依賴；一個出參可供多個下游，一個入參只有一個來源。整數可以傳給數字，其他型別必須相同。</li>
+        <li><strong>參數連線。</strong>拖動出參圓點到入參，或依次用滑鼠／鍵盤選取兩端，建立顯式綁定；型別不符不修改原值。四種模式以按鈕同列呈現，仍可用出參選單精確選擇。唯一同名匹配與顯式來源畫出對應連線；歧義、預設值及人工值不畫假連線。契約按鈕原地顯示該固定版本的唯讀原文；編輯場景明示另開分頁，並提示驗證、發布後回畫布選新版本。</li>
+        <li><strong>執行與返回。</strong>從畫布啟動後原地顯示快照版本、進度與各節點狀態，點節點可看本次入參、成功出參或錯誤；可原地取消。完整報告與節點報告由使用者主動打開，回畫布恢復選取節點、上游與縮放／捲動位置。卡片快捷執行仍直接進入報告。編輯畫布不改變已開始執行的快照。</li>
         <li><strong>直接依賴與清理。</strong>顯式連線及出參引用都形成依賴。移除連線清理對應的出參引用並重新檢查來源；移除節點同時清理它的連線與下游引用。重設入參會恢復同名匹配。循環、自我依賴、重複邊或不存在的端點不可執行。</li>
         <li><strong>保存與預檢。</strong>草稿可帶待修正的問題保存；保存攜帶 <code>baseVersion</code>，版本衝突回 409，頁面保留草稿供匯出。執行前檢查全圖、已發布固定版本、欄位、型別、必填值及固定值規則；有問題時第一個節點也不排入佇列。問題清單與執行阻擋對話框顯示節點、場景、入參及具體原因，點選可定位到畫布節點或入參欄位；欄位同步標紅。「執行前檢查」可手動檢查，卡片執行也重新取得最新問題。新增場景時不自動建立與前一節點的連線。</li>
         <li><strong>分叉與匯合。</strong>拓撲排序保證所有上游都通過才執行下游；就緒節點以定義中的順序穩定選取，逐個排入既有佇列。每個節點有自己的真實執行、入參、成功出參與報告。下游執行前再檢查實際值，不符合規則就停止，不回退到預設值。</li>
@@ -248,6 +251,8 @@
             <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/rerun</code></td><td>同樣的入參與選項再執行一次；202 回新的執行</td></tr>
             <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>入參與出參的表格存檔：<code>baseRevision</code>、<code>inputs</code>、<code>outputs</code>（每項有 <code>name</code>、改名前的 <code>previous</code>…；不帶的那一段不動）、<code>note</code></td></tr>
+            <tr><td><code>GET /api/scenes/{id}/contract-workspace?revision={n}</code></td><td>取得指定版本（預設最新）的契約 YAML 與該版本最近成功出參樣例，不會取其他版本或失敗結果</td></tr>
+            <tr><td><code>PUT /api/scenes/{id}/contract-yaml</code>；<code>POST …/preview</code></td><td>左右契約一起保存或唯讀校驗：<code>baseRevision</code>、<code>inputs</code>／<code>outputs</code> 原文、可選的表格 <code>renames</code> 與 <code>note</code>。保存是單一新版本，校驗回傳解析後契約、不寫入；錯誤包含 <code>section</code>、<code>sectionLine</code></td></tr>
             <tr><td><code>POST /api/contract/render</code></td><td>表格的內容（<code>key</code>、<code>items</code>）轉成和存檔一樣的 YAML 寫法，切到原文檢視時用</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/scenes/{id}/sections/{段}</code>；<code>POST …/preview</code></td><td>場景檔的一段（<code>steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code>）：讀取、只換掉這一段存成新版本（<code>baseRevision</code>、<code>text</code>、<code>note</code>）、換掉後校驗但不存檔（入參、出參回傳表格用的資料）；問題帶段落裡的行號 <code>sectionLine</code></td></tr>
             <tr><td><code>GET</code>、<code>POST /api/roles</code>；<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/roles/{角色}</code></td><td>登入角色：<code>name</code>、<code>loginUrl</code>、<code>checkUrl</code>、<code>check</code>（定位器）、<code>engine</code>、<code>autoLogin</code>；還有場景用到時不能刪除</td></tr>

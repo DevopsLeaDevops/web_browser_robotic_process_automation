@@ -75,7 +75,11 @@ def page() -> Iterator[Page]:
     require_engine("chromium")
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
-        context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="zh-TW")
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 900},
+            locale="zh-TW",
+            timezone_id="America/Los_Angeles",
+        )
         context.set_default_timeout(15_000)
         try:
             yield context.new_page()
@@ -144,22 +148,24 @@ def test_create_validate_publish_run_report(
     editor.fill(content)
     page.locator('input[name="note"]').fill("改成 BA-001 的步驟")
     page.locator('[data-action="save-revision"]').click()
-    page.wait_for_url(f"{portal}/scenes/e2e-demo")
-    expect(page.locator('tr[data-revision="2"]')).to_contain_text("改成 BA-001 的步驟")
+    expect(page.locator("#editor-saved")).to_contain_text("v2")
+    assert page.url.endswith("/scenes/e2e-demo/edit")
+    expect(editor).to_have_value(content)
 
     # 驗證
-    page.locator('#page-actions a[href$="purpose=validation"]').click()
+    page.locator("#editor-saved a").click()
     start_run(page, {"title": "端到端驗證", "quantity": 6}, engine, site)
     wait_for_run(page)
 
     # 發布
     page.locator('[data-action="publish"]').click()
     page.locator("#dialog-action").click()
-    page.wait_for_url(f"{portal}/scenes/e2e-demo")
-    expect(page.locator('tr[data-revision="2"] [data-status="published"]')).to_be_visible()
+    expect(page.locator("#publish-result")).to_contain_text("e2e-demo v2")
+    assert "/runs/" in page.url
+    assert page.request.get(f"{portal}/api/scenes/e2e-demo").json()["publishedRevision"] == 2
 
     # 執行
-    page.locator('#page-actions a[href$="purpose=execution"]').click()
+    page.locator("#publish-result a").click()
     start_run(page, {"title": "端到端執行", "quantity": 7}, engine, site)
     run_id = wait_for_run(page)
     expect(page.locator("pre.source").nth(1)).to_contain_text("端到端執行")
@@ -290,11 +296,36 @@ def test_playground_chains_published_scenarios(
     page.locator('[data-in="n2"]').click()
     expect(page.locator("#node-inputs")).to_contain_text("recordId ← n1.recordId")
     expect(page.locator(".dag-edge")).to_have_count(1)
+    expect(page.locator('[data-parameter-wire="recordId"]')).to_have_count(1)
+    # 直接拖動出參到入參；型別不符時保留原綁定。也能以鍵盤逐端連線。
+    page.locator('[data-output-port="recordId"]').drag_to(
+        page.locator('[data-input-port="recordId"]')
+    )
+    expect(page.locator('[data-name="recordId"][data-mode="wire"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator('[data-source="recordId"]')).to_have_value("out:n1:recordId")
+    page.locator('[data-output-port="quantity"]').drag_to(
+        page.locator('[data-input-port="recordId"]')
+    )
+    expect(page.locator("#toast")).to_contain_text("型別不相容")
+    expect(page.locator('[data-source="recordId"]')).to_have_value("out:n1:recordId")
+    page.locator('[data-name="recordId"][data-mode="auto"]').click()
+    page.locator('[data-output-port="recordId"]').press("Enter")
+    page.locator('[data-input-port="recordId"]').press("Enter")
+    expect(page.locator('[data-name="recordId"][data-mode="wire"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    # 固定版本契約就地檢視；編輯入口明示新分頁與重新發布流程。
+    page.locator('[data-inspect-contract="inputs"]').click()
+    expect(dialog).to_contain_text("recordId")
+    expect(dialog.locator('a[href*="#contract-inputs"]')).to_have_attribute("target", "_blank")
+    dialog.locator("#dialog-close").click()
 
     # n1 的標題改成固定值
     first = page.locator('#flow-stage [data-index="0"]')
     first.click()
-    page.locator('select[data-source="title"]').select_option("value")
+    page.locator('[data-name="title"][data-mode="value"]').click()
     page.locator('input[data-value="title"]').fill("畫面串接")
     expect(page.locator("#node-inputs")).to_contain_text('title = "畫面串接"')
     expect(page.locator("#workflow-problems")).to_be_hidden()
@@ -333,7 +364,9 @@ def test_playground_chains_published_scenarios(
     expect(problem).to_contain_text("n2 · ba-002 · recordId")
     reason = problem.locator("span").inner_text()
     assert reason
-    expect(page.locator('[data-source="recordId"]')).to_have_attribute("aria-invalid", "true")
+    expect(page.locator('[data-name="recordId"][data-mode="auto"]')).to_have_attribute(
+        "aria-invalid", "true"
+    )
     expect(page.locator(".input-problems")).to_contain_text(reason)
     # 執行前阻擋必須列出原始原因；定位直接選取錯誤欄位。
     page.locator('[data-action="workflow-run"]').click()
@@ -341,25 +374,31 @@ def test_playground_chains_published_scenarios(
     expect(dialog).to_contain_text(reason)
     dialog.locator("[data-locate-problem]").first.click()
     expect(dialog).not_to_be_visible()
-    expect(page.locator('[data-source="recordId"]')).to_be_focused()
+    expect(page.locator('[data-name="recordId"][data-mode="auto"]')).to_be_focused()
     # 卡片也會重新檢查，並提供開啟畫布、定位欄位的入口。
     page.goto(f"{portal}/composites")
     page.locator('[data-action="run-composite"]').click()
     expect(dialog).to_contain_text(reason)
     dialog.locator('a[href*="input=recordId"]').click()
     page.wait_for_url(re.compile(r"/playground/\d+\?node=n2&input=recordId$"))
-    expect(page.locator('[data-source="recordId"]')).to_be_focused()
+    expect(page.locator('[data-name="recordId"][data-mode="auto"]')).to_be_focused()
     page.locator('[data-out="n1"]').click()
     page.locator('[data-in="n2"]').click()
     expect(page.locator("#workflow-problems")).to_be_hidden()
 
     page.locator('[data-action="workflow-check"]').click()
     expect(page.locator("#toast")).to_contain_text("檢查通過")
-    # 執行組合場景（先自動存檔），到執行頁等結果
+    # 執行組合場景（先自動存檔），原地看進度與出參，主動開啟完整報告
     page.locator('[data-action="workflow-run"]').click()
     dialog.locator('select[name="engine"]').select_option(engine)
     dialog.locator('input[name="headless"][value="1"]').check()
     dialog.locator("#dialog-action").click()
+    page.wait_for_selector('#workflow-live[data-status="passed"]', timeout=RUN_TIMEOUT_MS * 2)
+    assert "/playground/runs/" not in page.url
+    page.locator('[data-live-node="n2"]').click()
+    expect(page.locator("#live-outputs")).to_contain_text("畫面串接")
+    expect(page.locator("#live-inputs")).to_contain_text("recordId")
+    page.locator("#live-report").click()
     page.wait_for_url(re.compile(r"/playground/runs/"))
     page.wait_for_selector('#workflow-run:not([data-status="running"])', timeout=RUN_TIMEOUT_MS * 2)
     root = page.locator("#workflow-run")
@@ -405,3 +444,100 @@ def test_playground_chains_published_scenarios(
     expect(page.locator('input[data-value="title"]')).to_have_value("保留未儲存草稿")
     expect(save_button).to_be_enabled()
     assert errors == []
+
+
+@pytest.mark.parametrize("portal", [DEMO], indirect=True)
+def test_contract_workspace_preserves_drafts_and_saves_both_columns(
+    portal: str, page: Page
+) -> None:
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(f"{portal}/scenes/ba-001")
+    inputs = page.locator('#contract-inputs textarea[name="yaml"]')
+    outputs = page.locator('#contract-outputs textarea[name="yaml"]')
+    expect(inputs).to_be_enabled()
+    expect(outputs).to_be_visible()
+    left, right = inputs.bounding_box(), outputs.bounding_box()
+    assert left is not None
+    assert right is not None
+    assert left["y"] == right["y"]
+    assert left["x"] < right["x"]
+    before = page.request.get(f"{portal}/api/scenes/ba-001/contract-workspace").json()["yaml"]
+    input_text = (
+        before["inputs"].replace("default: 12", "default: 9")
+        + "\n  extra: { type: string, default: preview-value }\n"
+    )
+    output_text = before["outputs"].replace("facts.record.title", "inputs.extra")
+    inputs.fill(input_text)
+    outputs.fill(output_text)
+    page.locator('[data-contract-view="defaults"]').click()
+    expect(page.locator("#contract-preview-value")).to_contain_text('"quantity": 9')
+    expect(page.locator("#contract-preview-value")).to_contain_text("preview-value")
+    expect(page.locator("#contract-preview input, #contract-preview textarea")).to_have_count(0)
+    page.locator('[data-contract-view="mapping"]').click()
+    expect(page.locator("#contract-preview-value")).to_contain_text("inputs.extra")
+    page.locator('[data-contract-view="sample"]').click()
+    expect(page.locator("#contract-preview-source")).to_contain_text("尚無成功執行")
+    page.locator('[data-contract-view="yaml"]').click()
+    expect(inputs).to_have_value(input_text)
+    expect(outputs).to_have_value(output_text)
+    # 切表格也以兩欄草稿一起校驗，不會誤判新入參不存在。
+    page.locator('#contract-outputs [data-view="table"]').click()
+    expect(page.locator('#contract-outputs [data-view-panel="table"]')).to_be_visible()
+    page.locator('#contract-outputs [data-view="yaml"]').click()
+    save = page.locator('[data-action="save-contract"]')
+    save.click()
+    expect(page.locator("#contract-state")).to_contain_text("v2")
+    expect(save).to_be_disabled()
+    assert page.url.endswith("/scenes/ba-001")
+    saved = page.request.get(f"{portal}/api/scenes/ba-001/contract-workspace").json()
+    assert saved["revision"] == 2
+    assert "default: 9" in saved["yaml"]["inputs"]
+    assert "inputs.extra" in saved["yaml"]["outputs"]
+    expect(page.locator("[data-validate-contract]")).to_have_attribute(
+        "href", "/scenes/ba-001/run?purpose=validation&revision=2"
+    )
+    expect(page.locator('tr[data-revision="2"]')).to_be_visible()
+    # 無效草稿顯示原因與欄位行號，兩欄保留；另一分頁保存後拒絕覆蓋。
+    valid = inputs.input_value()
+    inputs.fill(valid.replace("type: integer", "type: invalid"))
+    save.click()
+    expect(page.locator("#contract-issues")).to_contain_text("inputs")
+    assert "type: invalid" in inputs.input_value()
+    inputs.fill(valid.replace("default: 9", "default: 8"))
+    files = page.request.get(f"{portal}/api/scenes/ba-001/revisions/2").json()["files"]
+    assert page.request.post(
+        f"{portal}/api/scenes/ba-001/revisions", data={"baseRevision": 2, "files": files}
+    ).ok
+    save.click()
+    expect(page.locator("#contract-issues")).to_contain_text("版本")
+    assert "default: 8" in inputs.input_value()
+    expect(save).to_be_enabled()
+    assert errors == []
+
+
+@pytest.mark.parametrize("portal", [DEMO], indirect=True)
+def test_contract_table_rename_survives_view_changes(portal: str, page: Page) -> None:
+    page.goto(f"{portal}/scenes/ba-001")
+    editor = page.locator("#contract-inputs")
+    expect(editor.locator('textarea[name="yaml"]')).to_be_enabled()
+    editor.locator('[data-view="table"]').click()
+    editor.locator('input[name="name"]').first.fill("headline")
+    editor.locator('[data-view="yaml"]').click()
+    editor.locator('[data-view="table"]').click()
+    editor.locator('input[name="name"]').first.fill("newHeadline")
+    editor.locator('[data-view="yaml"]').click()
+    page.locator('[data-action="save-contract"]').click()
+    expect(page.locator("#contract-state")).to_contain_text("v2")
+    files = page.request.get(f"{portal}/api/scenes/ba-001/revisions/2").json()["files"]
+    assert "inputs.newHeadline" in files["scenario.yaml"]
+    assert "inputs.title" not in files["scenario.yaml"]
+    assert "inputs.headline" not in files["scenario.yaml"]
+    # 離開時保護尚未保存的修改，取消離開後仍能原地編輯。
+    area = editor.locator('textarea[name="yaml"]')
+    text = area.input_value() + "\n# unsaved\n"
+    area.fill(text)
+    page.once("dialog", lambda dialog: dialog.dismiss())
+    page.locator('#page-actions a[href$="/edit"]').click(no_wait_after=True)
+    expect(area).to_have_value(text)
+    assert page.url.endswith("/scenes/ba-001")

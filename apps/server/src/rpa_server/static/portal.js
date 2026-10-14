@@ -135,8 +135,22 @@
     });
   }
 
+  async function refreshSceneSummary(scene) {
+    if (!qs('#scene-versions')) return;
+    const response = await fetch('/scenes/' + path(scene));
+    if (!response.ok) return;
+    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+    for (const id of ['scene-versions', 'scene-release-status', 'page-actions']) {
+      const next = qs('#' + id, page), current = qs('#' + id);
+      if (next && current) current.replaceWith(next);
+    }
+    bindPublish(); localizeTimes();
+  }
+
   function bindPublish() {
     qsa('[data-action="publish"]').forEach(button => {
+      if (button.dataset.bound) return;
+      button.dataset.bound = '1';
       button.addEventListener('click', () => {
         const scene = button.dataset.scene;
         const number = button.dataset.revision;
@@ -144,8 +158,13 @@
           const result = await api('POST', '/api/scenes/' + path(scene) + '/revisions/' + path(number) + '/publish');
           $('#dialog').close();
           if (!result.ok) return toast(errorMessage(result));
-          flash(messages.published);
-          location.href = '/scenes/' + path(scene);
+          button.disabled = true;
+          button.textContent = messages.published;
+          let notice = qs('#publish-result');
+          if (!notice) { notice = document.createElement('div'); notice.id = 'publish-result'; notice.className = 'notice contract-next'; qs('#main').append(notice); }
+          notice.innerHTML = '<span>' + esc(messages.published + ' · ' + scene + ' v' + number) + '</span><a class="button primary" href="/scenes/' + path(scene) + '/run?purpose=execution">' + esc(messages.run_published) + '</a>';
+          await refreshSceneSummary(scene);
+          notice.scrollIntoView({block: 'nearest'});
         });
       });
     });
@@ -266,9 +285,32 @@
 
   // ---------------------------------------------------------------- 編輯版本
 
+  function watchEditor(form) {
+    const signature = () => JSON.stringify(qsa('textarea, input', form).map(field => [field.name, field.value]));
+    let saved = signature();
+    window.addEventListener('beforeunload', event => {
+      if (signature() !== saved) { event.preventDefault(); event.returnValue = ''; }
+    });
+    return () => { saved = signature(); };
+  }
+
+  function savedRevision(form, number) {
+    form.dataset.base = number;
+    let notice = qs('#editor-saved');
+    if (!notice) { notice = document.createElement('div'); notice.id = 'editor-saved'; notice.className = 'notice contract-next'; notice.setAttribute('role', 'status'); form.prepend(notice); }
+    notice.innerHTML = '<span>' + esc(fill(messages.contract_saved_next, {number})) + '</span><a class="button" href="/scenes/' + path(form.dataset.scene) + '/run?purpose=validation&revision=' + number + '">' + esc(messages.validate_next) + '</a>';
+    const description = qs('#description');
+    if (description) description.textContent = fill(messages.editor_revision, {number});
+    const revision = qs('.section-tabs > .muted');
+    if (revision) revision.textContent = 'v' + number;
+    const url = new URL(location.href); url.searchParams.delete('revision'); history.replaceState(null, '', url);
+    toast(messages.saved + ' v' + number);
+  }
+
   function bindEditor() {
     const form = qs('#revision-form');
     if (!form) return;
+    const markSaved = watchEditor(form);
     qsa('[data-file-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
         qsa('[data-file-tab]').forEach(other => {
@@ -298,14 +340,14 @@
       const files = {};
       qsa('textarea.code-editor', form).forEach(area => { files[area.name] = area.value; });
       const note = form.elements.namedItem('note').value.trim() || null;
-      save.disabled = true;
+      save.disabled = true; form.inert = true;
       const result = await api('POST', '/api/scenes/' + path(form.dataset.scene) + '/revisions', {
         baseRevision: Number(form.dataset.base), files, note,
       });
-      save.disabled = false;
+      save.disabled = false; form.inert = false;
       if (result.ok) {
-        flash(messages.saved + ' v' + result.data.number);
-        location.href = '/scenes/' + path(form.dataset.scene);
+        qs('#issues').hidden = true;
+        markSaved(); savedRevision(form, result.data.number);
         return;
       }
       const error = result.data && result.data.error;
@@ -873,6 +915,7 @@
   function bindSection() {
     const form = qs('#section-form');
     if (!form) return;
+    const markSaved = watchEditor(form);
     const area = form.elements.namedItem('text');
     const key = form.dataset.key;
     qsa('[data-insert]').forEach(chip => chip.addEventListener('click', () => insertAt(area, chip.dataset.insert)));
@@ -893,19 +936,18 @@
     const list = qs('#issue-list');
     const submit = async () => {
       qs('#issues').hidden = true;
-      busy(save, true);
+      busy(save, true); form.inert = true;
       const result = await api('PUT', '/api/scenes/' + path(form.dataset.scene) + '/sections/' + path(key), {
         baseRevision: Number(form.dataset.base),
         text: area.value,
         note: form.elements.namedItem('note').value.trim() || null,
       });
+      busy(save, false); form.inert = false;
       if (!result.ok) {
-        busy(save, false);
         if (result.status === 409 && result.data && result.data.error && result.data.error.code === 'stale_base') return toast(messages.stale_base);
         return showSectionIssues(list, result, area);
       }
-      flash(messages.saved + ' v' + result.data.number);
-      location.href = '/scenes/' + path(form.dataset.scene) + '/edit?part=' + path(key);
+      markSaved(); savedRevision(form, result.data.number);
     };
     if (save) save.addEventListener('click', submit);
     form.addEventListener('submit', event => { event.preventDefault(); submit(); });
@@ -1018,11 +1060,25 @@
   }
 
   function bindContract() {
-    const host = qs('.contract-editors');
+    const host = qs('#contract-workspace');
     if (!host) return;
     const data = JSON.parse(qs('#contract-data').textContent || '{}');
     const scene = host.dataset.scene;
-    const base = Number(host.dataset.base);
+    let base = Number(host.dataset.base), dirty = false, loaded = false, working = false;
+    let previewSeq = 0, pendingRenames = {};
+    const state = qs('#contract-state'), saveButton = qs('[data-action="save-contract"]');
+    const archived = host.dataset.archived === '1';
+    const markDirty = () => {
+      dirty = true; previewSeq += 1;
+      state.textContent = messages.contract_unsaved;
+      saveButton.disabled = !loaded || archived || working;
+      qs('#contract-next').hidden = true;
+    };
+    host.addEventListener('input', markDirty);
+    host.addEventListener('change', markDirty);
+    window.addEventListener('beforeunload', event => {
+      if (dirty) { event.preventDefault(); event.returnValue = ''; }
+    });
     const fillRows = (editor, specs) => {
       const body = qs('[data-rows]', editor);
       body.innerHTML = '';
@@ -1041,18 +1097,32 @@
       list.innerHTML = [errorMessage(result), ...lines, ...problems].map(item => '<li>' + esc(item) + '</li>').join('');
       list.hidden = false;
     };
+    const mergedRenames = rows => {
+      const next = {...pendingRenames};
+      rows.forEach(item => {
+        if (!item.previous || item.previous === item.name) return;
+        const origins = Object.entries(pendingRenames).filter(([, target]) => target === item.previous).map(([origin]) => origin);
+        (origins.length ? origins : [item.previous]).forEach(origin => { next[origin] = item.name; });
+      });
+      return Object.fromEntries(Object.entries(next).filter(([origin, target]) => origin !== target));
+    };
     const showView = async (editor, next) => {
-      if (view(editor) === next) return;
+      if (!loaded || working || editor.inert || view(editor) === next) return;
+      editor.inert = true;
       const kind = editor.dataset.kind;
       const area = qs('[name="yaml"]', editor);
       qs('.form-issues', editor).hidden = true;
       // 表格 → YAML：由伺服器產生和存檔一樣的寫法；YAML → 表格：先校驗，再用結果重建表格
       const result = next === 'yaml'
         ? await api('POST', '/api/contract/render', {key: kind, items: items(editor)})
-        : await api('POST', '/api/scenes/' + path(scene) + '/sections/' + kind + '/preview', {baseRevision: base, text: area.value});
+        : await api('POST', '/api/scenes/' + path(scene) + '/contract-yaml/preview', await payload());
+      editor.inert = false;
       if (!result.ok) return issues(editor, result);
-      if (next === 'yaml') area.value = result.data.text;
-      else fillRows(editor, result.data.items);
+      if (next === 'yaml') {
+        if (kind === 'inputs') pendingRenames = mergedRenames(items(editor));
+        area.value = result.data.text;
+      }
+      else fillRows(editor, result.data[kind]);
       qsa('[data-view]', editor).forEach(tab => {
         const active = tab.dataset.view === next;
         tab.classList.toggle('active', active);
@@ -1073,9 +1143,10 @@
       });
       editor.addEventListener('click', event => {
         const button = event.target.closest('button[data-action]');
-        if (!button) return;
+        if (!button || working || archived) return;
         const row = button.closest('tr.edit-row');
         const action = button.dataset.action;
+        if (['remove-row', 'move-up', 'move-down', 'add-row'].includes(action)) markDirty();
         if (action === 'toggle-rules') {
           const rules = row.nextElementSibling;
           rules.hidden = !rules.hidden;
@@ -1095,38 +1166,133 @@
           const added = qsa('tr.edit-row', body).pop();
           applyType(added);
           qs('[name="name"]', added).focus();
-        } else if (action === 'close-contract') {
-          editor.hidden = true;
-          fillRows(editor, data[kind]);
-        } else if (action === 'save-contract') {
-          save(editor, button);
         }
       });
     });
-    const save = async (editor, button) => {
-      const kind = editor.dataset.kind;
-      qs('.form-issues', editor).hidden = true;
-      const note = qs('[name="note"]', editor).value.trim() || null;
-      busy(button, true);
-      const result = view(editor) === 'yaml'
-        ? await api('PUT', '/api/scenes/' + path(scene) + '/sections/' + kind, {baseRevision: base, text: qs('[name="yaml"]', editor).value, note})
-        : await api('PUT', '/api/scenes/' + path(scene) + '/contract', {baseRevision: base, [kind]: items(editor), note});
-      if (!result.ok) {
-        busy(button, false);
-        if (result.status === 409 && result.data && result.data.error && result.data.error.code === 'stale_base') return toast(messages.stale_base);
-        return issues(editor, result);
-      }
-      flash(messages.contract_saved + ' v' + result.data.number);
-      location.href = '/scenes/' + path(scene) + '#' + kind;
-    };
-    qsa('[data-action="edit-contract"]').forEach(button => {
-      button.addEventListener('click', () => {
-        const editor = qs('#contract-' + button.dataset.kind);
-        editor.hidden = false;
-        editor.scrollIntoView({block: 'start', behavior: 'smooth'});
-        const first = qs('input[name="name"]', editor);
-        if (first) first.focus({preventScroll: true});
+    const activateView = next => {
+      qsa('[data-contract-view]', host).forEach(button => {
+        button.classList.toggle('active', button.dataset.contractView === next);
+        button.setAttribute('aria-pressed', String(button.dataset.contractView === next));
       });
+      qs('.contract-editors', host).hidden = next !== 'yaml';
+      qs('#contract-preview').hidden = next === 'yaml';
+    };
+    const payload = async () => {
+      const value = {baseRevision: base, note: qs('[name="contract-note"]').value.trim() || null, renames: {...pendingRenames}};
+      for (const editor of qsa('.contract-editor', host)) {
+        const kind = editor.dataset.kind;
+        if (view(editor) === 'yaml') value[kind] = qs('[name="yaml"]', editor).value;
+        else {
+          const rows = items(editor);
+          const rendered = await api('POST', '/api/contract/render', {key: kind, items: rows});
+          if (!rendered.ok) { issues(editor, rendered); return null; }
+          value[kind] = rendered.data.text;
+          if (kind === 'inputs') value.renames = mergedRenames(rows);
+        }
+      }
+      return value;
+    };
+    const showErrors = result => {
+      activateView('yaml');
+      const list = qs('#contract-issues');
+      const found = result.data?.error?.issues || [];
+      list.innerHTML = '<li>' + esc(errorMessage(result)) + '</li>' + found.map((item, index) =>
+        '<li><button type="button" class="text-btn" data-contract-issue="' + index + '">' + esc((item.section || '') + (item.sectionLine ? ':' + item.sectionLine : '') + ' ' + (item.message || item.text || '')) + '</button></li>').join('');
+      list.hidden = false;
+      qsa('[data-contract-issue]', list).forEach(button => {
+        const item = found[Number(button.dataset.contractIssue)];
+        button.disabled = !item.section || !item.sectionLine;
+        button.addEventListener('click', async () => {
+          const editor = qs('#contract-' + item.section);
+          await showView(editor, 'yaml');
+          selectLine(qs('[name="yaml"]', editor), item.sectionLine);
+        });
+      });
+    };
+    const loadWorkspace = async () => {
+      const result = await api('GET', '/api/scenes/' + path(scene) + '/contract-workspace?revision=' + base);
+      if (!result.ok) { showErrors(result); return false; }
+      qsa('.contract-editor', host).forEach(editor => {
+        qs('[name="yaml"]', editor).value = result.data.yaml[editor.dataset.kind];
+        qsa('input, textarea, select, button', editor).forEach(field => { field.disabled = archived; });
+      });
+      loaded = true;
+      return true;
+    };
+    qsa('[data-contract-view]', host).forEach(button => button.addEventListener('click', async () => {
+      if (!loaded || working) return;
+      const next = button.dataset.contractView, seq = ++previewSeq;
+      if (next === 'yaml') { activateView(next); return; }
+      qs('#contract-issues').hidden = true;
+      const value = await payload();
+      if (!value || seq !== previewSeq) return;
+      const result = await api('POST', '/api/scenes/' + path(scene) + '/contract-yaml/preview', value);
+      if (seq !== previewSeq) return;
+      if (!result.ok) return showErrors(result);
+      let shown = {}, source = messages.contract_preview_draft;
+      if (next === 'defaults') {
+        shown = Object.fromEntries(result.data.inputs.filter(([, spec]) => spec.default !== undefined && spec.default !== null).map(([name, spec]) => [name, spec.default]));
+        const required = result.data.inputs.filter(([, spec]) => spec.default === undefined || spec.default === null).map(([name]) => name);
+        if (required.length) source += ' ' + fill(messages.contract_required, {names: required.join(', ')});
+      } else if (next === 'mapping') {
+        shown = Object.fromEntries(result.data.outputs.map(([name, spec]) => [name, spec.from || messages.contract_script_output]));
+      } else {
+        const sample = await api('GET', '/api/scenes/' + path(scene) + '/contract-workspace?revision=' + base);
+        if (seq !== previewSeq) return;
+        if (!sample.ok) return showErrors(sample);
+        shown = sample.data.sample?.values || {};
+        source = sample.data.sample
+          ? fill(messages.contract_sample_source, {number: base, run: sample.data.sample.runId})
+          : fill(messages.contract_sample_empty, {number: base});
+        if (dirty) source += ' ' + messages.contract_sample_draft;
+      }
+      qs('#contract-preview-title').textContent = button.textContent;
+      qs('#contract-preview-source').textContent = source;
+      qs('#contract-preview-value').textContent = JSON.stringify(shown, null, 2);
+      activateView(next);
+    }));
+    saveButton.addEventListener('click', async () => {
+      if (!loaded || !dirty || archived || working) return;
+      working = true;
+      host.inert = true;
+      previewSeq += 1;
+      busy(saveButton, true);
+      qs('#contract-issues').hidden = true;
+      try {
+        const value = await payload();
+        if (!value) return;
+        const result = await api('PUT', '/api/scenes/' + path(scene) + '/contract-yaml', value);
+        if (!result.ok) return showErrors(result);
+        base = result.data.number;
+        host.dataset.base = base;
+        pendingRenames = {};
+        dirty = false;
+        // 儲存後原地更新原文與版本，不跳走、不保留舊表格覆寫新版本。
+        await loadWorkspace();
+        for (const editor of qsa('.contract-editor', host)) {
+          qsa('[data-view]', editor).forEach(tab => {
+            const active = tab.dataset.view === 'yaml';
+            tab.classList.toggle('active', active); tab.setAttribute('aria-selected', String(active));
+          });
+          qsa('[data-view-panel]', editor).forEach(panel => { panel.hidden = panel.dataset.viewPanel !== 'yaml'; });
+        }
+        activateView('yaml');
+        state.textContent = messages.contract_saved + ' · v' + base;
+        qs('#contract-next span').textContent = fill(messages.contract_saved_next, {number: base});
+        qs('[data-validate-contract]').href = '/scenes/' + path(scene) + '/run?purpose=validation&revision=' + base;
+        qs('#contract-next').hidden = false;
+        await refreshSceneSummary(scene);
+      } finally {
+        working = false; host.inert = false; busy(saveButton, false);
+        saveButton.disabled = !dirty || archived;
+      }
+    });
+    loadWorkspace().then(() => {
+      const kind = location.hash.slice(1).replace('contract-', '');
+      if (['inputs', 'outputs'].includes(kind)) {
+        const area = qs('#contract-' + kind + ' [name="yaml"]');
+        area.scrollIntoView({block: 'center'}); area.focus({preventScroll: true});
+      }
     });
   }
 
@@ -1198,7 +1364,7 @@
   }
 
   // 卡片與畫布共用同一份執行設定及 API；伺服器仍負責最後檢查。
-  function openWorkflowRun(workflow, locate, onProblems) {
+  function openWorkflowRun(workflow, locate, onProblems, onStarted) {
     const text = pageText(), key = newKey();
     modal(fill(text.run_named, {name: workflow.name}), qs('#workflow-run-form').innerHTML, {label: text.run_action, run: async () => {
       const dialog = qs('#dialog-content');
@@ -1219,7 +1385,8 @@
         if (problems.length && onProblems) onProblems(problems);
         return;
       }
-      location.href = '/playground/runs/' + path(result.data.id);
+      if (onStarted) { $('#dialog').close(); onStarted(result.data); }
+      else location.href = '/playground/runs/' + path(result.data.id);
     }});
     bindTargetChoice(qs('#dialog-content'));
   }
@@ -1311,6 +1478,8 @@
     definition.edges ||= [];
     definition.nodes.forEach((node, i) => { node.position ||= {x: 40 + (i % 3) * 280, y: 40 + Math.floor(i / 3) * 160}; });
     let zoom = 1, picked = null, dragging = false, editVersion = 0, saving = false;
+    let selectedSource = null, parameterPicked = null;
+    const wirePending = new Set();
     let version = data.version;
     let selected = definition.nodes.length ? 0 : -1;
     let problems = data.problems;
@@ -1322,7 +1491,7 @@
     const hasDefault = spec => spec.default !== undefined && spec.default !== null;
     const compatible = (output, input) => output === input || (output === 'integer' && input === 'number');
 
-    const sceneOf = node => library.get(node.sceneId) || null;
+    const sceneOf = node => node ? library.get(node.sceneId) || null : null;
     function revisionOf(node) {
       const scene = sceneOf(node);
       return scene ? scene.revisions.find(item => item.number === node.revision) || null : null;
@@ -1360,6 +1529,7 @@
       if (!source || !target || !canConnect(source, target)) { toast(text.cycle); return false; }
       if (!definition.edges.some(edge => edge.source === source && edge.target === target)) definition.edges.push({source, target});
       selected = definition.nodes.findIndex(node => node.id === target);
+      selectedSource = source;
       picked = null;
       qs('#canvas-hint').textContent = text.canvas_hint;
       changed();
@@ -1440,7 +1610,7 @@
       const stage = qs('#flow-stage');
       const edges = allEdges().map(edge => {
         const attrs = ' data-edge-line data-source="' + esc(edge.source) + '" data-target="' + esc(edge.target) + '"';
-        return '<path class="dag-edge"' + attrs + ' marker-end="url(#dag-arrow)"/>' +
+        return '<path class="dag-edge' + (edge.source === selectedSource && edge.target === definition.nodes[selected]?.id ? ' is-selected' : '') + '"' + attrs + ' marker-end="url(#dag-arrow)"/>' +
           '<path class="dag-edge-hit"' + attrs + ' data-edge tabindex="0" role="button" aria-label="' + esc(fill(text.edge_label, edge)) + '"/>';
       }).join('');
       stage.innerHTML = '<svg class="dag-links"><defs><marker id="dag-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>' + edges + '</svg>' +
@@ -1478,38 +1648,82 @@
     }
 
     function inputRow(node, name, spec) {
-      const binding = node.inputs[name];
-      const current = sourceOf(node, name, spec);
-      const option = (value, label, disabled) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + esc(label) + '</option>';
-      let options = hasDefault(spec)
-        ? option('default', fill(text.source_default, {value: json(spec.default)}))
-        : option('', text.source_missing, true);
-      options += option('auto', text.source_auto) + option('value', text.source_value);
-      let outputs = '';
-      let found = current === '' || current === 'default' || current === 'value' || current === 'auto';
+      const binding = node.inputs[name], current = sourceOf(node, name, spec);
+      const mode = current.startsWith('out:') ? 'wire' : current || 'default';
+      const choosingWire = mode === 'wire' || wirePending.has(node.id + ':' + name);
+      const option = (value, label, disabled = false) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + esc(label) + '</option>';
+      let options = '<option value="">' + esc(text.pick_output) + '</option>', found = !current.startsWith('out:');
       definition.nodes.filter(upstream => canConnect(upstream.id, node.id)).forEach(upstream => {
-        const revision = revisionOf(upstream);
-        (revision ? revision.outputs : []).forEach(([output, outSpec]) => {
+        (revisionOf(upstream)?.outputs || []).forEach(([output, outSpec]) => {
           const value = 'out:' + upstream.id + ':' + output;
-          found = found || value === current;
-          const label = fill(text.source_output, {node: upstream.id, scene: upstream.sceneId, output, type: outSpec.type});
-          outputs += option(value, label, !compatible(outSpec.type, spec.type) && value !== current);
+          found ||= value === current;
+          options += option(value, fill(text.source_output, {node: upstream.id, scene: upstream.sceneId, output, type: outSpec.type}), !compatible(outSpec.type, spec.type));
         });
       });
       if (!found) options += option(current, fill(text.source_broken, {node: binding.node, output: binding.output}));
-      if (outputs) options += '<optgroup label="' + esc(text.source_outputs) + '">' + outputs + '</optgroup>';
-      const required = hasDefault(spec) ? '' : ' <span class="tag">' + esc(text.required) + '</span>';
-      const description = spec.description ? '<span class="cell-sub">' + esc(spec.description) + '</span>' : '';
+      const required = hasDefault(spec) ? '' : ' <span class="required-mark" title="' + esc(text.required) + '">*</span>';
       return '<div class="input-source" data-input="' + esc(name) + '">' +
-        '<div class="input-name"><code>' + esc(name) + '</code> ' + required + '<span class="cell-sub">' + esc(spec.type) + '</span>' + description + '</div>' +
-        '<select data-source="' + esc(name) + '" aria-label="' + esc(fill(text.field_source, {name})) + '">' + options + '</select>' +
-        '<div class="binding-value">' + (current === 'value' ? valueField(name, spec, binding) : '') + '<span class="binding-summary">' + esc(bindingText(node, name, spec)) + '</span></div></div>';
+        '<div class="input-name"><button type="button" class="parameter-port in" data-input-port="' + esc(name) + '" aria-label="' + esc(fill(text.bind_input, {name})) + '"></button><code>' + esc(name) + '</code>' + required + '<span class="cell-sub">' + esc(spec.type) + (spec.description ? ' · ' + esc(spec.description) : '') + '</span></div>' +
+        '<div class="binding-method"><div class="binding-modes" role="group" aria-label="' + esc(fill(text.field_source, {name})) + '">' +
+        ['auto', 'default', 'value', 'wire'].map(key => '<button type="button" data-mode="' + key + '" data-name="' + esc(name) + '" aria-pressed="' + (mode === key) + '"' + (mode === key ? ' class="active"' : '') + '>' + esc(text['mode_' + key]) + '</button>').join('') + '</div>' +
+        (choosingWire ? '<select data-source="' + esc(name) + '" aria-label="' + esc(fill(text.field_source, {name})) + '">' + options + '</select>' : '') + '</div>' +
+        '<div class="binding-value">' + (current === 'value' ? valueField(name, spec, binding) : '') + '<span class="binding-summary">' + esc(bindingText(node, name, spec)) + '</span>' + (binding?.node && binding.node !== selectedSource ? '<button class="text-btn" data-view-source="' + esc(binding.node) + '">' + esc(text.show_source) + '</button>' : '') + '</div></div>';
+    }
+
+    function renderParameters(node) {
+      parameterPicked = null;
+      qs('#parameter-hint').textContent = text.parameter_hint;
+      const sources = node ? definition.nodes.filter(upstream => allEdges().some(edge => edge.source === upstream.id && edge.target === node.id)) : [];
+      if (!sources.some(upstream => upstream.id === selectedSource)) selectedSource = sources[0]?.id || null;
+      const upstream = sources.find(item => item.id === selectedSource);
+      qs('#parameter-node').textContent = node ? (upstream ? upstream.id + ' · ' + upstream.sceneId + ' → ' : '') + node.id + ' · ' + node.sceneId : '';
+      const contractButton = (item, kind) => '<button type="button" class="text-btn" data-inspect-contract="' + kind + '" data-inspect-node="' + esc(item.id) + '">' + esc(text['inspect_' + kind]) + ' v' + item.revision + '</button>';
+      qs('#parameter-source').innerHTML = upstream ? '<label class="source-picker">' + esc(text.outputs) + '<select data-parameter-source aria-label="' + esc(text.parameter_source) + '">' + sources.map(item => '<option value="' + esc(item.id) + '"' + (item.id === selectedSource ? ' selected' : '') + '>' + esc(item.id + ' · ' + item.sceneId) + '</option>').join('') + '</select></label>' + contractButton(upstream, 'outputs') : esc(text.outputs);
+      qs('#parameter-target').innerHTML = node ? esc(node.id + ' · ' + text.inputs) + ' ' + contractButton(node, 'inputs') : esc(text.inputs);
+      const outputs = upstream ? revisionOf(upstream)?.outputs || [] : [];
+      qs('#node-outputs').innerHTML = outputs.length ? outputs.map(([name, spec]) => '<div class="parameter-output"><div><code>' + esc(name) + '</code><button type="button" class="parameter-port out" data-output-port="' + esc(name) + '" aria-label="' + esc(fill(text.bind_output, {name})) + '"></button></div><span class="cell-sub">' + esc(spec.type) + (spec.description ? ' · ' + esc(spec.description) : '') + '</span></div>').join('') : '<p class="muted parameter-empty">' + esc(upstream ? text.no_outputs : text.no_upstream) + '</p>';
+      requestAnimationFrame(drawParameterWires);
+    }
+
+    function drawParameterWires(pointer) {
+      const grid = qs('#parameter-grid'), svg = qs('#parameter-wires'), node = definition.nodes[selected];
+      if (!node) { svg.innerHTML = ''; return; }
+      const bounds = grid.getBoundingClientRect();
+      const point = el => { const rect = el.getBoundingClientRect(); return {x: rect.left + rect.width / 2 - bounds.left, y: rect.top + rect.height / 2 - bounds.top}; };
+      const curve = (a, b, extra = '') => '<path ' + extra + ' d="M ' + a.x + ' ' + a.y + ' C ' + (a.x + 32) + ' ' + a.y + ', ' + (b.x - 32) + ' ' + b.y + ', ' + b.x + ' ' + b.y + '"/>';
+      const outputPort = name => qsa('[data-output-port]').find(el => el.dataset.outputPort === name);
+      let html = '';
+      (revisionOf(node)?.inputs || []).forEach(([name, spec]) => {
+        const binding = node.inputs[name];
+        const sources = binding?.auto ? autoSource(node, name, spec) : [];
+        const from = binding?.node || (sources.length === 1 ? sources[0].id : null);
+        if (from !== selectedSource) return;
+        const out = outputPort(binding?.output || name), input = qsa('[data-input-port]').find(el => el.dataset.inputPort === name);
+        if (out && input) html += curve(point(out), point(input), 'data-parameter-wire="' + esc(name) + '"');
+      });
+      if (parameterPicked && pointer) {
+        const out = outputPort(parameterPicked);
+        if (out) html += curve(point(out), {x: pointer.x - bounds.left, y: pointer.y - bounds.top}, 'class="is-pending"');
+      }
+      svg.setAttribute('width', grid.scrollWidth); svg.setAttribute('height', grid.clientHeight); svg.innerHTML = html;
+    }
+
+    function bindParameter(output, input) {
+      const node = definition.nodes[selected], upstream = definition.nodes.find(item => item.id === selectedSource);
+      const outSpec = new Map(revisionOf(upstream)?.outputs || []).get(output);
+      const inSpec = new Map(revisionOf(node)?.inputs || []).get(input);
+      if (!outSpec || !inSpec || !compatible(outSpec.type, inSpec.type)) { toast(text.incompatible); return; }
+      if (!canConnect(upstream.id, node.id)) { toast(text.cycle); return; }
+      if (!definition.edges.some(edge => edge.source === upstream.id && edge.target === node.id)) definition.edges.push({source: upstream.id, target: node.id});
+      node.inputs[input] = {node: upstream.id, output};
+      wirePending.delete(node.id + ':' + input);
+      changed();
     }
 
     function renderSettings() {
       const box = qs('#node-settings'), inputsBox = qs('#node-inputs');
       const node = definition.nodes[selected];
-      qs('#parameter-node').textContent = node ? fill(text.selected_inputs, {node: node.id}) : '';
+      renderParameters(node);
       if (!node) {
         box.innerHTML = '<p class="muted">' + esc(text.settings_empty) + '</p>';
         inputsBox.innerHTML = box.innerHTML;
@@ -1557,7 +1771,7 @@
         const items = problems.filter(item => item.node === node?.id && item.input === row.dataset.input);
         row.classList.toggle('has-problems', items.length > 0);
         qs('.input-problems', row)?.remove();
-        qsa('input, select', row).forEach(field => {
+        qsa('input, select, [data-mode]', row).forEach(field => {
           field.setAttribute('aria-invalid', String(items.length > 0));
           field.removeAttribute('aria-describedby');
           if (items.length) field.setAttribute('aria-describedby', 'input-problems-' + index);
@@ -1579,7 +1793,7 @@
       const card = qsa('[data-node]', qs('#flow-stage')).find(el => el.dataset.node === item.node);
       card?.scrollIntoView({block: 'nearest', inline: 'nearest'});
       const row = qsa('#node-inputs [data-input]').find(el => el.dataset.input === item.input);
-      const field = row && qs('[data-source]', row);
+      const field = row && qs('[data-mode].active', row);
       (row || card)?.scrollIntoView({block: 'nearest', inline: 'nearest'});
       (field || card)?.focus({preventScroll: true});
     }
@@ -1594,7 +1808,6 @@
     }
 
     function render({settings = true} = {}) {
-      renderBoard();
       if (settings) renderSettings();
       else {
         const node = definition.nodes[selected];
@@ -1603,10 +1816,14 @@
           if (spec) qs('.binding-summary', row).textContent = bindingText(node, name, spec);
         });
       }
+      renderBoard();
       renderProblems();
+      requestAnimationFrame(drawParameterWires);
+      rememberCanvas();
       saveButton.disabled = !dirty || saving;
       saveButton.title = dirty ? text.unsaved : '';
       qs('#workflow-save-state').textContent = saving ? text.saving : dirty ? text.unsaved : text.saved;
+      qs('#parameter-save-state').textContent = qs('#workflow-save-state').textContent;
     }
 
     // 每次修改後（稍等一下）請伺服器檢查，問題列在上方與節點上
@@ -1637,6 +1854,7 @@
       if (saving) return false;
       saving = true;
       const savedEdit = editVersion;
+      clearTimeout(checkTimer); checkSeq += 1;
       busy(saveButton, true);
       qs('#workflow-save-state').textContent = text.saving;
       const result = await api('PUT', '/api/workflows/' + path(data.id), {baseVersion: version, definition});
@@ -1650,8 +1868,9 @@
         return false;
       }
       version = result.data.version;
-      problems = result.data.problems;
       dirty = savedEdit !== editVersion;
+      if (!dirty) problems = result.data.problems;
+      else scheduleCheck();
       render({settings: false});
       toast(text.saved);
       return true;
@@ -1700,7 +1919,7 @@
     function pick(target) {
       const edge = target.closest('[data-edge]');
       const card = target.closest('[data-index]');
-      if (edge) selected = definition.nodes.findIndex(node => node.id === edge.dataset.target);
+      if (edge) { selected = definition.nodes.findIndex(node => node.id === edge.dataset.target); selectedSource = edge.dataset.source; }
       else if (card) selected = Number(card.dataset.index);
       else return;
       render();
@@ -1752,12 +1971,36 @@
     });
     qs('[data-reset-inputs]').addEventListener('click', () => { const node = definition.nodes[selected]; if (node) { resetInputs(node); changed(); } });
 
-    const settings = qs('.workflow-editor');
+    function setBinding(node, name, value) {
+      const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
+      wirePending.delete(node.id + ':' + name);
+      if (value === 'auto') {
+        node.inputs[name] = {auto: true};
+      } else if (value === 'default' || value === '') {
+        delete node.inputs[name];
+      } else if (value === 'value') {
+        const initial = hasDefault(spec) ? spec.default
+          : spec.type === 'boolean' ? false
+          : Array.isArray(spec.enum) ? spec.enum[0]
+          : spec.type === 'integer' || spec.type === 'number' ? 0 : '';
+        node.inputs[name] = {value: initial};
+      } else {
+        const [, upstream, output] = value.split(':');
+        selectedSource = upstream;
+        if (!canConnect(upstream, node.id)) return toast(text.cycle);
+        if (!definition.edges.some(edge => edge.source === upstream && edge.target === node.id)) definition.edges.push({source: upstream, target: node.id});
+        node.inputs[name] = {node: upstream, output};
+      }
+      changed();
+    }
+
+    const settings = root;
     settings.addEventListener('change', event => {
       const node = definition.nodes[selected];
       if (!node) return;
       const target = event.target;
-      if (target.dataset.field === 'revision') {
+      if (target.hasAttribute('data-parameter-source')) { selectedSource = target.value; render(); }
+      else if (target.dataset.field === 'revision') {
         node.revision = Number(target.value);
         const revision = revisionOf(node);
         if (revision) {
@@ -1766,26 +2009,7 @@
         }
         changed();
       } else if (target.dataset.source !== undefined) {
-        const name = target.dataset.source;
-        const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
-        const value = target.value;
-        if (value === 'auto') {
-          node.inputs[name] = {auto: true};
-        } else if (value === 'default' || value === '') {
-          delete node.inputs[name];
-        } else if (value === 'value') {
-          const initial = hasDefault(spec) ? spec.default
-            : spec.type === 'boolean' ? false
-            : Array.isArray(spec.enum) ? spec.enum[0]
-            : spec.type === 'integer' || spec.type === 'number' ? 0 : '';
-          node.inputs[name] = {value: initial};
-        } else {
-          const [, upstream, output] = value.split(':');
-          if (!canConnect(upstream, node.id)) return toast(text.cycle);
-          if (!definition.edges.some(edge => edge.source === upstream && edge.target === node.id)) definition.edges.push({source: upstream, target: node.id});
-          node.inputs[name] = {node: upstream, output};
-        }
-        changed();
+        setBinding(node, target.dataset.source, target.value);
       } else if (target.dataset.value !== undefined && target.tagName === 'SELECT') {
         const name = target.dataset.value;
         const spec = new Map(revisionOf(node).inputs).get(name);
@@ -1807,6 +2031,62 @@
       node.inputs[name] = {value};
       changed({settings: false});
     });
+    // 參數可拖曳，也可依次點選出參與入參；鍵盤 Enter／Space 使用相同按鈕。
+    const parameters = qs('.flow-parameters');
+    new ResizeObserver(() => requestAnimationFrame(drawParameterWires)).observe(qs('#parameter-grid'));
+    parameters.addEventListener('click', event => {
+      const mode = event.target.closest('[data-mode]');
+      const output = event.target.closest('[data-output-port]');
+      const input = event.target.closest('[data-input-port]');
+      const node = definition.nodes[selected];
+      const viewSource = event.target.closest('[data-view-source]');
+      if (viewSource) { selectedSource = viewSource.dataset.viewSource; render(); }
+      else if (mode && node) {
+        const name = mode.dataset.name, key = mode.dataset.mode;
+        if (key === 'wire') { wirePending.add(node.id + ':' + name); renderSettings(); }
+        else {
+          setBinding(node, name, key);
+        }
+      } else if (output) {
+        parameterPicked = output.dataset.outputPort;
+        qsa('[data-output-port]').forEach(port => port.classList.toggle('is-picked', port === output));
+        qs('#parameter-hint').textContent = fill(text.pick_input, {name: parameterPicked});
+      } else if (input && parameterPicked) bindParameter(parameterPicked, input.dataset.inputPort);
+    });
+    parameters.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { parameterPicked = null; renderSettings(); }
+    });
+    parameters.addEventListener('pointerdown', event => {
+      const output = event.target.closest('[data-output-port]');
+      if (!output || event.button !== 0) return;
+      parameterPicked = output.dataset.outputPort;
+      const origin = {x: event.clientX, y: event.clientY};
+      let moved = false;
+      const move = ev => {
+        moved ||= Math.abs(ev.clientX - origin.x) + Math.abs(ev.clientY - origin.y) > 4;
+        if (moved) { ev.preventDefault(); drawParameterWires({x: ev.clientX, y: ev.clientY}); }
+      };
+      const end = ev => {
+        document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', cancel);
+        if (moved) {
+          const input = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-input-port]');
+          if (input && ev.type !== 'pointercancel') bindParameter(output.dataset.outputPort, input.dataset.inputPort);
+          else { parameterPicked = null; drawParameterWires(); }
+        }
+      };
+      const cancel = ev => { parameterPicked = null; end(ev); drawParameterWires(); };
+      document.addEventListener('pointermove', move, {passive: false}); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', cancel);
+    });
+    parameters.addEventListener('click', async event => {
+      const button = event.target.closest('[data-inspect-contract]');
+      if (!button) return;
+      const node = definition.nodes.find(item => item.id === button.dataset.inspectNode);
+      const kind = button.dataset.inspectContract;
+      const result = await api('GET', '/api/scenes/' + path(node.sceneId) + '/sections/' + kind + '?revision=' + node.revision);
+      if (!result.ok) return toast(errorMessage(result));
+      modal(node.id + ' · ' + node.sceneId + ' · v' + node.revision, '<p class="hint">' + esc(text.pinned_contract) + '</p><pre class="contract-preview-code">' + esc(result.data.text) + '</pre><a class="button" href="/scenes/' + path(node.sceneId) + '#contract-' + kind + '" target="_blank" rel="noopener">' + esc(text.edit_contract_tab) + '</a>', null);
+    });
+
     settings.addEventListener('click', event => {
       const remove = event.target.closest('[data-remove]'), unlink = event.target.closest('[data-unlink]');
       const node = definition.nodes[selected];
@@ -1871,7 +2151,7 @@
       if (dirty) return toast(text.unsaved);
       const workflow = {id: data.id, name: data.name, definition, problems};
       if (problems.length) return showWorkflowIssues(workflow, focusProblem);
-      openWorkflowRun(workflow, focusProblem, items => { problems = items; render({settings: false}); });
+      openWorkflowRun(workflow, focusProblem, items => { problems = items; render({settings: false}); }, showLiveRun);
     });
 
     window.addEventListener('beforeunload', event => {
@@ -1880,6 +2160,85 @@
       event.returnValue = '';
     });
 
+    let liveRun = null, liveTimer = null, liveGeneration = 0;
+    const livePanel = qs('#workflow-live'), runButton = qs('[data-action="workflow-run"]');
+    function liveDetails(id) {
+      const node = liveRun?.nodes.find(item => item.id === id);
+      if (!node) return;
+      qs('#live-detail').hidden = false;
+      qs('#live-detail-title').textContent = node.id + ' · ' + node.sceneId + ' · v' + node.revision;
+      qs('#live-inputs').textContent = JSON.stringify(node.run?.input || node.sources, null, 2);
+      qs('#live-outputs').textContent = node.run?.output ? JSON.stringify(node.run.output, null, 2) : node.error || node.run?.error || text.live_waiting;
+      const link = qs('#live-node-report');
+      link.hidden = !node.run;
+      if (node.run) link.href = '/runs/' + path(node.run.id);
+    }
+    function showLiveRun(run) {
+      clearTimeout(liveTimer);
+      liveGeneration += 1;
+      const generation = liveGeneration;
+      liveRun = run;
+      livePanel.hidden = false;
+      livePanel.dataset.run = run.id;
+      livePanel.dataset.status = run.status;
+      qs('#live-status').textContent = fill(text.live_summary, {version: run.workflowVersion, passed: run.nodes.filter(node => ['passed', 'reused'].includes(node.status)).length, total: run.nodes.length, status: text['status_' + run.status] || run.status});
+      qs('#live-status').className = 'badge ' + (run.status === 'passed' ? 'green' : run.finished ? 'amber' : 'blue');
+      qs('#live-report').href = '/playground/runs/' + path(run.id);
+      qs('#live-error').textContent = run.error || '';
+      qs('#live-error').hidden = !run.error;
+      qs('#live-cancel').hidden = run.finished;
+      qs('#live-cancel').disabled = run.cancelRequested;
+      runButton.disabled = !run.finished;
+      qs('#live-nodes').innerHTML = run.nodes.map(node => '<button type="button" class="chip-btn" data-live-node="' + esc(node.id) + '" data-status="' + esc(node.status) + '">' + esc(node.id + ' · ' + (text['status_' + node.status] || node.status)) + '</button>').join('');
+      qsa('[data-live-node]').forEach(button => button.addEventListener('click', () => {
+        livePanel.dataset.selectedNode = button.dataset.liveNode;
+        liveDetails(button.dataset.liveNode);
+      }));
+      if (livePanel.dataset.selectedNode) liveDetails(livePanel.dataset.selectedNode);
+      try { sessionStorage.setItem('rpa-live-' + data.id, run.id); } catch { /* 不依賴瀏覽器儲存 */ }
+      if (!run.finished) liveTimer = setTimeout(() => pollLive(run.id, generation), 1000);
+    }
+    async function pollLive(id, generation) {
+      const result = await api('GET', '/api/workflow-runs/' + path(id));
+      if (generation !== liveGeneration) return;
+      if (result.ok) showLiveRun(result.data);
+      else {
+        qs('#live-error').hidden = false;
+        qs('#live-error').textContent = fill(text.live_poll_error, {reason: errorMessage(result)});
+        liveTimer = setTimeout(() => pollLive(id, generation), 3000);
+      }
+    }
+    qs('#live-cancel').addEventListener('click', () => {
+      if (!liveRun || liveRun.finished) return;
+      confirmDialog(text.cancel_title, text.cancel_body, text.cancel_action, async () => {
+        const result = await api('POST', '/api/workflow-runs/' + path(liveRun.id) + '/cancel');
+        $('#dialog').close();
+        if (!result.ok) return toast(errorMessage(result));
+        pollLive(liveRun.id, liveGeneration);
+      });
+    });
+    qs('#live-collapse').addEventListener('click', () => { qs('#live-detail').hidden = true; delete livePanel.dataset.selectedNode; });
+    try {
+      const previous = sessionStorage.getItem('rpa-live-' + data.id);
+      if (previous) api('GET', '/api/workflow-runs/' + path(previous)).then(result => { if (result.ok && !liveRun && result.data.workflowId === data.id) showLiveRun(result.data); });
+    } catch { /* 沒有檢視歷史時照常編輯 */ }
+    window.addEventListener('pagehide', () => { clearTimeout(liveTimer); liveGeneration += 1; });
+
+    function rememberCanvas() {
+      try { sessionStorage.setItem('rpa-canvas-' + data.id, JSON.stringify({node: definition.nodes[selected]?.id, source: selectedSource, zoom, left: viewport.scrollLeft, top: viewport.scrollTop})); } catch { /* 私密模式無儲存空間時仍可操作 */ }
+    }
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('rpa-canvas-' + data.id) || 'null');
+      if (saved) {
+        const index = definition.nodes.findIndex(node => node.id === saved.node);
+        if (index >= 0) selected = index;
+        selectedSource = saved.source;
+        if (Number.isFinite(saved.zoom)) zoom = Math.max(.001, Math.min(2, saved.zoom));
+        requestAnimationFrame(() => viewport.scrollTo(saved.left || 0, saved.top || 0));
+      }
+    } catch { /* 舊版或無效檢視狀態不影響定義 */ }
+    viewport.addEventListener('scroll', rememberCanvas, {passive: true});
+    window.addEventListener('pagehide', rememberCanvas);
     renderLibrary();
     render();
     const query = new URLSearchParams(location.search);

@@ -20,6 +20,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError
@@ -108,6 +109,14 @@ class ContractSave(_Body):
 class ContractRender(_Body):
     key: Literal["inputs", "outputs"]
     items: list[ContractItem] = Field(default_factory=list[ContractItem])
+
+
+class ContractYaml(_Body):
+    base_revision: int = Field(ge=1)
+    inputs: str = Field(max_length=200_000)
+    outputs: str = Field(max_length=200_000)
+    note: str | None = Field(default=None, max_length=500)
+    renames: dict[str, str] = Field(default_factory=dict[str, str])
 
 
 class SectionSave(_Body):
@@ -358,6 +367,56 @@ def api_router(services: Services) -> APIRouter:
             note=body.note,
         )
         return revision.to_json()
+
+    @router.get("/scenes/{scene_id}/contract-workspace")
+    def contract_workspace(scene_id: str, revision: int | None = None) -> dict[str, object]:
+        shown = services.get_revision(scene_id, revision)
+        source = services.revision_files(scene_id, shown.number)[SCENARIO_FILE]
+        scenario = services.revision_scenario(scene_id, shown.number)
+        runs = services.list_runs(
+            scenes=[scene_id], statuses=["passed"], revision=shown.number, limit=1
+        )
+        return {
+            "revision": shown.number,
+            "yaml": {key: section_text(source, key) for key in ("inputs", "outputs")},
+            "script": scenario.script is not None,
+            "sample": {"runId": runs[0].id, "values": runs[0].output} if runs else None,
+        }
+
+    @router.post("/scenes/{scene_id}/contract-yaml/preview")
+    def preview_contract_yaml(scene_id: str, body: ContractYaml) -> dict[str, object]:
+        files = services.contract_yaml_files(
+            scene_id,
+            base=body.base_revision,
+            inputs=body.inputs,
+            outputs=body.outputs,
+            renames=body.renames,
+        )
+        scenario = validate_text(files[SCENARIO_FILE]).scenario
+        assert scenario is not None
+        return {
+            key: [
+                [name, spec.model_dump(mode="json", by_alias=True, exclude_none=True)]
+                for name, spec in specs.items()
+            ]
+            for key, specs in (("inputs", scenario.inputs), ("outputs", scenario.outputs))
+        }
+
+    @router.put("/scenes/{scene_id}/contract-yaml", status_code=201)
+    def save_contract_yaml(scene_id: str, body: ContractYaml) -> dict[str, object]:
+        files = services.contract_yaml_files(
+            scene_id,
+            base=body.base_revision,
+            inputs=body.inputs,
+            outputs=body.outputs,
+            renames=body.renames,
+        )
+        return services.save_revision(
+            scene_id,
+            base=body.base_revision,
+            files=files,
+            note=body.note or t("revision.note_contract"),
+        ).to_json()
 
     @router.post("/contract/render")
     def contract_render(body: ContractRender) -> dict[str, object]:

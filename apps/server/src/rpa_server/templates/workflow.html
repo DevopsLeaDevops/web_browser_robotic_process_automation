@@ -21,6 +21,11 @@
     <div class="panel-header"><h2>{{ t("workflow.problems") }} <span class="count">{{ workflow.problems | length }}</span></h2><span class="muted">{{ t("workflow.problems_hint") }}</span></div>
     <ul class="panel-body checklist workflow-issue-list">{% for problem in workflow.problems %}<li>{{ problem.message }}</li>{% endfor %}</ul>
   </section>
+  <section class="panel workflow-live" id="workflow-live" hidden aria-live="polite">
+    <div class="panel-header"><h2>{{ t("workflow.live_title") }}</h2><span id="live-status"></span><div class="actions"><button type="button" class="text-btn" id="live-cancel">{{ t("workflow_run.cancel") }}</button><a class="text-btn" id="live-report">{{ t("workflow.full_report") }}</a></div></div>
+    <div id="live-nodes" class="chip-list"></div><p id="live-error" class="text-danger" role="alert" hidden></p>
+    <div id="live-detail" hidden><div class="panel-header"><strong id="live-detail-title"></strong><div class="actions"><a class="text-btn" id="live-node-report">{{ t("workflow.node_report") }}</a><button type="button" class="text-btn" id="live-collapse">{{ t("workflow.collapse") }}</button></div></div><div class="two-col"><div><h3>{{ t("workflow.actual_inputs") }}</h3><pre id="live-inputs"></pre></div><div><h3>{{ t("workflow.actual_outputs") }}</h3><pre id="live-outputs"></pre></div></div></div>
+  </section>
   <div class="flow-layout workflow-editor">
     <section class="panel flow-library" aria-labelledby="library-title">
       <div class="panel-header"><h2 id="library-title">{{ t("workflow.library") }}</h2></div>
@@ -35,13 +40,21 @@
         <p class="canvas-hint" id="canvas-hint" role="status">{{ t("workflow.canvas_hint") }}</p>
         <div id="canvas-viewport"><div id="canvas-spacer"><div class="flow-stage" id="flow-stage"></div></div></div>
       </section>
-      <section class="panel flow-parameters"><div class="panel-header"><h2>{{ t("workflow.parameters") }} <span id="parameter-node" class="muted"></span></h2><button class="text-btn" data-reset-inputs>{{ t("workflow.reset_inputs") }}</button></div><div class="input-columns" aria-hidden="true"><span>{{ t("workflow.input_column") }}</span><span>{{ t("workflow.source_column") }}</span><span>{{ t("workflow.value_column") }}</span></div><div class="panel-body" id="node-inputs"></div></section>
+
     </div>
     <section class="panel flow-settings" aria-labelledby="settings-title">
       <div class="panel-header"><h2 id="settings-title">{{ t("workflow.settings") }}</h2></div>
       <div class="panel-body" id="node-settings"></div>
     </section>
   </div>
+  <section class="panel flow-parameters" aria-labelledby="parameters-title">
+    <div class="panel-header"><h2 id="parameters-title">{{ t("workflow.parameters") }} <span id="parameter-node" class="muted"></span></h2><div class="actions"><span id="parameter-save-state" class="cell-sub" role="status"></span><button class="text-btn" data-reset-inputs>{{ t("workflow.reset_inputs") }}</button></div></div>
+    <p class="parameter-hint" id="parameter-hint" role="status">{{ t("workflow.parameter_hint") }}</p>
+    <div class="parameter-scroll">
+      <div class="parameter-head"><div id="parameter-source"></div><div></div><div class="input-columns"><span id="parameter-target"></span><span>{{ t("workflow.source_column") }}</span><span>{{ t("workflow.value_column") }}</span></div></div>
+      <div class="parameter-grid" id="parameter-grid"><div id="node-outputs"></div><div></div><div id="node-inputs"></div><svg id="parameter-wires" aria-hidden="true"></svg></div>
+    </div>
+  </section>
   <details class="panel workflow-history"><summary>{{ t("workflow.runs") }} <span class="count">{{ runs | length }}</span></summary>
     <div class="visually-hidden"><h2>{{ t("workflow.runs") }} <span class="count">{{ runs | length }}</span></h2></div>
     {% if runs %}{{ m.workflow_run_rows(runs, show_workflow=false) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}

@@ -209,3 +209,68 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 @media(max-width:700px){.flow-layout.workflow-editor{grid-template-columns:minmax(0,1fr)}.workflow-editor>.flow-library{height:200px}.flow-center{height:580px;grid-template-rows:minmax(240px,1fr) 250px}.workflow-toolbar h1{font-size:15px;max-width:100%}.workflow-toolbar>.actions{width:100%;gap:5px}.workflow-toolbar .button{font-size:11px;padding:4px 7px}.workflow-help{position:static}.workflow-help>.panel{left:0;right:auto;top:100%;max-width:100%}.input-columns,.input-source{grid-template-columns:95px minmax(100px,1fr) minmax(90px,1fr);gap:6px}#node-inputs{overflow:auto}.input-source,.input-columns{min-width:320px}}
 
 .input-name,.binding-value{min-width:0;font-size:11px;overflow-wrap:anywhere}.binding-value input+span,.binding-value select+span{display:block;margin-top:3px}
+/* 契約工作台：左右原文共用保存與預覽，切換不丟棄草稿。 */
+.contract-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.contract-toolbar #contract-state{margin-left:auto;font-size:12px}
+.contract-editors{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+.contract-editor{min-width:0;overflow:hidden}
+.contract-editor .panel-header{padding:10px 12px;gap:8px}
+.contract-editor h2{font-size:14px}
+.contract-editor .header-main{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
+.contract-editor .segmented button{font-size:11px;padding:3px 8px}
+.contract-editor .panel-body{padding:12px}
+.contract-editor .code-editor{min-height:300px;max-height:60vh;resize:vertical;font-size:12px;line-height:1.65}
+.contract-editor .edit-table{min-width:740px}
+.contract-note{margin-top:10px;max-width:600px;font-size:12px;display:flex;align-items:center;gap:10px;border:0}
+.contract-note input{flex:1;min-width:0}
+.contract-preview-code{white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;border:1px solid var(--line);padding:14px;border-radius:6px;font:12px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;max-height:48vh;overflow:auto;min-height:180px}
+.contract-next{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+#scene-release-status:empty{display:none}
+/* 畫布下方的參數連線，四種取值方式與來源同列可見。 */
+#workflow{--workspace-height:clamp(290px,calc(100dvh - 490px),500px)}
+.flow-center{grid-template-rows:minmax(0,1fr)}
+.flow-parameters{height:290px;flex-shrink:0;overflow:hidden}
+.flow-parameters .panel-header{padding:8px 12px;gap:8px;flex-wrap:wrap}
+.flow-parameters .panel-header h2{font-size:14px}
+.parameter-hint{font-size:11px;color:var(--muted);margin:0;padding:4px 12px;background:#f8fafc;border-bottom:1px solid var(--line)}
+.parameter-scroll{overflow:auto;flex:1;min-height:0;scrollbar-gutter:stable}
+.parameter-head,.parameter-grid{display:grid;grid-template-columns:minmax(150px,.8fr) 54px minmax(690px,3.6fr);min-width:910px;padding:0 12px;gap:0}
+.parameter-head{position:sticky;top:0;z-index:3;background:#fff;border-bottom:1px solid var(--line);align-items:center;min-height:48px;font-size:12px;color:#53677f}
+.parameter-grid{position:relative;align-items:start}
+.parameter-head .input-columns,.parameter-grid .input-source{grid-template-columns:minmax(160px,1fr) 280px minmax(180px,1.2fr);gap:12px}
+.parameter-head .input-columns{padding:4px 0;border:0;background:none;font-size:12px;min-width:0}
+#node-inputs{padding:0;overflow:visible}
+.parameter-grid .input-source{position:relative;min-width:0;min-height:70px;padding:8px 0;box-sizing:border-box}
+.parameter-grid .input-name{padding-left:14px;position:relative;font-size:12px}
+.parameter-grid .input-name .cell-sub{font-size:11px;line-height:1.55;margin-top:5px}
+.parameter-output{min-height:70px;box-sizing:border-box;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
+.parameter-output>div{display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-right:0;min-height:22px}
+.parameter-output .cell-sub{font-size:11px;margin-top:5px;line-height:1.55}
+.parameter-empty{font-size:12px;padding:10px 0}
+.parameter-port{border:1.5px solid #5d92c4;background:white;width:12px;height:12px;min-width:12px;padding:0;border-radius:50%;cursor:crosshair;touch-action:none;position:relative;z-index:2}
+.parameter-port.in{position:absolute;left:-6px;top:3px}
+.parameter-port:hover,.parameter-port:focus-visible,.parameter-port.is-picked{background:var(--blue);outline:3px solid #c7e3ff}
+#parameter-wires{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:1}
+#parameter-wires path{stroke:#82afd8;stroke-width:2;fill:none}
+#parameter-wires .is-pending{stroke-dasharray:5 4}
+.binding-modes{display:flex;padding:3px;border:1px solid #dce5ef;border-radius:6px;background:#f4f7fb;gap:1px;min-width:0}
+.binding-modes button{flex:1;padding:5px 3px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--muted);font:11px/1.4 inherit;white-space:nowrap;cursor:pointer}
+.binding-modes button.active{background:#fff;color:var(--blue-strong);border-color:#cfe0f3;box-shadow:0 1px 3px #2843640d;font-weight:600}
+.binding-modes button:focus-visible{outline:2px solid var(--blue)}
+.binding-method select{margin-top:5px}
+.binding-value .binding-summary{display:block;background:#f4f8fc;padding:5px 7px;border-radius:4px;color:#386c9d}
+.required-mark{color:var(--blue-strong);font-weight:700}
+.source-picker{display:flex;align-items:center;gap:8px;font-weight:600;font-size:12px}
+.source-picker select{min-width:0;max-width:180px;font-size:11px;padding:2px 4px;flex:1}
+.parameter-head .text-btn{font-size:11px;padding:2px 0;min-height:0;display:inline-block}
+.dag-edge.is-selected{stroke-width:3;stroke:#257fdb}
+@media(max-width:1100px){.flow-layout.workflow-editor{grid-template-columns:150px minmax(0,1fr)}.workflow-editor>.flow-library,.flow-center{height:360px}.workflow-editor>.flow-settings{height:auto;max-height:220px}.contract-editors{grid-template-columns:minmax(0,1fr)}.contract-toolbar #contract-state{margin-left:0}}
+@media(max-width:700px){.flow-layout.workflow-editor{grid-template-columns:minmax(0,1fr)}.workflow-editor>.flow-library{height:170px}.flow-center{height:340px;grid-template-rows:minmax(0,1fr)}.flow-parameters{height:320px}.contract-toolbar .segmented{max-width:100%;overflow:auto}.contract-next{align-items:flex-start;flex-direction:column}.contract-editor .header-main{flex-wrap:wrap}.contract-note{align-items:stretch;flex-direction:column}.flow-parameters .actions{flex-wrap:wrap}.parameter-hint{font-size:10px}}
+.binding-modes button{font-family:inherit;font-size:11px;line-height:1.4}
+.workflow-live .panel-header{padding:7px 12px;gap:10px;flex-wrap:wrap}
+.workflow-live h2{font-size:13px}.workflow-live .actions{margin-left:auto}
+#live-nodes{padding:6px 12px}#live-error{padding:0 12px 8px;margin:0;font-size:12px}
+#live-nodes [data-status="passed"],#live-nodes [data-status="reused"]{border-color:#a3d2c0;background:#f1faf6;color:#258169}
+#live-nodes [data-status="failed"],#live-nodes [data-status="timed_out"]{border-color:#e7b5b2;background:#fff7f6;color:var(--danger)}
+#live-detail{border-top:1px solid var(--line)}#live-detail>.two-col{padding:10px 12px;gap:12px}
+#live-detail h3{font-size:12px;margin:0 0 6px}#live-detail pre{font:12px/1.6 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;padding:10px;max-height:180px;overflow:auto}

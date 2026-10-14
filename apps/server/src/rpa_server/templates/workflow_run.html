@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block crumb %}<a href="/playground">{{ t("nav.playground") }}</a> › {% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %} › {{ run.id }}{% endblock %}
+{% block crumb %}<a href="/composites">{{ t("nav.composites") }}</a> › {% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %} › {{ run.id }}{% endblock %}
 {% block description %}{{ t("workflow_run.description", name=run.workflow_name, count=run.nodes | length) }}{% endblock %}
 {% block actions %}
 {% if workflow_exists %}<a class="button" href="/playground/{{ run.workflow_id }}">{{ t("workflow_run.back") }}</a>{% endif %}
@@ -58,7 +58,7 @@
           <td>{% if node.run and node.run.output %}
             <ul class="io-list">{% for key, value in node.run.output.items() %}<li><code>{{ key }}</code> = <code>{{ value | compact_json }}</code></li>{% endfor %}</ul>
             {% else %}—{% endif %}</td>
-          <td class="nowrap">{% if node.run %}<a class="text-btn" href="/runs/{{ node.run.id }}">{{ t("runs.view") }}</a>{% if node.run.finished %} <a class="text-btn" href="/runs/{{ node.run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}{% else %}—{% endif %}</td>
+          <td class="nowrap">{% if node.run %}<a class="text-btn" href="/runs/{{ node.run.id }}">{{ t("workflow.node_report") }}</a>{% if node.run.finished %} <a class="text-btn" href="/runs/{{ node.run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}{% else %}—{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

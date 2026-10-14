@@ -775,8 +775,11 @@ def test_scene_page_shows_versions_and_contract() -> None:
     text = _text(html)
     assert 'data-action="publish" data-scene="ba-001" data-revision="2"' in html
     assert "已發布" in text
-    assert "maximum: 30" in text
-    assert "{{ facts.record.recordId }}" in text
+    assert 'data-contract-view="defaults"' in html
+    assert 'data-contract-view="sample"' in html
+    assert 'data-contract-view="mapping"' in html
+    assert 'id="contract-inputs"' in html
+    assert 'id="contract-outputs"' in html
 
 
 def test_running_page_polls() -> None:

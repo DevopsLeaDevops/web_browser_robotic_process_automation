@@ -7,7 +7,7 @@
 <dt>主責／整合者</dt><dd>ChatGPT／Codex。審閱及接收方未指定。</dd>
 <dt>範圍</dt><dd>rpa_core.workflow、Portal workflow service／導航／頁面／JS／CSS、訊息目錄、測試、正式設計與交接文檔。</dd>
 <dt>分支／基準</dt><dd>m6/dag-composite-scenes；origin/main bbea5a4df2040532308a2f4fd7ce126c8b8f2be4（#27 已合併）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR #28</a> 對 main，無相依 PR。</dd>
-<dt>狀態／交接版本</dt><dd>已推送並建立 PR #28，使用者已確認原有功能無問題；本輪追加 UI 與可歸因錯誤修正，待複驗、正式審閱及接收。原型提交 <code>c363ada</code>、功能提交 <code>6f4feab</code>；其後提交補充發布授權、驗收指引與時區規則；本輪 UI 追加見下方紀錄。接收時以 PR 最新 head 為準。</dd>
+<dt>狀態／交接版本</dt><dd>已建立 PR #28；使用者已驗收 e57f57a 的既有功能。本輪再追加參數連線、左右契約與操作動線，已完成本地驗證；新增 UI 待使用者複驗、正式審閱及接收。原型提交 <code>c363ada</code>、功能提交 <code>6f4feab</code>；其後提交補充發布授權、驗收指引與時區規則；本輪 UI 追加見下方紀錄。接收時以 PR 最新 head 為準。</dd>
 <dt>工作區</dt><dd>使用者共用 macOS checkout；開工時乾淨、無其他 worktree。測試使用暫存資料與獨立埠。</dd>
 </dl></div></section>
 <section class="panel"><div class="panel-header"><h2>決定與下一步</h2></div><div class="panel-body"><ul class="points">
@@ -39,6 +39,25 @@
 <li>讓 BA-002.recordId 暫時失去來源，再按執行：應顯示節點、recordId 與缺少來源的原因；點「定位問題」應選中該節點並聚焦紅色來源欄位。恢復連線後檢查應通過。</li>
 <li>回到組合場景自動化，確認卡片風格、DAG 縮圖與已保存畫布一致；點「執行組合場景」，確認引擎、執行位置、視窗選項符合日常使用，執行後進入報告。</li>
 <li>確認風格與交互是否符合先前調整；實際業務系統與兩台實體電腦仍由使用者按需要驗收。本輪自動測試不宣稱覆蓋實體 Windows worker。</li></ol>
+</div></section>
+<section class="panel" id="interaction-followup"><div class="panel-header"><h2>互動追加：參數連線與契約工作台</h2><span class="muted">2026-10-14 06:50 America/Los_Angeles（PDT，UTC−07:00）</span></div><div class="panel-body prose">
+<p>使用者已確認 <code>e57f57a</code> 的既有功能驗收完成；本輪從該提交接續，仍由 ChatGPT／Codex 在原分支及 PR #28 實作。追加要求：依附圖實作畫布下方全寬的出參→入參連線、四種匹配方式；入參／出參左右排列且預設 YAML 原文；整理保存、驗證、執行與回到編輯的操作路徑。</p>
+<p>使用者最新更正：<strong>預設入參／出參樣例／出參提取映射僅供預覽</strong>，取代稍早可直接編輯保存的選擇。修改仍透過契約編輯器完成。保留既有 DAG 執行、固定發布版本及資料流邏輯。本輪實作與本地驗證已完成，隨 PR #28 功能分支推送；最新提交及 CI 結果以 PR 說明／Checks 為準。先前驗收不代表新增互動已被接受。</p>
+<h3>交付內容</h3><ul>
+<li>全寬參數區：上游出參、下游入參、四種匹配按鈕及取值來源；拖曳或鍵盤逐端連線，多上游切換與來源定位，型別不相容時保留原綁定。固定版本契約就地唯讀檢視，另開場景編輯時明示新分頁與重新驗證／發布／選版流程。</li>
+<li>契約左右排列，YAML 預設、表格保留；兩欄統一校驗保存為一個新版本，失敗不部分保存、版本衝突保留草稿。唯讀預覽區分目前草稿與已保存版本的真實成功樣例；沒有成功結果時不偽造樣例。</li>
+<li>契約、腳本分段與完整檔案保存後原地顯示新版本及驗證入口；發布後原地顯示成功與正式執行入口。畫布執行原地顯示快照、進度、節點實際入出參與取消；報告由使用者主動開啟，返回保留節點、上游及視角。離開未存編輯會提示。</li>
+</ul><h3>驗證證據</h3><p>2026-10-14 07:21 America/Los_Angeles（PDT，UTC−07:00）。被測版本為基準 <code>e57f57a</code> 加本輪工作區差異；macOS／Python 3.13.16／uv 0.12.24。未修改核心執行器、依賴排程或資料庫結構。測試使用臨時資料。</p><ul>
+<li><code>uv run pytest -m "not browser" -q</code>：857 passed、72 deselected（33.58 秒）；其後新增一項瀏覽器改名／草稿保護回歸，未改後端邏輯。</li>
+<li><code>uv run pytest -q apps/server/tests/test_portal.py</code>：9 passed（79.52 秒），Chromium／Firefox 場景引擎；涵蓋參數拖動／鍵盤連線、型別拒絕、來源定位、實際資料流與卡片執行、原地執行與報告、兩欄保存／唯讀預覽、連續改名／草稿離開保護及 409 衝突。最初測試的關閉按鈕選擇器與 YAML 夾具缺換行已修正後全量複驗。</li>
+<li>API 回歸驗證兩欄原子保存、跨欄引用、非法欄位段／行號、封存與過期版本保護，以及成功樣例不得取失敗／其他版本；<code>tests/docs tests/i18n</code>：255 passed（0.41 秒）。Ruff、格式、Pyright strict、JavaScript 語法、i18n check、git diff --check 通過。CI 最終 head 證據回填 PR。</li>
+<li>視覺自檢：1440×900 桌面（繁中／英文）、390×844 窄屏（畫布與契約）；body 寬度與 viewport 一致。<a href="../assets/20261014-dag-interaction-canvas.png">參數連線</a>、<a href="../assets/20261014-dag-contract-yaml.png">左右 YAML</a>、<a href="../assets/20261014-dag-contract-preview.png">唯讀提取映射</a>、<a href="../assets/20261014-dag-interaction-mobile.png">窄屏</a>，均為暫存示範資料。</li>
+</ul><p><strong>本機現行服務實跑：</strong>2026-10-14 07:18 America/Los_Angeles（PDT，UTC−07:00），在 <a href="http://127.0.0.1:8080/playground/1">8080 現有畫布</a> 原地執行「新建和查詢」，<a href="http://127.0.0.1:8080/playground/runs/wf1-20261014-141750-fca9f2">wf1-20261014-141750-fca9f2</a> 為 4/4 通過，四處上游→下游實際值一致，畫布定義與版本 v9 沒有改變；成功樣例、報告返回選取狀態與無 JavaScript 錯誤均核對。原服務 8080 與先前 Codex 啟動的 8090 共用 data-dag-acceptance；確認無活動任務後關閉舊 8090，按原資料刷新 8080，測試網站仍為 8765。現在以 8080 驗收。實跑截圖／摘要及服務日誌保留本機 .git/pr28-interaction-*，不將業務資料放入 Git。</p>
+<h3>本輪使用者複驗（約 5 分鐘）</h3><ol>
+<li>重新整理 <a href="http://127.0.0.1:8080/playground/1">現有畫布</a>；點一條 DAG 連線，確認下方來源／目標與圖一致。拖動出參至入參，再切四種模式，確認操作符合你的使用習慣；如改動原組合場景，完成後保存所需配置。</li>
+<li>在場景契約頁確認左右 YAML、同行三個唯讀預覽。出參樣例帶版本及執行編號；修改只在 YAML／表格進行。可用臨時場景驗證兩欄保存後原地顯示新版本與驗證入口，避免變動已驗收的發布版本。</li>
+<li>從畫布執行，先原地看進度、點節點看實際入出參，再主動進完整報告並返回，確認資訊與動線直觀。卡片快捷執行仍進報告。</li>
+</ol><p>既有功能已由使用者接受；本輪待確認的是新增互動與日常螢幕上的可用性。實際業務系統及兩台實體電腦／Windows worker 不在本輪本機驗收範圍；正式審閱、接收與合併由使用者決定。</p>
 </div></section>
 <section class="panel" id="acceptance"><div class="panel-header"><h2>使用者驗收操作（約 15～20 分鐘）</h2></div><div class="panel-body">
 <p>這份清單分開驗證功能證據與使用者體驗，不把自動測試通過當成人工接受。先用示範場景完成核心驗收，再以既有資料與實際業務場景確認相容性。DAG 可分叉及匯合，目前依拓撲順序逐個執行。</p>
