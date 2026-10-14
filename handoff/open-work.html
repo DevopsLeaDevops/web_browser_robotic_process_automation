@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>未完成工作 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="交接材料">
+    <a href="index.html">總入口</a>
+    <a href="acceptance.html">狀態與驗收紀錄</a>
+    <a class="active" href="open-work.html">未完成工作</a>
+    <a href="decisions.html">決定與工作規則</a>
+    <a href="environment.html">運作環境與資料</a>
+    <a href="workflow.html">研發與 Git 方法</a>
+    <a href="history.html">專案脈絡與時間軸</a>
+    <a href="materials.html">原始材料</a>
+  </nav>
+  <div class="heading">
+    <div>
+      <h1>未完成工作</h1>
+      <p>2026-10-14 依 main <span class="mono">30fe7b8</span> 逐項確認（搜尋程式碼、比對分支與 PR）。每項寫現象、怎麼重現、影響、目前到哪、關聯檔案或提交、下一步。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="partial">
+      <div class="panel-header"><h2>一、做了一部分、還沒交付的功能（M9a）</h2><span class="muted">2026-10-14 在 main 上搜尋確認：三項都還沒有任何程式碼</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>現象與重現</th><th>影響</th><th>目前到哪</th><th>關聯</th><th>下一步</th></tr></thead>
+        <tbody>
+          <tr><td><strong>1. 執行報告的「執行位置」篩選</strong></td><td>打開 <code>/runs</code>：篩選只有分類、場景、結果、目的。</td><td>本機與遠端的執行混在一起，要逐筆看。</td><td>未開始。報告清單已在「目的」欄下顯示「在 win-01 執行」。</td><td><code>render.run_filters</code>、<code>Services.list_runs</code>、<code>pages.runs</code>；<a href="materials/claude-project/m9a-remote-worker-proposal.md">m9a 提案</a>第五節</td><td>加一個 <code>FilterMenu("worker")</code>（本機＋各 worker），<code>list_runs</code> 依 <code>Run.worker_id</code> 篩；更新 <code>test_render.py</code> 與 API 測試。</td></tr>
+          <tr><td><strong>2. 場景網址是本機位址時提醒</strong></td><td>選「遠端 worker」執行一個網址是 <code>http://127.0.0.1:3000</code> 或 <code>localhost</code> 的場景：表單沒有提醒，執行在 worker 上連到它自己而失敗。</td><td>失敗原因不直觀。</td><td>未開始。只有執行位置下方的一般說明文字（訊息鍵 <code>target.hint</code>）。</td><td><code>templates/run_form.html</code>、<code>static/portal.js</code> 的 <code>bindTargetChoice</code></td><td>位置不是「本機」而網址主機是 127.0.0.1／localhost／::1、埠號不是 8765 時，顯示提醒（新增三種語言的訊息）。</td></tr>
+          <tr><td><strong>3. 等待 worker 的提示</strong></td><td>登記一台 worker 但不啟動，用「遠端 worker」執行：執行頁一直是「排隊中」，沒有說明。</td><td>看不出是在等 worker。</td><td>未開始。worker 頁看得到「離線」。</td><td><code>templates/run.html</code>、<code>pages.run</code>、<code>WorkerHub.list_workers()</code></td><td>排隊中、位置是遠端或任一、沒有線上而能接的 worker 時，顯示「等待可以執行的 worker」並連到 worker 頁。</td></tr>
+          <tr><td>4. HTTPS</td><td>Worker API 只有 HTTP。</td><td>Secrets 與登入狀態以明文經過區網。</td><td>沒有做；10-13 你選了 HTTP＋權杖（信任的區網）。</td><td><a href="../docs/adr/0012-remote-workers.html">ADR 0012</a>「代價」</td><td>只有網路不受信任時才需要：<code>rpa serve</code> 產生自簽憑證，worker 第一次連線時確認指紋。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="limits">
+      <div class="panel-header"><h2>二、已知缺陷、限制與暫時繞過</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>現象與重現</th><th>影響</th><th>目前處理</th><th>關聯</th><th>下一步</th></tr></thead>
+        <tbody>
+          <tr><td><strong>範例場景跨機器驗證會失敗</strong></td><td>在本機驗證 BA-001 得到 recordId，再用「遠端 worker」驗證 BA-002（入參填那個 recordId）→ 查無紀錄、失敗。反過來也一樣。</td><td>只影響「測試網站自動化」的範例：每台電腦的 <code>rpa serve</code>／<code>rpa worker</code> 各自啟動自己的測試網站（127.0.0.1:8765），資料不共通。真實目標系統沒有這個問題。</td><td><strong>暫時繞過</strong>：BA-001 與 BA-002 用同一個執行位置驗證；試驗場序列已固定在同一台 worker。文件已說明測試網站資料分開。</td><td><a href="../docs/develop/remote-worker.html#use">遠端 worker › 把執行交給 worker</a></td><td>可選：worker 改用 Portal 那台的測試網站（需要開放 8765 給區網），或在執行頁提示。</td></tr>
+          <tr><td>Windows 受限語言模式的安裝沒有自動測試</td><td>CI 的 Windows 是一般模式的 PowerShell。</td><td>#25 的修正以後可能被改壞而沒人發現。</td><td>#25 已合併，CI 全綠但沒涵蓋這個模式。</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/25">PR #25</a>、<code>scripts/setup.ps1</code> 的 <code>$Constrained</code>、<code>.github/workflows/setup-scripts.yml</code></td><td>在 setup-scripts 加一個 Windows 組合：先 <code>$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'</code> 再執行腳本，並移除 winget。</td></tr>
+          <tr><td>worker 失聯時不自動重跑</td><td>60 秒沒有心跳 → 執行標為失敗「worker 失聯」。</td><td>要人確認後重新執行。</td><td>設計如此（可能已有副作用）。</td><td>ADR 0012</td><td>維持；之後若有「無副作用」標記再考慮重試（M7）。</td></tr>
+          <tr><td>序列固定的 worker 離線時，後面的節點一直排隊</td><td>序列跑到一半關掉那台 worker。</td><td>序列停在排隊中。</td><td>可以在序列執行頁取消。</td><td><code>WorkflowService._start_node</code>（<code>required_worker</code>）</td><td>和第 3 項「等待 worker 的提示」一起做。</td></tr>
+          <tr><td>錄製、逐步調試、人工登入只能在 Portal 那台</td><td>這三個功能會在執行 Portal 的電腦跳出瀏覽器視窗。</td><td>這些操作時你的電腦仍會被占用。</td><td>設計如此（要有人操作）。</td><td><a href="../docs/design/portal.html#remote-workers">管理 Portal › 遠端 worker</a></td><td>需要的話，M9 再評估遠端畫面串流。</td></tr>
+          <tr><td>新的 Windows worker 第一次跑 Firefox 較慢</td><td>第一次執行 Firefox 場景時會先建立預熱設定檔範本。</td><td>第一次多幾秒。</td><td>之後每次複製範本啟動（見下方 <code>ci/diag-windows</code>）。</td><td><code>packages/rpa_runner/src/rpa_runner/profiles.py</code></td><td>無。</td></tr>
+          <tr><td>Dependabot 的 Python 依賴更新沒有合併</td><td>#2（python 群組）、#3（click）已關閉、未合併；工作日誌記載「main 上 uv 群組的更新失敗」，原因沒查。</td><td>依賴版本停在 <code>uv.lock</code> 當時的版本。</td><td>沒有處理。GitHub Actions 的更新（#19）已合併。</td><td><a href="materials/claude-project/plan-v2-proposal.md">plan-v2</a> 第四節 M0 第 6 點；<code>.github/workflows/uv-upgrade.yml</code></td><td>手動跑一次 <code>uv lock --upgrade</code> 開 PR 看 CI；再查 Dependabot 的設定。</td></tr>
+          <tr><td>Claude 專案的工作日誌舊內容被覆蓋</td><td>10-13 把 <code>claude/m1-progress.md</code> 整份改寫成最新紀錄。</td><td>10-13 之前的工作日誌原文不在了。</td><td>相關歷史可從 PR #1～#20 的說明查到；<a href="history.html">專案脈絡與時間軸</a>已整理。</td><td><a href="materials.html">原始材料</a></td><td>之後工作日誌只追加、不覆蓋；交接時把當時的版本放進 <code>handoff/materials/</code>。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="feedback">
+      <div class="panel-header"><h2>三、使用者回饋與待補的資訊</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>日期</th><th>回饋或缺口</th><th>處理到哪</th><th>下一步</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">10-13 20:52</td><td>Windows 上「沒有 worker 這個命令」</td><td>原因：#23 當時未合併。已回覆更新方式，交接頁加了提醒（#24）；#23 已合併。</td><td>你更新後重試，結果記在<a href="acceptance.html#manual-m9a">驗收紀錄</a>。</td></tr>
+          <tr><td class="mono">10-14</td><td>受限語言模式下裝不了 uv（從你寫的 #25 得知）</td><td>你已修正並合併。</td><td>確認你的 Windows 上安裝完成；補 CI（上表）。</td></tr>
+          <tr><td class="mono">10-10</td><td>M4 開工前請你提供的三項資訊（目標系統的登入方式與失效時間、角色與測試帳號名稱、Portal 跑在哪裡）</td><td>答案只在當時的對話裡，文件沒有記錄。</td><td>補在<a href="environment.html">運作環境與資料</a>。</td></tr>
+          <tr><td>—</td><td>其他只在對話裡的回饋</td><td>這次讀不到 Claude 專案過去的對話，可能有遺漏。</td><td>想起來的請記在<a href="index.html#log">交接紀錄</a>。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="diag">
+      <div class="panel-header"><h2>四、<code>ci/diag-windows</code> 的調查結論</h2><span class="muted">2026-10-11～10-12；分支已刪除，提交與結果仍在 GitHub 上</span></div>
+      <div class="panel-body">
+        <p><strong>問題</strong>：Windows 上 Firefox 場景偶爾某一步逾時失敗（輸入中文時尤其明顯）。<strong>做法</strong>：暫時分支上加診斷腳本（<code>.github/diag_probe.py</code>、<code>.github/diag_fonts.py</code>），用手動觸發的「一鍵安裝腳本」workflow 在 Windows 虛擬機上量測，結果寫在 check run 的 annotations。</p>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>提交（UTC）</th><th>診斷</th><th>結果（取自 annotations）</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">40743fd（10-11 06:43）</td><td>第二次執行前有沒有殘留程序</td><td>沒有殘留的 Firefox 程序（CPU 最高的是系統程序與 Defender）；沒有後續動作</td></tr>
+          <tr><td class="mono">77ffef3（10-12 03:43）</td><td>各步驟耗時、中文字型</td><td>系統有完整的中日韓字型；Chromium 每步約 0.1 秒，Firefox 中英文都會偶爾卡 1.5～3 秒</td></tr>
+          <tr><td class="mono">0e71732、b2b3253、0820f45（10-12 03:48～04:03）</td><td>字型載入器、預熱、偏好設定（拼字檢查、TSF、無障礙）</td><td>都沒有消除停頓；停頓集中在啟動後約 3 秒；機器忙時 3～5 秒</td></tr>
+          <tr><td class="mono">cc3595e（10-12 04:09）</td><td>關閉預啟動、GPU、Fission、socket 程序</td><td>都沒有消除停頓</td></tr>
+          <tr><td class="mono">b07a8c5（10-12 04:16）</td><td>全新設定檔與重用設定檔</td><td><strong>全新設定檔</strong>：最壞 1.3～2.8 秒；<strong>重用同一份</strong>：0～1 秒；<strong>複製一份預熱過的</strong>：0～0.3 秒 → 停頓來自 Firefox 初始化全新設定檔</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <p><strong>結論與修正</strong>：Playwright 每次都用全新的暫存設定檔，Firefox 初始化設定檔時整個瀏覽器停止回應。改成「每台電腦、每個 Firefox 版本建立一份預熱過的範本，每次執行複製一份來啟動」，已在 <strong>#12（10-12）</strong>合併：<code>packages/rpa_runner/src/rpa_runner/profiles.py</code>（範本放在 <code>RPA_CACHE_DIR</code>，Windows 預設 <code>%LOCALAPPDATA%\rpa\cache</code>）。</p>
+        <p><strong>遺留</strong>：沒有未解的問題。兩點提醒：(1) 量測都在 CI 的 Windows 虛擬機，不是你的 Windows；(2) 診斷腳本沒有進 main，原文可用 <code>gh api repos/DevopsLeaDevops/web_browser_robotic_process_automation/commits/b07a8c54d128dc69d17571d407f20cfee8e52099</code> 查到。CI 日誌本體已無法下載，結果以 annotations 為準。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="branches">
+      <div class="panel-header"><h2>五、舊分支、雲端工作目錄、stash 的盤點</h2><span class="muted">2026-10-14；比對每個分支的最新提交與它的 PR 合併時的提交</span></div>
+      <div class="panel-body">
+        <p><strong>結論：沒有需要保留的獨有工作。</strong>所有 PR 都是 squash 合併，分支上的提交和 main 的提交編號不同，所以用「分支的最新提交是否等於 PR 合併時的提交」來判斷：</p>
+        <ul class="points">
+          <li>19 個分支的最新提交就是它的 PR 合併時的提交：<code>m0/*</code>、<code>m1/*</code>、<code>m1.1/contract</code>、<code>m2/runner</code>、<code>m3/portal</code>、<code>m4/feedback</code>、<code>m6/*</code>、<code>m9a/remote-worker</code>、<code>docs/macos-quickstart</code>、<code>docs/one-click-setup</code>、<code>docs/handoff-2026-10</code>、<code>feat/runs-filter-headed</code>、<code>fix/browser-missing</code>、<code>fix/i18n-new-features</code>、<code>fix/recording-relative-data</code>、<code>fix/setup-constrained-language</code>。</li>
+          <li>3 個分支在合併後多了提交，但內容都已由別的 PR 進了 main：<code>docs/roadmap-m6-first</code> 多 1 個（就是 #21，已由 #22 進 main）；<code>fix/serve-port</code> 多 2 個（多語言補漏，就是 #13）；<code>m4/production</code> 多 1 個（相對資料目錄的修正，就是 #17）。</li>
+          <li>這些分支都可以在 GitHub 上刪除。</li>
+          <li>Claude 的雲端工作目錄：沒有 stash，沒有未推送的提交；工作筆記（<code>.git/claude-notes/</code>）就是 Claude 專案文件的原檔，已全部匯出到 <a href="materials.html"><code>materials/</code></a>。雲端環境用的小工具 <code>addmsg.py</code>（把新的訊息鍵加進三個語言的訊息目錄）也放在 <a href="materials/tools/addmsg.py"><code>materials/tools/</code></a>。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

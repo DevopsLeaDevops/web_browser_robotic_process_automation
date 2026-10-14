@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>原始材料 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="交接材料">
+    <a href="index.html">總入口</a>
+    <a href="acceptance.html">狀態與驗收紀錄</a>
+    <a href="open-work.html">未完成工作</a>
+    <a href="decisions.html">決定與工作規則</a>
+    <a href="environment.html">運作環境與資料</a>
+    <a href="workflow.html">研發與 Git 方法</a>
+    <a href="history.html">專案脈絡與時間軸</a>
+    <a class="active" href="materials.html">原始材料</a>
+  </nav>
+  <div class="heading">
+    <div>
+      <h1>原始材料</h1>
+      <p>Claude 專案「web_browser_robotic_process_automation」的全部 8 份文件，<strong>2026-10-14 原文匯出</strong>到 <code>handoff/materials/claude-project/</code>，沒有改寫（標題裡的「待確認」等字樣是當時的狀態）。下表標註每份目前是已接受、已實現、部分過時還是被取代。Claude 專案之後若有更新，以專案為準；下次交接再匯出一次。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice"><strong>匯出不到的東西</strong>：Claude 專案的<strong>記憶</strong>與<strong>過去的對話</strong>，這個環境讀不到；專案的自訂指示是空白。只在對話裡出現過的資訊請補在<a href="index.html#log">交接紀錄</a>。</div>
+
+    <section class="panel" id="docs">
+      <div class="panel-header"><h2>Claude 專案文件</h2><span class="muted">日期是文件建立時間（UTC）與標題上的日期</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>文件</th><th>日期</th><th>內容</th><th>狀態</th></tr></thead>
+        <tbody>
+          <tr><td><a href="materials/claude-project/m1-progress.md"><code>m1-progress.md</code></a><span class="evidence">工作日誌，持續更新</span></td><td class="mono">建立 10-10；10-13 整份改寫；10-14 追加</td><td>目前狀態、雲端環境的注意事項（離線測試、pyright、bootstrap、訊息目錄工具）、下一步。檔名是歷史原因。</td><td><span class="kind tentative">持續更新</span> 最前面的「2026-10-14 追加」是最新的；下面 10-13 的段落裡「#23 待合併」等描述已過時。<strong>10-13 之前的原文已被覆蓋</strong>，那段歷史改看 PR #1～#20 與<a href="history.html">時間軸</a>。</td></tr>
+          <tr><td><a href="materials/claude-project/plan-v2-proposal.md"><code>plan-v2-proposal.md</code></a></td><td class="mono">10-10</td><td>原方案與你上傳的 MVP 原型（02-browser-automation-mvp）的對照、場景契約、新路線圖、M0／M1 修正、四個待決定。</td><td><span class="kind user">已接受</span>（四點決定，#9）、<span class="kind user">已實現</span> M1.1～M6。<strong>被取代</strong>：里程碑順序（#20 改為 M6 先於 M5，之後插入 M9a）；M9「分散式 worker」用 Procrastinate 的做法（ADR 0012 改為 Worker API）。<strong>未處理</strong>：第四節 M0 第 6 點（Dependabot uv 群組更新失敗）。</td></tr>
+          <tr><td><a href="materials/claude-project/m3-design-proposal.md"><code>m3-design-proposal.md</code></a></td><td class="mono">10-10</td><td>M3 管理 Portal 的元件、資料模型、API、頁面、五個決定。</td><td><span class="kind rec">推薦選項已實現</span>（#11）。<strong>後來改變</strong>：入參出參的唯讀表格 → M4 改為可編輯（#16、#18）；預設埠號 8000 → 實作為 8080；API 路徑改為 <code>/api/scenes/{id}/revisions/{n}/…</code>（現況見<a href="../docs/design/portal.html#api">管理 Portal › API</a>）；worker 仍在伺服器程序內，M9a 另外加了遠端 worker。</td></tr>
+          <tr><td><a href="materials/claude-project/m4-design-proposal.md"><code>m4-design-proposal.md</code></a></td><td class="mono">10-10</td><td>錄製 → DSL 草稿、調試工作階段、登入與角色、入參出參表單、六個決定、開工前要你提供的三項資訊。</td><td><span class="kind rec">推薦選項已實現</span>（#16～#18）；你在 10-12 23:56 宣告完成。<span class="kind unknown">三項資訊的答案沒有寫進文件</span>。</td></tr>
+          <tr><td><a href="materials/claude-project/m6-design-proposal.md"><code>m6-design-proposal.md</code></a></td><td class="mono">10-13</td><td>試驗場序列的格式、Portal 的資料與頁面、測試、七個採用的決定。</td><td><span class="kind rec">已實現</span>（#21 → #22）。標題寫「待使用者驗收」：<strong>仍沒有人工驗收紀錄</strong>。</td></tr>
+          <tr><td><a href="materials/claude-project/m9a-remote-worker-proposal.md"><code>m9a-remote-worker-proposal.md</code></a></td><td class="mono">10-13</td><td>遠端 worker 的架構、Worker API、調度、本機網址問題、資料與頁面、命令列、測試；你的四個回答；實作備註。</td><td><span class="kind user">已接受</span>、<span class="kind rec">已實現</span>（#23）。文內「PR #23 待驗收」：程式碼已合併、CI 通過，<strong>人工驗收未通過</strong>。第五節的「執行報告篩選執行位置」、第四節的「localhost 提醒」、第三節的「等待 worker」<strong>沒有做</strong>（見<a href="open-work.html#partial">未完成工作</a>）。</td></tr>
+          <tr><td><a href="materials/claude-project/m5-design-proposal.md"><code>m5-design-proposal.md</code></a></td><td class="mono">10-13</td><td>AI 助手的元件、工具、流程、安全、測試、驗收；開工前要你決定的三點。</td><td><span class="kind pending">待你決定</span>，沒有後續結論。文內「M6 在 PR #21」已過時（M6 經 #22 進 main；之後插入 M9a）。</td></tr>
+          <tr><td><a href="materials/claude-project/project-history.html"><code>project-history.html</code></a></td><td class="mono">10-13 19:05（太平洋時間）</td><td>專案脈絡與對話備忘的單檔版（自帶樣式，連結指向 GitHub）。</td><td><span class="kind tentative">部分過時</span>：「#23 等你合併」「#24」等已合併。它獨有的內容——專案文件索引與「補充」一節——已由本頁與<a href="index.html#log">交接紀錄</a>取代。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="repo">
+      <div class="panel-header"><h2>倉庫裡已有的正式文件（直接連結）</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <tbody>
+          <tr><td>路線圖、里程碑狀態</td><td><a href="../docs/roadmap.html">docs/roadmap.html</a></td></tr>
+          <tr><td>ADR 0001～0012</td><td><a href="../docs/adr/index.html">docs/adr/</a>（遠端 worker 是 <a href="../docs/adr/0012-remote-workers.html">0012</a>）</td></tr>
+          <tr><td>架構、DSL、管理 Portal（頁面、API、資料、手動驗收）</td><td><a href="../docs/design/architecture.html">架構</a>、<a href="../docs/design/dsl.html">DSL</a>、<a href="../docs/design/portal.html">管理 Portal</a></td></tr>
+          <tr><td>安裝、開發環境、規範、遠端 worker</td><td><a href="../docs/develop/quickstart.html">本機從零運行</a>、<a href="../docs/develop/setup.html">開發環境</a>、<a href="../docs/develop/conventions.html">開發規範</a>、<a href="../docs/develop/remote-worker.html">遠端 worker</a></td></tr>
+          <tr><td>MVP 原型（你上傳的，原樣收錄）</td><td><a href="../docs/prototypes/mvp/index.html">docs/prototypes/mvp/</a></td></tr>
+          <tr><td>雲端環境用的小工具</td><td><a href="materials/tools/addmsg.py">materials/tools/addmsg.py</a>（把新的訊息鍵加進三個語言的訊息目錄）</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

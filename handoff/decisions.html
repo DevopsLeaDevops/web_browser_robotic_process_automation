@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>決定與工作規則 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="交接材料">
+    <a href="index.html">總入口</a>
+    <a href="acceptance.html">狀態與驗收紀錄</a>
+    <a href="open-work.html">未完成工作</a>
+    <a class="active" href="decisions.html">決定與工作規則</a>
+    <a href="environment.html">運作環境與資料</a>
+    <a href="workflow.html">研發與 Git 方法</a>
+    <a href="history.html">專案脈絡與時間軸</a>
+    <a href="materials.html">原始材料</a>
+  </nav>
+  <div class="heading">
+    <div>
+      <h1>決定與工作規則</h1>
+      <p>整理於 2026-10-14。來源：Claude 專案的 8 份文件（原文見<a href="materials.html">原始材料</a>）、PR 說明，以及 10-13 這次對話。Claude 這次讀不到專案過去的對話與記憶，只在那些對話裡說過的決定可能遺漏。對話的時間是太平洋時間，PR 與 CI 的時間是 UTC。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="legend">
+      <span class="kind user">你明確決定</span>
+      <span class="kind rec">Claude 推薦（已實作，沒有反對紀錄）</span>
+      <span class="kind tentative">暫定</span>
+      <span class="kind pending">待你決定</span>
+      <span class="kind unknown">需你補充</span>
+    </div>
+
+    <section class="panel" id="instructions">
+      <div class="panel-header"><h2>一、專案指令與工作規則</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>來源</th><th>內容</th><th>狀態與證據</th></tr></thead>
+        <tbody>
+          <tr><td>Claude 專案的自訂指示（instructions）</td><td>空白</td><td>2026-10-14 讀取專案資訊時為空。</td></tr>
+          <tr><td>Claude 專案的記憶（memory）</td><td><span class="kind unknown">需你補充</span></td><td>這個雲端環境無法讀取專案記憶。請在 claude.ai 的專案頁查看，有工作規則就貼到<a href="index.html#log">交接紀錄</a>。</td></tr>
+          <tr><td><code>CLAUDE.md</code>、<code>AGENTS.md</code> 等</td><td>倉庫裡沒有</td><td>2026-10-14 檢查 main 的檔案清單。</td></tr>
+          <tr><td>倉庫裡的規範</td><td>開發規範、文檔與 ADR 的寫法、多語言流程</td><td><a href="../docs/develop/conventions.html">開發規範</a>、<a href="../docs/develop/writing-docs.html">文檔與 ADR</a>、<a href="../docs/adr/0005-html-docs.html">ADR 0005</a>、<a href="../docs/adr/0007-i18n.html">ADR 0007</a>；摘要見<a href="workflow.html#rules">研發與 Git 方法 › 修改時的規則</a></td></tr>
+        </tbody>
+      </table></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>日期</th><th>對話裡的工作規則</th><th>類型</th><th>證據</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">開工起</td><td>對話、程式註解、文檔用繁體中文；產品與文檔要有繁中、簡中、英文</td><td><span class="kind user">你明確決定</span></td><td><a href="../docs/adr/0007-i18n.html">ADR 0007</a></td></tr>
+          <tr><td class="mono">開工起</td><td>每一步：先說明設計 → 你確認 → 寫程式與測試 → 開 PR → review 後合併</td><td><span class="kind user">你明確決定</span></td><td><a href="../docs/roadmap.html">路線圖</a>開頭</td></tr>
+          <tr><td class="mono">10-12 23:56</td><td>M6 起「繼續做、不要中途詢問」，照推薦選項做，最後列出採用的決定</td><td><span class="kind user">你明確決定</span></td><td><a href="materials/claude-project/m6-design-proposal.md">m6 提案</a>開頭</td></tr>
+          <tr><td class="mono">10-13</td><td>推送與開 PR 前要得到你同意（雲端環境的自動模式會攔下沒被要求的提交；10-13 你同意了 #22 的推送）</td><td><span class="kind tentative">環境限制＋慣例</span></td><td><a href="workflow.html#roles">研發與 Git 方法</a></td></tr>
+          <tr><td class="mono">10-13 18:54</td><td>Claude 週用量不夠時先交接，由你自己繼續，之後再接手</td><td><span class="kind user">你明確決定</span></td><td>本次對話</td></tr>
+          <tr><td class="mono">10-13 18:58、19:01</td><td>交付文件用 HTML，放在專門的目錄；「專案」指 claude.ai 上的這個專案，裡面的對話與文件要整理成備忘</td><td><span class="kind user">你明確決定</span></td><td>本次對話；本目錄</td></tr>
+          <tr><td class="mono">10-13 23:46</td><td>交接要完整：匯出專案文件原文、決定分類、未完成清單、驗收紀錄、運作環境、研發方法；每項標日期、PR 與證據；區分「已合併」「自動測試通過」「人工驗收通過」</td><td><span class="kind user">你明確決定</span></td><td>本次對話；本目錄</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>二、產品與技術決定</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>日期</th><th>決定</th><th>類型</th><th>證據</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">10-09</td><td>DSL 為唯一真實來源；Python 技術棧；HTML 文檔；設計系統 v1.0 是視覺契約；PostgreSQL 佇列（10-13 被 ADR 0012 部分取代）；React（10-10 被 ADR 0011 取代）</td><td><span class="kind user">你明確決定</span>（M0 的 PR 由你合併）</td><td>ADR 0001～0006、#1</td></tr>
+          <tr><td class="mono">10-10</td><td>MVP 用 SQLite＋檔案目錄，正式環境 PostgreSQL</td><td><span class="kind user">你明確決定</span></td><td>ADR 0008、#7</td></tr>
+          <tr><td class="mono">10-10</td><td><strong>方案 v2</strong>：DSL 為主＋Python 逃生門；FastAPI + Jinja；Chromium 與 Firefox 都支援、CI 都測；採用原型的場景契約、發布門檻、執行目錄；MVP 先行；照提案修正 M0、M1</td><td><span class="kind user">你明確決定</span>（提案第五節的四點）</td><td><a href="materials/claude-project/plan-v2-proposal.md">plan-v2</a>、ADR 0009～0011、#9</td></tr>
+          <tr><td class="mono">10-10</td><td>M3：YAML 文字編輯（表單延到 M4）；worker 在伺服器程序內、一次一個；不做登入、只聽 127.0.0.1；輪詢；場景 id 就是 DSL 的 id。實作時預設埠號改為 8080（提案寫 8000）</td><td><span class="kind rec">推薦</span></td><td><a href="materials/claude-project/m3-design-proposal.md">m3 提案</a>第五節、#11</td></tr>
+          <tr><td class="mono">10-12</td><td>場景依「領域」劃分；執行可選有頭／無頭，<strong>預設有頭</strong></td><td><span class="kind unknown">應是你的需求，原話需補充</span></td><td>#12、#15</td></tr>
+          <tr><td class="mono">10-12</td><td>M4：codegen 在 Portal 那台錄製；fill 的值自動變成入參；密碼自動改成 Secret 並遮罩；人工登入為主、自動登入選用；調試用那台的視窗；一個場景一個角色</td><td><span class="kind rec">推薦</span></td><td><a href="materials/claude-project/m4-design-proposal.md">m4 提案</a>第五節、#16</td></tr>
+          <tr><td class="mono">10-10</td><td>M4 開工前的三項資訊：目標系統登入方式與失效時間、角色與測試帳號、Portal 跑在哪裡</td><td><span class="kind unknown">需你補充</span>（從 M9a 的需求看，Portal 跑在你自己的電腦）</td><td>m4 提案開頭</td></tr>
+          <tr><td class="mono">10-12 23:56</td><td>M4 視為完成；路線圖改為先 M6、再 M5（MVP 在 M5 完成）</td><td><span class="kind user">你明確決定</span></td><td>m6 提案、#20、ADR 0010 修訂</td></tr>
+          <tr><td class="mono">10-13</td><td>M6：入參綁定用結構化寫法；序列可存有問題的草稿但不能執行；只固定發布過的版本；共用一個佇列；從停下的節點繼續沿用出參；瀏覽器與視窗模式整個序列一樣；不做條件、分支、平行</td><td><span class="kind rec">推薦</span>（你要求不要中途詢問）</td><td><a href="materials/claude-project/m6-design-proposal.md">m6 提案</a>第四節、#21／#22</td></tr>
+          <tr><td class="mono">10-13 03:50</td><td>提前做 M9 的遠端 worker，稱為 M9a，插在 M6 與 M5 之間；本機模式保持</td><td><span class="kind user">你明確決定</span></td><td><a href="materials/claude-project/m9a-remote-worker-proposal.md">m9a 提案</a>、ADR 0012</td></tr>
+          <tr><td class="mono">10-13 04:00</td><td>M9a：worker 主動連你的電腦；worker 機器是 Windows；HTTP＋權杖；同意把 #21 補進 main</td><td><span class="kind user">你明確決定</span></td><td>m9a 提案第八節</td></tr>
+          <tr><td class="mono">10-13</td><td>M9a：預設執行位置是本機；兩個埠分開；60 秒租約、失聯不重跑；序列固定在第一個節點的 worker；程式版本不同只提醒、協定版本不同才拒絕；worker 也啟動自己的測試網站</td><td><span class="kind rec">推薦</span></td><td>m9a 提案、ADR 0012、#23</td></tr>
+          <tr><td class="mono">10-13</td><td>Worker API 先用 HTTP（不做 HTTPS）</td><td><span class="kind tentative">暫定</span>：你選了 HTTP，適用於信任的區網；網路環境改變時再加 HTTPS</td><td>ADR 0012「代價」</td></tr>
+          <tr><td class="mono">10-14</td><td>安裝腳本在受限語言模式下：下載官方 uv 壓縮包並校驗 SHA-256、裝到使用者目錄；不執行遠端腳本、不修改永久 PATH，只提示當前視窗怎麼加 PATH</td><td><span class="kind user">你明確決定</span>（你寫的 PR）</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/25">#25</a></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="pending">
+      <div class="panel-header"><h2>三、待你決定</h2><span class="muted">截至 2026-10-14 沒有後續結論，全部保留待定</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>事項</th><th>狀態</th><th>選項與 Claude 的推薦</th><th>出處</th></tr></thead>
+        <tbody>
+          <tr><td><strong>M5：模型與介面</strong></td><td><span class="kind pending">待你決定</span></td><td>推薦 A：程式只依賴「模型供應者」介面，同時支援 Claude API 與自架的 OpenAI 相容端點（vLLM、Ollama 等），由設定選擇，預設關閉。B 只做 Claude API；C 只做自架模型。</td><td><a href="materials/claude-project/m5-design-proposal.md">m5 提案</a>「開工前需要你決定」第 1 點</td></tr>
+          <tr><td><strong>M5：公司內部頁面的內容能不能送到外部 API</strong></td><td><span class="kind pending">待你決定</span>（只能由你決定）</td><td>能 → 用 Claude API；不能 → 請提供自架端點網址與模型名稱。</td><td>同上</td></tr>
+          <tr><td>M5：送給模型的內容</td><td><span class="kind pending">待你決定</span></td><td>推薦：可存取性樹摘要＋定位器測試結果，不送截圖，輸入框的值遮罩。</td><td>同上第 2 點</td></tr>
+          <tr><td>M5：金鑰放哪裡</td><td><span class="kind pending">待你決定</span></td><td>推薦：放在「登入與憑證」的 Secrets（例如 <code>ANTHROPIC_API_KEY</code>）。</td><td>同上第 3 點</td></tr>
+          <tr><td><strong>M5：首版功能範圍</strong></td><td><span class="kind pending">待你決定</span></td><td>提案列了四個流程：一句話生成、對話調試、校驗失敗自動修正、選擇器自癒。<span class="kind tentative">Claude 的建議（未提出過）</span>：首版先做「一句話生成」與「校驗失敗自動修正」，對話調試與自癒放第二版。</td><td>m5 提案第二節</td></tr>
+          <tr><td><strong>M5：驗收標準</strong></td><td><span class="kind pending">待你確認</span></td><td>提案：助手只改草稿，API 與頁面都沒有發布路徑（自動測試確認）；一句話描述生成可通過驗證的場景（真實模型手動驗收，自動測試用腳本模型）。</td><td>m5 提案第五節；路線圖 M5</td></tr>
+          <tr><td>M9：部署方式與物件儲存</td><td><span class="kind pending">待你決定</span>（M9 前）</td><td>單機 Docker Compose 或 Kubernetes；S3 相容產品（SeaweedFS、Garage 或公司現有的）。</td><td><a href="../docs/roadmap.html">路線圖</a>「待決定」</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
