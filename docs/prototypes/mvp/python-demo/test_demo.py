@@ -37,7 +37,7 @@ class DemoRegression(unittest.TestCase):
             facts['quantity'] = 99
             with self.assertRaises(AssertionError):
                 verify('BA-001', params, facts)
-            second, _ = execute_scene('BA-002', {'recordId': first['output']['recordId']}, self.url, directory)
+            second, _ = execute_scene('BA-002', {'recordId': first['output']['recordId'], 'quantity':23}, self.url, directory)
             self.assertEqual(second['status'], 'passed', second.get('error'))
             self.assertEqual(first['output'], second['output'])
 
@@ -78,7 +78,7 @@ class DemoRegression(unittest.TestCase):
     def test_unknown_record_failure_has_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             # 頁面查詢失敗後等不到詳情；外層總期限也必須生效。
-            result, folder = execute_scene('BA-002', {'recordId': 'DEMO-MISSING'}, self.url, directory, timeout=4)
+            result, folder = execute_scene('BA-002', {'recordId': 'DEMO-MISSING','quantity':12}, self.url, directory, timeout=4)
             self.assertIn(result['status'], ('failed', 'timed_out'))
             self.assertIsNone(result['output'])
             self.assertTrue((folder/'report.html').exists())

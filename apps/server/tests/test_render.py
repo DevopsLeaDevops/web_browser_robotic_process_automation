@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -28,7 +29,7 @@ from rpa_server.domain import (
     WorkflowRunRecord,
 )
 from rpa_server.i18n import follow_locale, t
-from rpa_server.render import js_messages, render, run_filters, workflow_messages
+from rpa_server.render import js_messages, render, run_filters, workflow_messages, workflow_preview
 from rpa_server.secret_store import SecretInfo
 from rpa_server.services import SceneNeeds
 
@@ -443,6 +444,17 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
     }
     common: dict[str, object] = {"messages": workflow_messages()}
     return {
+        "composites": render(
+            "composites.html",
+            page="composites",
+            domains=(),
+            **common,
+            title=t("nav.composites"),
+            workflows=[record],
+            data=data,
+            runs=[passed],
+            has_published=True,
+        ),
         "playground": render(
             "playground.html",
             page="playground",
@@ -763,8 +775,11 @@ def test_scene_page_shows_versions_and_contract() -> None:
     text = _text(html)
     assert 'data-action="publish" data-scene="ba-001" data-revision="2"' in html
     assert "已發布" in text
-    assert "maximum: 30" in text
-    assert "{{ facts.record.recordId }}" in text
+    assert 'id="contract-preview-defaults"' in html
+    assert 'id="contract-preview-sample"' in html
+    assert 'id="contract-preview-mapping"' in html
+    assert 'id="contract-inputs"' in html
+    assert 'id="contract-outputs"' in html
 
 
 def test_running_page_polls() -> None:
@@ -788,7 +803,7 @@ def test_side_menu_lists_domains_then_domain_management() -> None:
         html = _pages()["domain"]
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
-    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證"]
+    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證", "組合場景自動化"]
     current = 'href="/domains/testsite" title="測試網站自動化" class="active" aria-current="page"'
     assert current in side
 
@@ -978,6 +993,7 @@ def _english_domain_pages() -> dict[str, str]:
         "debug-session",
         "playground",
         "playground-empty",
+        "composites",
         "workflow",
         "workflow-run",
         "workflow-run-login",
@@ -1170,3 +1186,34 @@ def test_remote_worker_pages() -> None:
     assert "rpa serve --worker-port 8081" in _text(pages["workers-empty"])
     produce = pages["workers"].split('id="sidenav"')[1].split("</nav>")[0]
     assert 'href="/workers"' in produce
+
+
+@pytest.mark.parametrize("mode", ["serial", "explicit", "binding"])
+def test_workflow_preview_preserves_layout_and_dependencies(mode: str) -> None:
+    definition = CHAIN.model_dump(by_alias=True, exclude_none=True)
+    definition["nodes"][0]["position"] = {"x": 650, "y": 220}
+    definition["nodes"][1]["position"] = {"x": 20, "y": 40}
+    if mode != "serial":
+        definition.update(version=2, mode="dag", edges=[])
+    if mode != "binding":
+        definition["nodes"][1]["inputs"] = {}
+    if mode == "explicit":
+        definition["edges"] = [{"source": "n1", "target": "n2"}]
+    workflow = Workflow.model_validate(definition)
+    before = workflow.model_dump()
+    preview = workflow_preview(workflow)
+    assert workflow.model_dump() == before
+    assert preview["nodes"] == [
+        {"id": "n1", "scene": "ba-001", "revision": 1, "x": 650, "y": 220},
+        {"id": "n2", "scene": "ba-002", "revision": 1, "x": 20, "y": 40},
+    ]
+    edges = cast(list[dict[str, str]], preview["edges"])
+    assert len(edges) == 1
+    assert edges[0]["source"] == "n1"
+    assert edges[0]["target"] == "n2"
+    # 反向排布時也包含曲線控制點，不能只裁出節點矩形。
+    left, top, width, height = map(float, str(preview["viewbox"]).split())
+    assert left < 20
+    assert left + width > 850
+    assert top < 40
+    assert top + height > 316

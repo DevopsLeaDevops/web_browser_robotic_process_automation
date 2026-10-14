@@ -123,7 +123,7 @@
   "recording.verify.not_empty": "“{target}” was read (“{value}” when recorded)",
   "dsl.workflow.value_null": "A fixed value cannot be null; to use the scenario's default, leave this input out",
   "dsl.workflow.node_duplicate": "Node id {node} is used twice",
-  "dsl.workflow.empty": "The sequence has no nodes yet",
+  "dsl.workflow.empty": "The composite scenario has no nodes yet",
   "dsl.workflow.input_unknown": "Node {node}: the scenario has no input {input}",
   "dsl.workflow.input_missing": "Node {node}: input {input} has no default; give it a fixed value or an output of an earlier node",
   "dsl.workflow.value_invalid": "Node {node}: the fixed value of input {input} does not satisfy {rule}",
@@ -132,5 +132,12 @@
   "dsl.workflow.output_unknown": "Node {node}: input {input} comes from output {output} of {source}, but that scenario revision has no such output",
   "dsl.workflow.type_mismatch": "Node {node}: input {input} ({input_type}) comes from output {output} of {source} ({output_type}); the types do not match",
   "dsl.workflow.source_not_passed": "Node {node}: input {input} comes from {source}, which did not pass",
-  "dsl.workflow.output_missing": "Node {node}: {source} passed but did not publish output {output}"
+  "dsl.workflow.output_missing": "Node {node}: {source} passed but did not publish output {output}",
+  "dsl.workflow.mode_version": "Version 1 requires serial; version 2 requires dag. Serial definitions cannot contain edges.",
+  "dsl.workflow.edge_unknown": "Edge {source} → {target} references a missing node",
+  "dsl.workflow.edge_duplicate": "Duplicate edge {source} → {target}",
+  "dsl.workflow.cycle": "Dependencies contain a cycle. Remove the conflicting edge or output binding.",
+  "dsl.workflow.source_ambiguous": "Node {node}: input {input} matches multiple upstream outputs; choose a source",
+  "dsl.workflow.auto_requires_dag": "Node {node}: automatic binding for {input} requires a version 2 DAG",
+  "dsl.workflow.auto_unresolved": "Node {node}: automatic source for input {input} has not been resolved"
 }

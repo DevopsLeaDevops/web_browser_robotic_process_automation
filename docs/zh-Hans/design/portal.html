@@ -15,7 +15,7 @@
   <div class="heading">
     <div>
       <h1>管理 Portal</h1>
-      <p>在浏览器里创建场景、验证、发布、运行并查看报告（M3）；录制、逐步调试、登录角色与入参出参的表单（M4）；自由试验场的串行（M6）。单机、单用户（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>与设计系统 v1.1。</p>
+      <p>在浏览器里创建场景、验证、发布、运行并查看报告（M3）；录制、逐步调试、登录角色与入参出参的表单（M4）；自由试验场的 DAG 组合场景（M6）。单机、单用户（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>与设计系统 v1.1。</p>
     </div>
     <span class="badge blue">M6</span>
   </div>
@@ -144,27 +144,28 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>自动化脚本与断言脚本分开。</strong>DSL 场景的卡片与场景页有「自动化脚本」（<code>steps:</code>）与「断言脚本」（<code>verify:</code>）两个入口，各自只显示、只改写场景文件的那一段；运行时先跑自动化步骤，再用断言脚本检查取得的页面事实，全部通过才发布出参。断言脚本右侧可以一键插入 notEmpty、equals、contains、matches 的检查，点一下页面事实或入参的名称就插入到光标位置。保存前校验，问题标出段落里的行号。</li>
-          <li><strong>入参、出参：表格与 YAML 原文两种查看。</strong>场景页的入参、出参按「编辑」：表格一列一笔，直接修改名称、类型、必填、默认值、出参的取值与说明，限制收在下一列（依类型显示 minLength、pattern、minimum、enum…），可以添加、上移、下移、删除；切到「YAML 原文」直接修改那一段的原始写法，切回表格前先校验。</li>
-          <li><strong>只改写那一段。</strong>保存时只换掉场景文件的那一段，其他内容与注释完全不变；入参改名时，步骤里引用旧名称的 <code>{{ inputs.旧名称 }}</code> 一起改。一样创建新版本、经过校验与「不是最新版就 409」的检查，新版本要重新验证。Python 脚本场景的出参由 assertion.py 产生，改名也不会改到脚本。</li>
+          <li><strong>入参与出参左右编辑。</strong>场景页优先呈现契约工作台，默认左右两栏 YAML 原文；表格仍可添加、排序、改名与设置限制。切换查看保留两栏草稿，统一「保存入参与出参」会一起校验并创建一个版本，任一栏有错不会部分保存。错误标示字段及段落行号；版本冲突回 409，保留草稿。</li>
+          <li><strong>三个唯读预览。</strong>在左右编辑器下方依序平铺「默认入参」「出参样例」「出参提取映射」，桌面三栏同时可见，窄屏纵向排列，无需切换页签。默认入参与提取映射随草稿自动刷新；草稿无效时清除旧预览并提示不可用。默认入参由目前草稿产生，没有默认值的必填项另列，不伪造值。出参样例只取该已保存版本最近一次成功运行的真实出参，标明版本与运行编号；没有结果时明确显示空状态，草稿已修改时提示尚未验证。提取映射来自草稿的 outputs.from；Python 场景明示由 assertion.py 产生。三个预览不接受编辑保存。</li>
+          <li><strong>修改与验证动线。</strong>契约、完整文件与脚本分段保存后留在原页，更新版本并显示「验证这个版本」。发布后留在报告，显示已发布版本与运行入口。离开有修改的编辑器会提示。契约保存只替换 inputs／outputs，其他段落与注释保留；表格改名同步更新 DSL 引用，YAML 改名需自行调整引用。新版本仍需重新验证、发布；不修改 Python 脚本。</li>
         </ul>
       </div>
     </section>
 
     <section class="panel" id="playground">
-      <div class="panel-header"><h2>自由试验场</h2><span class="muted">M6：已发布场景的固定版本排成序列，上游出参交给下游入参，失败即停</span></div>
-      <div class="panel-body prose">
-        <ul>
-          <li><strong>串行。</strong>「场景生产 › 自由试验场」添加串行，从左边的场景库把场景加到串行最后；中间是依序运行的节点（n1、n2…），右边设置选取的节点，可以上移、下移、移除。改动先留在页面上，按「保存」才保存；保存要带目前是第几次保存，别的分页已经存过就回 409。</li>
-          <li><strong>只用发布过的版本，而且固定。</strong>场景库只列出发布过的场景；加入时固定在目前发布的版本，之后场景发布新版本也不影响串行（节点设置会提示，要用就自己切换）。版本只能选发布过的，所以串行里每个节点都是通过验证的内容。</li>
-          <li><strong>入参的来源。</strong>每个入参三选一：场景的默认值、固定值、前面某个节点的出参（只能选类型兼容的，整数可以给数字）。加入节点时，名称相同、类型兼容的入参自动接上最近的上游，例如 BA-002 的 recordId 接上 BA-001 的出参。必填的入参一定要有来源。</li>
-          <li><strong>先检查、再运行。</strong>每次修改都会检查：场景存在而且没有封存、版本发布过、只取前面节点的出参、那个出参存在、类型兼容、必填入参有来源、固定值符合入参的规则。有问题时列在上方与节点上，不能运行。</li>
-          <li><strong>依序运行、失败即停。</strong>「运行串行」可以选浏览器（默认照各场景）与窗口模式。节点一个一个排入队列；每个节点就是一次一般的运行（目的「试验场」），有自己的运行目录与报告，也出现在运行报告。通过之后才取它发布的出参、排下一个节点；没有通过（失败、超时、取消、需要登录）就停在那个节点，后面的节点略过。绑定的值不符合下游入参的规则时，下游不启动浏览器就停下。</li>
-          <li><strong>串行运行页。</strong>每个节点的状态、入参的值与来源（固定值、默认值、<code>← n1.recordId</code>）、出参，以及那次运行与报告的链接；运行中每秒更新。开始运行时记下串行的快照，之后改串行不影响这次运行。</li>
-          <li><strong>从停下的节点继续、从头再运行。</strong>「从 n2 继续」沿用前面已通过节点的出参，从停下的节点开始，不会重复前面的操作（例如再创建一次记录），适合登录之后接着跑；「从头再运行」用同一份快照从第一个节点开始。取消会停止目前的节点，已经在目标网站完成的动作不会复原。</li>
-          <li><strong>导出与导入。</strong>「导出 JSON」下载串行的名称、说明与定义；清单页「导入 JSON」用它创建新的串行。定义的格式：<code>{"version": 1, "mode": "serial", "onFailure": "stop", "nodes": [{"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "试验"}}}, {"id": "n2", "sceneId": "ba-002", "revision": 1, "inputs": {"recordId": {"node": "n1", "output": "recordId"}}}]}</code>。没写的入参用默认值；<code>value</code> 是固定值，<code>node</code> 与 <code>output</code> 是前面节点的出参。规则在 <code>rpa_core.workflow</code>。</li>
-          <li><strong>范围。</strong>MVP 只有序列，不做条件、分支与平行；节点与其他运行排在同一个队列，一次运行一个。删除串行不会删除运行记录（串行运行有定义的快照）。</li>
-        </ul>
-      </div>
+      <div class="panel-header"><h2>自由试验场与组合场景</h2><span class="muted">DAG：可分叉、可汇合，成功出参传给下游，失败即停</span></div>
+      <div class="panel-body prose"><ul>
+        <li><strong>管理与生产。</strong>「场景管理 › 组合场景自动化」沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场、运行报告、远程 Worker。</li>
+        <li><strong>依赖画布。</strong>场景库可点击加入或拖入画布。拖动节点或用方向键微调位置；点上游右侧圆点，再点下游左侧圆点创建连接。点连接设置下游入参，也可以从右侧加入上游。缩放与适应只改视角，不改座标。节点座标随组合场景保存；画布位置和节点数组顺序不代表运行顺序。顶部名称与操作合并成一列，说明收在「说明」，运行历史默认折叠。画布下方的全宽参数区独立卷动，并列上游出参、下游入参、匹配方式、取值／来源；点击 DAG 连接会切到该组上游与下游。多上游可切换来源节点。</li>
+        <li><strong>四种入参来源。</strong>同名匹配仅搜索直接连接的上游，唯一同名且类型兼容时取其出参，没有命中则用场景默认，多个命中必须指定来源；场景默认强制忽略上游同名值；人工指定只覆盖此节点；指定上游出参可以跨字段绑定。选择出参会创建依赖；一个出参可供多个下游，一个入参只有一个来源。整数可以传给数字，其他类型必须相同。</li>
+        <li><strong>参数连接。</strong>拖动出参圆点到入参，或依次用鼠标／键盘选取两端，创建显式绑定；类型不符不修改原值。四种模式以按钮同列呈现，仍可用出参选单精确选择。唯一同名匹配与显式来源画出对应连接；歧义、默认值及人工值不画假连接。契约按钮原地显示该固定版本的唯读原文；编辑场景明示另开分页，并提示验证、发布后回画布选新版本。</li>
+        <li><strong>运行与返回。</strong>从画布启动后原地显示快照版本、进度与各节点状态，点节点可看本次入参、成功出参或错误；可原地取消。完整报告与节点报告由用户主动打开，回画布恢复选取节点、上游与缩放／卷动位置。卡片快捷运行仍直接进入报告。编辑画布不改变已开始运行的快照。</li>
+        <li><strong>直接依赖与清理。</strong>显式连接及出参引用都形成依赖。移除连接清理对应的出参引用并重新检查来源；移除节点同时清理它的连接与下游引用。重设入参会恢复同名匹配。循环、自我依赖、重复边或不存在的端点不可运行。</li>
+        <li><strong>保存与预检。</strong>草稿可带待修正的问题保存；保存携带 <code>baseVersion</code>，版本冲突回 409，页面保留草稿供导出。运行前检查全图、已发布固定版本、字段、类型、必填值及固定值规则；有问题时第一个节点也不排入队列。问题清单与运行阻挡对话框显示节点、场景、入参及具体原因，点击可定位到画布节点或入参字段；字段同步标红。「运行前检查」可手动检查，卡片运行也重新取得最新问题。添加场景时不自动创建与前一节点的连接。</li>
+        <li><strong>分叉与汇合。</strong>拓扑排序保证所有上游都通过才运行下游；就绪节点以定义中的顺序稳定选取，逐个排入既有队列。每个节点有自己的真实运行、入参、成功出参与报告。下游运行前再检查实际值，不符合规则就停止，不回退到默认值。</li>
+        <li><strong>快照与恢复。</strong>开始时固定编排、场景版本及同名匹配的具体来源，后续编辑不影响已开始的运行。失败、超时、取消、需要登录或 worker 失联皆停止全图；续跑沿用拓扑顺序中已通过的结果，不重复已成功的外部操作。所有节点沿用同一台 worker；取消不回滚外部动作。</li>
+        <li><strong>格式与兼容。</strong>新定义使用 <code>version: 2</code>、<code>mode: "dag"</code>、<code>onFailure: "stop"</code>、<code>nodes</code> 及 <code>edges: [{"source":"n1","target":"n2"}]</code>。节点可带 <code>position: {"x":40,"y":60}</code>；<code>inputs</code> 的值可为 <code>{"auto":true}</code>、<code>{"value":7}</code> 或 <code>{"node":"n1","output":"quantity"}</code>，省略代表场景默认。旧版 serial 定义与历史快照继续可用；旧串行打开画布后，下次保存转成相同顺序的依赖边，不更动已有历史运行。JSON 导出、导入保留座标与绑定。</li>
+        <li><strong>本次范围。</strong>最多 50 节点，支持一般分叉与汇合，不做条件路由或同时运行。沿用现有 DSL 的字符串、整数、数字、布尔入参；原型里的重复次数、日期／随机占位符与复合类型入参未纳入本次五项需求。原型 JSON 是参考契约，不直接当成 Portal 的导入格式。</li>
+      </ul></div>
     </section>
 
     <section class="panel" id="remote-workers">
@@ -196,8 +197,8 @@
           <li><strong>接着现有步骤录制。</strong>选「既有场景的新版本」与刚才的场景，再选「接着现有步骤录制」：浏览器先自动跑完原有步骤，停在创建结果的页面，再录一个动作；新版本的步骤接在原有内容后面，原本的注释不变。</li>
           <li><strong>两个角色。</strong>「场景管理 › 登录与凭证」对 <code>testsite-user</code> 按「登录」，在跳出的窗口用 user / user-pass 登录后按「完成登录」；<code>testsite-manager</code> 用 manager / manager-pass。再分别运行 BA-004、BA-005：两份报告看到的待办不同。</li>
           <li><strong>需要登录与重新运行。</strong>对 <code>testsite-user</code> 按「注销」，再运行 BA-004：停在「需要登录」，没有运行任何步骤；点运行页的登录角色回到「登录与凭证」再登录一次，回到运行页按「重新运行」，结果是「通过」。</li>
-          <li><strong>自由试验场。</strong>先验证并发布 BA-001，再用它验证时创建的记录编号验证并发布 BA-002。「场景生产 › 自由试验场」按「添加串行」，从场景库加入 BA-001、BA-002：BA-002 的 recordId 自动接上 n1 的出参。按「运行串行」，两个节点都通过，n2 查到的就是 n1 刚创建的记录。再把 n2 上移到最前面：串行会提示 recordId 只能取前面节点的出参，不能运行。</li>
-          <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「场景生产 › 远程 Worker」添加 <code>win-01</code>，在另一台电脑照对话框的命令启动 <code>rpa worker</code>（步骤见<a href="../develop/remote-worker.html">远程 worker</a>），worker 页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的串行，两个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
+          <li><strong>自由试验场。</strong>先验证并发布 BA-001、BA-002。创建组合场景，加入一个 BA-001、两个 BA-002 及另一个 BA-001 作为汇合节点；连接「创建 → 两次查询 → 汇合」，让两个查询的 recordId 同名匹配上游，汇合的 title 与 quantity 分别取自两个查询。拖动节点、保存并重载，确认位置保留。运行后四个节点都通过且实际入参相符；反向连接应被拒绝。从场景管理的组合场景卡片打开最近运行，确认报告可追溯。</li>
+          <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「场景生产 › 远程 Worker」添加 <code>win-01</code>，在另一台电脑照对话框的命令启动 <code>rpa worker</code>（步骤见<a href="../develop/remote-worker.html">远程 worker</a>），worker 页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
         </ol>
         <p>结束后停止管理 Portal，删掉 <code>data-check</code> 文件夹即可；worker 机器上的 <code>worker-data</code> 文件夹也可以删掉。</p>
       </div>
@@ -221,8 +222,9 @@
             <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图、运行目录的文件；取消、发布</td></tr>
             <tr><td><code>/roles</code></td><td>登录与凭证：登录角色（登录、检查、注销）、Secrets</td></tr>
             <tr><td><code>/recording</code>、<code>/recordings/{录制编号}</code></td><td>自主脚本录制：在这台电脑录制或粘贴录制稿；最近的录制；录制详情（转不了的行、转换结果、遮罩过的原始录制稿）</td></tr>
-            <tr><td><code>/playground</code></td><td>自由试验场：串行清单（节点、问题、最近一次运行）与最近的串行运行；添加、导入、删除串行</td></tr>
-            <tr><td><code>/playground/{串行}</code></td><td>编辑串行：场景库、串行、节点设置（固定版本、入参的来源）；保存、运行、导出</td></tr>
+            <tr><td><code>/composites</code></td><td>组合场景卡片管理、DAG 缩略图、快捷运行、最近报告、打开画布、删除</td></tr>
+            <tr><td><code>/playground</code></td><td>自由试验场：创建、导入组合场景与继续编辑画布</td></tr>
+            <tr><td><code>/playground/{串行}</code></td><td>编辑组合场景：场景库、DAG 画布、入参与节点设置（固定版本、入参的来源）；保存、运行、导出</td></tr>
             <tr><td><code>/playground/runs/{串行运行}</code></td><td>串行的运行：每个节点的状态、入参的值与来源、出参、报告；取消、从头再运行、从停下的节点继续</td></tr>
             <tr><td><code>/workers</code></td><td>远程 Worker：登记（产生权杖与启动命令）、状态、禁用、重新产生权杖、删除；默认运行位置</td></tr>
           </tbody>
@@ -250,6 +252,8 @@
             <tr><td><code>POST /api/runs/{运行编号}/cancel</code></td><td>取消</td></tr>
             <tr><td><code>POST /api/runs/{运行编号}/rerun</code></td><td>同样的入参与选项再运行一次；202 回新的运行</td></tr>
             <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>入参与出参的表格保存：<code>baseRevision</code>、<code>inputs</code>、<code>outputs</code>（每项有 <code>name</code>、改名前的 <code>previous</code>…；不带的那一段不动）、<code>note</code></td></tr>
+            <tr><td><code>GET /api/scenes/{id}/contract-workspace?revision={n}</code></td><td>取得指定版本（默认最新）的契约 YAML 与该版本最近成功出参样例，不会取其他版本或失败结果</td></tr>
+            <tr><td><code>PUT /api/scenes/{id}/contract-yaml</code>；<code>POST …/preview</code></td><td>左右契约一起保存或唯读校验：<code>baseRevision</code>、<code>inputs</code>／<code>outputs</code> 原文、可选的表格 <code>renames</code> 与 <code>note</code>。保存是单一新版本，校验回传解析后契约、不写入；错误包含 <code>section</code>、<code>sectionLine</code></td></tr>
             <tr><td><code>POST /api/contract/render</code></td><td>表格的内容（<code>key</code>、<code>items</code>）转成和保存一样的 YAML 写法，切到原文查看时用</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/scenes/{id}/sections/{段}</code>；<code>POST …/preview</code></td><td>场景文件的一段（<code>steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code>）：读取、只换掉这一段存成新版本（<code>baseRevision</code>、<code>text</code>、<code>note</code>）、换掉后校验但不保存（入参、出参回传表格用的数据）；问题带段落里的行号 <code>sectionLine</code></td></tr>
             <tr><td><code>GET</code>、<code>POST /api/roles</code>；<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/roles/{角色}</code></td><td>登录角色：<code>name</code>、<code>loginUrl</code>、<code>checkUrl</code>、<code>check</code>（定位器）、<code>engine</code>、<code>autoLogin</code>；还有场景用到时不能删除</td></tr>

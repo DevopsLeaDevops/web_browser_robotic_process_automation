@@ -48,6 +48,7 @@
     <button id="menu-toggle" class="button mobile-menu" aria-label="{{ t('app.menu') }}" aria-controls="sidebar" aria-expanded="false">☰</button>
     <span>Portal</span><span>›</span><span id="crumb">{{ t("nav." + group.id) }} › {% block crumb %}{{ title }}{% endblock %}</span>
   </div>
+  {% block heading %}
   <div class="heading">
     <div>
       <h1 id="title">{{ title }}</h1>
@@ -55,6 +56,7 @@
     </div>
     <div id="page-actions" class="actions">{% block actions %}{% endblock %}</div>
   </div>
+  {% endblock %}
   <div id="content">
 {% block content %}{% endblock %}
   </div>

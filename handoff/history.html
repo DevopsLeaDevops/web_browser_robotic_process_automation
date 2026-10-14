@@ -29,6 +29,7 @@
   </div>
 
   <div class="stack">
+    <div class="notice">本頁事件時間統一為 America/Los_Angeles（PDT，UTC−07:00）；來源只有日期的文件標籤保留原文，不推定其精確時刻。換算規則見<a href="collaboration.html#sources">共用流程</a>。</div>
     <div class="notice">同樣的內容也存在 Claude 專案 web_browser_robotic_process_automation 的 <code>claude/project-history.html</code>（單一檔案、附上專案文件的索引）。<strong>整理範圍</strong>：依 Claude 專案的設計文件與 GitHub 的 PR 整理；整理時讀不到專案過去的對話內容與記憶，所以只在過去對話裡說過、沒寫進文件的資訊沒有收錄，請補在那份文件最後的「補充」。</div>
     <section class="panel" id="summary">
       <div class="panel-header"><h2>專案一句話</h2></div>
@@ -39,7 +40,7 @@
     </section>
 
     <section class="panel" id="timeline">
-      <div class="panel-header"><h2>時間軸</h2><span class="muted">PR 編號與合併日期（UTC）</span></div>
+      <div class="panel-header"><h2>時間軸</h2><span class="muted">PR 編號與合併日期（America/Los_Angeles）</span></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>日期</th><th>PR</th><th>內容</th></tr></thead>
         <tbody>
@@ -49,16 +50,16 @@
           <tr><td class="mono">10-10</td><td>#8</td><td>M1 場景 DSL v0：模型、YAML 載入與校驗、<code>rpa validate</code></td></tr>
           <tr><td class="mono">10-10</td><td>#9</td><td>M1.1 場景契約與<strong>方案 v2</strong>（結合你上傳的 MVP 原型）；ADR 0009、0010、0011</td></tr>
           <tr><td class="mono">10-10</td><td>#10</td><td>M2 Runner 與執行契約（<code>rpa run</code>）</td></tr>
-          <tr><td class="mono">10-11</td><td>#11</td><td>M3 管理 Portal（<code>rpa serve</code>）</td></tr>
-          <tr><td class="mono">10-12</td><td>#12～#15</td><td>領域劃分、測試網站自動化與真實案例、埠號自動換；多語言補漏；瀏覽器未下載的說明；報告篩選複選、有頭／無頭（預設有頭）</td></tr>
+          <tr><td class="mono">10-10</td><td>#11</td><td>M3 管理 Portal（<code>rpa serve</code>）</td></tr>
+          <tr><td class="mono">10-11～10-12</td><td>#12～#15</td><td>領域劃分、測試網站自動化與真實案例、埠號自動換；多語言補漏；瀏覽器未下載的說明；報告篩選複選、有頭／無頭（預設有頭）</td></tr>
           <tr><td class="mono">10-12</td><td>#16</td><td>M4 場景生產與登入（錄製、逐步調試、登入角色與 needs_login、入參出參表單）</td></tr>
-          <tr><td class="mono">10-13</td><td>#17、#18</td><td>M4 修正：相對資料目錄、接著既有場景錄製、斷言轉成出參、腳本分段編輯、設計系統 v1.1</td></tr>
+          <tr><td class="mono">10-12</td><td>#17、#18</td><td>M4 修正：相對資料目錄、接著既有場景錄製、斷言轉成出參、腳本分段編輯、設計系統 v1.1</td></tr>
           <tr><td class="mono">10-13</td><td>#20</td><td>M4 完成；路線圖改為先做 M6、再做 M5</td></tr>
           <tr><td class="mono">10-13</td><td>#21 → #22</td><td>M6 自由試驗場。#21 誤合併到 #20 的分支，由 #22 補進 main</td></tr>
-          <tr><td class="mono">10-14</td><td>#23</td><td><strong>M9a 遠端 worker</strong>（03:54 合併；人工驗收未完成）</td></tr>
-          <tr><td class="mono">10-14</td><td>#25</td><td>你寫的：受限語言模式下沒有 uv 與 winget 時，安裝腳本改用官方 uv 壓縮包並校驗 SHA-256（03:58 合併）</td></tr>
-          <tr><td class="mono">10-14</td><td>#24</td><td>交接材料第一版（03:58 合併）</td></tr>
-          <tr><td class="mono">10-14</td><td>#19</td><td>Dependabot：setup-uv 10.3.0（06:13 合併）</td></tr>
+          <tr><td class="mono">10-13</td><td>#23</td><td><strong>M9a 遠端 worker</strong>（20:54 合併；人工驗收未完成）</td></tr>
+          <tr><td class="mono">10-13</td><td>#25</td><td>你寫的：受限語言模式下沒有 uv 與 winget 時，安裝腳本改用官方 uv 壓縮包並校驗 SHA-256（20:58 合併）</td></tr>
+          <tr><td class="mono">10-13</td><td>#24</td><td>交接材料第一版（20:58 合併）</td></tr>
+          <tr><td class="mono">10-13</td><td>#19</td><td>Dependabot：setup-uv 10.3.0（23:13 合併）</td></tr>
           <tr><td class="mono">10-14</td><td>（本次）</td><td>交接補齊：驗收紀錄、未完成工作、決定分類、運作環境、研發方法、Claude 專案文件原文</td></tr>
           <tr><td class="mono">—</td><td>#2、#3</td><td>Dependabot 的 Python 依賴更新，已關閉、未合併；舊日誌記載 uv 群組失敗；現已有替代 workflow，執行待核驗（見未完成工作）</td></tr>
         </tbody>

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from rpa_core.dsl import ExtractStep, Scenario, validate_text
-from rpa_core.dsl.editing import section_text
+from rpa_core.dsl.editing import contract_section, section_text
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
@@ -61,18 +61,31 @@ def _counts(text: str | None) -> dict[str, int] | None:
     }
 
 
-def _contract_data(scenario: Scenario) -> dict[str, object]:
+def _contract_data(scenario: Scenario, source: str | None = None) -> dict[str, object]:
     """入參、出參編輯器的初始資料（DSL 寫法的欄位，camelCase）。
 
     用 [名稱, 規格] 的清單保留場景檔裡的順序（模板的 tojson 會把物件的鍵排序）。
     """
-    return {
+    data: dict[str, object] = {
         key: [
             [name, spec.model_dump(mode="json", by_alias=True, exclude_none=True)]
             for name, spec in specs.items()
         ]
         for key, specs in (("inputs", scenario.inputs), ("outputs", scenario.outputs))
     }
+    data["yaml"] = {
+        key: section_text(source, key)
+        if source is not None
+        else contract_section(
+            key,
+            {
+                name: spec.model_dump(mode="json", by_alias=True, exclude_none=True)
+                for name, spec in specs.items()
+            },
+        )
+        for key, specs in (("inputs", scenario.inputs), ("outputs", scenario.outputs))
+    }
+    return data
 
 
 def _facts(scenario: Scenario) -> list[tuple[str, list[str]]]:
@@ -189,7 +202,11 @@ def page_router(services: Services) -> APIRouter:
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
-            contract_data=_contract_data(scenario) if scenario is not None else {},
+            contract_data=_contract_data(
+                scenario, services.revision_files(scene_id, record.latest_number)[SCENARIO_FILE]
+            )
+            if scenario is not None
+            else {},
             facts=_facts(scenario) if scenario is not None else [],
         )
 
@@ -463,9 +480,23 @@ def page_router(services: Services) -> APIRouter:
             fingerprint=services.workers.fingerprint,
         )
 
+    @router.get("/composites", include_in_schema=False)
+    def composites() -> HTMLResponse:
+        """組合場景的卡片管理；生產與修改從卡片進入自由試驗場。"""
+        return page(
+            "composites.html",
+            page="composites",
+            title=t("nav.composites"),
+            data={"engines": list(ENGINES), **_location_context(services)},
+            workflows=workflows.list_workflows(),
+            runs=workflows.list_runs(limit=_RECENT_RUNS * 2),
+            has_published=bool(workflows.library()),
+            messages=workflow_messages(),
+        )
+
     @router.get("/playground", include_in_schema=False)
     def playground() -> HTMLResponse:
-        """序列清單與最近的序列執行。"""
+        """組合場景的生產入口：建立或繼續編輯畫布。"""
         return page(
             "playground.html",
             page="playground",
@@ -478,7 +509,7 @@ def page_router(services: Services) -> APIRouter:
 
     @router.get("/playground/{workflow_id}", include_in_schema=False)
     def workflow(workflow_id: int) -> HTMLResponse:
-        """編輯序列：場景庫、序列、節點設定（頁面上的 JavaScript 依 workflow-data 畫出來）。"""
+        """編輯組合場景：場景庫、DAG 畫布、入參與節點設定。"""
         record = workflows.get_workflow(workflow_id)
         data = {
             "id": record.id,

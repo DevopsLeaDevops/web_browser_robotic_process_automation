@@ -1,6 +1,6 @@
 'use strict';
 // 管理 Portal 的頁面互動：呼叫 /api、輪詢執行狀態、對話框；M4 加上登入與憑證、錄製、逐步調試、入參出參表單；
-// M6 加上自由試驗場（序列清單、編輯序列、序列的執行）；M9a 加上遠端 worker 頁與執行位置。
+// M6 加上自由試驗場（DAG 畫布、組合場景管理與執行）；M9a 加上遠端 worker 頁與執行位置。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -135,8 +135,22 @@
     });
   }
 
+  async function refreshSceneSummary(scene) {
+    if (!qs('#scene-versions')) return;
+    const response = await fetch('/scenes/' + path(scene));
+    if (!response.ok) return;
+    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+    for (const id of ['scene-versions', 'scene-release-status', 'page-actions']) {
+      const next = qs('#' + id, page), current = qs('#' + id);
+      if (next && current) current.replaceWith(next);
+    }
+    bindPublish(); localizeTimes();
+  }
+
   function bindPublish() {
     qsa('[data-action="publish"]').forEach(button => {
+      if (button.dataset.bound) return;
+      button.dataset.bound = '1';
       button.addEventListener('click', () => {
         const scene = button.dataset.scene;
         const number = button.dataset.revision;
@@ -144,8 +158,13 @@
           const result = await api('POST', '/api/scenes/' + path(scene) + '/revisions/' + path(number) + '/publish');
           $('#dialog').close();
           if (!result.ok) return toast(errorMessage(result));
-          flash(messages.published);
-          location.href = '/scenes/' + path(scene);
+          button.disabled = true;
+          button.textContent = messages.published;
+          let notice = qs('#publish-result');
+          if (!notice) { notice = document.createElement('div'); notice.id = 'publish-result'; notice.className = 'notice contract-next'; qs('#main').append(notice); }
+          notice.innerHTML = '<span>' + esc(messages.published + ' · ' + scene + ' v' + number) + '</span><a class="button primary" href="/scenes/' + path(scene) + '/run?purpose=execution">' + esc(messages.run_published) + '</a>';
+          await refreshSceneSummary(scene);
+          notice.scrollIntoView({block: 'nearest'});
         });
       });
     });
@@ -266,9 +285,32 @@
 
   // ---------------------------------------------------------------- 編輯版本
 
+  function watchEditor(form) {
+    const signature = () => JSON.stringify(qsa('textarea, input', form).map(field => [field.name, field.value]));
+    let saved = signature();
+    window.addEventListener('beforeunload', event => {
+      if (signature() !== saved) { event.preventDefault(); event.returnValue = ''; }
+    });
+    return () => { saved = signature(); };
+  }
+
+  function savedRevision(form, number) {
+    form.dataset.base = number;
+    let notice = qs('#editor-saved');
+    if (!notice) { notice = document.createElement('div'); notice.id = 'editor-saved'; notice.className = 'notice contract-next'; notice.setAttribute('role', 'status'); form.prepend(notice); }
+    notice.innerHTML = '<span>' + esc(fill(messages.contract_saved_next, {number})) + '</span><a class="button" href="/scenes/' + path(form.dataset.scene) + '/run?purpose=validation&revision=' + number + '">' + esc(messages.validate_next) + '</a>';
+    const description = qs('#description');
+    if (description) description.textContent = fill(messages.editor_revision, {number});
+    const revision = qs('.section-tabs > .muted');
+    if (revision) revision.textContent = 'v' + number;
+    const url = new URL(location.href); url.searchParams.delete('revision'); history.replaceState(null, '', url);
+    toast(messages.saved + ' v' + number);
+  }
+
   function bindEditor() {
     const form = qs('#revision-form');
     if (!form) return;
+    const markSaved = watchEditor(form);
     qsa('[data-file-tab]').forEach(tab => {
       tab.addEventListener('click', () => {
         qsa('[data-file-tab]').forEach(other => {
@@ -298,14 +340,14 @@
       const files = {};
       qsa('textarea.code-editor', form).forEach(area => { files[area.name] = area.value; });
       const note = form.elements.namedItem('note').value.trim() || null;
-      save.disabled = true;
+      save.disabled = true; form.inert = true;
       const result = await api('POST', '/api/scenes/' + path(form.dataset.scene) + '/revisions', {
         baseRevision: Number(form.dataset.base), files, note,
       });
-      save.disabled = false;
+      save.disabled = false; form.inert = false;
       if (result.ok) {
-        flash(messages.saved + ' v' + result.data.number);
-        location.href = '/scenes/' + path(form.dataset.scene);
+        qs('#issues').hidden = true;
+        markSaved(); savedRevision(form, result.data.number);
         return;
       }
       const error = result.data && result.data.error;
@@ -873,6 +915,7 @@
   function bindSection() {
     const form = qs('#section-form');
     if (!form) return;
+    const markSaved = watchEditor(form);
     const area = form.elements.namedItem('text');
     const key = form.dataset.key;
     qsa('[data-insert]').forEach(chip => chip.addEventListener('click', () => insertAt(area, chip.dataset.insert)));
@@ -893,19 +936,18 @@
     const list = qs('#issue-list');
     const submit = async () => {
       qs('#issues').hidden = true;
-      busy(save, true);
+      busy(save, true); form.inert = true;
       const result = await api('PUT', '/api/scenes/' + path(form.dataset.scene) + '/sections/' + path(key), {
         baseRevision: Number(form.dataset.base),
         text: area.value,
         note: form.elements.namedItem('note').value.trim() || null,
       });
+      busy(save, false); form.inert = false;
       if (!result.ok) {
-        busy(save, false);
         if (result.status === 409 && result.data && result.data.error && result.data.error.code === 'stale_base') return toast(messages.stale_base);
         return showSectionIssues(list, result, area);
       }
-      flash(messages.saved + ' v' + result.data.number);
-      location.href = '/scenes/' + path(form.dataset.scene) + '/edit?part=' + path(key);
+      markSaved(); savedRevision(form, result.data.number);
     };
     if (save) save.addEventListener('click', submit);
     form.addEventListener('submit', event => { event.preventDefault(); submit(); });
@@ -1018,11 +1060,26 @@
   }
 
   function bindContract() {
-    const host = qs('.contract-editors');
+    const host = qs('#contract-workspace');
     if (!host) return;
     const data = JSON.parse(qs('#contract-data').textContent || '{}');
     const scene = host.dataset.scene;
-    const base = Number(host.dataset.base);
+    let base = Number(host.dataset.base), dirty = false, loaded = false, working = false;
+    let previewSeq = 0, previewTimer, sample = null, pendingRenames = {};
+    const state = qs('#contract-state'), saveButton = qs('[data-action="save-contract"]');
+    const archived = host.dataset.archived === '1';
+    const markDirty = () => {
+      dirty = true;
+      schedulePreviews();
+      state.textContent = messages.contract_unsaved;
+      saveButton.disabled = !loaded || archived || working;
+      qs('#contract-next').hidden = true;
+    };
+    host.addEventListener('input', markDirty);
+    host.addEventListener('change', markDirty);
+    window.addEventListener('beforeunload', event => {
+      if (dirty) { event.preventDefault(); event.returnValue = ''; }
+    });
     const fillRows = (editor, specs) => {
       const body = qs('[data-rows]', editor);
       body.innerHTML = '';
@@ -1041,18 +1098,32 @@
       list.innerHTML = [errorMessage(result), ...lines, ...problems].map(item => '<li>' + esc(item) + '</li>').join('');
       list.hidden = false;
     };
+    const mergedRenames = rows => {
+      const next = {...pendingRenames};
+      rows.forEach(item => {
+        if (!item.previous || item.previous === item.name) return;
+        const origins = Object.entries(pendingRenames).filter(([, target]) => target === item.previous).map(([origin]) => origin);
+        (origins.length ? origins : [item.previous]).forEach(origin => { next[origin] = item.name; });
+      });
+      return Object.fromEntries(Object.entries(next).filter(([origin, target]) => origin !== target));
+    };
     const showView = async (editor, next) => {
-      if (view(editor) === next) return;
+      if (!loaded || working || editor.inert || view(editor) === next) return;
+      editor.inert = true;
       const kind = editor.dataset.kind;
       const area = qs('[name="yaml"]', editor);
       qs('.form-issues', editor).hidden = true;
       // 表格 → YAML：由伺服器產生和存檔一樣的寫法；YAML → 表格：先校驗，再用結果重建表格
       const result = next === 'yaml'
         ? await api('POST', '/api/contract/render', {key: kind, items: items(editor)})
-        : await api('POST', '/api/scenes/' + path(scene) + '/sections/' + kind + '/preview', {baseRevision: base, text: area.value});
+        : await api('POST', '/api/scenes/' + path(scene) + '/contract-yaml/preview', await payload());
+      editor.inert = false;
       if (!result.ok) return issues(editor, result);
-      if (next === 'yaml') area.value = result.data.text;
-      else fillRows(editor, result.data.items);
+      if (next === 'yaml') {
+        if (kind === 'inputs') pendingRenames = mergedRenames(items(editor));
+        area.value = result.data.text;
+      }
+      else fillRows(editor, result.data[kind]);
       qsa('[data-view]', editor).forEach(tab => {
         const active = tab.dataset.view === next;
         tab.classList.toggle('active', active);
@@ -1073,9 +1144,10 @@
       });
       editor.addEventListener('click', event => {
         const button = event.target.closest('button[data-action]');
-        if (!button) return;
+        if (!button || working || archived) return;
         const row = button.closest('tr.edit-row');
         const action = button.dataset.action;
+        if (['remove-row', 'move-up', 'move-down', 'add-row'].includes(action)) markDirty();
         if (action === 'toggle-rules') {
           const rules = row.nextElementSibling;
           rules.hidden = !rules.hidden;
@@ -1095,38 +1167,142 @@
           const added = qsa('tr.edit-row', body).pop();
           applyType(added);
           qs('[name="name"]', added).focus();
-        } else if (action === 'close-contract') {
-          editor.hidden = true;
-          fillRows(editor, data[kind]);
-        } else if (action === 'save-contract') {
-          save(editor, button);
         }
       });
     });
-    const save = async (editor, button) => {
-      const kind = editor.dataset.kind;
-      qs('.form-issues', editor).hidden = true;
-      const note = qs('[name="note"]', editor).value.trim() || null;
-      busy(button, true);
-      const result = view(editor) === 'yaml'
-        ? await api('PUT', '/api/scenes/' + path(scene) + '/sections/' + kind, {baseRevision: base, text: qs('[name="yaml"]', editor).value, note})
-        : await api('PUT', '/api/scenes/' + path(scene) + '/contract', {baseRevision: base, [kind]: items(editor), note});
-      if (!result.ok) {
-        busy(button, false);
-        if (result.status === 409 && result.data && result.data.error && result.data.error.code === 'stale_base') return toast(messages.stale_base);
-        return issues(editor, result);
+    const payload = async (silent = false) => {
+      const value = {baseRevision: base, note: qs('[name="contract-note"]').value.trim() || null, renames: {...pendingRenames}};
+      for (const editor of qsa('.contract-editor', host)) {
+        const kind = editor.dataset.kind;
+        if (view(editor) === 'yaml') value[kind] = qs('[name="yaml"]', editor).value;
+        else {
+          const rows = items(editor);
+          const rendered = await api('POST', '/api/contract/render', {key: kind, items: rows});
+          if (!rendered.ok) { if (!silent) issues(editor, rendered); return null; }
+          value[kind] = rendered.data.text;
+          if (kind === 'inputs') value.renames = mergedRenames(rows);
+        }
       }
-      flash(messages.contract_saved + ' v' + result.data.number);
-      location.href = '/scenes/' + path(scene) + '#' + kind;
+      return value;
     };
-    qsa('[data-action="edit-contract"]').forEach(button => {
-      button.addEventListener('click', () => {
-        const editor = qs('#contract-' + button.dataset.kind);
-        editor.hidden = false;
-        editor.scrollIntoView({block: 'start', behavior: 'smooth'});
-        const first = qs('input[name="name"]', editor);
-        if (first) first.focus({preventScroll: true});
+    const showErrors = result => {
+      const list = qs('#contract-issues');
+      const found = result.data?.error?.issues || [];
+      list.innerHTML = '<li>' + esc(errorMessage(result)) + '</li>' + found.map((item, index) =>
+        '<li><button type="button" class="text-btn" data-contract-issue="' + index + '">' + esc((item.section || '') + (item.sectionLine ? ':' + item.sectionLine : '') + ' ' + (item.message || item.text || '')) + '</button></li>').join('');
+      list.hidden = false;
+      qsa('[data-contract-issue]', list).forEach(button => {
+        const item = found[Number(button.dataset.contractIssue)];
+        button.disabled = !item.section || !item.sectionLine;
+        button.addEventListener('click', async () => {
+          const editor = qs('#contract-' + item.section);
+          await showView(editor, 'yaml');
+          selectLine(qs('[name="yaml"]', editor), item.sectionLine);
+        });
       });
+    };
+    const loadWorkspace = async () => {
+      const result = await api('GET', '/api/scenes/' + path(scene) + '/contract-workspace?revision=' + base);
+      if (!result.ok) { showErrors(result); return false; }
+      qsa('.contract-editor', host).forEach(editor => {
+        qs('[name="yaml"]', editor).value = result.data.yaml[editor.dataset.kind];
+        qsa('input, textarea, select, button', editor).forEach(field => { field.disabled = archived; });
+      });
+      sample = result.data.sample;
+      loaded = true;
+      return true;
+    };
+    const setPreview = (name, value, source, error = false) => {
+      const tile = qs('#contract-preview-' + name);
+      tile.setAttribute('aria-busy', 'false');
+      tile.dataset.error = String(error);
+      qs('[data-preview-source]', tile).textContent = source;
+      qs('[data-preview-value]', tile).textContent = value === null ? '' : JSON.stringify(value, null, 2);
+    };
+    const showSample = () => {
+      let source = sample
+        ? fill(messages.contract_sample_source, {number: base, run: sample.runId})
+        : fill(messages.contract_sample_empty, {number: base});
+      if (dirty) source += ' ' + messages.contract_sample_draft;
+      setPreview('sample', sample?.values || {}, source);
+    };
+    const refreshPreviews = async seq => {
+      if (!loaded || working || seq !== previewSeq) return;
+      // 唯讀預覽不彈出儲存錯誤；無效草稿清掉舊結果，避免誤認為目前內容。
+      const value = await payload(true);
+      if (seq !== previewSeq) return;
+      const result = value && await api('POST', '/api/scenes/' + path(scene) + '/contract-yaml/preview', value);
+      if (seq !== previewSeq) return;
+      if (!result?.ok) {
+        ['defaults', 'mapping'].forEach(name => setPreview(name, null, messages.contract_preview_invalid, true));
+        return;
+      }
+      let source = messages.contract_preview_draft;
+      const required = result.data.inputs.filter(([, spec]) => spec.default === undefined || spec.default === null).map(([name]) => name);
+      if (required.length) source += ' ' + fill(messages.contract_required, {names: required.join(', ')});
+      setPreview('defaults', Object.fromEntries(result.data.inputs.filter(([, spec]) => spec.default !== undefined && spec.default !== null).map(([name, spec]) => [name, spec.default])), source);
+      setPreview('mapping', Object.fromEntries(result.data.outputs.map(([name, spec]) => [name, spec.from || messages.contract_script_output])), messages.contract_preview_draft);
+    };
+    const schedulePreviews = () => {
+      const seq = ++previewSeq;
+      clearTimeout(previewTimer);
+      if (!loaded || working) return;
+      showSample();
+      ['defaults', 'mapping'].forEach(name => {
+        const tile = qs('#contract-preview-' + name);
+        tile.setAttribute('aria-busy', 'true');
+        tile.dataset.error = 'false';
+        qs('[data-preview-source]', tile).textContent = messages.working;
+      });
+      previewTimer = setTimeout(() => refreshPreviews(seq), 300);
+    };
+    saveButton.addEventListener('click', async () => {
+      if (!loaded || !dirty || archived || working) return;
+      working = true;
+      host.inert = true;
+      previewSeq += 1;
+      busy(saveButton, true);
+      qs('#contract-issues').hidden = true;
+      try {
+        const value = await payload();
+        if (!value) return;
+        const result = await api('PUT', '/api/scenes/' + path(scene) + '/contract-yaml', value);
+        if (!result.ok) return showErrors(result);
+        base = result.data.number;
+        host.dataset.base = base;
+        pendingRenames = {};
+        dirty = false;
+        // 儲存後原地更新原文與版本，不跳走、不保留舊表格覆寫新版本。
+        await loadWorkspace();
+        for (const editor of qsa('.contract-editor', host)) {
+          qsa('[data-view]', editor).forEach(tab => {
+            const active = tab.dataset.view === 'yaml';
+            tab.classList.toggle('active', active); tab.setAttribute('aria-selected', String(active));
+          });
+          qsa('[data-view-panel]', editor).forEach(panel => { panel.hidden = panel.dataset.viewPanel !== 'yaml'; });
+        }
+        state.textContent = messages.contract_saved + ' · v' + base;
+        qs('#contract-next span').textContent = fill(messages.contract_saved_next, {number: base});
+        qs('[data-validate-contract]').href = '/scenes/' + path(scene) + '/run?purpose=validation&revision=' + base;
+        qs('#contract-next').hidden = false;
+        await refreshSceneSummary(scene);
+      } finally {
+        working = false; host.inert = false; busy(saveButton, false);
+        saveButton.disabled = !dirty || archived;
+        schedulePreviews();
+      }
+    });
+    loadWorkspace().then(ok => {
+      if (!ok) {
+        ['defaults', 'sample', 'mapping'].forEach(name => setPreview(name, null, messages.contract_preview_invalid, true));
+        return;
+      }
+      schedulePreviews();
+      const kind = location.hash.slice(1).replace('contract-', '');
+      if (['inputs', 'outputs'].includes(kind)) {
+        const area = qs('#contract-' + kind + ' [name="yaml"]');
+        area.scrollIntoView({block: 'center'}); area.focus({preventScroll: true});
+      }
     });
   }
 
@@ -1169,6 +1345,60 @@
     }
     qs('[name="name"]', dialog).focus();
     return dialog;
+  }
+
+  function workflowIssues(problems, definition, workflowId, locate = false) {
+    const text = pageText();
+    return problems.map((item, index) => {
+      const node = definition.nodes.find(node => node.id === item.node);
+      const context = item.node ? fill(text.problem_context, {node: item.node, scene: node?.sceneId || '—'}) + (item.input ? ' · ' + item.input : '') : '';
+      const href = '/playground/' + path(workflowId) + (item.node ? '?node=' + path(item.node) + (item.input ? '&input=' + path(item.input) : '') : '#workflow-problems');
+      const action = locate
+        ? (node ? '<button class="text-btn" data-locate-problem="' + index + '">' + esc(text.locate_problem) + '</button>' : '')
+        : '<a class="text-btn" href="' + esc(href) + '">' + esc(text.open_problem) + '</a>';
+      return '<li>' + (context ? '<strong>' + esc(context) + '</strong>' : '') + '<span>' + esc(item.message) + '</span> ' + action + '</li>';
+    }).join('');
+  }
+
+  function bindIssueLocations(container, problems, locate) {
+    if (!locate) return;
+    qsa('[data-locate-problem]', container).forEach(button => button.addEventListener('click', () => {
+      if (container.closest('#dialog')) $('#dialog').close();
+      locate(problems[Number(button.dataset.locateProblem)]);
+    }));
+  }
+
+  function showWorkflowIssues(workflow, locate) {
+    modal(pageText().fix_problems, '<ul class="workflow-issue-list">' + workflowIssues(workflow.problems, workflow.definition, workflow.id, !!locate) + '</ul>', null);
+    bindIssueLocations(qs('#dialog-content'), workflow.problems, locate);
+  }
+
+  // 卡片與畫布共用同一份執行設定及 API；伺服器仍負責最後檢查。
+  function openWorkflowRun(workflow, locate, onProblems, onStarted) {
+    const text = pageText(), key = newKey();
+    modal(fill(text.run_named, {name: workflow.name}), qs('#workflow-run-form').innerHTML, {label: text.run_action, run: async () => {
+      const dialog = qs('#dialog-content');
+      const engine = qs('[name="engine"]', dialog).value || null;
+      const headless = (qs('[name="headless"]:checked', dialog) || {value: '1'}).value === '1';
+      const target = chosenTarget(dialog);
+      busy($('#dialog-action'), true);
+      const result = await api('POST', '/api/workflows/' + path(workflow.id) + '/runs', {engine, headless, target, idempotencyKey: key});
+      busy($('#dialog-action'), false);
+      if (!result.ok) {
+        qs('.form-error', dialog).textContent = errorMessage(result);
+        const problems = result.data?.error?.problems || [];
+        const list = qs('.form-issues', dialog);
+        list.classList.add('workflow-issue-list');
+        list.innerHTML = workflowIssues(problems, workflow.definition, workflow.id, !!locate);
+        list.hidden = problems.length === 0;
+        bindIssueLocations(dialog, problems, locate);
+        if (problems.length && onProblems) onProblems(problems);
+        return;
+      }
+      if (onStarted) { $('#dialog').close(); onStarted(result.data); }
+      else location.href = '/playground/runs/' + path(result.data.id);
+    }});
+    bindTargetChoice(qs('#dialog-content'));
   }
 
   function bindPlayground() {
@@ -1219,6 +1449,16 @@
         if (file) qs('[name="text"]', dialog).value = await file.text();
       });
     });
+    qsa('[data-action="run-composite"]').forEach(button => {
+      button.addEventListener('click', async () => {
+        busy(button, true);
+        const result = await api('GET', '/api/workflows/' + path(button.dataset.workflow));
+        busy(button, false);
+        if (!result.ok) return toast(errorMessage(result));
+        if (result.data.problems.length) return showWorkflowIssues(result.data);
+        openWorkflowRun(result.data);
+      });
+    });
     qsa('[data-action="delete-workflow"]').forEach(button => {
       button.addEventListener('click', () => {
         confirmDialog(fill(text.delete_title, {name: button.dataset.name}), text.delete_body, text.delete_action, async () => {
@@ -1231,7 +1471,7 @@
     });
   }
 
-  // 編輯序列：左邊場景庫、中間序列、右邊節點設定；改動先留在頁面上，按「儲存」才存檔
+  // DAG 畫布：座標只影響顯示，連線與資料來源決定執行依賴。
   function bindWorkflowEditor() {
     const root = qs('#workflow');
     if (!root) return;
@@ -1239,6 +1479,17 @@
     const data = JSON.parse(qs('#workflow-data').textContent);
     const library = new Map(data.library.map(scene => [scene.id, scene]));
     const definition = JSON.parse(JSON.stringify(data.definition));
+    const legacy = definition.mode === 'serial';
+    if (legacy) {
+      definition.edges = definition.nodes.slice(1).map((node, i) => ({source: definition.nodes[i].id, target: node.id}));
+      definition.version = 2;
+      definition.mode = 'dag';
+    }
+    definition.edges ||= [];
+    definition.nodes.forEach((node, i) => { node.position ||= {x: 40 + (i % 3) * 280, y: 40 + Math.floor(i / 3) * 160}; });
+    let zoom = 1, picked = null, dragging = false, editVersion = 0, saving = false;
+    let selectedSource = null, parameterPicked = null;
+    const wirePending = new Set();
     let version = data.version;
     let selected = definition.nodes.length ? 0 : -1;
     let problems = data.problems;
@@ -1250,7 +1501,7 @@
     const hasDefault = spec => spec.default !== undefined && spec.default !== null;
     const compatible = (output, input) => output === input || (output === 'integer' && input === 'number');
 
-    const sceneOf = node => library.get(node.sceneId) || null;
+    const sceneOf = node => node ? library.get(node.sceneId) || null : null;
     function revisionOf(node) {
       const scene = sceneOf(node);
       return scene ? scene.revisions.find(item => item.number === node.revision) || null : null;
@@ -1263,24 +1514,55 @@
       return 'n' + number;
     }
 
-    // 新節點：入參名稱與前面某個節點的出參相同、型別相容時，自動接上最近的那一個
-    function autoBind(node, index) {
-      const revision = revisionOf(node);
-      if (!revision) return;
-      for (const [name, spec] of revision.inputs) {
-        for (let i = index - 1; i >= 0; i -= 1) {
-          const upstream = revisionOf(definition.nodes[i]);
-          const output = upstream && upstream.outputs.find(([key]) => key === name);
-          if (output && compatible(output[1].type, spec.type)) {
-            node.inputs[name] = {node: definition.nodes[i].id, output: name};
-            break;
-          }
-        }
-      }
+    function allEdges() {
+      const edges = new Map(definition.edges.map(edge => [edge.source + ':' + edge.target, edge]));
+      definition.nodes.forEach(node => Object.values(node.inputs).forEach(binding => {
+        if (binding.node) edges.set(binding.node + ':' + node.id, {source: binding.node, target: node.id});
+      }));
+      return [...edges.values()];
+    }
+
+    function canConnect(source, target) {
+      if (source === target) return false;
+      const edges = allEdges();
+      const seen = new Set();
+      const reaches = id => {
+        if (id === source) return true;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return edges.filter(edge => edge.source === id).some(edge => reaches(edge.target));
+      };
+      return !reaches(target);
+    }
+
+    function connect(source, target) {
+      if (!source || !target || !canConnect(source, target)) { toast(text.cycle); return false; }
+      if (!definition.edges.some(edge => edge.source === source && edge.target === target)) definition.edges.push({source, target});
+      selected = definition.nodes.findIndex(node => node.id === target);
+      selectedSource = source;
+      picked = null;
+      qs('#canvas-hint').textContent = text.canvas_hint;
+      changed();
+      return true;
+    }
+
+    function resetInputs(node) {
+      node.inputs = Object.fromEntries((revisionOf(node)?.inputs || []).map(([name]) => [name, {auto: true}]));
+    }
+
+    function autoSource(node, name, spec) {
+      return definition.nodes.filter(upstream => allEdges().some(edge => edge.source === upstream.id && edge.target === node.id))
+        .filter(upstream => (revisionOf(upstream)?.outputs || []).some(([key, out]) => key === name && compatible(out.type, spec.type)));
     }
 
     function bindingText(node, name, spec) {
       const binding = node.inputs[name];
+      if (binding?.auto) {
+        const sources = autoSource(node, name, spec);
+        if (sources.length > 1) return fill(text.auto_ambiguous, {name});
+        if (sources.length === 1) return fill(text.binding_output, {name, node: sources[0].id, output: name});
+        return fill(hasDefault(spec) ? text.binding_default : text.binding_missing, {name, value: json(spec.default)});
+      }
       if (binding && 'value' in binding) return fill(text.binding_value, {name, value: json(binding.value)});
       if (binding) return fill(text.binding_output, {name, node: binding.node, output: binding.output});
       if (hasDefault(spec)) return fill(text.binding_default, {name, value: json(spec.default)});
@@ -1306,39 +1588,60 @@
         return;
       }
       list.innerHTML = [...groups].map(([group, items]) => '<h3 class="library-group">' + esc(group) + '</h3>' + items.map(scene =>
-        '<button type="button" class="library-item" data-add="' + esc(scene.id) + '"><strong>' + esc(scene.id) + '</strong>' +
+        '<button type="button" class="library-item" draggable="true" title="' + esc(text.library_hint) + '" data-add="' + esc(scene.id) + '"><strong>' + esc(scene.id) + '</strong>' +
         '<span>' + esc(scene.name) + '</span><small>' + esc(fill(text.add, {number: scene.publishedRevision || scene.revisions[0].number})) + '</small></button>').join('')).join('');
     }
 
-    function renderBoard() {
+    function scale() {
       const stage = qs('#flow-stage');
-      if (!definition.nodes.length) {
-        stage.innerHTML = '<div class="empty">' + esc(text.board_empty) + '</div>';
-        return;
-      }
-      stage.innerHTML = definition.nodes.map((node, index) => {
-        const scene = sceneOf(node);
-        const revision = revisionOf(node);
-        const count = problems.filter(item => item.node === node.id).length;
-        const lines = revision ? revision.inputs.map(([name, spec]) => {
-          const missing = !node.inputs[name] && !hasDefault(spec);
-          return '<li' + (missing ? ' class="text-danger"' : '') + '>' + esc(bindingText(node, name, spec)) + '</li>';
-        }).join('') : '';
-        const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
-        return '<div class="flow-node' + (index === selected ? ' selected' : '') + '" data-index="' + index + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '">' +
-          '<span class="flow-node-head"><span class="tag mono">' + esc(node.id) + '</span> ' + esc(fill(text.node_label, {number: index + 1})) +
-          ' · <code>' + esc(node.sceneId) + '</code> <span class="muted">v' + esc(node.revision) + '</span></span>' +
-          '<strong>' + esc(title) + '</strong>' +
-          (lines ? '<ul class="flow-bindings">' + lines + '</ul>' : '') +
-          (count ? '<span class="badge red">' + esc(fill(text.problem_count, {count})) + '</span>' : '') +
-          '</div>' + (index < definition.nodes.length - 1 ? '<div class="flow-arrow" aria-hidden="true">↓</div>' : '');
+      const width = Math.max(800, ...definition.nodes.map(node => node.position.x + 260));
+      const height = Math.max(400, ...definition.nodes.map(node => node.position.y + 160));
+      stage.style.width = width + 'px'; stage.style.height = height + 'px';
+      stage.style.transform = 'scale(' + zoom + ')';
+      qs('#canvas-spacer').style.width = width * zoom + 'px';
+      qs('#canvas-spacer').style.height = height * zoom + 'px';
+      qs('#canvas-scale').textContent = Math.round(zoom * 100) + '%';
+    }
+
+    function drawEdges() {
+      const stage = qs('#flow-stage');
+      const nodes = new Map(definition.nodes.map(node => [node.id, node]));
+      qsa('[data-edge-line]', stage).forEach(line => {
+        const a = nodes.get(line.dataset.source), b = nodes.get(line.dataset.target);
+        if (!a || !b) return;
+        const x = a.position.x + 200, y = a.position.y + 48, xx = b.position.x, yy = b.position.y + 48;
+        const bend = Math.max(50, Math.abs(xx - x) / 2);
+        line.setAttribute('d', `M ${x} ${y} C ${x + bend} ${y}, ${xx - bend} ${yy}, ${xx} ${yy}`);
+      });
+    }
+
+    function renderBoard() {
+      if (dragging) return;
+      const stage = qs('#flow-stage');
+      const edges = allEdges().map(edge => {
+        const attrs = ' data-edge-line data-source="' + esc(edge.source) + '" data-target="' + esc(edge.target) + '"';
+        return '<path class="dag-edge' + (edge.source === selectedSource && edge.target === definition.nodes[selected]?.id ? ' is-selected' : '') + '"' + attrs + ' marker-end="url(#dag-arrow)"/>' +
+          '<path class="dag-edge-hit"' + attrs + ' data-edge tabindex="0" role="button" aria-label="' + esc(fill(text.edge_label, edge)) + '"/>';
       }).join('');
+      stage.innerHTML = '<svg class="dag-links"><defs><marker id="dag-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>' + edges + '</svg>' +
+        (!definition.nodes.length ? '<div class="empty">' + esc(text.board_empty) + '</div>' : '') +
+        definition.nodes.map((node, index) => {
+          const revision = revisionOf(node), scene = sceneOf(node);
+          const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
+          const count = problems.filter(item => item.node === node.id).length;
+          return '<div class="flow-node' + (index === selected ? ' selected' : '') + (count ? ' has-problems' : '') + '" data-index="' + index + '" data-node="' + esc(node.id) + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '" style="left:' + node.position.x + 'px;top:' + node.position.y + 'px">' +
+            '<span class="flow-node-head"><span class="tag mono">' + esc(node.sceneId) + '</span> <span class="muted">v' + node.revision + '</span></span>' +
+            '<strong title="' + esc(title) + '">' + esc(title) + '</strong><small>' + esc(node.id) + (count ? ' · ' + esc(fill(text.problem_count, {count})) : '') + '</small>' +
+            '<button class="dag-port in" data-in="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_to, {node: node.id})) + '"></button>' +
+            '<button class="dag-port out" data-out="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_from, {node: node.id})) + '"></button></div>';
+        }).join('');
+      scale(); drawEdges();
     }
 
     function sourceOf(node, name, spec) {
       const binding = node.inputs[name];
       if (!binding) return hasDefault(spec) ? 'default' : '';
-      return 'value' in binding ? 'value' : 'out:' + binding.node + ':' + binding.output;
+      return binding.auto ? 'auto' : 'value' in binding ? 'value' : 'out:' + binding.node + ':' + binding.output;
     }
 
     function valueField(name, spec, binding) {
@@ -1354,40 +1657,86 @@
       return '<input type="' + type + '"' + step + attrs + ' value="' + esc(current === '' ? '' : String(current)) + '">';
     }
 
-    function inputRow(node, index, name, spec) {
-      const binding = node.inputs[name];
-      const current = sourceOf(node, name, spec);
-      const option = (value, label, disabled) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + esc(label) + '</option>';
-      let options = hasDefault(spec)
-        ? option('default', fill(text.source_default, {value: json(spec.default)}))
-        : option('', text.source_missing, true);
-      options += option('value', text.source_value);
-      let outputs = '';
-      let found = current === '' || current === 'default' || current === 'value';
-      definition.nodes.slice(0, index).forEach(upstream => {
-        const revision = revisionOf(upstream);
-        (revision ? revision.outputs : []).forEach(([output, outSpec]) => {
+    function inputRow(node, name, spec) {
+      const binding = node.inputs[name], current = sourceOf(node, name, spec);
+      const mode = current.startsWith('out:') ? 'wire' : current || 'default';
+      const choosingWire = mode === 'wire' || wirePending.has(node.id + ':' + name);
+      const option = (value, label, disabled = false) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + esc(label) + '</option>';
+      let options = '<option value="">' + esc(text.pick_output) + '</option>', found = !current.startsWith('out:');
+      definition.nodes.filter(upstream => canConnect(upstream.id, node.id)).forEach(upstream => {
+        (revisionOf(upstream)?.outputs || []).forEach(([output, outSpec]) => {
           const value = 'out:' + upstream.id + ':' + output;
-          found = found || value === current;
-          const label = fill(text.source_output, {node: upstream.id, scene: upstream.sceneId, output, type: outSpec.type});
-          outputs += option(value, label, !compatible(outSpec.type, spec.type) && value !== current);
+          found ||= value === current;
+          options += option(value, fill(text.source_output, {node: upstream.id, scene: upstream.sceneId, output, type: outSpec.type}), !compatible(outSpec.type, spec.type));
         });
       });
       if (!found) options += option(current, fill(text.source_broken, {node: binding.node, output: binding.output}));
-      if (outputs) options += '<optgroup label="' + esc(text.source_outputs) + '">' + outputs + '</optgroup>';
-      const required = hasDefault(spec) ? '' : ' <span class="tag">' + esc(text.required) + '</span>';
-      const description = spec.description ? '<span class="cell-sub">' + esc(spec.description) + '</span>' : '';
+      const required = hasDefault(spec) ? '' : ' <span class="required-mark" title="' + esc(text.required) + '">*</span>';
       return '<div class="input-source" data-input="' + esc(name) + '">' +
-        '<label class="field"><span><code>' + esc(name) + '</code> <span class="muted">' + esc(spec.type) + '</span>' + required + description + '</span>' +
-        '<select data-source="' + esc(name) + '">' + options + '</select></label>' +
-        (current === 'value' ? valueField(name, spec, binding) : '') + '</div>';
+        '<div class="input-name"><button type="button" class="parameter-port in" data-input-port="' + esc(name) + '" aria-label="' + esc(fill(text.bind_input, {name})) + '"></button><code>' + esc(name) + '</code>' + required + '<span class="cell-sub">' + esc(spec.type) + (spec.description ? ' · ' + esc(spec.description) : '') + '</span></div>' +
+        '<div class="binding-method"><div class="binding-modes" role="group" aria-label="' + esc(fill(text.field_source, {name})) + '">' +
+        ['auto', 'default', 'value', 'wire'].map(key => '<button type="button" data-mode="' + key + '" data-name="' + esc(name) + '" aria-pressed="' + (mode === key) + '"' + (mode === key ? ' class="active"' : '') + '>' + esc(text['mode_' + key]) + '</button>').join('') + '</div>' +
+        (choosingWire ? '<select data-source="' + esc(name) + '" aria-label="' + esc(fill(text.field_source, {name})) + '">' + options + '</select>' : '') + '</div>' +
+        '<div class="binding-value">' + (current === 'value' ? valueField(name, spec, binding) : '') + '<span class="binding-summary">' + esc(bindingText(node, name, spec)) + '</span>' + (binding?.node && binding.node !== selectedSource ? '<button class="text-btn" data-view-source="' + esc(binding.node) + '">' + esc(text.show_source) + '</button>' : '') + '</div></div>';
+    }
+
+    function renderParameters(node) {
+      parameterPicked = null;
+      qs('#parameter-hint').textContent = text.parameter_hint;
+      const sources = node ? definition.nodes.filter(upstream => allEdges().some(edge => edge.source === upstream.id && edge.target === node.id)) : [];
+      if (!sources.some(upstream => upstream.id === selectedSource)) selectedSource = sources[0]?.id || null;
+      const upstream = sources.find(item => item.id === selectedSource);
+      qs('#parameter-node').textContent = node ? (upstream ? upstream.id + ' · ' + upstream.sceneId + ' → ' : '') + node.id + ' · ' + node.sceneId : '';
+      const contractButton = (item, kind) => '<button type="button" class="text-btn" data-inspect-contract="' + kind + '" data-inspect-node="' + esc(item.id) + '">' + esc(text['inspect_' + kind]) + ' v' + item.revision + '</button>';
+      qs('#parameter-source').innerHTML = upstream ? '<label class="source-picker">' + esc(text.outputs) + '<select data-parameter-source aria-label="' + esc(text.parameter_source) + '">' + sources.map(item => '<option value="' + esc(item.id) + '"' + (item.id === selectedSource ? ' selected' : '') + '>' + esc(item.id + ' · ' + item.sceneId) + '</option>').join('') + '</select></label>' + contractButton(upstream, 'outputs') : esc(text.outputs);
+      qs('#parameter-target').innerHTML = node ? esc(node.id + ' · ' + text.inputs) + ' ' + contractButton(node, 'inputs') : esc(text.inputs);
+      const outputs = upstream ? revisionOf(upstream)?.outputs || [] : [];
+      qs('#node-outputs').innerHTML = outputs.length ? outputs.map(([name, spec]) => '<div class="parameter-output"><div><code>' + esc(name) + '</code><button type="button" class="parameter-port out" data-output-port="' + esc(name) + '" aria-label="' + esc(fill(text.bind_output, {name})) + '"></button></div><span class="cell-sub">' + esc(spec.type) + (spec.description ? ' · ' + esc(spec.description) : '') + '</span></div>').join('') : '<p class="muted parameter-empty">' + esc(upstream ? text.no_outputs : text.no_upstream) + '</p>';
+      requestAnimationFrame(drawParameterWires);
+    }
+
+    function drawParameterWires(pointer) {
+      const grid = qs('#parameter-grid'), svg = qs('#parameter-wires'), node = definition.nodes[selected];
+      if (!node) { svg.innerHTML = ''; return; }
+      const bounds = grid.getBoundingClientRect();
+      const point = el => { const rect = el.getBoundingClientRect(); return {x: rect.left + rect.width / 2 - bounds.left, y: rect.top + rect.height / 2 - bounds.top}; };
+      const curve = (a, b, extra = '') => '<path ' + extra + ' d="M ' + a.x + ' ' + a.y + ' C ' + (a.x + 32) + ' ' + a.y + ', ' + (b.x - 32) + ' ' + b.y + ', ' + b.x + ' ' + b.y + '"/>';
+      const outputPort = name => qsa('[data-output-port]').find(el => el.dataset.outputPort === name);
+      let html = '';
+      (revisionOf(node)?.inputs || []).forEach(([name, spec]) => {
+        const binding = node.inputs[name];
+        const sources = binding?.auto ? autoSource(node, name, spec) : [];
+        const from = binding?.node || (sources.length === 1 ? sources[0].id : null);
+        if (from !== selectedSource) return;
+        const out = outputPort(binding?.output || name), input = qsa('[data-input-port]').find(el => el.dataset.inputPort === name);
+        if (out && input) html += curve(point(out), point(input), 'data-parameter-wire="' + esc(name) + '"');
+      });
+      if (parameterPicked && pointer) {
+        const out = outputPort(parameterPicked);
+        if (out) html += curve(point(out), {x: pointer.x - bounds.left, y: pointer.y - bounds.top}, 'class="is-pending"');
+      }
+      svg.setAttribute('width', grid.scrollWidth); svg.setAttribute('height', grid.clientHeight); svg.innerHTML = html;
+    }
+
+    function bindParameter(output, input) {
+      const node = definition.nodes[selected], upstream = definition.nodes.find(item => item.id === selectedSource);
+      const outSpec = new Map(revisionOf(upstream)?.outputs || []).get(output);
+      const inSpec = new Map(revisionOf(node)?.inputs || []).get(input);
+      if (!outSpec || !inSpec || !compatible(outSpec.type, inSpec.type)) { toast(text.incompatible); return; }
+      if (!canConnect(upstream.id, node.id)) { toast(text.cycle); return; }
+      if (!definition.edges.some(edge => edge.source === upstream.id && edge.target === node.id)) definition.edges.push({source: upstream.id, target: node.id});
+      node.inputs[input] = {node: upstream.id, output};
+      wirePending.delete(node.id + ':' + input);
+      changed();
     }
 
     function renderSettings() {
-      const box = qs('#node-settings');
+      const box = qs('#node-settings'), inputsBox = qs('#node-inputs');
       const node = definition.nodes[selected];
+      renderParameters(node);
       if (!node) {
         box.innerHTML = '<p class="muted">' + esc(text.settings_empty) + '</p>';
+        inputsBox.innerHTML = box.innerHTML;
         return;
       }
       const scene = sceneOf(node);
@@ -1408,46 +1757,97 @@
         html += '<p class="cell-sub">' + esc(fill(text.newer_revision, {number: scene.publishedRevision, current: node.revision})) + '</p>';
       }
       if (revision && revision.role) html += '<p class="cell-sub">' + esc(fill(text.role, {role: revision.role})) + '</p>';
-      html += '<h3 class="section-title">' + esc(text.inputs) + '</h3>';
-      if (!revision) html += '<p class="muted">' + esc(text.no_contract) + '</p>';
-      else if (!revision.inputs.length) html += '<p class="muted">' + esc(text.no_inputs) + '</p>';
-      else html += revision.inputs.map(([name, spec]) => inputRow(node, selected, name, spec)).join('');
+      inputsBox.innerHTML = !revision ? '<p class="muted">' + esc(text.no_contract) + '</p>'
+        : !revision.inputs.length ? '<p class="muted">' + esc(text.no_inputs) + '</p>'
+        : revision.inputs.map(([name, spec]) => inputRow(node, name, spec)).join('');
       if (revision) {
         html += '<h3 class="section-title">' + esc(text.outputs) + '</h3>';
         html += revision.outputs.length
           ? '<ul class="io-list">' + revision.outputs.map(([name, spec]) => '<li><code>' + esc(name) + '</code> <span class="muted">' + esc(spec.type) + '</span></li>').join('') + '</ul>'
           : '<p class="muted">' + esc(text.no_outputs) + '</p>';
       }
-      const last = definition.nodes.length - 1;
-      html += '<div class="actions">' +
-        '<button type="button" class="button" data-move="-1"' + (selected === 0 ? ' disabled' : '') + '>' + esc(text.move_up) + '</button>' +
-        '<button type="button" class="button" data-move="1"' + (selected === last ? ' disabled' : '') + '>' + esc(text.move_down) + '</button>' +
-        '<button type="button" class="button danger" data-remove>' + esc(text.remove) + '</button></div>';
+      const candidates = definition.nodes.filter(upstream => canConnect(upstream.id, node.id) && !allEdges().some(edge => edge.source === upstream.id && edge.target === node.id));
+      html += '<h3 class="section-title">' + esc(text.dependencies) + '</h3><label class="field">' + esc(text.connect_source) + '<select data-connect-source>' + candidates.map(upstream => '<option value="' + esc(upstream.id) + '">' + esc(upstream.id + ' · ' + upstream.sceneId) + '</option>').join('') + '</select></label>' +
+        '<button class="button" data-connect' + (!candidates.length ? ' disabled' : '') + '>' + esc(text.connect) + '</button>';
+      html += allEdges().filter(edge => edge.target === node.id).map(edge => '<div class="edge-row"><code>' + esc(edge.source) + ' → ' + esc(edge.target) + '</code><button class="text-btn" data-unlink="' + esc(edge.source) + '">' + esc(text.unlink) + '</button></div>').join('');
+      html += '<p class="cell-sub">' + esc(text.unlink_hint) + '</p><button type="button" class="button danger" data-remove>' + esc(text.remove) + '</button>';
       box.innerHTML = html + '</div>';
+      renderFieldProblems();
+    }
+
+    function renderFieldProblems() {
+      const node = definition.nodes[selected];
+      qsa('#node-inputs [data-input]').forEach((row, index) => {
+        const items = problems.filter(item => item.node === node?.id && item.input === row.dataset.input);
+        row.classList.toggle('has-problems', items.length > 0);
+        qs('.input-problems', row)?.remove();
+        qsa('input, select, [data-mode]', row).forEach(field => {
+          field.setAttribute('aria-invalid', String(items.length > 0));
+          field.removeAttribute('aria-describedby');
+          if (items.length) field.setAttribute('aria-describedby', 'input-problems-' + index);
+        });
+        if (items.length) {
+          const hint = document.createElement('div');
+          hint.id = 'input-problems-' + index;
+          hint.className = 'input-problems';
+          hint.textContent = items.map(item => item.message).join(messages.list_separator);
+          row.appendChild(hint);
+        }
+      });
+    }
+
+    function focusProblem(item) {
+      selected = definition.nodes.findIndex(node => node.id === item.node);
+      if (selected < 0) return;
+      render();
+      const card = qsa('[data-node]', qs('#flow-stage')).find(el => el.dataset.node === item.node);
+      card?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      const row = qsa('#node-inputs [data-input]').find(el => el.dataset.input === item.input);
+      const field = row && qs('[data-mode].active', row);
+      (row || card)?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      (field || card)?.focus({preventScroll: true});
     }
 
     function renderProblems() {
       const panel = qs('#workflow-problems');
       qs('.count', panel).textContent = problems.length;
-      qs('ul', panel).innerHTML = problems.map(item => '<li>' + esc(item.message) + '</li>').join('');
+      qs('ul', panel).innerHTML = workflowIssues(problems, definition, data.id, true);
+      bindIssueLocations(panel, problems, focusProblem);
+      renderFieldProblems();
       panel.hidden = problems.length === 0;
     }
 
     function render({settings = true} = {}) {
-      renderBoard();
       if (settings) renderSettings();
+      else {
+        const node = definition.nodes[selected];
+        if (node) qsa('#node-inputs [data-input]').forEach(row => {
+          const name = row.dataset.input, spec = new Map(revisionOf(node)?.inputs || []).get(name);
+          if (spec) qs('.binding-summary', row).textContent = bindingText(node, name, spec);
+        });
+      }
+      renderBoard();
       renderProblems();
-      saveButton.disabled = !dirty;
+      requestAnimationFrame(drawParameterWires);
+      rememberCanvas();
+      saveButton.disabled = !dirty || saving;
       saveButton.title = dirty ? text.unsaved : '';
+      qs('#workflow-save-state').textContent = saving ? text.saving : dirty ? text.unsaved : text.saved;
+      qs('#parameter-save-state').textContent = qs('#workflow-save-state').textContent;
     }
 
     // 每次修改後（稍等一下）請伺服器檢查，問題列在上方與節點上
     function scheduleCheck() {
       clearTimeout(checkTimer);
+      checkSeq += 1;
       checkTimer = setTimeout(async () => {
         const sequence = ++checkSeq;
         const result = await api('POST', '/api/workflows/check', {definition});
-        if (!result.ok || sequence !== checkSeq) return;
+        if (sequence !== checkSeq) return;
+        if (!result.ok) {
+          qs('#workflow-save-state').textContent = fill(text.check_failed, {reason: errorMessage(result)});
+          return;
+        }
         problems = result.data.problems;
         render({settings: false});
       }, 300);
@@ -1455,59 +1855,162 @@
 
     function changed(options) {
       dirty = true;
+      editVersion += 1;
       render(options);
       scheduleCheck();
     }
 
     async function save() {
+      if (saving) return false;
+      saving = true;
+      const savedEdit = editVersion;
+      clearTimeout(checkTimer); checkSeq += 1;
       busy(saveButton, true);
+      qs('#workflow-save-state').textContent = text.saving;
       const result = await api('PUT', '/api/workflows/' + path(data.id), {baseVersion: version, definition});
       busy(saveButton, false);
+      saving = false;
       if (!result.ok) {
         saveButton.disabled = false;
+        qs('#workflow-save-state').textContent = text.unsaved;
         if (result.status === 409) toast(text.stale);
         else toast(errorMessage(result));
         return false;
       }
       version = result.data.version;
-      problems = result.data.problems;
-      dirty = false;
+      dirty = savedEdit !== editVersion;
+      if (!dirty) problems = result.data.problems;
+      else scheduleCheck();
       render({settings: false});
       toast(text.saved);
       return true;
     }
 
-    qs('#library-search').addEventListener('input', renderLibrary);
-    qs('#library-list').addEventListener('click', event => {
-      const button = event.target.closest('[data-add]');
-      if (!button) return;
-      const scene = library.get(button.dataset.add);
+    function addNode(sceneId, position) {
+      const scene = library.get(sceneId);
+      if (!scene || scene.archived || !scene.revisions.length) return;
       const node = {id: newNodeId(), sceneId: scene.id, revision: scene.publishedRevision || scene.revisions[0].number, inputs: {}};
-      autoBind(node, definition.nodes.length);
+      resetInputs(node);
+      node.position = position || {x: 40 + (definition.nodes.length % 3) * 280, y: 40 + Math.floor(definition.nodes.length / 3) * 160};
       definition.nodes.push(node);
       selected = definition.nodes.length - 1;
       changed();
+    }
+    qs('#library-search').addEventListener('input', renderLibrary);
+    qs('#library-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-add]');
+      if (button) addNode(button.dataset.add);
     });
-    const stage = qs('#flow-stage');
-    const pick = target => {
-      const card = target.closest('[data-index]');
-      if (!card) return;
-      selected = Number(card.dataset.index);
-      render();
-    };
-    stage.addEventListener('click', event => pick(event.target));
-    stage.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
+    qs('#library-list').addEventListener('dragstart', event => {
+      const button = event.target.closest('[data-add]');
+      if (!button) return;
+      event.dataTransfer.setData('application/x-rpa-scene', button.dataset.add);
+      event.dataTransfer.effectAllowed = 'copy';
+    });
+    const stage = qs('#flow-stage'), viewport = qs('#canvas-viewport');
+    viewport.addEventListener('dragover', event => {
+      if (!event.dataTransfer.types.includes('application/x-rpa-scene')) return;
       event.preventDefault();
-      pick(event.target);
+      event.dataTransfer.dropEffect = 'copy';
+      viewport.classList.add('is-drop-target');
     });
+    viewport.addEventListener('dragleave', event => {
+      if (!viewport.contains(event.relatedTarget)) viewport.classList.remove('is-drop-target');
+    });
+    viewport.addEventListener('drop', event => {
+      const sceneId = event.dataTransfer.getData('application/x-rpa-scene');
+      if (!sceneId) return;
+      event.preventDefault();
+      viewport.classList.remove('is-drop-target');
+      const bounds = stage.getBoundingClientRect();
+      addNode(sceneId, {x: Math.max(0, Math.min(100000, (event.clientX - bounds.left) / zoom - 100)), y: Math.max(0, Math.min(100000, (event.clientY - bounds.top) / zoom - 48))});
+    });
+    qs('#library-list').addEventListener('dragend', () => viewport.classList.remove('is-drop-target'));
+    function pick(target) {
+      const edge = target.closest('[data-edge]');
+      const card = target.closest('[data-index]');
+      if (edge) { selected = definition.nodes.findIndex(node => node.id === edge.dataset.target); selectedSource = edge.dataset.source; }
+      else if (card) selected = Number(card.dataset.index);
+      else return;
+      render();
+    }
+    stage.addEventListener('click', event => {
+      const out = event.target.closest('[data-out]'), input = event.target.closest('[data-in]');
+      if (out) { picked = out.dataset.out; qs('#canvas-hint').textContent = fill(text.pick_target, {node: picked}); }
+      else if (input && picked) connect(picked, input.dataset.in);
+      else pick(event.target);
+    });
+    stage.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { picked = null; qs('#canvas-hint').textContent = text.canvas_hint; }
+      const card = event.target.closest('[data-index]');
+      const delta = {ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10]}[event.key];
+      if (card && delta && event.target === card) {
+        event.preventDefault(); const node = definition.nodes[Number(card.dataset.index)];
+        node.position.x = Math.max(0, Math.min(100000, node.position.x + delta[0]));
+        node.position.y = Math.max(0, Math.min(100000, node.position.y + delta[1]));
+        changed(); qs('[data-node="' + node.id + '"]', stage).focus();
+      } else if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('button')) {
+        event.preventDefault(); pick(event.target);
+      }
+    });
+    stage.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      const card = event.target.closest('[data-index]');
+      if (!card || event.target.closest('button')) return;
+      selected = Number(card.dataset.index); renderSettings();
+      qsa('[data-index]', stage).forEach(el => { el.classList.toggle('selected', el === card); el.setAttribute('aria-pressed', String(el === card)); });
+      const node = definition.nodes[selected], origin = {...node.position}, x = event.clientX, y = event.clientY;
+      dragging = true; card.setPointerCapture(event.pointerId);
+      let moved = false;
+      card.onpointermove = ev => {
+        if (Math.abs(ev.clientX - x) + Math.abs(ev.clientY - y) < 3 && !moved) return;
+        moved = true;
+        node.position.x = Math.max(0, Math.min(100000, origin.x + (ev.clientX - x) / zoom));
+        node.position.y = Math.max(0, Math.min(100000, origin.y + (ev.clientY - y) / zoom));
+        card.style.left = node.position.x + 'px'; card.style.top = node.position.y + 'px';
+        drawEdges();
+      };
+      const end = () => { card.onpointermove = card.onpointerup = card.onpointercancel = null; dragging = false; if (moved) changed({settings: false}); };
+      card.onpointerup = end; card.onpointercancel = end;
+    });
+    qsa('[data-zoom]').forEach(button => button.addEventListener('click', () => { zoom = Math.max(.2, Math.min(2, zoom + Number(button.dataset.zoom) * .1)); scale(); }));
+    qs('[data-fit]').addEventListener('click', () => {
+      const viewport = qs('#canvas-viewport');
+      zoom = Math.max(.001, Math.min(1, viewport.clientWidth / parseFloat(stage.style.width), viewport.clientHeight / parseFloat(stage.style.height)));
+      viewport.scrollTo(0, 0); scale();
+    });
+    qs('[data-reset-inputs]').addEventListener('click', () => { const node = definition.nodes[selected]; if (node) { resetInputs(node); changed(); } });
 
-    const settings = qs('#node-settings');
+    function setBinding(node, name, value) {
+      const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
+      wirePending.delete(node.id + ':' + name);
+      if (value === 'auto') {
+        node.inputs[name] = {auto: true};
+      } else if (value === 'default' || value === '') {
+        delete node.inputs[name];
+      } else if (value === 'value') {
+        const initial = hasDefault(spec) ? spec.default
+          : spec.type === 'boolean' ? false
+          : Array.isArray(spec.enum) ? spec.enum[0]
+          : spec.type === 'integer' || spec.type === 'number' ? 0 : '';
+        node.inputs[name] = {value: initial};
+      } else {
+        const [, upstream, output] = value.split(':');
+        selectedSource = upstream;
+        if (!canConnect(upstream, node.id)) return toast(text.cycle);
+        if (!definition.edges.some(edge => edge.source === upstream && edge.target === node.id)) definition.edges.push({source: upstream, target: node.id});
+        node.inputs[name] = {node: upstream, output};
+      }
+      changed();
+    }
+
+    const settings = root;
     settings.addEventListener('change', event => {
       const node = definition.nodes[selected];
       if (!node) return;
       const target = event.target;
-      if (target.dataset.field === 'revision') {
+      if (target.hasAttribute('data-parameter-source')) { selectedSource = target.value; render(); }
+      else if (target.dataset.field === 'revision') {
         node.revision = Number(target.value);
         const revision = revisionOf(node);
         if (revision) {
@@ -1516,22 +2019,7 @@
         }
         changed();
       } else if (target.dataset.source !== undefined) {
-        const name = target.dataset.source;
-        const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
-        const value = target.value;
-        if (value === 'default' || value === '') {
-          delete node.inputs[name];
-        } else if (value === 'value') {
-          const initial = hasDefault(spec) ? spec.default
-            : spec.type === 'boolean' ? false
-            : Array.isArray(spec.enum) ? spec.enum[0]
-            : spec.type === 'integer' || spec.type === 'number' ? 0 : '';
-          node.inputs[name] = {value: initial};
-        } else {
-          const [, upstream, output] = value.split(':');
-          node.inputs[name] = {node: upstream, output};
-        }
-        changed();
+        setBinding(node, target.dataset.source, target.value);
       } else if (target.dataset.value !== undefined && target.tagName === 'SELECT') {
         const name = target.dataset.value;
         const spec = new Map(revisionOf(node).inputs).get(name);
@@ -1540,7 +2028,7 @@
         changed({settings: false});
       }
     });
-    // 打字時只更新序列與檢查，不重畫設定（游標才不會跳走）
+    // 打字時只更新定義與檢查，不重畫設定（游標才不會跳走）
     settings.addEventListener('input', event => {
       const target = event.target;
       const node = definition.nodes[selected];
@@ -1553,16 +2041,75 @@
       node.inputs[name] = {value};
       changed({settings: false});
     });
+    // 參數可拖曳，也可依次點選出參與入參；鍵盤 Enter／Space 使用相同按鈕。
+    const parameters = qs('.flow-parameters');
+    new ResizeObserver(() => requestAnimationFrame(drawParameterWires)).observe(qs('#parameter-grid'));
+    parameters.addEventListener('click', event => {
+      const mode = event.target.closest('[data-mode]');
+      const output = event.target.closest('[data-output-port]');
+      const input = event.target.closest('[data-input-port]');
+      const node = definition.nodes[selected];
+      const viewSource = event.target.closest('[data-view-source]');
+      if (viewSource) { selectedSource = viewSource.dataset.viewSource; render(); }
+      else if (mode && node) {
+        const name = mode.dataset.name, key = mode.dataset.mode;
+        if (key === 'wire') { wirePending.add(node.id + ':' + name); renderSettings(); }
+        else {
+          setBinding(node, name, key);
+        }
+      } else if (output) {
+        parameterPicked = output.dataset.outputPort;
+        qsa('[data-output-port]').forEach(port => port.classList.toggle('is-picked', port === output));
+        qs('#parameter-hint').textContent = fill(text.pick_input, {name: parameterPicked});
+      } else if (input && parameterPicked) bindParameter(parameterPicked, input.dataset.inputPort);
+    });
+    parameters.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { parameterPicked = null; renderSettings(); }
+    });
+    parameters.addEventListener('pointerdown', event => {
+      const output = event.target.closest('[data-output-port]');
+      if (!output || event.button !== 0) return;
+      parameterPicked = output.dataset.outputPort;
+      const origin = {x: event.clientX, y: event.clientY};
+      let moved = false;
+      const move = ev => {
+        moved ||= Math.abs(ev.clientX - origin.x) + Math.abs(ev.clientY - origin.y) > 4;
+        if (moved) { ev.preventDefault(); drawParameterWires({x: ev.clientX, y: ev.clientY}); }
+      };
+      const end = ev => {
+        document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', cancel);
+        if (moved) {
+          const input = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-input-port]');
+          if (input && ev.type !== 'pointercancel') bindParameter(output.dataset.outputPort, input.dataset.inputPort);
+          else { parameterPicked = null; drawParameterWires(); }
+        }
+      };
+      const cancel = ev => { parameterPicked = null; end(ev); drawParameterWires(); };
+      document.addEventListener('pointermove', move, {passive: false}); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', cancel);
+    });
+    parameters.addEventListener('click', async event => {
+      const button = event.target.closest('[data-inspect-contract]');
+      if (!button) return;
+      const node = definition.nodes.find(item => item.id === button.dataset.inspectNode);
+      const kind = button.dataset.inspectContract;
+      const result = await api('GET', '/api/scenes/' + path(node.sceneId) + '/sections/' + kind + '?revision=' + node.revision);
+      if (!result.ok) return toast(errorMessage(result));
+      modal(node.id + ' · ' + node.sceneId + ' · v' + node.revision, '<p class="hint">' + esc(text.pinned_contract) + '</p><pre class="contract-preview-code">' + esc(result.data.text) + '</pre><a class="button" href="/scenes/' + path(node.sceneId) + '#contract-' + kind + '" target="_blank" rel="noopener">' + esc(text.edit_contract_tab) + '</a>', null);
+    });
+
     settings.addEventListener('click', event => {
-      const move = event.target.closest('[data-move]');
-      const remove = event.target.closest('[data-remove]');
-      if (move) {
-        const next = selected + Number(move.dataset.move);
-        if (next < 0 || next >= definition.nodes.length) return;
-        [definition.nodes[next], definition.nodes[selected]] = [definition.nodes[selected], definition.nodes[next]];
-        selected = next;
+      const remove = event.target.closest('[data-remove]'), unlink = event.target.closest('[data-unlink]');
+      const node = definition.nodes[selected];
+      if (!node) return;
+      if (event.target.closest('[data-connect]')) connect(qs('[data-connect-source]').value, node.id);
+      else if (unlink) {
+        const source = unlink.dataset.unlink;
+        definition.edges = definition.edges.filter(edge => edge.source !== source || edge.target !== node.id);
+        Object.entries(node.inputs).forEach(([name, binding]) => { if (binding.node === source) node.inputs[name] = {auto: true}; });
         changed();
       } else if (remove) {
+        definition.edges = definition.edges.filter(edge => edge.source !== node.id && edge.target !== node.id);
+        definition.nodes.forEach(other => Object.entries(other.inputs).forEach(([name, binding]) => { if (binding.node === node.id) other.inputs[name] = {auto: true}; }));
         definition.nodes.splice(selected, 1);
         selected = Math.min(selected, definition.nodes.length - 1);
         changed();
@@ -1583,6 +2130,7 @@
         data.name = result.data.name;
         data.description = result.data.description || '';
         qs('#title').textContent = data.name;
+        qs('#title').title = data.name;
         qs('#description').textContent = data.description || text.description;
         $('#dialog').close();
         toast(text.saved);
@@ -1594,32 +2142,26 @@
       download('workflow-' + data.id + '.json', JSON.stringify(exported, null, 2) + '\n');
     });
 
+    qs('[data-action="workflow-check"]').addEventListener('click', async event => {
+      clearTimeout(checkTimer);
+      const sequence = ++checkSeq, button = event.currentTarget;
+      busy(button, true);
+      const result = await api('POST', '/api/workflows/check', {definition});
+      busy(button, false);
+      if (sequence !== checkSeq) return;
+      if (!result.ok) return toast(fill(text.check_failed, {reason: errorMessage(result)}));
+      problems = result.data.problems;
+      render({settings: false});
+      if (problems.length) showWorkflowIssues({id: data.id, definition, problems}, focusProblem);
+      else toast(text.check_passed);
+    });
+
     qs('[data-action="workflow-run"]').addEventListener('click', async () => {
-      if (dirty && !(await save())) return;
-      if (problems.length) {
-        qs('#workflow-problems').scrollIntoView({block: 'nearest'});
-        return toast(text.fix_problems);
-      }
-      const key = newKey();
-      modal(text.run_title, qs('#workflow-run-form').innerHTML, {label: text.run_action, run: async () => {
-        const dialog = qs('#dialog-content');
-        const engine = qs('[name="engine"]', dialog).value || null;
-        const headless = (qs('[name="headless"]:checked', dialog) || {value: '1'}).value === '1';
-        const target = chosenTarget(dialog);
-        busy($('#dialog-action'), true);
-        const result = await api('POST', '/api/workflows/' + path(data.id) + '/runs', {engine, headless, target, idempotencyKey: key});
-        busy($('#dialog-action'), false);
-        if (!result.ok) {
-          qs('.form-error', dialog).textContent = errorMessage(result);
-          const list = qs('.form-issues', dialog);
-          const lines = problemLines(result);
-          list.innerHTML = lines.map(line => '<li>' + esc(line) + '</li>').join('');
-          list.hidden = lines.length === 0;
-          return;
-        }
-        location.href = '/playground/runs/' + path(result.data.id);
-      }});
-      bindTargetChoice(qs('#dialog-content'));
+      if ((dirty || legacy) && !(await save())) return;
+      if (dirty) return toast(text.unsaved);
+      const workflow = {id: data.id, name: data.name, definition, problems};
+      if (problems.length) return showWorkflowIssues(workflow, focusProblem);
+      openWorkflowRun(workflow, focusProblem, items => { problems = items; render({settings: false}); }, showLiveRun);
     });
 
     window.addEventListener('beforeunload', event => {
@@ -1628,8 +2170,89 @@
       event.returnValue = '';
     });
 
+    let liveRun = null, liveTimer = null, liveGeneration = 0;
+    const livePanel = qs('#workflow-live'), runButton = qs('[data-action="workflow-run"]');
+    function liveDetails(id) {
+      const node = liveRun?.nodes.find(item => item.id === id);
+      if (!node) return;
+      qs('#live-detail').hidden = false;
+      qs('#live-detail-title').textContent = node.id + ' · ' + node.sceneId + ' · v' + node.revision;
+      qs('#live-inputs').textContent = JSON.stringify(node.run?.input || node.sources, null, 2);
+      qs('#live-outputs').textContent = node.run?.output ? JSON.stringify(node.run.output, null, 2) : node.error || node.run?.error || text.live_waiting;
+      const link = qs('#live-node-report');
+      link.hidden = !node.run;
+      if (node.run) link.href = '/runs/' + path(node.run.id);
+    }
+    function showLiveRun(run) {
+      clearTimeout(liveTimer);
+      liveGeneration += 1;
+      const generation = liveGeneration;
+      liveRun = run;
+      livePanel.hidden = false;
+      livePanel.dataset.run = run.id;
+      livePanel.dataset.status = run.status;
+      qs('#live-status').textContent = fill(text.live_summary, {version: run.workflowVersion, passed: run.nodes.filter(node => ['passed', 'reused'].includes(node.status)).length, total: run.nodes.length, status: text['status_' + run.status] || run.status});
+      qs('#live-status').className = 'badge ' + (run.status === 'passed' ? 'green' : run.finished ? 'amber' : 'blue');
+      qs('#live-report').href = '/playground/runs/' + path(run.id);
+      qs('#live-error').textContent = run.error || '';
+      qs('#live-error').hidden = !run.error;
+      qs('#live-cancel').hidden = run.finished;
+      qs('#live-cancel').disabled = run.cancelRequested;
+      runButton.disabled = !run.finished;
+      qs('#live-nodes').innerHTML = run.nodes.map(node => '<button type="button" class="chip-btn" data-live-node="' + esc(node.id) + '" data-status="' + esc(node.status) + '">' + esc(node.id + ' · ' + (text['status_' + node.status] || node.status)) + '</button>').join('');
+      qsa('[data-live-node]').forEach(button => button.addEventListener('click', () => {
+        livePanel.dataset.selectedNode = button.dataset.liveNode;
+        liveDetails(button.dataset.liveNode);
+      }));
+      if (livePanel.dataset.selectedNode) liveDetails(livePanel.dataset.selectedNode);
+      try { sessionStorage.setItem('rpa-live-' + data.id, run.id); } catch { /* 不依賴瀏覽器儲存 */ }
+      if (!run.finished) liveTimer = setTimeout(() => pollLive(run.id, generation), 1000);
+    }
+    async function pollLive(id, generation) {
+      const result = await api('GET', '/api/workflow-runs/' + path(id));
+      if (generation !== liveGeneration) return;
+      if (result.ok) showLiveRun(result.data);
+      else {
+        qs('#live-error').hidden = false;
+        qs('#live-error').textContent = fill(text.live_poll_error, {reason: errorMessage(result)});
+        liveTimer = setTimeout(() => pollLive(id, generation), 3000);
+      }
+    }
+    qs('#live-cancel').addEventListener('click', () => {
+      if (!liveRun || liveRun.finished) return;
+      confirmDialog(text.cancel_title, text.cancel_body, text.cancel_action, async () => {
+        const result = await api('POST', '/api/workflow-runs/' + path(liveRun.id) + '/cancel');
+        $('#dialog').close();
+        if (!result.ok) return toast(errorMessage(result));
+        pollLive(liveRun.id, liveGeneration);
+      });
+    });
+    qs('#live-collapse').addEventListener('click', () => { qs('#live-detail').hidden = true; delete livePanel.dataset.selectedNode; });
+    try {
+      const previous = sessionStorage.getItem('rpa-live-' + data.id);
+      if (previous) api('GET', '/api/workflow-runs/' + path(previous)).then(result => { if (result.ok && !liveRun && result.data.workflowId === data.id) showLiveRun(result.data); });
+    } catch { /* 沒有檢視歷史時照常編輯 */ }
+    window.addEventListener('pagehide', () => { clearTimeout(liveTimer); liveGeneration += 1; });
+
+    function rememberCanvas() {
+      try { sessionStorage.setItem('rpa-canvas-' + data.id, JSON.stringify({node: definition.nodes[selected]?.id, source: selectedSource, zoom, left: viewport.scrollLeft, top: viewport.scrollTop})); } catch { /* 私密模式無儲存空間時仍可操作 */ }
+    }
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('rpa-canvas-' + data.id) || 'null');
+      if (saved) {
+        const index = definition.nodes.findIndex(node => node.id === saved.node);
+        if (index >= 0) selected = index;
+        selectedSource = saved.source;
+        if (Number.isFinite(saved.zoom)) zoom = Math.max(.001, Math.min(2, saved.zoom));
+        requestAnimationFrame(() => viewport.scrollTo(saved.left || 0, saved.top || 0));
+      }
+    } catch { /* 舊版或無效檢視狀態不影響定義 */ }
+    viewport.addEventListener('scroll', rememberCanvas, {passive: true});
+    window.addEventListener('pagehide', rememberCanvas);
     renderLibrary();
     render();
+    const query = new URLSearchParams(location.search);
+    if (query.has('node')) focusProblem({node: query.get('node'), input: query.get('input')});
   }
 
   function bindWorkflowRun() {

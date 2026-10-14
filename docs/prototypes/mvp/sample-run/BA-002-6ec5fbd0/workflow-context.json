@@ -1,0 +1,30 @@
+{
+  "nodeId": "verify",
+  "iteration": 1,
+  "repeat": 1,
+  "bindings": {
+    "recordId": {
+      "kind": "output",
+      "source": "create",
+      "field": "recordId"
+    },
+    "quantity": {
+      "kind": "output",
+      "source": "create",
+      "field": "quantity"
+    },
+    "expectedTitle": {
+      "kind": "output",
+      "source": "create",
+      "field": "title"
+    },
+    "note": {
+      "kind": "default"
+    }
+  },
+  "sources": {
+    "recordId": "BA-001-e846766a",
+    "quantity": "BA-001-e846766a",
+    "expectedTitle": "BA-001-e846766a"
+  }
+}

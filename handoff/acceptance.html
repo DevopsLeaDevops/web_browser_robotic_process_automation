@@ -29,6 +29,7 @@
   </div>
 
   <div class="stack">
+    <div class="notice">本頁事件時間統一為 America/Los_Angeles（PDT，UTC−07:00）；來源只有日期的文件標籤保留原文，不推定其精確時刻。換算規則見<a href="collaboration.html#sources">共用流程</a>。</div>
     <section class="panel" id="ci">
       <div class="panel-header"><h2>一、自動測試（CI）</h2><span class="muted">點提交編號可看 GitHub 上的檢查結果</span></div>
       <div class="panel-body">
@@ -40,15 +41,15 @@
         </ul>
       </div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>日期（UTC）</th><th>提交</th><th>內容</th><th>結果</th></tr></thead>
+        <thead><tr><th>日期（America/Los_Angeles）</th><th>提交</th><th>內容</th><th>結果</th></tr></thead>
         <tbody>
-          <tr><td class="mono">10-14 01:55～02:15</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/8397164/checks">8397164</a></td><td>#23 的最終版本（rebase 到 main 後）</td><td>靜態檢查、測試 3.12／3.13、安裝腳本六個組合都通過（rebase 前同內容的 <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/a558078/checks">a558078</a> 也全通過）</td></tr>
-          <tr><td class="mono">10-14 03:55～03:59</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/151a935/checks">151a935</a></td><td>main：合併 #23</td><td>靜態檢查通過；其他工作在幾分鐘內被下一次推送<strong>取消</strong>（同一個 workflow 只跑最新的一次），不是失敗</td></tr>
-          <tr><td class="mono">10-14 04:04～04:18</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/1258f6a/checks">1258f6a</a></td><td>#25 的分支（受限語言模式）</td><td>全部通過（CI 不在受限語言模式下跑）</td></tr>
-          <tr><td class="mono">10-14 04:06～04:20</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/e3daa6e/checks">e3daa6e</a></td><td>main：合併 #25</td><td>安裝腳本六個組合通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38508982320">run 38508982320</a>）；CI 被下一次推送取消</td></tr>
-          <tr><td class="mono">10-14 03:59～04:06</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/8f91944/checks">8f91944</a></td><td>main：合併 #24（含 #23、#25）</td><td>靜態檢查、測試 3.12／3.13 通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38509007292">run 38509007292</a>）</td></tr>
-          <tr><td class="mono">10-14 06:14～06:21</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8/checks">30fe7b8</a></td><td>main：合併 #19（目前的 main）</td><td>通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38520999571">run 38520999571</a>）</td></tr>
-          <tr><td class="mono">10-13 12:17</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/683acb0/checks">683acb0</a></td><td>main：合併 #22（M6）</td><td>通過（run 38396265652）</td></tr>
+          <tr><td class="mono">10-13 18:55～19:15</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/8397164/checks">8397164</a></td><td>#23 的最終版本（rebase 到 main 後）</td><td>靜態檢查、測試 3.12／3.13、安裝腳本六個組合都通過（rebase 前同內容的 <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/a558078/checks">a558078</a> 也全通過）</td></tr>
+          <tr><td class="mono">10-13 20:55～20:59</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/151a935/checks">151a935</a></td><td>main：合併 #23</td><td>靜態檢查通過；其他工作在幾分鐘內被下一次推送<strong>取消</strong>（同一個 workflow 只跑最新的一次），不是失敗</td></tr>
+          <tr><td class="mono">10-13 21:04～21:18</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/1258f6a/checks">1258f6a</a></td><td>#25 的分支（受限語言模式）</td><td>全部通過（CI 不在受限語言模式下跑）</td></tr>
+          <tr><td class="mono">10-13 21:06～21:20</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/e3daa6e/checks">e3daa6e</a></td><td>main：合併 #25</td><td>安裝腳本六個組合通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38508982320">run 38508982320</a>）；CI 被下一次推送取消</td></tr>
+          <tr><td class="mono">10-13 20:59～21:06</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/8f91944/checks">8f91944</a></td><td>main：合併 #24（含 #23、#25）</td><td>靜態檢查、測試 3.12／3.13 通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38509007292">run 38509007292</a>）</td></tr>
+          <tr><td class="mono">10-13 23:14～23:21</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8/checks">30fe7b8</a></td><td>main：合併 #19（目前的 main）</td><td>通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38520999571">run 38520999571</a>）</td></tr>
+          <tr><td class="mono">10-13 05:17</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/683acb0/checks">683acb0</a></td><td>main：合併 #22（M6）</td><td>通過（run 38396265652）</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p class="muted">PR #23 開出後第一次 CI 失敗只有一個測試：<code>test_migrations.py</code> 的資料表清單排序錯（check run 115277146639 的 annotations）。修正提交 <span class="mono">a558078</span>（rebase 後為 <span class="mono">8397164</span>）後全綠。</p></div>
@@ -62,8 +63,8 @@
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>步驟</th><th>狀態</th><th>紀錄</th></tr></thead>
         <tbody>
-          <tr><td>Windows 安裝（受限語言模式的 PowerShell）</td><td><span class="kind tentative">部分</span></td><td>原腳本在受限語言模式下 .NET 呼叫失敗、沒有 winget 時裝不了 uv；你在 10-14 寫了 #25 修正並合併。<strong>修正後在你的 Windows 上是否裝成功：未知</strong>。證據：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/25">PR #25</a> 的說明。</td></tr>
-          <tr><td>Windows 啟動 <code>rpa worker</code></td><td><span class="kind pending">失敗（已知原因）</span></td><td>10-13 20:52（太平洋時間）回報「錯誤：沒有 worker 這個命令」。原因是 #23 當時還沒合併，安裝腳本下載的 main 沒有這個命令。#23 已在 10-14 03:54 UTC 合併；<strong>更新後重試的結果：未知</strong>。</td></tr>
+          <tr><td>Windows 安裝（受限語言模式的 PowerShell）</td><td><span class="kind tentative">部分</span></td><td>原腳本在受限語言模式下 .NET 呼叫失敗、沒有 winget 時裝不了 uv；你在 10-13 寫了 #25 修正並合併。<strong>修正後在你的 Windows 上是否裝成功：未知</strong>。證據：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/25">PR #25</a> 的說明。</td></tr>
+          <tr><td>Windows 啟動 <code>rpa worker</code></td><td><span class="kind pending">失敗（已知原因）</span></td><td>10-13 20:52（America/Los_Angeles）回報「錯誤：沒有 worker 這個命令」。原因是 #23 當時還沒合併，安裝腳本下載的 main 沒有這個命令。#23 已在 10-13 20:54 America/Los_Angeles（PDT，UTC−07:00） 合併；<strong>更新後重試的結果：未知</strong>。</td></tr>
           <tr><td>你的電腦 <code>rpa serve --worker-port 8081</code>、防火牆允許</td><td><span class="kind unknown">未知</span></td><td>—</td></tr>
           <tr><td>worker 頁顯示「線上」</td><td><span class="kind unknown">未知</span></td><td>—</td></tr>
           <tr><td>Windows worker 有頭執行 BA-001（視窗出現在 Windows、你的電腦不跳視窗）</td><td><span class="kind unknown">未知</span></td><td>—</td></tr>

@@ -1,0 +1,19 @@
+{% import "_macros.html" as m %}
+<template id="workflow-run-form">
+  <div class="notice">{{ t("workflow.run_notice") }}</div>
+  <label>{{ t("run_form.engine") }}
+    <select name="engine">
+      <option value="">{{ t("workflow.engine_scene") }}</option>
+      {% for engine in data.engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}
+    </select>
+  </label>
+  {{ m.location_field(data.locations) }}
+  <fieldset class="choice">
+    <legend>{{ t("run_form.window") }}</legend>
+    <label><input type="radio" name="headless" value="0"{% if data.display %} checked{% else %} disabled{% endif %}> {{ t("run_form.window_headed") }}</label>
+    <label><input type="radio" name="headless" value="1"{% if not data.display %} checked{% endif %}> {{ t("run_form.window_headless") }}</label>
+    <span class="cell-sub" data-window-hint data-hint="" data-unavailable="{{ t('run_form.window_unavailable') }}">{% if not data.display %}{{ t("run_form.window_unavailable") }}{% endif %}</span>
+  </fieldset>
+  <ul class="checklist form-issues" hidden></ul>
+  <p class="form-error" role="alert"></p>
+</template>

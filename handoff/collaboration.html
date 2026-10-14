@@ -35,7 +35,7 @@
           <tr><td>歷史原文</td><td><a href="materials.html">materials</a>、<a href="workflow.html">先前操作歷史</a></td><td>保留原文與日期。新快照放新目錄，日誌追加更正，不覆蓋舊紀錄。Claude／ChatGPT 的私人記憶不能是唯一來源。</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>新的時間紀錄一律標明 <code>Asia/Shanghai（UTC+08:00）</code>；引用 GitHub UTC 或舊太平洋時間時保留時區。歷史日期不自行改寫。不要把憑證、登入狀態、業務資料或私人對話全文放入倉庫。</p></div>
+      <div class="panel-body"><p>使用者於 2026-10-14 指定：產生及維護的文檔、PR 說明、驗收與交接紀錄，所有時間統一換算為 <code>America/Los_Angeles</code>。以 IANA 時區資料按事件日期換算，標示實際的 PDT（UTC−07:00）或 PST（UTC−08:00），不能把洛杉磯標成 GMT，也不能全年固定減 7 小時。格式範例：<code>2026-10-14 04:06 America/Los_Angeles（PDT，UTC−07:00）</code>。引用 GitHub 的事件時間也先換算，跨日須調整日期並保留來源連結。新 Git 提交以 <code>TZ=America/Los_Angeles git commit …</code> 產生；GitHub 系統時間、原始日誌與既有 Git 提交不改寫。原始材料及原型包保留原文；只有日期的版本標籤不視為時間點，來源時刻或時區不足時標示未知，不臆造精確時間。本次兩份任務紀錄可由 #26／#27 的合併時間及後續提交確認仍是洛杉磯 10-14；任務 ID 與檔名保持穩定。不要把憑證、登入狀態、業務資料或私人對話全文放入倉庫。</p></div>
     </section>
 
     <section class="panel" id="start">
@@ -80,6 +80,7 @@ git log --oneline --left-right HEAD...origin/main</pre>
           <li>沿用 <code>m*/主題</code>、<code>fix/主題</code>、<code>docs/主題</code>、<code>chore/主題</code>，名稱描述工作而非模型。同一任務換人時沿用原分支／PR；已合併後的新修正另開分支。</li>
           <li>提交採 Conventional Commits，使用目前工具的真實署名，不冒用另一個模型。每個可獨立審閱的修改形成清楚的提交；提交前看 diff，明確選取檔案，不混入他人工作。</li>
           <li>推送、開 PR、更新 GitHub 依使用者已給的授權辦理；同一任務已有授權不反覆確認。若確實缺少必要授權，先完成本地修改、檢查及 PR 草稿內容，再說明要核准的具體動作。文件本身不代表已獲授權。</li>
+          <li><strong>現行持續授權（2026-10-14 America/Los_Angeles（PDT，UTC−07:00））：</strong>使用者在 DAG 交付對話明確要求「生成 PR，後續大的改動可以直接生成 PR」，並要求檢查 GitHub 流水線。Claude 與 ChatGPT／Codex 後續大的改動完成實作及本地檢查後，可直接推送功能分支、建立或更新本任務 PR 並確認最新 head 的 CI，不再逐次詢問。此授權不包含合併；合併仍由使用者決定。來源及本次交付見<a href="tasks/20261014-dag-composite-scenes.html#publication">任務追加紀錄</a>。</li>
           <li>PR 預設對 <code>main</code>，用<a href="../.github/pull_request_template.md">共用 PR 範本</a>連結任務卡，交代結果、驗證、缺口與相依關係。若刻意堆疊 PR，明列父 PR、舊 base SHA 與預定整合順序；合併前重新確認 base，避免重演 #21。</li>
           <li><strong>bootstrap 也是分支寫入者。</strong>使用 <code>[bootstrap]</code> 後，等機器人完成，fetch 並檢查新增提交；無本地分叉時用 <code>git pull --ff-only</code>。若有分叉，保留兩邊後整合，不為了推送成功覆蓋機器人的產物。機器人有提交不等於檢查通過；確認最新 head 的 CI 已觸發。</li>
           <li><strong>rebase 只在確認寫入權後進行。</strong>記錄舊 head／base、fetch 後的遠端 head，保留可恢復的引用；檢查 diff 或 range-diff 並重跑受影響的檢查。只有預期不改內容的 rebase 才要求 tree diff 為空。需要重寫遠端時使用綁定已核對遠端 SHA 的 <code>--force-with-lease</code>，不使用一般 <code>--force</code>。</li>

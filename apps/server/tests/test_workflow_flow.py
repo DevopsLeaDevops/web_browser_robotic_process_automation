@@ -155,3 +155,68 @@ def test_failed_upstream_stops_the_sequence(
     ]
     executed = cast("list[JsonObject]", body(client.get("/api/runs?purpose=workflow"))["runs"])
     assert [item["nodeId"] for item in executed] == ["lookup"]
+
+
+def test_dag_forks_and_joins_real_outputs(
+    app: FastAPI, client: Client, engine: str, published: None
+) -> None:
+    """建立 → 兩次獨立查詢 → 匯合新建；驗證每條分支傳遞的是實際出參。"""
+    definition = {
+        "version": 2,
+        "mode": "dag",
+        "nodes": [
+            {
+                "id": "join",
+                "sceneId": "ba-001",
+                "revision": 1,
+                "inputs": {
+                    "title": {"node": "left", "output": "title"},
+                    "quantity": {"node": "right", "output": "quantity"},
+                },
+            },
+            {
+                "id": "right",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"auto": True}},
+            },
+            {
+                "id": "left",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "root", "output": "recordId"}},
+            },
+            {
+                "id": "root",
+                "sceneId": "ba-001",
+                "revision": 1,
+                "inputs": {"title": {"value": "DAG 真實匯合"}, "quantity": {"value": 7}},
+            },
+        ],
+        "edges": [
+            {"source": "root", "target": "right"},
+            {"source": "root", "target": "left"},
+            {"source": "left", "target": "join"},
+            {"source": "right", "target": "join"},
+        ],
+    }
+    workflow = body(
+        client.post("/api/workflows", json={"name": "分叉與匯合", "definition": definition})
+    )
+    assert workflow["problems"] == []
+    started = body(
+        client.post(
+            f"/api/workflows/{workflow['id']}/runs", json={"engine": engine, "headless": True}
+        )
+    )
+    run = run_all(app, client, started["id"])
+    assert run["status"] == "passed", run["error"]
+    nodes = cast("list[JsonObject]", run["nodes"])
+    assert [node["id"] for node in nodes] == ["root", "right", "left", "join"]
+    root, right, left, join = [cast("JsonObject", node["run"]) for node in nodes]
+    assert right["output"] == left["output"] == root["output"]
+    assert join["input"] == {"title": "DAG 真實匯合", "quantity": 7}
+    assert (
+        cast("JsonObject", join["output"])["recordId"]
+        != cast("JsonObject", root["output"])["recordId"]
+    )

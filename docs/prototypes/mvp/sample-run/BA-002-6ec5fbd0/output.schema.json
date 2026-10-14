@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "recordId",
+    "title",
+    "quantity"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "pattern": "\\S"
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 30
+    },
+    "recordId": {
+      "type": "string",
+      "pattern": "^DEMO-[A-Z0-9]+$"
+    }
+  }
+}

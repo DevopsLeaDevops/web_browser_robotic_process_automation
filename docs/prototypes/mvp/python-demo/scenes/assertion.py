@@ -13,8 +13,13 @@ def verify(scene, params, facts):
     if scene == 'BA-001':
         if facts['title'] != params['title'] or facts['quantity'] != params['quantity']:
             raise AssertionError('畫面標題或數量與本次入參不符')
-    elif facts['recordId'] != params['recordId']:
-        raise AssertionError('查詢結果不是指定紀錄')
+    else:
+        if facts['recordId'] != params['recordId']:
+            raise AssertionError('查詢結果不是指定紀錄')
+        if facts['quantity'] != params['quantity']:
+            raise AssertionError('查詢數量與串聯入參不符')
+        if params.get('expectedTitle') and facts['title'] != params['expectedTitle']:
+            raise AssertionError('查詢標題與指定預期值不符')
     return {key: facts[key] for key in ('recordId', 'title', 'quantity')}
 
 

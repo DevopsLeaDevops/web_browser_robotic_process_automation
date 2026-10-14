@@ -1,1 +1,30 @@
-<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>真實執行彙總</title><style>body{font:14px/1.8 system-ui;max-width:900px;margin:40px auto;color:#24334a}a{color:#0b69c4}</style><h1>本機瀏覽器自動化 · 真實結果</h1><p>BA-001 建立 → BA-002 查詢；下游入參來自上游成功出參。</p><ul><li><a href="BA-001-81678166/report.html">BA-001 · passed · 1.915 秒</a></li><li><a href="BA-002-4871cabe/report.html">BA-002 · passed · 1.848 秒</a></li></ul><p>每個場景都有獨立 BrowserContext、腳本快照、入參與報告。瀏覽器資料在執行結束後釋放；產物保留在本目錄。</p></html>
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>參數串聯真實報告</title><style>body{font:14px/1.6 system-ui;color:#24334a;background:#f5f7fb;margin:24px auto;padding:16px;max-width:1080px}section{background:white;border:1px solid #e9edf3;padding:16px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #e9edf3;text-align:left}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#0b69c4}</style><h1>參數串聯 · 真實本機執行</h1><p>結果：passed · 已執行 3 / 3 次</p><p>建立兩次，再查詢最後一次成功的紀錄；同名與跨欄位傳遞均經獨立斷言。</p><section><table><thead><tr><th>節點 / 次數</th><th>場景</th><th>結果</th><th>報告</th></tr></thead><tbody><tr><td>create / 1</td><td>BA-001</td><td>passed</td><td><a href="BA-001-5d97e84a/report.html">入參、出參與來源</a></td></tr><tr><td>create / 2</td><td>BA-001</td><td>passed</td><td><a href="BA-001-e846766a/report.html">入參、出參與來源</a></td></tr><tr><td>verify / 1</td><td>BA-002</td><td>passed</td><td><a href="BA-002-6ec5fbd0/report.html">入參、出參與來源</a></td></tr></tbody></table><h2>固定的參數解析計畫</h2><pre>{
+  &quot;create&quot;: {
+    &quot;title&quot;: {
+      &quot;kind&quot;: &quot;default&quot;
+    },
+    &quot;quantity&quot;: {
+      &quot;kind&quot;: &quot;default&quot;
+    }
+  },
+  &quot;verify&quot;: {
+    &quot;recordId&quot;: {
+      &quot;kind&quot;: &quot;output&quot;,
+      &quot;source&quot;: &quot;create&quot;,
+      &quot;field&quot;: &quot;recordId&quot;
+    },
+    &quot;quantity&quot;: {
+      &quot;kind&quot;: &quot;output&quot;,
+      &quot;source&quot;: &quot;create&quot;,
+      &quot;field&quot;: &quot;quantity&quot;
+    },
+    &quot;expectedTitle&quot;: {
+      &quot;kind&quot;: &quot;output&quot;,
+      &quot;source&quot;: &quot;create&quot;,
+      &quot;field&quot;: &quot;title&quot;
+    },
+    &quot;note&quot;: {
+      &quot;kind&quot;: &quot;default&quot;
+    }
+  }
+}</pre><p><a href="workflow-snapshot.json">工作流與契約快照</a> · <a href="result.json">完整入出參紀錄</a></p></section></html>

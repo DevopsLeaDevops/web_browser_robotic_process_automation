@@ -1,0 +1,210 @@
+{
+  "graph": {
+    "version": 2,
+    "parameterBindingVersion": 1,
+    "name": "建立與驗證紀錄",
+    "nodes": [
+      {
+        "id": "create",
+        "sceneId": "BA-001",
+        "repeat": 2,
+        "x": 40,
+        "y": 60,
+        "bindings": {}
+      },
+      {
+        "id": "verify",
+        "sceneId": "BA-002",
+        "repeat": 1,
+        "x": 340,
+        "y": 60,
+        "bindings": {
+          "expectedTitle": {
+            "kind": "output",
+            "source": "create",
+            "field": "title"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "source": "create",
+        "target": "verify"
+      }
+    ]
+  },
+  "order": [
+    "create",
+    "verify"
+  ],
+  "contracts": {
+    "create": {
+      "revision": 1,
+      "input": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "required": [
+            "title",
+            "quantity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60,
+              "pattern": "\\S"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            }
+          }
+        },
+        "defaults": {
+          "title": "介面驗證範例",
+          "quantity": 12
+        }
+      },
+      "output": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "required": [
+            "recordId",
+            "title",
+            "quantity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60,
+              "pattern": "\\S"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            },
+            "recordId": {
+              "type": "string",
+              "pattern": "^DEMO-[A-Z0-9]+$"
+            }
+          }
+        },
+        "example": {
+          "recordId": "DEMO-001",
+          "title": "介面驗證範例",
+          "quantity": 12
+        }
+      }
+    },
+    "verify": {
+      "revision": 1,
+      "input": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "required": [
+            "recordId",
+            "quantity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "recordId": {
+              "type": "string",
+              "pattern": "^DEMO-[A-Z0-9]+$"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            },
+            "expectedTitle": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        "defaults": {
+          "recordId": "DEMO-001",
+          "quantity": 12,
+          "expectedTitle": "",
+          "note": "預設驗證說明"
+        }
+      },
+      "output": {
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "required": [
+            "recordId",
+            "title",
+            "quantity"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60,
+              "pattern": "\\S"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            },
+            "recordId": {
+              "type": "string",
+              "pattern": "^DEMO-[A-Z0-9]+$"
+            }
+          }
+        },
+        "example": {
+          "recordId": "DEMO-001",
+          "title": "介面驗證範例",
+          "quantity": 12
+        }
+      }
+    }
+  },
+  "plans": {
+    "create": {
+      "title": {
+        "kind": "default"
+      },
+      "quantity": {
+        "kind": "default"
+      }
+    },
+    "verify": {
+      "recordId": {
+        "kind": "output",
+        "source": "create",
+        "field": "recordId"
+      },
+      "quantity": {
+        "kind": "output",
+        "source": "create",
+        "field": "quantity"
+      },
+      "expectedTitle": {
+        "kind": "output",
+        "source": "create",
+        "field": "title"
+      },
+      "note": {
+        "kind": "default"
+      }
+    }
+  },
+  "total": 3
+}

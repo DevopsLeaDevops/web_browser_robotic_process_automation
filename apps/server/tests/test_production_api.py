@@ -814,3 +814,78 @@ def test_input_table_and_yaml_views(client: Client) -> None:
         body(client.get(f"/api/scenes/ba-001/revisions/{saved['number']}"))["files"],
     )
     assert "recordId:" in files["scenario.yaml"].split("outputs:", 1)[1]
+
+
+def test_contract_yaml_saves_both_sections_atomically(client: Client) -> None:
+    body(client.post("/api/scenes/import"))
+    url = "/api/scenes/ba-001/contract-yaml"
+    original = body(client.get("/api/scenes/ba-001/contract-workspace"))
+    yaml = cast("dict[str, str]", original["yaml"])
+    before = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/1"))["files"])
+    payload = {
+        "baseRevision": 1,
+        "inputs": yaml["inputs"].replace("default: 12", "default: 9")
+        + "\n  extra: { type: string, default: example }\n",
+        "outputs": yaml["outputs"].replace("facts.record.title", "inputs.extra"),
+    }
+    preview = client.post(url + "/preview", json=payload)
+    assert preview.status_code == 200, preview.text
+    assert body(client.get("/api/scenes/ba-001"))["latestRevision"] == 1
+    assert body(client.put(url, json=payload), 201)["number"] == 2
+    after = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/2"))["files"])
+    assert "default: 9" in after["scenario.yaml"]
+    assert "inputs.extra" in after["scenario.yaml"]
+    assert (
+        after["scenario.yaml"].split("\nbrowser:")[1]
+        == before["scenario.yaml"].split("\nbrowser:")[1]
+    )
+    assert error(client.put(url, json=payload))["code"] == "stale_base"
+    bad = {
+        **payload,
+        "baseRevision": 2,
+        "outputs": str(payload["outputs"]).replace("type: string", "type: nope"),
+    }
+    invalid = client.put(url, json=bad)
+    assert invalid.status_code == 422
+    assert "outputs" in invalid.text
+    assert "sectionLine" in invalid.text
+    assert body(client.get("/api/scenes/ba-001"))["latestRevision"] == 2
+    assert (
+        error(client.put(url, json={**payload, "baseRevision": 2, "inputs": "name: sneaky"}))[
+            "code"
+        ]
+        == "section_key"
+    )
+    client.patch("/api/scenes/ba-001", json={"archived": True})
+    assert error(client.put(url, json={**payload, "baseRevision": 2}))["code"] == "scene_archived"
+
+
+def test_contract_sample_uses_successful_run_of_requested_revision(
+    client: Client, app: FastAPI
+) -> None:
+    from rpa_server.models import Run
+
+    body(client.post("/api/scenes/import"))
+    svc = cast("Services", app.state.services)
+    first = svc.request_run("ba-001", purpose="validation", number=1)
+    with svc.sessions() as session:
+        row = session.get(Run, first.id)
+        assert row is not None
+        row.status = "passed"
+        row.output = {"recordId": "DEMO-EXAMPLE"}
+        session.commit()
+    second = svc.request_run("ba-001", purpose="validation", number=1)
+    with svc.sessions() as session:
+        row = session.get(Run, second.id)
+        assert row is not None
+        row.status = "failed"
+        session.commit()
+    preview = body(client.get("/api/scenes/ba-001/contract-workspace?revision=1"))
+    assert preview["sample"] == {"runId": first.id, "values": {"recordId": "DEMO-EXAMPLE"}}
+    files = svc.revision_files("ba-001", 1)
+    svc.save_revision("ba-001", base=1, files=files)
+    assert body(client.get("/api/scenes/ba-001/contract-workspace"))["sample"] is None
+    assert (
+        body(client.get("/api/scenes/ba-001/contract-workspace?revision=1"))["sample"]
+        == preview["sample"]
+    )

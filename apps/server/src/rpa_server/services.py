@@ -986,6 +986,7 @@ class Services:
         categories: Sequence[str] = (),
         statuses: Sequence[str] = (),
         purposes: Sequence[str] = (),
+        revision: int | None = None,
         limit: int = RUN_LIST_LIMIT,
     ) -> list[RunRecord]:
         statement = select(Run).order_by(Run.created_at.desc(), Run.id.desc()).limit(limit)
@@ -997,6 +998,8 @@ class Services:
             statement = statement.where(Run.status.in_(list(statuses)))
         if purposes:
             statement = statement.where(Run.purpose.in_(list(purposes)))
+        if revision is not None:
+            statement = statement.where(Run.revision_number == revision)
         with self.sessions() as session:
             return [run_record(run) for run in session.scalars(statement)]
 
@@ -1212,6 +1215,40 @@ class Services:
         return self.save_revision(
             scene_id, base=base, files=files, note=note or t("revision.note_contract")
         )
+
+    def contract_yaml_files(
+        self,
+        scene_id: str,
+        *,
+        base: int,
+        inputs: str,
+        outputs: str,
+        renames: Mapping[str, str] | None = None,
+    ) -> dict[str, str]:
+        """左右契約一起校驗、一起存檔；不因先存一欄而遺失另一欄的草稿。"""
+        files = dict(self.revision_files(scene_id, base))
+        for key, text in (("inputs", inputs), ("outputs", outputs)):
+            section = text.replace("\r\n", "\n").strip("\n")
+            _check_section(key, section)
+            files[SCENARIO_FILE] = replace_section(files[SCENARIO_FILE], key, section)
+        if renames:
+            files[SCENARIO_FILE] = replace_contract(
+                files[SCENARIO_FILE], inputs=None, outputs=None, renames=renames
+            )
+        checked = self.storage.check(files, scene_id=scene_id)
+        if not checked.ok:
+            issues = [issue_json(issue) for issue in checked.issues]
+            for key in ("inputs", "outputs"):
+                found = find_block(files[SCENARIO_FILE].splitlines(), key)
+                for issue in issues:
+                    line = issue.get("line")
+                    if found and isinstance(line, int) and found[0] < line <= found[1]:
+                        issue["section"] = key
+                        issue["sectionLine"] = line - found[0]
+            raise _invalid(
+                "revision_invalid", t("error.revision_invalid", count=len(issues)), issues=issues
+            )
+        return files
 
     def _section_files(self, scene_id: str, key: str, base: int, text: str) -> dict[str, str]:
         if key not in SECTION_KEYS:

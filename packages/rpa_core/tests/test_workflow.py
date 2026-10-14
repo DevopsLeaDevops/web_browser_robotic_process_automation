@@ -123,7 +123,7 @@ def test_required_input_without_source() -> None:
     assert [(p.code, p.node, p.input) for p in problems] == [
         ("workflow.input_missing", "n1", "recordId")
     ]
-    assert problems[0].message == "節點 n1：入參 recordId 沒有預設值，請指定固定值或前面節點的出參"
+    assert problems[0].message == "節點 n1：入參 recordId 沒有預設值，請指定固定值或上游節點的出參"
 
 
 def test_sources_must_be_earlier_nodes() -> None:
@@ -234,3 +234,176 @@ def test_resolve_takes_published_outputs_only() -> None:
     assert [p.code for p in problems] == ["workflow.source_not_passed"]
     _, problems = resolve_inputs(second, {"n1": {"title": "試驗"}})
     assert [p.message for p in problems] == ["節點 n2：n1 通過了，但沒有發布出參 recordId"]
+
+
+# ---------------------------------------------------------------- DAG
+
+
+def dag() -> dict[str, object]:
+    """刻意把下游放在陣列前面，確認執行依賴不受畫布與儲存順序影響。"""
+    return {
+        "version": 2,
+        "mode": "dag",
+        "nodes": [
+            {
+                "id": "join",
+                "sceneId": "ba-001",
+                "revision": 1,
+                "inputs": {
+                    "title": {"node": "left", "output": "title"},
+                    "quantity": {"node": "right", "output": "quantity"},
+                },
+            },
+            {
+                "id": "right",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"auto": True}},
+            },
+            {
+                "id": "left",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "root", "output": "recordId"}},
+            },
+            {"id": "root", "sceneId": "ba-001", "revision": 1, "position": {"x": 500, "y": 200}},
+        ],
+        "edges": [
+            {"source": "root", "target": "right"},
+            {"source": "root", "target": "left"},
+            {"source": "left", "target": "join"},
+            {"source": "right", "target": "join"},
+        ],
+    }
+
+
+def test_dag_fork_join_order_and_auto_binding_snapshot() -> None:
+    from rpa_core.workflow import plan_workflow
+
+    workflow = parsed(dag())
+    scenarios = {node.id: load(node.scene_id) for node in workflow.nodes}
+    assert check_workflow(workflow, scenarios) == []
+    planned, problems = plan_workflow(workflow, scenarios)
+    assert problems == []
+    assert [node.id for node in planned.execution_nodes()] == ["root", "right", "left", "join"]
+    assert planned.nodes[1].inputs["recordId"] == OutputBinding(node="root", output="recordId")
+    assert workflow.to_json() == parsed(workflow.to_json()).to_json()
+    assert workflow.nodes[1].inputs["recordId"].model_dump() == {"auto": True}
+    assert planned.nodes[3].position == workflow.nodes[3].position
+
+
+@pytest.mark.parametrize(
+    ("edge", "code"),
+    [
+        ({"source": "join", "target": "root"}, "workflow.cycle"),
+        ({"source": "root", "target": "root"}, "workflow.cycle"),
+        ({"source": "missing", "target": "root"}, "workflow.edge_unknown"),
+        ({"source": "root", "target": "right"}, "workflow.edge_duplicate"),
+    ],
+)
+def test_dag_rejects_invalid_graph(edge: dict[str, str], code: str) -> None:
+    from rpa_core.workflow import WorkflowEdge
+
+    workflow = parsed(dag())
+    workflow.edges.append(WorkflowEdge.model_validate(edge))
+    scenarios = {node.id: load(node.scene_id) for node in workflow.nodes}
+    assert code in [problem.code for problem in check_workflow(workflow, scenarios)]
+
+
+def test_bindings_alone_are_dependencies_and_can_form_a_cycle() -> None:
+    workflow = parsed(
+        {
+            "version": 2,
+            "mode": "dag",
+            "nodes": [
+                {
+                    "id": "a",
+                    "sceneId": "ba-001",
+                    "revision": 1,
+                    "inputs": {"title": {"node": "b", "output": "title"}},
+                },
+                {
+                    "id": "b",
+                    "sceneId": "ba-001",
+                    "revision": 1,
+                    "inputs": {"title": {"node": "a", "output": "title"}},
+                },
+            ],
+        }
+    )
+    assert codes(workflow, {"a": load("ba-001"), "b": load("ba-001")}) == [("workflow.cycle", None)]
+    workflow.nodes[1].inputs.clear()
+    assert [node.id for node in workflow.execution_nodes()] == ["b", "a"]
+    assert check_workflow(workflow, {"a": load("ba-001"), "b": load("ba-001")}) == []
+
+
+def test_auto_matching_requires_unique_direct_upstream_and_preserves_defaults() -> None:
+    from rpa_core.workflow import AutoBinding, WorkflowEdge, plan_workflow
+
+    workflow = parsed(dag())
+    scenarios = {node.id: load(node.scene_id) for node in workflow.nodes}
+    workflow.nodes[0].inputs["title"] = AutoBinding(auto=True)
+    assert ("workflow.source_ambiguous", "title") in codes(workflow, scenarios)
+    workflow.nodes[0].inputs["title"] = ValueBinding(value="明確固定值")
+    assert check_workflow(workflow, scenarios) == []
+    workflow.nodes[0].inputs["title"] = AutoBinding(auto=True)
+    workflow.nodes[0].inputs.pop("quantity")
+    workflow.edges[:] = [WorkflowEdge(source="root", target="right")]
+    planned, problems = plan_workflow(workflow, scenarios)
+    assert problems == []
+    assert "title" not in planned.nodes[0].inputs  # 無直接同名上游，沿用場景預設
+    assert "title" in workflow.nodes[0].inputs  # 不修改編輯中的定義
+
+
+@pytest.mark.parametrize("x", [-1, float("nan"), float("inf"), 100001])
+def test_canvas_coordinates_are_bounded(x: float) -> None:
+    workflow, problems = parse_workflow(
+        {
+            "version": 2,
+            "mode": "dag",
+            "nodes": [
+                {"id": "n", "sceneId": "ba-001", "revision": 1, "position": {"x": x, "y": 0}}
+            ],
+        }
+    )
+    assert workflow is None
+    assert problems
+
+
+def test_auto_binding_to_unknown_input_is_not_silently_dropped() -> None:
+    workflow = parsed(
+        {
+            "version": 2,
+            "mode": "dag",
+            "nodes": [
+                {"id": "n", "sceneId": "ba-001", "revision": 1, "inputs": {"typo": {"auto": True}}}
+            ],
+        }
+    )
+    assert codes(workflow, {"n": load("ba-001")}) == [("workflow.input_unknown", "typo")]
+
+
+def test_auto_matching_uses_the_same_dependencies_as_output_bindings() -> None:
+    from rpa_core.workflow import plan_workflow
+
+    workflow = parsed(
+        {
+            "version": 2,
+            "mode": "dag",
+            "nodes": [
+                {"id": "a", "sceneId": "ba-001", "revision": 1},
+                {
+                    "id": "b",
+                    "sceneId": "ba-001",
+                    "revision": 1,
+                    "inputs": {
+                        "title": {"node": "a", "output": "title"},
+                        "quantity": {"auto": True},
+                    },
+                },
+            ],
+        }
+    )
+    planned, problems = plan_workflow(workflow, {"a": load("ba-001"), "b": load("ba-001")})
+    assert problems == []
+    assert planned.nodes[1].inputs["quantity"] == OutputBinding(node="a", output="quantity")

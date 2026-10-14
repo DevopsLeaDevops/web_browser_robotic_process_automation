@@ -17,6 +17,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 from markupsafe import Markup, escape
 
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
+from rpa_core.workflow import Workflow
 from rpa_server import __version__
 from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, SceneRecord
 from rpa_server.i18n import t
@@ -94,8 +95,8 @@ NAV: Final = (
         "/runs",
         (
             NavPage("recording", "/recording"),
-            NavPage("runs", "/runs"),
             NavPage("playground", "/playground"),
+            NavPage("runs", "/runs"),
             NavPage("workers", "/workers"),
         ),
     ),
@@ -189,6 +190,7 @@ def _side_items(group: NavGroup, domains: Sequence[DomainRecord]) -> list[SideIt
             *items,
             SideItem("domains", t("nav.domains"), "/domains"),
             SideItem("roles", t("nav.roles"), "/roles"),
+            SideItem("composites", t("nav.composites"), "/composites"),
         ]
     return [SideItem(p.id, t("nav." + p.id), p.href, p.milestone) for p in group.pages]
 
@@ -267,6 +269,18 @@ def js_messages() -> dict[str, str]:
         "js.debug_close_action",
         "js.working",
         "js.contract_saved",
+        "js.contract_unsaved",
+        "js.contract_preview_draft",
+        "js.contract_preview_invalid",
+        "js.contract_required",
+        "js.contract_script_output",
+        "js.contract_sample_source",
+        "js.contract_sample_empty",
+        "js.contract_sample_draft",
+        "js.contract_saved_next",
+        "js.validate_next",
+        "js.editor_revision",
+        "js.run_published",
         "js.rerun_started",
         "js.section_line",
         "js.worker_create_title",
@@ -282,6 +296,51 @@ def js_messages() -> dict[str, str]:
         "js.worker_enabled",
     )
     return {key.removeprefix("js."): t(key) for key in keys}
+
+
+def workflow_preview(workflow: Workflow) -> dict[str, object]:
+    """以實際座標與依賴產生卡片縮圖；只計算呈現，不修改或執行定義。"""
+    positions = {
+        node.id: (node.position.x, node.position.y)
+        if node.position
+        else (40.0 + (index % 3) * 280, 40.0 + (index // 3) * 160)
+        for index, node in enumerate(workflow.nodes)
+    }
+    nodes = [
+        {
+            "id": node.id,
+            "scene": node.scene_id,
+            "revision": node.revision,
+            "x": positions[node.id][0],
+            "y": positions[node.id][1],
+        }
+        for node in workflow.nodes
+    ]
+    edges: list[dict[str, str]] = []
+    xs: list[float] = []
+    ys: list[float] = []
+    for x, y in positions.values():
+        xs.extend((x, x + 200))
+        ys.extend((y, y + 96))
+    for target, sources in workflow.dependencies().items():
+        for source in sorted(sources):
+            if source not in positions:
+                continue
+            ax, ay = positions[source]
+            bx, by = positions[target]
+            x, y, xx, yy = ax + 200, ay + 48, bx, by + 48
+            bend = max(50, abs(xx - x) / 2)
+            xs.extend((x + bend, xx - bend))
+            edges.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "path": f"M {x} {y} C {x + bend} {y}, {xx - bend} {yy}, {xx} {yy}",
+                }
+            )
+    left, top = min(xs, default=0) - 24, min(ys, default=0) - 24
+    width, height = max(xs, default=240) - left + 24, max(ys, default=120) - top + 24
+    return {"nodes": nodes, "edges": edges, "viewbox": f"{left} {top} {width} {height}"}
 
 
 def workflow_messages() -> dict[str, str]:
@@ -327,6 +386,7 @@ cast("dict[str, object]", _env.globals).update(
     native_names=NATIVE_NAMES,
     locales=LOCALES,
     version=__version__,
+    workflow_preview=workflow_preview,
 )
 _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number

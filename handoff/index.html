@@ -31,6 +31,7 @@
   </div>
 
   <div class="stack">
+    <div class="notice">本頁事件時間統一為 America/Los_Angeles（PDT，UTC−07:00）；來源只有日期的文件標籤保留原文，不推定其精確時刻。換算規則見<a href="collaboration.html#sources">共用流程</a>。</div>
     <div class="notice"><strong>新會話從這裡開始：</strong>讀 <a href="../AGENTS.md">AGENTS.md</a> → <a href="collaboration.html">共用協作流程</a> → <a href="tasks/index.html">本次任務</a> → 相關決定、程式與驗收。Claude 的入口 <a href="../CLAUDE.md">CLAUDE.md</a> 也導向同一份規則；任務交接不依賴私人聊天或模型記憶。</div>
     <div class="notice"><strong>三種狀態分開看：</strong>「程式碼已合併」只代表在 main 上；「自動測試通過」是 GitHub Actions 的結果（Linux、macOS、Windows 的虛擬機，<strong>不是你的電腦</strong>）；「人工驗收通過」要有人在真實電腦上照驗收步驟做過並留下紀錄。目前<strong>沒有任何里程碑有完整的人工驗收紀錄</strong>。</div>
 
@@ -40,12 +41,12 @@
         <thead><tr><th>項目</th><th>程式碼已合併</th><th>自動測試通過</th><th>人工驗收通過</th></tr></thead>
         <tbody>
           <tr><td>M0～M2（骨架、DSL、場景契約、Runner）</td><td>是（#1～#10，10-09～10-10）</td><td>是</td><td><span class="kind unknown">沒有紀錄</span></td></tr>
-          <tr><td>M3 管理 Portal</td><td>是（#11，10-11）</td><td>是（含 Portal 端到端）</td><td><span class="kind unknown">沒有紀錄</span></td></tr>
-          <tr><td>M4 場景生產與登入</td><td>是（#16～#18，10-12～10-13）</td><td>是</td><td><span class="kind tentative">你宣告完成（10-12 23:56）</span>，沒有逐步驗收紀錄</td></tr>
+          <tr><td>M3 管理 Portal</td><td>是（#11，10-10）</td><td>是（含 Portal 端到端）</td><td><span class="kind unknown">沒有紀錄</span></td></tr>
+          <tr><td>M4 場景生產與登入</td><td>是（#16～#18，10-12）</td><td>是</td><td><span class="kind tentative">你宣告完成（10-12 23:56）</span>，沒有逐步驗收紀錄</td></tr>
           <tr><td>M6 自由試驗場</td><td>是（#22，10-13；#21 誤合併到別的分支）</td><td>是</td><td><span class="kind unknown">沒有紀錄</span></td></tr>
-          <tr><td><strong>M9a 遠端 worker</strong></td><td><strong>是（#23，2026-10-14 03:54 UTC）</strong></td><td>是（PR 與 main 的 CI；同一台虛擬機上模擬遠端 worker）</td><td><span class="kind pending">沒有通過</span>：10-13 20:52 回報 Windows 上「沒有 worker 這個命令」（當時 #23 還沒合併）；之後的步驟沒有紀錄</td></tr>
-          <tr><td>安裝腳本：受限語言模式（你寫的 #25）</td><td>是（#25，10-14 03:58 UTC）</td><td>是，但 <strong>CI 沒有在受限語言模式下跑</strong></td><td><span class="kind unknown">需你補充</span>（在你的 Windows 上裝完了嗎）</td></tr>
-          <tr><td>交接材料（#24）、setup-uv 10.3.0（#19）</td><td>是（10-14）</td><td>是</td><td>—</td></tr>
+          <tr><td><strong>M9a 遠端 worker</strong></td><td><strong>是（#23，2026-10-13 20:54 America/Los_Angeles（PDT，UTC−07:00））</strong></td><td>是（PR 與 main 的 CI；同一台虛擬機上模擬遠端 worker）</td><td><span class="kind pending">沒有通過</span>：10-13 20:52 回報 Windows 上「沒有 worker 這個命令」（當時 #23 還沒合併）；之後的步驟沒有紀錄</td></tr>
+          <tr><td>安裝腳本：受限語言模式（你寫的 #25）</td><td>是（#25，10-13 20:58 America/Los_Angeles（PDT，UTC−07:00））</td><td>是，但 <strong>CI 沒有在受限語言模式下跑</strong></td><td><span class="kind unknown">需你補充</span>（在你的 Windows 上裝完了嗎）</td></tr>
+          <tr><td>交接材料（#24）、setup-uv 10.3.0（#19）</td><td>是（10-13）</td><td>是</td><td>—</td></tr>
           <tr><td>M5 AI 助手</td><td>否</td><td>—</td><td><span class="kind pending">等你決定</span>模型與資料去向</td></tr>
         </tbody>
       </table></div>
@@ -97,8 +98,8 @@
       <div class="panel-body">
         <ul class="points">
           <li><span class="mono">2026-10-13 20:52</span>（你，經由對話）Windows 上執行 <code>uv run rpa worker …</code> 出現「沒有 worker 這個命令」。原因：當時 #23 還沒合併，main 上沒有這個命令。已回覆更新方式，並在交接頁加上提醒（#24）。</li>
-          <li><span class="mono">2026-10-14 03:46 UTC</span>（你）提交 #25：Windows PowerShell 處於受限語言模式、又沒有 winget 時，安裝腳本改為下載官方 uv 壓縮包並校驗 SHA-256。03:54～06:13 UTC 合併 #23、#25、#24、#19。</li>
-          <li><span class="mono">2026-10-14 Asia/Shanghai（UTC+08:00）</span>（ChatGPT／Codex）依使用者「Claude 與 ChatGPT 共同開發將成為常態」的要求，建立共用流程與雙入口；本輪狀態、驗證與交付位置見<a href="tasks/20261014-shared-ai-workflow.html">任務紀錄</a>。此項不代表 M9a 已人工驗收。</li>
+          <li><span class="mono">2026-10-13 20:46 America/Los_Angeles（PDT，UTC−07:00）</span>（你）提交 #25：Windows PowerShell 處於受限語言模式、又沒有 winget 時，安裝腳本改為下載官方 uv 壓縮包並校驗 SHA-256。20:54～23:13 America/Los_Angeles（PDT，UTC−07:00） 合併 #23、#25、#24、#19。</li>
+          <li><span class="mono">2026-10-14 America/Los_Angeles（PDT，UTC−07:00）</span>（ChatGPT／Codex）依使用者「Claude 與 ChatGPT 共同開發將成為常態」的要求，建立共用流程與雙入口；本輪狀態、驗證與交付位置見<a href="tasks/20261014-shared-ai-workflow.html">任務紀錄</a>。此項不代表 M9a 已人工驗收。</li>
         </ul>
       </div>
     </section>

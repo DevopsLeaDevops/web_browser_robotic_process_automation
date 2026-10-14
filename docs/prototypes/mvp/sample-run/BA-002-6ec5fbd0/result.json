@@ -1,0 +1,69 @@
+{
+  "runId": "BA-002-6ec5fbd0",
+  "sceneId": "BA-002",
+  "revision": 1,
+  "status": "passed",
+  "startedAt": "2026-10-13T10:59:23.642163+00:00",
+  "input": {
+    "note": "預設驗證說明",
+    "recordId": "DEMO-4F84445366AF",
+    "quantity": 12,
+    "expectedTitle": "介面驗證範例"
+  },
+  "output": {
+    "recordId": "DEMO-4F84445366AF",
+    "title": "介面驗證範例",
+    "quantity": 12
+  },
+  "workflow": {
+    "nodeId": "verify",
+    "iteration": 1,
+    "repeat": 1,
+    "bindings": {
+      "recordId": {
+        "kind": "output",
+        "source": "create",
+        "field": "recordId"
+      },
+      "quantity": {
+        "kind": "output",
+        "source": "create",
+        "field": "quantity"
+      },
+      "expectedTitle": {
+        "kind": "output",
+        "source": "create",
+        "field": "title"
+      },
+      "note": {
+        "kind": "default"
+      }
+    },
+    "sources": {
+      "recordId": "BA-001-e846766a",
+      "quantity": "BA-001-e846766a",
+      "expectedTitle": "BA-001-e846766a"
+    }
+  },
+  "automationHash": "8c3f642b96acbfdeaeb2346ec138f9f91479987f244d506ea2302a8472ce7080",
+  "assertionHash": "399863e62bf7433acb56784429ab1fce7b4aa58f56aa7a789edb2598440c57a1",
+  "steps": [
+    {
+      "name": "入參驗證",
+      "status": "passed"
+    },
+    {
+      "name": "瀏覽器自動化",
+      "status": "passed"
+    },
+    {
+      "name": "獨立斷言",
+      "status": "passed"
+    },
+    {
+      "name": "出參驗證與發布",
+      "status": "passed"
+    }
+  ],
+  "durationSeconds": 1.755
+}

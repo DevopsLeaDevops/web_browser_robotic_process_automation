@@ -62,26 +62,32 @@ def write_report(folder, result):
     links = ' · '.join(f'<a href="{p.name}">{p.name}</a>' for p in folder.iterdir()
                        if p.is_file() and p.name != 'report.html')
     diagnostics = (folder/'diagnostic.json').read_text(encoding='utf-8') if (folder/'diagnostic.json').exists() else '無額外頁面診斷'
-    document = f'''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(result['sceneId'])} 真實執行報告</title><style>body{{font:13px/1.6 system-ui;background:#f5f7fb;color:#24334a;max-width:1040px;margin:20px auto;padding:16px}}section{{background:white;border:1px solid #e9edf3;padding:16px;margin:12px 0;border-radius:9px}}h1{{font-size:21px}}h2{{font-size:15px}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fb;padding:12px}}img{{width:100%;border:1px solid #e9edf3}}a{{color:#0b69c4}}table{{width:100%;border-collapse:collapse}}td{{padding:8px;border-bottom:1px solid #e9edf3}}</style><h1>{esc(result['sceneId'])} · {status}</h1><p>真實本機瀏覽器執行 · 版本 1 · {esc(result['runId'])} · {result['durationSeconds']} 秒</p><section><h2>階段</h2><table>{''.join('<tr><td>'+esc(s['name'])+'</td><td>'+esc(s['status'])+'</td></tr>' for s in result['steps'])}</table><p>{esc(result.get('error') or '無異常')}</p></section><section><h2>本次入參</h2><pre>{pretty(result['input'])}</pre><h2>成功出參</h2><pre>{pretty(result['output'])}</pre></section><section><h2>頁面證據</h2>{screenshot}<pre>{esc(diagnostics)}</pre></section><section><h2>檔案與版本</h2><p>{links}</p><p>自動化 SHA-256：{esc(result['automationHash'])}</p><p>斷言 SHA-256：{esc(result['assertionHash'])}</p><p>腳本快照位於 script-snapshot/；出參只在所有檢查通過後發布。</p></section></html>'''
+    document = f'''<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{esc(result['sceneId'])} 真實執行報告</title><style>body{{font:13px/1.6 system-ui;background:#f5f7fb;color:#24334a;max-width:1040px;margin:20px auto;padding:16px}}section{{background:white;border:1px solid #e9edf3;padding:16px;margin:12px 0;border-radius:9px}}h1{{font-size:21px}}h2{{font-size:15px}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fb;padding:12px}}img{{width:100%;border:1px solid #e9edf3}}a{{color:#0b69c4}}table{{width:100%;border-collapse:collapse}}td{{padding:8px;border-bottom:1px solid #e9edf3}}</style><h1>{esc(result['sceneId'])} · {status}</h1><p>真實本機瀏覽器執行 · 版本 1 · {esc(result['runId'])} · {result['durationSeconds']} 秒</p><section><h2>階段</h2><table>{''.join('<tr><td>'+esc(s['name'])+'</td><td>'+esc(s['status'])+'</td></tr>' for s in result['steps'])}</table><p>{esc(result.get('error') or '無異常')}</p></section><section><h2>參數來源快照</h2><pre>{pretty(result.get('workflow'))}</pre><h2>本次入參</h2><pre>{pretty(result['input'])}</pre><h2>成功出參</h2><pre>{pretty(result['output'])}</pre></section><section><h2>頁面證據</h2>{screenshot}<pre>{esc(diagnostics)}</pre></section><section><h2>檔案與版本</h2><p>{links}</p><p>自動化 SHA-256：{esc(result['automationHash'])}</p><p>斷言 SHA-256：{esc(result['assertionHash'])}</p><p>腳本快照位於 script-snapshot/；出參只在所有檢查通過後發布。</p></section></html>'''
     (folder/'report.html').write_text(document, encoding='utf-8')
 
 
-def execute_scene(scene, params, base_url, session_dir, timeout=45, headed=False):
+def execute_scene(scene, params, base_url, session_dir, timeout=45, headed=False, *, contract=None, source_snapshot=None, metadata=None):
     run_id = scene + '-' + uuid.uuid4().hex[:8]
     folder = Path(session_dir)/run_id
     folder.mkdir(parents=True)
     snapshot = folder/'script-snapshot'
     snapshot.mkdir()
-    for source in (BASE/'scenes').glob('*.py'):
-        shutil.copy2(source, snapshot/source.name)
+    if source_snapshot is None:
+        source_snapshot = {p.name:p.read_text(encoding='utf-8') for p in (BASE/'scenes').glob('*.py')}
+    for name, text in source_snapshot.items():
+        if name not in ('automation.py','assertion.py'): raise ValueError('未知腳本檔名')
+        (snapshot/name).write_text(text, encoding='utf-8')
     write_json(folder/'input.json', params)
-    schema = INPUT_SCHEMA if scene == 'BA-001' else QUERY_SCHEMA
+    schema = contract['input']['schema'] if contract else (INPUT_SCHEMA if scene == 'BA-001' else QUERY_SCHEMA)
+    output_schema = contract['output']['schema'] if contract else OUTPUT_SCHEMA
     write_json(folder/'input.schema.json', schema)
-    write_json(folder/'output.schema.json', OUTPUT_SCHEMA)
+    write_json(folder/'output.schema.json', output_schema)
+    if contract: write_json(folder/'contract.json', contract)
+    if metadata: write_json(folder/'workflow-context.json', metadata)
     started = time.monotonic()
     deadline = started + timeout
     result = {'runId': run_id, 'sceneId': scene, 'revision': 1, 'status': 'running',
-              'startedAt': datetime.now(timezone.utc).isoformat(), 'input': params, 'output': None,
+              'startedAt': datetime.now(timezone.utc).isoformat(), 'input': params, 'output': None, 'workflow': metadata,
               'automationHash': hashlib.sha256((snapshot/'automation.py').read_bytes()).hexdigest(),
               'assertionHash': hashlib.sha256((snapshot/'assertion.py').read_bytes()).hexdigest(), 'steps': []}
     stage = '入參驗證'
@@ -108,7 +114,7 @@ def execute_scene(scene, params, base_url, session_dir, timeout=45, headed=False
         if time.monotonic() >= deadline:
             raise TimeoutError('出參發布前總期限已到')
         output = json.loads(candidate.read_text(encoding='utf-8'))
-        validate(output, OUTPUT_SCHEMA)
+        validate(output, output_schema)
         if time.monotonic() >= deadline:
             raise TimeoutError('出參驗證後總期限已到')
         candidate.replace(folder/'output.json')
@@ -151,7 +157,7 @@ def main():
         url = f'http://127.0.0.1:{server.server_port}/'
         previous = None
         for scene in ('BA-001', 'BA-002'):
-            inputs = params if scene == 'BA-001' else {'recordId': previous['recordId']}
+            inputs = params if scene == 'BA-001' else {'recordId': previous['recordId'], 'quantity':previous['quantity']}
             result, folder = execute_scene(scene, inputs, url, session, args.timeout, args.headed)
             results.append((result, folder))
             print(f"{scene}：{result['status']} · {folder/'report.html'}", flush=True)

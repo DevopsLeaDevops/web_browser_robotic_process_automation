@@ -11,23 +11,19 @@
 {%- endmacro %}
 
 {% macro editor(kind, types, script) %}
-<section class="panel contract-editor" id="contract-{{ kind }}" data-kind="{{ kind }}" hidden>
+<section class="panel contract-editor" id="contract-{{ kind }}" data-kind="{{ kind }}">
   <div class="panel-header">
     <div class="header-main">
       <h2>{{ t("contract.title_" + kind) }}</h2>
       <div class="segmented" role="tablist" aria-label="{{ t('contract.views') }}">
-        <button type="button" role="tab" class="active" aria-selected="true" data-view="table">{{ t("contract.view_table") }}</button>
-        <button type="button" role="tab" aria-selected="false" data-view="yaml">{{ t("contract.view_yaml") }}</button>
+        <button type="button" role="tab" aria-selected="false" data-view="table">{{ t("contract.view_table") }}</button>
+        <button type="button" role="tab" class="active" aria-selected="true" data-view="yaml">{{ t("contract.view_yaml") }}</button>
       </div>
     </div>
-    <div class="actions">
-      <span class="muted">{{ t("contract.based_on", number=scene.latest_number) }}</span>
-      <button class="button" type="button" data-action="close-contract">{{ t("js.cancel") }}</button>
-      <button class="button primary" type="button" data-action="save-contract">{{ t("edit.save") }}</button>
-    </div>
+
   </div>
   <ul class="checklist form-issues panel-body" hidden></ul>
-  <div data-view-panel="table">
+  <div data-view-panel="table" hidden>
     <div class="table-scroll"><table class="edit-table">
       <thead><tr>
         <th class="col-name">{{ t("spec.name") }}</th><th class="col-type">{{ t("spec.type") }}</th>
@@ -42,11 +38,10 @@
       <span class="muted">{{ t("contract.table_hint_" + kind) }}{% if script %} {{ t("contract.script_notice") }}{% endif %}</span>
     </div>
   </div>
-  <div class="panel-body" data-view-panel="yaml" hidden>
-    <textarea class="code-editor" name="yaml" rows="16" spellcheck="false" aria-label="{{ t('contract.title_' + kind) }}"></textarea>
+  <div class="panel-body" data-view-panel="yaml">
+    <textarea class="code-editor" name="yaml" rows="12" disabled spellcheck="false" aria-label="{{ t('contract.title_' + kind) }}">{{ contract_data.get("yaml", {}).get(kind, "") }}</textarea>
     <p class="hint">{{ t("contract.yaml_hint_" + kind) }}</p>
   </div>
-  <div class="panel-body contract-note"><label class="field">{{ t("edit.note") }}<input name="note" maxlength="500" placeholder="{{ t('contract.note_placeholder') }}"></label></div>
   <template data-row>
     <tr class="edit-row">
       <td><input name="name" class="mono" required pattern="[A-Za-z_][A-Za-z0-9_]{0,63}" aria-label="{{ t('spec.name') }}" placeholder="name"></td>
@@ -72,7 +67,24 @@
 
 <script type="application/json" id="contract-data">{{ contract_data | tojson }}</script>
 <datalist id="facts-list">{% for name, fields in facts %}<option value="{{ '{{ facts.' ~ name ~ ' }}' }}">{% for item in fields %}<option value="{{ '{{ facts.' ~ name ~ '.' ~ item ~ ' }}' }}">{% endfor %}{% endfor %}</datalist>
-<div class="contract-editors" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}">
-  {{ editor("inputs", ("string", "number", "integer", "boolean"), scenario.script) }}
-  {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object"), scenario.script) }}
-</div>
+<section id="contract-workspace" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-archived="{{ '1' if scene.archived else '0' }}">
+  <div class="contract-toolbar">
+    <span id="contract-state" class="muted" role="status">{{ t("contract.based_on", number=scene.latest_number) }}</span>
+    <button class="button primary" type="button" data-action="save-contract" disabled>{{ t("contract.save_both") }}</button>
+  </div>
+  <div class="notice contract-next" id="contract-next" hidden><span></span> <a class="button" data-validate-contract href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("contract.validate_next") }}</a></div>
+  <ul class="checklist form-issues" id="contract-issues" role="alert" hidden></ul>
+  <div class="contract-editors">
+    {{ editor("inputs", ("string", "number", "integer", "boolean"), scenario.script) }}
+    {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object"), scenario.script) }}
+  </div>
+  <div class="contract-previews">
+    {% for preview in ("defaults", "sample", "mapping") %}
+    <section class="panel contract-preview-tile" id="contract-preview-{{ preview }}" aria-labelledby="contract-preview-{{ preview }}-title" aria-busy="true">
+      <div class="panel-header"><h2 id="contract-preview-{{ preview }}-title">{{ t("contract.preview_" + preview) }}</h2><span class="tag">{{ t("contract.readonly") }}</span></div>
+      <div class="panel-body"><p data-preview-source class="hint">{{ t("js.working") }}</p><pre data-preview-value class="contract-preview-code" tabindex="0" aria-labelledby="contract-preview-{{ preview }}-title"></pre></div>
+    </section>
+    {% endfor %}
+  </div>
+  <label class="field contract-note">{{ t("edit.note") }}<input name="contract-note" maxlength="500" placeholder="{{ t('contract.note_placeholder') }}"></label>
+</section>
