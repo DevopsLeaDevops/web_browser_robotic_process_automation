@@ -29,6 +29,7 @@
   </div>
 
   <div class="stack">
+    <div class="notice">本頁事件時間統一為 America/Los_Angeles（PDT，UTC−07:00）；來源只有日期的文件標籤保留原文，不推定其精確時刻。換算規則見<a href="collaboration.html#sources">共用流程</a>。</div>
     <div class="notice"><strong>本頁保留 Claude 先前的操作歷史。</strong>2026-10-14 起，雙方接力與並行工作依<a href="collaboration.html">共用協作流程</a>。本頁的網路、工具、審批與忽略 stub 錯誤等描述，只適用當時環境；每次工作重新確認，不能當成當前檢查通過的依據。</div>
     <section class="panel" id="roles">
       <div class="panel-header"><h2>一、誰負責什麼</h2><span class="muted">依 #1～#25 的實際紀錄</span></div>
@@ -115,22 +116,22 @@
     </section>
 
     <section class="panel" id="example">
-      <div class="panel-header"><h2>五、實例：M9a（#23）的完整過程</h2><span class="muted">時間是 UTC</span></div>
+      <div class="panel-header"><h2>五、實例：M9a（#23）的完整過程</h2><span class="muted">America/Los_Angeles（PDT，UTC−07:00）</span></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>時間</th><th>誰</th><th>做了什麼</th><th>證據</th></tr></thead>
         <tbody>
-          <tr><td class="mono">10-13 10:50</td><td>你</td><td>提出需求（有頭模式占用電腦，要把 worker 放到另一台）</td><td>對話（太平洋時間 03:50）</td></tr>
-          <tr><td class="mono">10-13 ～10:55</td><td>Claude</td><td>clone、讀程式；發現 M6 不在 main → cherry-pick 到 <code>m6/main</code>；寫 M9a 提案存到 Claude 專案；用選擇題問你四個問題</td><td><a href="materials/claude-project/m9a-remote-worker-proposal.md">m9a 提案</a></td></tr>
-          <tr><td class="mono">10-13 11:01</td><td>Claude（你同意後）</td><td>推送 <code>m6/main</code>、開 #22</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/22">#22</a></td></tr>
-          <tr><td class="mono">10-13 11:18～11:31</td><td>Claude</td><td>從 <code>m6/main</code> 開 <code>m9a/remote-worker</code>；兩個 wip 提交（worker 協定與遠端任務來源、Portal 端；CLI、頁面、訊息、測試）。每步在本地跑 ruff、pyright、能跑的 pytest</td><td class="mono">75ecd54、52e8f2f</td></tr>
-          <tr><td class="mono">10-13 11:38</td><td>Claude</td><td>文檔（ADR 0012、遠端 worker、管理 Portal、架構、路線圖，英文翻譯並 stamp）後提交 <code>feat(m9a): … [bootstrap]</code> 並推送</td><td class="mono">f991890</td></tr>
-          <tr><td class="mono">10-13 11:39～11:50</td><td>bot</td><td>bootstrap 提交 uv.lock 與簡中；它的檢查失敗（沒有 annotations）</td><td class="mono">36478c2</td></tr>
-          <tr><td class="mono">10-13 11:40</td><td>Claude</td><td><code>git pull</code>；開 #23（base 是 <code>m6/main</code>）</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/23">#23</a></td></tr>
-          <tr><td class="mono">10-13 ～11:47</td><td>CI</td><td>測試 3.12／3.13 失敗：annotations 指出 <code>test_migrations.py</code> 的資料表清單排序</td><td>check run 115277146639</td></tr>
-          <tr><td class="mono">10-13 11:48</td><td>Claude</td><td>修正並推送；之後 CI 與安裝腳本全部通過（Windows、macOS 的安裝腳本約 30 分鐘）</td><td class="mono">a558078</td></tr>
-          <tr><td class="mono">10-13 12:17</td><td>你</td><td>合併 #22</td><td class="mono">683acb0</td></tr>
-          <tr><td class="mono">10-14 01:55</td><td>Claude</td><td>rebase：<code>git rebase --onto origin/main 93fd8cd m9a/remote-worker</code>，內容不變；<code>--force-with-lease</code> 推送；把 #23 的 base 改成 main；CI 再次全綠</td><td class="mono">8397164</td></tr>
-          <tr><td class="mono">10-14 03:54</td><td>你</td><td>squash 合併 #23</td><td class="mono">151a935</td></tr>
+          <tr><td class="mono">10-13 03:50</td><td>你</td><td>提出需求（有頭模式占用電腦，要把 worker 放到另一台）</td><td>對話（America/Los_Angeles 03:50）</td></tr>
+          <tr><td class="mono">10-13 ～03:55</td><td>Claude</td><td>clone、讀程式；發現 M6 不在 main → cherry-pick 到 <code>m6/main</code>；寫 M9a 提案存到 Claude 專案；用選擇題問你四個問題</td><td><a href="materials/claude-project/m9a-remote-worker-proposal.md">m9a 提案</a></td></tr>
+          <tr><td class="mono">10-13 04:01</td><td>Claude（你同意後）</td><td>推送 <code>m6/main</code>、開 #22</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/22">#22</a></td></tr>
+          <tr><td class="mono">10-13 04:18～04:31</td><td>Claude</td><td>從 <code>m6/main</code> 開 <code>m9a/remote-worker</code>；兩個 wip 提交（worker 協定與遠端任務來源、Portal 端；CLI、頁面、訊息、測試）。每步在本地跑 ruff、pyright、能跑的 pytest</td><td class="mono">75ecd54、52e8f2f</td></tr>
+          <tr><td class="mono">10-13 04:38</td><td>Claude</td><td>文檔（ADR 0012、遠端 worker、管理 Portal、架構、路線圖，英文翻譯並 stamp）後提交 <code>feat(m9a): … [bootstrap]</code> 並推送</td><td class="mono">f991890</td></tr>
+          <tr><td class="mono">10-13 04:39～04:50</td><td>bot</td><td>bootstrap 提交 uv.lock 與簡中；它的檢查失敗（沒有 annotations）</td><td class="mono">36478c2</td></tr>
+          <tr><td class="mono">10-13 04:40</td><td>Claude</td><td><code>git pull</code>；開 #23（base 是 <code>m6/main</code>）</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/23">#23</a></td></tr>
+          <tr><td class="mono">10-13 ～04:47</td><td>CI</td><td>測試 3.12／3.13 失敗：annotations 指出 <code>test_migrations.py</code> 的資料表清單排序</td><td>check run 115277146639</td></tr>
+          <tr><td class="mono">10-13 04:48</td><td>Claude</td><td>修正並推送；之後 CI 與安裝腳本全部通過（Windows、macOS 的安裝腳本約 30 分鐘）</td><td class="mono">a558078</td></tr>
+          <tr><td class="mono">10-13 05:17</td><td>你</td><td>合併 #22</td><td class="mono">683acb0</td></tr>
+          <tr><td class="mono">10-13 18:55</td><td>Claude</td><td>rebase：<code>git rebase --onto origin/main 93fd8cd m9a/remote-worker</code>，內容不變；<code>--force-with-lease</code> 推送；把 #23 的 base 改成 main；CI 再次全綠</td><td class="mono">8397164</td></tr>
+          <tr><td class="mono">10-13 20:54</td><td>你</td><td>squash 合併 #23</td><td class="mono">151a935</td></tr>
           <tr><td class="mono">—</td><td>你</td><td>兩台電腦的人工驗收：<strong>尚未完成</strong></td><td><a href="acceptance.html#manual-m9a">驗收紀錄</a></td></tr>
         </tbody>
       </table></div>

@@ -29,6 +29,7 @@
   </div>
 
   <div class="stack">
+    <div class="notice">本頁事件時間統一為 America/Los_Angeles（PDT，UTC−07:00）；來源只有日期的文件標籤保留原文，不推定其精確時刻。換算規則見<a href="collaboration.html#sources">共用流程</a>。</div>
     <section class="panel" id="partial">
       <div class="panel-header"><h2>一、做了一部分、還沒交付的功能（M9a）</h2><span class="muted">2026-10-14 在 main 上搜尋確認：三項都還沒有任何程式碼</span></div>
       <div class="table-scroll"><table class="wrap">
@@ -73,22 +74,22 @@
     </section>
 
     <section class="panel" id="diag">
-      <div class="panel-header"><h2>四、<code>ci/diag-windows</code> 的調查結論</h2><span class="muted">2026-10-11～10-12；分支已刪除，提交與結果仍在 GitHub 上</span></div>
+      <div class="panel-header"><h2>四、<code>ci/diag-windows</code> 的調查結論</h2><span class="muted">2026-10-10～10-11；分支已刪除，提交與結果仍在 GitHub 上</span></div>
       <div class="panel-body">
         <p><strong>問題</strong>：Windows 上 Firefox 場景偶爾某一步逾時失敗（輸入中文時尤其明顯）。<strong>做法</strong>：暫時分支上加診斷腳本（<code>.github/diag_probe.py</code>、<code>.github/diag_fonts.py</code>），用手動觸發的「一鍵安裝腳本」workflow 在 Windows 虛擬機上量測，結果寫在 check run 的 annotations。</p>
       </div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>提交（UTC）</th><th>診斷</th><th>結果（取自 annotations）</th></tr></thead>
+        <thead><tr><th>提交時間（America/Los_Angeles）</th><th>診斷</th><th>結果（取自 annotations）</th></tr></thead>
         <tbody>
-          <tr><td class="mono">40743fd（10-11 06:43）</td><td>第二次執行前有沒有殘留程序</td><td>沒有殘留的 Firefox 程序（CPU 最高的是系統程序與 Defender）；沒有後續動作</td></tr>
-          <tr><td class="mono">77ffef3（10-12 03:43）</td><td>各步驟耗時、中文字型</td><td>系統有完整的中日韓字型；Chromium 每步約 0.1 秒，Firefox 中英文都會偶爾卡 1.5～3 秒</td></tr>
-          <tr><td class="mono">0e71732、b2b3253、0820f45（10-12 03:48～04:03）</td><td>字型載入器、預熱、偏好設定（拼字檢查、TSF、無障礙）</td><td>都沒有消除停頓；停頓集中在啟動後約 3 秒；機器忙時 3～5 秒</td></tr>
-          <tr><td class="mono">cc3595e（10-12 04:09）</td><td>關閉預啟動、GPU、Fission、socket 程序</td><td>都沒有消除停頓</td></tr>
-          <tr><td class="mono">b07a8c5（10-12 04:16）</td><td>全新設定檔與重用設定檔</td><td><strong>全新設定檔</strong>：最壞 1.3～2.8 秒；<strong>重用同一份</strong>：0～1 秒；<strong>複製一份預熱過的</strong>：0～0.3 秒 → 停頓來自 Firefox 初始化全新設定檔</td></tr>
+          <tr><td class="mono">40743fd（10-10 23:43）</td><td>第二次執行前有沒有殘留程序</td><td>沒有殘留的 Firefox 程序（CPU 最高的是系統程序與 Defender）；沒有後續動作</td></tr>
+          <tr><td class="mono">77ffef3（10-11 20:43）</td><td>各步驟耗時、中文字型</td><td>系統有完整的中日韓字型；Chromium 每步約 0.1 秒，Firefox 中英文都會偶爾卡 1.5～3 秒</td></tr>
+          <tr><td class="mono">0e71732、b2b3253、0820f45（10-11 20:48～21:03）</td><td>字型載入器、預熱、偏好設定（拼字檢查、TSF、無障礙）</td><td>都沒有消除停頓；停頓集中在啟動後約 3 秒；機器忙時 3～5 秒</td></tr>
+          <tr><td class="mono">cc3595e（10-11 21:09）</td><td>關閉預啟動、GPU、Fission、socket 程序</td><td>都沒有消除停頓</td></tr>
+          <tr><td class="mono">b07a8c5（10-11 21:16）</td><td>全新設定檔與重用設定檔</td><td><strong>全新設定檔</strong>：最壞 1.3～2.8 秒；<strong>重用同一份</strong>：0～1 秒；<strong>複製一份預熱過的</strong>：0～0.3 秒 → 停頓來自 Firefox 初始化全新設定檔</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body">
-        <p><strong>結論與修正</strong>：Playwright 每次都用全新的暫存設定檔，Firefox 初始化設定檔時整個瀏覽器停止回應。改成「每台電腦、每個 Firefox 版本建立一份預熱過的範本，每次執行複製一份來啟動」，已在 <strong>#12（10-12）</strong>合併：<code>packages/rpa_runner/src/rpa_runner/profiles.py</code>（範本放在 <code>RPA_CACHE_DIR</code>，Windows 預設 <code>%LOCALAPPDATA%\rpa\cache</code>）。</p>
+        <p><strong>結論與修正</strong>：Playwright 每次都用全新的暫存設定檔，Firefox 初始化設定檔時整個瀏覽器停止回應。改成「每台電腦、每個 Firefox 版本建立一份預熱過的範本，每次執行複製一份來啟動」，已在 <strong>#12（10-11）</strong>合併：<code>packages/rpa_runner/src/rpa_runner/profiles.py</code>（範本放在 <code>RPA_CACHE_DIR</code>，Windows 預設 <code>%LOCALAPPDATA%\rpa\cache</code>）。</p>
         <p><strong>遺留</strong>：沒有未解的問題。兩點提醒：(1) 量測都在 CI 的 Windows 虛擬機，不是你的 Windows；(2) 診斷腳本沒有進 main，原文可用 <code>gh api repos/DevopsLeaDevops/web_browser_robotic_process_automation/commits/b07a8c54d128dc69d17571d407f20cfee8e52099</code> 查到。CI 日誌本體已無法下載，結果以 annotations 為準。</p>
       </div>
     </section>
