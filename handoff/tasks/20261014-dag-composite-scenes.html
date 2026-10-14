@@ -6,17 +6,17 @@
 <dt>驗收條件</dt><dd>非線性分叉／匯合可存取並執行；畫布位置保存；連線與資料來源可配置且阻擋環；舊序列與歷史執行可讀；卡片管理與生產畫布分工；三語及相關真實瀏覽器測試通過。</dd>
 <dt>主責／整合者</dt><dd>ChatGPT／Codex。審閱及接收方未指定。</dd>
 <dt>範圍</dt><dd>rpa_core.workflow、Portal workflow service／導航／頁面／JS／CSS、訊息目錄、測試、正式設計與交接文檔。</dd>
-<dt>分支／基準</dt><dd>m6/dag-composite-scenes；origin/main bbea5a4df2040532308a2f4fd7ce126c8b8f2be4（#27 已合併）；GitHub 開啟 PR 清單為空。</dd>
-<dt>狀態／交接版本</dt><dd>本地實作與檢查完成，待使用者審閱；尚未推送、尚未建立 PR、尚未接收。交接版本為基準 SHA＋本輪提交（以分支 HEAD 為準）；原型提交 <code>c363ada</code>。</dd>
+<dt>分支／基準</dt><dd>m6/dag-composite-scenes；origin/main bbea5a4df2040532308a2f4fd7ce126c8b8f2be4（#27 已合併）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR #28</a> 對 main，無相依 PR。</dd>
+<dt>狀態／交接版本</dt><dd>已推送並建立 PR #28，待正式審閱、使用者驗收及接收。原型提交 <code>c363ada</code>、功能提交 <code>6f4feab</code>；其後提交補充發布授權與驗收指引，不變更產品行為。接收時以 PR 最新 head 為準。</dd>
 <dt>工作區</dt><dd>使用者共用 macOS checkout；開工時乾淨、無其他 worktree。測試使用暫存資料與獨立埠。</dd>
 </dl></div></section>
 <section class="panel"><div class="panel-header"><h2>決定與下一步</h2></div><div class="panel-body"><ul class="points">
 <li>使用者已確認：DAG 與組合場景管理取代線性產品概念。新版原型包 SHA-256：<code>2a27f577bb3be28ccdfaa9d3082900527a04f058015c025f75c8c74aea606a07</code>；81 個檔案通過原包 MANIFEST 校驗，舊版可從 Git 歷史取得。</li>
 <li>實作選擇：第 2 版定義增加有向邊及節點座標；第 1 版維持相容，編輯時升級為同等依賴圖；輸出綁定也構成依賴。</li>
 <li>實作選擇：支援分叉與匯合，依拓撲順序逐個執行，不增加同時執行或條件分支；沿用失敗即停、固定場景版本、快照與續跑。</li>
-<li>已完成：核心 DAG／循環檢查、拓撲執行與續跑、四種入參來源、可拖動畫布／連線／縮放、座標保存、卡片管理、導航順序、三語與測試。下一步：使用者審閱本地成果，確認遠端發布後推送並建立 PR；CI 與使用者驗收需獨立確認。</li>
+<li>已完成：核心 DAG／循環檢查、拓撲執行與續跑、四種入參來源、可拖動畫布／連線／縮放、座標保存、卡片管理、導航順序、三語與測試。下一步：依本頁驗收指引確認使用體驗及實際環境，正式審閱後由使用者決定合併。GitHub CI 結果記錄在 PR，人工驗收仍待使用者回填。</li>
 </ul></div></section>
-<section class="panel" id="validation"><div class="panel-header"><h2>驗證與缺口</h2></div><div class="panel-body"><p>被測版本：基準 <code>bbea5a4</code>＋本輪工作區差異；macOS、Python 3.13.16、uv 0.12.24。測試使用暫存 SQLite／測試網站與獨立連接埠，不使用既有業務資料。</p><ul class="points">
+<section class="panel" id="validation"><div class="panel-header"><h2>驗證與缺口</h2></div><div class="panel-body"><p>本地被測功能版本：<code>6f4feab</code>（基準 <code>bbea5a4</code>＋本輪功能差異）；macOS、Python 3.13.16、uv 0.12.24。測試使用暫存 SQLite／測試網站與獨立連接埠，不使用既有業務資料。</p><ul class="points">
 <li><code>uv sync --locked</code> 通過，未新增套件或修改鎖檔。</li>
 <li><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run pyright</code> 通過；<code>node --check apps/server/src/rpa_server/static/portal.js</code> 通過。</li>
 <li><code>uv run pytest -m "not browser" -q</code>：852 passed、71 deselected（瀏覽器測試另跑），34.19 秒。涵蓋 DAG、環、缺少端點、同名歧義、隱式依賴、快照、失敗續跑、版本相容、導航、卡片及三語。</li>
@@ -24,7 +24,38 @@
 <li><code>uv run python tools/i18n.py check</code> 通過；已 stamp 英文與同步簡中。正式文檔及原型 MANIFEST 檢查包含在 852 項測試內。</li>
 <li><code>git diff --check</code> 通過；HTMLParser 檢查 handoff 的 14 頁、269 個本地連結與錨點通過。</li>
 <li>Codex 瀏覽器視覺自檢：1600×1100 桌面與 390×844 窄屏；窄屏 body／viewport 均為 390 px，沒有整頁橫向溢出。<a href="../assets/20261014-dag-canvas.png">畫布預覽</a>、<a href="../assets/20261014-dag-cards.png">卡片預覽</a>使用臨時示範資料。</li>
-</ul><p>CI：未執行；使用者人工驗收：本次 DAG 尚未執行；跨兩台實體電腦驗收：未執行（遠端測試是在同一台測試主機模擬遠端 worker）；正式審閱與接收：未完成。沒有任務 stash。所有檔案以本輪提交保存在共用 checkout。預覽原始圖與 PR 描述草稿另存本機 .git，正式預覽圖已納入 handoff/assets。</p><p>範圍說明：依本次五項需求實作。原型額外展示的重複次數、日期／隨機占位符、陣列／物件入參沒有擴充到目前 DSL；不是已驗收功能。無資料庫結構遷移；只讀歷史版本不改寫資料，舊序列在使用者保存畫布時轉為等價 DAG。</p></div></section>
+</ul><p>CI：PR #28 已觸發靜態檢查與 Python 3.12／3.13 完整測試；最新 head 的最終結果及執行連結回填於 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR 說明／Checks</a>，避免為回填結果本身反覆產生新提交。bootstrap 條件跳過不算測試通過，一鍵安裝腳本工作流本次無相關路徑變更而未觸發。使用者人工驗收：本次 DAG 尚未執行；跨兩台實體電腦驗收：未執行（遠端測試是在同一台測試主機模擬遠端 worker）；正式審閱與接收：未完成。沒有任務 stash。所有交付檔案已提交並隨 PR 分支推送，共用 checkout 保留相同版本。預覽原始圖與 PR 描述草稿另存本機 .git，正式預覽圖已納入 handoff/assets。</p><p>範圍說明：依本次五項需求實作。原型額外展示的重複次數、日期／隨機占位符、陣列／物件入參沒有擴充到目前 DSL；不是已驗收功能。無資料庫結構遷移；只讀歷史版本不改寫資料，舊序列在使用者保存畫布時轉為等價 DAG。</p></div></section>
+<section class="panel" id="acceptance"><div class="panel-header"><h2>使用者驗收操作（約 15～20 分鐘）</h2></div><div class="panel-body">
+<p>這份清單分開驗證功能證據與使用者體驗，不把自動測試通過當成人工接受。先用示範場景完成核心驗收，再以既有資料與實際業務場景確認相容性。DAG 可分叉及匯合，目前依拓撲順序逐個執行。</p>
+<h3>準備</h3><p>本機 checkout 已在 <code>m6/dag-composite-scenes</code>。在專案根目錄執行以下命令，使用獨立 Portal 資料目錄；既有 8080 服務可保留。若 8090 被占用，改用其他空埠並修改開啟網址。範例目標網站在 8765，已在執行時會沿用，範例會新增測試紀錄。</p>
+<pre><code>~/.local/bin/uv sync --locked
+~/.local/bin/uv run rpa serve --data data-dag-acceptance --port 8090</code></pre>
+<p>開啟 <a href="http://127.0.0.1:8090/playground">http://127.0.0.1:8090/playground</a>。終端應顯示測試網站已啟動或正在執行；本機先前驗證所需 Chromium／Firefox 已安裝。換機後如提示缺少瀏覽器，執行 <code>uv run playwright install chromium firefox</code>。</p>
+<ol class="steps">
+<li><strong>確認選單與責任：</strong>場景生產前三項依序為自主腳本錄製、自由試驗場、運行報告；場景管理最後一項為組合場景自動化，進入後以卡片管理組合場景。</li>
+<li><strong>準備兩個已發布場景：</strong>在「測試網站自動化」開啟 BA-001／建立範例紀錄，用預設入參驗證成功後發布，從該次報告複製出參 <code>recordId</code>。再開啟 BA-002／查詢範例紀錄，以剛才的 <code>recordId</code> 驗證成功後發布。均選本機、Chromium、無頭模式；已有發布版本可略過。</li>
+<li><strong>建立分叉與匯合：</strong>自由試驗場新增「DAG 驗收」，依序加入 BA-001、BA-002、BA-002、BA-001，應為 n1、n2、n3、n4。先點來源節點右側輸出端點，再點目標節點左側輸入端點，建立 n1→n2、n1→n3、n2→n4、n3→n4 四條線。可拖成菱形；也可在右側節點設定選擇上游並連線。</li>
+</ol>
+<div class="table-scroll"><table class="wrap"><thead><tr><th>節點</th><th>場景</th><th>右側入參來源配置</th><th>預期效果</th></tr></thead><tbody>
+<tr><td>n1</td><td>BA-001</td><td>title：固定值「DAG 驗收」；quantity：固定值 7</td><td>產生第一筆紀錄，發布 recordId、title、quantity</td></tr>
+<tr><td>n2</td><td>BA-002</td><td>recordId：同名匹配</td><td>匹配 n1.recordId</td></tr>
+<tr><td>n3</td><td>BA-002</td><td>recordId：指定 n1.recordId</td><td>查詢同一筆紀錄，驗證另一種綁定方式</td></tr>
+<tr><td>n4</td><td>BA-001</td><td>title：指定 n2.title；quantity：指定 n3.quantity</td><td>匯合兩路資料，建立另一筆標題及數量相同的新紀錄</td></tr>
+</tbody></table></div>
+<ol class="steps" start="4">
+<li><strong>拖動與保存：</strong>把 n4 移到 n1 左側，再保存及重新整理。節點位置、四條線與入參配置均應保留；縮放／適應畫布只改視角。即使 n4 視覺上排最前，執行仍須等待 n2、n3。</li>
+<li><strong>執行與核對資料：</strong>點執行，選本機、Chromium、無頭。報告應顯示四個節點通過，n1 最先、n4 最後；n2、n3 的輸入 recordId 等於 n1 的輸出；n4 的輸入 title＝「DAG 驗收」、quantity＝7，輸出 recordId 與 n1 不同。回組合場景自動化，卡片能重新進入畫布，最近執行可開啟報告。需要觀察瀏覽器時，再選有頭模式執行一次。</li>
+<li><strong>保護檢查：</strong>嘗試 n4→n1，應提示循環且不新增這條線。將 n4.title 改成同名匹配，因 n2、n3 同時提供 title，應提示歧義並阻擋執行；恢復指定 n2.title。再刪除 n1→n2，必填 recordId 無來源時應顯示問題；重新連線後恢復。</li>
+<li><strong>失敗停止（建議）：</strong>將 n2.recordId 暫改為固定值 <code>DEMO-NOTFOUND1</code> 再執行，應在查詢失敗處停止，n4 不應執行。將畫布配置恢復後發起一次新執行應通過。舊執行保留原快照，修改畫布不會更改舊執行入參；不要以「續跑舊快照」代替這次新執行。</li>
+</ol>
+<h3>仍需實際環境確認</h3><ul class="points">
+<li>你對拖動、連線、入參來源說明及管理／生產分工的接受程度；常用螢幕大小，以及你關注的原型交互是否符合預期。</li>
+<li>你原有的序列與歷史報告：重啟使用既有資料的 Portal 後檢查可讀；舊序列保存時升級為等價 DAG。若先用既有資料目錄的副本驗收，複製時先停止原服務，避免取得不一致的 SQLite 資料。全新 data-dag-acceptance 不含你的歷史資料。</li>
+<li>實際業務系統：選一組你常用的場景串接，確認登入角色、欄位值、環境網址及產物符合業務預期。自動測試使用本機範例網站，不代表真實系統已驗收。</li>
+<li>若這次要驗收 Windows 遠端執行：Portal 與 Windows worker 都取得本 PR 相同版本，依既有接入方式連線；選遠端 worker 執行上述圖，確認所有節點均由同一 worker 完成。這項尚未在兩台實體電腦測過。</li>
+</ul>
+<p>回報格式：PR #28／實際提交 SHA、作業系統及瀏覽器、資料目錄、通過項目；未通過項目附操作步驟、預期／實際結果及執行編號，可補截圖。若要交給 Claude 接手，請先指定接收方，核對同一 PR head 後回填接收確認。</p>
+</div></section>
 <section class="panel"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>未接收；接收方須核對版本並回填。</p></div></section>
-<section class="panel"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-10-14 UTC+08:00，ChatGPT／Codex：讀取共用流程並 fetch，確認 #27 已合併，從最新 origin/main 建立本分支。原型包 docs/prototypes/mvp 是舊版；使用者將另提供新版。</li><li>2026-10-14 UTC+08:00，ChatGPT／Codex：完成實作與自檢。瀏覽器測試發現固定值說明未刷新，已修正；單獨執行 Portal 測試時先檢查 engine，再開 Playwright 頁面以避免巢狀事件迴圈。拖動保存測試改為等待 PUT 回應後才讀取資料；沒有放寬斷言。自檢另外補上未知同名匹配欄位不得靜默丟棄，以及隱式出參依賴與同名匹配使用同一依賴圖的回歸。</li></ul></div></section>
+<section class="panel"><div class="panel-header"><h2 id="publication">追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-10-14 UTC+08:00，ChatGPT／Codex：讀取共用流程並 fetch，確認 #27 已合併，從最新 origin/main 建立本分支。原型包 docs/prototypes/mvp 是舊版；使用者將另提供新版。</li><li>2026-10-14 UTC+08:00，ChatGPT／Codex：完成實作與自檢。瀏覽器測試發現固定值說明未刷新，已修正；單獨執行 Portal 測試時先檢查 engine，再開 Playwright 頁面以避免巢狀事件迴圈。拖動保存測試改為等待 PUT 回應後才讀取資料；沒有放寬斷言。自檢另外補上未知同名匹配欄位不得靜默丟棄，以及隱式出參依賴與同名匹配使用同一依賴圖的回歸。</li><li>2026-10-14 UTC+08:00，使用者明確要求建立 PR 並檢查 GitHub 流水線，授權後續大的改動直接建立 PR；已同步共用流程及 AGENTS.md。Codex 推送功能分支並建立 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR #28</a>，補充本頁驗收步驟及責任分工。最終 CI 證據回填 PR 說明，人工驗收與正式接收仍待確認。</li></ul></div></section>
 </div></main></body></html>
