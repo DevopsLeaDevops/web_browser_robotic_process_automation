@@ -4,7 +4,7 @@
 
 - **main 已合併**（UTC）：#23 M9a（10-14 03:54，151a935）、#25 你寫的受限語言模式安裝修正（03:58，e3daa6e）、#24 交接材料（03:58，8f91944）、#19 setup-uv 10.3.0（06:13，30fe7b8）。main CI 全綠。
 - **人工驗收**：M9a 兩機驗收沒有通過紀錄。10-13 20:52（太平洋時間）回報 Windows「沒有 worker 這個命令」，原因是 #23 當時未合併；之後沒有回報。
-- **交接包**：倉庫 `handoff/`（PR「docs(handoff): 補齊交接…」，分支 `docs/handoff-complete`）：總入口、驗收紀錄、未完成工作、決定與工作規則、運作環境、研發與 Git 方法、時間軸、原始材料（本專案 8 份文件的原文在 `handoff/materials/claude-project/`）。**接手先讀 `handoff/index.html`。**
+- **交接包**：倉庫 `handoff/`（PR #26，分支 `docs/handoff-complete`）：總入口、驗收紀錄、未完成工作、決定與工作規則、運作環境、研發與 Git 方法、時間軸、原始材料（本專案 8 份文件的原文在 `handoff/materials/claude-project/`）。**接手先讀 `handoff/index.html`。**
 - `ci/diag-windows`（10-11～12，已刪分支）結論：Firefox 初始化全新設定檔造成約 3 秒後的停頓；修正是預熱範本＋複製（`rpa_runner/profiles.py`，#12）。沒有遺留問題。
 - 舊分支盤點：沒有獨有工作；可全刪。
 - 規則：本日誌之後只追加、不覆蓋（10-13 曾整份改寫，之前的原文已不在）。
