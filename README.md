@@ -36,6 +36,8 @@ uv run rpa serve --data data-m4      # 另用一份全新的資料夾（例如�
 
 ## 目前進度
 
+> 交接材料（2026-10-13）：[`handoff/index.html`](handoff/index.html)；專案脈絡與對話備忘：[`handoff/history.html`](handoff/history.html)。
+
 方案 v2：結合 MVP 原型（`docs/prototypes/mvp/`），先交付單機、單使用者的 MVP。
 M1 場景 DSL、M1.1 場景契約、M2 Runner 已完成：`rpa run` 在 Chromium 或 Firefox 中真實執行場景，產生執行目錄與報告。
 M3 管理 Portal 已完成：`rpa serve` 在瀏覽器裡建立、驗證、發布、執行場景並查看報告（`docs/design/portal.html`）。
