@@ -1,0 +1,51 @@
+{
+  "runId": "BA-001-e846766a",
+  "sceneId": "BA-001",
+  "revision": 1,
+  "status": "passed",
+  "startedAt": "2026-10-13T10:59:21.740441+00:00",
+  "input": {
+    "title": "介面驗證範例",
+    "quantity": 12
+  },
+  "output": {
+    "recordId": "DEMO-4F84445366AF",
+    "title": "介面驗證範例",
+    "quantity": 12
+  },
+  "workflow": {
+    "nodeId": "create",
+    "iteration": 2,
+    "repeat": 2,
+    "bindings": {
+      "title": {
+        "kind": "default"
+      },
+      "quantity": {
+        "kind": "default"
+      }
+    },
+    "sources": {}
+  },
+  "automationHash": "8c3f642b96acbfdeaeb2346ec138f9f91479987f244d506ea2302a8472ce7080",
+  "assertionHash": "399863e62bf7433acb56784429ab1fce7b4aa58f56aa7a789edb2598440c57a1",
+  "steps": [
+    {
+      "name": "入參驗證",
+      "status": "passed"
+    },
+    {
+      "name": "瀏覽器自動化",
+      "status": "passed"
+    },
+    {
+      "name": "獨立斷言",
+      "status": "passed"
+    },
+    {
+      "name": "出參驗證與發布",
+      "status": "passed"
+    }
+  ],
+  "durationSeconds": 1.9
+}

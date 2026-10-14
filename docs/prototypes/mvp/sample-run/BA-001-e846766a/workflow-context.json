@@ -1,0 +1,14 @@
+{
+  "nodeId": "create",
+  "iteration": 2,
+  "repeat": 2,
+  "bindings": {
+    "title": {
+      "kind": "default"
+    },
+    "quantity": {
+      "kind": "default"
+    }
+  },
+  "sources": {}
+}

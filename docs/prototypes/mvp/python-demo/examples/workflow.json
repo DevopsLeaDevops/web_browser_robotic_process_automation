@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "parameterBindingVersion": 1,
+  "name": "建立與驗證紀錄",
+  "nodes": [
+    {
+      "id": "create",
+      "sceneId": "BA-001",
+      "repeat": 2,
+      "x": 40,
+      "y": 60,
+      "bindings": {}
+    },
+    {
+      "id": "verify",
+      "sceneId": "BA-002",
+      "repeat": 1,
+      "x": 340,
+      "y": 60,
+      "bindings": {
+        "expectedTitle": {
+          "kind": "output",
+          "source": "create",
+          "field": "title"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "create",
+      "target": "verify"
+    }
+  ]
+}

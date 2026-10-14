@@ -1,0 +1,106 @@
+{
+  "status": "passed",
+  "total": 3,
+  "calls": [
+    {
+      "nodeId": "create",
+      "iteration": 1,
+      "repeat": 2,
+      "bindings": {
+        "title": {
+          "kind": "default"
+        },
+        "quantity": {
+          "kind": "default"
+        }
+      },
+      "sources": {},
+      "runId": "BA-001-5d97e84a",
+      "sceneId": "BA-001",
+      "status": "passed",
+      "inputs": {
+        "title": "介面驗證範例",
+        "quantity": 12
+      },
+      "outputs": {
+        "recordId": "DEMO-A9DBC15DCFCE",
+        "title": "介面驗證範例",
+        "quantity": 12
+      },
+      "report": "BA-001-5d97e84a/report.html"
+    },
+    {
+      "nodeId": "create",
+      "iteration": 2,
+      "repeat": 2,
+      "bindings": {
+        "title": {
+          "kind": "default"
+        },
+        "quantity": {
+          "kind": "default"
+        }
+      },
+      "sources": {},
+      "runId": "BA-001-e846766a",
+      "sceneId": "BA-001",
+      "status": "passed",
+      "inputs": {
+        "title": "介面驗證範例",
+        "quantity": 12
+      },
+      "outputs": {
+        "recordId": "DEMO-4F84445366AF",
+        "title": "介面驗證範例",
+        "quantity": 12
+      },
+      "report": "BA-001-e846766a/report.html"
+    },
+    {
+      "nodeId": "verify",
+      "iteration": 1,
+      "repeat": 1,
+      "bindings": {
+        "recordId": {
+          "kind": "output",
+          "source": "create",
+          "field": "recordId"
+        },
+        "quantity": {
+          "kind": "output",
+          "source": "create",
+          "field": "quantity"
+        },
+        "expectedTitle": {
+          "kind": "output",
+          "source": "create",
+          "field": "title"
+        },
+        "note": {
+          "kind": "default"
+        }
+      },
+      "sources": {
+        "recordId": "BA-001-e846766a",
+        "quantity": "BA-001-e846766a",
+        "expectedTitle": "BA-001-e846766a"
+      },
+      "runId": "BA-002-6ec5fbd0",
+      "sceneId": "BA-002",
+      "status": "passed",
+      "inputs": {
+        "note": "預設驗證說明",
+        "recordId": "DEMO-4F84445366AF",
+        "quantity": 12,
+        "expectedTitle": "介面驗證範例"
+      },
+      "outputs": {
+        "recordId": "DEMO-4F84445366AF",
+        "title": "介面驗證範例",
+        "quantity": 12
+      },
+      "report": "BA-002-6ec5fbd0/report.html"
+    }
+  ],
+  "error": null
+}
