@@ -22,7 +22,7 @@
         <dt>修改範圍</dt><dd>根目錄 AGENTS.md、CLAUDE.md、README.md；.github/pull_request_template.md；handoff 的現行入口、流程與任務檔案；docs 的三語開發規範。原始材料快照不修改。</dd>
         <dt>狀態</dt><dd>已推送並建立 PR，待使用者審核；本地檢查完成，CI 以 PR 最新 head 的 Checks 為準，尚未合併。</dd>
         <dt>分支／PR／起點</dt><dd><code>docs/shared-ai-workflow</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/27">PR #27</a>（目標 main）；base 為 <code>32f240b</code>（main，#26）。</dd>
-        <dt>交接版本</dt><dd>實作提交 <code>0b2d945</code>；<code>2e85f8e</code> 記錄先前發布阻塞，已推送至遠端分支。後續提交僅更新本紀錄的 PR 狀態；實際交接 SHA 以 PR 最新 head 為準，接收方尚未確認接收。</dd>
+        <dt>交接版本</dt><dd>實作提交 <code>317a573</code>（原 0b2d945，僅修正提交身分）；<code>643101d</code> 記錄先前發布阻塞，<code>7a35248</code> 回填 PR 狀態。後續提交僅更新本紀錄的 PR 狀態；實際交接 SHA 以 PR 最新 head 為準，接收方尚未確認接收。</dd>
         <dt>相依任務／環境</dt><dd>依據 #26 交接包；無其他實作任務相依。使用者本機 macOS、Python 3.13.16、uv 0.12.24、pytest 9.1.1、OpenCC 1.4.2。</dd>
       </dl></div>
     </section>
@@ -65,6 +65,7 @@
         <li>2026-10-14（UTC+08:00），使用者：已閱讀改動，要求下一步按流程提交 PR，由使用者審核；授權本輪提交、推送及建立 PR，不合併。</li>
         <li>2026-10-14（UTC+08:00），ChatGPT／Codex：本地提交 0b2d945，pre-commit 的空白、合併標記、大檔案、簡中同步與文檔連結檢查通過。HTTPS git push 缺少認證；已連接 GitHub 的 create-tree 返回 403 Resource not accessible by integration；既有 SSH 認證返回 Permission denied (publickey)。未建立遠端分支或 PR。請恢復合法的倉庫寫入認證後續作。</li>
         <li>2026-10-14（UTC+08:00），ChatGPT／Codex：遠端寫入阻塞已解除，推送 docs/shared-ai-workflow 並建立 PR #27（base main）。本次僅更新任務交付狀態，保留 0b2d945 的實作驗證證據；使用者正式審閱、接收確認與合併仍待完成。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：依使用者要求修正 PR #27 的提交身分，倉庫本地 user.name／user.email 設為 DevopsLeaDevops／devops-lea608@onet.pl；全域設定保持不變。重寫前 base 32f240b、遠端 head ff9e065，舊 head 保存於本機 refs/backup/shared-ai-workflow-identity-20261014。三個提交對應為 0b2d945 → 317a573、2e85f8e → 643101d、ff9e065 → 7a35248；逐一核對 tree 完全一致，原驗證證據適用。本次追加紀錄另行提交，使用綁定舊遠端完整 SHA 的 force-with-lease 更新原 PR；最新 CI 需重新確認。</li>
       </ul></div>
     </section>
   </div>
