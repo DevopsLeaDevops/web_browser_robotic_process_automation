@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>交接材料（2026-10-13）· 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../docs/design-system/assets/portal.css">
+<style>
+  main{margin:0 auto;max-width:1120px;padding:24px 20px 40px}
+  .handoff-nav{display:flex;gap:16px;font-size:13px;margin-bottom:14px}
+  .handoff-nav a.active{font-weight:650}
+  ol.steps li,ul.points li{margin:6px 0;line-height:1.75;font-size:13px}
+  ol.steps,ul.points{padding-left:22px;margin:0}
+  td,th{white-space:normal;vertical-align:top}
+  .log{min-height:140px;border:1px dashed #c9d6e5;border-radius:6px;padding:12px;font-size:13px}
+</style>
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="交接材料">
+    <a class="active" href="index.html">交接材料</a>
+    <a href="history.html">專案脈絡與對話備忘</a>
+    <a href="../docs/index.html">文檔站</a>
+  </nav>
+  <div class="heading">
+    <div>
+      <h1>交接材料（2026-10-13）</h1>
+      <p>給接下來一週自己動手改的你，以及下週回來接手的 Claude。這個目錄不屬於文檔站（不需要翻譯）。<strong>改了什麼、做到哪，請記在最後的「交接紀錄」</strong>，下週接手時會先讀那裡和 <code>git log</code>。</p>
+    </div>
+    <span class="badge blue">M9a 進行中</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="status">
+      <div class="panel-header"><h2>1. 現況</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>狀態</th></tr></thead>
+        <tbody>
+          <tr><td>M0～M4、M6 自由試驗場</td><td>都在 main。M6 原本誤合併到別的分支，已由 #22 補進 main。</td></tr>
+          <tr><td><strong>M9a 遠端 worker</strong></td><td><strong>PR #23</strong>，已改接到 main，CI 全綠（含 Windows、macOS，以及真實瀏覽器經過 Worker API 的端對端測試），<strong>等你合併</strong>。</td></tr>
+          <tr><td>兩台電腦的實機驗收</td><td><span class="badge amber">還沒做</span> CI 只在同一台電腦上模擬過遠端 worker。</td></tr>
+          <tr><td>M5 AI 助手</td><td>等你決定 AI 模型與資料去向（第 3.3 節）。</td></tr>
+          <tr><td>PR #19（Dependabot：setup-uv 10.3.0）</td><td>可以合併。</td></tr>
+          <tr><td>舊分支 <code>docs/roadmap-m6-first</code>、<code>m6/playground</code>、<code>m6/main</code></td><td>都已經合併，可以在 GitHub 上刪掉。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p class="muted">路線圖順序：M6 → <strong>M9a（進行中）</strong> → M5（MVP 完成）→ M7 → M8 → M9。見 <a href="../docs/roadmap.html">路線圖</a>。</p></div>
+    </section>
+
+    <section class="panel" id="m9a">
+      <div class="panel-header"><h2>2. M9a 遠端 worker 做了什麼</h2></div>
+      <div class="panel-body">
+        <p class="muted">設計：<a href="../docs/adr/0012-remote-workers.html">ADR 0012</a>；操作：<a href="../docs/develop/remote-worker.html">遠端 worker</a>；管理 Portal 的說明：<a href="../docs/design/portal.html#remote-workers">管理 Portal › 遠端 worker</a>（手動驗收第 8 步是兩台電腦的流程）。</p>
+        <ul class="points">
+          <li><code>rpa serve --worker-port 8081</code> 另開一個埠，只有 Worker API（<code>/worker-api/v1</code>，每個請求都要權杖）；管理頁面仍然只在 127.0.0.1。</li>
+          <li>「場景生產 › 遠端 Worker」頁：登記 worker、產生權杖（只顯示一次）、停用、重新產生權杖、刪除、預設執行位置。</li>
+          <li>worker 機器：<code>uv run rpa worker --server http://你的IP:8081 --name win-01</code>（權杖放在環境變數 <code>RPA_WORKER_TOKEN</code>）。</li>
+          <li>執行、驗證、序列的表單多了「執行位置」：本機／遠端 worker／任一。預設本機，所以沒有登記 worker 時和以前一樣。</li>
+          <li>60 秒沒有心跳就判定 worker 失聯，那次執行標為失敗，不自動重跑。試驗場序列整個固定在第一個節點的 worker。</li>
+        </ul>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>位置</th><th>內容</th></tr></thead>
+        <tbody>
+          <tr><td><code>apps/worker/src/rpa_worker/protocol.py</code></td><td>Worker API 的資料格式（任務、zip 打包與安全解開、常數）</td></tr>
+          <tr><td><code>apps/worker/src/rpa_worker/environment.py</code></td><td>能否顯示視窗、已下載的瀏覽器、程式指紋、區網位址</td></tr>
+          <tr><td><code>apps/worker/src/rpa_worker/remote.py</code></td><td><code>WorkerClient</code>、<code>RemoteJobSource</code>（長輪詢、心跳、上傳、重試）</td></tr>
+          <tr><td><code>apps/server/src/rpa_server/dispatch.py</code></td><td><code>WorkerHub</code>：登記、權杖、領取時的配對、租約、結果寫回</td></tr>
+          <tr><td><code>apps/server/src/rpa_server/worker_api.py</code></td><td><code>/worker-api/v1</code> 的路由</td></tr>
+          <tr><td><code>apps/server/src/rpa_server/jobs.py</code></td><td><code>RunQueue</code>：本機與遠端共用的領取（<code>claim_run</code>）與寫回（<code>complete</code>、<code>fail_run</code>）</td></tr>
+          <tr><td><code>apps/server/src/rpa_server/services.py</code></td><td><code>resolve_target</code>、<code>can_display</code>、<code>resolve_headless</code>、<code>locations</code></td></tr>
+          <tr><td><code>apps/server/src/rpa_server/middleware.py</code></td><td><code>PortGateMiddleware</code>：兩個埠各自只能用自己的路徑</td></tr>
+          <tr><td><code>…/migrations/versions/0007_remote_workers.py</code></td><td><code>workers</code>、<code>settings</code>；<code>runs</code>、<code>workflow_runs</code> 的新欄位</td></tr>
+          <tr><td><code>templates/workers.html</code>、<code>static/portal.js</code>（<code>bindWorkers</code>、<code>bindTargetChoice</code>）</td><td>頁面</td></tr>
+          <tr><td><code>apps/cli/src/rpa_cli/worker.py</code>、<code>serve.py</code></td><td><code>rpa worker</code>；<code>rpa serve --worker-port/--worker-host/--no-local-worker</code></td></tr>
+          <tr><td>測試</td><td><code>apps/worker/tests/test_protocol.py</code>、<code>test_remote.py</code>；<code>apps/server/tests/test_remote_worker_api.py</code>、<code>test_remote_worker_flow.py</code>；<code>apps/cli/tests/test_worker_cli.py</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="todo">
+      <div class="panel-header"><h2>3. 接下來要做的事</h2><span class="muted">建議依這個順序</span></div>
+      <div class="panel-body stack">
+        <div>
+          <h3>3.1 合併 #23，做兩台電腦的驗收（必做，約 20 分鐘）</h3>
+          <ol class="steps">
+            <li>你的電腦：<code>uv run rpa serve --data data-check --worker-port 8081</code>，允許防火牆的連入詢問。</li>
+            <li>Portal「場景生產 › 遠端 Worker」新增 <code>win-01</code>，複製權杖與 PowerShell 命令。</li>
+            <li>Windows 機器：用 <code>scripts\setup.ps1</code> 安裝，再貼上命令啟動 <code>rpa worker</code>；worker 頁要變成「線上」。</li>
+            <li>選「遠端 worker」＋有頭模式執行 BA-001：視窗出現在 Windows 那台，你的電腦不跳視窗；報告「通過」、截圖看得到、執行頁顯示「執行的電腦：win-01」。</li>
+            <li>用「遠端 worker」跑 BA-001 → BA-002 的序列：兩個節點都在 win-01。</li>
+            <li>執行中在 Windows 按 Ctrl+C：Portal 上那次變成「已取消」。拔掉 Windows 的網路：約一分鐘後變成失敗「worker 失聯」。</li>
+          </ol>
+          <div class="notice warn">有問題請記在第 6 節：哪一步、看到的訊息、<code>rpa worker</code> 終端機的輸出。Windows 上最可能出問題的是防火牆、路徑與換行；雜湊不符（驗證通過卻被標失敗）也請特別記下來。</div>
+        </div>
+        <div>
+          <h3>3.2 M9a 還沒做的小項目（選做，你可以自己寫）</h3>
+          <ol class="steps">
+            <li><strong>執行報告的篩選加「執行位置」</strong>：<code>render.run_filters</code> 加一個選單，<code>Services.list_runs</code> 加篩選條件（<code>Run.target</code> 或 <code>Run.worker_id</code>），<code>pages.runs</code> 傳參數。</li>
+            <li><strong>網址是 localhost／127.0.0.1 時提醒</strong>：選「遠端」而場景網址是本機位址時，在 <code>run_form.html</code> 顯示提醒（測試網站 8765 除外，worker 有自己的）。</li>
+            <li><strong>排隊中等待 worker 的提示</strong>：執行頁狀態是「排隊中」、位置是遠端、而沒有線上的 worker 能接時，顯示「等待可以執行的 worker」（看 <code>WorkerHub.list_workers()</code> 的狀態）。</li>
+            <li><strong>HTTPS</strong>（選用）：<code>rpa serve</code> 產生自簽憑證、worker 第一次連線時確認指紋。只有網路不受信任時才需要。</li>
+          </ol>
+        </div>
+        <div>
+          <h3>3.3 M5 AI 助手：需要你決定</h3>
+          <p>設計提案在 Claude 專案的 <code>claude/m5-design-proposal.md</code>（摘要見<a href="history.html#m5">專案脈絡與對話備忘</a>）。開工前要決定：</p>
+          <ul class="points">
+            <li><strong>用哪個 AI 模型</strong>：Claude API、公司內部模型，還是本機模型？推薦「兩種都支援，由設定選擇」。</li>
+            <li><strong>資料去向</strong>：公司內部頁面的內容（網址、可存取性樹、選擇器、校驗錯誤）能不能送到外部 API？不能的話，請給自架端點的網址與模型名稱。</li>
+            <li>另外兩點有推薦預設：不送截圖、輸入框的值遮罩；金鑰放在「登入與憑證」的 Secrets。</li>
+          </ul>
+          <p>決定後寫在第 6 節，下週直接開工。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="rules">
+      <div class="panel-header"><h2>4. 修改時的規則（CI 會檢查）</h2><span class="muted">詳細見 <a href="../docs/develop/conventions.html">開發規範</a>、<a href="../docs/develop/writing-docs.html">文檔與 ADR</a></span></div>
+      <div class="panel-body">
+        <p>每次提交前，在專案資料夾執行：</p>
+<pre class="source">uv run ruff check . &amp;&amp; uv run ruff format --check .
+uv run pyright                      # strict 模式
+uv run pytest -m "not browser"      # 快；要跑真實瀏覽器的就拿掉 -m
+uv run python tools/i18n.py check   # 簡中是否同步、英文是否跟上繁中</pre>
+        <ul class="points">
+          <li><strong>改資料庫模型就要新增遷移</strong>：下一個是 <code>0008</code>，<code>down_revision = "0007"</code>；<code>test_migrations.py</code> 會比對模型與遷移，也要更新資料表清單（依字母排序）。</li>
+          <li><strong>介面文字不能寫死在程式或樣板裡</strong>：放在 <code>locales/zh-Hant.json</code>、<code>en.json</code>（三種語言的鍵與 <code>{佔位符}</code> 要相同）；<code>zh-Hans.json</code> 由 <code>uv run python tools/i18n.py sync</code> 從繁中產生，不要手改。<code>test_render.py</code> 會檢查英文頁面沒有殘留中文。給 JavaScript 用的訊息（<code>js.</code> 開頭）要加到 <code>render.js_messages()</code>，佔位符寫成 <code>{{name}}</code>。</li>
+          <li><strong>文檔是 HTML</strong>：新頁面登記在 <code>docs/assets/nav.js</code>；英文頁放在 <code>docs/en/</code> 的同一路徑，翻譯完執行 <code>uv run python tools/i18n.py stamp docs/en/路徑.html</code>；最後 <code>uv run python tools/i18n.py sync</code> 產生簡中。</li>
+          <li><strong>不要改</strong> <code>apps/server/src/rpa_server/static/portal.css</code>、<code>shell.js</code>：它們是設計系統的複製品，要改請先改 <code>docs/design-system/</code>。自己的樣式放 <code>portal-app.css</code>。</li>
+          <li><strong>提交訊息</strong>：<code>feat(m9a): …</code>、<code>fix(…): …</code>、<code>docs: …</code>；開分支、開 PR，CI 綠了再合併。</li>
+          <li><strong>CI 失敗</strong>：錯誤會標在 PR「Files changed」的對應行上（<code>tools/ci_annotations.py</code>）。</li>
+          <li><strong>小技巧</strong>：提交訊息裡寫 <code>[bootstrap]</code> 再推上去，GitHub Actions 會自動產生 <code>uv.lock</code> 與簡中並提交回分支（記得之後 <code>git pull</code>）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="next-claude">
+      <div class="panel-header"><h2>5. 下週接手時（給 Claude）</h2></div>
+      <div class="panel-body">
+        <ol class="steps">
+          <li>讀這一頁第 6 節、<a href="history.html">專案脈絡與對話備忘</a>，以及 <code>git log origin/main</code>（2026-10-13 之後）與 GitHub 上開著的 PR。</li>
+          <li>讀 Claude 專案的 <code>claude/m1-progress.md</code>（工作紀錄與雲端環境的注意事項）、<code>claude/m9a-remote-worker-proposal.md</code>、<code>claude/m5-design-proposal.md</code>。</li>
+          <li>先處理第 6 節裡的問題與實機驗收的回報，再依使用者的決定開工 M5。</li>
+          <li>這個目錄保留當作歷史；下一次交接時新增一份或更新這兩頁。</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>6. 交接紀錄（請你填寫）</h2><span class="muted">每次做了什麼就加一條，格式隨意</span></div>
+      <div class="panel-body">
+        <p class="muted">例如：「10-15：合併 #23。兩台電腦驗收第 4 步失敗：Windows 上 rpa worker 顯示……」、「10-16：加了執行報告的執行位置篩選（PR #25）」、「M5 決定：用……；公司內部頁面的內容可以／不可以送到外部 API」。</p>
+        <div class="log">
+          <ul class="points">
+            <li>（在這裡新增）</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
