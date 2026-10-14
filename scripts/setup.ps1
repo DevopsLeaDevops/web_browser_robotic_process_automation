@@ -15,6 +15,10 @@
 
 不要用 irm ... | iex：檔案開頭的 BOM 會留在下載的字串裡，PowerShell 7 會因此解析失敗。
 
+受限語言模式：優先用 winget 安裝 uv；沒有 winget 時下載官方壓縮包並校驗 SHA-256，
+安裝到使用者目錄，不修改永久 PATH，也不執行下載的腳本。系統應用程式控制仍然生效。
+-ExecutionPolicy Bypass 只影響本次腳本執行政策，不會解除受限語言模式。
+
 公司網路：先設定 $env:UV_INDEX_URL（套件鏡像）與 $env:PLAYWRIGHT_DOWNLOAD_HOST（瀏覽器鏡像）。
 說明文件：docs/develop/quickstart.html
 
@@ -82,6 +86,7 @@ $RpaSetupArgs = @{
     $UvInstaller = 'https://astral.sh/uv/install.ps1'
     $DocPage = 'docs/develop/quickstart.html'
     $TotalSteps = 7
+    $Constrained = $ExecutionContext.SessionState.LanguageMode -eq 'ConstrainedLanguage'
 
     $State = @{
         Step           = 0
@@ -89,20 +94,12 @@ $RpaSetupArgs = @{
         RepoDir        = ''
         Uv             = ''
         UvInstalledNow = $false
+        UvStandalone   = $false
+        UvPathAdded    = $false
         Warnings       = 0
         StartDir       = (Get-Location).Path
+        FailureHints   = @()
     }
-
-    if ([string]::IsNullOrWhiteSpace($Dir)) {
-        if ($env:RPA_DIR) { $Dir = $env:RPA_DIR } else { $Dir = Join-Path (Join-Path $HOME 'code') $RepoName }
-        $DirGiven = $false
-    }
-    else {
-        $DirGiven = $true
-    }
-    if ($Dir -match '^~(?=$|[\\/])') { $Dir = $HOME + $Dir.Substring(1) }
-    # Path.Combine 遇到絕對路徑會直接採用它；相對路徑以目前資料夾為準
-    $Dir = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine((Get-Location).Path, $Dir))
 
     # ------------------------------------------------------------ 輸出
 
@@ -121,9 +118,9 @@ $RpaSetupArgs = @{
 
     # 已知原因的失敗：拋出帶有處理方式的錯誤，由最外層統一顯示。
     function Stop-Setup([string]$Message, [string[]]$Hints = @()) {
-        $err = New-Object System.Exception $Message
-        $err.Data['RpaHints'] = $Hints
-        throw $err
+        # 不建立 .NET Exception，也不呼叫 Exception.Data 的方法。
+        $State.FailureHints = $Hints
+        throw $Message
     }
 
     # 執行外部命令；失敗時依 Message 與 Hints 停止。
@@ -176,8 +173,9 @@ $RpaSetupArgs = @{
     }
 
     function Update-SessionPath {
-        $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
-        $user = [Environment]::GetEnvironmentVariable('Path', 'User')
+        # 用 Registry provider 讀取，避免受限模式禁止的 Environment 方法呼叫。
+        $machine = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name Path -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path)
+        $user = (Get-ItemProperty -LiteralPath 'HKCU:\Environment' -Name Path -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path)
         $env:Path = (@($machine, $user, $env:Path) | Where-Object { $_ }) -join ';'
     }
 
@@ -216,10 +214,70 @@ $RpaSetupArgs = @{
                 $exe = Join-Path $d $name
                 if (Test-Path -LiteralPath $exe -PathType Leaf) {
                     $env:Path = "$d;$env:Path"
+                    $State.UvPathAdded = $true
                     $State.Uv = $exe
                     return
                 }
             }
+        }
+    }
+
+    function Install-UvStandalone([string]$InstallDir = '') {
+        $arch = $env:PROCESSOR_ARCHITECTURE
+        if ($env:PROCESSOR_ARCHITEW6432) { $arch = $env:PROCESSOR_ARCHITEW6432 }
+        switch ($arch) {
+            'AMD64' { $target = 'x86_64' }
+            'ARM64' { $target = 'aarch64' }
+            'x86' { $target = 'i686' }
+            default { Stop-Setup "uv 不支援目前的 Windows 架構：$arch" }
+        }
+        if (-not $InstallDir) {
+            $InstallDir = Join-Path (Join-Path $HOME '.local') 'bin'
+            if ($env:XDG_BIN_HOME) { $InstallDir = $env:XDG_BIN_HOME }
+        }
+        $tempDir = Join-Path $env:TEMP ('rpa-uv-{0}-{1}' -f $PID, (Get-Random))
+        New-Item -ItemType Directory -Path $tempDir | Out-Null
+        try {
+            $installerPath = Join-Path $tempDir 'install.ps1'
+            Invoke-WebRequest -UseBasicParsing -Uri $UvInstaller -OutFile $installerPath -TimeoutSec 120
+            # 只讀取版本號，不執行遠端腳本；URL 的其餘部分固定為官方來源。
+            $versionLine = Select-String -LiteralPath $installerPath -Pattern '^\$app_version = ''(\d+\.\d+\.\d+)''$' |
+                Select-Object -First 1
+            if (-not $versionLine) { throw '無法從官方安裝資訊取得 uv 版本。' }
+            $version = $versionLine.Matches[0].Groups[1].Value
+            $archiveName = "uv-$target-pc-windows-msvc.zip"
+            $downloadUrl = "https://releases.astral.sh/github/uv/releases/download/$version/$archiveName"
+            $archivePath = Join-Path $tempDir $archiveName
+            $checksumPath = Join-Path $tempDir 'checksum.sha256'
+            Write-Info "下載 uv $version（$target），安裝到 $installDir；不修改永久 PATH。"
+            Invoke-WebRequest -UseBasicParsing -Uri $downloadUrl -OutFile $archivePath -TimeoutSec 120
+            Invoke-WebRequest -UseBasicParsing -Uri "$downloadUrl.sha256" -OutFile $checksumPath -TimeoutSec 120
+            $checksum = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
+            if ($checksum -notmatch '^([a-fA-F0-9]{64})(?:\s|$)') { throw '官方 SHA-256 校驗檔格式不正確。' }
+            $expectedHash = $Matches[1]
+            $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
+            if ($actualHash -ne $expectedHash) { throw 'uv 壓縮包的 SHA-256 不一致，停止安裝。' }
+            $unpackDir = Join-Path $tempDir 'unpacked'
+            Expand-Archive -LiteralPath $archivePath -DestinationPath $unpackDir
+            foreach ($name in @('uv.exe', 'uvx.exe', 'uvw.exe')) {
+                if (-not (Test-Path -LiteralPath (Join-Path $unpackDir $name) -PathType Leaf)) {
+                    throw "uv 壓縮包缺少 $name。"
+                }
+            }
+            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+            foreach ($name in @('uv.exe', 'uvx.exe', 'uvw.exe')) {
+                Copy-Item -LiteralPath (Join-Path $unpackDir $name) -Destination $installDir -Force
+            }
+            $State.UvStandalone = $true
+        }
+        catch {
+            Stop-Setup ('安裝 uv 官方壓縮包失敗：{0}' -f $_.Exception.Message) @(
+                '確認能連線到 astral.sh 與 releases.astral.sh；公司網路請使用核准的代理或安裝方式。',
+                '若系統策略封鎖 uv.exe，請管理員放行；本腳本不會解除系統限制。'
+            )
+        }
+        finally {
+            Remove-Item -LiteralPath $tempDir -Recurse -Force
         }
     }
 
@@ -257,6 +315,10 @@ $RpaSetupArgs = @{
         Write-Ok ('Windows {0}，PowerShell {1}（{2}）' -f [Environment]::OSVersion.Version,
             $PSVersionTable.PSVersion, $env:PROCESSOR_ARCHITECTURE)
         # 舊版 Windows 的 .NET 預設可能不啟用 TLS 1.2，下載 uv 與 GitHub 內容需要它
+        if ($Constrained) {
+            Write-Info '目前為受限語言模式，使用相容的安裝流程；系統應用程式控制仍然生效。'
+            return
+        }
         try {
             [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         }
@@ -290,7 +352,7 @@ $RpaSetupArgs = @{
                 Stop-Setup "$Dir 已經存在，而且不是空資料夾。" @('用 -Dir 指定別的位置，例如：-Dir D:\code\rpa')
             }
             $parentDir = Split-Path -Parent $Dir
-            if (-not (Test-Path -LiteralPath $parentDir)) { New-Item -ItemType Directory -Path $parentDir | Out-Null }
+            if ($parentDir -and -not (Test-Path -LiteralPath $parentDir)) { New-Item -ItemType Directory -Path $parentDir | Out-Null }
             Invoke-Native git @('clone', $RepoUrl, $Dir) -Message '下載程式碼失敗。' `
                 -Hints @('確認連得到 github.com；公司網路可能需要設定代理（HTTPS_PROXY）。')
             $State.RepoDir = $Dir
@@ -299,6 +361,7 @@ $RpaSetupArgs = @{
         if ($DirGiven -and ($State.RepoDir -ne $Dir)) {
             Write-Info '已經在專案資料夾中，-Dir 沒有作用。'
         }
+        $State.RepoDir = (Resolve-Path -LiteralPath $State.RepoDir).ProviderPath
         Set-Location -LiteralPath $State.RepoDir
 
         if ($env:OneDrive -and $State.RepoDir.StartsWith($env:OneDrive, [StringComparison]::OrdinalIgnoreCase)) {
@@ -315,14 +378,29 @@ $RpaSetupArgs = @{
 
         Find-Uv
         if (-not $State.Uv) {
-            Write-Info '沒有找到 uv，用官方安裝腳本安裝。Python 由 uv 下載與管理，不會動到系統的 Python。'
-            # 在獨立的 PowerShell 程序執行官方安裝腳本，避免它影響目前的工作階段
-            $shell = (Get-Process -Id $PID).Path
-            Invoke-Native $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "irm $UvInstaller | iex") `
-                -Message '安裝 uv 失敗。' `
-                -Hints @('連不到 astral.sh 時，可以改用 winget install --id astral-sh.uv -e 或 pip install uv 安裝，再執行一次。')
+            if ($Constrained) {
+                if (Get-Command winget -ErrorAction SilentlyContinue) {
+                    Write-Info '受限語言模式：使用 winget 安裝 uv。'
+                    Invoke-Native winget @('install', '--id', 'astral-sh.uv', '-e', '--source', 'winget',
+                        '--accept-package-agreements', '--accept-source-agreements') `
+                        -Message '用 winget 安裝 uv 失敗。' `
+                        -Hints @('請使用公司核准的方式安裝 uv；若應用程式被策略封鎖，請管理員放行。')
+                }
+                else {
+                    Write-Info '受限語言模式且沒有 winget：使用官方 uv 壓縮包。'
+                    Install-UvStandalone
+                }
+            }
+            else {
+                Write-Info '沒有找到 uv，用官方安裝腳本安裝。Python 由 uv 下載與管理，不會動到系統的 Python。'
+                # 在獨立的 PowerShell 程序執行官方安裝腳本，避免它影響目前的工作階段
+                $shell = (Get-Process -Id $PID).Path
+                Invoke-Native $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', "irm $UvInstaller | iex") `
+                    -Message '安裝 uv 失敗。' `
+                    -Hints @('連不到 astral.sh 時，可以改用 winget install --id astral-sh.uv -e 或 pip install uv 安裝，再執行一次。')
+            }
             $State.UvInstalledNow = $true
-            Update-SessionPath
+            if (-not $State.UvStandalone) { Update-SessionPath }
             Find-Uv
             if (-not $State.Uv) {
                 Stop-Setup 'uv 裝好了，但這個視窗找不到它。' @('開一個新的 PowerShell 視窗，再執行一次。')
@@ -338,13 +416,18 @@ $RpaSetupArgs = @{
             elseif ($State.Uv -match 'scoop') {
                 $null = Test-Native scoop @('update', 'uv')
             }
+            elseif ($Constrained -and ($State.Uv -eq (Join-Path (Join-Path (Join-Path $HOME '.local') 'bin') 'uv.exe') -or
+                    ($env:XDG_BIN_HOME -and $State.Uv -eq (Join-Path $env:XDG_BIN_HOME 'uv.exe')))) {
+                Install-UvStandalone -InstallDir (Split-Path -Parent $State.Uv)
+                Find-Uv
+            }
             else {
                 $null = Test-Native $State.Uv @('self', 'update')
             }
             $ver = Get-UvVersion
             if (-not (Test-VersionAtLeast $ver $need)) {
                 Stop-Setup "uv 仍然是 ${ver}，需要 $need 以上。" @(
-                    '用安裝腳本裝的執行 uv self update，winget 裝的執行 winget upgrade astral-sh.uv，其他方式請依原本的安裝方式升級。'
+                    '受限模式的使用者目錄安裝會重新下載官方壓縮包；其他安裝方式請依原本的方式升級。'
                 )
             }
         }
@@ -392,6 +475,7 @@ $RpaSetupArgs = @{
             Write-Ok 'git commit 前會自動執行 ruff、pyright 與文檔檢查'
         }
         catch {
+            $State.FailureHints = @()
             Write-Warn '安裝提交前檢查失敗（例如 Git 設定了 core.hooksPath）。不影響運行，之後可手動執行 uv run pre-commit install。'
         }
     }
@@ -436,7 +520,12 @@ $RpaSetupArgs = @{
             @('uv run python -m http.server -d docs 8000', '或用本機伺服器瀏覽文檔')
         )
         foreach ($row in $rows) { Write-Host ('  {0,-44}# {1}' -f $row[0], $row[1]) }
-        if ($State.UvInstalledNow) {
+        if ($State.UvStandalone -or $State.UvPathAdded) {
+            Write-Host ''
+            Write-Host '[!] 本次只更新腳本程序的 PATH；在你自己的 PowerShell 視窗先執行：' -ForegroundColor Yellow
+            Write-Host ('  $env:Path = ''{0};'' + $env:Path' -f ((Split-Path -Parent $State.Uv) -replace "'", "''"))
+        }
+        elseif ($State.UvInstalledNow) {
             Write-Host ''
             Write-Host '[!] uv 是剛安裝的：開一個新的 PowerShell 視窗，才能直接使用 uv 命令。' -ForegroundColor Yellow
         }
@@ -451,11 +540,29 @@ $RpaSetupArgs = @{
     # Python 輸出中文時一律用 UTF-8，並讓 PowerShell 用 UTF-8 解讀；結束後還原，不影響使用者的視窗。
     $saved = @{ PYTHONUTF8 = $env:PYTHONUTF8; PYTHONIOENCODING = $env:PYTHONIOENCODING; Location = (Get-Location).Path }
     $savedEncoding = $null
-    try { $savedEncoding = [Console]::OutputEncoding; [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
+    if (-not $Constrained) {
+        try { $savedEncoding = [Console]::OutputEncoding; [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
+    }
     $env:PYTHONUTF8 = '1'
     $env:PYTHONIOENCODING = 'utf-8'
 
     try {
+        if ([string]::IsNullOrWhiteSpace($Dir)) {
+            if ($env:RPA_DIR) { $Dir = $env:RPA_DIR } else { $Dir = Join-Path (Join-Path $HOME 'code') $RepoName }
+            $DirGiven = $false
+        }
+        else {
+            $DirGiven = $true
+        }
+        if ($Dir -match '^~(?=$|[\\/])') { $Dir = $HOME + $Dir.Substring(1) }
+        if ($Constrained) {
+            # 受限模式不能呼叫 System.IO.Path；現有路徑由檔案系統 provider 解析。
+            # 尚未建立的路徑保留原樣，git clone / New-Item 都接受相對路徑。
+            if (Test-Path -LiteralPath $Dir) { $Dir = (Resolve-Path -LiteralPath $Dir).ProviderPath }
+        }
+        else {
+            $Dir = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine((Get-Location).Path, $Dir))
+        }
         Write-Host '瀏覽器 RPA：本機環境一鍵安裝' -ForegroundColor White
         Step-CheckSystem
         Step-PrepareCode
@@ -470,13 +577,14 @@ $RpaSetupArgs = @{
     catch {
         $ex = $_.Exception
         Write-Host ''
-        if ($ex.Data.Contains('RpaHints')) {
+        if ($State.FailureHints.Count -gt 0) {
             Write-Host ('[X] {0}' -f $ex.Message) -ForegroundColor Red
-            foreach ($hint in $ex.Data['RpaHints']) { Write-Host "  $hint" }
+            foreach ($hint in $State.FailureHints) { Write-Host "  $hint" }
         }
         else {
             Write-Host ('[X] 第 {0} 步「{1}」失敗：{2}' -f $State.Step, $State.StepName, $ex.Message) -ForegroundColor Red
-            Write-Host '  往上看最後幾行的錯誤訊息。'
+            Write-Host $_.InvocationInfo.PositionMessage
+            Write-Host $_.ScriptStackTrace
         }
         Write-Host "  修正後重新執行同一個命令即可，已完成的步驟會跳過。說明見 $DocPage"
     }
