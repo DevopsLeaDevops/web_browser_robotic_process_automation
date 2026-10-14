@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>共同開發流程建置 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>共同開發流程建置</h1><p>任務 ID：20261014-shared-ai-workflow。更新日期：2026-10-14，Asia/Shanghai（UTC+08:00）。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>需求來源</dt><dd>使用者在本次對話要求：正式開發前，結合 handoff 的既有規範完善流程，讓 Claude 與 ChatGPT 長期共同開發時都能順利接手。</dd>
+        <dt>驗收條件</dt><dd>雙方入口指向同一流程；有開工、責任分工、分支、驗證、PR 與接力規則；有可複用任務範本及本輪實例；既有文檔可找到新入口；連結與正式文檔三語檢查通過。</dd>
+        <dt>範圍</dt><dd>共同開發文件與 PR 範本。業務功能、M5 決策、M9a 兩機驗收不在本輪。</dd>
+        <dt>主責／整合者</dt><dd>ChatGPT／Codex；審閱者：使用者；後續實作接收方未指定。</dd>
+        <dt>修改範圍</dt><dd>根目錄 AGENTS.md、CLAUDE.md、README.md；.github/pull_request_template.md；handoff 的現行入口、流程與任務檔案；docs 的三語開發規範。原始材料快照不修改。</dd>
+        <dt>狀態</dt><dd>已推送並建立 PR，待使用者審核；本地檢查完成，CI 以 PR 最新 head 的 Checks 為準，尚未合併。</dd>
+        <dt>分支／PR／起點</dt><dd><code>docs/shared-ai-workflow</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/27">PR #27</a>（目標 main）；base 為 <code>32f240b</code>（main，#26）。</dd>
+        <dt>交接版本</dt><dd>實作提交 <code>317a573</code>（原 0b2d945，僅修正提交身分）；<code>643101d</code> 記錄先前發布阻塞，<code>7a35248</code> 回填 PR 狀態。後續提交僅更新本紀錄的 PR 狀態；實際交接 SHA 以 PR 最新 head 為準，接收方尚未確認接收。</dd>
+        <dt>相依任務／環境</dt><dd>依據 #26 交接包；無其他實作任務相依。使用者本機 macOS、Python 3.13.16、uv 0.12.24、pytest 9.1.1、OpenCC 1.4.2。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>雙入口、共用流程、任務範本、任務索引、PR 範本，以及既有入口整合。</li>
+        <li><strong>使用者已確認：</strong>以長期共同開發與順利接手為目標，先完善流程。</li>
+        <li><strong>本輪實作選擇：</strong>流程集中在一頁；一任務一紀錄、一位當前實作者；並行使用獨立工作區；接收者核對版本後回填確認。沒有新增強制使用第二個 AI 的要求。</li>
+        <li><strong>沿用的規範：</strong>Conventional Commits、功能分支、PR、CI、審閱與 squash 合併；工程文檔繁中、正式文檔三語。M5 的模型與資料去向仍待決定。</li>
+        <li><strong>下一步：</strong>核對 PR #27 最新 head 的 CI，由使用者審閱並決定是否 squash 合併；如有審閱意見，在同一分支處理並更新驗證。</li>
+        <li><strong>未提交／stash／產物：</strong>實作檔案已提交並推送；本次狀態更新以獨立提交保存並同步同一 PR。沒有任務 stash；PR 描述已發布，本機 .git/shared-ai-workflow-pr.md 保留工作副本。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="panel-body"><p>被測版本：<code>32f240b</code>＋本任務的工作區差異。</p></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>檢查</th><th>環境／結果</th><th>證據與範圍</th></tr></thead>
+        <tbody>
+          <tr><td><code>git diff --check</code></td><td>通過</td><td>本任務已追蹤差異；新增文件另由結構與連結檢查涵蓋</td></tr>
+          <tr><td>Python 標準庫 HTMLParser／urlsplit 檢查相對連結、錨點、頁面結構；Markdown 入口連結檢查</td><td>通過：13 個 handoff HTML 頁面、281 個本地連結</td><td>包含原始 HTML、新任務與範本；不請求外部網址。每頁一個 h1、zh-Hant、無重複 id</td></tr>
+          <tr><td><code>~/.local/bin/uv run --locked pytest -q tests/docs tests/i18n</code></td><td>255 passed in 0.70s</td><td>正式文檔結構、導航、連結及三語同步</td></tr>
+          <tr><td><code>~/.local/bin/uv run --locked python tools/i18n.py check</code></td><td>通過，exit 0</td><td>已執行英文 stamp 與簡中 sync，只有開發規範對應頁改動</td></tr>
+          <tr><td>雙入口閱讀路徑與 diff 自檢</td><td>ChatGPT／Codex 自檢通過</td><td>CLAUDE.md → AGENTS.md → 共用流程／任務卡；保留原始材料，不冒稱對方已接收</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：已觸發；建立 PR 時 2e85f8e 的靜態檢查及 Python 3.12／3.13 測試正在執行，bootstrap 為 skipped（不計為通過）。後續狀態更新提交需查看最新 head 的 Checks；正式 PR 審閱：待使用者；跨工具接力實測：尚未發生；業務瀏覽器與兩機驗收：本輪不涉及。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。後續接收方依<a href="../collaboration.html#handoff">接力流程</a>核對取得的版本與驗證結果，再追加接收紀錄。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：從乾淨的 main 32f240b 建立 docs/shared-ai-workflow，根據本次使用者要求整理共同開發流程。既有 handoff/workflow.html 保留為歷史，現行流程集中在 collaboration.html。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：終端預設 uv 為 0.7.6，兩次 i18n 命令因低於專案要求而未執行。改用本機既有的 ~/.local/bin/uv 0.12.24 後 stamp、sync 與驗證成功；沒有變更系統 PATH 或放寬專案版本要求。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：完成上述文件檢查，回填驗證結果。依現有程式庫設定更正「Python 依賴更新沒有處理」的交接描述；替代 workflow 是否實際成功執行仍待核驗。本次未修改業務程式。</li>
+        <li>2026-10-14（UTC+08:00），使用者：已閱讀改動，要求下一步按流程提交 PR，由使用者審核；授權本輪提交、推送及建立 PR，不合併。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：本地提交 0b2d945，pre-commit 的空白、合併標記、大檔案、簡中同步與文檔連結檢查通過。HTTPS git push 缺少認證；已連接 GitHub 的 create-tree 返回 403 Resource not accessible by integration；既有 SSH 認證返回 Permission denied (publickey)。未建立遠端分支或 PR。請恢復合法的倉庫寫入認證後續作。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：遠端寫入阻塞已解除，推送 docs/shared-ai-workflow 並建立 PR #27（base main）。本次僅更新任務交付狀態，保留 0b2d945 的實作驗證證據；使用者正式審閱、接收確認與合併仍待完成。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：依使用者要求修正 PR #27 的提交身分，倉庫本地 user.name／user.email 設為 DevopsLeaDevops／devops-lea608@onet.pl；全域設定保持不變。重寫前 base 32f240b、遠端 head ff9e065，舊 head 保存於本機 refs/backup/shared-ai-workflow-identity-20261014。三個提交對應為 0b2d945 → 317a573、2e85f8e → 643101d、ff9e065 → 7a35248；逐一核對 tree 完全一致，原驗證證據適用。本次追加紀錄另行提交，使用綁定舊遠端完整 SHA 的 force-with-lease 更新原 PR；最新 CI 需重新確認。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

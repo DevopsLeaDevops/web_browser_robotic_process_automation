@@ -15,6 +15,8 @@
     <a class="active" href="open-work.html">未完成工作</a>
     <a href="decisions.html">決定與工作規則</a>
     <a href="environment.html">運作環境與資料</a>
+    <a href="collaboration.html">共用協作流程</a>
+    <a href="tasks/index.html">任務索引</a>
     <a href="workflow.html">研發與 Git 方法</a>
     <a href="history.html">專案脈絡與時間軸</a>
     <a href="materials.html">原始材料</a>
@@ -51,7 +53,7 @@
           <tr><td>序列固定的 worker 離線時，後面的節點一直排隊</td><td>序列跑到一半關掉那台 worker。</td><td>序列停在排隊中。</td><td>可以在序列執行頁取消。</td><td><code>WorkflowService._start_node</code>（<code>required_worker</code>）</td><td>和第 3 項「等待 worker 的提示」一起做。</td></tr>
           <tr><td>錄製、逐步調試、人工登入只能在 Portal 那台</td><td>這三個功能會在執行 Portal 的電腦跳出瀏覽器視窗。</td><td>這些操作時你的電腦仍會被占用。</td><td>設計如此（要有人操作）。</td><td><a href="../docs/design/portal.html#remote-workers">管理 Portal › 遠端 worker</a></td><td>需要的話，M9 再評估遠端畫面串流。</td></tr>
           <tr><td>新的 Windows worker 第一次跑 Firefox 較慢</td><td>第一次執行 Firefox 場景時會先建立預熱設定檔範本。</td><td>第一次多幾秒。</td><td>之後每次複製範本啟動（見下方 <code>ci/diag-windows</code>）。</td><td><code>packages/rpa_runner/src/rpa_runner/profiles.py</code></td><td>無。</td></tr>
-          <tr><td>Dependabot 的 Python 依賴更新沒有合併</td><td>#2（python 群組）、#3（click）已關閉、未合併；工作日誌記載「main 上 uv 群組的更新失敗」，原因沒查。</td><td>依賴版本停在 <code>uv.lock</code> 當時的版本。</td><td>沒有處理。GitHub Actions 的更新（#19）已合併。</td><td><a href="materials/claude-project/plan-v2-proposal.md">plan-v2</a> 第四節 M0 第 6 點；<code>.github/workflows/uv-upgrade.yml</code></td><td>手動跑一次 <code>uv lock --upgrade</code> 開 PR 看 CI；再查 Dependabot 的設定。</td></tr>
+          <tr><td>Python 依賴更新流程的實際執行需核驗</td><td>#2、#3 已關閉未合併；舊工作日誌記載更新失敗。</td><td>是否有成功更新依賴的後續執行證據尚未核驗。</td><td>2026-10-14 更正：倉庫已記錄 Dependabot 的 uv workspace 解析限制，並有替代的 uv-upgrade workflow，不能再列為「原因未查、沒有處理」。</td><td><a href="../.github/dependabot.yml">Dependabot 設定</a>；<a href="../.github/workflows/uv-upgrade.yml">uv-upgrade workflow</a></td><td>查既有 workflow runs 與 PR，確認排程、開 PR 權限及最新 head 的 CI；必要時依授權手動觸發，不先假設要重新設計。</td></tr>
           <tr><td>Claude 專案的工作日誌舊內容被覆蓋</td><td>10-13 把 <code>claude/m1-progress.md</code> 整份改寫成最新紀錄。</td><td>10-13 之前的工作日誌原文不在了。</td><td>相關歷史可從 PR #1～#20 的說明查到；<a href="history.html">專案脈絡與時間軸</a>已整理。</td><td><a href="materials.html">原始材料</a></td><td>之後工作日誌只追加、不覆蓋；交接時把當時的版本放進 <code>handoff/materials/</code>。</td></tr>
         </tbody>
       </table></div>

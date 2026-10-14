@@ -15,6 +15,8 @@
     <a href="open-work.html">未完成工作</a>
     <a href="decisions.html">決定與工作規則</a>
     <a href="environment.html">運作環境與資料</a>
+    <a href="collaboration.html">共用協作流程</a>
+    <a href="tasks/index.html">任務索引</a>
     <a href="workflow.html">研發與 Git 方法</a>
     <a href="history.html">專案脈絡與時間軸</a>
     <a href="materials.html">原始材料</a>
@@ -23,12 +25,13 @@
   <div class="heading">
     <div>
       <h1>交接總入口</h1>
-      <p>第一版寫於 2026-10-13，<strong>2026-10-14 依 main <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8">30fe7b8</a> 補齊並更新</strong>。給接下來自己動手改的你，以及之後接手的 Claude。每項結論都標了日期、PR 或提交，以及證據的位置；倉庫裡已有的內容直接連結。</p>
+      <p>Claude、ChatGPT／Codex 與使用者共用的交接入口。2026-10-14 建立<a href="collaboration.html">共用協作流程</a>與<a href="tasks/index.html">任務紀錄</a>。下方業務狀態沿用 main <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8">30fe7b8</a> 的交接快照（#26 收錄）；後續進度以相關任務、PR 和驗收證據核對。</p>
     </div>
     <span class="badge blue">M9a 待人工驗收</span>
   </div>
 
   <div class="stack">
+    <div class="notice"><strong>新會話從這裡開始：</strong>讀 <a href="../AGENTS.md">AGENTS.md</a> → <a href="collaboration.html">共用協作流程</a> → <a href="tasks/index.html">本次任務</a> → 相關決定、程式與驗收。Claude 的入口 <a href="../CLAUDE.md">CLAUDE.md</a> 也導向同一份規則；任務交接不依賴私人聊天或模型記憶。</div>
     <div class="notice"><strong>三種狀態分開看：</strong>「程式碼已合併」只代表在 main 上；「自動測試通過」是 GitHub Actions 的結果（Linux、macOS、Windows 的虛擬機，<strong>不是你的電腦</strong>）；「人工驗收通過」要有人在真實電腦上照驗收步驟做過並留下紀錄。目前<strong>沒有任何里程碑有完整的人工驗收紀錄</strong>。</div>
 
     <section class="panel" id="status">
@@ -65,6 +68,7 @@
         <div class="panel-header"><h2>這個目錄裡有什麼</h2></div>
         <div class="table-scroll"><table class="wrap">
           <tbody>
+            <tr><td><a href="collaboration.html">共用協作流程</a>、<a href="tasks/index.html">任務索引</a></td><td>現行流程；開工、分工、驗證、PR、交出與接收</td></tr>
             <tr><td><a href="acceptance.html">狀態與驗收紀錄</a></td><td>每個提交的 CI 結果、兩機實測紀錄（分開記錄）</td></tr>
             <tr><td><a href="open-work.html">未完成工作</a></td><td>已知缺陷、暫時繞過、只做一半的功能、未處理的回饋；<code>ci/diag-windows</code> 的結論；舊分支盤點</td></tr>
             <tr><td><a href="decisions.html">決定與工作規則</a></td><td>你明確的決定、Claude 的推薦、暫定、待決定；專案指令與工作規則；M5 的待決事項</td></tr>
@@ -76,13 +80,13 @@
         </table></div>
       </section>
       <section class="panel" id="for-claude">
-        <div class="panel-header"><h2>接手時（給 Claude）</h2></div>
+        <div class="panel-header"><h2>接手時（Claude、ChatGPT 與使用者）</h2></div>
         <div class="panel-body">
           <ol class="steps">
-            <li>先讀第 7 節的交接紀錄、<a href="acceptance.html">驗收紀錄</a>、<code>git log origin/main</code>（2026-10-14 之後）與 GitHub 上開著的 PR。</li>
-            <li>再讀 <a href="materials.html">原始材料</a>（尤其是工作日誌 <code>m1-progress.md</code> 與 M5 提案）和 <a href="workflow.html">研發與 Git 方法</a>。</li>
-            <li>先處理驗收回報與<a href="open-work.html">未完成工作</a>，再依你的決定開工 M5。</li>
-            <li>每次交接都更新這個目錄，並在 <code>materials/</code> 放一份當時的 Claude 專案文件。</li>
+            <li>依<a href="collaboration.html#start">開工流程</a>核對分支、工作區、交接 SHA、主責與 GitHub 活躍 PR，讀本次任務卡與<a href="acceptance.html">驗收紀錄</a>。</li>
+            <li>按需讀 <a href="materials.html">原始材料</a>及<a href="workflow.html">Claude 的操作歷史</a>。舊提案、舊環境限制不直接當成當前決定或驗證結果。</li>
+            <li>按使用者當前任務推進；業務待辦優先處理驗收回報與<a href="open-work.html">未完成工作</a>，M5 仍需模型與資料去向的決定。</li>
+            <li>變更寫進本次任務卡，產品決定更新正式文件；交出與接收依<a href="collaboration.html#handoff">接力流程</a>。新的外部原始材料按日期保存，不覆蓋現有快照。</li>
           </ol>
         </div>
       </section>
@@ -94,7 +98,7 @@
         <ul class="points">
           <li><span class="mono">2026-10-13 20:52</span>（你，經由對話）Windows 上執行 <code>uv run rpa worker …</code> 出現「沒有 worker 這個命令」。原因：當時 #23 還沒合併，main 上沒有這個命令。已回覆更新方式，並在交接頁加上提醒（#24）。</li>
           <li><span class="mono">2026-10-14 03:46 UTC</span>（你）提交 #25：Windows PowerShell 處於受限語言模式、又沒有 winget 時，安裝腳本改為下載官方 uv 壓縮包並校驗 SHA-256。03:54～06:13 UTC 合併 #23、#25、#24、#19。</li>
-          <li>（在這裡新增）</li>
+          <li><span class="mono">2026-10-14 Asia/Shanghai（UTC+08:00）</span>（ChatGPT／Codex）依使用者「Claude 與 ChatGPT 共同開發將成為常態」的要求，建立共用流程與雙入口；本輪狀態、驗證與交付位置見<a href="tasks/20261014-shared-ai-workflow.html">任務紀錄</a>。此項不代表 M9a 已人工驗收。</li>
         </ul>
       </div>
     </section>
