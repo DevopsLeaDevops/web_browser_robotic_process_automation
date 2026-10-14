@@ -8,6 +8,10 @@ M4：登入角色與 Secrets（/api/roles、/api/secrets）、錄製（/api/reco
 （/api/scenes/{id}/contract）、重新執行（/api/runs/{id}/rerun）。Secrets 的值只寫入、永遠不回傳。
 
 M6：自由試驗場的序列（/api/workflows）與序列的執行（/api/workflow-runs）。
+
+M9a：遠端 worker 的登記（/api/workers）與預設執行位置（/api/settings/default-target）；
+執行、驗證、序列的執行可以指定執行位置 target（local、remote、any）。
+Worker 自己用的 API 在 /worker-api/v1（worker_api.py）。
 """
 
 from typing import Annotated, Literal
@@ -17,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
-from rpa_server.domain import Engine
+from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
@@ -72,6 +76,8 @@ class RunCreate(_Body):
     idempotency_key: str | None = Field(default=None, max_length=100)
     headless: bool | None = None
     """無頭模式；沒指定時能顯示瀏覽器視窗就用有頭模式。"""
+    target: Target | None = None
+    """執行位置（M9a）；沒指定時用預設執行位置。"""
 
 
 class ContractItem(_Body):
@@ -198,6 +204,21 @@ class WorkflowRunCreate(_Body):
     engine: Engine | None = None
     headless: bool | None = None
     idempotency_key: str | None = Field(default=None, max_length=100)
+    target: Target | None = None
+
+
+class WorkerCreate(_Body):
+    id: str = Field(max_length=64)
+    name: str | None = Field(default=None, max_length=100)
+
+
+class WorkerUpdate(_Body):
+    name: str | None = Field(default=None, max_length=100)
+    disabled: bool | None = None
+
+
+class TargetSetting(_Body):
+    target: Target
 
 
 class WorkflowRerun(_Body):
@@ -314,6 +335,7 @@ def api_router(services: Services) -> APIRouter:
             base_url=body.base_url,
             idempotency_key=body.idempotency_key,
             headless=body.headless,
+            target=body.target,
         )
         return run.to_json()
 
@@ -383,6 +405,7 @@ def api_router(services: Services) -> APIRouter:
             base_url=body.base_url,
             idempotency_key=body.idempotency_key,
             headless=body.headless,
+            target=body.target,
         )
         return run.to_json()
 
@@ -633,8 +656,54 @@ def api_router(services: Services) -> APIRouter:
             engine=body.engine,
             headless=body.headless,
             idempotency_key=body.idempotency_key,
+            target=body.target,
         )
         return record.to_json()
+
+    # ------------------------------------------------------------ 遠端 worker（M9a）
+
+    hub = services.workers
+
+    def worker_list() -> dict[str, object]:
+        return {
+            "workers": [item.to_json() for item in hub.list_workers()],
+            "defaultTarget": hub.default_target(),
+            "localWorker": services.local_worker,
+            "fingerprint": hub.fingerprint,
+        }
+
+    @router.get("/workers")
+    def list_workers() -> dict[str, object]:
+        return worker_list()
+
+    @router.post("/workers", status_code=201)
+    def create_worker(body: WorkerCreate) -> dict[str, object]:
+        """登記 worker；回應裡的 token 只有這一次拿得到。"""
+        record, token = hub.create_worker(body.id, body.name)
+        return {"worker": record.to_json(), "token": token}
+
+    @router.get("/workers/{worker_id}")
+    def get_worker(worker_id: str) -> dict[str, object]:
+        return hub.get_worker(worker_id).to_json()
+
+    @router.patch("/workers/{worker_id}")
+    def update_worker(worker_id: str, body: WorkerUpdate) -> dict[str, object]:
+        return hub.update_worker(worker_id, name=body.name, disabled=body.disabled).to_json()
+
+    @router.post("/workers/{worker_id}/token")
+    def rotate_worker_token(worker_id: str) -> dict[str, object]:
+        record, token = hub.rotate_token(worker_id)
+        return {"worker": record.to_json(), "token": token}
+
+    @router.delete("/workers/{worker_id}")
+    def delete_worker(worker_id: str) -> dict[str, object]:
+        hub.delete_worker(worker_id)
+        return {"deleted": worker_id}
+
+    @router.put("/settings/default-target")
+    def set_default_target(body: TargetSetting) -> dict[str, object]:
+        hub.set_default_target(body.target)
+        return worker_list()
 
     @router.get("/workflow-runs")
     def list_workflow_runs(

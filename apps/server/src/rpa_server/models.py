@@ -1,5 +1,6 @@
 """資料庫模型：場景 scenes、版本 revisions、執行 runs；M4 加上登入角色 roles 與錄製 recordings；
-M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs。
+M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs；
+M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與由哪台 worker 執行。
 
 版本內容（場景檔與腳本）不放資料庫，放在資料目錄（storage.py）；資料庫只記雜湊與狀態。
 改了模型就要新增遷移（rpa_server/migrations/versions），測試會比對兩者是否一致。
@@ -16,10 +17,12 @@ __all__ = [
     "Base",
     "Domain",
     "Recording",
+    "RemoteWorker",
     "Revision",
     "Role",
     "Run",
     "Scene",
+    "Setting",
     "Workflow",
     "WorkflowRun",
 ]
@@ -108,6 +111,15 @@ class Run(Base):
     """屬於哪一次序列的執行（M6，目的是 workflow）；單獨的驗證與執行是 None。"""
     node_id: Mapped[str | None] = mapped_column(String(64))
     """序列裡的節點代號。"""
+    target: Mapped[str] = mapped_column(String(10), default="local", server_default="local")
+    """執行位置（M9a）：local（管理 Portal 這台電腦）、remote（遠端 worker）、
+    any（誰有空誰執行）。"""
+    required_worker: Mapped[str | None] = mapped_column(String(64))
+    """只能由這台 worker 執行（試驗場序列的後續節點跟著第一個節點）；local 代表本機。"""
+    worker_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    """實際由哪台 worker 執行；local 代表本機。worker 刪除後紀錄仍保留，所以不設外鍵。"""
+    lease_until: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    """遠端 worker 的租約：過了這個時間還沒報到，執行標為「worker 失聯」。"""
 
 
 class Role(Base):
@@ -215,3 +227,32 @@ class WorkflowRun(Base):
     cancel_requested: Mapped[bool] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    target: Mapped[str] = mapped_column(String(10), default="local", server_default="local")
+    """執行位置（M9a），每個節點都一樣。"""
+    worker_id: Mapped[str | None] = mapped_column(String(64))
+    """第一個節點由哪台 worker 領取，後面的節點就固定給它（測試網站的資料、登入狀態一致）。"""
+
+
+class RemoteWorker(Base):
+    """登記的遠端 worker（M9a）：一台 worker 機器一個權杖，資料庫只存權杖的雜湊。"""
+
+    __tablename__ = "workers"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    info: Mapped[dict[str, object]] = mapped_column(JsonType)
+    """上線時回報的資訊：協定版本、程式指紋、作業系統、瀏覽器、能不能顯示視窗。"""
+    current_run: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class Setting(Base):
+    """管理 Portal 的設定（M9a：預設執行位置）。"""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict[str, object]] = mapped_column(JsonType)

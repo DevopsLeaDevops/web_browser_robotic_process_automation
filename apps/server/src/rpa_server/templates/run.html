@@ -45,6 +45,7 @@
       <div><dt>{{ t("run.finished") }}</dt><dd>{{ m.time(run.finished_at) }}</dd></div>
       <div><dt>{{ t("run.engine") }}</dt><dd>{{ (result.engine if result else none) or run.engine or t("run.engine_scenario") }}</dd></div>
       <div><dt>{{ t("run_form.window") }}</dt><dd>{{ t("run_form.window_headless") if run.headless else t("run_form.window_headed") }}</dd></div>
+      {% if run.target != "local" or (run.worker_id and run.worker_id != "local") %}<div><dt>{{ t("run.worker") }}</dt><dd>{{ m.worker_text(run.target, run.worker_id, worker_names) }}</dd></div>{% endif %}
       <div><dt>{{ t("run.base_url") }}</dt><dd>{{ run.base_url or t("run.base_url_scenario") }}</dd></div>
       {% if role %}<div><dt>{{ t("run.role") }}</dt><dd><a href="/roles#role-{{ role }}">{{ role }}</a></dd></div>{% endif %}
       {% if run.scenario_hash %}<div><dt>{{ t("scene.col_hash") }}</dt><dd><code class="mono" title="{{ run.scenario_hash }}">{{ run.scenario_hash[:16] }}…</code></dd></div>{% endif %}

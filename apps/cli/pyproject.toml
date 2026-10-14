@@ -1,7 +1,7 @@
 [project]
 name = "rpa-cli"
 version = "0.1.0"
-description = "命令列工具：rpa validate / run / serve / record / generate / push"
+description = "命令列工具：rpa validate / run / serve / record / worker / generate / push"
 requires-python = ">=3.12"
 dependencies = [
   "rpa-core",
@@ -9,6 +9,8 @@ dependencies = [
   # rpa serve 啟動管理 Portal，並一起啟動本機測試網站
   "rpa-server",
   "rpa-testsite",
+  # rpa worker：在另一台電腦當遠端 worker（M9a）
+  "rpa-worker",
   "click>=8.5.0",
 ]
 
@@ -20,6 +22,7 @@ rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
 rpa-server = { workspace = true }
 rpa-testsite = { workspace = true }
+rpa-worker = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]

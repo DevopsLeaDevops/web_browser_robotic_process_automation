@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:ab102b998eda9756">
+<meta name="translation-source" content="sha256:e6b7671c2135d16e">
 <title>ADR 0003 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -22,6 +22,7 @@
 
   <div class="stack">
     <div class="notice">Amended by <a href="0008-sqlite-and-postgresql.html">ADR 0008</a>: this decision applies to production, which uses PostgreSQL. When development and prototypes use SQLite, the queue and scheduler run inside the API process with a single worker.</div>
+    <div class="notice">Partly superseded by <a href="0012-remote-workers.html">ADR 0012</a>: workers do not connect to the database; remote workers claim jobs through the management portal's Worker API. The queue itself still lives in the database.</div>
 
     <section class="panel panel-body">
       <dl class="spec-list">

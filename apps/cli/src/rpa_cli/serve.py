@@ -9,8 +9,12 @@
   ``--no-testsite`` 關閉；8765 上已經是測試網站就直接沿用。
 - 啟動時檢查 Chromium、Firefox 有沒有下載：較早安裝的環境只有 Chromium，
   git pull 之後才執行 Firefox 場景會失敗，先提醒要執行的命令。
+- ``--worker-port``（M9a）：另外開一個埠給遠端 worker（預設聽 0.0.0.0，所有網路介面）。
+  那個埠只有 Worker API（/worker-api，要權杖），管理頁面仍然只在 ``--host`` 上。
+  ``--no-local-worker`` 讓這台電腦不執行，全部交給遠端 worker。
 """
 
+import dataclasses
 import errno
 import ipaddress
 import json
@@ -201,10 +205,40 @@ def build_serve_command() -> click.Command:
         default=True,
         help=t("cli.serve.testsite_help", port=TESTSITE_PORT),
     )
-    def serve(host: str, port: int | None, data_dir: Path | None, testsite: bool) -> None:
+    @click.option(
+        "--worker-port",
+        type=click.IntRange(1, 65535),
+        default=None,
+        help=t("cli.serve.worker_port_help"),
+    )
+    @click.option(
+        "--worker-host",
+        default="0.0.0.0",
+        show_default=True,
+        help=t("cli.serve.worker_host_help"),
+    )
+    @click.option(
+        "--local-worker/--no-local-worker",
+        default=True,
+        help=t("cli.serve.local_worker_help"),
+    )
+    def serve(
+        host: str,
+        port: int | None,
+        data_dir: Path | None,
+        testsite: bool,
+        worker_port: int | None,
+        worker_host: str,
+        local_worker: bool,
+    ) -> None:
         sock, chosen, skipped = open_listener(host, port)
+        worker_sock: socket.socket | None = None
         site: ThreadingHTTPServer | None = None
         try:
+            if worker_port is not None:
+                if worker_port == chosen:
+                    raise click.ClickException(t("cli.serve.worker_port_same", port=worker_port))
+                worker_sock, _, _ = open_listener(worker_host, worker_port)
             # 只有真的啟動伺服器時才載入 FastAPI 與資料庫
             import uvicorn
 
@@ -212,7 +246,11 @@ def build_serve_command() -> click.Command:
             from rpa_server.app import create_app
             from rpa_server.config import Settings
 
-            settings = Settings.from_env(data_dir=data_dir)
+            settings = dataclasses.replace(
+                Settings.from_env(data_dir=data_dir),
+                worker_port=worker_port,
+                local_worker=local_worker,
+            )
             if skipped is not None:
                 click.echo(t("cli.serve.port_switched", busy=skipped, port=chosen), err=True)
             if not _is_loopback(host):
@@ -232,10 +270,25 @@ def build_serve_command() -> click.Command:
                 ),
                 err=True,
             )
-            config = uvicorn.Config(app, host=host, port=chosen, log_level="info")
-            uvicorn.Server(config).run(sockets=[sock])
+            sockets = [sock]
+            if worker_sock is not None and worker_port is not None:
+                sockets.append(worker_sock)
+                from rpa_worker.environment import lan_address
+
+                address = lan_address() or socket.gethostname()
+                shown = address if worker_host in ("0.0.0.0", "::", "") else worker_host
+                click.echo(t("cli.serve.worker_api", url=f"http://{shown}:{worker_port}"), err=True)
+            if not local_worker:
+                click.echo(t("cli.serve.local_worker_off"), err=True)
+            # 遠端 worker 的長輪詢最多 25 秒：Ctrl+C 時不必等它們結束
+            config = uvicorn.Config(
+                app, host=host, port=chosen, log_level="info", timeout_graceful_shutdown=5
+            )
+            uvicorn.Server(config).run(sockets=sockets)
         finally:
             sock.close()
+            if worker_sock is not None:
+                worker_sock.close()
             if site is not None:
                 site.shutdown()
                 site.server_close()

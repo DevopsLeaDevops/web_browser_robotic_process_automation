@@ -22,6 +22,7 @@
 
   <div class="stack">
     <div class="notice"><a href="0008-sqlite-and-postgresql.html">ADR 0008</a> 补充：本决策适用于使用 PostgreSQL 的正式环境。开发与原型使用 SQLite 时，队列与调度改在 API 进程内运行，只有单一 worker。</div>
+    <div class="notice"><a href="0012-remote-workers.html">ADR 0012</a> 部分取代：worker 不直接连数据库，远程 worker 经由管理 Portal 的 Worker API 领取任务；队列本身仍在数据库。</div>
 
     <section class="panel panel-body">
       <dl class="spec-list">

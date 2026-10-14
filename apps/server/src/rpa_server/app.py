@@ -2,6 +2,9 @@
 
 ``create_app(settings)`` 回傳 FastAPI 應用；``rpa serve`` 用 uvicorn 啟動它。
 啟動時：遷移資料庫 → 把上次中斷的執行標為失敗 → 啟動 worker；關閉時先停 worker。
+
+M9a：同一個應用也提供 Worker API（/worker-api/v1），只在 ``settings.worker_port`` 的埠上；
+遠端 worker 的租約由背景執行緒檢查。``settings.local_worker`` 為 False 時這台電腦不執行。
 """
 
 import logging
@@ -22,12 +25,17 @@ from rpa_server.config import Settings
 from rpa_server.db import create_db_engine, upgrade
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
-from rpa_server.jobs import RunQueue
-from rpa_server.middleware import LocaleMiddleware, SameOriginMiddleware
+from rpa_server.middleware import (
+    WORKER_API,
+    LocaleMiddleware,
+    PortGateMiddleware,
+    SameOriginMiddleware,
+)
 from rpa_server.pages import page_router
 from rpa_server.render import render
 from rpa_server.services import Services
 from rpa_server.storage import Storage
+from rpa_server.worker_api import worker_api_router
 from rpa_worker import Worker
 
 __all__ = ["STATIC", "create_app"]
@@ -50,12 +58,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         examples_dir=settings.examples_dir,
         display=settings.display,
         locale=settings.locale,
+        local_worker=settings.local_worker,
+        worker_port=settings.worker_port,
     )
-    queue = RunQueue(sessions, storage, services.roles)
-    queue.on_finished = services.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
-    worker = Worker(queue, locale=settings.locale)
-    services.on_queued = worker.wake
-    services.on_cancel = worker.cancel
+    worker = Worker(services.queue, locale=settings.locale)
+    hub = services.workers
+
+    def queued() -> None:
+        worker.wake()
+        hub.notify()
+
+    services.on_queued = queued
+    services.on_cancel = worker.cancel  # 遠端 worker 在下一次心跳得知要取消
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
@@ -68,11 +82,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             with use_locale(settings.locale):
                 services.seed_examples_domain()
         if settings.start_worker:
-            worker.start()
+            if settings.local_worker:
+                worker.start()
+            hub.start_reaper()
             services.debug.start_reaper()
         try:
             yield
         finally:
+            hub.close()
             worker.stop()
             services.debug.close_all()
             services.recordings.close()
@@ -93,7 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, error: ServiceError) -> Response:  # pyright: ignore[reportUnusedFunction]
-        if request.url.path.startswith("/api/"):
+        if request.url.path.startswith(("/api/", WORKER_API)):
             return JSONResponse(error.to_json(), status_code=error.status)
         page = render(
             "error.html",
@@ -106,8 +123,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return HTMLResponse(page, status_code=error.status)
 
     app.include_router(api_router(services), prefix="/api")
+    app.include_router(worker_api_router(hub))
     app.include_router(page_router(services))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.add_middleware(SameOriginMiddleware)
+    app.add_middleware(PortGateMiddleware, worker_port=settings.worker_port)
     app.add_middleware(LocaleMiddleware, default=settings.locale)
     return app

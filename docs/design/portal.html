@@ -166,8 +166,26 @@
       </div>
     </section>
 
+    <section class="panel" id="remote-workers">
+      <div class="panel-header"><h2>遠端 worker</h2><span class="muted">M9a：執行交給另一台電腦，這台電腦不再被瀏覽器視窗占住（<a href="../adr/0012-remote-workers.html">ADR 0012</a>）</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>兩個埠。</strong><code>rpa serve --worker-port 8081</code> 另外開一個埠，只有 Worker API（<code>/worker-api/v1</code>），預設聽所有網路介面；管理頁面與 <code>/api</code> 仍然只在 <code>--host</code>（預設 127.0.0.1）。兩邊的路徑互相擋掉：從 Worker API 的埠看不到管理頁面，從管理頁面的埠也呼叫不到 Worker API。</li>
+          <li><strong>登記與權杖。</strong>「場景生產 › 遠端 Worker」新增 worker（代號、名稱），產生的權杖只顯示一次，資料庫只存雜湊；可以停用、重新產生權杖（舊的立刻失效）、刪除（執行中不能刪；指定給它而還在排隊的執行標為失敗）。頁面列出每台的狀態（線上、執行中、離線、停用）、最後回報、作業系統、瀏覽器、能不能有頭模式，以及程式版本是否和 Portal 相同。</li>
+          <li><strong>領取。</strong>worker 執行 <code>rpa worker --server …</code>，上線時回報協定版本（不同就拒絕）、程式指紋（不同只提醒）、瀏覽器與能不能顯示視窗；之後長輪詢（最多 25 秒）領取任務。只給它能跑的：執行位置是遠端或任一、瀏覽器有下載、有頭模式要能顯示視窗、指定給它的。依建立順序先進先出。</li>
+          <li><strong>任務的內容。</strong>場景版本的檔案（照位元組傳送，雜湊和 Portal 一致）、入參、瀏覽器、網址、視窗模式、語言；場景有登入角色時加上登入設定與目前的登入狀態，以及用到的 Secrets 的值。worker 只放在記憶體與執行期間的暫存檔，執行完刪除。</li>
+          <li><strong>心跳、取消、失聯。</strong>執行中每 5 秒心跳，同時回報階段；在 Portal 取消時，下一次心跳就終止瀏覽器。領取時給 60 秒租約、心跳延長；過期就把執行標為失敗「worker 失聯」，<strong>不自動重跑</strong>（可能已經有副作用），之後 worker 才回報的結果一律拒絕。Portal 重新啟動時，遠端執行中的任務給一次租約的時間重新報到；本機的照舊標為中斷。</li>
+          <li><strong>結果。</strong>worker 把整個執行目錄打包上傳（只接受安全的相對路徑，有檔案數與大小上限），再回報 result.json 的內容；寫回的規則和本機相同，包括驗證時的雜湊比對。自動登入後的新登入狀態傳回角色。</li>
+          <li><strong>執行位置。</strong>登記了遠端 worker 之後，驗證、執行與「執行序列」的表單多一個「執行位置」：本機、遠端 worker、任一；預設在 worker 頁設定（沒設定是本機）。有頭模式能不能選，跟著所選的位置。執行報告與執行頁顯示由哪台執行。</li>
+          <li><strong>試驗場序列。</strong>整個序列用同一個執行位置，而且第一個節點由哪台 worker 領取，後面的節點都固定給它（測試網站的資料、登入狀態一致）；那台離線時後面的節點等著，可以取消。「從停下的節點繼續」也固定給原本那台。</li>
+          <li><strong>只讓 worker 執行。</strong><code>--no-local-worker</code>：這台電腦不執行，執行位置不能選本機，預設改成任一。</li>
+          <li><strong>仍在這台電腦的。</strong>錄製、逐步調試、人工登入要有人操作，還是在執行 Portal 的電腦。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="manual-check">
-      <div class="panel-header"><h2>手動驗收</h2><span class="muted">M4、M6：錄製、人工登入與試驗場的畫面要有人操作；自動測試用預先錄好的錄製稿</span></div>
+      <div class="panel-header"><h2>手動驗收</h2><span class="muted">M4、M6、M9a：錄製、人工登入、試驗場與遠端 worker 要有人操作；自動測試用預先錄好的錄製稿</span></div>
       <div class="panel-body prose">
         <p>在有圖形介面的電腦（macOS、Windows，或有桌面的 Linux）上，用一個全新的資料夾走一次，大約二十分鐘：</p>
         <ol>
@@ -178,8 +196,9 @@
           <li><strong>兩個角色。</strong>「場景管理 › 登入與憑證」對 <code>testsite-user</code> 按「登入」，在跳出的視窗用 user / user-pass 登入後按「完成登入」；<code>testsite-manager</code> 用 manager / manager-pass。再分別運行 BA-004、BA-005：兩份報告看到的待辦不同。</li>
           <li><strong>需要登入與重新執行。</strong>對 <code>testsite-user</code> 按「登出」，再運行 BA-004：停在「需要登入」，沒有執行任何步驟；點執行頁的登入角色回到「登入與憑證」再登入一次，回到執行頁按「重新執行」，結果是「通過」。</li>
           <li><strong>自由試驗場。</strong>先驗證並發布 BA-001，再用它驗證時建立的紀錄編號驗證並發布 BA-002。「場景生產 › 自由試驗場」按「新增序列」，從場景庫加入 BA-001、BA-002：BA-002 的 recordId 自動接上 n1 的出參。按「執行序列」，兩個節點都通過，n2 查到的就是 n1 剛建立的紀錄。再把 n2 上移到最前面：序列會提示 recordId 只能取前面節點的出參，不能執行。</li>
+          <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「場景生產 › 遠端 Worker」新增 <code>win-01</code>，在另一台電腦照對話框的命令啟動 <code>rpa worker</code>（步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），worker 頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的序列，兩個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
         </ol>
-        <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可。</p>
+        <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可；worker 機器上的 <code>worker-data</code> 資料夾也可以刪掉。</p>
       </div>
     </section>
 
@@ -204,6 +223,7 @@
             <tr><td><code>/playground</code></td><td>自由試驗場：序列清單（節點、問題、最近一次執行）與最近的序列執行；新增、匯入、刪除序列</td></tr>
             <tr><td><code>/playground/{序列}</code></td><td>編輯序列：場景庫、序列、節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
             <tr><td><code>/playground/runs/{序列執行}</code></td><td>序列的執行：每個節點的狀態、入參的值與來源、出參、報告；取消、從頭再執行、從停下的節點繼續</td></tr>
+            <tr><td><code>/workers</code></td><td>遠端 Worker：登記（產生權杖與啟動命令）、狀態、停用、重新產生權杖、刪除；預設執行位置</td></tr>
           </tbody>
         </table>
       </div>
@@ -224,7 +244,7 @@
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校驗問題（含行號）</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>驗證；202 回執行</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>發布；不符合發布門檻時 409</td></tr>
-            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不寫時有圖形介面就用有頭模式）、<code>idempotencyKey</code>；驗證也接受同樣的欄位</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不寫時執行的地方有圖形介面就用有頭模式）、<code>target</code>（執行位置，不寫用預設）、<code>idempotencyKey</code>；驗證也接受同樣的欄位</td></tr>
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/rerun</code></td><td>同樣的入參與選項再執行一次；202 回新的執行</td></tr>
@@ -243,9 +263,13 @@
             <tr><td><code>GET /api/workflows/library</code></td><td>場景庫：發布過的場景版本，以及它們的入參、出參與登入角色</td></tr>
             <tr><td><code>POST /api/workflows/check</code></td><td>檢查一份定義（不存檔），回傳 <code>problems</code></td></tr>
             <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{序列}</code></td><td>序列與最近的執行；存檔（<code>baseVersion</code>、<code>name</code>、<code>description</code>、<code>definition</code>；不是目前的存檔次數就 409）；刪除（執行中不能刪）</td></tr>
-            <tr><td><code>POST /api/workflows/{序列}/runs</code></td><td>執行序列（<code>engine</code>、<code>headless</code>、<code>idempotencyKey</code>）；有問題時 422 並列出 <code>problems</code>；202 回序列的執行</td></tr>
+            <tr><td><code>POST /api/workflows/{序列}/runs</code></td><td>執行序列（<code>engine</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>）；有問題時 422 並列出 <code>problems</code>；202 回序列的執行</td></tr>
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{序列執行}</code></td><td>序列執行清單（可用 <code>workflow</code> 篩選）；單次的狀態與每個節點（狀態、入參的來源、那次執行）</td></tr>
             <tr><td><code>POST /api/workflow-runs/{序列執行}/cancel</code>、<code>…/rerun</code></td><td>取消；再執行一次（<code>resume: true</code> 從停下的節點繼續，否則從頭）</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/workers</code></td><td>遠端 worker 清單（含預設執行位置、本機執不執行、Portal 的程式指紋）；登記（<code>id</code>、<code>name</code>），回應的 <code>token</code> 只有這一次拿得到</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代號}</code>；<code>POST …/token</code></td><td>狀態；改名稱、停用（<code>disabled</code>）；刪除（執行中 409）；重新產生權杖</td></tr>
+            <tr><td><code>PUT /api/settings/default-target</code></td><td>預設執行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
+            <tr><td><code>/worker-api/v1/…</code></td><td>只在 Worker API 的埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -271,11 +295,13 @@
             <dt>domains</dt><dd>代號、名稱、說明、排列順序</dd>
             <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存</dd>
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
-            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間；試驗場節點的序列執行與節點代號</dd>
+            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間；試驗場節點的序列執行與節點代號；執行位置、指定的 worker、實際執行的 worker 與租約</dd>
             <dt>roles</dt><dd>代號、名稱、登入網址、確認網址與判斷元素、瀏覽器、自動登入步驟、最近的狀態與檢查時間</dd>
             <dt>recordings</dt><dd>錄製編號、目標場景與版本、方式（新場景、接著現有步驟、整份換掉）與接續的版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
             <dt>workflows</dt><dd>試驗場的序列：名稱、說明、定義（JSON）、存檔次數</dd>
-            <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間</dd>
+            <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間；執行位置與固定的 worker</dd>
+            <dt>workers</dt><dd>遠端 worker：代號、名稱、權杖的雜湊、停用、上線時回報的資訊、目前的執行、最後回報時間</dd>
+            <dt>settings</dt><dd>設定（預設執行位置）</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
         </div>
@@ -290,7 +316,9 @@
             <dt><code>RPA_LANG</code></dt><dd>預設語言，也是執行報告的語言；頁面右上角可以切換</dd>
             <dt><code>--no-testsite</code></dt><dd>不要一起啟動測試網站（預設會在 <code>127.0.0.1:8765</code> 啟動；已經在執行就沿用）</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「測試網站自動化」的範例資料夾，預設 <code>scenarios/demo</code></dd>
-            <dt>Secrets</dt><dd>在「登入與憑證」設定；沒有設定的，從伺服器程序的同名環境變數讀取</dd>
+            <dt>Secrets</dt><dd>在「登入與憑證」設定；沒有設定的，從伺服器程序的同名環境變數讀取（遠端 worker 執行時，從 worker 程序的環境變數讀取）</dd>
+            <dt><code>--worker-port</code>、<code>--worker-host</code></dt><dd>開放 Worker API 給遠端 worker（M9a）：另一個埠，預設聽 <code>0.0.0.0</code>；只有 <code>/worker-api</code>，要權杖</dd>
+            <dt><code>--no-local-worker</code></dt><dd>這台電腦不執行，全部交給遠端 worker</dd>
           </dl>
         </div>
       </section>
@@ -304,7 +332,8 @@
           <li><strong>擋掉跨站請求。</strong>寫入請求帶了 <code>Origin</code> 標頭時必須同源，避免其他網站在背景呼叫本機的 API。</li>
           <li><strong>執行目錄的檔案。</strong>只提供執行目錄內的檔案；只有 <code>report.html</code> 當成網頁顯示，並加上只允許內嵌樣式與截圖的內容安全政策。</li>
           <li><strong>腳本場景等同執行任意程式。</strong>與 M2 相同，Python 腳本場景只給信任的人編輯。</li>
-          <li><strong>登入狀態與 Secrets 只在這台電腦。</strong>兩者都在資料目錄、只有本人能讀寫，不經由網頁或 API 提供，也不寫進執行目錄、報告與日誌；錄製稿裡的密碼遮罩後才保存。M8 加密存放。</li>
+          <li><strong>登入狀態與 Secrets 存在這台電腦。</strong>兩者都在資料目錄、只有本人能讀寫，不經由網頁或 <code>/api</code> 提供，也不寫進執行目錄、報告與日誌；錄製稿裡的密碼遮罩後才保存。M8 加密存放。</li>
+          <li><strong>遠端 worker 拿得到執行要用的 Secrets 與登入狀態。</strong>只在領取任務的回應裡，worker 放在記憶體與執行期間只有本人能讀寫的暫存檔，執行完刪除。Worker API 用 HTTP 時在區網上是明文：只在信任的網路使用；權杖只存雜湊，可以隨時停用或重新產生。</li>
         </ul>
       </div>
     </section>
@@ -315,7 +344,7 @@
         <dl class="spec-list">
           <dt>M5</dt><dd>AI 助手只改草稿，發布仍走同一個門檻</dd>
           <dt>M8</dt><dd>認證與權限、Secrets 加密、PostgreSQL</dd>
-          <dt>M9</dt><dd>分散式 worker、伺服器推送事件取代輪詢</dd>
+          <dt>M9</dt><dd>排程、worker 標籤與併發、HTTPS、伺服器推送事件取代輪詢（遠端 worker 已在 M9a 提前完成）</dd>
         </dl>
       </div>
     </section>

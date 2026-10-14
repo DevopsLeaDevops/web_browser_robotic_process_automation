@@ -23,7 +23,7 @@
 
 {% macro time(value) %}{% if value %}<time datetime="{{ iso(value) }}">{{ display_time(value) }}</time>{% else %}—{% endif %}{% endmacro %}
 
-{% macro run_rows(runs, show_scene=true) %}
+{% macro run_rows(runs, show_scene=true, workers={}) %}
 <div class="table-scroll">
   <table>
     <thead><tr>
@@ -41,7 +41,7 @@
         <td><span class="tag mono">{{ run.id }}</span><span class="cell-sub">{{ time(run.created_at) }}</span></td>
         {% if show_scene %}<td><a href="/scenes/{{ run.scene_id }}">{{ run.scene_id }}</a> {{ run.scene_name }}{% if run.category %}<span class="cell-sub">{{ run.category }}</span>{% endif %}</td>{% endif %}
         <td>v{{ run.revision_number }}</td>
-        <td>{{ t("purpose." + run.purpose) }}</td>
+        <td>{{ t("purpose." + run.purpose) }}{% if run.worker_id and run.worker_id != "local" %}<span class="cell-sub">{{ t("runs.on_worker", name=workers.get(run.worker_id, run.worker_id)) }}</span>{% elif run.target != "local" and not run.worker_id %}<span class="cell-sub">{{ t("target." + run.target) }}</span>{% endif %}</td>
         <td>{{ run_badge(run.status) }}</td>
         <td class="numeric">{% if run.duration_seconds is not none %}{{ "%.1f"|format(run.duration_seconds) }} s{% else %}—{% endif %}</td>
         <td><a class="text-btn" href="/runs/{{ run.id }}">{{ t("runs.view") }}</a>{% if run.finished %} <a class="text-btn" href="/runs/{{ run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}</td>
@@ -167,4 +167,23 @@
 {%- elif source.kind == "value" -%}<span class="muted">{{ t("workflow_run.source_value") }}</span>
 {%- elif source.kind == "default" -%}<span class="muted">{{ t("workflow_run.source_default") }}</span>
 {%- else -%}<span class="text-danger">{{ t("workflow_run.source_missing") }}</span>{%- endif -%}
+{%- endmacro %}
+
+
+{# 執行位置（M9a）：登記了遠端 worker 才顯示；data-display 是各位置能不能用有頭模式 #}
+{% macro location_field(locations) -%}
+{% if locations.remote %}
+<fieldset class="field choice" data-target-choice data-display="{{ locations.display | tojson | forceescape }}">
+  <legend>{{ t("target.label") }}</legend>
+  {% for target in ("local", "remote", "any") %}
+  <label><input type="radio" name="target" value="{{ target }}"{% if target == locations.default %} checked{% endif %}{% if target == "local" and not locations.local %} disabled{% endif %}> {{ t("target." + target) }}</label>
+  {% endfor %}
+  <span class="cell-sub">{{ t("target.hint") }}</span>
+</fieldset>
+{% endif %}
+{%- endmacro %}
+
+{# 由哪裡執行：本機、某台遠端 worker，或還在等待的執行位置 #}
+{% macro worker_text(target, worker_id, workers) -%}
+{% if worker_id %}{{ workers.get(worker_id, worker_id) }}{% else %}{{ t("target." + target) }}{% endif %}
 {%- endmacro %}

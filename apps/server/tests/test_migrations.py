@@ -33,6 +33,8 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "roles",
             "runs",
             "scenes",
+            "settings",
+            "workers",
             "workflow_runs",
             "workflows",
         ]

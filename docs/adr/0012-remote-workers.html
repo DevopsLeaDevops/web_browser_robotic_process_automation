@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0012 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0012" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0012：遠端 worker 經由 HTTP 向管理 Portal 領取任務</h1>
+      <p>執行可以交給另一台電腦。遠端 worker 不連資料庫，只透過管理 Portal 另一個埠上的 Worker API（權杖）領取任務、回報進度與結果；本機模式維持不變。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-13</dd>
+        <dt>影響範圍</dt><dd>rpa-worker、rpa-server、rpa-cli（M9a 起）；部署（M9）</dd>
+        <dt>相關</dt><dd>部分取代 <a href="0003-postgres-queue.html">ADR 0003</a>（worker 不直接連資料庫）；<a href="0008-sqlite-and-postgresql.html">ADR 0008</a>、<a href="0010-mvp-first.html">ADR 0010</a>；<a href="../develop/remote-worker.html">遠端 worker</a>、<a href="../design/portal.html#remote-workers">管理 Portal › 遠端 worker</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>管理 Portal、資料庫、worker 與檔案原本都在同一台電腦。測試時大多用有頭模式，瀏覽器視窗一開，這台電腦就沒辦法做別的事。使用者另外有一台可以專門執行的電腦，所以把路線圖 M9「分散式 worker」的一小塊提前做（M9a）。</p>
+          <p>原方案（ADR 0003）是 worker 直接連 PostgreSQL、用 Procrastinate 領取任務。MVP 用 SQLite，只允許單一程序存取（ADR 0008）；而且讓另一台電腦拿到資料庫帳密、開放資料庫的網路，都不是 MVP 該有的負擔。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>只有管理 Portal 存取資料庫。</strong>遠端 worker 透過 Worker API（<code>/worker-api/v1</code>）上線、長輪詢領取任務、每 5 秒心跳、上傳執行目錄、回報結果。</li>
+            <li><strong>worker 主動連 Portal。</strong>只要 worker 機器連得到 Portal 的一個埠；Portal 不需要連 worker。</li>
+            <li><strong>Worker API 在獨立的埠、每個請求要權杖。</strong><code>rpa serve --worker-port</code> 開啟，預設聽所有網路介面；管理頁面與 <code>/api</code> 仍然只在原本的位址（預設 127.0.0.1）。每台 worker 一個權杖，資料庫只存雜湊。</li>
+            <li><strong>租約，不自動重跑。</strong>領取時給 60 秒租約，心跳延長；過期就標為「worker 失聯」並失敗，因為可能已經有副作用。之後 worker 才回報的結果一律拒絕。</li>
+            <li><strong>本機 worker 照舊。</strong>沿用同一個 <code>rpa_worker.Worker</code>，只換任務來源；沒有登記遠端 worker 時一切和以前一樣。執行多一個「執行位置」：本機、遠端、任一。</li>
+            <li><strong>結果的規則不變。</strong>遠端 runner 算的雜湊照樣經過發布門檻比對；產物上傳到 Portal 的執行目錄，報告和本機執行看起來一樣。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>worker 機器不需要資料庫帳密，也不用開資料庫的網路；之後換 PostgreSQL、加更多 worker 一樣適用。</li>
+            <li>有頭模式的視窗出現在 worker 機器，自己的電腦不再被占住。</li>
+            <li>本機與遠端共用 runner、執行目錄與發布門檻，沒有第二套執行邏輯。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>Secrets 與角色的登入狀態要送到 worker（只在記憶體與執行期間的暫存檔）；用 HTTP 時在區網上是明文，只適合信任的網路，之後可以改 HTTPS。</li>
+            <li>多一個開放給區網的埠；作業系統的防火牆要允許。</li>
+            <li>worker 失聯時那次執行直接失敗，要人確認後重新執行。</li>
+            <li>試驗場序列整個固定在第一個節點的 worker，那台離線時後面的節點會等著。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>worker 直接連 PostgreSQL（Procrastinate，ADR 0003）</td><td>MVP 用 SQLite；worker 機器要拿到資料庫帳密並開放資料庫網路。</td></tr>
+              <tr><td>Portal 推送任務給 worker</td><td>Portal 要連得到每一台 worker，網路設定反過來比較麻煩；只有 worker 連不到 Portal 時才考慮。</td></tr>
+              <tr><td>Redis 等訊息佇列</td><td>多一個要部署、要維護的服務；目前的量用 HTTP 長輪詢就夠。</td></tr>
+              <tr><td>整個管理 Portal 開放給區網</td><td>管理頁面沒有登入（M8 才有），區網上的人都能操作。</td></tr>
+              <tr><td>遠端桌面看執行畫面</td><td>只解決「看得到」，不解決「本機被占住」；每次都要手動連線。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

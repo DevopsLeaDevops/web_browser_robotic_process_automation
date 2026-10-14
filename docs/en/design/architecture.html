@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:8ab9c1e3c410dde8">
+<meta name="translation-source" content="sha256:00bb4eb7b892b25d">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -113,15 +113,16 @@
     </section>
 
     <section class="panel" id="mvp">
-      <div class="panel-header"><h2>The MVP stage</h2><span class="muted">M2–M6: single machine, single user, serial execution</span></div>
+      <div class="panel-header"><h2>The MVP stage</h2><span class="muted">M2–M6: single machine, single user, serial execution; from M9a runs can go to remote workers</span></div>
       <div class="panel-body">
         <div class="four-col">
           <div class="notice"><strong>Management portal</strong><p>Opened in a browser; the API service renders the pages with Jinja, following the layout of the <a href="../../prototypes/mvp/index.html">MVP prototype</a> (from M3).</p></div>
           <div class="notice"><strong>API service</strong><p>FastAPI: scenarios, revisions and the publishing gate, inputs and outputs, runs, reports, debugging sessions, playground sequences (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>).</p></div>
-          <div class="notice"><strong>Background worker</strong><p>On the same computer; every run starts the runner in a subprocess with an overall deadline and cancellation, and the whole process group is terminated on failure or timeout.</p></div>
+          <div class="notice"><strong>Background worker</strong><p>On the same computer; every run starts the runner in a subprocess with an overall deadline and cancellation, and the whole process group is terminated on failure or timeout. From M9a it can also be a remote worker on another computer (<a href="../adr/0012-remote-workers.html">ADR 0012</a>).</p></div>
           <div class="notice"><strong>Data and artifacts</strong><p>SQLite for metadata (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>); a file directory for scenario revision snapshots and one directory per run.</p></div>
         </div>
         <p class="muted">Requests flow portal → API → worker. The worker writes run status and artifacts, and the portal reads progress by polling or server-sent events; long tasks never block web requests. Before M2 there are only the CLI and the runner, running directly on your machine.</p>
+        <p class="muted">Remote workers (M9a): the worker computer runs <code>rpa worker</code>, which connects to the Worker API on a second port of the management portal (<code>/worker-api/v1</code>, token), long-polls for jobs, sends a heartbeat every 5 seconds (learning whether to cancel), and uploads the whole run directory and reports the result when done. Only the portal touches the database; a worker silent for 60 seconds is considered lost and its run is marked failed, not retried. See <a href="../develop/remote-worker.html">Remote workers</a>.</p>
 <pre class="source">runs/&lt;run-id&gt;/
   input.json          # this run's validated inputs
   facts.json          # page facts extracted by the automation
@@ -145,7 +146,7 @@
             <tr><td><code>rpa-generator</code></td><td>AI assistant: conversational debugging, natural language → DSL, validation failures fed back for correction, self-healing selectors; it can only edit drafts.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, run, record, generate, push.</td><td>The packages above, click</td><td>M0</td></tr>
             <tr><td><code>rpa-server</code></td><td>API and management pages, database models, revisions and the publishing gate, debugging sessions, running playground sequences (M6); permissions (M8), scheduling (M9).</td><td>rpa-core, FastAPI, Jinja2, SQLAlchemy</td><td>M3</td></tr>
-            <tr><td><code>rpa-worker</code></td><td>Takes pending tasks, runs rpa-runner in a subprocess with an overall deadline and cancellation, and writes back results and artifacts. On the same computer in M3, distributed in M9.</td><td>rpa-runner; Procrastinate (M9)</td><td>M3</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>Takes pending tasks, runs rpa-runner in a subprocess with an overall deadline and cancellation, and writes back results and artifacts. On the same computer in M3; from M9a it can also run on another computer and claim jobs through the Worker API (<code>rpa worker</code>, ADR 0012).</td><td>rpa-runner; HTTP from the standard library</td><td>M3</td></tr>
           </tbody>
         </table>
       </div>

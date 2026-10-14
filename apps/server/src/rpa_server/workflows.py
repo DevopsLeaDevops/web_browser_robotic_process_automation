@@ -38,6 +38,7 @@ from rpa_server.domain import (
     Engine,
     NodeStatus,
     RunRecord,
+    Target,
     WorkflowNodeState,
     WorkflowRecord,
     WorkflowRunRecord,
@@ -315,15 +316,20 @@ class WorkflowService:
         engine: Engine | None = None,
         headless: bool | None = None,
         idempotency_key: str | None = None,
+        target: Target | None = None,
     ) -> WorkflowRunRecord:
-        """執行序列：先檢查，沒有問題才建立序列的執行並排入第一個節點。"""
+        """執行序列：先檢查，沒有問題才建立序列的執行並排入第一個節點。
+
+        target 是執行位置（M9a）：每個節點都一樣，而且第一個節點由哪台 worker 領取，後面就都給它。
+        """
         key = (idempotency_key or "").strip() or None
         existing = self._by_key(key)
         if existing is not None:
             return existing
         record = self.get_workflow(workflow_id)
         self._ensure_runnable(record.workflow, list(record.problems))
-        headless = self._headless(headless)
+        target = self.services.resolve_target(target)
+        headless = self.services.resolve_headless(headless, target)
         return self._launch(
             workflow_id=record.id,
             name=record.name,
@@ -334,6 +340,7 @@ class WorkflowService:
             key=key,
             reused={},
             start_index=0,
+            target=target,
         )
 
     def rerun(
@@ -351,22 +358,30 @@ class WorkflowService:
             workflow = Workflow.model_validate(row.definition)
             snapshot = (row.workflow_id, row.workflow_name, row.workflow_version)
             engine, headless = row.engine, row.headless
+            target = cast("Target", row.target)
             reused: dict[str, str] = {}
             start_index = 0
+            pinned: str | None = None
             if resume:
                 start_index, reused = self._resume_point(session, row, workflow)
+                # 沿用的節點在哪台 worker 執行，接下來的節點也給它（M9a）
+                pinned = row.worker_id if target != "local" and reused else None
         self._ensure_runnable(workflow, self.check(workflow))
+        if target == "remote" and not self.services.workers.has_remote():
+            target, pinned = "local", None
         return self._launch(
             workflow_id=snapshot[0],
             name=snapshot[1],
             version=snapshot[2],
             workflow=workflow,
             engine=cast("Engine | None", engine),
-            headless=headless if headless or self.services.display else True,
+            headless=headless if headless or self.services.can_display(target) else True,
             key=key,
             reused=reused,
             start_index=start_index,
             resumed_from=run_id if resume else None,
+            target=target,
+            worker_id=pinned,
         )
 
     def _resume_point(
@@ -390,13 +405,6 @@ class WorkflowService:
                     "workflow_not_resumable", t("error.workflow_not_resumable", id=row.id)
                 )
         return index, reused
-
-    def _headless(self, headless: bool | None) -> bool:
-        if headless is None:
-            return not self.services.display
-        if not headless and not self.services.display:
-            raise invalid("display_unavailable", t("error.display_unavailable"))
-        return headless
 
     @staticmethod
     def _ensure_runnable(workflow: Workflow, problems: Sequence[WorkflowProblem]) -> None:
@@ -432,6 +440,8 @@ class WorkflowService:
         reused: Mapping[str, str],
         start_index: int,
         resumed_from: str | None = None,
+        target: Target = "local",
+        worker_id: str | None = None,
     ) -> WorkflowRunRecord:
         with self._lock:
             run_id = new_run_id(f"wf{workflow_id}" if workflow_id is not None else "wf")
@@ -451,6 +461,8 @@ class WorkflowService:
                         idempotency_key=key,
                         cancel_requested=False,
                         created_at=now(),
+                        target=target,
+                        worker_id=worker_id,
                     )
                 )
                 try:
@@ -471,6 +483,7 @@ class WorkflowService:
             workflow = Workflow.model_validate(row.definition)
             outputs = self._outputs(session, row)
             engine, headless = row.engine, row.headless
+            target, pinned = cast("Target", row.target), row.worker_id
         node = workflow.nodes[index]
         values, problems = resolve_inputs(node, outputs)
         if problems:
@@ -486,6 +499,8 @@ class WorkflowService:
                 headless=headless,
                 workflow_run_id=run_id,
                 node_id=node.id,
+                target=target,
+                required_worker=pinned,
             )
         except ServiceError as error:
             details = error.details.get("problems")
@@ -654,6 +669,8 @@ class WorkflowService:
             error=row.error,
             failed_node=row.failed_node,
             resumed_from=row.resumed_from,
+            target=cast("Target", row.target),
+            worker_id=row.worker_id,
             cancel_requested=row.cancel_requested,
             created_at=row.created_at,
             finished_at=row.finished_at,

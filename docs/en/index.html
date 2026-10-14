@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:f59e498cc3de6811">
+<meta name="translation-source" content="sha256:4279716f7ed83344">
 <title>Home · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -63,14 +63,14 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>Repository status</h2><span class="muted">M4 in progress</span></div>
+        <div class="panel-header"><h2>Repository status</h2><span class="muted">M9a in progress</span></div>
         <div class="panel-body">
           <dl class="spec-list">
             <dt>rpa-core</dt><dd>Models of the scenario DSL and the scenario contract, YAML loading and validation, converting recordings into DSL drafts; examples in <code>scenarios/</code></dd>
             <dt>rpa-runner</dt><dd>Execution engine: input validation, login checks, running the steps in Chromium or Firefox, independent assertions, output publishing, run reports; subprocesses for manual login and step debugging</dd>
-            <dt>rpa-worker</dt><dd>Background worker: claims jobs, runs them in a subprocess, cancels them; no database dependency</dd>
-            <dt>rpa-server</dt><dd>Management portal: FastAPI API and Jinja pages, SQLite, revisions and the publishing gate, the run queue, login roles and secrets, recording, step debugging</dd>
-            <dt>rpa-cli</dt><dd><code>rpa serve</code> starts the management portal; <code>rpa run</code> runs a scenario; <code>rpa record</code> records actions and turns them into a scenario draft; <code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
+            <dt>rpa-worker</dt><dd>Background worker: claims jobs, runs them in a subprocess, cancels them; no database dependency. It can also run on another computer as a remote worker, claiming jobs through the portal's Worker API (M9a)</dd>
+            <dt>rpa-server</dt><dd>Management portal: FastAPI API and Jinja pages, SQLite, revisions and the publishing gate, the run queue, login roles and secrets, recording, step debugging, the playground, remote worker registration and dispatch</dd>
+            <dt>rpa-cli</dt><dd><code>rpa serve</code> starts the management portal (<code>--worker-port</code> opens it to remote workers); <code>rpa worker</code> turns another computer into a remote worker; <code>rpa run</code> runs a scenario; <code>rpa record</code> records actions and turns them into a scenario draft; <code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
             <dt>Toolchain</dt><dd>uv (dependencies locked in <code>uv.lock</code>), ruff, pyright (strict), pytest, pre-commit</dd>
             <dt>CI</dt><dd>Static checks, tests on Python 3.12 / 3.13, including a Chromium smoke test; the setup scripts run weekly on macOS, Ubuntu and Windows</dd>
             <dt>Docs</dt><dd>This site, in Traditional Chinese, Simplified Chinese and English, with automatic checks for links and translation sync</dd>

@@ -759,6 +759,7 @@ dependencies = [
     { name = "rpa-runner" },
     { name = "rpa-server" },
     { name = "rpa-testsite" },
+    { name = "rpa-worker" },
 ]
 
 [package.metadata]
@@ -768,6 +769,7 @@ requires-dist = [
     { name = "rpa-runner", editable = "packages/rpa_runner" },
     { name = "rpa-server", editable = "apps/server" },
     { name = "rpa-testsite", editable = "apps/testsite" },
+    { name = "rpa-worker", editable = "apps/worker" },
 ]
 
 [[package]]

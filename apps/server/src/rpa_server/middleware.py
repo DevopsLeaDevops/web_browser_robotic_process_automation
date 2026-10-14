@@ -5,14 +5,20 @@
 """
 
 from http.cookies import CookieError, SimpleCookie
-from typing import Final
+from typing import Final, cast
 from urllib.parse import parse_qs, urlsplit
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from rpa_core.i18n import Locale, parse_locale, use_locale
 
-__all__ = ["LANG_COOKIE", "LocaleMiddleware", "SameOriginMiddleware"]
+__all__ = [
+    "LANG_COOKIE",
+    "WORKER_API",
+    "LocaleMiddleware",
+    "PortGateMiddleware",
+    "SameOriginMiddleware",
+]
 
 LANG_COOKIE: Final = "rpa_lang"
 _SAFE_METHODS: Final = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -82,4 +88,41 @@ class SameOriginMiddleware:
                 )
                 await send({"type": "http.response.body", "body": b"cross-origin request blocked"})
                 return
+        await self.app(scope, receive, send)
+
+
+WORKER_API: Final = "/worker-api/"
+
+
+class PortGateMiddleware:
+    """Worker API 與管理頁面分開在兩個埠（M9a，ADR 0012）。
+
+    - 從 Worker API 的埠（``worker_port``）進來的請求只能用 ``/worker-api/``，其他一律 404：
+      Worker API 的埠可以開放給區網，但管理頁面沒有登入（M8），不能跟著開放。
+    - 從其他埠進來的請求不能用 ``/worker-api/``（沒有開 Worker API 時也一樣）。
+    """
+
+    def __init__(self, app: ASGIApp, worker_port: int | None) -> None:
+        self.app = app
+        self.worker_port = worker_port
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        server = cast("tuple[str, int | None] | None", scope.get("server"))
+        port = server[1] if server is not None else None
+        on_worker_port = self.worker_port is not None and port == self.worker_port
+        is_worker_path = str(scope.get("path", "")).startswith(WORKER_API)
+        if on_worker_port != is_worker_path:
+            body = b'{"error": {"code": "not_found", "message": "Not Found"}}'
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 404,
+                    "headers": [(b"content-type", b"application/json")],
+                }
+            )
+            await send({"type": "http.response.body", "body": body})
+            return
         await self.app(scope, receive, send)

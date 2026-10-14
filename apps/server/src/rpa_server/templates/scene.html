@@ -77,7 +77,7 @@
 
   <section class="panel">
     <div class="panel-header"><h2>{{ t("scene.recent_runs") }}</h2><a class="text-btn" href="/runs?scene={{ scene.id }}">{{ t("scene.all_runs") }}</a></div>
-    {% if runs %}{{ m.run_rows(runs, show_scene=false) }}{% else %}<div class="empty">{{ t("scene.no_runs") }}</div>{% endif %}
+    {% if runs %}{{ m.run_rows(runs, show_scene=false, workers=worker_names) }}{% else %}<div class="empty">{{ t("scene.no_runs") }}</div>{% endif %}
   </section>
 </div>
 {% endblock %}

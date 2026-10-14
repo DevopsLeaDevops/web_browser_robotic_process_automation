@@ -38,8 +38,11 @@ from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id, scenario_sources
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
+from rpa_server.dispatch import WorkerHub
 from rpa_server.domain import (
     DOMAIN_ID,
+    LOCAL_WORKER,
+    TARGETS,
     DomainRecord,
     Engine,
     Purpose,
@@ -49,11 +52,13 @@ from rpa_server.domain import (
     RunStatus,
     SceneCard,
     SceneRecord,
+    Target,
     issue_json,
     now,
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import follow_locale, t
+from rpa_server.jobs import RunQueue
 from rpa_server.models import Domain, Revision, Run, Scene
 from rpa_server.recordings import RecordingService
 from rpa_server.roles import RoleService
@@ -254,6 +259,8 @@ def run_record(run: Run) -> RunRecord:
         headless=run.headless,
         workflow_run_id=run.workflow_run_id,
         node_id=run.node_id,
+        target=cast("Target", run.target),
+        worker_id=run.worker_id,
     )
 
 
@@ -279,12 +286,18 @@ class Services:
         examples_dir: Path | None = None,
         display: bool = False,
         locale: Locale = DEFAULT_LOCALE,
+        local_worker: bool = True,
+        worker_port: int | None = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
         self.examples_dir = examples_dir
         self.display = display
         """這台電腦能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。"""
+        self.local_worker = local_worker
+        """這台電腦執不執行（rpa serve --no-local-worker 時不執行，只給遠端 worker；M9a）。"""
+        self.worker_port = worker_port
+        """Worker API 的埠；None 代表沒有開放遠端 worker 連線（頁面提示怎麼開啟）。"""
         self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
         self.roles = RoleService(
             sessions,
@@ -299,6 +312,11 @@ class Services:
         )
         self.debug = DebugManager(storage, self, self.roles, display=display, locale=locale)
         self.workflows = WorkflowService(sessions, self)
+        self.queue = RunQueue(sessions, storage, self.roles)
+        """執行佇列：本機 worker 的任務來源；遠端 worker 經由 workers 領取（M9a）。"""
+        self.queue.on_finished = self.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
+        self.workers = WorkerHub(sessions, storage, self.queue, self.roles, locale=locale)
+        """遠端 worker 的登記與分派（M9a）。"""
         self.on_queued: Callable[[], None] = lambda: None
         """有新的執行排入佇列（叫醒 worker）。"""
         self.on_cancel: Callable[[str], object] = lambda run_id: None
@@ -809,17 +827,19 @@ class Services:
         headless: bool | None = None,
         workflow_run_id: str | None = None,
         node_id: str | None = None,
+        target: Target | None = None,
+        required_worker: str | None = None,
     ) -> RunRecord:
         """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本；
         試驗場序列的節點（workflow）用序列固定的版本，只能是發布過的版本（M6）。
 
-        headless 沒指定時：能顯示瀏覽器視窗就用有頭模式，不能就用無頭模式。
+        target 是執行位置（M9a），沒指定時用預設執行位置；
+        required_worker 指定只能由哪台 worker 執行。
+        headless 沒指定時：執行的地方能顯示瀏覽器視窗就用有頭模式，不能就用無頭模式。
         """
         inputs = dict(inputs or {})
-        if headless is None:
-            headless = not self.display
-        elif not headless and not self.display:
-            raise _invalid("display_unavailable", t("error.display_unavailable"))
+        target = self.resolve_target(target)
+        headless = self.resolve_headless(headless, target)
         key = (idempotency_key or "").strip() or None
         with self.sessions() as session:
             if key is not None:
@@ -865,6 +885,8 @@ class Services:
                 created_at=now(),
                 workflow_run_id=workflow_run_id,
                 node_id=node_id,
+                target=target,
+                required_worker=required_worker,
             )
             session.add(run)
             if purpose == "validation":
@@ -880,6 +902,50 @@ class Services:
             record = run_record(run)
         self.on_queued()
         return record
+
+    def resolve_target(self, target: Target | None) -> Target:
+        """執行位置：沒指定時用預設；要遠端卻沒有登記任何遠端 worker 時拒絕（M9a）。"""
+        if target is None:
+            target = self.workers.default_target()
+            if target == "local" and not self.local_worker:
+                target = "any"
+        if target == "local" and not self.local_worker:
+            raise _conflict("local_worker_off", t("error.local_worker_off"))
+        if target != "local" and not self.workers.has_remote() and not self.local_worker:
+            raise _conflict("no_remote_worker", t("error.no_remote_worker"))
+        if target == "remote" and not self.workers.has_remote():
+            raise _conflict("no_remote_worker", t("error.no_remote_worker"))
+        return target
+
+    def can_display(self, target: Target) -> bool:
+        """執行的地方能不能顯示瀏覽器視窗：本機看這台電腦，遠端看有沒有能顯示的 worker。"""
+        local = self.display and self.local_worker
+        if target == "local":
+            return local
+        remote = self.workers.has_remote() and self.workers.remote_display()
+        return remote if target == "remote" else local or remote
+
+    def locations(self) -> dict[str, object]:
+        """執行表單的「執行位置」：有沒有遠端 worker、本機執不執行、預設、各位置能不能有頭模式。"""
+        remote = self.workers.has_remote()
+        default = self.workers.default_target()
+        if default == "local" and not self.local_worker:
+            default = "any"
+        if default == "remote" and not remote:
+            default = "local" if self.local_worker else "any"
+        return {
+            "remote": remote,
+            "local": self.local_worker,
+            "default": default,
+            "display": {target: self.can_display(target) for target in TARGETS},
+        }
+
+    def resolve_headless(self, headless: bool | None, target: Target) -> bool:
+        if headless is None:
+            return not self.can_display(target)
+        if not headless and not self.can_display(target):
+            raise _invalid("display_unavailable", t("error.display_unavailable"))
+        return headless
 
     def publish(self, scene_id: str, number: int) -> SceneRecord:
         """發布版本：最近一次驗證通過，而且通過的驗證執行跑的就是這份內容。"""
@@ -975,7 +1041,8 @@ class Services:
                 settled = True
             elif run.status == "running":
                 run.cancel_requested = True
-                notify = True
+                # 本機的執行馬上通知 worker；遠端 worker 在下一次心跳得知（M9a）
+                notify = run.worker_id in (None, LOCAL_WORKER)
             session.commit()
             record = run_record(run)
         if notify:
@@ -1013,8 +1080,17 @@ class Services:
         """
         self.recordings.recover()
         self.debug.remove_leftovers()
+        # 遠端 worker 執行中的任務不受管理 Portal 重新啟動影響：給它一次租約的時間重新報到（M9a）
+        self.workers.resume_after_restart()
         with self.sessions() as session:
-            runs = list(session.scalars(select(Run).where(Run.status == "running")))
+            runs = list(
+                session.scalars(
+                    select(Run).where(
+                        Run.status == "running",
+                        or_(Run.worker_id.is_(None), Run.worker_id == LOCAL_WORKER),
+                    )
+                )
+            )
             moment = now()
             for run in runs:
                 run.status = "failed"
@@ -1195,6 +1271,9 @@ class Services:
         試驗場序列的節點只重新執行這一個節點（同一個版本），不接著執行序列，序列請從序列執行頁繼續。
         """
         run = self.get_run(run_id)
+        target = run.target if run.target != "remote" or self.workers.has_remote() else "local"
+        # 序列的節點跟著原本那台 worker（測試網站的資料、登入狀態一致）
+        pinned = run.worker_id if run.purpose == "workflow" and target != "local" else None
         return self.request_run(
             run.scene_id,
             purpose=run.purpose,
@@ -1203,5 +1282,7 @@ class Services:
             engine=cast("Engine | None", run.engine),
             base_url=run.base_url,
             idempotency_key=idempotency_key,
-            headless=run.headless if run.headless or self.display else True,
+            headless=run.headless if run.headless or self.can_display(target) else True,
+            target=target,
+            required_worker=pinned,
         )

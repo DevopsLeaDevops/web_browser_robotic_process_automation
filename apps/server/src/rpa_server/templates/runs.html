@@ -10,7 +10,7 @@
       {% for menu in filters %}{{ m.filter_menu(menu) }}{% endfor %}
       {% if filters | selectattr("selected") | list %}<a class="text-btn" href="/runs">{{ t("runs.clear") }}</a>{% endif %}
     </form>
-    {% if runs %}{{ m.run_rows(runs) }}{% else %}<div class="empty">{{ t("runs.empty") }}</div>{% endif %}
+    {% if runs %}{{ m.run_rows(runs, workers=worker_names) }}{% else %}<div class="empty">{{ t("runs.empty") }}</div>{% endif %}
   </section>
 </div>
 {% endblock %}

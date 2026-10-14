@@ -22,6 +22,7 @@ from rpa_server.domain import (
     RunRecord,
     SceneCard,
     SceneRecord,
+    WorkerRecord,
     WorkflowNodeState,
     WorkflowRecord,
     WorkflowRunRecord,
@@ -91,6 +92,36 @@ RUN = RunRecord(
     finished_at=MOMENT,
     duration_seconds=2.5,
 )
+LOCATIONS: dict[str, object] = {
+    "remote": False,
+    "local": True,
+    "default": "local",
+    "display": {"local": True, "remote": False, "any": True},
+}
+REMOTE_LOCATIONS: dict[str, object] = {
+    "remote": True,
+    "local": True,
+    "default": "remote",
+    "display": {"local": False, "remote": True, "any": True},
+}
+WORKER = WorkerRecord(
+    id="win-01",
+    name="Windows <測試機>",
+    status="busy",
+    disabled=False,
+    created_at=MOMENT,
+    last_seen_at=MOMENT,
+    current_run="ba-001-20261010-083000-abcdef",
+    protocol=1,
+    fingerprint="0123456789abcdef",
+    same_version=False,
+    os="Windows 11",
+    python="3.13.1",
+    host="WIN-01",
+    browsers=("chromium", "firefox"),
+    display=True,
+)
+WORKER_NAMES = {"local": "本機", "win-01": "Windows <測試機>"}
 RESULT: dict[str, object] = {
     "engine": "chromium",
     "input": RUN.input,
@@ -408,6 +439,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "library": [],
         "display": False,
         "engines": list(ENGINES),
+        "locations": REMOTE_LOCATIONS,
     }
     common: dict[str, object] = {"messages": workflow_messages()}
     return {
@@ -574,6 +606,84 @@ def _pages() -> dict[str, str]:
             engines=ENGINES,
             base_url="http://127.0.0.1:8765",
             display=True,
+            locations=LOCATIONS,
+        ),
+        "run-form-remote": render(
+            "run_form.html",
+            page="domains",
+            title="執行",
+            domains=DOMAINS,
+            domain=None,
+            scene=replace(SCENE, domain_id=None),
+            revision=REVISIONS[0],
+            scenario=scenario,
+            purpose="execution",
+            defaults={"title": "x"},
+            engines=ENGINES,
+            base_url=None,
+            display=True,
+            locations=REMOTE_LOCATIONS,
+        ),
+        "runs-remote": render(
+            "runs.html",
+            page="runs",
+            title="報告",
+            runs=[
+                replace(RUN, target="remote", worker_id="win-01"),
+                replace(RUN, id="queued", status="queued", target="any", worker_id=None),
+            ],
+            filters=run_filters(scenes=[SCENE], categories=[], selected={}),
+            limit=200,
+            worker_names=WORKER_NAMES,
+        ),
+        "run-remote": render(
+            "run.html",
+            page="runs",
+            title="執行",
+            run=replace(RUN, target="remote", worker_id="win-01"),
+            revision=REVISIONS[0],
+            result=RESULT,
+            files=["report.html"],
+            can_publish=False,
+            role=None,
+            worker_names=WORKER_NAMES,
+        ),
+        "workers": render(
+            "workers.html",
+            page="workers",
+            title="遠端 Worker",
+            workers=[
+                WORKER,
+                replace(
+                    WORKER,
+                    id="mac",
+                    name="Mac",
+                    status="offline",
+                    disabled=True,
+                    last_seen_at=None,
+                    current_run=None,
+                    fingerprint=None,
+                    same_version=True,
+                ),
+            ],
+            default_target="any",
+            targets=("local", "remote", "any"),
+            local_worker=False,
+            worker_port=8081,
+            api_url="http://192.168.1.10:8081",
+            fingerprint="fedcba9876543210",
+        ),
+        "workers-empty": render(
+            "workers.html",
+            page="workers",
+            title="遠端 Worker",
+            workers=[],
+            default_target="local",
+            targets=("local", "remote", "any"),
+            local_worker=True,
+            worker_port=None,
+            api_url=None,
+            fingerprint="fedcba9876543210",
         ),
         "runs": render(
             "runs.html",
@@ -796,6 +906,61 @@ def _english_domain_pages() -> dict[str, str]:
             ),
             **_m4_pages(scenario, english=True),
             **_m6_pages(english=True),
+            "workers": render(
+                "workers.html",
+                page="workers",
+                title=t("nav.workers"),
+                workers=[
+                    replace(WORKER, name="Windows PC", os="Windows", host="PC"),
+                    replace(WORKER, id="mac", name="Mac", status="disabled", disabled=True),
+                ],
+                default_target="remote",
+                targets=("local", "remote", "any"),
+                local_worker=False,
+                worker_port=8081,
+                api_url="http://10.0.0.2:8081",
+                fingerprint="0" * 16,
+            ),
+            "workers-empty": render(
+                "workers.html",
+                page="workers",
+                title=t("nav.workers"),
+                workers=[],
+                default_target="local",
+                targets=("local", "remote", "any"),
+                local_worker=True,
+                worker_port=None,
+                api_url=None,
+                fingerprint="0" * 16,
+            ),
+            "run-form-remote": render(
+                "run_form.html",
+                page="domain:testsite",
+                title="Run",
+                domains=domains,
+                domain=domain,
+                scene=scene,
+                revision=REVISIONS[0],
+                scenario=scenario,
+                purpose="execution",
+                defaults={},
+                engines=ENGINES,
+                base_url=None,
+                display=True,
+                locations=REMOTE_LOCATIONS,
+            ),
+            "run-remote": render(
+                "run.html",
+                page="runs",
+                title="Run",
+                run=replace(run, target="remote", worker_id="win-01"),
+                revision=REVISIONS[0],
+                result=None,
+                files=[],
+                can_publish=False,
+                role=None,
+                worker_names={"local": t("worker.local"), "win-01": "Windows PC"},
+            ),
         }
 
 
@@ -818,6 +983,10 @@ def _english_domain_pages() -> dict[str, str]:
         "workflow-run-login",
         "workflow-running",
         "workflow-blocked",
+        "workers",
+        "workers-empty",
+        "run-form-remote",
+        "run-remote",
     ],
 )
 def test_new_pages_have_no_untranslated_text(name: str) -> None:
@@ -871,6 +1040,7 @@ def test_run_form_offers_headed_mode_when_a_window_can_be_shown(display: bool) -
             engines=ENGINES,
             base_url=None,
             display=display,
+            locations=LOCATIONS,
         )
     headed = html.split('name="headless" value="0"')[1].split(">")[0]
     headless = html.split('name="headless" value="1"')[1].split(">")[0]
@@ -977,3 +1147,26 @@ def test_workflow_pages_show_sources_and_actions() -> None:
     assert '"binding_output": "{name} \\u2190 {node}.{output}"' in editor  # tojson 跳脫非 ASCII
     assert 'href="/playground/runs/wf1-x"' in node_run
     assert 'data-action="rerun"' not in node_run
+
+
+def test_remote_worker_pages() -> None:
+    """M9a：執行位置的選項、由哪台 worker 執行、遠端 Worker 頁（名稱要跳脫）。"""
+    with use_locale("zh-Hant"):
+        pages = _pages()
+    assert 'name="target"' not in pages["run-form"]  # 沒有遠端 worker 時不顯示
+    form = pages["run-form-remote"]
+    assert "data-target-choice" in form
+    assert 'value="remote" checked' in form
+    runs = _text(pages["runs-remote"])
+    assert "在 Windows <測試機> 執行" in runs
+    assert "任一（誰有空誰執行）" in runs
+    assert "Windows &lt;測試機&gt;" in pages["run-remote"]
+    workers = pages["workers"]
+    assert 'id="worker-win-01"' in workers
+    assert 'data-api-url="http://192.168.1.10:8081"' in workers
+    assert "和 Portal 的程式版本不同" in _text(workers)
+    assert 'data-action="enable-worker" data-worker="mac"' in workers
+    assert 'value="local" disabled' in workers  # --no-local-worker
+    assert "rpa serve --worker-port 8081" in _text(pages["workers-empty"])
+    produce = pages["workers"].split('id="sidenav"')[1].split("</nav>")[0]
+    assert 'href="/workers"' in produce
