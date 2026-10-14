@@ -83,6 +83,7 @@
       <div class="panel-body stack">
         <div>
           <h3>3.1 合併 #23，做兩台電腦的驗收（必做，約 20 分鐘）</h3>
+          <div class="notice warn"><strong>先合併 #23，兩台電腦都要更新</strong>：在專案資料夾 <code>git pull</code>，再重跑安裝腳本（macOS／Linux：<code>./scripts/setup.sh</code>；Windows：<code>powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</code>）。沒有更新就會出現「沒有 worker 這個命令」或不認得 <code>--worker-port</code>。不想先合併的話，兩台都 <code>git fetch origin</code>、<code>git checkout m9a/remote-worker</code>、<code>uv sync</code>。</div>
           <ol class="steps">
             <li>你的電腦：<code>uv run rpa serve --data data-check --worker-port 8081</code>，允許防火牆的連入詢問。</li>
             <li>Portal「場景生產 › 遠端 Worker」新增 <code>win-01</code>，複製權杖與 PowerShell 命令。</li>
