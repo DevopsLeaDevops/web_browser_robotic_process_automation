@@ -20,9 +20,9 @@
         <dt>範圍</dt><dd>共同開發文件與 PR 範本。業務功能、M5 決策、M9a 兩機驗收不在本輪。</dd>
         <dt>主責／整合者</dt><dd>ChatGPT／Codex；審閱者：使用者；後續實作接收方未指定。</dd>
         <dt>修改範圍</dt><dd>根目錄 AGENTS.md、CLAUDE.md、README.md；.github/pull_request_template.md；handoff 的現行入口、流程與任務檔案；docs 的三語開發規範。原始材料快照不修改。</dd>
-        <dt>狀態</dt><dd>受阻（遠端寫入權限）；本地提交與檢查完成，使用者已授權提交 PR 並指定由使用者審核；尚未推送、建立 PR 或合併。</dd>
-        <dt>分支／PR／起點</dt><dd><code>docs/shared-ai-workflow</code>；PR 未建立（發布受阻）；base 為 <code>32f240b</code>（main，#26）。</dd>
-        <dt>交接版本</dt><dd>本地實作提交 <code>0b2d945</code>；後續提交僅追加本紀錄的發布阻塞狀態。遠端尚無本任務分支，接收方尚未取得版本。</dd>
+        <dt>狀態</dt><dd>已推送並建立 PR，待使用者審核；本地檢查完成，CI 以 PR 最新 head 的 Checks 為準，尚未合併。</dd>
+        <dt>分支／PR／起點</dt><dd><code>docs/shared-ai-workflow</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/27">PR #27</a>（目標 main）；base 為 <code>32f240b</code>（main，#26）。</dd>
+        <dt>交接版本</dt><dd>實作提交 <code>0b2d945</code>；<code>2e85f8e</code> 記錄先前發布阻塞，已推送至遠端分支。後續提交僅更新本紀錄的 PR 狀態；實際交接 SHA 以 PR 最新 head 為準，接收方尚未確認接收。</dd>
         <dt>相依任務／環境</dt><dd>依據 #26 交接包；無其他實作任務相依。使用者本機 macOS、Python 3.13.16、uv 0.12.24、pytest 9.1.1、OpenCC 1.4.2。</dd>
       </dl></div>
     </section>
@@ -33,8 +33,8 @@
         <li><strong>使用者已確認：</strong>以長期共同開發與順利接手為目標，先完善流程。</li>
         <li><strong>本輪實作選擇：</strong>流程集中在一頁；一任務一紀錄、一位當前實作者；並行使用獨立工作區；接收者核對版本後回填確認。沒有新增強制使用第二個 AI 的要求。</li>
         <li><strong>沿用的規範：</strong>Conventional Commits、功能分支、PR、CI、審閱與 squash 合併；工程文檔繁中、正式文檔三語。M5 的模型與資料去向仍待決定。</li>
-        <li><strong>下一步：</strong>使用者恢復本機 Git 推送認證或 GitHub 連接的倉庫寫入權限後，推送本分支並建立對 main 的 PR。授權已具備，不需再次確認是否提交 PR；交由使用者審核，不合併。PR 描述草稿存於本機 .git/shared-ai-workflow-pr.md。</li>
-        <li><strong>未提交／stash／產物：</strong>實作檔案已提交；此紀錄追加內容隨後以獨立提交保存。沒有 stash；PR 描述草稿 .git/shared-ai-workflow-pr.md 僅在本機，尚未對外發布。</li>
+        <li><strong>下一步：</strong>核對 PR #27 最新 head 的 CI，由使用者審閱並決定是否 squash 合併；如有審閱意見，在同一分支處理並更新驗證。</li>
+        <li><strong>未提交／stash／產物：</strong>實作檔案已提交並推送；本次狀態更新以獨立提交保存並同步同一 PR。沒有任務 stash；PR 描述已發布，本機 .git/shared-ai-workflow-pr.md 保留工作副本。</li>
       </ul></div>
     </section>
     <section class="panel" id="validation">
@@ -50,7 +50,7 @@
           <tr><td>雙入口閱讀路徑與 diff 自檢</td><td>ChatGPT／Codex 自檢通過</td><td>CLAUDE.md → AGENTS.md → 共用流程／任務卡；保留原始材料，不冒稱對方已接收</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未觸發（分支未推送、PR 未建立）；正式 PR 審閱：待使用者；跨工具接力實測：尚未發生；業務瀏覽器與兩機驗收：本輪不涉及。</p></div>
+      <div class="panel-body"><p>CI：已觸發；建立 PR 時 2e85f8e 的靜態檢查及 Python 3.12／3.13 測試正在執行，bootstrap 為 skipped（不計為通過）。後續狀態更新提交需查看最新 head 的 Checks；正式 PR 審閱：待使用者；跨工具接力實測：尚未發生；業務瀏覽器與兩機驗收：本輪不涉及。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -64,6 +64,7 @@
         <li>2026-10-14（UTC+08:00），ChatGPT／Codex：完成上述文件檢查，回填驗證結果。依現有程式庫設定更正「Python 依賴更新沒有處理」的交接描述；替代 workflow 是否實際成功執行仍待核驗。本次未修改業務程式。</li>
         <li>2026-10-14（UTC+08:00），使用者：已閱讀改動，要求下一步按流程提交 PR，由使用者審核；授權本輪提交、推送及建立 PR，不合併。</li>
         <li>2026-10-14（UTC+08:00），ChatGPT／Codex：本地提交 0b2d945，pre-commit 的空白、合併標記、大檔案、簡中同步與文檔連結檢查通過。HTTPS git push 缺少認證；已連接 GitHub 的 create-tree 返回 403 Resource not accessible by integration；既有 SSH 認證返回 Permission denied (publickey)。未建立遠端分支或 PR。請恢復合法的倉庫寫入認證後續作。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：遠端寫入阻塞已解除，推送 docs/shared-ai-workflow 並建立 PR #27（base main）。本次僅更新任務交付狀態，保留 0b2d945 的實作驗證證據；使用者正式審閱、接收確認與合併仍待完成。</li>
       </ul></div>
     </section>
   </div>
