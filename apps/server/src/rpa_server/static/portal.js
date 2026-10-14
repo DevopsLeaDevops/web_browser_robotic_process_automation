@@ -1171,6 +1171,59 @@
     return dialog;
   }
 
+  function workflowIssues(problems, definition, workflowId, locate = false) {
+    const text = pageText();
+    return problems.map((item, index) => {
+      const node = definition.nodes.find(node => node.id === item.node);
+      const context = item.node ? fill(text.problem_context, {node: item.node, scene: node?.sceneId || '—'}) + (item.input ? ' · ' + item.input : '') : '';
+      const href = '/playground/' + path(workflowId) + (item.node ? '?node=' + path(item.node) + (item.input ? '&input=' + path(item.input) : '') : '#workflow-problems');
+      const action = locate
+        ? (node ? '<button class="text-btn" data-locate-problem="' + index + '">' + esc(text.locate_problem) + '</button>' : '')
+        : '<a class="text-btn" href="' + esc(href) + '">' + esc(text.open_problem) + '</a>';
+      return '<li>' + (context ? '<strong>' + esc(context) + '</strong>' : '') + '<span>' + esc(item.message) + '</span> ' + action + '</li>';
+    }).join('');
+  }
+
+  function bindIssueLocations(container, problems, locate) {
+    if (!locate) return;
+    qsa('[data-locate-problem]', container).forEach(button => button.addEventListener('click', () => {
+      if (container.closest('#dialog')) $('#dialog').close();
+      locate(problems[Number(button.dataset.locateProblem)]);
+    }));
+  }
+
+  function showWorkflowIssues(workflow, locate) {
+    modal(pageText().fix_problems, '<ul class="workflow-issue-list">' + workflowIssues(workflow.problems, workflow.definition, workflow.id, !!locate) + '</ul>', null);
+    bindIssueLocations(qs('#dialog-content'), workflow.problems, locate);
+  }
+
+  // 卡片與畫布共用同一份執行設定及 API；伺服器仍負責最後檢查。
+  function openWorkflowRun(workflow, locate, onProblems) {
+    const text = pageText(), key = newKey();
+    modal(fill(text.run_named, {name: workflow.name}), qs('#workflow-run-form').innerHTML, {label: text.run_action, run: async () => {
+      const dialog = qs('#dialog-content');
+      const engine = qs('[name="engine"]', dialog).value || null;
+      const headless = (qs('[name="headless"]:checked', dialog) || {value: '1'}).value === '1';
+      const target = chosenTarget(dialog);
+      busy($('#dialog-action'), true);
+      const result = await api('POST', '/api/workflows/' + path(workflow.id) + '/runs', {engine, headless, target, idempotencyKey: key});
+      busy($('#dialog-action'), false);
+      if (!result.ok) {
+        qs('.form-error', dialog).textContent = errorMessage(result);
+        const problems = result.data?.error?.problems || [];
+        const list = qs('.form-issues', dialog);
+        list.classList.add('workflow-issue-list');
+        list.innerHTML = workflowIssues(problems, workflow.definition, workflow.id, !!locate);
+        list.hidden = problems.length === 0;
+        bindIssueLocations(dialog, problems, locate);
+        if (problems.length && onProblems) onProblems(problems);
+        return;
+      }
+      location.href = '/playground/runs/' + path(result.data.id);
+    }});
+    bindTargetChoice(qs('#dialog-content'));
+  }
+
   function bindPlayground() {
     if (!qs('#playground')) return;
     const text = pageText();
@@ -1217,6 +1270,16 @@
       qs('[name="file"]', dialog).addEventListener('change', async event => {
         const file = event.target.files[0];
         if (file) qs('[name="text"]', dialog).value = await file.text();
+      });
+    });
+    qsa('[data-action="run-composite"]').forEach(button => {
+      button.addEventListener('click', async () => {
+        busy(button, true);
+        const result = await api('GET', '/api/workflows/' + path(button.dataset.workflow));
+        busy(button, false);
+        if (!result.ok) return toast(errorMessage(result));
+        if (result.data.problems.length) return showWorkflowIssues(result.data);
+        openWorkflowRun(result.data);
       });
     });
     qsa('[data-action="delete-workflow"]').forEach(button => {
@@ -1345,7 +1408,7 @@
         return;
       }
       list.innerHTML = [...groups].map(([group, items]) => '<h3 class="library-group">' + esc(group) + '</h3>' + items.map(scene =>
-        '<button type="button" class="library-item" data-add="' + esc(scene.id) + '"><strong>' + esc(scene.id) + '</strong>' +
+        '<button type="button" class="library-item" draggable="true" title="' + esc(text.library_hint) + '" data-add="' + esc(scene.id) + '"><strong>' + esc(scene.id) + '</strong>' +
         '<span>' + esc(scene.name) + '</span><small>' + esc(fill(text.add, {number: scene.publishedRevision || scene.revisions[0].number})) + '</small></button>').join('')).join('');
     }
 
@@ -1386,7 +1449,7 @@
           const revision = revisionOf(node), scene = sceneOf(node);
           const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
           const count = problems.filter(item => item.node === node.id).length;
-          return '<div class="flow-node' + (index === selected ? ' selected' : '') + '" data-index="' + index + '" data-node="' + esc(node.id) + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '" style="left:' + node.position.x + 'px;top:' + node.position.y + 'px">' +
+          return '<div class="flow-node' + (index === selected ? ' selected' : '') + (count ? ' has-problems' : '') + '" data-index="' + index + '" data-node="' + esc(node.id) + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '" style="left:' + node.position.x + 'px;top:' + node.position.y + 'px">' +
             '<span class="flow-node-head"><span class="tag mono">' + esc(node.sceneId) + '</span> <span class="muted">v' + node.revision + '</span></span>' +
             '<strong title="' + esc(title) + '">' + esc(title) + '</strong><small>' + esc(node.id) + (count ? ' · ' + esc(fill(text.problem_count, {count})) : '') + '</small>' +
             '<button class="dag-port in" data-in="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_to, {node: node.id})) + '"></button>' +
@@ -1414,7 +1477,7 @@
       return '<input type="' + type + '"' + step + attrs + ' value="' + esc(current === '' ? '' : String(current)) + '">';
     }
 
-    function inputRow(node, index, name, spec) {
+    function inputRow(node, name, spec) {
       const binding = node.inputs[name];
       const current = sourceOf(node, name, spec);
       const option = (value, label, disabled) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + esc(label) + '</option>';
@@ -1438,14 +1501,15 @@
       const required = hasDefault(spec) ? '' : ' <span class="tag">' + esc(text.required) + '</span>';
       const description = spec.description ? '<span class="cell-sub">' + esc(spec.description) + '</span>' : '';
       return '<div class="input-source" data-input="' + esc(name) + '">' +
-        '<label class="field"><span><code>' + esc(name) + '</code> <span class="muted">' + esc(spec.type) + '</span>' + required + description + '</span>' +
-        '<select data-source="' + esc(name) + '">' + options + '</select></label>' +
-        (current === 'value' ? valueField(name, spec, binding) : '') + '<span class="cell-sub">' + esc(bindingText(node, name, spec)) + '</span></div>';
+        '<div class="input-name"><code>' + esc(name) + '</code> ' + required + '<span class="cell-sub">' + esc(spec.type) + '</span>' + description + '</div>' +
+        '<select data-source="' + esc(name) + '" aria-label="' + esc(fill(text.field_source, {name})) + '">' + options + '</select>' +
+        '<div class="binding-value">' + (current === 'value' ? valueField(name, spec, binding) : '') + '<span class="binding-summary">' + esc(bindingText(node, name, spec)) + '</span></div></div>';
     }
 
     function renderSettings() {
       const box = qs('#node-settings'), inputsBox = qs('#node-inputs');
       const node = definition.nodes[selected];
+      qs('#parameter-node').textContent = node ? fill(text.selected_inputs, {node: node.id}) : '';
       if (!node) {
         box.innerHTML = '<p class="muted">' + esc(text.settings_empty) + '</p>';
         inputsBox.innerHTML = box.innerHTML;
@@ -1471,7 +1535,7 @@
       if (revision && revision.role) html += '<p class="cell-sub">' + esc(fill(text.role, {role: revision.role})) + '</p>';
       inputsBox.innerHTML = !revision ? '<p class="muted">' + esc(text.no_contract) + '</p>'
         : !revision.inputs.length ? '<p class="muted">' + esc(text.no_inputs) + '</p>'
-        : revision.inputs.map(([name, spec]) => inputRow(node, selected, name, spec)).join('');
+        : revision.inputs.map(([name, spec]) => inputRow(node, name, spec)).join('');
       if (revision) {
         html += '<h3 class="section-title">' + esc(text.outputs) + '</h3>';
         html += revision.outputs.length
@@ -1484,12 +1548,48 @@
       html += allEdges().filter(edge => edge.target === node.id).map(edge => '<div class="edge-row"><code>' + esc(edge.source) + ' → ' + esc(edge.target) + '</code><button class="text-btn" data-unlink="' + esc(edge.source) + '">' + esc(text.unlink) + '</button></div>').join('');
       html += '<p class="cell-sub">' + esc(text.unlink_hint) + '</p><button type="button" class="button danger" data-remove>' + esc(text.remove) + '</button>';
       box.innerHTML = html + '</div>';
+      renderFieldProblems();
+    }
+
+    function renderFieldProblems() {
+      const node = definition.nodes[selected];
+      qsa('#node-inputs [data-input]').forEach((row, index) => {
+        const items = problems.filter(item => item.node === node?.id && item.input === row.dataset.input);
+        row.classList.toggle('has-problems', items.length > 0);
+        qs('.input-problems', row)?.remove();
+        qsa('input, select', row).forEach(field => {
+          field.setAttribute('aria-invalid', String(items.length > 0));
+          field.removeAttribute('aria-describedby');
+          if (items.length) field.setAttribute('aria-describedby', 'input-problems-' + index);
+        });
+        if (items.length) {
+          const hint = document.createElement('div');
+          hint.id = 'input-problems-' + index;
+          hint.className = 'input-problems';
+          hint.textContent = items.map(item => item.message).join(messages.list_separator);
+          row.appendChild(hint);
+        }
+      });
+    }
+
+    function focusProblem(item) {
+      selected = definition.nodes.findIndex(node => node.id === item.node);
+      if (selected < 0) return;
+      render();
+      const card = qsa('[data-node]', qs('#flow-stage')).find(el => el.dataset.node === item.node);
+      card?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      const row = qsa('#node-inputs [data-input]').find(el => el.dataset.input === item.input);
+      const field = row && qs('[data-source]', row);
+      (row || card)?.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      (field || card)?.focus({preventScroll: true});
     }
 
     function renderProblems() {
       const panel = qs('#workflow-problems');
       qs('.count', panel).textContent = problems.length;
-      qs('ul', panel).innerHTML = problems.map(item => '<li>' + esc(item.message) + '</li>').join('');
+      qs('ul', panel).innerHTML = workflowIssues(problems, definition, data.id, true);
+      bindIssueLocations(panel, problems, focusProblem);
+      renderFieldProblems();
       panel.hidden = problems.length === 0;
     }
 
@@ -1500,12 +1600,13 @@
         const node = definition.nodes[selected];
         if (node) qsa('#node-inputs [data-input]').forEach(row => {
           const name = row.dataset.input, spec = new Map(revisionOf(node)?.inputs || []).get(name);
-          if (spec) qs(':scope > .cell-sub', row).textContent = bindingText(node, name, spec);
+          if (spec) qs('.binding-summary', row).textContent = bindingText(node, name, spec);
         });
       }
       renderProblems();
       saveButton.disabled = !dirty || saving;
       saveButton.title = dirty ? text.unsaved : '';
+      qs('#workflow-save-state').textContent = saving ? text.saving : dirty ? text.unsaved : text.saved;
     }
 
     // 每次修改後（稍等一下）請伺服器檢查，問題列在上方與節點上
@@ -1515,7 +1616,11 @@
       checkTimer = setTimeout(async () => {
         const sequence = ++checkSeq;
         const result = await api('POST', '/api/workflows/check', {definition});
-        if (!result.ok || sequence !== checkSeq) return;
+        if (sequence !== checkSeq) return;
+        if (!result.ok) {
+          qs('#workflow-save-state').textContent = fill(text.check_failed, {reason: errorMessage(result)});
+          return;
+        }
         problems = result.data.problems;
         render({settings: false});
       }, 300);
@@ -1533,11 +1638,13 @@
       saving = true;
       const savedEdit = editVersion;
       busy(saveButton, true);
+      qs('#workflow-save-state').textContent = text.saving;
       const result = await api('PUT', '/api/workflows/' + path(data.id), {baseVersion: version, definition});
       busy(saveButton, false);
       saving = false;
       if (!result.ok) {
         saveButton.disabled = false;
+        qs('#workflow-save-state').textContent = text.unsaved;
         if (result.status === 409) toast(text.stale);
         else toast(errorMessage(result));
         return false;
@@ -1550,19 +1657,46 @@
       return true;
     }
 
-    qs('#library-search').addEventListener('input', renderLibrary);
-    qs('#library-list').addEventListener('click', event => {
-      const button = event.target.closest('[data-add]');
-      if (!button) return;
-      const scene = library.get(button.dataset.add);
+    function addNode(sceneId, position) {
+      const scene = library.get(sceneId);
+      if (!scene || scene.archived || !scene.revisions.length) return;
       const node = {id: newNodeId(), sceneId: scene.id, revision: scene.publishedRevision || scene.revisions[0].number, inputs: {}};
       resetInputs(node);
-      node.position = {x: 40 + (definition.nodes.length % 3) * 280, y: 40 + Math.floor(definition.nodes.length / 3) * 160};
+      node.position = position || {x: 40 + (definition.nodes.length % 3) * 280, y: 40 + Math.floor(definition.nodes.length / 3) * 160};
       definition.nodes.push(node);
       selected = definition.nodes.length - 1;
       changed();
+    }
+    qs('#library-search').addEventListener('input', renderLibrary);
+    qs('#library-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-add]');
+      if (button) addNode(button.dataset.add);
     });
-    const stage = qs('#flow-stage');
+    qs('#library-list').addEventListener('dragstart', event => {
+      const button = event.target.closest('[data-add]');
+      if (!button) return;
+      event.dataTransfer.setData('application/x-rpa-scene', button.dataset.add);
+      event.dataTransfer.effectAllowed = 'copy';
+    });
+    const stage = qs('#flow-stage'), viewport = qs('#canvas-viewport');
+    viewport.addEventListener('dragover', event => {
+      if (!event.dataTransfer.types.includes('application/x-rpa-scene')) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      viewport.classList.add('is-drop-target');
+    });
+    viewport.addEventListener('dragleave', event => {
+      if (!viewport.contains(event.relatedTarget)) viewport.classList.remove('is-drop-target');
+    });
+    viewport.addEventListener('drop', event => {
+      const sceneId = event.dataTransfer.getData('application/x-rpa-scene');
+      if (!sceneId) return;
+      event.preventDefault();
+      viewport.classList.remove('is-drop-target');
+      const bounds = stage.getBoundingClientRect();
+      addNode(sceneId, {x: Math.max(0, Math.min(100000, (event.clientX - bounds.left) / zoom - 100)), y: Math.max(0, Math.min(100000, (event.clientY - bounds.top) / zoom - 48))});
+    });
+    qs('#library-list').addEventListener('dragend', () => viewport.classList.remove('is-drop-target'));
     function pick(target) {
       const edge = target.closest('[data-edge]');
       const card = target.closest('[data-index]');
@@ -1660,7 +1794,7 @@
         changed({settings: false});
       }
     });
-    // 打字時只更新序列與檢查，不重畫設定（游標才不會跳走）
+    // 打字時只更新定義與檢查，不重畫設定（游標才不會跳走）
     settings.addEventListener('input', event => {
       const target = event.target;
       const node = definition.nodes[selected];
@@ -1706,6 +1840,7 @@
         data.name = result.data.name;
         data.description = result.data.description || '';
         qs('#title').textContent = data.name;
+        qs('#title').title = data.name;
         qs('#description').textContent = data.description || text.description;
         $('#dialog').close();
         toast(text.saved);
@@ -1717,33 +1852,26 @@
       download('workflow-' + data.id + '.json', JSON.stringify(exported, null, 2) + '\n');
     });
 
+    qs('[data-action="workflow-check"]').addEventListener('click', async event => {
+      clearTimeout(checkTimer);
+      const sequence = ++checkSeq, button = event.currentTarget;
+      busy(button, true);
+      const result = await api('POST', '/api/workflows/check', {definition});
+      busy(button, false);
+      if (sequence !== checkSeq) return;
+      if (!result.ok) return toast(fill(text.check_failed, {reason: errorMessage(result)}));
+      problems = result.data.problems;
+      render({settings: false});
+      if (problems.length) showWorkflowIssues({id: data.id, definition, problems}, focusProblem);
+      else toast(text.check_passed);
+    });
+
     qs('[data-action="workflow-run"]').addEventListener('click', async () => {
       if ((dirty || legacy) && !(await save())) return;
       if (dirty) return toast(text.unsaved);
-      if (problems.length) {
-        qs('#workflow-problems').scrollIntoView({block: 'nearest'});
-        return toast(text.fix_problems);
-      }
-      const key = newKey();
-      modal(text.run_title, qs('#workflow-run-form').innerHTML, {label: text.run_action, run: async () => {
-        const dialog = qs('#dialog-content');
-        const engine = qs('[name="engine"]', dialog).value || null;
-        const headless = (qs('[name="headless"]:checked', dialog) || {value: '1'}).value === '1';
-        const target = chosenTarget(dialog);
-        busy($('#dialog-action'), true);
-        const result = await api('POST', '/api/workflows/' + path(data.id) + '/runs', {engine, headless, target, idempotencyKey: key});
-        busy($('#dialog-action'), false);
-        if (!result.ok) {
-          qs('.form-error', dialog).textContent = errorMessage(result);
-          const list = qs('.form-issues', dialog);
-          const lines = problemLines(result);
-          list.innerHTML = lines.map(line => '<li>' + esc(line) + '</li>').join('');
-          list.hidden = lines.length === 0;
-          return;
-        }
-        location.href = '/playground/runs/' + path(result.data.id);
-      }});
-      bindTargetChoice(qs('#dialog-content'));
+      const workflow = {id: data.id, name: data.name, definition, problems};
+      if (problems.length) return showWorkflowIssues(workflow, focusProblem);
+      openWorkflowRun(workflow, focusProblem, items => { problems = items; render({settings: false}); });
     });
 
     window.addEventListener('beforeunload', event => {
@@ -1754,6 +1882,8 @@
 
     renderLibrary();
     render();
+    const query = new URLSearchParams(location.search);
+    if (query.has('node')) focusProblem({node: query.get('node'), input: query.get('input')});
   }
 
   function bindWorkflowRun() {

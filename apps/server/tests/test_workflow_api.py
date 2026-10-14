@@ -599,7 +599,9 @@ def test_dag_invalid_draft_is_saved_but_never_queued(
 
 def test_composite_management_and_navigation(client: Client, chain: int) -> None:
     html = client.get("/composites").text
-    assert 'class="panel composite-card"' in html
+    assert 'scene-card composite-card"' in html
+    assert 'data-action="run-composite"' in html
+    assert 'class="preview-edge"' in html
     assert 'href="/playground/' + str(chain) + '"' in html
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     assert side.index("/roles") < side.index("/composites")

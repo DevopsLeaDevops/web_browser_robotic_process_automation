@@ -470,6 +470,7 @@ def page_router(services: Services) -> APIRouter:
             "composites.html",
             page="composites",
             title=t("nav.composites"),
+            data={"engines": list(ENGINES), **_location_context(services)},
             workflows=workflows.list_workflows(),
             runs=workflows.list_runs(limit=_RECENT_RUNS * 2),
             has_published=bool(workflows.library()),

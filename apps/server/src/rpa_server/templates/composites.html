@@ -5,21 +5,38 @@
 {% block content %}
 <div class="stack" id="playground">
   {% if not has_published %}<div class="notice warn">{{ t("playground.no_published") }}</div>{% endif %}
-  <div class="composite-grid">
+  <div class="card-grid scene-grid" id="composite-cards">
   {% for item in workflows %}
-    <article class="panel composite-card" data-workflow="{{ item.id }}">
-      <div class="panel-header"><h2><a href="/playground/{{ item.id }}">{{ item.name }}</a></h2><span class="tag">DAG</span></div>
-      <div class="panel-body stack"><p>{{ item.description or t("composites.no_description") }}</p>
-        <div class="flow-chain">{% for node in item.workflow.nodes %}<span class="tag">{{ node.scene_id }} · v{{ node.revision }}</span>{% else %}<span class="muted">{{ t("playground.no_nodes") }}</span>{% endfor %}</div>
-        <p class="muted">{{ t("composites.node_count", count=item.workflow.nodes | length) }}</p>
-        {% if item.problems %}{{ m.badge("failed", t("playground.problems", count=item.problems | length)) }}{% else %}{{ m.badge("passed", t("composites.ready")) }}{% endif %}
-        <div>{{ t("playground.col_last_run") }}: {% if item.last_run %}<a href="/playground/runs/{{ item.last_run.id }}">{{ m.run_badge(item.last_run.status) }}</a> {{ m.time(item.last_run.created_at) }}{% else %}—{% endif %}</div>
+    {% set preview = workflow_preview(item.workflow) %}
+    <article class="panel panel-body scene-card composite-card" data-workflow="{{ item.id }}">
+      <div class="scene-card-head"><h2><a href="/playground/{{ item.id }}">{{ item.name }}</a></h2><span class="chip">DAG</span></div>
+      <div class="scene-card-body">
+        <a class="shot dag-thumbnail" href="/playground/{{ item.id }}" title="{{ t('composites.preview', name=item.name) }}">
+        {% if preview.nodes %}
+          <svg viewBox="{{ preview.viewbox }}" role="img" aria-label="{{ t('composites.preview', name=item.name) }}">
+            <defs><marker id="preview-arrow-{{ item.id }}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5c83b8"/></marker></defs>
+            {% for edge in preview.edges %}<path class="preview-edge" d="{{ edge.path }}" data-source="{{ edge.source }}" data-target="{{ edge.target }}" marker-end="url(#preview-arrow-{{ item.id }})"/>{% endfor %}
+            {% for node in preview.nodes %}<g data-preview-node="{{ node.id }}" transform="translate({{ node.x }} {{ node.y }})"><title>{{ node.id }} · {{ node.scene }} · v{{ node.revision }}</title><rect width="200" height="96" rx="8"/><text x="12" y="38">{{ node.id }}</text><text x="12" y="70" class="preview-scene">{{ node.scene | truncate(14, true) }}</text></g>{% endfor %}
+          </svg>
+        {% else %}<span>{{ t("playground.no_nodes") }}</span>{% endif %}
+        </a>
+        <div class="composite-summary"><p class="clamp">{{ item.description or t("composites.no_description") }}</p><span class="cell-sub">{{ t("composites.node_count", count=item.workflow.nodes | length) }}</span></div>
       </div>
-      <div class="panel-body actions"><a class="button primary" href="/playground/{{ item.id }}">{{ t("composites.edit") }}</a><button class="text-btn" data-action="delete-workflow" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ t("playground.delete") }}</button></div>
+      <nav class="card-links even scene-card-links" aria-label="{{ item.name }}">
+        <a href="/playground/{{ item.id }}">{{ t("composites.edit") }}</a>
+        {% if item.last_run %}<a href="/playground/runs/{{ item.last_run.id }}">{{ t("composites.latest_report") }}</a>{% else %}<span class="muted">{{ t("playground.no_runs") }}</span>{% endif %}
+        <button class="text-btn" data-action="delete-workflow" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ t("playground.delete") }}</button>
+      </nav>
+      <div class="scene-card-foot">
+        {% if item.problems %}<a href="/playground/{{ item.id }}#workflow-problems" class="status-link" title="{{ item.problems[0].message }}">{{ m.badge("failed", t("playground.problems", count=item.problems | length)) }}</a>{% elif item.last_run %}<a href="/playground/runs/{{ item.last_run.id }}" class="status-link">{{ m.run_badge(item.last_run.status) }}</a>{% else %}{{ m.badge("passed", t("composites.ready")) }}{% endif %}
+        <span class="grow"></span>
+        <button class="button primary" data-action="run-composite" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ m.arrow() }} {{ t("workflow.run") }}</button>
+      </div>
     </article>
-  {% else %}<div class="empty">{{ t("playground.empty") }}</div>{% endfor %}
+  {% else %}<div class="panel empty">{{ t("playground.empty") }}</div>{% endfor %}
   </div>
   <section class="panel"><div class="panel-header"><h2>{{ t("playground.recent_runs") }}</h2></div>{% if runs %}{{ m.workflow_run_rows(runs) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}</section>
 </div>
 {% include "_workflow_forms.html" %}
+{% include "_workflow_run_form.html" %}
 {% endblock %}

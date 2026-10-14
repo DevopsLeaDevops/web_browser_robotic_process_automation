@@ -120,7 +120,7 @@ def start_run(page: Page, inputs: dict[str, object], engine: str, site: str) -> 
 
 
 def test_create_validate_publish_run_report(
-    portal: str, page: Page, site: str, engine: str
+    portal: str, engine: str, page: Page, site: str
 ) -> None:
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
@@ -191,7 +191,7 @@ def test_create_validate_publish_run_report(
 
 @pytest.mark.parametrize("portal", [DEMO], indirect=True)
 def test_testsite_domain_runs_a_real_case_from_its_card(
-    portal: str, page: Page, site: str, engine: str
+    portal: str, engine: str, page: Page, site: str
 ) -> None:
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
@@ -240,7 +240,7 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
 def test_playground_chains_published_scenarios(
     portal: str, engine: str, page: Page, site: str
 ) -> None:
-    """M6 驗收：在自由試驗場把 BA-001、BA-002 排成序列，recordId 自動接上，真實執行通過。"""
+    """M6 驗收：在自由試驗場連接 BA-001、BA-002，recordId 自動接上，真實執行通過。"""
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     api = page.request
@@ -267,7 +267,7 @@ def test_playground_chains_published_scenarios(
     assert isinstance(output, dict)
     validate_and_publish("ba-002", {"recordId": output["recordId"]})
 
-    # 新增序列，從場景庫加入兩個場景：BA-002 的 recordId 自動接上 BA-001 的出參
+    # 新增組合場景，從場景庫加入兩個場景：BA-002 的 recordId 自動接上 BA-001 的出參
     page.goto(f"{portal}/playground")
     page.locator('[data-action="create-workflow"]').click()
     dialog = page.locator("#dialog")
@@ -275,7 +275,17 @@ def test_playground_chains_published_scenarios(
     dialog.locator("#dialog-action").click()
     page.wait_for_url(re.compile(r"/playground/\d+$"))
     page.locator('[data-add="ba-001"]').click()
-    page.locator('[data-add="ba-002"]').click()
+    page.locator('[data-add="ba-002"]').drag_to(
+        page.locator("#canvas-viewport"), target_position={"x": 440, "y": 100}
+    )
+    expect(page.locator('[data-node="n2"]')).to_be_visible()
+    # 1440×900 下工具列、畫布與入參表同屏可見；說明與歷史預設收起。
+    expect(page.locator(".workflow-help")).not_to_have_attribute("open", "")
+    expect(page.locator(".workflow-history")).not_to_have_attribute("open", "")
+    assert (
+        page.locator(".workflow-editor").evaluate("el => el.getBoundingClientRect().bottom") < 900
+    )
+    assert page.locator("#canvas-viewport").evaluate("el => el.clientHeight") >= 250
     page.locator('[data-out="n1"]').click()
     page.locator('[data-in="n2"]').click()
     expect(page.locator("#node-inputs")).to_contain_text("recordId ← n1.recordId")
@@ -319,11 +329,33 @@ def test_playground_chains_published_scenarios(
     page.locator('[data-unlink="n1"]').click()
     expect(page.locator(".dag-edge")).to_have_count(0)
     expect(page.locator("#workflow-problems")).to_be_visible()
+    problem = page.locator("#workflow-problems li").first
+    expect(problem).to_contain_text("n2 · ba-002 · recordId")
+    reason = problem.locator("span").inner_text()
+    assert reason
+    expect(page.locator('[data-source="recordId"]')).to_have_attribute("aria-invalid", "true")
+    expect(page.locator(".input-problems")).to_contain_text(reason)
+    # 執行前阻擋必須列出原始原因；定位直接選取錯誤欄位。
+    page.locator('[data-action="workflow-run"]').click()
+    expect(dialog).to_be_visible()
+    expect(dialog).to_contain_text(reason)
+    dialog.locator("[data-locate-problem]").first.click()
+    expect(dialog).not_to_be_visible()
+    expect(page.locator('[data-source="recordId"]')).to_be_focused()
+    # 卡片也會重新檢查，並提供開啟畫布、定位欄位的入口。
+    page.goto(f"{portal}/composites")
+    page.locator('[data-action="run-composite"]').click()
+    expect(dialog).to_contain_text(reason)
+    dialog.locator('a[href*="input=recordId"]').click()
+    page.wait_for_url(re.compile(r"/playground/\d+\?node=n2&input=recordId$"))
+    expect(page.locator('[data-source="recordId"]')).to_be_focused()
     page.locator('[data-out="n1"]').click()
     page.locator('[data-in="n2"]').click()
     expect(page.locator("#workflow-problems")).to_be_hidden()
 
-    # 執行序列（先自動存檔），到序列執行頁等結果
+    page.locator('[data-action="workflow-check"]').click()
+    expect(page.locator("#toast")).to_contain_text("檢查通過")
+    # 執行組合場景（先自動存檔），到執行頁等結果
     page.locator('[data-action="workflow-run"]').click()
     dialog.locator('select[name="engine"]').select_option(engine)
     dialog.locator('input[name="headless"][value="1"]').check()
@@ -336,12 +368,30 @@ def test_playground_chains_published_scenarios(
     expect(page.locator('tr[data-node="n2"]')).to_contain_text("畫面串接")
     expect(page.locator('tr[data-node="n2"] [data-status="passed"]')).to_be_visible()
 
+    previous_run = root.get_attribute("data-run")
     # 組合場景管理卡片與最近一次執行
     page.goto(f"{portal}/composites")
     expect(page.locator("article[data-workflow]")).to_contain_text("ba-001")
     expect(
         page.locator("tr[data-workflow-run]").first.locator('[data-status="passed"]')
     ).to_be_visible()
+    card = page.locator("article[data-workflow]")
+    expect(card.locator("[data-preview-node]")).to_have_count(2)
+    expect(card.locator(".preview-edge")).to_have_count(1)
+    expect(card.locator('[data-preview-node="n1"]')).to_have_attribute(
+        "transform", f"translate({position['x']} {position['y']})"
+    )
+    # 快捷入口直接發起一個新執行，沿用引擎、位置與視窗設定。
+    card.locator('[data-action="run-composite"]').click()
+    expect(dialog).to_contain_text("建立後查詢")
+    dialog.locator('select[name="engine"]').select_option(engine)
+    dialog.locator('input[name="headless"][value="1"]').check()
+    dialog.locator("#dialog-action").click()
+    page.wait_for_url(re.compile(r"/playground/runs/"))
+    page.wait_for_selector('#workflow-run:not([data-status="running"])', timeout=RUN_TIMEOUT_MS * 2)
+    expect(page.locator("#workflow-run")).to_have_attribute("data-status", "passed")
+    expect(page.locator('tr[data-node="n2"]')).to_contain_text("畫面串接")
+    assert page.locator("#workflow-run").get_attribute("data-run") != previous_run
     page.goto(f"{portal}/playground/{workflow_id}")
     first.click()
     page.locator('input[data-value="title"]').fill("保留未儲存草稿")

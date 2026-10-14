@@ -17,6 +17,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 from markupsafe import Markup, escape
 
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
+from rpa_core.workflow import Workflow
 from rpa_server import __version__
 from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, SceneRecord
 from rpa_server.i18n import t
@@ -285,6 +286,51 @@ def js_messages() -> dict[str, str]:
     return {key.removeprefix("js."): t(key) for key in keys}
 
 
+def workflow_preview(workflow: Workflow) -> dict[str, object]:
+    """以實際座標與依賴產生卡片縮圖；只計算呈現，不修改或執行定義。"""
+    positions = {
+        node.id: (node.position.x, node.position.y)
+        if node.position
+        else (40.0 + (index % 3) * 280, 40.0 + (index // 3) * 160)
+        for index, node in enumerate(workflow.nodes)
+    }
+    nodes = [
+        {
+            "id": node.id,
+            "scene": node.scene_id,
+            "revision": node.revision,
+            "x": positions[node.id][0],
+            "y": positions[node.id][1],
+        }
+        for node in workflow.nodes
+    ]
+    edges: list[dict[str, str]] = []
+    xs: list[float] = []
+    ys: list[float] = []
+    for x, y in positions.values():
+        xs.extend((x, x + 200))
+        ys.extend((y, y + 96))
+    for target, sources in workflow.dependencies().items():
+        for source in sorted(sources):
+            if source not in positions:
+                continue
+            ax, ay = positions[source]
+            bx, by = positions[target]
+            x, y, xx, yy = ax + 200, ay + 48, bx, by + 48
+            bend = max(50, abs(xx - x) / 2)
+            xs.extend((x + bend, xx - bend))
+            edges.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "path": f"M {x} {y} C {x + bend} {y}, {xx - bend} {yy}, {xx} {yy}",
+                }
+            )
+    left, top = min(xs, default=0) - 24, min(ys, default=0) - 24
+    width, height = max(xs, default=240) - left + 24, max(ys, default=120) - top + 24
+    return {"nodes": nodes, "edges": edges, "viewbox": f"{left} {top} {width} {height}"}
+
+
 def workflow_messages() -> dict[str, str]:
     """自由試驗場頁面的 JavaScript 用到的文字（訊息目錄裡 wfjs. 開頭的鍵，目前語言）。
 
@@ -328,6 +374,7 @@ cast("dict[str, object]", _env.globals).update(
     native_names=NATIVE_NAMES,
     locales=LOCALES,
     version=__version__,
+    workflow_preview=workflow_preview,
 )
 _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number
