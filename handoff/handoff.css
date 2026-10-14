@@ -1,0 +1,21 @@
+/* 交接材料共用的樣式：疊在設計系統的 portal.css 上面（handoff/ 不屬於文檔站，沒有側邊選單）。 */
+main{margin:0 auto;max-width:1180px;padding:24px 20px 48px}
+.handoff-nav{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.handoff-nav a.active{font-weight:650;color:var(--ink)}
+ul.points li,ol.steps li{margin:6px 0;line-height:1.75;font-size:13px}
+ul.points,ol.steps{padding-left:22px;margin:0}
+td,th{white-space:normal;vertical-align:top}
+td{line-height:1.65}
+h3{margin:6px 0}
+.panel-body p+p{margin-top:8px}
+.evidence{font-size:11px;color:var(--muted);display:block;margin-top:4px}
+.kind{display:inline-block;font-size:11px;border-radius:4px;padding:1px 6px;white-space:nowrap;border:1px solid transparent}
+.kind.user{background:#e7f6ef;color:var(--success);border-color:#cfe8db}
+.kind.rec{background:#edf5ff;color:#1768ab;border-color:#d6e7fb}
+.kind.tentative{background:#fff7e8;color:var(--warn);border-color:#f0dfb9}
+.kind.pending{background:#fff0ef;color:var(--danger);border-color:#f3d2cf}
+.kind.unknown{background:#f1f4f8;color:#596b83;border-color:#e3e8ef}
+.legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px}
+.fill{border:1px dashed #c9d6e5;border-radius:6px;padding:12px;min-height:90px;font-size:13px}
+.mono{word-break:break-all}
+td code{overflow-wrap:anywhere}

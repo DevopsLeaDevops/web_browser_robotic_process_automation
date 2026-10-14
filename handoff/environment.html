@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>運作環境與資料 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="交接材料">
+    <a href="index.html">總入口</a>
+    <a href="acceptance.html">狀態與驗收紀錄</a>
+    <a href="open-work.html">未完成工作</a>
+    <a href="decisions.html">決定與工作規則</a>
+    <a class="active" href="environment.html">運作環境與資料</a>
+    <a href="workflow.html">研發與 Git 方法</a>
+    <a href="history.html">專案脈絡與時間軸</a>
+    <a href="materials.html">原始材料</a>
+  </nav>
+  <div class="heading">
+    <div>
+      <h1>運作環境與資料</h1>
+      <p>2026-10-14。通用的安裝方式在<a href="../docs/develop/quickstart.html">本機從零運行</a>與<a href="../docs/develop/remote-worker.html">遠端 worker</a>；這頁記錄實際的使用情況。Claude 沒有連到你的電腦，<strong>看不到機器的現況</strong>，標 <span class="kind unknown">需你補充</span> 的請直接填在這頁或交接紀錄。這裡不放任何權杖、密碼或登入狀態檔，只寫放在哪裡、怎麼取得。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="two-col">
+      <section class="panel" id="portal">
+        <div class="panel-header"><h2>你的電腦：管理 Portal</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>作業系統</dt><dd><span class="kind unknown">需你補充</span>（文檔有 macOS 指南；M4 的錄製與人工登入視窗都在這台）</dd>
+            <dt>專案資料夾</dt><dd><span class="kind unknown">需你補充</span>（一鍵安裝的預設：macOS／Linux <code>~/code/web_browser_robotic_process_automation</code>）</dd>
+            <dt>啟動命令</dt><dd>用遠端 worker 時：<code>uv run rpa serve --worker-port 8081</code>（可加 <code>--data 資料夾</code>）。實際用的命令：<span class="kind unknown">需你補充</span></dd>
+            <dt>埠號</dt><dd>管理頁面 127.0.0.1:8080（被占用時自動到 8089）；測試網站 127.0.0.1:8765；Worker API 0.0.0.0:8081（有加 <code>--worker-port</code> 時）</dd>
+            <dt>實際的資料目錄</dt><dd><span class="kind unknown">需你補充</span>。預設是專案裡的 <code>data/</code>（或環境變數 <code>RPA_DATA_DIR</code>、<code>--data</code>）；README 的範例用過 <code>data-m4</code>，手動驗收用 <code>data-check</code>。</dd>
+            <dt>區網 IP</dt><dd><span class="kind unknown">需你補充</span>（worker 的 <code>--server</code> 要用）</dd>
+          </dl>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>Windows 機器：遠端 worker</h2></div>
+        <div class="panel-body">
+          <dl class="spec-list">
+            <dt>Windows 版本</dt><dd><span class="kind unknown">需你補充</span></dd>
+            <dt>PowerShell</dt><dd>從你寫的 #25 推斷是<strong>受限語言模式</strong>、沒有 winget（請確認）</dd>
+            <dt>專案資料夾</dt><dd>一鍵安裝的預設：<code>%USERPROFILE%\code\web_browser_robotic_process_automation</code>；實際：<span class="kind unknown">需你補充</span></dd>
+            <dt>uv</dt><dd>#25 之後在受限模式下裝到使用者目錄，不改永久 PATH；每個新視窗要照腳本的提示把 uv 加進 PATH</dd>
+            <dt>啟動命令</dt><dd><code>uv run rpa worker --server http://你的IP:8081 --name win-01</code>；權杖用環境變數 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file</code>。是否設定開機自動啟動：<span class="kind unknown">需你補充</span></dd>
+            <dt>工作資料夾</dt><dd>預設是啟動時所在資料夾的 <code>worker-data/</code>（任務暫存與執行目錄，上傳後刪除；<code>--keep-runs</code> 保留）</dd>
+            <dt>Firefox 範本</dt><dd><code>%LOCALAPPDATA%\rpa\cache</code>（或 <code>RPA_CACHE_DIR</code>），可以刪，會重建</dd>
+            <dt>登記的 worker 代號</dt><dd><span class="kind unknown">需你補充</span>（文件範例是 <code>win-01</code>）</dd>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="data">
+      <div class="panel-header"><h2>資料目錄裡有什麼、哪些要保留</h2><span class="muted">結構見<a href="../docs/design/portal.html#data">管理 Portal › 資料</a></span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>路徑（資料目錄下）</th><th>內容</th><th>要不要保留</th></tr></thead>
+        <tbody>
+          <tr><td><code>rpa.db</code></td><td>SQLite：領域、場景、版本、執行紀錄、角色、錄製、序列、遠端 worker（權杖只存雜湊）、設定</td><td><strong>必須保留</strong>，而且要和 <code>scenes/</code> 一起保留（版本雜湊要對得上，發布門檻才成立）</td></tr>
+          <tr><td><code>scenes/&lt;場景&gt;/&lt;版本&gt;/</code></td><td>每個版本的場景檔與腳本（不可變）</td><td><strong>必須保留</strong></td></tr>
+          <tr><td><code>runs/&lt;執行編號&gt;/</code></td><td>每次執行的報告、截圖、Trace、日誌（遠端執行也上傳到這裡）</td><td>想保留歷史報告才需要；可以只留近期的</td></tr>
+          <tr><td><code>roles/&lt;角色&gt;/state.json</code></td><td>角色的登入狀態（只有本人能讀寫；<strong>敏感</strong>）</td><td>保留就不用重新登入；不要複製到別處或提交到 git</td></tr>
+          <tr><td><code>secrets.json</code></td><td>Secrets 的值（只有本人能讀寫；<strong>敏感</strong>）</td><td>保留；不要提交到 git</td></tr>
+          <tr><td><code>recordings/</code>、<code>debug/</code></td><td>遮罩過的錄製稿；調試截圖（結束就刪）</td><td>可選</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>升級前先備份</strong>：停掉 Portal，把整個資料目錄複製一份。Portal 啟動時會自動把資料庫升級到最新的遷移（M9a 是 <code>0007</code>）；倉庫沒有提供降級的命令。</li>
+          <li><strong>手動改過資料庫或設定嗎</strong>：Claude 沒有直接改過你的資料（它碰不到你的電腦）；結構變更都經由 Alembic 遷移 0001～0007。你自己是否改過：<span class="kind unknown">需你補充</span>。</li>
+          <li><strong>已累積的場景與角色</strong>：範例領域「測試網站自動化」有 BA-001～BA-005，角色 <code>testsite-user</code>、<code>testsite-manager</code>（第一次啟動時自動匯入）。你自己建立的場景、領域、角色、序列：<span class="kind unknown">需你補充</span>（Portal 的「場景管理」「登入與憑證」「自由試驗場」可以看到）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="credentials">
+      <div class="panel-header"><h2>憑證放在哪裡、怎麼取得</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>憑證</th><th>放在哪裡</th><th>怎麼取得或更換</th></tr></thead>
+        <tbody>
+          <tr><td>Secrets（場景與自動登入用的帳密）</td><td>Portal 的 <code>secrets.json</code>；沒設定的從同名環境變數讀（遠端執行時，從 worker 程序的環境變數讀）</td><td>Portal「場景管理 › 登入與憑證 › Secrets」設定；值不會再顯示</td></tr>
+          <tr><td>角色的登入狀態</td><td><code>roles/&lt;角色&gt;/state.json</code>；遠端執行時隨任務送到 worker，用完刪除</td><td>「登入與憑證」按「登入」人工登入，或角色設定自動登入</td></tr>
+          <tr><td>遠端 worker 的權杖</td><td>Portal 資料庫只存雜湊；worker 那台放在環境變數 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file</code> 的檔案</td><td>「場景生產 › 遠端 Worker」新增時顯示一次；遺失就按「重新產生權杖」</td></tr>
+          <tr><td>測試網站的示範帳號</td><td>寫在測試網站的登入頁（不是機密）</td><td>打開 <code>http://127.0.0.1:8765/login</code></td></tr>
+          <tr><td>M5 的模型金鑰</td><td>尚未使用（提案：放在 Secrets）</td><td>待 M5 決定</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="pilot">
+      <div class="panel-header"><h2>真實業務試點</h2></div>
+      <div class="panel-body">
+        <p>Claude 的資料裡<strong>沒有真實業務試點的紀錄</strong>：所有場景、測試與驗收都對本機測試網站（127.0.0.1:8765）執行。產品定位是「內網用、worker 直接連到目標系統」（<a href="../docs/design/positioning.html">產品定位</a>）。</p>
+        <dl class="spec-list">
+          <dt>目標流程</dt><dd><span class="kind unknown">需你補充</span></dd>
+          <dt>成功標準</dt><dd><span class="kind unknown">需你補充</span></dd>
+          <dt>目標系統的登入方式</dt><dd><span class="kind unknown">需你補充</span>（M4 開工前問過，答案沒有寫進文件）</dd>
+          <dt>已知限制</dt><dd>worker 機器要連得到目標系統；有頭模式需要已登入的桌面；有副作用的步驟不會自動重試；Python 腳本場景等同執行任意程式，只給信任的人編輯。</dd>
+        </dl>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

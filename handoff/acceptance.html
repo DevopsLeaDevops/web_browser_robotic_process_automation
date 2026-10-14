@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>狀態與驗收紀錄 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="交接材料">
+    <a href="index.html">總入口</a>
+    <a class="active" href="acceptance.html">狀態與驗收紀錄</a>
+    <a href="open-work.html">未完成工作</a>
+    <a href="decisions.html">決定與工作規則</a>
+    <a href="environment.html">運作環境與資料</a>
+    <a href="workflow.html">研發與 Git 方法</a>
+    <a href="history.html">專案脈絡與時間軸</a>
+    <a href="materials.html">原始材料</a>
+  </nav>
+  <div class="heading">
+    <div>
+      <h1>狀態與驗收紀錄</h1>
+      <p>自動測試（GitHub Actions）與真實電腦上的人工驗收分開記錄。整理於 2026-10-14，依據 GitHub 的 check runs 與對話紀錄。CI 的虛擬機不是你的電腦：通過 CI 不代表你的 Windows 機器上能跑。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="ci">
+      <div class="panel-header"><h2>一、自動測試（CI）</h2><span class="muted">點提交編號可看 GitHub 上的檢查結果</span></div>
+      <div class="panel-body">
+        <p>CI 有三組工作（<code>.github/workflows/</code>）：</p>
+        <ul class="points">
+          <li><strong>CI › 靜態檢查</strong>：ruff、ruff format、pyright（strict）。</li>
+          <li><strong>CI › 測試（Python 3.12、3.13）</strong>：Ubuntu 上完整的 pytest，<strong>包含真實瀏覽器</strong>（Chromium、Firefox；缺瀏覽器就失敗）。M9a 的 <code>test_remote_worker_flow.py</code> 在同一台虛擬機上起 Portal 的兩個埠，另一個執行緒當遠端 worker，跑 BA-001 → BA-002 的驗證、發布與試驗場序列，報告與截圖從 Portal 讀回。</li>
+          <li><strong>一鍵安裝腳本 › 從零開始／專案內執行</strong>（Ubuntu、macOS、Windows）：實際執行 <code>setup.sh</code>／<code>setup.ps1</code> 並跑測試。Windows 的 PowerShell 是一般模式，<strong>沒有測受限語言模式</strong>。</li>
+        </ul>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>日期（UTC）</th><th>提交</th><th>內容</th><th>結果</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">10-14 01:55～02:15</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/8397164/checks">8397164</a></td><td>#23 的最終版本（rebase 到 main 後）</td><td>靜態檢查、測試 3.12／3.13、安裝腳本六個組合都通過（rebase 前同內容的 <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/a558078/checks">a558078</a> 也全通過）</td></tr>
+          <tr><td class="mono">10-14 03:55～03:59</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/151a935/checks">151a935</a></td><td>main：合併 #23</td><td>靜態檢查通過；其他工作在幾分鐘內被下一次推送<strong>取消</strong>（同一個 workflow 只跑最新的一次），不是失敗</td></tr>
+          <tr><td class="mono">10-14 04:04～04:18</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/1258f6a/checks">1258f6a</a></td><td>#25 的分支（受限語言模式）</td><td>全部通過（CI 不在受限語言模式下跑）</td></tr>
+          <tr><td class="mono">10-14 04:06～04:20</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/e3daa6e/checks">e3daa6e</a></td><td>main：合併 #25</td><td>安裝腳本六個組合通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38508982320">run 38508982320</a>）；CI 被下一次推送取消</td></tr>
+          <tr><td class="mono">10-14 03:59～04:06</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/8f91944/checks">8f91944</a></td><td>main：合併 #24（含 #23、#25）</td><td>靜態檢查、測試 3.12／3.13 通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38509007292">run 38509007292</a>）</td></tr>
+          <tr><td class="mono">10-14 06:14～06:21</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8/checks">30fe7b8</a></td><td>main：合併 #19（目前的 main）</td><td>通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38520999571">run 38520999571</a>）</td></tr>
+          <tr><td class="mono">10-13 12:17</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/683acb0/checks">683acb0</a></td><td>main：合併 #22（M6）</td><td>通過（run 38396265652）</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p class="muted">PR #23 開出後第一次 CI 失敗只有一個測試：<code>test_migrations.py</code> 的資料表清單排序錯（check run 115277146639 的 annotations）。修正提交 <span class="mono">a558078</span>（rebase 後為 <span class="mono">8397164</span>）後全綠。</p></div>
+    </section>
+
+    <section class="panel" id="manual-m9a">
+      <div class="panel-header"><h2>二、M9a 兩台真實電腦的驗收</h2><span class="muted">步驟來自<a href="../docs/develop/remote-worker.html">遠端 worker</a>與 <a href="../docs/design/portal.html#manual-check">手動驗收第 8 步</a></span></div>
+      <div class="panel-body">
+        <div class="notice warn">截至 2026-10-14，Claude 只收到一則實測回報（10-13 20:52）。之後的步驟<strong>沒有任何紀錄</strong>，下表標「未知」的請你補上：日期、哪個提交（<code>git rev-parse --short HEAD</code>）、通過或失敗、錯誤訊息。</div>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>步驟</th><th>狀態</th><th>紀錄</th></tr></thead>
+        <tbody>
+          <tr><td>Windows 安裝（受限語言模式的 PowerShell）</td><td><span class="kind tentative">部分</span></td><td>原腳本在受限語言模式下 .NET 呼叫失敗、沒有 winget 時裝不了 uv；你在 10-14 寫了 #25 修正並合併。<strong>修正後在你的 Windows 上是否裝成功：未知</strong>。證據：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/25">PR #25</a> 的說明。</td></tr>
+          <tr><td>Windows 啟動 <code>rpa worker</code></td><td><span class="kind pending">失敗（已知原因）</span></td><td>10-13 20:52（太平洋時間）回報「錯誤：沒有 worker 這個命令」。原因是 #23 當時還沒合併，安裝腳本下載的 main 沒有這個命令。#23 已在 10-14 03:54 UTC 合併；<strong>更新後重試的結果：未知</strong>。</td></tr>
+          <tr><td>你的電腦 <code>rpa serve --worker-port 8081</code>、防火牆允許</td><td><span class="kind unknown">未知</span></td><td>—</td></tr>
+          <tr><td>worker 頁顯示「線上」</td><td><span class="kind unknown">未知</span></td><td>—</td></tr>
+          <tr><td>Windows worker 有頭執行 BA-001（視窗出現在 Windows、你的電腦不跳視窗）</td><td><span class="kind unknown">未知</span></td><td>—</td></tr>
+          <tr><td>報告、截圖回傳到 Portal；執行頁顯示「執行的電腦：win-01」</td><td><span class="kind unknown">未知</span></td><td>CI 有自動測試（同一台虛擬機）</td></tr>
+          <tr><td>BA-001 → BA-002 序列都在同一台 worker</td><td><span class="kind unknown">未知</span></td><td>CI 有自動測試（同一台虛擬機）</td></tr>
+          <tr><td>執行中在 Windows 按 Ctrl+C → Portal 顯示「已取消」</td><td><span class="kind unknown">未知</span></td><td>CI 只用假的 HTTP 伺服器測過取消（<code>apps/worker/tests/test_remote.py</code>）</td></tr>
+          <tr><td>拔掉 Windows 網路 → 約一分鐘後「worker 失聯」</td><td><span class="kind unknown">未知</span></td><td>CI 只用改資料庫的方式測過租約過期（<code>test_remote_worker_api.py::test_expired_lease_marks_the_run_lost</code>）</td></tr>
+          <tr><td>登入角色（BA-004）在 Windows 上執行、登入狀態傳回</td><td><span class="kind unknown">未知</span></td><td>CI 只測過 API（<code>test_login_state_travels_and_comes_back</code>）</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="manual-other">
+      <div class="panel-header"><h2>三、其他里程碑的人工驗收</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>里程碑</th><th>紀錄</th></tr></thead>
+        <tbody>
+          <tr><td>M3（建立 → 驗證 → 發布 → 執行 → 看報告）</td><td>倉庫與 Claude 專案裡沒有人工驗收紀錄。之後的 #12～#15（領域劃分、埠號自動換、瀏覽器未下載的說明、篩選與有頭模式）看起來是實際使用後的調整，但當時的對話這次讀不到，<strong>無法確認是否做過完整驗收</strong>。</td></tr>
+          <tr><td>M4（錄製、兩個角色、needs_login）</td><td>10-12 23:56 你表示「M4 視為完成」（見 <a href="materials/claude-project/m6-design-proposal.md">m6 提案</a>開頭），#17、#18 是之後的回饋修正。沒有逐步紀錄。</td></tr>
+          <tr><td>M6（試驗場 BA-001 → BA-002）</td><td>沒有人工驗收紀錄。</td></tr>
+          <tr><td>Windows 上 Firefox 的穩定性</td><td>10-11～10-12 在 CI 的 Windows 虛擬機上做過一系列診斷（<code>ci/diag-windows</code>，見<a href="open-work.html#diag">未完成工作</a>），結論已做成修正（#12）。不是你的 Windows 上的實測。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

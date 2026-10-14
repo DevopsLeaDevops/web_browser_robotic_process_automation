@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>專案脈絡與對話備忘 · 瀏覽器 RPA</title>
+<style>:root{--blue:#147fe6;--blue-strong:#0b69c4;--ink:#24334a;--muted:#64758b;--line:#e9edf3;--bg:#f5f7fb;--surface:#fff;--active:#eaf4ff;--success:#248569;--warn:#966516;--danger:#b74643;--header:56px;--sidebar:176px;--gap:12px;--radius:9px;font:14px/1.55 system-ui,sans-serif;color:var(--ink);font-synthesis:none}*{box-sizing:border-box}body{margin:0;background:var(--bg)}a{color:var(--blue-strong);text-decoration:none}button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}a,button{transition:background .16s,border-color .16s}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #87c1fa;outline-offset:3px}input:focus,select:focus,textarea:focus{outline:2px solid #87c1fa;outline-offset:1px}h1,h2,h3,p{margin:0}h1{font-size:21px;line-height:1.5;font-weight:650}h2{font-size:14px;font-weight:650}h3{font-size:13px;font-weight:600}p+p{margin-top:8px}small,.muted{color:var(--muted)}small{font-size:12px}.mono,code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-variant-numeric:tabular-nums}.skip{position:fixed;top:-80px;left:16px;z-index:99;background:white;padding:8px}.skip:focus{top:4px}.topbar{position:fixed;top:0;left:0;right:0;height:var(--header);background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px 0 16px;gap:22px;z-index:30}.brand{min-width:138px;display:flex;align-items:center;gap:9px;color:var(--ink);font-size:16px;font-weight:650}.brand-mark{display:grid;place-items:center;width:32px;height:34px;border-radius:9px;background:var(--blue);color:white}.brand-mark svg{width:23px;height:23px}.brand small{display:block;font-size:9px;letter-spacing:1px;line-height:1.5;font-weight:400}.topnav{display:flex;gap:28px;align-self:stretch;white-space:nowrap;overflow:auto}.topnav a{position:relative;display:flex;align-items:center;font-size:14px;color:#627086}.topnav a.active{color:var(--blue-strong);font-weight:650}.topnav a.active:after{content:"";position:absolute;bottom:0;height:3px;background:var(--blue);left:0;right:0;border-radius:3px 3px 0 0}.top-end{margin-left:auto;display:flex;align-items:center;gap:12px;white-space:nowrap}.env{font-size:11px;color:#4776a2;padding:3px 8px;background:#f1f7fc;border:1px solid #e5eef8;border-radius:5px}.avatar{width:28px;height:28px;border-radius:50%;background:#e9f1fb;color:#4c7caf;display:grid;place-items:center;font-size:11px}.sidebar{position:fixed;top:var(--header);bottom:0;left:0;width:var(--sidebar);background:white;border-right:1px solid var(--line);padding:18px 10px 0;display:flex;flex-direction:column;z-index:25}.side-heading{padding:0 12px 18px}.side-heading small{font-size:9px;letter-spacing:1px;display:block;margin-bottom:5px}.side-heading strong{font-size:15px}.caption{font-size:10px;color:var(--muted);padding:0 12px 8px}.sidenav{display:flex;flex-direction:column;gap:4px}.sidenav a{display:flex;align-items:center;gap:10px;padding:10px 12px;color:#64758b;font-size:13px;border-radius:7px}.sidenav a.active{background:var(--active);color:var(--blue-strong);font-weight:600}.sidenav a.active:after{content:"";width:5px;height:5px;border-radius:50%;background:var(--blue);margin-left:auto}.sidenav a:hover{background:#f6f9fd}.nav-icon{width:17px;height:17px;display:inline-flex;flex-shrink:0}.nav-icon svg{width:100%;height:100%}.side-foot{margin-top:auto;padding:12px 2px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}main{margin-left:var(--sidebar);padding:calc(var(--header) + 12px) 20px 18px;min-width:0}.breadcrumb{font-size:11px;color:var(--muted);display:flex;gap:7px;align-items:center;margin-bottom:10px}.heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}.heading p{font-size:12px;color:var(--muted);margin-top:2px}.button,.text-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #dfe6ef;background:white;border-radius:6px;padding:5px 11px;font-size:12px;line-height:1.5;min-height:30px;white-space:nowrap}.button:hover{border-color:#9bbfe6;background:#f7fbff}.button.primary{background:var(--blue-strong);border-color:var(--blue-strong);color:white}.button.primary:hover{background:#075da9}.button.danger{color:var(--danger);border-color:#edc6c4}.text-btn{background:none;border:0;padding:3px 1px;color:var(--blue-strong)}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.panel{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);min-width:0;overflow:hidden}.panel-header{padding:10px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid var(--line)}.panel-body{padding:12px}.stack{display:grid;gap:12px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.two-col{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:12px}.four-col{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.stat{padding:10px 14px}.stat .value{font-size:28px;font-weight:620;line-height:1.25;margin-top:3px}.stat small{font-size:11px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px}.toolbar label{display:flex;gap:6px;align-items:center;font-size:12px}.toolbar .grow{flex:1;min-width:180px}.toolbar input{min-width:0;width:100%}input,select,textarea{padding:6px 9px;background:white;border:1px solid #dfe6ef;border-radius:6px;min-height:32px;font-size:12px}textarea{display:block;resize:vertical;min-height:160px;width:100%;line-height:1.65;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}label.field{display:grid;gap:6px;font-size:12px}label.field+label.field{margin-top:12px}.code-editor{min-height:310px;background:#f8fafd}.table-scroll{overflow:auto;width:100%}table{border-collapse:collapse;width:100%;font-size:12px;text-align:left;white-space:nowrap}th{background:#f9fafc;color:#64758b;font-size:11px;font-weight:500;padding:8px 12px;border-bottom:1px solid var(--line)}td{padding:7px 12px;border-bottom:1px solid #f0f3f7;line-height:20px}tr:last-child td{border-bottom:0}tbody tr:hover{background:#fafcff}.numeric{text-align:right;font-variant-numeric:tabular-nums}.cell-sub{display:block;font-size:11px;color:var(--muted);line-height:1.4}.tag,.badge{display:inline-flex;gap:5px;align-items:center;font-size:11px;border-radius:4px;padding:2px 6px;white-space:nowrap}.tag{font-family:ui-monospace,monospace;background:#eef4fc;color:#315b89;border:1px solid #dce7f6}.badge{color:#596b83;background:#f1f4f8}.badge.blue{background:#edf5ff;color:#1768ab}.badge.green{background:#e7f6ef;color:var(--success)}.badge.amber{background:#fff7e8;color:var(--warn)}.badge.red{background:#fff0ef;color:var(--danger)}.badge:before{content:"";height:4px;width:4px;border-radius:50%;background:currentColor}.card .panel-header{align-items:flex-start}.card h2{font-size:13px}.card h2 .tag{margin-right:6px}.card-meta{display:flex;gap:10px;align-items:center}.card-meta p{font-size:12px;line-height:1.65}.thumb{width:96px;height:60px;border-radius:5px;flex-shrink:0;background:#f3f7fd;border:1px solid #dfe8f3;padding:7px;display:grid;gap:4px}.thumb b{height:5px;background:#bfd7ee;display:block;width:52%}.thumb i{display:block;height:4px;background:#dbe6f2}.thumb i:nth-child(3){width:68%}.card-links{display:flex;flex-wrap:wrap;gap:3px 10px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0;margin-top:9px;font-size:11px}.card-footer{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}.card-footer small{font-size:11px}.notice{padding:8px 12px;background:#eef6ff;color:#456f99;border:1px solid #dfebf8;border-radius:6px;font-size:12px;line-height:1.7}.notice.warn{background:#fffaef;color:#8a611d;border-color:#f0dfb9}.notice.success{background:#edf9f3;color:#257455;border-color:#cfe8db}.pagination{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}.section-title{margin:16px 0 9px;display:flex;justify-content:space-between;align-items:center}.empty{text-align:center;padding:40px 16px}.empty p{font-size:12px;color:var(--muted);margin-top:8px}.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.swatch{border:1px solid var(--line);border-radius:6px;overflow:hidden}.swatch i{height:58px;display:block}.swatch span{display:block;padding:7px;font-size:11px}.spec-list{display:grid;grid-template-columns:130px 1fr;margin:0;font-size:12px}.spec-list dt,.spec-list dd{margin:0;padding:7px 0;border-bottom:1px solid var(--line)}.spec-list dt{color:var(--muted)}.prose{font-size:13px;line-height:1.8}.prose h2{margin:18px 0 8px;font-size:16px}.prose h2:first-child{margin-top:0}.prose h3{margin:12px 0 6px}.prose ul,.prose ol{padding-left:21px;margin:6px 0 12px}.prose li{margin:4px 0}.prose pre,pre.source{background:#f8fafd;border:1px solid #e7edf5;border-radius:6px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.75;margin:8px 0}.prose code{font-size:12px}details{border-top:1px solid var(--line);padding:10px 0}summary{cursor:pointer;font-size:12px}.segmented{display:flex;gap:3px;background:#eef2f7;padding:3px;border-radius:6px;width:max-content}.segmented button{border:0;border-radius:4px;background:transparent;font-size:12px;padding:4px 10px}.segmented .active{background:#fff;color:var(--blue-strong);box-shadow:0 1px 3px #24334a12}dialog{width:min(720px,calc(100vw - 32px));padding:0;border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 80px #1b35502e;color:var(--ink);max-height:90vh}dialog::backdrop{background:#263b5459;backdrop-filter:blur(3px)}.dialog-head,.dialog-foot{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line);gap:10px}.dialog-foot{border-top:1px solid var(--line);border-bottom:0;justify-content:flex-end}.dialog-body{padding:16px 18px;overflow:auto;max-height:65vh}.dialog-body h2{margin-bottom:10px}.dialog-body img{width:100%}#toast{position:fixed;right:20px;bottom:20px;z-index:100;max-width:420px;background:#24334a;color:white;padding:10px 16px;border-radius:7px;font-size:12px;box-shadow:0 8px 28px #24334a25}.mobile-menu{display:none}.page-foot{font-size:10px;color:var(--muted);display:flex;justify-content:space-between;margin-top:16px;padding-top:10px;border-top:1px solid var(--line)}[hidden]{display:none!important}.flow-layout{display:grid;grid-template-columns:190px minmax(0,1fr) 230px;gap:12px}.flow-board{overflow:auto;min-height:360px;background:radial-gradient(#d5dfeb 1px,transparent 1px) 0 0/16px 16px;padding:22px}.flow-stage{min-width:300px;display:flex;flex-direction:column;align-items:center;gap:0}.flow-node{width:270px;padding:12px;background:white;border:1px solid #cddded;border-radius:8px;cursor:pointer}.flow-node.selected{border:2px solid var(--blue);padding:11px;background:#f5faff}.flow-node small{display:block;margin:5px 0}.flow-arrow{color:#7999bb;font-size:22px;line-height:32px}.library-item{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px;border-bottom:1px solid var(--line);font-size:12px}.stepbar{display:flex;gap:6px;flex-wrap:wrap}.stepbar span{padding:5px 10px;background:#f3f6fa;border-radius:5px;font-size:11px}.stepbar .active{background:#eaf4ff;color:var(--blue-strong)}.progress{height:6px;background:#e9f0f8;border-radius:5px;overflow:hidden}.progress i{display:block;background:var(--blue);height:100%;width:0;transition:width .2s}.field-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.checklist label{display:flex;gap:8px;padding:5px 0;font-size:12px}.checklist input{min-height:auto}.mini-preview{border:1px solid var(--line);border-radius:6px;overflow:hidden;height:170px;background:var(--bg);position:relative}.mini-top{height:25px;background:white;border-bottom:1px solid var(--line);display:flex;gap:9px;align-items:center;padding:5px}.mini-top i{width:35px;height:5px;background:#c9d6e5}.mini-side{position:absolute;top:25px;bottom:0;width:65px;background:white;border-right:1px solid var(--line);padding:10px 7px}.mini-side i{display:block;height:12px;margin-bottom:7px;background:#eaf4ff;border-radius:2px}.mini-main{margin:12px 12px 0 77px;display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.mini-main div{height:42px;background:white;border:1px solid var(--line);border-radius:3px}.mini-main div:last-child{grid-column:1/-1;height:58px}@media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.flow-layout{grid-template-columns:160px minmax(0,1fr)}.flow-props{grid-column:1/-1}.topnav{gap:20px}}@media(max-width:700px){:root{--header:94px}.topbar{display:grid;grid-template-columns:1fr auto;grid-template-rows:50px 44px;padding:0 14px;gap:0}.topnav{grid-column:1/-1;grid-row:2;gap:22px}.top-end{grid-column:2;grid-row:1}.brand{grid-row:1}.sidebar{transform:translateX(-100%);transition:transform .2s;box-shadow:10px 0 40px #24334a18}.sidebar.open{transform:translateX(0)}main{margin-left:0;padding:calc(var(--header) + 10px) 12px 16px}.mobile-menu{display:inline-flex}.grid,.two-col,.field-pair{grid-template-columns:1fr}.four-col,.swatches{grid-template-columns:repeat(2,minmax(0,1fr))}.heading{gap:8px}.heading h1{font-size:20px}.flow-layout{grid-template-columns:1fr}.flow-board{max-height:450px}.toolbar label{flex-wrap:wrap}.page-foot{gap:12px}.spec-list{grid-template-columns:110px 1fr}.top-end .avatar{display:none}dialog{max-height:94vh}.dialog-body{max-height:67vh}.button{min-height:34px}}
+
+/* 共用可讀性與窄屏補充 */
+.toolbar label{white-space:nowrap}.toolbar .grow input{flex:1;width:auto;min-width:100px}.panel-body>h2{margin:3px 0 9px}.panel-body>p{margin:8px 0}.panel-body>label:not(.field){display:block;font-size:12px}.panel-body>label input:not([type=checkbox]),.panel-body>label select{max-width:100%}.dialog-body>label{display:block;margin:12px 0 6px;font-size:12px}.dialog-body>label input:not([type=checkbox]){display:block;width:100%;margin-top:6px}.dialog-body>label input[type=checkbox]{min-height:0}.swatch strong,.swatch code{display:block;padding:6px 8px 0;font-size:11px}.swatch code{padding-bottom:8px}.card-meta .mini-preview{width:96px;height:60px;flex-shrink:0}.card-meta .mini-top{height:10px}.card-meta .mini-side{top:10px;width:20px}.card-meta .mini-main{margin:6px 5px 0 26px;gap:3px}.mini-main i{display:block;height:12px;background:white;border:1px solid var(--line)}.mini-main i:last-child{grid-column:1/-1}.flow-layout .library-item{display:grid;gap:3px;text-align:left;width:100%;border:1px solid var(--line);border-radius:6px;background:white;margin:8px 0}.flow-node strong,.flow-node>.muted{display:block;margin-top:6px}.flow-layout>.panel:last-child>.button{margin-top:8px}.flow-layout>.panel:last-child{align-self:start}.flow-layout hr{border:0;border-top:1px solid var(--line);margin:14px 0}.stepbar{margin:12px 0}#flow-result{margin-top:10px}#page-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:1100px) and (min-width:701px){.flow-layout>.panel:last-child{grid-column:1/-1}}@media(max-width:700px){.toolbar .grow{flex-basis:100%}.toolbar .grow input{width:100%;flex-basis:100%}.env{max-width:145px;overflow:hidden;text-overflow:ellipsis}.flow-stage{min-width:270px}.flow-board{padding:16px}.flow-node{width:260px}}
+/* ---- v1.1（2026-10-13）：實際做出 Portal 後補上的規則；v1.0 的規則都不變 ---- */
+/* 第二級選單：名稱不換行，太長時以 … 結尾（完整名稱放在 title） */
+.sidenav a{gap:8px;padding:9px 10px}
+.sidenav a>span:not(.nav-icon){min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 頁首：說明太長時在左邊換行，右上角的操作不要被擠到下一列 */
+.heading>div:first-child{flex:1 1 420px;min-width:0}
+/* 面板標題列：標題粗一點、右側的說明與數字一律 12px，重點留給標題與內容 */
+.panel-header h2{font-weight:650}
+.panel-header>.muted,.panel-header>span,.panel-header .muted{font-size:12px}
+.panel-header .header-main{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+/* 面板標題旁的數量（項目數），和分段切換的數量同一種樣式；標題列右側的按鈕縮小一號 */
+.panel-header h2 .count{display:inline-block;min-width:18px;margin-left:6px;padding:0 6px;border-radius:9px;background:#eef2f7;color:var(--muted);font-size:11px;font-weight:500;line-height:17px;text-align:center;vertical-align:1px}
+.panel-header>.button,.panel-header .actions>.button{min-height:26px;padding:2px 10px}
+/* 卡片網格：每張至少 272px，1440 寬一列 4 張、1280 寬 3 張；卡片等高 */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:var(--gap)}
+/* 卡片連結：固定一列、依文字長短分配（多一個連結也不換行），真的放不下才以 … 結尾 */
+.card-links.even{display:flex;flex-wrap:nowrap;gap:0;padding:0}
+.card-links.even>a,.card-links.even>button{flex:1 1 auto;min-width:0;min-height:0;display:block;text-align:center;padding:7px 3px;border:0;border-left:1px solid var(--line);border-radius:0;background:none;font-size:inherit;line-height:1.6;color:#4f6a8c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-links.even>:first-child{border-left:0}
+.card-links.even>:hover{color:var(--blue-strong)}
+/* 連結做成的按鈕（a.button）和按鈕一樣用主要文字色，不是連結的藍色 */
+a.button{color:var(--ink)}
+a.button.primary{color:#fff}
+/* 分段切換也可以是連結（例如在同一資源的幾個檢視之間切換），可帶數量 */
+.segmented a{display:inline-flex;align-items:center;gap:6px;border-radius:4px;font-size:12px;padding:4px 10px;color:var(--ink)}
+.segmented a.active,.segmented button.active{background:#fff;color:var(--blue-strong);box-shadow:0 1px 3px #24334a12;font-weight:600}
+.segmented .count{min-width:18px;padding:0 5px;border-radius:9px;background:#e1e8f1;color:var(--muted);font-size:10px;line-height:16px;text-align:center;font-weight:500}
+.segmented .active .count{background:var(--active);color:var(--blue-strong)}
+/* 可點的代號（插入到編輯器、篩選條件等） */
+.chip-list{display:flex;flex-wrap:wrap;gap:6px}
+.chip-btn{display:inline-flex;align-items:center;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;padding:2px 7px;border-radius:4px;border:1px solid #dce7f6;background:#f4f8fd;color:var(--blue-strong);cursor:pointer;white-space:nowrap}
+.chip-btn:hover{background:var(--active);border-color:#9bbfe6}
+.chip-btn.sub{color:#4b6a8e;background:#fff}
+/* 小方形圖示按鈕（上移、下移、移除） */
+.icon-btn{display:inline-grid;place-items:center;width:26px;height:26px;padding:0;border:1px solid #dfe6ef;border-radius:5px;background:#fff;color:var(--muted);font-size:12px;line-height:1}
+.icon-btn:hover{border-color:#9bbfe6;color:var(--blue-strong)}
+.icon-btn.danger:hover{border-color:#edc6c4;color:var(--danger)}
+/* 表格的捲動容器也是定位的基準：表格裡的絕對定位元素（例如只給螢幕閱讀器的文字）不會撐寬整頁 */
+.table-scroll{position:relative}
+/* 表格內直接編輯：一列一筆，輸入框填滿儲存格；補充欄位放在下一列（預設收起） */
+.edit-table{table-layout:auto}
+.edit-table th{padding:7px 8px}
+.edit-table td{padding:5px 8px;vertical-align:middle;line-height:1.4}
+.edit-table input:not([type=checkbox]),.edit-table select{width:100%;min-width:0;min-height:28px;padding:3px 8px}
+.edit-table .col-check{width:56px;text-align:center}
+.edit-table .col-actions{width:96px;white-space:nowrap;text-align:right}
+.edit-table tr.edit-row:hover td{background:#fafcff}
+.edit-table tr.sub-row td{background:#f8fafd;padding:8px 12px}
+.edit-table-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--line);font-size:12px}
+.inline-fields{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:12px}
+.inline-fields label{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.inline-fields input{min-height:28px;padding:3px 8px;width:120px}
+.inline-fields .wide input{width:220px}
+/* 編輯器＋右側參考欄：右欄固定寬度、捲動時跟著 */
+.editor-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.editor-layout>aside{position:sticky;top:calc(var(--header) + 12px);display:grid;gap:12px}
+.editor-layout .code-editor{min-height:52vh}
+/* 摘要：鍵值成格排列（4 欄），一眼看完，不要一列一個 */
+.kv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;overflow:hidden}
+.kv-grid>div{padding:9px 12px;min-width:0;box-shadow:1px 0 0 var(--line),0 1px 0 var(--line)}
+.kv-grid dt{font-size:11px;color:var(--muted)}
+.kv-grid dd{margin:2px 0 0;font-size:13px;overflow-wrap:anywhere}
+.kv-grid .wide{grid-column:span 2}
+/* 結果數字列：重點數字放大、說明縮小，一列排開 */
+.result-strip{display:flex;flex-wrap:wrap;border-top:1px solid var(--line)}
+.result-strip>div{flex:1 1 100px;padding:10px 14px;border-right:1px solid var(--line);display:flex;align-items:baseline;gap:6px}
+.result-strip>div:last-child{border-right:0}
+.result-strip strong{font-size:22px;font-weight:620;line-height:1.2;font-variant-numeric:tabular-nums}
+.result-strip span{font-size:11px;color:var(--muted)}
+.result-strip .warn strong{color:var(--warn)}
+/* 可以換行的表格（table.wrap）：內容長的欄位換行，不撐寬表格 */
+table.wrap{white-space:normal}
+table.wrap th,table.wrap .numeric{white-space:nowrap}
+table.wrap code{overflow-wrap:break-word}
+/* 程式碼檢視：太長時在框內捲動，不把整頁拉長 */
+pre.source.code-view{max-height:70vh;overflow:auto;white-space:pre}
+/* 表單的一列：欄位並排、按鈕與欄位底部對齊 */
+.field-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.field-row>label.field{flex:1 1 220px;margin:0}
+.field-row>label.field+label.field{margin:0}
+.hint{font-size:11px;color:var(--muted);line-height:1.6}
+@media(max-width:1100px){.editor-layout{grid-template-columns:1fr}.editor-layout>aside{position:static}.kv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.kv-grid{grid-template-columns:1fr}.kv-grid .wide{grid-column:auto}}
+</style>
+<style>
+  main{margin:0 auto;max-width:1120px;padding:24px 20px 40px}
+  .handoff-nav{display:flex;gap:16px;font-size:13px;margin-bottom:14px}
+  .handoff-nav a.active{font-weight:650}
+  ul.points li,ol.steps li{margin:6px 0;line-height:1.75;font-size:13px}
+  ul.points,ol.steps{padding-left:22px;margin:0}
+  td,th{white-space:normal;vertical-align:top}
+  h3{margin:4px 0 6px}
+</style>
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="交接材料">
+    <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/handoff/index.html">交接材料</a>
+    <a class="active" href="#">專案脈絡與對話備忘</a>
+    <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/index.html">文檔站</a>
+  </nav>
+  <div class="heading">
+    <div>
+      <h1>專案脈絡與對話備忘</h1>
+      <p>從 2026-10-09 開工到 10-13 的時間軸、每個關鍵決定（誰決定、何時、理由）、你的工作方式，以及資料放在哪裡。要回溯歷史時從這裡找，再點進對應的 PR、ADR 或設計提案。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">這是 Claude 專案裡的版本（單一檔案、自帶樣式，連結指向 GitHub 的 main）；倉庫裡的版本是 <code>handoff/history.html</code>。<strong>整理範圍</strong>：依 Claude 專案的設計文件與 GitHub 的 PR 整理；整理時讀不到專案過去的對話內容與記憶，所以只在過去對話裡說過、沒寫進文件的資訊沒有收錄，請補在本頁最後的「補充」。</div>
+    <section class="panel" id="project-docs">
+      <div class="panel-header"><h2>Claude 專案文件索引</h2><span class="muted">都在本專案的 claude/ 下</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>文件</th><th>內容</th><th>狀態</th></tr></thead>
+        <tbody>
+          <tr><td><code>claude/project-history.html</code></td><td>這一份：脈絡、時間軸、決定、偏好、待決</td><td>最新</td></tr>
+          <tr><td><code>claude/m1-progress.md</code></td><td>最新的工作紀錄：目前狀態、雲端環境的注意事項（離線測試、pyright、bootstrap、訊息目錄工具）、下一步。檔名是歷史原因；10-13 整份改寫，舊的 M1 進度內容已被覆蓋（可從 PR #8～#20 查）</td><td>10-13 更新</td></tr>
+          <tr><td><code>claude/plan-v2-proposal.md</code></td><td>方案 v2：原方案與你上傳的 MVP 原型（02-browser-automation-mvp）的對照、場景契約、新路線圖、M0／M1 修正</td><td>已確認並實作（#9）</td></tr>
+          <tr><td><code>claude/m3-design-proposal.md</code></td><td>M3 管理 Portal 的設計與決定</td><td>已實作（#11）</td></tr>
+          <tr><td><code>claude/m4-design-proposal.md</code></td><td>M4 場景生產與登入的設計與決定；開工前向你要的三項資訊</td><td>已實作（#16～#18）</td></tr>
+          <tr><td><code>claude/m6-design-proposal.md</code></td><td>M6 自由試驗場的設計與採用的決定</td><td>已實作（#21 → #22）</td></tr>
+          <tr><td><code>claude/m9a-remote-worker-proposal.md</code></td><td>M9a 遠端 worker 的設計、你的四個回答、實作備註</td><td>已實作（#23，待合併）</td></tr>
+          <tr><td><code>claude/m5-design-proposal.md</code></td><td>M5 AI 助手的設計提案；開工前要你決定的三點</td><td><span class="badge amber">待你決定</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="summary">
+      <div class="panel-header"><h2>專案一句話</h2></div>
+      <div class="panel-body">
+        <p>內網用的瀏覽器 RPA 平台：場景以聲明式 YAML DSL 描述（必要時用 Python 腳本當逃生門），有入參、出參與獨立斷言；在管理 Portal 錄製、調試、驗證、發布、執行並查看報告；以 Playwright 在 Chromium 與 Firefox 執行。先交付單機、單使用者的 MVP（M5 完成時），再擴充流程能力、多用戶與營運。</p>
+        <p class="muted">倉庫：<code>DevopsLeaDevops/web_browser_robotic_process_automation</code>；技術：Python 3.12+、uv workspace、FastAPI + Jinja、SQLAlchemy + Alembic（SQLite，之後 PostgreSQL）、Playwright。文檔：<code>docs/</code>，HTML，三種語言。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="timeline">
+      <div class="panel-header"><h2>時間軸</h2><span class="muted">PR 編號與合併日期（UTC）</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>日期</th><th>PR</th><th>內容</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">10-09</td><td>#1</td><td>M0 工程骨架、設計文件、HTML 文檔站、ADR 0001～0006</td></tr>
+          <tr><td class="mono">10-09</td><td>#4、#5</td><td>macOS 本機運行指南；本機從零運行文檔與一鍵安裝腳本（<code>scripts/setup.sh</code>、<code>setup.ps1</code>）</td></tr>
+          <tr><td class="mono">10-10</td><td>#6、#7</td><td>三種語言（ADR 0007）；M0 收尾、ADR 0008（SQLite 與 PostgreSQL）</td></tr>
+          <tr><td class="mono">10-10</td><td>#8</td><td>M1 場景 DSL v0：模型、YAML 載入與校驗、<code>rpa validate</code></td></tr>
+          <tr><td class="mono">10-10</td><td>#9</td><td>M1.1 場景契約與<strong>方案 v2</strong>（結合你上傳的 MVP 原型）；ADR 0009、0010、0011</td></tr>
+          <tr><td class="mono">10-10</td><td>#10</td><td>M2 Runner 與執行契約（<code>rpa run</code>）</td></tr>
+          <tr><td class="mono">10-11</td><td>#11</td><td>M3 管理 Portal（<code>rpa serve</code>）</td></tr>
+          <tr><td class="mono">10-12</td><td>#12～#15</td><td>領域劃分、測試網站自動化與真實案例、埠號自動換；多語言補漏；瀏覽器未下載的說明；報告篩選複選、有頭／無頭（預設有頭）</td></tr>
+          <tr><td class="mono">10-12</td><td>#16</td><td>M4 場景生產與登入（錄製、逐步調試、登入角色與 needs_login、入參出參表單）</td></tr>
+          <tr><td class="mono">10-13</td><td>#17、#18</td><td>M4 修正：相對資料目錄、接著既有場景錄製、斷言轉成出參、腳本分段編輯、設計系統 v1.1</td></tr>
+          <tr><td class="mono">10-13</td><td>#20</td><td>M4 完成；路線圖改為先做 M6、再做 M5</td></tr>
+          <tr><td class="mono">10-13</td><td>#21 → #22</td><td>M6 自由試驗場。#21 誤合併到 #20 的分支，由 #22 補進 main</td></tr>
+          <tr><td class="mono">10-13</td><td>#23</td><td><strong>M9a 遠端 worker</strong>（開著，CI 全綠，等你合併）</td></tr>
+          <tr><td class="mono">10-13</td><td>#24</td><td>交接材料（這個目錄）</td></tr>
+          <tr><td class="mono">—</td><td>#2、#3、#19</td><td>Dependabot。#19（setup-uv 10.3.0）可以合併；main 上 uv 群組的更新一直失敗，原因還沒查</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>關鍵決定</h2><span class="muted">「你」＝使用者明確選的；「推薦」＝依提案的推薦選項實作，有意見可以改</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>時間</th><th>決定</th><th>來源</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">10-09</td><td>DSL 為唯一真實來源；Python 技術棧；PostgreSQL 佇列（之後部分被 ADR 0012 取代）；HTML 文檔；設計系統 v1.0 是視覺契約</td><td>ADR 0001～0006</td></tr>
+          <tr><td class="mono">10-10</td><td>產品與文檔支援繁中、簡中、英文；簡中由繁中自動產生</td><td>ADR 0007</td></tr>
+          <tr><td class="mono">10-10</td><td>MVP 用 SQLite＋檔案目錄，正式環境 PostgreSQL</td><td>ADR 0008</td></tr>
+          <tr><td class="mono">10-10</td><td><strong>方案 v2</strong>（你）：DSL 為主＋Python 腳本逃生門；FastAPI + Jinja（取代 React）；Chromium 與 Firefox 都支援、CI 都測；採用原型的場景契約（steps → facts → verify → outputs）、發布門檻（驗證的版本＝發布的版本）、執行目錄契約；MVP 先行</td><td><code>claude/plan-v2-proposal.md</code>；ADR 0009、0010、0011</td></tr>
+          <tr><td class="mono">10-10</td><td><strong>M3</strong>（推薦）：YAML 文字編輯、入參出參表單延到 M4；worker 在伺服器程序內、一次一個；不做登入、只聽 127.0.0.1；進度用輪詢；場景 id 就是 DSL 的 id</td><td><code>claude/m3-design-proposal.md</code></td></tr>
+          <tr><td class="mono">10-12</td><td>場景依「領域」劃分；執行可選有頭／無頭，<strong>預設有頭</strong></td><td>#12、#15</td></tr>
+          <tr><td class="mono">10-12</td><td><strong>M4</strong>（推薦）：Playwright codegen 在跑 Portal 的電腦上錄製；fill 的值自動變成入參；密碼自動改成 Secret 並遮罩；人工登入為主、自動登入選用；調試用那台電腦上的瀏覽器視窗；一個場景一個角色</td><td><code>claude/m4-design-proposal.md</code></td></tr>
+          <tr><td class="mono">10-12 23:56</td><td>（你）M4 視為完成；<strong>順序改成先 M6、再 M5</strong>；「繼續做、不要中途詢問」</td><td><code>claude/m6-design-proposal.md</code>、#20</td></tr>
+          <tr><td class="mono">10-13</td><td><strong>M6</strong>（推薦）：入參綁定用結構化寫法；只能固定發布過的版本；從停下的節點繼續會沿用前面的出參；不做條件、分支、平行（M7）</td><td><code>claude/m6-design-proposal.md</code></td></tr>
+          <tr><td class="mono">10-13 03:50</td><td>（你）主要用有頭模式測試，一跑電腦就被占住；有一台專門跑 worker 的機器 → <strong>提前做 M9 的遠端 worker，稱為 M9a</strong>，本機模式保持</td><td>本次對話；ADR 0012</td></tr>
+          <tr><td class="mono">10-13 04:00</td><td>（你）M9a：worker 主動連你的電腦；worker 機器是 <strong>Windows</strong>；<strong>HTTP＋權杖</strong>（信任的區網）；同意把 #21 補進 main（#22）。預設執行位置維持本機（推薦）</td><td>本次對話；<code>claude/m9a-remote-worker-proposal.md</code></td></tr>
+          <tr><td class="mono">待定</td><td id="m5"><strong>M5 AI 助手</strong>：模型與資料去向要你決定。提案：Provider 介面同時支援 Claude API 與自架（OpenAI 相容）模型、預設關閉；助手只有受限工具（讀草稿、校驗、觀察頁面、測試定位器、執行一步、存草稿），<strong>沒有發布工具</strong>；不送截圖、遮罩輸入值；金鑰放在 Secrets</td><td><code>claude/m5-design-proposal.md</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="working-style">
+        <div class="panel-header"><h2>你的工作方式（我遵守的約定）</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>對話、程式註解、文檔都用<strong>繁體中文</strong>；產品與文檔要有繁中、簡中、英文。</li>
+            <li>每一步：<strong>先說明設計 → 你確認 → 寫程式與測試 → 開 PR → review 後合併</strong>。M6 起你要求不要中途詢問，照推薦選項做，最後列出採用的決定。</li>
+            <li>設計提案與工作紀錄放在 Claude 專案（<code>claude/*.md</code>）；正式文件放在倉庫的 <code>docs/</code>。</li>
+            <li>推送與開 PR 要你同意（雲端環境的自動模式會攔下沒被要求的提交）。</li>
+            <li>交付文件用 HTML，放在專門的目錄（10-13 的要求，所以有這個 <code>handoff/</code>）。</li>
+            <li>你的電腦跑管理 Portal（M4 起錄製與人工登入的視窗都在這台）；另有一台 Windows 機器當遠端 worker。</li>
+            <li>Claude 的週用量有限：用量不夠時先交接，由你自己繼續，下週再接手（10-13 用量剩 12%）。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="session-1013">
+        <div class="panel-header"><h2>本次對話備忘（10-13）</h2></div>
+        <div class="panel-body">
+          <ol class="steps">
+            <li>03:50 你提出遠端 worker 的需求。我讀了程式後發現 <strong>#21（M6）合併到 #20 的分支，main 上沒有 M6</strong>，於是 cherry-pick 到 <code>m6/main</code> 開 #22，你同意推送。</li>
+            <li>寫了 M9a 設計提案（Claude 專案 <code>claude/m9a-remote-worker-proposal.md</code>），問了四個問題：網路方向、worker 的作業系統、傳輸方式、#22 要不要推送。</li>
+            <li>照你的回答實作 M9a，開 #23；CI 第一次失敗只是資料表清單的排序，修正後全綠（Ubuntu、Windows、macOS 的安裝腳本與完整測試）。</li>
+            <li>18:54 你說週用量只剩 12%，要交接材料並提 PR：#22 已由你合併，我把 #23 rebase 到 main（內容不變）並改接 main；先交了 <code>HANDOFF.md</code>（#24）。</li>
+            <li>18:58 你要求改用 HTML、放在專門的目錄，並把專案脈絡與對話整理成備忘 → 這兩頁（取代 <code>HANDOFF.md</code>）。</li>
+            <li>19:01 你說明「專案」指的是 Claude 端的專案 → 在 Claude 專案新增 <code>claude/project-history.md</code>（與本頁內容相同，加上文件索引）。</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="where">
+      <div class="panel-header"><h2>資料在哪裡</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>要找什麼</th><th>位置</th></tr></thead>
+        <tbody>
+          <tr><td>方案 v2 的來源與兩份方案的對照</td><td>Claude 專案 <code>claude/plan-v2-proposal.md</code>；倉庫 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/adr/0010-mvp-first.html">ADR 0010</a>；MVP 原型原樣收在 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/prototypes/mvp/index.html"><code>docs/prototypes/mvp/</code></a></td></tr>
+          <tr><td>各里程碑的設計提案與當時的取捨</td><td>Claude 專案 <code>claude/m3-design-proposal.md</code>、<code>m4-…</code>、<code>m6-…</code>、<code>m9a-remote-worker-proposal.md</code>、<code>m5-…</code></td></tr>
+          <tr><td>倉庫裡的同一份備忘、交接材料</td><td><code>handoff/history.html</code>、<code>handoff/index.html</code>（PR #24）</td></tr>
+          <tr><td>工作紀錄、雲端環境的注意事項（離線測試、pyright、bootstrap 的用法）</td><td>Claude 專案 <code>claude/m1-progress.md</code>（檔名是歷史原因，內容是最新的工作紀錄）</td></tr>
+          <tr><td>路線圖與里程碑狀態</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/roadmap.html"><code>docs/roadmap.html</code></a></td></tr>
+          <tr><td>架構、DSL 規格、管理 Portal（頁面、API、資料、手動驗收）</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/design/architecture.html">架構</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/design/dsl.html">場景 DSL</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/design/portal.html">管理 Portal</a></td></tr>
+          <tr><td>安裝、開發環境、規範</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/develop/quickstart.html">本機從零運行</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/develop/setup.html">開發環境</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/develop/conventions.html">開發規範</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/develop/remote-worker.html">遠端 worker</a></td></tr>
+          <tr><td>ADR</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/docs/adr/index.html">ADR 清單</a>：0001 DSL 為唯一真實來源、0002 Python 技術棧、0003 PostgreSQL 佇列、0004 React（已取代）、0005 HTML 文檔、0006 設計系統、0007 多語言、0008 SQLite 與 PostgreSQL、0009 場景契約與獨立斷言、0010 MVP 先行、0011 FastAPI + Jinja、0012 遠端 worker</td></tr>
+          <tr><td>範例場景與測試網站</td><td><code>scenarios/demo/</code>（BA-001～BA-005、<code>roles.json</code>）；<code>apps/testsite/</code>（127.0.0.1:8765，示範帳號 user／manager）</td></tr>
+          <tr><td>程式結構</td><td><code>packages/rpa_core</code>（DSL、試驗場序列）、<code>packages/rpa_runner</code>（執行、登入、調試、報告）、<code>apps/worker</code>、<code>apps/server</code>、<code>apps/cli</code>、<code>apps/testsite</code>、<code>tools/</code>（多語言、CI annotations）</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="open">
+      <div class="panel-header"><h2>待決事項與已知風險</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>M5 的模型與資料去向</strong>還沒決定（見上方 M5 那一列）。</li>
+          <li><strong>M9a 還沒有在兩台真實電腦上驗收</strong>；Windows 上的防火牆、路徑、換行是最可能的問題。</li>
+          <li>Worker API 用 HTTP：Secrets 與登入狀態以明文經過區網，只適合信任的網路。</li>
+          <li>M9a 沒做的小項目：報告的執行位置篩選、localhost 網址提醒、等待 worker 的提示、HTTPS（見<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/blob/main/handoff/index.html#todo">交接材料 3.2</a>）。</li>
+          <li>main 上 Dependabot 的 uv 群組更新一直失敗，原因還沒查。</li>
+          <li>部署方式（單機 Docker Compose 或 Kubernetes）與物件儲存的產品要在 M9 前決定（路線圖「待決定」）。</li>
+        </ul>
+      </div>
+    </section>
+    <section class="panel" id="supplement">
+      <div class="panel-header"><h2>補充（只在過去對話裡、上面沒有的資訊）</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>M4 開工前的三項資訊（目標系統的登入方式與失效時間、需要的角色與測試帳號名稱、Portal 跑在哪裡）：（待補）</li>
+          <li>其他：（待補）</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
