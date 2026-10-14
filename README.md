@@ -2,6 +2,8 @@
 
 瀏覽器自動化場景的生成、管理與執行平台。團隊共用、多用戶、面向內部系統。
 
+共同開發（Claude、ChatGPT／Codex 與使用者）：從 [AGENTS.md](AGENTS.md) 進入[共用協作流程](handoff/collaboration.html)，再查看[本次任務紀錄](handoff/tasks/index.html)。Claude 的 [CLAUDE.md](CLAUDE.md) 使用同一份規則。
+
 > 文檔以 HTML 撰寫，放在 [`docs/`](docs/)（見 [ADR 0005](docs/adr/0005-html-docs.html)），有三種語言：
 > 繁體中文 `docs/index.html`、简体中文 `docs/zh-Hans/index.html`、English `docs/en/index.html`。
 > GitHub 上只能看到原始碼，請在本機直接開啟，或執行：

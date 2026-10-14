@@ -15,6 +15,8 @@
     <a href="open-work.html">未完成工作</a>
     <a href="decisions.html">決定與工作規則</a>
     <a href="environment.html">運作環境與資料</a>
+    <a href="collaboration.html">共用協作流程</a>
+    <a href="tasks/index.html">任務索引</a>
     <a href="workflow.html">研發與 Git 方法</a>
     <a class="active" href="history.html">專案脈絡與時間軸</a>
     <a href="materials.html">原始材料</a>
@@ -58,7 +60,7 @@
           <tr><td class="mono">10-14</td><td>#24</td><td>交接材料第一版（03:58 合併）</td></tr>
           <tr><td class="mono">10-14</td><td>#19</td><td>Dependabot：setup-uv 10.3.0（06:13 合併）</td></tr>
           <tr><td class="mono">10-14</td><td>（本次）</td><td>交接補齊：驗收紀錄、未完成工作、決定分類、運作環境、研發方法、Claude 專案文件原文</td></tr>
-          <tr><td class="mono">—</td><td>#2、#3</td><td>Dependabot 的 Python 依賴更新，已關閉、未合併；main 上 uv 群組的更新失敗原因還沒查</td></tr>
+          <tr><td class="mono">—</td><td>#2、#3</td><td>Dependabot 的 Python 依賴更新，已關閉、未合併；舊日誌記載 uv 群組失敗；現已有替代 workflow，執行待核驗（見未完成工作）</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -143,7 +145,7 @@
           <li><strong>M9a 還沒有在兩台真實電腦上驗收</strong>；Windows 上的防火牆、路徑、換行是最可能的問題。</li>
           <li>Worker API 用 HTTP：Secrets 與登入狀態以明文經過區網，只適合信任的網路。</li>
           <li>M9a 沒做的小項目：報告的執行位置篩選、localhost 網址提醒、等待 worker 的提示、HTTPS（見<a href="open-work.html#partial">未完成工作</a>）。</li>
-          <li>main 上 Dependabot 的 uv 群組更新一直失敗，原因還沒查。</li>
+          <li>Python 依賴更新已有替代 workflow；執行證據待核驗，見<a href="open-work.html">未完成工作</a>的更正。</li>
           <li>部署方式（單機 Docker Compose 或 Kubernetes）與物件儲存的產品要在 M9 前決定（路線圖「待決定」）。</li>
         </ul>
       </div>

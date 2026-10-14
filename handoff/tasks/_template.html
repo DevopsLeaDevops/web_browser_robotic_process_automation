@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>任務紀錄範本 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>任務紀錄範本</h1><p>複製到本目錄 <code>YYYYMMDD-short-topic.html</code>，替換待填文字、title 與 h1。保持 HTML；不需要三語翻譯。只保留相關欄位，沒有資料寫「無／未知／未執行」並說明原因。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>待填；時間含時區</dd>
+        <dt>需求來源／驗收條件</dt><dd>待填：使用者要什麼，怎樣算完成</dd>
+        <dt>範圍／不包含</dt><dd>待填</dd>
+        <dt>主責／審閱／接收方</dt><dd>待填；未指定就寫未指定</dd>
+        <dt>修改檔案／整合者</dt><dd>待填；共用檔案與相依任務需列出</dd>
+        <dt>狀態</dt><dd>待開工／實作中／待審閱／待接收／受阻／已合併待驗收／完成，擇一並說明</dd>
+        <dt>分支／PR／base SHA</dt><dd>待填；PR 未建立就明寫</dd>
+        <dt>交接版本／同步狀態</dt><dd>待填 SHA 或「基準 SHA＋未提交差異」；本地／已推送／已接收分開記錄</dd>
+        <dt>工作區／環境</dt><dd>待填作業系統與必要工具版本；本機位置只在需要接手時記錄，不放敏感設定</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>待填，附檔案或 PR 證據。</li>
+        <li><strong>未完成／阻礙：</strong>待填，含重現方式及影響。</li>
+        <li><strong>決定：</strong>待填，標已確認／實作選擇／建議／待定及來源；重要決定連到 ADR 或 decisions。</li>
+        <li><strong>下一個具體動作：</strong>待填命令或應修改的位置、預期結果。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>逐項列出，或寫無；說明必要產物怎麼取得，不附機密。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>待填</td><td>待填</td><td>未執行</td><td>待填</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。分別更新，不以一項通過代替其他項目。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。由接收方填寫姓名／工具、時間、取得的 SHA、工作區差異、重現檢查、接手範圍與下一步。送出方不能代填「已接收」。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>待填：日期與時區、作者、變更、證據；後續更正用追加記錄。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

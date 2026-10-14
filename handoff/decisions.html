@@ -15,6 +15,8 @@
     <a href="open-work.html">未完成工作</a>
     <a class="active" href="decisions.html">決定與工作規則</a>
     <a href="environment.html">運作環境與資料</a>
+    <a href="collaboration.html">共用協作流程</a>
+    <a href="tasks/index.html">任務索引</a>
     <a href="workflow.html">研發與 Git 方法</a>
     <a href="history.html">專案脈絡與時間軸</a>
     <a href="materials.html">原始材料</a>
@@ -42,7 +44,7 @@
         <tbody>
           <tr><td>Claude 專案的自訂指示（instructions）</td><td>空白</td><td>2026-10-14 讀取專案資訊時為空。</td></tr>
           <tr><td>Claude 專案的記憶（memory）</td><td><span class="kind unknown">需你補充</span></td><td>這個雲端環境無法讀取專案記憶。請在 claude.ai 的專案頁查看，有工作規則就貼到<a href="index.html#log">交接紀錄</a>。</td></tr>
-          <tr><td><code>CLAUDE.md</code>、<code>AGENTS.md</code> 等</td><td>倉庫裡沒有</td><td>2026-10-14 檢查 main 的檔案清單。</td></tr>
+          <tr><td><code>CLAUDE.md</code>、<code>AGENTS.md</code></td><td><a href="../CLAUDE.md">Claude 入口</a>導向<a href="../AGENTS.md">共用入口</a></td><td>2026-10-14 新增；先前 main 32f240b 沒有。現行規則見<a href="collaboration.html">共用協作流程</a>，本輪交付狀態見<a href="tasks/20261014-shared-ai-workflow.html">任務紀錄</a>。</td></tr>
           <tr><td>倉庫裡的規範</td><td>開發規範、文檔與 ADR 的寫法、多語言流程</td><td><a href="../docs/develop/conventions.html">開發規範</a>、<a href="../docs/develop/writing-docs.html">文檔與 ADR</a>、<a href="../docs/adr/0005-html-docs.html">ADR 0005</a>、<a href="../docs/adr/0007-i18n.html">ADR 0007</a>；摘要見<a href="workflow.html#rules">研發與 Git 方法 › 修改時的規則</a></td></tr>
         </tbody>
       </table></div>
@@ -56,6 +58,7 @@
           <tr><td class="mono">10-13 18:54</td><td>Claude 週用量不夠時先交接，由你自己繼續，之後再接手</td><td><span class="kind user">你明確決定</span></td><td>本次對話</td></tr>
           <tr><td class="mono">10-13 18:58、19:01</td><td>交付文件用 HTML，放在專門的目錄；「專案」指 claude.ai 上的這個專案，裡面的對話與文件要整理成備忘</td><td><span class="kind user">你明確決定</span></td><td>本次對話；本目錄</td></tr>
           <tr><td class="mono">10-13 23:46</td><td>交接要完整：匯出專案文件原文、決定分類、未完成清單、驗收紀錄、運作環境、研發方法；每項標日期、PR 與證據；區分「已合併」「自動測試通過」「人工驗收通過」</td><td><span class="kind user">你明確決定</span></td><td>本次對話；本目錄</td></tr>
+          <tr><td class="mono">2026-10-14 UTC+08:00</td><td>Claude 與 ChatGPT 共同開發會是常態；正式開發前完善流程，確保雙方可持續接手。</td><td><span class="kind user">你明確決定</span></td><td>本輪使用者指示；<a href="tasks/20261014-shared-ai-workflow.html">任務紀錄</a>。具體流程為本輪實作選擇，見<a href="collaboration.html">共用協作流程</a>；歷史環境的授權限制不自動延伸到新環境。</td></tr>
         </tbody>
       </table></div>
     </section>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>共同開發任務索引 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a class="active" href="index.html">任務索引</a><a href="_template.html">任務範本</a></nav>
+  <div class="heading"><div><h1>共同開發任務索引</h1><p>每個實作任務一份 HTML 紀錄；主責、進度與證據只在該紀錄維護。索引只列連結，避免兩邊重複維護狀態。</p></div></div>
+  <div class="stack">
+    <div class="notice">本分支的索引不是全域鎖。未合併任務可能只存在於其他分支或 PR；開工前必須核對使用者分工與 GitHub 活躍 PR。同一分支只允許一位當前實作者。</div>
+    <section class="panel" id="tasks">
+      <div class="panel-header"><h2>任務紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><a href="20261014-shared-ai-workflow.html">20261014-shared-ai-workflow：建立 Claude 與 ChatGPT 共用協作流程</a></li>
+      </ul></div>
+    </section>
+    <section class="panel" id="maintenance">
+      <div class="panel-header"><h2>維護方式</h2></div>
+      <div class="panel-body"><ol class="steps">
+        <li>複製同目錄的 <a href="_template.html">_template.html</a>，以日期和主題命名並在此加連結；路徑保持相對於 <code>handoff/tasks/</code>。</li>
+        <li>任務自己的紀錄隨分支一同提交，主責變更、驗證、交出與接收都記在該檔。純問答和查詢不建卡。</li>
+        <li>整合索引衝突時保留所有不同任務的連結；同一任務由一位整合者確認，不用整檔覆蓋。</li>
+        <li>已完成的任務保留連結及追加紀錄；業務里程碑另更新 <a href="../index.html#status">狀態總表</a>與<a href="../acceptance.html">驗收紀錄</a>。</li>
+      </ol></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
