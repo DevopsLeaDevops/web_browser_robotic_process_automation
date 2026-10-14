@@ -1,16 +1,18 @@
-"""自由試驗場（M6）：把已發布場景的固定版本排成序列，依序執行，上游通過才把出參交給下游。
+"""自由試驗場：組合場景以 DAG 表達依賴，依拓撲順序逐個執行。
 
-- **序列**（workflows）：名稱、說明與 rpa_core.workflow 的定義；每次存檔 version 加一，
+第 1 版保留原有順序；第 2 版先固定同名匹配，再依依賴拓撲排序。畫布位置不影響執行。
+
+- **組合場景**（workflows）：名稱、說明與 rpa_core.workflow 的定義；每次存檔 version 加一，
   存檔要帶目前的 version，不一致就回 409。定義有問題也可以存（編輯到一半），但不能執行。
-- **序列的執行**（workflow_runs）：開始時存一份定義的快照；第一個節點排入佇列，
+- **組合場景的執行**（workflow_runs）：開始時存一份定義的快照；第一個節點排入佇列，
   worker 每執行完一個節點就呼叫 :meth:`WorkflowService.node_finished`：通過就取出參、排下一個節點，
   沒有通過（失敗、逾時、取消、需要登入）就停在那個節點，後面的節點略過。
 - **節點的執行**就是一般的執行（runs，目的 workflow）：有自己的執行目錄、報告，也出現在執行報告。
 - **重新執行**用同一份快照從頭開始；**從失敗的節點繼續**沿用前面已通過節點的出參，
   不重複前面的操作（例如建立紀錄），適合登入之後接著跑。
-- 單機、序列執行：節點的執行一個一個排進同一個佇列，與其他執行依建立時間先後執行。
+- 單機、組合場景執行：節點的執行一個一個排進同一個佇列，與其他執行依建立時間先後執行。
 
-所有改變序列執行狀態的操作都在同一把鎖裡（worker 的回報與頁面的取消可能同時發生）。
+所有改變組合場景執行狀態的操作都在同一把鎖裡（worker 的回報與頁面的取消可能同時發生）。
 """
 
 import logging
@@ -30,6 +32,7 @@ from rpa_core.workflow import (
     check_workflow,
     input_sources,
     parse_workflow,
+    plan_workflow,
     resolve_inputs,
 )
 from rpa_runner.run import new_run_id
@@ -59,7 +62,7 @@ __all__ = ["RUN_LIST_LIMIT", "WorkflowService"]
 logger = logging.getLogger("rpa_server")
 
 RUN_LIST_LIMIT: Final = 50
-"""序列執行清單最多顯示的筆數。"""
+"""組合場景執行清單最多顯示的筆數。"""
 
 _NAME_LIMIT: Final = 200
 
@@ -125,16 +128,17 @@ class WorkflowService:
         return WorkflowProblem(f"workflow.{code}", t(f"workflow.{code}", **params), node.id)
 
     def parse(self, data: object) -> tuple[Workflow | None, list[WorkflowProblem]]:
-        """API 送來的定義 → (序列, 問題)；格式不對時序列是 None。"""
+        """API 送來的定義 → (組合場景, 問題)；格式不對時組合場景是 None。"""
         workflow, problems = parse_workflow(data)
         if workflow is None:
             return None, problems
         return workflow, self.check(workflow)
 
     def library(self) -> list[dict[str, object]]:
-        """編輯序列時的場景庫：有發布過版本的場景，每個發布過的版本的入參與出參。
+        """編輯組合場景時的場景庫：有發布過版本的場景，每個發布過的版本的入參與出參。
 
-        封存的場景也列出（標示 archived），讓序列裡已經用到的節點還能顯示；場景庫本身不列出它們。
+        封存的場景也列出（標示 archived），讓組合場景裡已經用到的節點還能顯示；
+        場景庫本身不列出它們。
         """
         with self.sessions() as session:
             published = list(
@@ -181,7 +185,7 @@ class WorkflowService:
             )
         return sorted(entries.values(), key=lambda item: str(item["id"]))
 
-    # ------------------------------------------------------------ 序列
+    # ------------------------------------------------------------ 組合場景
 
     @staticmethod
     def _row(session: Session, workflow_id: int) -> WorkflowRow:
@@ -242,8 +246,12 @@ class WorkflowService:
     def create_workflow(
         self, name: str, description: str | None = None, definition: object = None
     ) -> WorkflowRecord:
-        """新增序列；可以直接帶定義（匯入匯出的 JSON）。"""
-        workflow = self._definition(definition) if definition is not None else Workflow()
+        """新增組合場景；可以直接帶定義（匯入匯出的 JSON）。"""
+        workflow = (
+            self._definition(definition)
+            if definition is not None
+            else Workflow(version=2, mode="dag")
+        )
         with self.sessions() as session:
             moment = now()
             row = WorkflowRow(
@@ -291,7 +299,7 @@ class WorkflowService:
         return self._record(row)
 
     def delete_workflow(self, workflow_id: int) -> None:
-        """刪除序列；執行中不能刪。已經執行過的紀錄保留（有定義的快照）。"""
+        """刪除組合場景；執行中不能刪。已經執行過的紀錄保留（有定義的快照）。"""
         with self.sessions() as session:
             row = self._row(session, workflow_id)
             running = session.scalar(
@@ -318,7 +326,7 @@ class WorkflowService:
         idempotency_key: str | None = None,
         target: Target | None = None,
     ) -> WorkflowRunRecord:
-        """執行序列：先檢查，沒有問題才建立序列的執行並排入第一個節點。
+        """執行組合場景：先檢查，沒有問題才建立組合場景的執行並排入第一個節點。
 
         target 是執行位置（M9a）：每個節點都一樣，而且第一個節點由哪台 worker 領取，後面就都給它。
         """
@@ -388,12 +396,13 @@ class WorkflowService:
         self, session: Session, row: WorkflowRunRow, workflow: Workflow
     ) -> tuple[int, dict[str, str]]:
         """從停下的節點繼續：(從第幾個節點開始, 沿用的節點 → 那次通過的執行編號)。"""
-        index = workflow.index(row.failed_node or "")
+        ordered = workflow.execution_nodes()
+        index = next((i for i, node in enumerate(ordered) if node.id == row.failed_node), -1)
         if row.status == "passed" or index < 0:
             raise conflict("workflow_not_resumable", t("error.workflow_not_resumable", id=row.id))
         passed = self._latest_runs(session, row.id)
         reused: dict[str, str] = {}
-        for node in workflow.nodes[:index]:
+        for node in ordered[:index]:
             previous = cast("dict[str, str]", row.reused).get(node.id)
             run = passed.get(node.id)
             if run is not None and run.status == "passed":
@@ -443,6 +452,11 @@ class WorkflowService:
         target: Target = "local",
         worker_id: str | None = None,
     ) -> WorkflowRunRecord:
+        workflow, problems = plan_workflow(
+            workflow,
+            {node.id: self._scenario(node.scene_id, node.revision) for node in workflow.nodes},
+        )
+        self._ensure_runnable(workflow, problems)
         with self._lock:
             run_id = new_run_id(f"wf{workflow_id}" if workflow_id is not None else "wf")
             with self.sessions() as session:
@@ -477,14 +491,14 @@ class WorkflowService:
         return self.get_run(run_id)
 
     def _start_node(self, run_id: str, index: int) -> None:
-        """排入第 index 個節點；取值或排入失敗時，序列的執行停在這個節點。"""
+        """排入第 index 個節點；取值或排入失敗時，組合場景的執行停在這個節點。"""
         with self.sessions() as session:
             row = self._run_row(session, run_id)
             workflow = Workflow.model_validate(row.definition)
             outputs = self._outputs(session, row)
             engine, headless = row.engine, row.headless
             target, pinned = cast("Target", row.target), row.worker_id
-        node = workflow.nodes[index]
+        node = workflow.execution_nodes()[index]
         values, problems = resolve_inputs(node, outputs)
         if problems:
             self._finish(run_id, "failed", node.id, problems[0].message)
@@ -534,7 +548,7 @@ class WorkflowService:
     def node_finished(self, run_id: str) -> None:
         """一個節點的執行結束：通過就排下一個節點，沒有通過就停在這個節點。
 
-        只處理序列執行裡最新的那一次節點執行，同一個通知來兩次（例如重啟時的回復）也不會排兩次。
+        只處理組合場景執行裡最新的那一次節點執行，同一個通知來兩次（例如重啟時的回復）也不會排兩次。
         """
         with self._lock:
             with self.sessions() as session:
@@ -553,7 +567,8 @@ class WorkflowService:
                 if latest is None or latest.id != run.id:
                     return
                 workflow = Workflow.model_validate(row.definition)
-                index = workflow.index(run.node_id or "")
+                ordered = workflow.execution_nodes()
+                index = next((i for i, item in enumerate(ordered) if item.id == run.node_id), -1)
                 status, node, scene = run.status, run.node_id, run.scene_id
                 workflow_run = row.id
             if index < 0:
@@ -572,7 +587,7 @@ class WorkflowService:
                 self._finish(workflow_run, "passed", None, None)
 
     def cancel(self, run_id: str) -> WorkflowRunRecord:
-        """取消序列的執行：停止目前的節點，後面的節點不執行。已經發生的外部動作不會復原。"""
+        """取消組合場景的執行：停止目前的節點，後面的節點不執行。已經發生的外部動作不會復原。"""
         with self._lock:
             with self.sessions() as session:
                 row = self._run_row(session, run_id)
@@ -595,7 +610,7 @@ class WorkflowService:
         return self.get_run(run_id)
 
     def recover(self) -> int:
-        """伺服器啟動時：還在執行中的序列，依最新節點的狀態接著處理（排下一個或停下）。"""
+        """伺服器啟動時：還在執行中的組合場景，依最新節點的狀態接著處理（排下一個或停下）。"""
         with self.sessions() as session:
             rows = list(
                 session.scalars(select(WorkflowRunRow).where(WorkflowRunRow.status == "running"))
@@ -627,7 +642,7 @@ class WorkflowService:
 
     @staticmethod
     def _latest_runs(session: Session, run_id: str) -> dict[str, Run]:
-        """序列執行裡每個節點最新的一次執行。"""
+        """組合場景執行裡每個節點最新的一次執行。"""
         found: dict[str, Run] = {}
         for run in session.scalars(
             select(Run).where(Run.workflow_run_id == run_id).order_by(Run.created_at, Run.id)
@@ -656,7 +671,7 @@ class WorkflowService:
         if workflow is not None:
             latest = self._latest_runs(session, row.id)
             reused = cast("dict[str, str]", row.reused)
-            for index, node in enumerate(workflow.nodes):
+            for index, node in enumerate(workflow.execution_nodes()):
                 nodes.append(self._node_state(session, row, index, node, latest, reused))
         return WorkflowRunRecord(
             id=row.id,

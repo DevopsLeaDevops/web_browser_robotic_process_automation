@@ -45,3 +45,5 @@ M1 場景 DSL、M1.1 場景契約、M2 Runner 已完成：`rpa run` 在 Chromium
 M3 管理 Portal 已完成：`rpa serve` 在瀏覽器裡建立、驗證、發布、執行場景並查看報告（`docs/design/portal.html`）。
 M4 場景生產與登入進行中：錄製（`rpa record` 或 Portal）轉成 DSL 草稿、逐步調試、每個角色獨立的登入狀態與 needs_login、入參出參的表單編輯。
 範例在 `scenarios/`，規格見 `docs/design/dsl.html`。路線圖見 `docs/roadmap.html`。
+
+M6 增量交付（待審閱）：DAG 畫布、四種入參來源、組合場景卡片管理與舊序列相容。詳見 [任務紀錄](handoff/tasks/20261014-dag-composite-scenes.html) 與 [Portal 設計](docs/design/portal.html#playground)。

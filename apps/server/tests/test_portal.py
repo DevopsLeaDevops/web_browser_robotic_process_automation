@@ -238,7 +238,7 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
 
 @pytest.mark.parametrize("portal", [DEMO], indirect=True)
 def test_playground_chains_published_scenarios(
-    portal: str, page: Page, site: str, engine: str
+    portal: str, engine: str, page: Page, site: str
 ) -> None:
     """M6 驗收：在自由試驗場把 BA-001、BA-002 排成序列，recordId 自動接上，真實執行通過。"""
     errors: list[str] = []
@@ -276,15 +276,51 @@ def test_playground_chains_published_scenarios(
     page.wait_for_url(re.compile(r"/playground/\d+$"))
     page.locator('[data-add="ba-001"]').click()
     page.locator('[data-add="ba-002"]').click()
-    second = page.locator('#flow-stage [data-index="1"]')
-    expect(second).to_contain_text("recordId ← n1.recordId")
+    page.locator('[data-out="n1"]').click()
+    page.locator('[data-in="n2"]').click()
+    expect(page.locator("#node-inputs")).to_contain_text("recordId ← n1.recordId")
+    expect(page.locator(".dag-edge")).to_have_count(1)
 
     # n1 的標題改成固定值
     first = page.locator('#flow-stage [data-index="0"]')
     first.click()
     page.locator('select[data-source="title"]').select_option("value")
     page.locator('input[data-value="title"]').fill("畫面串接")
-    expect(first).to_contain_text('title = "畫面串接"')
+    expect(page.locator("#node-inputs")).to_contain_text('title = "畫面串接"')
+    expect(page.locator("#workflow-problems")).to_be_hidden()
+
+    # 拖動、保存與重新載入；畫布適應只改視角、不改座標或標記髒資料。
+    bounds = first.bounding_box()
+    assert bounds is not None
+    page.mouse.move(bounds["x"] + 70, bounds["y"] + 25)
+    page.mouse.down()
+    page.mouse.move(bounds["x"] + 110, bounds["y"] + 115, steps=8)
+    page.mouse.up()
+    save_button = page.locator('[data-action="workflow-save"]')
+    with page.expect_response(
+        lambda response: response.request.method == "PUT" and "/api/workflows/" in response.url
+    ) as saved_response:
+        save_button.click()
+    assert saved_response.value.ok
+    expect(save_button).to_be_disabled()
+    workflow_id = page.locator("#workflow").get_attribute("data-workflow")
+    saved = api.get(f"{portal}/api/workflows/{workflow_id}").json()
+    position = saved["definition"]["nodes"][0]["position"]
+    assert position["y"] > 100
+    page.reload()
+    expect(first).to_have_css("top", str(int(position["y"])) + "px")
+    page.locator("[data-fit]").click()
+    expect(save_button).to_be_disabled()
+    # 反向連線形成循環時即時拒絕；移除連線會清除來源，重新連接後恢復同名匹配。
+    page.locator('[data-out="n2"]').click()
+    page.locator('[data-in="n1"]').click()
+    expect(page.locator(".dag-edge")).to_have_count(1)
+    page.locator('#flow-stage [data-node="n2"]').click()
+    page.locator('[data-unlink="n1"]').click()
+    expect(page.locator(".dag-edge")).to_have_count(0)
+    expect(page.locator("#workflow-problems")).to_be_visible()
+    page.locator('[data-out="n1"]').click()
+    page.locator('[data-in="n2"]').click()
     expect(page.locator("#workflow-problems")).to_be_hidden()
 
     # 執行序列（先自動存檔），到序列執行頁等結果
@@ -300,10 +336,22 @@ def test_playground_chains_published_scenarios(
     expect(page.locator('tr[data-node="n2"]')).to_contain_text("畫面串接")
     expect(page.locator('tr[data-node="n2"] [data-status="passed"]')).to_be_visible()
 
-    # 清單頁看得到序列與最近一次執行
-    page.goto(f"{portal}/playground")
-    expect(page.locator("tr[data-workflow]")).to_contain_text("ba-001")
+    # 組合場景管理卡片與最近一次執行
+    page.goto(f"{portal}/composites")
+    expect(page.locator("article[data-workflow]")).to_contain_text("ba-001")
     expect(
         page.locator("tr[data-workflow-run]").first.locator('[data-status="passed"]')
     ).to_be_visible()
+    page.goto(f"{portal}/playground/{workflow_id}")
+    first.click()
+    page.locator('input[data-value="title"]').fill("保留未儲存草稿")
+    latest = api.get(f"{portal}/api/workflows/{workflow_id}").json()
+    assert api.put(
+        f"{portal}/api/workflows/{workflow_id}",
+        data={"baseVersion": latest["version"], "name": "另一分頁"},
+    ).ok
+    save_button.click()
+    expect(page.locator("#toast")).to_contain_text("已經在別的地方被修改")
+    expect(page.locator('input[data-value="title"]')).to_have_value("保留未儲存草稿")
+    expect(save_button).to_be_enabled()
     assert errors == []

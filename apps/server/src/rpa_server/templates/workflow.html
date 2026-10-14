@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block crumb %}<a href="/playground">{{ t("nav.playground") }}</a> › {{ workflow.name }}{% endblock %}
+{% block crumb %}<a href="/composites">{{ t("nav.composites") }}</a> › <a href="/playground">{{ t("nav.playground") }}</a> › {{ workflow.name }}{% endblock %}
 {% block description %}{{ workflow.description or t("workflow.description") }}{% endblock %}
 {% block actions %}
 <button class="button" data-action="workflow-rename">{{ t("workflow.rename") }}</button>
@@ -24,10 +24,14 @@
         <div id="library-list" class="library-list"></div>
       </div>
     </section>
-    <section class="panel flow-board" aria-labelledby="board-title">
-      <h2 class="visually-hidden" id="board-title">{{ t("workflow.board") }}</h2>
-      <div class="flow-stage" id="flow-stage"></div>
-    </section>
+    <div class="flow-center">
+      <section class="panel flow-board" aria-labelledby="board-title">
+        <div class="panel-header canvas-tools"><h2 id="board-title">{{ t("workflow.board") }}</h2><div class="actions"><button class="button" data-zoom="-1" aria-label="{{ t('workflow.zoom_out') }}">−</button><span id="canvas-scale">100%</span><button class="button" data-zoom="1" aria-label="{{ t('workflow.zoom_in') }}">+</button><button class="button" data-fit>{{ t("workflow.fit") }}</button></div></div>
+        <p class="canvas-hint" id="canvas-hint" role="status">{{ t("workflow.canvas_hint") }}</p>
+        <div id="canvas-viewport"><div id="canvas-spacer"><div class="flow-stage" id="flow-stage"></div></div></div>
+      </section>
+      <section class="panel flow-parameters"><div class="panel-header"><h2>{{ t("workflow.parameters") }}</h2><button class="text-btn" data-reset-inputs>{{ t("workflow.reset_inputs") }}</button></div><div class="panel-body" id="node-inputs"></div></section>
+    </div>
     <section class="panel flow-settings" aria-labelledby="settings-title">
       <div class="panel-header"><h2 id="settings-title">{{ t("workflow.settings") }}</h2></div>
       <div class="panel-body" id="node-settings"></div>

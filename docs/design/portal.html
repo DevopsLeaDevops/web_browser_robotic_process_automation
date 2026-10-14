@@ -14,7 +14,7 @@
   <div class="heading">
     <div>
       <h1>管理 Portal</h1>
-      <p>在瀏覽器裡建立場景、驗證、發布、執行並查看報告（M3）；錄製、逐步調試、登入角色與入參出參的表單（M4）；自由試驗場的序列（M6）。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.1。</p>
+      <p>在瀏覽器裡建立場景、驗證、發布、執行並查看報告（M3）；錄製、逐步調試、登入角色與入參出參的表單（M4）；自由試驗場的 DAG 組合場景（M6）。單機、單使用者（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>與設計系統 v1.1。</p>
     </div>
     <span class="badge blue">M6</span>
   </div>
@@ -150,20 +150,18 @@
     </section>
 
     <section class="panel" id="playground">
-      <div class="panel-header"><h2>自由試驗場</h2><span class="muted">M6：已發布場景的固定版本排成序列，上游出參交給下游入參，失敗即停</span></div>
-      <div class="panel-body prose">
-        <ul>
-          <li><strong>序列。</strong>「場景生產 › 自由試驗場」新增序列，從左邊的場景庫把場景加到序列最後；中間是依序執行的節點（n1、n2…），右邊設定選取的節點，可以上移、下移、移除。改動先留在頁面上，按「儲存」才存檔；存檔要帶目前是第幾次存檔，別的分頁已經存過就回 409。</li>
-          <li><strong>只用發布過的版本，而且固定。</strong>場景庫只列出發布過的場景；加入時固定在目前發布的版本，之後場景發布新版本也不影響序列（節點設定會提示，要用就自己切換）。版本只能選發布過的，所以序列裡每個節點都是通過驗證的內容。</li>
-          <li><strong>入參的來源。</strong>每個入參三選一：場景的預設值、固定值、前面某個節點的出參（只能選型別相容的，整數可以給數字）。加入節點時，名稱相同、型別相容的入參自動接上最近的上游，例如 BA-002 的 recordId 接上 BA-001 的出參。必填的入參一定要有來源。</li>
-          <li><strong>先檢查、再執行。</strong>每次修改都會檢查：場景存在而且沒有封存、版本發布過、只取前面節點的出參、那個出參存在、型別相容、必填入參有來源、固定值符合入參的規則。有問題時列在上方與節點上，不能執行。</li>
-          <li><strong>依序執行、失敗即停。</strong>「執行序列」可以選瀏覽器（預設照各場景）與視窗模式。節點一個一個排入佇列；每個節點就是一次一般的執行（目的「試驗場」），有自己的執行目錄與報告，也出現在執行報告。通過之後才取它發布的出參、排下一個節點；沒有通過（失敗、逾時、取消、需要登入）就停在那個節點，後面的節點略過。綁定的值不符合下游入參的規則時，下游不啟動瀏覽器就停下。</li>
-          <li><strong>序列執行頁。</strong>每個節點的狀態、入參的值與來源（固定值、預設值、<code>← n1.recordId</code>）、出參，以及那次執行與報告的連結；執行中每秒更新。開始執行時記下序列的快照，之後改序列不影響這次執行。</li>
-          <li><strong>從停下的節點繼續、從頭再執行。</strong>「從 n2 繼續」沿用前面已通過節點的出參，從停下的節點開始，不會重複前面的操作（例如再建立一次紀錄），適合登入之後接著跑；「從頭再執行」用同一份快照從第一個節點開始。取消會停止目前的節點，已經在目標網站完成的動作不會復原。</li>
-          <li><strong>匯出與匯入。</strong>「匯出 JSON」下載序列的名稱、說明與定義；清單頁「匯入 JSON」用它建立新的序列。定義的格式：<code>{"version": 1, "mode": "serial", "onFailure": "stop", "nodes": [{"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "試驗"}}}, {"id": "n2", "sceneId": "ba-002", "revision": 1, "inputs": {"recordId": {"node": "n1", "output": "recordId"}}}]}</code>。沒寫的入參用預設值；<code>value</code> 是固定值，<code>node</code> 與 <code>output</code> 是前面節點的出參。規則在 <code>rpa_core.workflow</code>。</li>
-          <li><strong>範圍。</strong>MVP 只有序列，不做條件、分支與平行；節點與其他執行排在同一個佇列，一次執行一個。刪除序列不會刪除執行紀錄（序列執行有定義的快照）。</li>
-        </ul>
-      </div>
+      <div class="panel-header"><h2>自由試驗場與組合場景</h2><span class="muted">DAG：可分叉、可匯合，成功出參傳給下游，失敗即停</span></div>
+      <div class="panel-body prose"><ul>
+        <li><strong>管理與生產。</strong>「場景管理 › 組合場景自動化」以卡片管理名稱、節點、問題與最近執行；「場景生產 › 自由試驗場」建立、開啟與編輯畫布。場景生產選單依序為自主腳本錄製、自由試驗場、運行報告、遠端 Worker。</li>
+        <li><strong>依賴畫布。</strong>拖動節點或用方向鍵微調位置；點上游右側圓點，再點下游左側圓點建立連線。點連線設定下游入參，也可以從右側加入上游。縮放與適應只改視角，不改座標。節點座標隨組合場景保存；畫布位置和節點陣列順序不代表執行順序。中間的入參區固定高度並獨立捲動。</li>
+        <li><strong>四種入參來源。</strong>同名匹配僅搜尋直接連線的上游，唯一同名且型別相容時取其出參，沒有命中則用場景預設，多個命中必須指定來源；場景預設強制忽略上游同名值；人工指定只覆蓋此節點；指定上游出參可以跨欄位綁定。選擇出參會建立依賴；一個出參可供多個下游，一個入參只有一個來源。整數可以傳給數字，其他型別必須相同。</li>
+        <li><strong>直接依賴與清理。</strong>顯式連線及出參引用都形成依賴。移除連線清理對應的出參引用並重新檢查來源；移除節點同時清理它的連線與下游引用。重設入參會恢復同名匹配。循環、自我依賴、重複邊或不存在的端點不可執行。</li>
+        <li><strong>保存與預檢。</strong>草稿可帶待修正的問題保存；保存攜帶 <code>baseVersion</code>，版本衝突回 409，頁面保留草稿供匯出。執行前檢查全圖、已發布固定版本、欄位、型別、必填值及固定值規則；有問題時第一個節點也不排入佇列。新增場景時不自動建立與前一節點的連線。</li>
+        <li><strong>分叉與匯合。</strong>拓撲排序保證所有上游都通過才執行下游；就緒節點以定義中的順序穩定選取，逐個排入既有佇列。每個節點有自己的真實執行、入參、成功出參與報告。下游執行前再檢查實際值，不符合規則就停止，不回退到預設值。</li>
+        <li><strong>快照與恢復。</strong>開始時固定編排、場景版本及同名匹配的具體來源，後續編輯不影響已開始的執行。失敗、逾時、取消、需要登入或 worker 失聯皆停止全圖；續跑沿用拓撲順序中已通過的結果，不重複已成功的外部操作。所有節點沿用同一台 worker；取消不回滾外部動作。</li>
+        <li><strong>格式與相容。</strong>新定義使用 <code>version: 2</code>、<code>mode: "dag"</code>、<code>onFailure: "stop"</code>、<code>nodes</code> 及 <code>edges: [{"source":"n1","target":"n2"}]</code>。節點可帶 <code>position: {"x":40,"y":60}</code>；<code>inputs</code> 的值可為 <code>{"auto":true}</code>、<code>{"value":7}</code> 或 <code>{"node":"n1","output":"quantity"}</code>，省略代表場景預設。舊版 serial 定義與歷史快照繼續可用；舊序列開啟畫布後，下次保存轉成相同順序的依賴邊，不更動已有歷史執行。JSON 匯出、匯入保留座標與綁定。</li>
+        <li><strong>本次範圍。</strong>最多 50 節點，支援一般分叉與匯合，不做條件路由或同時執行。沿用現有 DSL 的字串、整數、數字、布林入參；原型裡的重複次數、日期／隨機占位符與複合型別入參未納入本次五項需求。原型 JSON 是參考契約，不直接當成 Portal 的匯入格式。</li>
+      </ul></div>
     </section>
 
     <section class="panel" id="remote-workers">
@@ -195,8 +193,8 @@
           <li><strong>接著現有步驟錄製。</strong>選「既有場景的新版本」與剛才的場景，再選「接著現有步驟錄製」：瀏覽器先自動跑完原有步驟，停在建立結果的頁面，再錄一個動作；新版本的步驟接在原有內容後面，原本的註解不變。</li>
           <li><strong>兩個角色。</strong>「場景管理 › 登入與憑證」對 <code>testsite-user</code> 按「登入」，在跳出的視窗用 user / user-pass 登入後按「完成登入」；<code>testsite-manager</code> 用 manager / manager-pass。再分別運行 BA-004、BA-005：兩份報告看到的待辦不同。</li>
           <li><strong>需要登入與重新執行。</strong>對 <code>testsite-user</code> 按「登出」，再運行 BA-004：停在「需要登入」，沒有執行任何步驟；點執行頁的登入角色回到「登入與憑證」再登入一次，回到執行頁按「重新執行」，結果是「通過」。</li>
-          <li><strong>自由試驗場。</strong>先驗證並發布 BA-001，再用它驗證時建立的紀錄編號驗證並發布 BA-002。「場景生產 › 自由試驗場」按「新增序列」，從場景庫加入 BA-001、BA-002：BA-002 的 recordId 自動接上 n1 的出參。按「執行序列」，兩個節點都通過，n2 查到的就是 n1 剛建立的紀錄。再把 n2 上移到最前面：序列會提示 recordId 只能取前面節點的出參，不能執行。</li>
-          <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「場景生產 › 遠端 Worker」新增 <code>win-01</code>，在另一台電腦照對話框的命令啟動 <code>rpa worker</code>（步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），worker 頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的序列，兩個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
+          <li><strong>自由試驗場。</strong>先驗證並發布 BA-001、BA-002。建立組合場景，加入一個 BA-001、兩個 BA-002 及另一個 BA-001 作為匯合節點；連接「建立 → 兩次查詢 → 匯合」，讓兩個查詢的 recordId 同名匹配上游，匯合的 title 與 quantity 分別取自兩個查詢。拖動節點、儲存並重載，確認位置保留。執行後四個節點都通過且實際入參相符；反向連線應被拒絕。從場景管理的組合場景卡片打開最近執行，確認報告可追溯。</li>
+          <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「場景生產 › 遠端 Worker」新增 <code>win-01</code>，在另一台電腦照對話框的命令啟動 <code>rpa worker</code>（步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），worker 頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的組合場景，四個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
         </ol>
         <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可；worker 機器上的 <code>worker-data</code> 資料夾也可以刪掉。</p>
       </div>
@@ -220,8 +218,9 @@
             <tr><td><code>/runs/{執行編號}</code></td><td>狀態、階段、獨立斷言、入參與出參、截圖、執行目錄的檔案；取消、發布</td></tr>
             <tr><td><code>/roles</code></td><td>登入與憑證：登入角色（登入、檢查、登出）、Secrets</td></tr>
             <tr><td><code>/recording</code>、<code>/recordings/{錄製編號}</code></td><td>自主腳本錄製：在這台電腦錄製或貼上錄製稿；最近的錄製；錄製詳情（轉不了的行、轉換結果、遮罩過的原始錄製稿）</td></tr>
-            <tr><td><code>/playground</code></td><td>自由試驗場：序列清單（節點、問題、最近一次執行）與最近的序列執行；新增、匯入、刪除序列</td></tr>
-            <tr><td><code>/playground/{序列}</code></td><td>編輯序列：場景庫、序列、節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
+            <tr><td><code>/composites</code></td><td>組合場景卡片管理、最近執行、開啟畫布、刪除</td></tr>
+            <tr><td><code>/playground</code></td><td>自由試驗場：建立、匯入組合場景與繼續編輯畫布</td></tr>
+            <tr><td><code>/playground/{序列}</code></td><td>編輯組合場景：場景庫、DAG 畫布、入參與節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
             <tr><td><code>/playground/runs/{序列執行}</code></td><td>序列的執行：每個節點的狀態、入參的值與來源、出參、報告；取消、從頭再執行、從停下的節點繼續</td></tr>
             <tr><td><code>/workers</code></td><td>遠端 Worker：登記（產生權杖與啟動命令）、狀態、停用、重新產生權杖、刪除；預設執行位置</td></tr>
           </tbody>

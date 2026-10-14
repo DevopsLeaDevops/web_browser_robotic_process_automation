@@ -1,0 +1,13 @@
+<template id="workflow-form">
+  <label>{{ t("playground.form_name") }}<input name="name" required maxlength="200" placeholder="{{ t('playground.form_name_placeholder') }}" autocomplete="off"></label>
+  <label>{{ t("playground.form_description") }}<textarea name="description" rows="3" maxlength="2000"></textarea></label>
+  <p class="form-error" role="alert"></p>
+</template>
+<template id="workflow-import-form">
+  <div class="notice">{{ t("playground.import_notice") }}</div>
+  <label>{{ t("playground.import_file") }}<input type="file" name="file" accept="application/json,.json"></label>
+  <label>{{ t("playground.import_text") }}<textarea class="code-editor compact" name="text" rows="8" spellcheck="false"></textarea></label>
+  <label>{{ t("playground.form_name") }}<input name="name" maxlength="200" placeholder="{{ t('playground.import_name_placeholder') }}" autocomplete="off"></label>
+  <p class="form-error" role="alert"></p>
+</template>
+<script type="application/json" id="workflow-messages">{{ messages | tojson }}</script>

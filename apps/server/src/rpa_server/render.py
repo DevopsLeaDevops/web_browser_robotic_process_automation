@@ -94,8 +94,8 @@ NAV: Final = (
         "/runs",
         (
             NavPage("recording", "/recording"),
-            NavPage("runs", "/runs"),
             NavPage("playground", "/playground"),
+            NavPage("runs", "/runs"),
             NavPage("workers", "/workers"),
         ),
     ),
@@ -189,6 +189,7 @@ def _side_items(group: NavGroup, domains: Sequence[DomainRecord]) -> list[SideIt
             *items,
             SideItem("domains", t("nav.domains"), "/domains"),
             SideItem("roles", t("nav.roles"), "/roles"),
+            SideItem("composites", t("nav.composites"), "/composites"),
         ]
     return [SideItem(p.id, t("nav." + p.id), p.href, p.milestone) for p in group.pages]
 

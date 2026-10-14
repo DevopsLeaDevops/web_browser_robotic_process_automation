@@ -1,25 +1,8 @@
-"""自由試驗場的序列（編排，M6）：已發布場景的固定版本排成序列，上游的出參綁定到下游的入參。
+"""組合場景的定義、DAG 依賴檢查與入參解析。
 
-定義是一份 JSON（第 1 版），管理 Portal 存在資料庫，也可以匯出、匯入::
-
-    {
-      "version": 1, "mode": "serial", "onFailure": "stop",
-      "nodes": [
-        {"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "試驗"}}},
-        {"id": "n2", "sceneId": "ba-002", "revision": 1,
-         "inputs": {"recordId": {"node": "n1", "output": "recordId"}}}
-      ]
-    }
-
-- **依序、失敗即停。**一個節點通過才執行下一個；失敗、逾時、取消或需要登入就停止，後面的節點不執行。
-- **固定版本。**每個節點寫明場景的版本號碼，之後發布新版本也不影響這個序列，直到使用者改版本。
-- **入參的來源。**沒寫的入參用場景的預設值；``{"value": …}`` 是固定值；
-  ``{"node": 節點, "output": 出參}`` 是前面某個節點**通過之後發布**的出參。
-- **先檢查、再執行。**:func:`check_workflow` 在執行前找出不能執行的地方（取自後面的節點、
-  出參不存在、型別不相容、必填入參沒有來源、固定值不符合規則）；綁定的值要等上游通過才知道，
-  那時由 :func:`resolve_inputs` 取值，再依入參規則校驗（rpa_runner.contract.check_inputs）。
-
-這裡只有資料與規則，不碰資料庫與瀏覽器；序列的執行由管理 Portal 負責（rpa_server.workflows）。
+第 2 版以 edges 與出參綁定表達依賴，節點陣列和畫布座標不決定執行順序。
+同時就緒的節點依定義順序逐個執行，失敗即停。第 1 版 serial 仍按原順序執行；
+舊定義與歷史快照不改寫。此模組不依賴資料庫或瀏覽器。
 """
 
 from collections.abc import Mapping, Sequence
@@ -34,23 +17,33 @@ from rpa_core.dsl.scenario import Scenario
 
 __all__ = [
     "MAX_NODES",
+    "AutoBinding",
     "Binding",
     "InputSource",
+    "NodePosition",
     "OutputBinding",
     "ValueBinding",
     "Workflow",
+    "WorkflowEdge",
     "WorkflowNode",
     "WorkflowProblem",
     "check_workflow",
     "compatible",
     "input_sources",
     "parse_workflow",
+    "plan_workflow",
     "resolve_inputs",
     "sequence",
 ]
 
 MAX_NODES: Final = 50
-"""一個序列最多幾個節點。"""
+"""一個組合場景最多幾個節點。"""
+
+
+class AutoBinding(DslModel):
+    """從直接上游尋找唯一的同名相容出參；沒有命中時使用場景預設。"""
+
+    auto: Literal[True]
 
 
 class ValueBinding(DslModel):
@@ -73,37 +66,59 @@ class OutputBinding(DslModel):
 
 
 def _binding_kind(value: object) -> str:
+    if isinstance(value, AutoBinding) or (isinstance(value, dict) and "auto" in value):
+        return "auto"
     if isinstance(value, ValueBinding) or (isinstance(value, dict) and "value" in value):
         return "value"
     return "output"
 
 
 Binding = Annotated[
-    Annotated[ValueBinding, Tag("value")] | Annotated[OutputBinding, Tag("output")],
+    Annotated[ValueBinding, Tag("value")]
+    | Annotated[OutputBinding, Tag("output")]
+    | Annotated[AutoBinding, Tag("auto")],
     Discriminator(_binding_kind),
 ]
 """入參的來源：固定值或前面節點的出參；沒寫就用場景的預設值。"""
 
 
-class WorkflowNode(DslModel):
-    """序列的一個節點：某個場景的固定版本，加上入參的來源。"""
+class NodePosition(DslModel):
+    """畫布座標，僅影響顯示，不影響依賴關係。"""
 
+    x: Annotated[float, Field(ge=0, le=100000, allow_inf_nan=False)]
+    y: Annotated[float, Field(ge=0, le=100000, allow_inf_nan=False)]
+
+
+class WorkflowEdge(DslModel):
+    """來源通過後，目標才可開始。資料綁定也會形成相同的依賴。"""
+
+    source: Slug
+    target: Slug
+
+
+class WorkflowNode(DslModel):
+    """組合場景的一個節點：某個場景的固定版本，加上入參的來源。"""
+
+    position: NodePosition | None = None
     id: Slug
-    """節點代號，序列裡不能重複；綁定時用它指定上游，例如 n1。"""
+    """節點代號，組合場景裡不能重複；綁定時用它指定上游，例如 n1。"""
     scene_id: Slug
     revision: Annotated[int, Field(ge=1)]
     """固定的版本號碼；只能是發布過的版本。"""
     inputs: dict[Identifier, Binding] = Field(
-        default_factory=dict[str, ValueBinding | OutputBinding]
+        default_factory=dict[str, ValueBinding | OutputBinding | AutoBinding]
     )
 
 
 class Workflow(DslModel):
-    """一個序列的定義（第 1 版）。"""
+    """組合場景定義：第 1 版線性序列與第 2 版 DAG。"""
 
-    version: Literal[1] = 1
-    mode: Literal["serial"] = "serial"
-    """執行方式：依序（MVP 只有這一種）。"""
+    version: Literal[1, 2] = 1
+    mode: Literal["serial", "dag"] = "serial"
+    edges: Annotated[list[WorkflowEdge], Field(max_length=2500)] = Field(
+        default_factory=list[WorkflowEdge]
+    )
+    """依賴邊；執行順序由拓撲排序決定。"""
     on_failure: Literal["stop"] = "stop"
     """節點沒有通過時：停止，後面的節點不執行。"""
     nodes: Annotated[list[WorkflowNode], Field(max_length=MAX_NODES)] = Field(
@@ -112,6 +127,8 @@ class Workflow(DslModel):
 
     @model_validator(mode="after")
     def _unique_ids(self) -> Self:
+        if (self.version == 1) != (self.mode == "serial") or (self.mode == "serial" and self.edges):
+            raise dsl_error("workflow.mode_version")
         seen: set[str] = set()
         for index, node in enumerate(self.nodes):
             if node.id in seen:
@@ -126,13 +143,52 @@ class Workflow(DslModel):
         """節點的位置（從 0 開始）；沒有這個節點時是 -1。"""
         return next((i for i, node in enumerate(self.nodes) if node.id == node_id), -1)
 
+    def dependencies(self) -> dict[str, set[str]]:
+        """節點 → 必須先通過的節點；資料綁定不能繞過依賴。"""
+        dependencies = {node.id: set[str]() for node in self.nodes}
+        if self.mode == "serial":
+            for previous, node in zip(self.nodes, self.nodes[1:], strict=False):
+                dependencies[node.id].add(previous.id)
+        else:
+            for edge in self.edges:
+                if edge.target in dependencies:
+                    dependencies[edge.target].add(edge.source)
+            for node in self.nodes:
+                for binding in node.inputs.values():
+                    if isinstance(binding, OutputBinding):
+                        dependencies[node.id].add(binding.node)
+        return dependencies
+
+    def execution_nodes(self) -> list[WorkflowNode]:
+        """穩定的拓撲排序；有環或缺少來源時回傳可排序的部分，由檢查阻擋執行。"""
+        dependencies = self.dependencies()
+        ordered: list[WorkflowNode] = []
+        done: set[str] = set()
+        while len(done) < len(self.nodes):
+            ready = next(
+                (
+                    node
+                    for node in self.nodes
+                    if node.id not in done and dependencies[node.id] <= done
+                ),
+                None,
+            )
+            if ready is None:
+                break
+            ordered.append(ready)
+            done.add(ready.id)
+        return ordered
+
     def to_json(self) -> dict[str, object]:
-        return self.model_dump(mode="json", by_alias=True)
+        data = self.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if self.mode == "serial":
+            data.pop("edges")
+        return data
 
 
 @dataclass(frozen=True, slots=True)
 class WorkflowProblem:
-    """序列的一個問題；message 是目前語言的說明。"""
+    """組合場景的一個問題；message 是目前語言的說明。"""
 
     code: str
     message: str
@@ -147,7 +203,7 @@ class WorkflowProblem:
 class InputSource:
     """一個入參的值從哪裡來：場景的預設值、固定值，或前面節點的出參（頁面顯示用）。"""
 
-    kind: Literal["default", "value", "output", "missing"]
+    kind: Literal["default", "value", "output", "missing", "auto"]
     node: str | None = None
     output: str | None = None
     value: object = None
@@ -190,13 +246,44 @@ def parse_workflow(data: object) -> tuple[Workflow | None, list[WorkflowProblem]
         return None, list(dict.fromkeys(problems))
 
 
-_TAGS: Final = frozenset({"value", "output"})
-"""綁定的兩種寫法在錯誤路徑裡的標籤；顯示路徑時略過（它們剛好也是欄位名稱，只略過標籤那一層）。"""
+_TAGS: Final = frozenset({"value", "output", "auto"})
+"""綁定寫法在錯誤路徑裡的標籤；顯示路徑時略過（它們剛好也是欄位名稱，只略過標籤那一層）。"""
 
 
 def compatible(output_type: str, input_type: str) -> bool:
     """上游出參的型別能不能直接當成下游入參：相同型別，或整數給數字。"""
     return output_type == input_type or (output_type == "integer" and input_type == "number")
+
+
+def plan_workflow(
+    workflow: Workflow, scenarios: Mapping[str, Scenario | None]
+) -> tuple[Workflow, list[WorkflowProblem]]:
+    """固定同名匹配的結果；執行快照不保留會隨編輯而變動的解析規則。"""
+    planned = workflow.model_copy(deep=True)
+    problems: list[WorkflowProblem] = []
+    for node in planned.nodes:
+        scenario = scenarios.get(node.id)
+        for name, binding in list(node.inputs.items()):
+            if not isinstance(binding, AutoBinding):
+                continue
+            if workflow.mode != "dag":
+                problems.append(_problem("workflow.auto_requires_dag", node.id, name))
+            if scenario is not None and name not in scenario.inputs:
+                problems.append(_problem("workflow.input_unknown", node.id, name))
+            spec = scenario.inputs.get(name) if scenario else None
+            candidates: set[str] = set()
+            for source_id in workflow.dependencies()[node.id]:
+                source = scenarios.get(source_id)
+                output = source.outputs.get(name) if source else None
+                if spec and output and compatible(output.type, spec.type):
+                    candidates.add(source_id)
+            if len(candidates) > 1:
+                problems.append(_problem("workflow.source_ambiguous", node.id, name))
+            if len(candidates) == 1:
+                node.inputs[name] = OutputBinding(node=next(iter(candidates)), output=name)
+            else:
+                del node.inputs[name]
+    return planned, problems
 
 
 def check_workflow(
@@ -207,16 +294,35 @@ def check_workflow(
     載入不了的場景是 None，不檢查它的契約；場景不存在、封存、版本沒有發布過等
     資料庫裡的狀態由呼叫端另外檢查。
     """
-    problems: list[WorkflowProblem] = []
+    workflow, problems = plan_workflow(workflow, scenarios)
     if not workflow.nodes:
         problems.append(_problem("workflow.empty"))
-    earlier: dict[str, Scenario | None] = {}
+    if workflow.mode == "dag":
+        ids = {node.id for node in workflow.nodes}
+        seen: set[tuple[str, str]] = set()
+        for edge in workflow.edges:
+            if edge.source not in ids or edge.target not in ids:
+                problems.append(
+                    _problem("workflow.edge_unknown", source=edge.source, target=edge.target)
+                )
+            if (edge.source, edge.target) in seen:
+                problems.append(
+                    _problem("workflow.edge_duplicate", source=edge.source, target=edge.target)
+                )
+            seen.add((edge.source, edge.target))
+        # 缺少端點另行回報；只有完整圖才判斷環。
+        deps = workflow.dependencies()
+        if all(sources <= ids for sources in deps.values()) and len(
+            workflow.execution_nodes()
+        ) != len(workflow.nodes):
+            problems.append(_problem("workflow.cycle"))
     positions = {node.id: index for index, node in enumerate(workflow.nodes)}
     for index, node in enumerate(workflow.nodes):
         scenario = scenarios.get(node.id)
         if scenario is not None:
-            problems += _check_node(node, index, scenario, earlier, positions)
-        earlier[node.id] = scenario
+            problems += _check_node(
+                node, index, scenario, scenarios, positions, workflow.mode == "serial"
+            )
     return problems
 
 
@@ -224,8 +330,9 @@ def _check_node(
     node: WorkflowNode,
     index: int,
     scenario: Scenario,
-    earlier: Mapping[str, Scenario | None],
+    scenarios: Mapping[str, Scenario | None],
     positions: Mapping[str, int],
+    serial: bool,
 ) -> list[WorkflowProblem]:
     problems: list[WorkflowProblem] = []
     for name in node.inputs:
@@ -240,15 +347,15 @@ def _check_node(
             for rule in spec.violations(binding.value):
                 problems.append(_problem("workflow.value_invalid", node.id, name, rule=rule))
                 break
-        else:
+        elif isinstance(binding, OutputBinding):
             source = binding.node
             if source not in positions:
                 problems.append(_problem("workflow.source_unknown", node.id, name, source=source))
                 continue
-            if positions[source] >= index:
+            if serial and positions[source] >= index:
                 problems.append(_problem("workflow.source_order", node.id, name, source=source))
                 continue
-            upstream = earlier.get(source)
+            upstream = scenarios.get(source)
             if upstream is None:
                 continue
             output = upstream.outputs.get(binding.output)
@@ -282,7 +389,9 @@ def input_sources(node: WorkflowNode, scenario: Scenario) -> dict[str, InputSour
     sources: dict[str, InputSource] = {}
     for name, spec in scenario.inputs.items():
         binding = node.inputs.get(name)
-        if isinstance(binding, ValueBinding):
+        if isinstance(binding, AutoBinding):
+            sources[name] = InputSource("auto")
+        elif isinstance(binding, ValueBinding):
             sources[name] = InputSource("value", value=binding.value)
         elif isinstance(binding, OutputBinding):
             sources[name] = InputSource("output", node=binding.node, output=binding.output)
@@ -303,6 +412,9 @@ def resolve_inputs(
     values: dict[str, object] = {}
     problems: list[WorkflowProblem] = []
     for name, binding in node.inputs.items():
+        if isinstance(binding, AutoBinding):
+            problems.append(_problem("workflow.auto_unresolved", node.id, name))
+            continue
         if isinstance(binding, ValueBinding):
             values[name] = binding.value
             continue

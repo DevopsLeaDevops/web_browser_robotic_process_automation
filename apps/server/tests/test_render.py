@@ -443,6 +443,16 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
     }
     common: dict[str, object] = {"messages": workflow_messages()}
     return {
+        "composites": render(
+            "composites.html",
+            page="composites",
+            domains=(),
+            **common,
+            title=t("nav.composites"),
+            workflows=[record],
+            runs=[passed],
+            has_published=True,
+        ),
         "playground": render(
             "playground.html",
             page="playground",
@@ -788,7 +798,7 @@ def test_side_menu_lists_domains_then_domain_management() -> None:
         html = _pages()["domain"]
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
-    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證"]
+    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證", "組合場景自動化"]
     current = 'href="/domains/testsite" title="測試網站自動化" class="active" aria-current="page"'
     assert current in side
 
@@ -978,6 +988,7 @@ def _english_domain_pages() -> dict[str, str]:
         "debug-session",
         "playground",
         "playground-empty",
+        "composites",
         "workflow",
         "workflow-run",
         "workflow-run-login",

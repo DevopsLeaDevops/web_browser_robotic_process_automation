@@ -153,8 +153,9 @@ def validate_and_publish(client: Client, scene: str, inputs: JsonObject, engine:
     return run
 
 
+@pytest.mark.parametrize("dag", [False, True])
 def test_remote_worker_runs_validation_and_playground(
-    portal: Portal, site: str, engine: str, remote_worker: str
+    portal: Portal, site: str, engine: str, remote_worker: str, dag: bool
 ) -> None:
     with Client(base_url=portal.url, timeout=30) as client:
         body(client.post("/api/scenes/import"))
@@ -172,7 +173,7 @@ def test_remote_worker_runs_validation_and_playground(
         record = cast("JsonObject", created["output"])
         validate_and_publish(client, "ba-002", {"recordId": record["recordId"]}, engine)
 
-        definition = {
+        definition: JsonObject = {
             "nodes": [
                 {
                     "id": "n1",
@@ -188,6 +189,11 @@ def test_remote_worker_runs_validation_and_playground(
                 },
             ]
         }
+        if dag:
+            definition.update(
+                {"version": 2, "mode": "dag", "edges": [{"source": "n1", "target": "n2"}]}
+            )
+            cast("list[JsonObject]", definition["nodes"]).reverse()
         workflow = body(
             client.post("/api/workflows", json={"name": "遠端", "definition": definition})
         )

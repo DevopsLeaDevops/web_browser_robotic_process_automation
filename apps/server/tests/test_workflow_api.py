@@ -475,3 +475,136 @@ def test_server_restart_settles_interrupted_sequences(
     assert run["status"] == "failed"
     assert run["failedNode"] == "n1"
     assert statuses(run) == ["failed", "skipped"]
+
+
+def graph_definition() -> JsonObject:
+    """非線性菱形圖：儲存順序與執行順序不同，匯合處同時使用兩個分支的值。"""
+    return {
+        "version": 2,
+        "mode": "dag",
+        "nodes": [
+            {
+                "id": "join",
+                "sceneId": "ba-001",
+                "revision": 1,
+                "inputs": {
+                    "title": {"node": "left", "output": "title"},
+                    "quantity": {"node": "right", "output": "quantity"},
+                },
+            },
+            {
+                "id": "right",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"auto": True}},
+            },
+            {
+                "id": "left",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "root", "output": "recordId"}},
+            },
+            {
+                "id": "root",
+                "sceneId": "ba-001",
+                "revision": 1,
+                "position": {"x": 720, "y": 90},
+                "inputs": {"title": {"value": "DAG"}, "quantity": {"value": 3}},
+            },
+        ],
+        "edges": [
+            {"source": "root", "target": "right"},
+            {"source": "root", "target": "left"},
+            {"source": "left", "target": "join"},
+            {"source": "right", "target": "join"},
+        ],
+    }
+
+
+def test_dag_execution_snapshot_fork_join_and_duplicate_notifications(
+    app: FastAPI, client: Client, chain: int, worker: Worker, executor: FakeExecutor
+) -> None:
+    graph = graph_definition()
+    saved = body(
+        client.put(f"/api/workflows/{chain}", json={"baseVersion": 1, "definition": graph})
+    )
+    assert saved["problems"] == []
+    run = start(client, chain, headless=True)
+    assert [node["id"] for node in nodes(run)] == ["root", "right", "left", "join"]
+    assert statuses(run) == ["queued", "pending", "pending", "pending"]
+    # 開始之後修改編排不會改變本次執行；快照中的同名匹配已固定成具體來源。
+    body(client.put(f"/api/workflows/{chain}", json={"baseVersion": 2, "definition": {}}))
+    for _ in range(4):
+        assert worker.run_once()
+        finished = get(client, run["id"])
+        previous = [node_run(node) for node in nodes(finished) if node["status"] == "passed"]
+        if previous:
+            services(app).workflows.node_finished(str(previous[-1]["id"]))
+    finished = get(client, run["id"])
+    assert finished["status"] == "passed"
+    assert not worker.run_once()
+    assert len(executor.calls) == 4
+    first, right, left, join = [node_run(node) for node in nodes(finished)]
+    assert (
+        right["input"]
+        == left["input"]
+        == {"recordId": cast("JsonObject", first["output"])["recordId"]}
+    )
+    assert join["input"] == {
+        "title": cast("JsonObject", left["output"])["title"],
+        "quantity": cast("JsonObject", right["output"])["quantity"],
+    }
+    sources = cast("JsonObject", nodes(finished)[1]["sources"])
+    assert cast("JsonObject", sources["recordId"])["node"] == "root"
+
+
+def test_dag_failure_resume_uses_topological_prefix(
+    client: Client, chain: int, worker: Worker, executor: FakeExecutor
+) -> None:
+    body(
+        client.put(
+            f"/api/workflows/{chain}", json={"baseVersion": 1, "definition": graph_definition()}
+        )
+    )
+    executor.fail["ba-002"] = "failed"
+    run = start(client, chain, headless=True)
+    assert worker.run_once()
+    assert worker.run_once()
+    stopped = get(client, run["id"])
+    assert statuses(stopped) == ["passed", "failed", "skipped", "skipped"]
+    assert stopped["failedNode"] == "right"
+    assert not worker.run_once()
+    executor.fail.clear()
+    resumed = body(client.post(f"/api/workflow-runs/{run['id']}/rerun", json={"resume": True}), 202)
+    assert statuses(resumed) == ["reused", "queued", "pending", "pending"]
+    for _ in range(3):
+        assert worker.run_once()
+    assert get(client, resumed["id"])["status"] == "passed"
+    assert len([call for call in executor.calls if call[1].get("title") == "DAG"]) == 1
+
+
+def test_dag_invalid_draft_is_saved_but_never_queued(
+    client: Client, chain: int, worker: Worker
+) -> None:
+    graph = graph_definition()
+    cast("list[JsonObject]", graph["edges"]).append({"source": "join", "target": "root"})
+    saved = body(
+        client.put(f"/api/workflows/{chain}", json={"baseVersion": 1, "definition": graph})
+    )
+    assert "workflow.cycle" in [p["code"] for p in cast("list[JsonObject]", saved["problems"])]
+    assert client.post(f"/api/workflows/{chain}/runs", json={"headless": True}).status_code == 422
+    assert not worker.run_once()
+    assert body(client.get("/api/workflow-runs"))["runs"] == []
+
+
+def test_composite_management_and_navigation(client: Client, chain: int) -> None:
+    html = client.get("/composites").text
+    assert 'class="panel composite-card"' in html
+    assert 'href="/playground/' + str(chain) + '"' in html
+    side = html.split('id="sidenav"')[1].split("</nav>")[0]
+    assert side.index("/roles") < side.index("/composites")
+    production = client.get("/playground").text.split('id="sidenav"')[1].split("</nav>")[0]
+    assert (
+        production.index("/recording") < production.index("/playground") < production.index("/runs")
+    )
+    assert 'data-action="delete-workflow"' not in client.get("/playground").text

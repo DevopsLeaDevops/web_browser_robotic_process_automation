@@ -1,6 +1,6 @@
 'use strict';
 // 管理 Portal 的頁面互動：呼叫 /api、輪詢執行狀態、對話框；M4 加上登入與憑證、錄製、逐步調試、入參出參表單；
-// M6 加上自由試驗場（序列清單、編輯序列、序列的執行）；M9a 加上遠端 worker 頁與執行位置。
+// M6 加上自由試驗場（DAG 畫布、組合場景管理與執行）；M9a 加上遠端 worker 頁與執行位置。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -1231,7 +1231,7 @@
     });
   }
 
-  // 編輯序列：左邊場景庫、中間序列、右邊節點設定；改動先留在頁面上，按「儲存」才存檔
+  // DAG 畫布：座標只影響顯示，連線與資料來源決定執行依賴。
   function bindWorkflowEditor() {
     const root = qs('#workflow');
     if (!root) return;
@@ -1239,6 +1239,15 @@
     const data = JSON.parse(qs('#workflow-data').textContent);
     const library = new Map(data.library.map(scene => [scene.id, scene]));
     const definition = JSON.parse(JSON.stringify(data.definition));
+    const legacy = definition.mode === 'serial';
+    if (legacy) {
+      definition.edges = definition.nodes.slice(1).map((node, i) => ({source: definition.nodes[i].id, target: node.id}));
+      definition.version = 2;
+      definition.mode = 'dag';
+    }
+    definition.edges ||= [];
+    definition.nodes.forEach((node, i) => { node.position ||= {x: 40 + (i % 3) * 280, y: 40 + Math.floor(i / 3) * 160}; });
+    let zoom = 1, picked = null, dragging = false, editVersion = 0, saving = false;
     let version = data.version;
     let selected = definition.nodes.length ? 0 : -1;
     let problems = data.problems;
@@ -1263,24 +1272,54 @@
       return 'n' + number;
     }
 
-    // 新節點：入參名稱與前面某個節點的出參相同、型別相容時，自動接上最近的那一個
-    function autoBind(node, index) {
-      const revision = revisionOf(node);
-      if (!revision) return;
-      for (const [name, spec] of revision.inputs) {
-        for (let i = index - 1; i >= 0; i -= 1) {
-          const upstream = revisionOf(definition.nodes[i]);
-          const output = upstream && upstream.outputs.find(([key]) => key === name);
-          if (output && compatible(output[1].type, spec.type)) {
-            node.inputs[name] = {node: definition.nodes[i].id, output: name};
-            break;
-          }
-        }
-      }
+    function allEdges() {
+      const edges = new Map(definition.edges.map(edge => [edge.source + ':' + edge.target, edge]));
+      definition.nodes.forEach(node => Object.values(node.inputs).forEach(binding => {
+        if (binding.node) edges.set(binding.node + ':' + node.id, {source: binding.node, target: node.id});
+      }));
+      return [...edges.values()];
+    }
+
+    function canConnect(source, target) {
+      if (source === target) return false;
+      const edges = allEdges();
+      const seen = new Set();
+      const reaches = id => {
+        if (id === source) return true;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return edges.filter(edge => edge.source === id).some(edge => reaches(edge.target));
+      };
+      return !reaches(target);
+    }
+
+    function connect(source, target) {
+      if (!source || !target || !canConnect(source, target)) { toast(text.cycle); return false; }
+      if (!definition.edges.some(edge => edge.source === source && edge.target === target)) definition.edges.push({source, target});
+      selected = definition.nodes.findIndex(node => node.id === target);
+      picked = null;
+      qs('#canvas-hint').textContent = text.canvas_hint;
+      changed();
+      return true;
+    }
+
+    function resetInputs(node) {
+      node.inputs = Object.fromEntries((revisionOf(node)?.inputs || []).map(([name]) => [name, {auto: true}]));
+    }
+
+    function autoSource(node, name, spec) {
+      return definition.nodes.filter(upstream => allEdges().some(edge => edge.source === upstream.id && edge.target === node.id))
+        .filter(upstream => (revisionOf(upstream)?.outputs || []).some(([key, out]) => key === name && compatible(out.type, spec.type)));
     }
 
     function bindingText(node, name, spec) {
       const binding = node.inputs[name];
+      if (binding?.auto) {
+        const sources = autoSource(node, name, spec);
+        if (sources.length > 1) return fill(text.auto_ambiguous, {name});
+        if (sources.length === 1) return fill(text.binding_output, {name, node: sources[0].id, output: name});
+        return fill(hasDefault(spec) ? text.binding_default : text.binding_missing, {name, value: json(spec.default)});
+      }
       if (binding && 'value' in binding) return fill(text.binding_value, {name, value: json(binding.value)});
       if (binding) return fill(text.binding_output, {name, node: binding.node, output: binding.output});
       if (hasDefault(spec)) return fill(text.binding_default, {name, value: json(spec.default)});
@@ -1310,35 +1349,56 @@
         '<span>' + esc(scene.name) + '</span><small>' + esc(fill(text.add, {number: scene.publishedRevision || scene.revisions[0].number})) + '</small></button>').join('')).join('');
     }
 
-    function renderBoard() {
+    function scale() {
       const stage = qs('#flow-stage');
-      if (!definition.nodes.length) {
-        stage.innerHTML = '<div class="empty">' + esc(text.board_empty) + '</div>';
-        return;
-      }
-      stage.innerHTML = definition.nodes.map((node, index) => {
-        const scene = sceneOf(node);
-        const revision = revisionOf(node);
-        const count = problems.filter(item => item.node === node.id).length;
-        const lines = revision ? revision.inputs.map(([name, spec]) => {
-          const missing = !node.inputs[name] && !hasDefault(spec);
-          return '<li' + (missing ? ' class="text-danger"' : '') + '>' + esc(bindingText(node, name, spec)) + '</li>';
-        }).join('') : '';
-        const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
-        return '<div class="flow-node' + (index === selected ? ' selected' : '') + '" data-index="' + index + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '">' +
-          '<span class="flow-node-head"><span class="tag mono">' + esc(node.id) + '</span> ' + esc(fill(text.node_label, {number: index + 1})) +
-          ' · <code>' + esc(node.sceneId) + '</code> <span class="muted">v' + esc(node.revision) + '</span></span>' +
-          '<strong>' + esc(title) + '</strong>' +
-          (lines ? '<ul class="flow-bindings">' + lines + '</ul>' : '') +
-          (count ? '<span class="badge red">' + esc(fill(text.problem_count, {count})) + '</span>' : '') +
-          '</div>' + (index < definition.nodes.length - 1 ? '<div class="flow-arrow" aria-hidden="true">↓</div>' : '');
+      const width = Math.max(800, ...definition.nodes.map(node => node.position.x + 260));
+      const height = Math.max(400, ...definition.nodes.map(node => node.position.y + 160));
+      stage.style.width = width + 'px'; stage.style.height = height + 'px';
+      stage.style.transform = 'scale(' + zoom + ')';
+      qs('#canvas-spacer').style.width = width * zoom + 'px';
+      qs('#canvas-spacer').style.height = height * zoom + 'px';
+      qs('#canvas-scale').textContent = Math.round(zoom * 100) + '%';
+    }
+
+    function drawEdges() {
+      const stage = qs('#flow-stage');
+      const nodes = new Map(definition.nodes.map(node => [node.id, node]));
+      qsa('[data-edge-line]', stage).forEach(line => {
+        const a = nodes.get(line.dataset.source), b = nodes.get(line.dataset.target);
+        if (!a || !b) return;
+        const x = a.position.x + 200, y = a.position.y + 48, xx = b.position.x, yy = b.position.y + 48;
+        const bend = Math.max(50, Math.abs(xx - x) / 2);
+        line.setAttribute('d', `M ${x} ${y} C ${x + bend} ${y}, ${xx - bend} ${yy}, ${xx} ${yy}`);
+      });
+    }
+
+    function renderBoard() {
+      if (dragging) return;
+      const stage = qs('#flow-stage');
+      const edges = allEdges().map(edge => {
+        const attrs = ' data-edge-line data-source="' + esc(edge.source) + '" data-target="' + esc(edge.target) + '"';
+        return '<path class="dag-edge"' + attrs + ' marker-end="url(#dag-arrow)"/>' +
+          '<path class="dag-edge-hit"' + attrs + ' data-edge tabindex="0" role="button" aria-label="' + esc(fill(text.edge_label, edge)) + '"/>';
       }).join('');
+      stage.innerHTML = '<svg class="dag-links"><defs><marker id="dag-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>' + edges + '</svg>' +
+        (!definition.nodes.length ? '<div class="empty">' + esc(text.board_empty) + '</div>' : '') +
+        definition.nodes.map((node, index) => {
+          const revision = revisionOf(node), scene = sceneOf(node);
+          const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
+          const count = problems.filter(item => item.node === node.id).length;
+          return '<div class="flow-node' + (index === selected ? ' selected' : '') + '" data-index="' + index + '" data-node="' + esc(node.id) + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '" style="left:' + node.position.x + 'px;top:' + node.position.y + 'px">' +
+            '<span class="flow-node-head"><span class="tag mono">' + esc(node.sceneId) + '</span> <span class="muted">v' + node.revision + '</span></span>' +
+            '<strong title="' + esc(title) + '">' + esc(title) + '</strong><small>' + esc(node.id) + (count ? ' · ' + esc(fill(text.problem_count, {count})) : '') + '</small>' +
+            '<button class="dag-port in" data-in="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_to, {node: node.id})) + '"></button>' +
+            '<button class="dag-port out" data-out="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_from, {node: node.id})) + '"></button></div>';
+        }).join('');
+      scale(); drawEdges();
     }
 
     function sourceOf(node, name, spec) {
       const binding = node.inputs[name];
       if (!binding) return hasDefault(spec) ? 'default' : '';
-      return 'value' in binding ? 'value' : 'out:' + binding.node + ':' + binding.output;
+      return binding.auto ? 'auto' : 'value' in binding ? 'value' : 'out:' + binding.node + ':' + binding.output;
     }
 
     function valueField(name, spec, binding) {
@@ -1361,10 +1421,10 @@
       let options = hasDefault(spec)
         ? option('default', fill(text.source_default, {value: json(spec.default)}))
         : option('', text.source_missing, true);
-      options += option('value', text.source_value);
+      options += option('auto', text.source_auto) + option('value', text.source_value);
       let outputs = '';
-      let found = current === '' || current === 'default' || current === 'value';
-      definition.nodes.slice(0, index).forEach(upstream => {
+      let found = current === '' || current === 'default' || current === 'value' || current === 'auto';
+      definition.nodes.filter(upstream => canConnect(upstream.id, node.id)).forEach(upstream => {
         const revision = revisionOf(upstream);
         (revision ? revision.outputs : []).forEach(([output, outSpec]) => {
           const value = 'out:' + upstream.id + ':' + output;
@@ -1380,14 +1440,15 @@
       return '<div class="input-source" data-input="' + esc(name) + '">' +
         '<label class="field"><span><code>' + esc(name) + '</code> <span class="muted">' + esc(spec.type) + '</span>' + required + description + '</span>' +
         '<select data-source="' + esc(name) + '">' + options + '</select></label>' +
-        (current === 'value' ? valueField(name, spec, binding) : '') + '</div>';
+        (current === 'value' ? valueField(name, spec, binding) : '') + '<span class="cell-sub">' + esc(bindingText(node, name, spec)) + '</span></div>';
     }
 
     function renderSettings() {
-      const box = qs('#node-settings');
+      const box = qs('#node-settings'), inputsBox = qs('#node-inputs');
       const node = definition.nodes[selected];
       if (!node) {
         box.innerHTML = '<p class="muted">' + esc(text.settings_empty) + '</p>';
+        inputsBox.innerHTML = box.innerHTML;
         return;
       }
       const scene = sceneOf(node);
@@ -1408,21 +1469,20 @@
         html += '<p class="cell-sub">' + esc(fill(text.newer_revision, {number: scene.publishedRevision, current: node.revision})) + '</p>';
       }
       if (revision && revision.role) html += '<p class="cell-sub">' + esc(fill(text.role, {role: revision.role})) + '</p>';
-      html += '<h3 class="section-title">' + esc(text.inputs) + '</h3>';
-      if (!revision) html += '<p class="muted">' + esc(text.no_contract) + '</p>';
-      else if (!revision.inputs.length) html += '<p class="muted">' + esc(text.no_inputs) + '</p>';
-      else html += revision.inputs.map(([name, spec]) => inputRow(node, selected, name, spec)).join('');
+      inputsBox.innerHTML = !revision ? '<p class="muted">' + esc(text.no_contract) + '</p>'
+        : !revision.inputs.length ? '<p class="muted">' + esc(text.no_inputs) + '</p>'
+        : revision.inputs.map(([name, spec]) => inputRow(node, selected, name, spec)).join('');
       if (revision) {
         html += '<h3 class="section-title">' + esc(text.outputs) + '</h3>';
         html += revision.outputs.length
           ? '<ul class="io-list">' + revision.outputs.map(([name, spec]) => '<li><code>' + esc(name) + '</code> <span class="muted">' + esc(spec.type) + '</span></li>').join('') + '</ul>'
           : '<p class="muted">' + esc(text.no_outputs) + '</p>';
       }
-      const last = definition.nodes.length - 1;
-      html += '<div class="actions">' +
-        '<button type="button" class="button" data-move="-1"' + (selected === 0 ? ' disabled' : '') + '>' + esc(text.move_up) + '</button>' +
-        '<button type="button" class="button" data-move="1"' + (selected === last ? ' disabled' : '') + '>' + esc(text.move_down) + '</button>' +
-        '<button type="button" class="button danger" data-remove>' + esc(text.remove) + '</button></div>';
+      const candidates = definition.nodes.filter(upstream => canConnect(upstream.id, node.id) && !allEdges().some(edge => edge.source === upstream.id && edge.target === node.id));
+      html += '<h3 class="section-title">' + esc(text.dependencies) + '</h3><label class="field">' + esc(text.connect_source) + '<select data-connect-source>' + candidates.map(upstream => '<option value="' + esc(upstream.id) + '">' + esc(upstream.id + ' · ' + upstream.sceneId) + '</option>').join('') + '</select></label>' +
+        '<button class="button" data-connect' + (!candidates.length ? ' disabled' : '') + '>' + esc(text.connect) + '</button>';
+      html += allEdges().filter(edge => edge.target === node.id).map(edge => '<div class="edge-row"><code>' + esc(edge.source) + ' → ' + esc(edge.target) + '</code><button class="text-btn" data-unlink="' + esc(edge.source) + '">' + esc(text.unlink) + '</button></div>').join('');
+      html += '<p class="cell-sub">' + esc(text.unlink_hint) + '</p><button type="button" class="button danger" data-remove>' + esc(text.remove) + '</button>';
       box.innerHTML = html + '</div>';
     }
 
@@ -1436,14 +1496,22 @@
     function render({settings = true} = {}) {
       renderBoard();
       if (settings) renderSettings();
+      else {
+        const node = definition.nodes[selected];
+        if (node) qsa('#node-inputs [data-input]').forEach(row => {
+          const name = row.dataset.input, spec = new Map(revisionOf(node)?.inputs || []).get(name);
+          if (spec) qs(':scope > .cell-sub', row).textContent = bindingText(node, name, spec);
+        });
+      }
       renderProblems();
-      saveButton.disabled = !dirty;
+      saveButton.disabled = !dirty || saving;
       saveButton.title = dirty ? text.unsaved : '';
     }
 
     // 每次修改後（稍等一下）請伺服器檢查，問題列在上方與節點上
     function scheduleCheck() {
       clearTimeout(checkTimer);
+      checkSeq += 1;
       checkTimer = setTimeout(async () => {
         const sequence = ++checkSeq;
         const result = await api('POST', '/api/workflows/check', {definition});
@@ -1455,14 +1523,19 @@
 
     function changed(options) {
       dirty = true;
+      editVersion += 1;
       render(options);
       scheduleCheck();
     }
 
     async function save() {
+      if (saving) return false;
+      saving = true;
+      const savedEdit = editVersion;
       busy(saveButton, true);
       const result = await api('PUT', '/api/workflows/' + path(data.id), {baseVersion: version, definition});
       busy(saveButton, false);
+      saving = false;
       if (!result.ok) {
         saveButton.disabled = false;
         if (result.status === 409) toast(text.stale);
@@ -1471,7 +1544,7 @@
       }
       version = result.data.version;
       problems = result.data.problems;
-      dirty = false;
+      dirty = savedEdit !== editVersion;
       render({settings: false});
       toast(text.saved);
       return true;
@@ -1483,26 +1556,69 @@
       if (!button) return;
       const scene = library.get(button.dataset.add);
       const node = {id: newNodeId(), sceneId: scene.id, revision: scene.publishedRevision || scene.revisions[0].number, inputs: {}};
-      autoBind(node, definition.nodes.length);
+      resetInputs(node);
+      node.position = {x: 40 + (definition.nodes.length % 3) * 280, y: 40 + Math.floor(definition.nodes.length / 3) * 160};
       definition.nodes.push(node);
       selected = definition.nodes.length - 1;
       changed();
     });
     const stage = qs('#flow-stage');
-    const pick = target => {
+    function pick(target) {
+      const edge = target.closest('[data-edge]');
       const card = target.closest('[data-index]');
-      if (!card) return;
-      selected = Number(card.dataset.index);
+      if (edge) selected = definition.nodes.findIndex(node => node.id === edge.dataset.target);
+      else if (card) selected = Number(card.dataset.index);
+      else return;
       render();
-    };
-    stage.addEventListener('click', event => pick(event.target));
-    stage.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      pick(event.target);
+    }
+    stage.addEventListener('click', event => {
+      const out = event.target.closest('[data-out]'), input = event.target.closest('[data-in]');
+      if (out) { picked = out.dataset.out; qs('#canvas-hint').textContent = fill(text.pick_target, {node: picked}); }
+      else if (input && picked) connect(picked, input.dataset.in);
+      else pick(event.target);
     });
+    stage.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { picked = null; qs('#canvas-hint').textContent = text.canvas_hint; }
+      const card = event.target.closest('[data-index]');
+      const delta = {ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10]}[event.key];
+      if (card && delta && event.target === card) {
+        event.preventDefault(); const node = definition.nodes[Number(card.dataset.index)];
+        node.position.x = Math.max(0, Math.min(100000, node.position.x + delta[0]));
+        node.position.y = Math.max(0, Math.min(100000, node.position.y + delta[1]));
+        changed(); qs('[data-node="' + node.id + '"]', stage).focus();
+      } else if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('button')) {
+        event.preventDefault(); pick(event.target);
+      }
+    });
+    stage.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      const card = event.target.closest('[data-index]');
+      if (!card || event.target.closest('button')) return;
+      selected = Number(card.dataset.index); renderSettings();
+      qsa('[data-index]', stage).forEach(el => { el.classList.toggle('selected', el === card); el.setAttribute('aria-pressed', String(el === card)); });
+      const node = definition.nodes[selected], origin = {...node.position}, x = event.clientX, y = event.clientY;
+      dragging = true; card.setPointerCapture(event.pointerId);
+      let moved = false;
+      card.onpointermove = ev => {
+        if (Math.abs(ev.clientX - x) + Math.abs(ev.clientY - y) < 3 && !moved) return;
+        moved = true;
+        node.position.x = Math.max(0, Math.min(100000, origin.x + (ev.clientX - x) / zoom));
+        node.position.y = Math.max(0, Math.min(100000, origin.y + (ev.clientY - y) / zoom));
+        card.style.left = node.position.x + 'px'; card.style.top = node.position.y + 'px';
+        drawEdges();
+      };
+      const end = () => { card.onpointermove = card.onpointerup = card.onpointercancel = null; dragging = false; if (moved) changed({settings: false}); };
+      card.onpointerup = end; card.onpointercancel = end;
+    });
+    qsa('[data-zoom]').forEach(button => button.addEventListener('click', () => { zoom = Math.max(.2, Math.min(2, zoom + Number(button.dataset.zoom) * .1)); scale(); }));
+    qs('[data-fit]').addEventListener('click', () => {
+      const viewport = qs('#canvas-viewport');
+      zoom = Math.max(.001, Math.min(1, viewport.clientWidth / parseFloat(stage.style.width), viewport.clientHeight / parseFloat(stage.style.height)));
+      viewport.scrollTo(0, 0); scale();
+    });
+    qs('[data-reset-inputs]').addEventListener('click', () => { const node = definition.nodes[selected]; if (node) { resetInputs(node); changed(); } });
 
-    const settings = qs('#node-settings');
+    const settings = qs('.workflow-editor');
     settings.addEventListener('change', event => {
       const node = definition.nodes[selected];
       if (!node) return;
@@ -1519,7 +1635,9 @@
         const name = target.dataset.source;
         const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
         const value = target.value;
-        if (value === 'default' || value === '') {
+        if (value === 'auto') {
+          node.inputs[name] = {auto: true};
+        } else if (value === 'default' || value === '') {
           delete node.inputs[name];
         } else if (value === 'value') {
           const initial = hasDefault(spec) ? spec.default
@@ -1529,6 +1647,8 @@
           node.inputs[name] = {value: initial};
         } else {
           const [, upstream, output] = value.split(':');
+          if (!canConnect(upstream, node.id)) return toast(text.cycle);
+          if (!definition.edges.some(edge => edge.source === upstream && edge.target === node.id)) definition.edges.push({source: upstream, target: node.id});
           node.inputs[name] = {node: upstream, output};
         }
         changed();
@@ -1554,15 +1674,18 @@
       changed({settings: false});
     });
     settings.addEventListener('click', event => {
-      const move = event.target.closest('[data-move]');
-      const remove = event.target.closest('[data-remove]');
-      if (move) {
-        const next = selected + Number(move.dataset.move);
-        if (next < 0 || next >= definition.nodes.length) return;
-        [definition.nodes[next], definition.nodes[selected]] = [definition.nodes[selected], definition.nodes[next]];
-        selected = next;
+      const remove = event.target.closest('[data-remove]'), unlink = event.target.closest('[data-unlink]');
+      const node = definition.nodes[selected];
+      if (!node) return;
+      if (event.target.closest('[data-connect]')) connect(qs('[data-connect-source]').value, node.id);
+      else if (unlink) {
+        const source = unlink.dataset.unlink;
+        definition.edges = definition.edges.filter(edge => edge.source !== source || edge.target !== node.id);
+        Object.entries(node.inputs).forEach(([name, binding]) => { if (binding.node === source) node.inputs[name] = {auto: true}; });
         changed();
       } else if (remove) {
+        definition.edges = definition.edges.filter(edge => edge.source !== node.id && edge.target !== node.id);
+        definition.nodes.forEach(other => Object.entries(other.inputs).forEach(([name, binding]) => { if (binding.node === node.id) other.inputs[name] = {auto: true}; }));
         definition.nodes.splice(selected, 1);
         selected = Math.min(selected, definition.nodes.length - 1);
         changed();
@@ -1595,7 +1718,8 @@
     });
 
     qs('[data-action="workflow-run"]').addEventListener('click', async () => {
-      if (dirty && !(await save())) return;
+      if ((dirty || legacy) && !(await save())) return;
+      if (dirty) return toast(text.unsaved);
       if (problems.length) {
         qs('#workflow-problems').scrollIntoView({block: 'nearest'});
         return toast(text.fix_problems);

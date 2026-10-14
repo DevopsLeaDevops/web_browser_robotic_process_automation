@@ -463,9 +463,22 @@ def page_router(services: Services) -> APIRouter:
             fingerprint=services.workers.fingerprint,
         )
 
+    @router.get("/composites", include_in_schema=False)
+    def composites() -> HTMLResponse:
+        """組合場景的卡片管理；生產與修改從卡片進入自由試驗場。"""
+        return page(
+            "composites.html",
+            page="composites",
+            title=t("nav.composites"),
+            workflows=workflows.list_workflows(),
+            runs=workflows.list_runs(limit=_RECENT_RUNS * 2),
+            has_published=bool(workflows.library()),
+            messages=workflow_messages(),
+        )
+
     @router.get("/playground", include_in_schema=False)
     def playground() -> HTMLResponse:
-        """序列清單與最近的序列執行。"""
+        """組合場景的生產入口：建立或繼續編輯畫布。"""
         return page(
             "playground.html",
             page="playground",
@@ -478,7 +491,7 @@ def page_router(services: Services) -> APIRouter:
 
     @router.get("/playground/{workflow_id}", include_in_schema=False)
     def workflow(workflow_id: int) -> HTMLResponse:
-        """編輯序列：場景庫、序列、節點設定（頁面上的 JavaScript 依 workflow-data 畫出來）。"""
+        """編輯組合場景：場景庫、DAG 畫布、入參與節點設定。"""
         record = workflows.get_workflow(workflow_id)
         data = {
             "id": record.id,

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block description %}{{ t("composites.description") }}{% endblock %}
+{% block actions %}<button class="button" data-action="import-workflow">{{ t("playground.import") }}</button><button class="button primary" data-action="create-workflow">{{ t("playground.new") }}</button>{% endblock %}
+{% block content %}
+<div class="stack" id="playground">
+  {% if not has_published %}<div class="notice warn">{{ t("playground.no_published") }}</div>{% endif %}
+  <div class="composite-grid">
+  {% for item in workflows %}
+    <article class="panel composite-card" data-workflow="{{ item.id }}">
+      <div class="panel-header"><h2><a href="/playground/{{ item.id }}">{{ item.name }}</a></h2><span class="tag">DAG</span></div>
+      <div class="panel-body stack"><p>{{ item.description or t("composites.no_description") }}</p>
+        <div class="flow-chain">{% for node in item.workflow.nodes %}<span class="tag">{{ node.scene_id }} · v{{ node.revision }}</span>{% else %}<span class="muted">{{ t("playground.no_nodes") }}</span>{% endfor %}</div>
+        <p class="muted">{{ t("composites.node_count", count=item.workflow.nodes | length) }}</p>
+        {% if item.problems %}{{ m.badge("failed", t("playground.problems", count=item.problems | length)) }}{% else %}{{ m.badge("passed", t("composites.ready")) }}{% endif %}
+        <div>{{ t("playground.col_last_run") }}: {% if item.last_run %}<a href="/playground/runs/{{ item.last_run.id }}">{{ m.run_badge(item.last_run.status) }}</a> {{ m.time(item.last_run.created_at) }}{% else %}—{% endif %}</div>
+      </div>
+      <div class="panel-body actions"><a class="button primary" href="/playground/{{ item.id }}">{{ t("composites.edit") }}</a><button class="text-btn" data-action="delete-workflow" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ t("playground.delete") }}</button></div>
+    </article>
+  {% else %}<div class="empty">{{ t("playground.empty") }}</div>{% endfor %}
+  </div>
+  <section class="panel"><div class="panel-header"><h2>{{ t("playground.recent_runs") }}</h2></div>{% if runs %}{{ m.workflow_run_rows(runs) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}</section>
+</div>
+{% include "_workflow_forms.html" %}
+{% endblock %}
