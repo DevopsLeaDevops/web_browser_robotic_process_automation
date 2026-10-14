@@ -20,9 +20,9 @@
         <dt>範圍</dt><dd>共同開發文件與 PR 範本。業務功能、M5 決策、M9a 兩機驗收不在本輪。</dd>
         <dt>主責／整合者</dt><dd>ChatGPT／Codex；審閱者：使用者；後續實作接收方未指定。</dd>
         <dt>修改範圍</dt><dd>根目錄 AGENTS.md、CLAUDE.md、README.md；.github/pull_request_template.md；handoff 的現行入口、流程與任務檔案；docs 的三語開發規範。原始材料快照不修改。</dd>
-        <dt>狀態</dt><dd>待審閱；本地檢查通過，使用者已要求提交 PR，由使用者審核；正在提交與推送，尚未合併。</dd>
-        <dt>分支／PR／起點</dt><dd><code>docs/shared-ai-workflow</code>；PR 未建立；base 為 <code>32f240b</code>（main，#26）。</dd>
-        <dt>交接版本</dt><dd><code>32f240b</code>＋本分支未提交差異；接收方尚未取得版本。</dd>
+        <dt>狀態</dt><dd>受阻（遠端寫入權限）；本地提交與檢查完成，使用者已授權提交 PR 並指定由使用者審核；尚未推送、建立 PR 或合併。</dd>
+        <dt>分支／PR／起點</dt><dd><code>docs/shared-ai-workflow</code>；PR 未建立（發布受阻）；base 為 <code>32f240b</code>（main，#26）。</dd>
+        <dt>交接版本</dt><dd>本地實作提交 <code>0b2d945</code>；後續提交僅追加本紀錄的發布阻塞狀態。遠端尚無本任務分支，接收方尚未取得版本。</dd>
         <dt>相依任務／環境</dt><dd>依據 #26 交接包；無其他實作任務相依。使用者本機 macOS、Python 3.13.16、uv 0.12.24、pytest 9.1.1、OpenCC 1.4.2。</dd>
       </dl></div>
     </section>
@@ -33,8 +33,8 @@
         <li><strong>使用者已確認：</strong>以長期共同開發與順利接手為目標，先完善流程。</li>
         <li><strong>本輪實作選擇：</strong>流程集中在一頁；一任務一紀錄、一位當前實作者；並行使用獨立工作區；接收者核對版本後回填確認。沒有新增強制使用第二個 AI 的要求。</li>
         <li><strong>沿用的規範：</strong>Conventional Commits、功能分支、PR、CI、審閱與 squash 合併；工程文檔繁中、正式文檔三語。M5 的模型與資料去向仍待決定。</li>
-        <li><strong>下一步：</strong>提交並推送本分支、建立對 main 的 PR，交由使用者審核；CI 與審閱通過後由使用者決定是否合併。後續跨工具接力仍需接收方核對版本並填接收紀錄。</li>
-        <li><strong>未提交／stash／產物：</strong>未提交檔案以本分支 <code>git status --short</code> 和 diff 為準；本輪沒有建立 stash，沒有需要跨機器傳遞的執行產物。</li>
+        <li><strong>下一步：</strong>使用者恢復本機 Git 推送認證或 GitHub 連接的倉庫寫入權限後，推送本分支並建立對 main 的 PR。授權已具備，不需再次確認是否提交 PR；交由使用者審核，不合併。PR 描述草稿存於本機 .git/shared-ai-workflow-pr.md。</li>
+        <li><strong>未提交／stash／產物：</strong>實作檔案已提交；此紀錄追加內容隨後以獨立提交保存。沒有 stash；PR 描述草稿 .git/shared-ai-workflow-pr.md 僅在本機，尚未對外發布。</li>
       </ul></div>
     </section>
     <section class="panel" id="validation">
@@ -50,7 +50,7 @@
           <tr><td>雙入口閱讀路徑與 diff 自檢</td><td>ChatGPT／Codex 自檢通過</td><td>CLAUDE.md → AGENTS.md → 共用流程／任務卡；保留原始材料，不冒稱對方已接收</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未觸發；其他人／AI 審閱：未執行；跨工具接力實測：尚未發生；業務瀏覽器與兩機驗收：本輪不涉及。</p></div>
+      <div class="panel-body"><p>CI：未觸發（分支未推送、PR 未建立）；正式 PR 審閱：待使用者；跨工具接力實測：尚未發生；業務瀏覽器與兩機驗收：本輪不涉及。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -63,6 +63,7 @@
         <li>2026-10-14（UTC+08:00），ChatGPT／Codex：終端預設 uv 為 0.7.6，兩次 i18n 命令因低於專案要求而未執行。改用本機既有的 ~/.local/bin/uv 0.12.24 後 stamp、sync 與驗證成功；沒有變更系統 PATH 或放寬專案版本要求。</li>
         <li>2026-10-14（UTC+08:00），ChatGPT／Codex：完成上述文件檢查，回填驗證結果。依現有程式庫設定更正「Python 依賴更新沒有處理」的交接描述；替代 workflow 是否實際成功執行仍待核驗。本次未修改業務程式。</li>
         <li>2026-10-14（UTC+08:00），使用者：已閱讀改動，要求下一步按流程提交 PR，由使用者審核；授權本輪提交、推送及建立 PR，不合併。</li>
+        <li>2026-10-14（UTC+08:00），ChatGPT／Codex：本地提交 0b2d945，pre-commit 的空白、合併標記、大檔案、簡中同步與文檔連結檢查通過。HTTPS git push 缺少認證；已連接 GitHub 的 create-tree 返回 403 Resource not accessible by integration；既有 SSH 認證返回 Permission denied (publickey)。未建立遠端分支或 PR。請恢復合法的倉庫寫入認證後續作。</li>
       </ul></div>
     </section>
   </div>
