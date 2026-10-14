@@ -1065,11 +1065,12 @@
     const data = JSON.parse(qs('#contract-data').textContent || '{}');
     const scene = host.dataset.scene;
     let base = Number(host.dataset.base), dirty = false, loaded = false, working = false;
-    let previewSeq = 0, pendingRenames = {};
+    let previewSeq = 0, previewTimer, sample = null, pendingRenames = {};
     const state = qs('#contract-state'), saveButton = qs('[data-action="save-contract"]');
     const archived = host.dataset.archived === '1';
     const markDirty = () => {
-      dirty = true; previewSeq += 1;
+      dirty = true;
+      schedulePreviews();
       state.textContent = messages.contract_unsaved;
       saveButton.disabled = !loaded || archived || working;
       qs('#contract-next').hidden = true;
@@ -1169,15 +1170,7 @@
         }
       });
     });
-    const activateView = next => {
-      qsa('[data-contract-view]', host).forEach(button => {
-        button.classList.toggle('active', button.dataset.contractView === next);
-        button.setAttribute('aria-pressed', String(button.dataset.contractView === next));
-      });
-      qs('.contract-editors', host).hidden = next !== 'yaml';
-      qs('#contract-preview').hidden = next === 'yaml';
-    };
-    const payload = async () => {
+    const payload = async (silent = false) => {
       const value = {baseRevision: base, note: qs('[name="contract-note"]').value.trim() || null, renames: {...pendingRenames}};
       for (const editor of qsa('.contract-editor', host)) {
         const kind = editor.dataset.kind;
@@ -1185,7 +1178,7 @@
         else {
           const rows = items(editor);
           const rendered = await api('POST', '/api/contract/render', {key: kind, items: rows});
-          if (!rendered.ok) { issues(editor, rendered); return null; }
+          if (!rendered.ok) { if (!silent) issues(editor, rendered); return null; }
           value[kind] = rendered.data.text;
           if (kind === 'inputs') value.renames = mergedRenames(rows);
         }
@@ -1193,7 +1186,6 @@
       return value;
     };
     const showErrors = result => {
-      activateView('yaml');
       const list = qs('#contract-issues');
       const found = result.data?.error?.issues || [];
       list.innerHTML = '<li>' + esc(errorMessage(result)) + '</li>' + found.map((item, index) =>
@@ -1216,41 +1208,54 @@
         qs('[name="yaml"]', editor).value = result.data.yaml[editor.dataset.kind];
         qsa('input, textarea, select, button', editor).forEach(field => { field.disabled = archived; });
       });
+      sample = result.data.sample;
       loaded = true;
       return true;
     };
-    qsa('[data-contract-view]', host).forEach(button => button.addEventListener('click', async () => {
-      if (!loaded || working) return;
-      const next = button.dataset.contractView, seq = ++previewSeq;
-      if (next === 'yaml') { activateView(next); return; }
-      qs('#contract-issues').hidden = true;
-      const value = await payload();
-      if (!value || seq !== previewSeq) return;
-      const result = await api('POST', '/api/scenes/' + path(scene) + '/contract-yaml/preview', value);
+    const setPreview = (name, value, source, error = false) => {
+      const tile = qs('#contract-preview-' + name);
+      tile.setAttribute('aria-busy', 'false');
+      tile.dataset.error = String(error);
+      qs('[data-preview-source]', tile).textContent = source;
+      qs('[data-preview-value]', tile).textContent = value === null ? '' : JSON.stringify(value, null, 2);
+    };
+    const showSample = () => {
+      let source = sample
+        ? fill(messages.contract_sample_source, {number: base, run: sample.runId})
+        : fill(messages.contract_sample_empty, {number: base});
+      if (dirty) source += ' ' + messages.contract_sample_draft;
+      setPreview('sample', sample?.values || {}, source);
+    };
+    const refreshPreviews = async seq => {
+      if (!loaded || working || seq !== previewSeq) return;
+      // 唯讀預覽不彈出儲存錯誤；無效草稿清掉舊結果，避免誤認為目前內容。
+      const value = await payload(true);
       if (seq !== previewSeq) return;
-      if (!result.ok) return showErrors(result);
-      let shown = {}, source = messages.contract_preview_draft;
-      if (next === 'defaults') {
-        shown = Object.fromEntries(result.data.inputs.filter(([, spec]) => spec.default !== undefined && spec.default !== null).map(([name, spec]) => [name, spec.default]));
-        const required = result.data.inputs.filter(([, spec]) => spec.default === undefined || spec.default === null).map(([name]) => name);
-        if (required.length) source += ' ' + fill(messages.contract_required, {names: required.join(', ')});
-      } else if (next === 'mapping') {
-        shown = Object.fromEntries(result.data.outputs.map(([name, spec]) => [name, spec.from || messages.contract_script_output]));
-      } else {
-        const sample = await api('GET', '/api/scenes/' + path(scene) + '/contract-workspace?revision=' + base);
-        if (seq !== previewSeq) return;
-        if (!sample.ok) return showErrors(sample);
-        shown = sample.data.sample?.values || {};
-        source = sample.data.sample
-          ? fill(messages.contract_sample_source, {number: base, run: sample.data.sample.runId})
-          : fill(messages.contract_sample_empty, {number: base});
-        if (dirty) source += ' ' + messages.contract_sample_draft;
+      const result = value && await api('POST', '/api/scenes/' + path(scene) + '/contract-yaml/preview', value);
+      if (seq !== previewSeq) return;
+      if (!result?.ok) {
+        ['defaults', 'mapping'].forEach(name => setPreview(name, null, messages.contract_preview_invalid, true));
+        return;
       }
-      qs('#contract-preview-title').textContent = button.textContent;
-      qs('#contract-preview-source').textContent = source;
-      qs('#contract-preview-value').textContent = JSON.stringify(shown, null, 2);
-      activateView(next);
-    }));
+      let source = messages.contract_preview_draft;
+      const required = result.data.inputs.filter(([, spec]) => spec.default === undefined || spec.default === null).map(([name]) => name);
+      if (required.length) source += ' ' + fill(messages.contract_required, {names: required.join(', ')});
+      setPreview('defaults', Object.fromEntries(result.data.inputs.filter(([, spec]) => spec.default !== undefined && spec.default !== null).map(([name, spec]) => [name, spec.default])), source);
+      setPreview('mapping', Object.fromEntries(result.data.outputs.map(([name, spec]) => [name, spec.from || messages.contract_script_output])), messages.contract_preview_draft);
+    };
+    const schedulePreviews = () => {
+      const seq = ++previewSeq;
+      clearTimeout(previewTimer);
+      if (!loaded || working) return;
+      showSample();
+      ['defaults', 'mapping'].forEach(name => {
+        const tile = qs('#contract-preview-' + name);
+        tile.setAttribute('aria-busy', 'true');
+        tile.dataset.error = 'false';
+        qs('[data-preview-source]', tile).textContent = messages.working;
+      });
+      previewTimer = setTimeout(() => refreshPreviews(seq), 300);
+    };
     saveButton.addEventListener('click', async () => {
       if (!loaded || !dirty || archived || working) return;
       working = true;
@@ -1276,7 +1281,6 @@
           });
           qsa('[data-view-panel]', editor).forEach(panel => { panel.hidden = panel.dataset.viewPanel !== 'yaml'; });
         }
-        activateView('yaml');
         state.textContent = messages.contract_saved + ' · v' + base;
         qs('#contract-next span').textContent = fill(messages.contract_saved_next, {number: base});
         qs('[data-validate-contract]').href = '/scenes/' + path(scene) + '/run?purpose=validation&revision=' + base;
@@ -1285,9 +1289,15 @@
       } finally {
         working = false; host.inert = false; busy(saveButton, false);
         saveButton.disabled = !dirty || archived;
+        schedulePreviews();
       }
     });
-    loadWorkspace().then(() => {
+    loadWorkspace().then(ok => {
+      if (!ok) {
+        ['defaults', 'sample', 'mapping'].forEach(name => setPreview(name, null, messages.contract_preview_invalid, true));
+        return;
+      }
+      schedulePreviews();
       const kind = location.hash.slice(1).replace('contract-', '');
       if (['inputs', 'outputs'].includes(kind)) {
         const area = qs('#contract-' + kind + ' [name="yaml"]');

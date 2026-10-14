@@ -470,15 +470,30 @@ def test_contract_workspace_preserves_drafts_and_saves_both_columns(
     output_text = before["outputs"].replace("facts.record.title", "inputs.extra")
     inputs.fill(input_text)
     outputs.fill(output_text)
-    page.locator('[data-contract-view="defaults"]').click()
-    expect(page.locator("#contract-preview-value")).to_contain_text('"quantity": 9')
-    expect(page.locator("#contract-preview-value")).to_contain_text("preview-value")
-    expect(page.locator("#contract-preview input, #contract-preview textarea")).to_have_count(0)
-    page.locator('[data-contract-view="mapping"]').click()
-    expect(page.locator("#contract-preview-value")).to_contain_text("inputs.extra")
-    page.locator('[data-contract-view="sample"]').click()
-    expect(page.locator("#contract-preview-source")).to_contain_text("尚無成功執行")
-    page.locator('[data-contract-view="yaml"]').click()
+    defaults = page.locator("#contract-preview-defaults [data-preview-value]")
+    mapping = page.locator("#contract-preview-mapping [data-preview-value]")
+    sample = page.locator("#contract-preview-sample [data-preview-source]")
+    expect(defaults).to_contain_text('"quantity": 9')
+    expect(defaults).to_contain_text("preview-value")
+    expect(mapping).to_contain_text("inputs.extra")
+    expect(sample).to_contain_text("尚無成功執行")
+    expect(page.locator(".contract-previews input, .contract-previews textarea")).to_have_count(0)
+    expect(page.locator("[data-contract-view]")).to_have_count(0)
+    # 三個預覽平鋪在編輯器下方，不需要切換頁籤。
+    tiles = page.locator(".contract-preview-tile")
+    for tile in tiles.all():
+        expect(tile).to_be_visible()
+    boxes = [box for tile in tiles.all() if (box := tile.bounding_box()) is not None]
+    assert len(boxes) == 3
+    assert boxes[0]["y"] == boxes[1]["y"] == boxes[2]["y"]
+    assert boxes[0]["x"] < boxes[1]["x"] < boxes[2]["x"]
+    assert boxes[0]["y"] > left["y"] + left["height"]
+    page.set_viewport_size({"width": 390, "height": 844})
+    mobile = [tile.bounding_box() for tile in tiles.all()]
+    assert all(box is not None for box in mobile)
+    assert [box["y"] for box in mobile if box] == sorted(box["y"] for box in mobile if box)
+    assert page.evaluate("document.body.scrollWidth === innerWidth")
+    page.set_viewport_size({"width": 1440, "height": 900})
     expect(inputs).to_have_value(input_text)
     expect(outputs).to_have_value(output_text)
     # 切表格也以兩欄草稿一起校驗，不會誤判新入參不存在。
@@ -501,10 +516,17 @@ def test_contract_workspace_preserves_drafts_and_saves_both_columns(
     # 無效草稿顯示原因與欄位行號，兩欄保留；另一分頁保存後拒絕覆蓋。
     valid = inputs.input_value()
     inputs.fill(valid.replace("type: integer", "type: invalid"))
+    expect(page.locator("#contract-preview-defaults [data-preview-source]")).to_contain_text(
+        "暫無預覽"
+    )
+    expect(defaults).to_be_empty()
+    expect(mapping).to_be_empty()
+    expect(sample).to_contain_text("v2")
     save.click()
     expect(page.locator("#contract-issues")).to_contain_text("inputs")
     assert "type: invalid" in inputs.input_value()
     inputs.fill(valid.replace("default: 9", "default: 8"))
+    expect(defaults).to_contain_text('"quantity": 8')
     files = page.request.get(f"{portal}/api/scenes/ba-001/revisions/2").json()["files"]
     assert page.request.post(
         f"{portal}/api/scenes/ba-001/revisions", data={"baseRevision": 2, "files": files}

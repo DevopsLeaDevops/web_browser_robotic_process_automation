@@ -39,7 +39,7 @@
     </div>
   </div>
   <div class="panel-body" data-view-panel="yaml">
-    <textarea class="code-editor" name="yaml" rows="16" disabled spellcheck="false" aria-label="{{ t('contract.title_' + kind) }}">{{ contract_data.get("yaml", {}).get(kind, "") }}</textarea>
+    <textarea class="code-editor" name="yaml" rows="12" disabled spellcheck="false" aria-label="{{ t('contract.title_' + kind) }}">{{ contract_data.get("yaml", {}).get(kind, "") }}</textarea>
     <p class="hint">{{ t("contract.yaml_hint_" + kind) }}</p>
   </div>
   <template data-row>
@@ -69,9 +69,6 @@
 <datalist id="facts-list">{% for name, fields in facts %}<option value="{{ '{{ facts.' ~ name ~ ' }}' }}">{% for item in fields %}<option value="{{ '{{ facts.' ~ name ~ '.' ~ item ~ ' }}' }}">{% endfor %}{% endfor %}</datalist>
 <section id="contract-workspace" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-archived="{{ '1' if scene.archived else '0' }}">
   <div class="contract-toolbar">
-    <nav class="segmented" aria-label="{{ t('contract.views') }}">
-      {% for view in ("yaml", "defaults", "sample", "mapping") %}<button type="button" data-contract-view="{{ view }}"{% if view == "yaml" %} class="active" aria-pressed="true"{% else %} aria-pressed="false"{% endif %}>{{ t("contract.preview_" + view) }}</button>{% endfor %}
-    </nav>
     <span id="contract-state" class="muted" role="status">{{ t("contract.based_on", number=scene.latest_number) }}</span>
     <button class="button primary" type="button" data-action="save-contract" disabled>{{ t("contract.save_both") }}</button>
   </div>
@@ -81,9 +78,13 @@
     {{ editor("inputs", ("string", "number", "integer", "boolean"), scenario.script) }}
     {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object"), scenario.script) }}
   </div>
-  <section class="panel" id="contract-preview" hidden>
-    <div class="panel-header"><h2 id="contract-preview-title"></h2><span class="tag">{{ t("contract.readonly") }}</span></div>
-    <div class="panel-body"><p id="contract-preview-source" class="hint"></p><pre id="contract-preview-value" class="contract-preview-code" tabindex="0"></pre></div>
-  </section>
+  <div class="contract-previews">
+    {% for preview in ("defaults", "sample", "mapping") %}
+    <section class="panel contract-preview-tile" id="contract-preview-{{ preview }}" aria-labelledby="contract-preview-{{ preview }}-title" aria-busy="true">
+      <div class="panel-header"><h2 id="contract-preview-{{ preview }}-title">{{ t("contract.preview_" + preview) }}</h2><span class="tag">{{ t("contract.readonly") }}</span></div>
+      <div class="panel-body"><p data-preview-source class="hint">{{ t("js.working") }}</p><pre data-preview-value class="contract-preview-code" tabindex="0" aria-labelledby="contract-preview-{{ preview }}-title"></pre></div>
+    </section>
+    {% endfor %}
+  </div>
   <label class="field contract-note">{{ t("edit.note") }}<input name="contract-note" maxlength="500" placeholder="{{ t('contract.note_placeholder') }}"></label>
 </section>

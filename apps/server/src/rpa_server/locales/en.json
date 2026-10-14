@@ -914,5 +914,6 @@
   "wfjs.status_skipped": "Skipped",
   "wfjs.status_needs_login": "Login required",
   "wfjs.status_pending": "Waiting",
-  "wfjs.status_reused": "Reused"
+  "wfjs.status_reused": "Reused",
+  "js.contract_preview_invalid": "Preview unavailable. Check the current contract; save to see detailed errors."
 }

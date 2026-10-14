@@ -271,6 +271,7 @@ def js_messages() -> dict[str, str]:
         "js.contract_saved",
         "js.contract_unsaved",
         "js.contract_preview_draft",
+        "js.contract_preview_invalid",
         "js.contract_required",
         "js.contract_script_output",
         "js.contract_sample_source",

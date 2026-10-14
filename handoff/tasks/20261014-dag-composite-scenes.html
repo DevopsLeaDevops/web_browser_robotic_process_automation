@@ -7,7 +7,7 @@
 <dt>主責／整合者</dt><dd>ChatGPT／Codex。審閱及接收方未指定。</dd>
 <dt>範圍</dt><dd>rpa_core.workflow、Portal workflow service／導航／頁面／JS／CSS、訊息目錄、測試、正式設計與交接文檔。</dd>
 <dt>分支／基準</dt><dd>m6/dag-composite-scenes；origin/main bbea5a4df2040532308a2f4fd7ce126c8b8f2be4（#27 已合併）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR #28</a> 對 main，無相依 PR。</dd>
-<dt>狀態／交接版本</dt><dd>已建立 PR #28；使用者已驗收 e57f57a 的既有功能。本輪再追加參數連線、左右契約與操作動線，已完成本地驗證；新增 UI 待使用者複驗、正式審閱及接收。原型提交 <code>c363ada</code>、功能提交 <code>6f4feab</code>；其後提交補充發布授權、驗收指引與時區規則；本輪 UI 追加見下方紀錄。接收時以 PR 最新 head 為準。</dd>
+<dt>狀態／交接版本</dt><dd>已建立 PR #28；使用者已完成 f7a34f2 的驗收並提出版面調整。本輪三個唯讀預覽已改為左右編輯器下方平鋪，完成本地驗證；補充於同一 PR，最新 CI 以 PR 說明／Checks 為準。版面複驗、正式審閱及接收未完成。原型提交 <code>c363ada</code>、功能提交 <code>6f4feab</code>；其後提交補充發布授權、驗收指引與時區規則；本輪 UI 追加見下方紀錄。接收時以 PR 最新 head 為準。</dd>
 <dt>工作區</dt><dd>使用者共用 macOS checkout；開工時乾淨、無其他 worktree。測試使用暫存資料與獨立埠。</dd>
 </dl></div></section>
 <section class="panel"><div class="panel-header"><h2>決定與下一步</h2></div><div class="panel-body"><ul class="points">
@@ -59,6 +59,10 @@
 <li>從畫布執行，先原地看進度、點節點看實際入出參，再主動進完整報告並返回，確認資訊與動線直觀。卡片快捷執行仍進報告。</li>
 </ol><p>既有功能已由使用者接受；本輪待確認的是新增互動與日常螢幕上的可用性。實際業務系統及兩台實體電腦／Windows worker 不在本輪本機驗收範圍；正式審閱、接收與合併由使用者決定。</p>
 </div></section>
+<section class="panel" id="preview-tiles"><div class="panel-header"><h2>驗收追加：契約預覽平鋪</h2></div><div class="panel-body prose"><p>從 <code>f7a34f2</code> 接續。使用者要求預設入參、出參樣例、出參提取映射在左右 YAML 編輯器下方以三個功能塊同時展示，不再點選頁籤切換。仍為唯讀，沿用兩欄保存與原執行邏輯。桌面三欄同時展示、窄屏縱向排列；預設值與提取映射隨草稿自動刷新，校驗失敗時清除舊值。成功樣例獨立顯示已保存版本的結果，編輯器保持可見。縮短預設編輯區高度，仍可拖動調整。
+</p><p>本地驗證版本：<code>f7a34f2</code> 加本輪差異；macOS／Python 3.13.16／uv 0.12.24。<code>uv run pytest -q apps/server/tests/test_portal.py -k contract</code>：2 passed、7 deselected（9.76 秒），真實 Chromium 覆蓋三欄位置、窄屏、唯讀、自動刷新、無效草稿清除、兩欄保存、連續改名與衝突保護。<code>uv run pytest -q apps/server/tests/test_render.py tests/docs tests/i18n</code>：300 passed（1.14 秒）。<code>uv run pytest -m "not browser" -q</code>：857 passed、73 deselected（33.38 秒）。Ruff、格式、Pyright strict、JavaScript 語法、i18n check 及 diff 檢查通過。Pyright 初次發現測試的空清單型別推斷不足，改為推導式後複驗通過。
+</p><p>實際畫面：1440×900（繁中／英文）三卡與編輯器在首屏同時可見；390×844 窄屏縱向平鋪、無整頁橫向溢出。<a href="../assets/20261014-contract-tiles.png">桌面平鋪</a> · <a href="../assets/20261014-contract-tiles-mobile.png">窄屏</a>，截圖使用臨時示範資料。現行 <a href="http://127.0.0.1:8080/scenes/ba-001">8080 場景頁</a> 已刷新服務並以 Chromium 實際開啟：三卡首屏可見、成功樣例與 API 真實結果一致、無 JavaScript 錯誤；核對原版本、YAML、樣例未變。本輪只調整契約呈現，未再次執行 DAG，先前實跑證據見上節。
+</p><p>使用者複驗：重新整理上述場景頁，確認左右 YAML 下方直接顯示三個功能塊，在常用螢幕下無需切換頁籤。可在臨時場景修改 YAML，確認預設入參與映射同步更新且仍只讀；既有兩欄保存與版本邏輯不變。最新提交與 CI 結果回填 PR，避免為紀錄流水線結果重複提交。</p></div></section>
 <section class="panel" id="acceptance"><div class="panel-header"><h2>使用者驗收操作（約 15～20 分鐘）</h2></div><div class="panel-body">
 <p>這份清單分開驗證功能證據與使用者體驗，不把自動測試通過當成人工接受。先用示範場景完成核心驗收，再以既有資料與實際業務場景確認相容性。DAG 可分叉及匯合，目前依拓撲順序逐個執行。</p>
 <h3>準備</h3><p>本機 checkout 已在 <code>m6/dag-composite-scenes</code>。在專案根目錄執行以下命令，使用獨立 Portal 資料目錄；既有 8080 服務可保留。若 8090 被占用，改用其他空埠並修改開啟網址。範例目標網站在 8765，已在執行時會沿用，範例會新增測試紀錄。</p>

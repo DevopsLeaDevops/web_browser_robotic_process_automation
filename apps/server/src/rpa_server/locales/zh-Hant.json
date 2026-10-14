@@ -914,5 +914,6 @@
   "wfjs.status_skipped": "略過",
   "wfjs.status_needs_login": "需要登入",
   "wfjs.status_pending": "等待中",
-  "wfjs.status_reused": "沿用"
+  "wfjs.status_reused": "沿用",
+  "js.contract_preview_invalid": "暫無預覽，請檢查目前契約；儲存時可查看具體原因。"
 }

@@ -209,9 +209,9 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 @media(max-width:700px){.flow-layout.workflow-editor{grid-template-columns:minmax(0,1fr)}.workflow-editor>.flow-library{height:200px}.flow-center{height:580px;grid-template-rows:minmax(240px,1fr) 250px}.workflow-toolbar h1{font-size:15px;max-width:100%}.workflow-toolbar>.actions{width:100%;gap:5px}.workflow-toolbar .button{font-size:11px;padding:4px 7px}.workflow-help{position:static}.workflow-help>.panel{left:0;right:auto;top:100%;max-width:100%}.input-columns,.input-source{grid-template-columns:95px minmax(100px,1fr) minmax(90px,1fr);gap:6px}#node-inputs{overflow:auto}.input-source,.input-columns{min-width:320px}}
 
 .input-name,.binding-value{min-width:0;font-size:11px;overflow-wrap:anywhere}.binding-value input+span,.binding-value select+span{display:block;margin-top:3px}
-/* 契約工作台：左右原文共用保存與預覽，切換不丟棄草稿。 */
+/* 契約工作台：左右原文共用保存，三個唯讀預覽在下方平鋪。 */
 .contract-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.contract-toolbar #contract-state{margin-left:auto;font-size:12px}
+.contract-toolbar #contract-state{margin-right:auto;font-size:12px}
 .contract-editors{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
 .contract-editor{min-width:0;overflow:hidden}
 .contract-editor .panel-header{padding:10px 12px;gap:8px}
@@ -219,11 +219,21 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .contract-editor .header-main{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
 .contract-editor .segmented button{font-size:11px;padding:3px 8px}
 .contract-editor .panel-body{padding:12px}
-.contract-editor .code-editor{min-height:300px;max-height:60vh;resize:vertical;font-size:12px;line-height:1.65}
+.contract-editor .code-editor{min-height:240px;max-height:60vh;resize:vertical;font-size:12px;line-height:1.65}
 .contract-editor .edit-table{min-width:740px}
 .contract-note{margin-top:10px;max-width:600px;font-size:12px;display:flex;align-items:center;gap:10px;border:0}
 .contract-note input{flex:1;min-width:0}
 .contract-preview-code{white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;border:1px solid var(--line);padding:14px;border-radius:6px;font:12px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;max-height:48vh;overflow:auto;min-height:180px}
+.contract-previews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.contract-preview-tile{min-width:0;overflow:hidden}
+.contract-preview-tile .panel-header{padding:8px 12px;gap:6px;flex-wrap:wrap}
+.contract-preview-tile h2{font-size:13px}
+.contract-preview-tile .panel-body{padding:10px 12px}
+.contract-preview-tile .hint{margin:0 0 8px;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
+.contract-preview-tile .contract-preview-code{min-height:100px;max-height:180px;margin:0;padding:8px;font-size:11px;line-height:1.6}
+.contract-preview-tile[aria-busy="true"] .contract-preview-code{opacity:.5}
+.contract-preview-tile[data-error="true"] .hint{color:var(--danger)}
+@media(max-width:900px){.contract-previews{grid-template-columns:minmax(0,1fr)}}
 .contract-next{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 #scene-release-status:empty{display:none}
 /* 畫布下方的參數連線，四種取值方式與來源同列可見。 */
