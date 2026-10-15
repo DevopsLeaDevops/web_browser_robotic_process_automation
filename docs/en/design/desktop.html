@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4b7c4e22f1bae626">
+<meta name="translation-source" content="sha256:50df441c4f85d988">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -182,7 +182,7 @@
           <li><strong>Browsers.</strong>On first launch the Playwright driver inside the app downloads them, so the versions always match; they go to Playwright's default user cache. An internal mirror can be set in settings (<code>PLAYWRIGHT_DOWNLOAD_HOST</code>). Chromium is required and Firefox optional, for both apps.</li>
           <li><strong>Python script scenarios.</strong>A packaged app runs them with its own Python, which can import only the standard library and the packages shipped inside the app (Playwright, Pydantic and so on).</li>
           <li><strong>CI.</strong>A new desktop build workflow builds the recorder on macOS (Apple silicon) and the worker on Windows, then runs a <strong>self-test</strong>: the packaged app downloads Chromium, starts the test site and runs BA-001 headless, proving the packaged child-process path really works. The DMG and installer are attached to that build.</li>
-          <li><strong>Estimated sizes.</strong>Installers about 70–100 MB; the first download is about 150 MB for Chromium and 90 MB for Firefox. To be updated after measuring in M10.0.</li>
+          <li><strong>Sizes (measured in CI for M10.0).</strong>The recorder DMG is 68 MB (166 MB unpacked); the worker zip is 58 MB (139 MB unpacked). The first Chromium download (headless shell included) takes about 570 MB (macOS) to 710 MB (Windows) unpacked; Firefox comes on top.</li>
         </ul>
       </div>
     </section>

@@ -179,7 +179,7 @@
           <li><strong>瀏覽器。</strong>第一次啟動用 App 內附的 Playwright driver 下載，版本必定相符；放在 Playwright 預設的使用者快取。可以在設定填內部鏡像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）。錄製端必要 Chromium、選用 Firefox；Worker 同。</li>
           <li><strong>Python 腳本場景。</strong>打包後用 App 內的 Python 執行，只能 import 標準函式庫與 App 內附的套件（Playwright、Pydantic 等）。</li>
           <li><strong>CI。</strong>新增桌面端建置流程：macOS（Apple 晶片）建錄製端、Windows 建 Worker；建好後跑<strong>自我測試</strong>：用打包後的 App 下載 Chromium、啟動測試網站，以無頭模式跑 BA-001，確認打包後的子程序路徑真的能用。產物（DMG、安裝檔）掛在該次建置上。</li>
-          <li><strong>估計大小。</strong>安裝檔約 70～100 MB；第一次下載 Chromium 約 150 MB、Firefox 約 90 MB。M10.0 實測後更新。</li>
+          <li><strong>大小（M10.0 在 CI 實測）。</strong>錄製端的 DMG 68 MB（App 解壓後 166 MB）；Worker 的 zip 58 MB（解壓後 139 MB）。第一次下載的 Chromium（含無頭版）解壓後約 570 MB（macOS）～710 MB（Windows）；Firefox 另計。</li>
         </ul>
       </div>
     </section>
