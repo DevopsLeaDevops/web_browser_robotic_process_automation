@@ -4,10 +4,10 @@
 <section class="panel"><div class="panel-header"><h2>任務與責任</h2></div><div class="panel-body"><dl class="spec-list">
 <dt>需求來源</dt><dd>使用者於本次對話確認自由試驗場基本功能驗證無問題，要求 DAG、可拖動畫布、上游出參綁定下游入參、場景生產選單調序、場景管理最後加入卡片式「組合場景自動化」。使用者隨後提供新版 MVP v2.0（2026-10-13），本輪已整包同步至 docs/prototypes/mvp。</dd>
 <dt>驗收條件</dt><dd>非線性分叉／匯合可存取並執行；畫布位置保存；連線與資料來源可配置且阻擋環；舊序列與歷史執行可讀；卡片管理與生產畫布分工；三語及相關真實瀏覽器測試通過。</dd>
-<dt>主責／整合者</dt><dd>ChatGPT／Codex。審閱及接收方未指定。</dd>
+<dt>主責／整合者</dt><dd>ChatGPT／Codex（實作至合併）。合併後由 Claude 接收並收尾紀錄（見<a href="#closeout">合併與收尾</a>）。GitHub 上沒有正式 review；合併由使用者決定並執行。</dd>
 <dt>範圍</dt><dd>rpa_core.workflow、Portal workflow service／導航／頁面／JS／CSS、訊息目錄、測試、正式設計與交接文檔。</dd>
 <dt>分支／基準</dt><dd>m6/dag-composite-scenes；origin/main bbea5a4df2040532308a2f4fd7ce126c8b8f2be4（#27 已合併）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR #28</a> 對 main，無相依 PR。</dd>
-<dt>狀態／交接版本</dt><dd>已建立 PR #28；使用者已完成 f7a34f2 的驗收並提出版面調整。本輪三個唯讀預覽已改為左右編輯器下方平鋪，完成本地驗證；補充於同一 PR，最新 CI 以 PR 說明／Checks 為準。版面複驗、正式審閱及接收未完成。原型提交 <code>c363ada</code>、功能提交 <code>6f4feab</code>；其後提交補充發布授權、驗收指引與時區規則；本輪 UI 追加見下方紀錄。接收時以 PR 最新 head 為準。</dd>
+<dt>狀態／交接版本</dt><dd><strong>完成（2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00） 由使用者確認）。</strong>PR #28 於 2026-10-14 08:18 America/Los_Angeles（PDT，UTC−07:00） 由使用者 squash 合併為 main <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/878e4e0ef9ce847902d954d400dc0aa1b2957d63">878e4e0</a>；最終 head <code>641518e</code>，兩者 tree 相同。未驗的實際業務系統與兩台實體電腦移到<a href="../open-work.html#m6-gaps">未完成工作</a>。以下為合併前的原紀錄：已建立 PR #28；使用者已完成 f7a34f2 的驗收並提出版面調整。本輪三個唯讀預覽已改為左右編輯器下方平鋪，完成本地驗證；補充於同一 PR，最新 CI 以 PR 說明／Checks 為準。版面複驗、正式審閱及接收未完成。原型提交 <code>c363ada</code>、功能提交 <code>6f4feab</code>；其後提交補充發布授權、驗收指引與時區規則；本輪 UI 追加見下方紀錄。接收時以 PR 最新 head 為準。</dd>
 <dt>工作區</dt><dd>使用者共用 macOS checkout；開工時乾淨、無其他 worktree。測試使用暫存資料與獨立埠。</dd>
 </dl></div></section>
 <section class="panel"><div class="panel-header"><h2>決定與下一步</h2></div><div class="panel-body"><ul class="points">
@@ -15,6 +15,7 @@
 <li>實作選擇：第 2 版定義增加有向邊及節點座標；第 1 版維持相容，編輯時升級為同等依賴圖；輸出綁定也構成依賴。</li>
 <li>實作選擇：支援分叉與匯合，依拓撲順序逐個執行，不增加同時執行或條件分支；沿用失敗即停、固定場景版本、快照與續跑。</li>
 <li>已完成：核心 DAG／循環檢查、拓撲執行與續跑、四種入參來源、可拖動畫布／連線／縮放、座標保存、卡片管理、導航順序、三語與測試。下一步：依本頁驗收指引確認使用體驗及實際環境，正式審閱後由使用者決定合併。GitHub CI 結果記錄在 PR，使用者已回覆原功能無問題，本輪 UI 追加待使用者複驗。</li>
+<li>2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00） 更新：上一條的「下一步」已完成——已合併、最後一輪 UI 已由使用者複驗。剩下的實際業務系統與兩台實體電腦驗收，以及路線圖 M6 描述更新，列在<a href="../open-work.html#m6-gaps">未完成工作</a>，不阻擋本任務完成。</li>
 </ul></div></section>
 <section class="panel" id="validation"><div class="panel-header"><h2>驗證與缺口</h2></div><div class="panel-body"><p>本地被測功能版本：<code>6f4feab</code>（基準 <code>bbea5a4</code>＋本輪功能差異）；macOS、Python 3.13.16、uv 0.12.24。測試使用暫存 SQLite／測試網站與獨立連接埠，不使用既有業務資料。</p><ul class="points">
 <li><code>uv sync --locked</code> 通過，未新增套件或修改鎖檔。</li>
@@ -94,6 +95,32 @@
 </ul>
 <p>回報格式：PR #28／實際提交 SHA、作業系統及瀏覽器、資料目錄、通過項目；未通過項目附操作步驟、預期／實際結果及執行編號，可補截圖。若要交給 Claude 接手，請先指定接收方，核對同一 PR head 後回填接收確認。</p>
 </div></section>
-<section class="panel"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>未接收；接收方須核對版本並回填。</p></div></section>
-<section class="panel"><div class="panel-header"><h2 id="publication">追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-10-14 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：讀取共用流程並 fetch，確認 #27 已合併，從最新 origin/main 建立本分支。原型包 docs/prototypes/mvp 是舊版；使用者將另提供新版。</li><li>2026-10-14 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：完成實作與自檢。瀏覽器測試發現固定值說明未刷新，已修正；單獨執行 Portal 測試時先檢查 engine，再開 Playwright 頁面以避免巢狀事件迴圈。拖動保存測試改為等待 PUT 回應後才讀取資料；沒有放寬斷言。自檢另外補上未知同名匹配欄位不得靜默丟棄，以及隱式出參依賴與同名匹配使用同一依賴圖的回歸。</li><li>2026-10-14 America/Los_Angeles（PDT，UTC−07:00），使用者明確要求建立 PR 並檢查 GitHub 流水線，授權後續大的改動直接建立 PR；已同步共用流程及 AGENTS.md。Codex 推送功能分支並建立 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR #28</a>，補充本頁驗收步驟及責任分工。最終 CI 證據回填 PR 說明，人工驗收與正式接收仍待確認。</li><li>2026-10-14 04:11 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：依使用者要求將交付資料與 PR 時間統一換算為洛杉磯時間；同步 AGENTS.md、共用流程、任務／PR 範本及維護中的交接頁。原始材料保持原文。功能提交 6f4feab 及此前 ae899df 的 CI 證據不變，本次只修改文字與時間呈現；最新文件提交的 CI 另見 PR Checks。</li></ul></div></section>
+<section class="panel" id="closeout"><div class="panel-header"><h2>合併與收尾</h2><span class="muted">2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00），Claude</span></div><div class="panel-body prose">
+<h3>合併</h3><ul>
+<li>PR #28：使用者（DevopsLeaDevops）squash 合併，merge commit <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/878e4e0ef9ce847902d954d400dc0aa1b2957d63">878e4e0ef9ce847902d954d400dc0aa1b2957d63</a>，提交時間 2026-10-14 08:18:30 America/Los_Angeles（PDT，UTC−07:00）。base <code>bbea5a4</code>，7 個提交（<code>c363ada</code>、<code>6f4feab</code>、<code>ae899df</code>、<code>69173d2</code>、<code>e57f57a</code>、<code>f7a34f2</code>、<code>641518e</code>）。</li>
+<li>最終 head <code>641518efc78e022e9eabb8ae1f0367f12e60750e</code> 與 <code>878e4e0</code> 的 tree 都是 <code>08ad0210dadf802fb22d8329596238a71675a16d</code>：合併內容就是被驗收的版本，沒有合併時才出現的差異。</li>
+<li>GitHub 上沒有 review 與 review 留言；AI 自檢與使用者複驗見本頁各節。</li>
+<li>分支 <code>m6/dag-composite-scenes</code> 的最新提交就是最終 head，沒有合併後的獨有提交，可以刪除；本次沒有刪（Claude 本 session 沒有 GitHub 寫入權限）。</li>
+</ul>
+<h3>CI</h3>
+<table class="wrap"><thead><tr><th>版本</th><th>Run</th><th>結果</th></tr></thead><tbody>
+<tr><td>PR head <code>f7a34f2</code></td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38580720020">38580720020</a></td><td>通過；Python 3.12／3.13 各 930 passed（含 Chromium、Firefox）。取自 PR 說明。</td></tr>
+<tr><td>PR 最終 head <code>641518e</code></td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38586912047">38586912047</a></td><td>通過；Python 3.12：929 passed、1 skipped（<code>packages/rpa_runner/tests/test_run.py:82</code> 的取消測試，工作在一秒內完成而跳過，不算通過）；Python 3.13：930 passed。取自 PR 說明。</td></tr>
+<tr><td>main <code>878e4e0</code></td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38588185349">38588185349</a>（CI #107，push）</td><td>成功，2026-10-14 08:18 America/Los_Angeles（PDT，UTC−07:00） 開始，耗時 7 分 11 秒。靜態檢查成功；測試 3.12／3.13 兩組成功，annotations 各記「pytest-report.xml 沒有失敗的測試（930 個）」。2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00） 由 Claude 在 GitHub Actions 頁面讀取。</td></tr>
+</tbody></table>
+<p>同一 run 的 annotations 另有通知：GitHub 的 <code>ubuntu-latest</code> 自 2026-10-19 起改為 Ubuntu 26。這與 M6 無關，列在<a href="../open-work.html#m6-gaps">未完成工作</a>。一鍵安裝腳本 workflow 本次無相關路徑變更，未觸發。</p>
+<h3>人工驗收（使用者於 2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00） 在與 Claude 的對話中確認）</h3><ul>
+<li><strong>通過</strong>：最後一輪「契約預覽平鋪」（<code>641518e</code>）合併前已複驗，沒有問題。</li>
+<li><strong>通過</strong>：示範場景 DAG（BA-001／BA-002 的分叉與匯合）在使用者本機跑過。</li>
+<li><strong>通過</strong>：用原有資料啟動後，舊序列與歷史報告可讀。</li>
+<li>以上兩項通過的確切提交與瀏覽器沒有另外回報；依對話時序是在 PR #28 驗收期間、使用者的 8080 Portal 上。</li>
+<li><strong>未驗</strong>：實際業務系統的場景串接；兩台實體電腦（Windows worker）執行組合場景。使用者決定 M6 記為完成，這兩項列為後續待辦，見<a href="../open-work.html#m6-gaps">未完成工作</a>。</li>
+</ul>
+<h3>Claude 本次的驗證與缺口</h3><ul>
+<li>做了：<code>git fetch origin</code> 後比對 PR head 與 merge commit 的 tree；讀 PR #28 頁面與 GitHub Actions 的 run 頁面。</li>
+<li>沒做（受阻）：本機測試。Claude 這個雲端 session 連不到 PyPI（pypi.org、files.pythonhosted.org 被出口代理拒絕），<code>uv sync --locked</code> 失敗，所以 Ruff、Pyright、pytest、<code>tools/i18n.py</code>（需要 OpenCC）都沒有在本機跑。本次只改 <code>handoff/</code> 與 <code>README.md</code>，不涉及程式與 <code>docs/</code>；程式行為的證據以上表的 CI 為準。</li>
+</ul>
+</div></section>
+<section class="panel" id="receipt"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00），Claude 接收 main <code>878e4e0</code>（等同 PR #28 最終 head <code>641518e</code> 的 tree）。核對結果：tree 一致；main CI run 38588185349 成功；本機測試受阻未執行（原因見上節）。接受的範圍：合併後的紀錄收尾與後續維護。本任務的實作已完成；新的修改另開分支與任務。</p></div></section>
+<section class="panel"><div class="panel-header"><h2 id="publication">追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-10-14 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：讀取共用流程並 fetch，確認 #27 已合併，從最新 origin/main 建立本分支。原型包 docs/prototypes/mvp 是舊版；使用者將另提供新版。</li><li>2026-10-14 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：完成實作與自檢。瀏覽器測試發現固定值說明未刷新，已修正；單獨執行 Portal 測試時先檢查 engine，再開 Playwright 頁面以避免巢狀事件迴圈。拖動保存測試改為等待 PUT 回應後才讀取資料；沒有放寬斷言。自檢另外補上未知同名匹配欄位不得靜默丟棄，以及隱式出參依賴與同名匹配使用同一依賴圖的回歸。</li><li>2026-10-14 America/Los_Angeles（PDT，UTC−07:00），使用者明確要求建立 PR 並檢查 GitHub 流水線，授權後續大的改動直接建立 PR；已同步共用流程及 AGENTS.md。Codex 推送功能分支並建立 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/28">PR #28</a>，補充本頁驗收步驟及責任分工。最終 CI 證據回填 PR 說明，人工驗收與正式接收仍待確認。</li><li>2026-10-14 04:11 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：依使用者要求將交付資料與 PR 時間統一換算為洛杉磯時間；同步 AGENTS.md、共用流程、任務／PR 範本及維護中的交接頁。原始材料保持原文。功能提交 6f4feab 及此前 ae899df 的 CI 證據不變，本次只修改文字與時間呈現；最新文件提交的 CI 另見 PR Checks。</li><li>2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者要求把 M6 的紀錄補完整。fetch 後確認 PR #28 已於 08:18 合併為 <code>878e4e0</code>，<code>m6/dag-composite-scenes</code> 與 main 的 tree 相同；讀 PR 與 Actions 頁回填 CI；向使用者確認人工驗收範圍後，把任務標為完成，在 <code>docs/m6-closeout</code> 分支同步 README、交接總入口、驗收紀錄、未完成工作與時間軸。</li></ul></div></section>
 </div></main></body></html>
