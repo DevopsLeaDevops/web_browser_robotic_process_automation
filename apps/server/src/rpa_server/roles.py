@@ -16,7 +16,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -32,6 +31,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from rpa_core.dsl import Issue, format_field, format_issue, validate_data
 from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.i18n import Locale, use_locale
+from rpa_runner.commands import module_command
 from rpa_runner.files import LOGIN, read_json_or
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_server.domain import DOMAIN_ID, RoleRecord, RoleStatus, now
@@ -458,18 +458,18 @@ class RoleService:
             },
         )
         out.mkdir(parents=True, exist_ok=True)
-        command = [
-            sys.executable,
-            "-m",
+        command = module_command(
             "rpa_runner.login",
-            "check",
-            "--out",
-            str(out),
-            "--deadline",
-            str(CHECK_SECONDS),
-            "--engine",
-            engine,
-        ]
+            [
+                "check",
+                "--out",
+                str(out),
+                "--deadline",
+                str(CHECK_SECONDS),
+                "--engine",
+                engine,
+            ],
+        )
         with (out / "login.log").open("wb") as log:
             try:
                 completed = subprocess.run(
@@ -569,16 +569,16 @@ class RoleService:
             if (current is not None and current.active) or role_id in self._checking:
                 raise _error(409, "role_busy", t("error.role_busy", id=role_id))
             process = self.launcher(
-                [
-                    sys.executable,
-                    "-m",
+                module_command(
                     "rpa_runner.login",
-                    "capture",
-                    "--state",
-                    str(candidate),
-                    "--engine",
-                    engine,
-                ],
+                    [
+                        "capture",
+                        "--state",
+                        str(candidate),
+                        "--engine",
+                        engine,
+                    ],
+                ),
                 env=child_env(self.locale, {ENV_LOGIN: json.dumps(settings.to_json())}),
                 log=folder / "capture.log",
             )

@@ -12,7 +12,6 @@
 import json
 import shutil
 import subprocess
-import sys
 import threading
 import time
 import uuid
@@ -26,6 +25,7 @@ from rpa_core.dsl import Scenario, Step
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.browser import DEFAULT_STEP_TIMEOUT_MS
+from rpa_runner.commands import module_command
 from rpa_runner.contract import check_inputs
 from rpa_runner.run import ENV_STORAGE_STATE
 from rpa_server.domain import now
@@ -277,19 +277,19 @@ class DebugManager:
 
     def _launch(self, session: DebugSession) -> None:
         scenario = session.scenario
-        command = [
-            sys.executable,
-            "-m",
+        command = module_command(
             "rpa_runner.debug",
-            "--scenario",
-            str(session.folder / SCENARIO_FILE),
-            "--input",
-            str(session.folder / "input.json"),
-            "--out",
-            str(session.folder),
-            "--engine",
-            session.engine,
-        ]
+            [
+                "--scenario",
+                str(session.folder / SCENARIO_FILE),
+                "--input",
+                str(session.folder / "input.json"),
+                "--out",
+                str(session.folder),
+                "--engine",
+                session.engine,
+            ],
+        )
         command += [] if session.headless else ["--headed"]
         command += ["--base-url", session.base_url] if session.base_url else []
         extra = self.roles.secret_values(scenario.secrets)

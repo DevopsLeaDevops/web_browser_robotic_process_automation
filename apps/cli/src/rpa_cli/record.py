@@ -10,7 +10,6 @@
 
 import re
 import subprocess
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -19,6 +18,7 @@ import click
 from rpa_cli.i18n import t
 from rpa_cli.validate import EXIT_INVALID, display_path
 from rpa_core.recording import ConversionError, convert_recording
+from rpa_runner.commands import playwright_command
 
 __all__ = ["build_record_command", "codegen"]
 
@@ -129,18 +129,17 @@ def _record(
     """錄製到暫存檔，讀回內容後刪除暫存檔（裡面可能有密碼）。"""
     out.parent.mkdir(parents=True, exist_ok=True)
     temporary = out.with_name(f".{out.name}.recording")
-    command = [
-        sys.executable,
-        "-m",
-        "playwright",
-        "codegen",
-        "--target",
-        "python",
-        "--output",
-        str(temporary),
-        "--browser",
-        browser,
-    ]
+    command = playwright_command(
+        [
+            "codegen",
+            "--target",
+            "python",
+            "--output",
+            str(temporary),
+            "--browser",
+            browser,
+        ]
+    )
     if load_storage is not None:
         command += ["--load-storage", str(load_storage)]
     click.echo(t("cli.record.started", browser=browser))
