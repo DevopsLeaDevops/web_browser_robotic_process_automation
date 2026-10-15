@@ -123,6 +123,7 @@
         </div>
         <p class="muted">请求方向：Portal → API → worker。worker 写入运行状态与产物，Portal 以轮询或服务器推送事件读取进度；长任务不阻塞网页请求。M2 之前只有 CLI 与 Runner，直接在本机运行。</p>
         <p class="muted">远程 worker（M9a）：worker 机器运行 <code>rpa worker</code>，主动连到管理 Portal 另一个端口上的 Worker API（<code>/worker-api/v1</code>，权杖），长轮询领取任务、每 5 秒心跳（同时得知是否取消）、运行完上传整个运行目录并回报结果。只有管理 Portal 访问数据库；60 秒没有心跳就判定失联，运行标为失败、不自动重跑。见<a href="../develop/remote-worker.html">远程 worker</a>。</p>
+        <p class="muted">桌面端（M10）：录制者与运行机安装桌面 App，用邀请配对；录制端的窗口经由对外端口加载 Portal 页面，录制、调试、人工登录的浏览器开在录制者的电脑。见<a href="desktop.html">桌面端分发</a>。</p>
 <pre class="source">runs/&lt;运行编号&gt;/
   input.json          # 校验后的本次入参
   facts.json          # 自动化抽取的页面事实
@@ -147,6 +148,7 @@
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述包、click</td><td>M0</td></tr>
             <tr><td><code>rpa-server</code></td><td>API 与管理页面、数据库模型、版本与发布门槛、调试工作阶段、试验场串行的运行（M6）；权限（M8）、调度（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
             <tr><td><code>rpa-worker</code></td><td>取出待运行的任务，以子进程调用 rpa-runner，应用总期限与取消，回写结果与产物。M3 在同一台电脑；M9a 起也可以在另一台电脑，经由 Worker API 领取（<code>rpa worker</code>，ADR 0012）。</td><td>rpa-runner；标准函数库的 HTTP</td><td>M3</td></tr>
+            <tr><td><code>rpa-desktop</code></td><td>两个桌面 App：RPA 录制端（pywebview 窗口加载 Portal 页面，在这台运行录制、调试、人工登录的子进程）与 RPA Worker（状态窗口＋远程 worker）；配对、下载浏览器、打包后的入口。M10 起（ADR 0014）。</td><td>rpa-runner、rpa-worker、pywebview</td><td>M10</td></tr>
           </tbody>
         </table>
       </div>

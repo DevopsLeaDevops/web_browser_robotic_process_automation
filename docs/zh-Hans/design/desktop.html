@@ -1,0 +1,266 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/design/desktop.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>桌面端分发 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="desktop" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>桌面端分发</h1>
+      <p>M10：服务器与数据库部署在一台电脑，录制者与运行机各装一个桌面 App，粘贴邀请就能用。App 的窗口沿用服务器现有的页面；录制、逐步调试、人工登录的浏览器开在操作的那台电脑。决策见 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
+    </div>
+    <span class="badge amber">M10 设计中</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="scope">
+      <div class="panel-header"><h2>目标与范围</h2><span class="muted">2026-10-15 与用户确认</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>组件</th><th>macOS</th><th>Windows</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>RPA 录制端</td><td><span class="badge blue">M10 交付</span></td><td><span class="badge">保留方案</span></td><td>录制、逐步调试、人工登录，以及 Portal 的其他功能；Apple 芯片（arm64）</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge blue">M10 交付</span></td><td>运行场景（含有头模式）；Windows x64</td></tr>
+            <tr><td>服务器（rpa serve）</td><td colspan="2"><span class="badge">保留方案</span>：维持 <code>uv run rpa serve</code></td><td>MVP 先放在用户自己的电脑，调试好后搬到正式环境</td></tr>
+            <tr><td>数据库</td><td colspan="2"><span class="badge">不另做二进位</span></td><td>SQLite 内嵌在服务器里；正式环境的 PostgreSQL 用官方安装包或 Docker（M8、M9）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>不重写界面。</strong>录制端窗口加载的就是服务器现有的 Jinja 页面；Portal 改了，录制端立即看到。</li>
+          <li><strong>不改运行逻辑。</strong>DSL、场景契约、发布门槛、运行目录、Worker API v1 与所有 CLI 命令都不变；<code>127.0.0.1:8080</code> 的本机用法也不变。</li>
+          <li><strong>两个 App，同一份代码。</strong>都在 <code>apps/desktop</code>，各自一份建置设置与安装档。</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col" id="flows">
+      <section class="panel">
+        <div class="panel-header"><h2>录制端：用户的流程</h2><span class="muted">macOS</span></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>从 Portal 的「下载桌面端」取得 DMG，把「RPA 录制端」（RPA Recorder.app）拖进「应用程序」。</li>
+            <li>第一次打开：没有签章，macOS 会挡下；到「系统设置 › 隐私权与安全性」允许打开（步骤见<a href="#signing">签章与第一次打开</a>）。</li>
+            <li>粘贴 Portal「设备」页产生的录制端邀请，配对完成。</li>
+            <li>下载浏览器（只有第一次，显示进度）。</li>
+            <li>窗口里就是 Portal。按「开始录制」「调试」「登录」时，浏览器开在这台 Mac。</li>
+          </ol>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Worker：用户的流程</h2><span class="muted">Windows</span></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>取得 <code>RPA-Worker-Setup.exe</code>，安装到用户目录；不需要管理员、uv、git、Python。</li>
+            <li>SmartScreen 出现时按「其他信息 › 仍要运行」。</li>
+            <li>粘贴 Worker 邀请，配对完成。</li>
+            <li>下载浏览器，状态变成「在线」。</li>
+            <li>关掉窗口是缩到通知区；可勾选「登录 Windows 时自动启动」。</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="architecture">
+      <div class="panel-header"><h2>架构</h2><span class="muted">服务器只多了对外端口上的两种用途</span></div>
+      <div class="panel-body">
+<pre class="source">服务器那台（MVP：用户自己的电脑，uv run rpa serve --worker-port 8081）
+┌──────────────────────────────────────────────────────────────┐
+│ 127.0.0.1:8080  Portal 页面＋/api（照旧，只限本机）                │
+│ 0.0.0.0:8081    对外端口                                            │
+│   /worker-api/v1  Worker API（照旧，worker 权杖）                  │
+│   /client-api/v1  新：配对、录制端的交互子进程通道                  │
+│   其他路径         新：Portal 页面＋/api，只接受录制端的设备权杖      │
+│ SQLite、data/（照旧）                                              │
+└──────────────────────────────────────────────────────────────┘
+          ▲ 设备权杖                                ▲ worker 权杖
+┌─────────┴──────────────────────┐   ┌─────────┴───────────────────┐
+│ RPA 录制端（macOS）               │   │ RPA Worker（Windows）          │
+│ 窗口：WKWebView                   │   │ 状态窗口：WebView2＋通知区图标   │
+│  → 本机闸道 127.0.0.1:随机端口       │   │ 内部就是现有的 RemoteWorker     │
+│    加上权杖转给服务器 8081          │   │ runner 子进程（照旧）           │
+│ 交互主机：录制／调试／人工登录的     │   │ 本机测试网站 127.0.0.1:8765     │
+│  子进程在这台以有头模式运行          │   └─────────────────────────────┘
+└────────────────────────────────┘</pre>
+        <p class="diagram-caption">只有服务器访问数据库（ADR 0008、ADR 0012 不变）。两个 App 都主动连服务器；服务器不需要连到它们。</p>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="pairing">
+        <div class="panel-header"><h2>设备与邀请</h2><span class="muted">M10.1</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>「远程 Worker」页改成「设备」页。</strong>列出 Worker 与录制端两种设备；添加时选种类与名称，产生<strong>邀请</strong>，取代现在「拷贝权杖＋启动命令」。</li>
+            <li><strong>邀请。</strong>一行文字：<code>rpa://pair?server=http://192.168.1.10:8081&amp;app=worker&amp;code=…</code>。代码一次性、24 小时内有效、限定 App 种类；数据库只存哈希。App 也接受分开填写的服务器网址与代码。</li>
+            <li><strong>配对。</strong>App 用邀请调用 <code>POST /client-api/v1/pair</code> 换到设备权杖，存进 macOS 钥匙圈或 Windows 认证管理员。Worker 邀请贴到录制端（或反过来）会被拒绝并说明。</li>
+            <li><strong>Worker 设备</strong>就是现有的 worker 记录：拿到的权杖直接用在 Worker API。<code>uv run rpa worker --token …</code> 的命令行方式照旧可用。</li>
+            <li><strong>管理。</strong>禁用、重新邀请（旧权杖立刻失效）、删除；页面显示在线状态、App 版本、操作系统、浏览器。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="remote-port">
+        <div class="panel-header"><h2>对外端口与访问控制</h2><span class="muted">M10.1、M10.2</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>沿用 <code>--worker-port</code>。</strong>不加新的命令行参数；文档改称「对外端口」。</li>
+            <li><strong>依路径分流</strong>（扩充 <code>PortGateMiddleware</code>）：<code>/worker-api/</code> 要 worker 权杖；<code>/client-api/v1/pair</code> 只接受邀请代码；其他 <code>/client-api/</code> 要设备权杖；其他所有路径（Portal 页面、<code>/api</code>、静态档）要<strong>录制端</strong>的设备权杖，没有就回 401。</li>
+            <li><strong>结果。</strong>没配对的电脑打开 8081 看不到管理页面；worker 权杖也打不开管理页面。这是 M8 之前最小的访问控制，M8 再把设备对应到用户。</li>
+            <li><strong>本机 8080 不变。</strong>服务器那台的浏览器照旧直接用。</li>
+            <li><strong>传输。</strong>维持 HTTP＋权杖（信任的区网，2026-10-13 的决定）；HTTPS 列在<a href="#reserved">保留方案</a>。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="interactive">
+      <div class="panel-header"><h2>交互子进程：浏览器开在操作的那台</h2><span class="muted">M10.2；录制、逐步调试、人工登录</span></div>
+      <div class="panel-body prose">
+        <p><strong>「这台电脑」改成指「你正在操作的那台」。</strong>请求从录制端进来，子进程就交给那台录制端；从服务器本机的浏览器（8080）进来，照旧在服务器运行。页面不多一个选项。</p>
+        <ul>
+          <li><strong>子进程主机（ProcessHost）。</strong>录制、调试、人工登录三个服务现在已经用可注入的 <code>launcher</code> 启动子进程，只用到一小部分 Popen 的功能：写一行到标准输入、逐行读标准输出、结束。<code>LocalHost</code> 是现在的行为；<code>DeviceHost</code> 界面相同，但经由 Client API 交给录制端。服务器端读 <code>Lines</code>、解析事件的程序不变。</li>
+          <li><strong>启动。</strong>服务器送出「启动」指令：模块名称（例如 <code>rpa_runner.debug</code>、<code>playwright codegen</code>）、参数（工作目录用代号，不带服务器的路径）、需要的文件（场景、入参、登录状态）、环境变量（语言、用到的 Secrets）。录制端在自己的暂存文件夹写出文件并启动。</li>
+          <li><strong>输出与文件。</strong>录制端把每一行标准输出传回；在传一行之前先上传这段期间添加或改变的文件（截图、录制稿、登录状态），所以服务器处理那一行时文件一定已经到了。结束时再同步一次并回报结束码。</li>
+          <li><strong>输入与结束。</strong>服务器要送一行命令（例如调试的「运行第 3 步」）或结束时，放进录制端的指令队列；录制端以长轮询取得。</li>
+          <li><strong>失联。</strong>录制端每次长轮询就是心跳；超过 30 秒没有回来，服务器把它的子进程视为结束（调试标为中断、录制标为失败），录制端重新连上时结束残留的浏览器。</li>
+          <li><strong>不变的。</strong>录制稿转成 DSL、遮罩密码、创建草稿版本、调试步骤的副作用确认、登录状态保存，全部仍在服务器。Secrets 与登录状态在录制端只放内存与暂保存，用完删除（同 M9a 的 worker）。</li>
+          <li><strong>浏览器检查。</strong>录制端上线时回报已下载的浏览器；选了这台没有的浏览器时，页面直接说明，不启动子进程。</li>
+          <li><strong>记录。</strong>录制与调试工作阶段记下是哪台设备；页眉显示目前通过哪台录制端操作。</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="recorder">
+        <div class="panel-header"><h2>RPA 录制端</h2><span class="muted">M10.2，macOS</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>本机闸道。</strong>App 在 <code>127.0.0.1</code> 的随机端口开一个小闸道，窗口只加载闸道的网址；闸道加上设备权杖后转给服务器的对外端口。权杖不进网页、也不靠服务器的 Cookie；以后改 HTTPS 时在闸道钉选凭证即可，WebView 不必处理自签凭证。</li>
+            <li><strong>只给这个 App 用。</strong>闸道每次启动产生一个密语，窗口第一次加载时设成 Cookie；没有这个 Cookie 的请求一律拒绝，同一台电脑上的其他程序与浏览器用不了。</li>
+            <li><strong>App 自己的页面</strong>（配对、下载浏览器、脱机提示、设置）放在闸道的 <code>/__desktop/</code> 下，用设计系统的 CSS。</li>
+            <li><strong>新窗口与下载。</strong><code>target="_blank"</code> 的链接（报告、截图）在 App 内开新窗口；导出文件存到「下载项目」。</li>
+            <li><strong>服务器在同一台时</strong>（MVP 的情况）：一样配对 <code>http://127.0.0.1:8081</code>，走同一条路。</li>
+            <li><strong>运行位置的用词。</strong>通过录制端看页面时，「本机」显示为「服务器」，避免误会成录制端这台。</li>
+            <li><strong>本地网络权限。</strong>macOS 15 起连区网要用户允许；Info.plist 写用途说明（<code>NSLocalNetworkUsageDescription</code>）。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1，Windows</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>内部就是现有的 RemoteWorker。</strong>权杖改从配对取得；领取、心跳、上传、测试网站的行为都和 <code>rpa worker</code> 一样。</li>
+            <li><strong>状态窗口。</strong>服务器、在线状态、目前运行、最近的运行、App 版本；版本与服务器不同时提醒并连到下载页。</li>
+            <li><strong>通知区图标。</strong>关掉窗口是缩到通知区；菜单有「打开窗口」「暂停接任务」「结束」。</li>
+            <li><strong>自动启动。</strong>勾选后写入目前用户的「登录时运行」；有头模式需要用户登录桌面，所以不做成系统服务。</li>
+            <li><strong>只运行一份。</strong>重复打开时叫出已经在跑的那份。</li>
+            <li><strong>数据位置。</strong>工作数据与日志在 <code>%LOCALAPPDATA%\rpa\worker</code>，Firefox 预热模板照旧在 <code>%LOCALAPPDATA%\rpa\cache</code>，浏览器在 Playwright 默认的 <code>%LOCALAPPDATA%\ms-playwright</code>。</li>
+            <li><strong>M9a 剩下的三项并入 M10.1：</strong>运行报告的「运行位置」筛选、场景网址是本机地址时的提醒、等待 worker 的提示。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="packaging">
+      <div class="panel-header"><h2>打包与建置</h2><span class="muted">M10.0</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>子进程命令集中。</strong>目前 10 处用 <code>sys.executable -m …</code> 启动子进程（runner、登录检查、录制、调试、codegen）。改由 <code>rpa_runner.commands</code> 产生：开发环境是 <code>python -m 模块</code>，打包后是 <code>App --rpa-module 模块</code>；Python 脚本场景是 <code>App --rpa-script 文件</code>；codegen 直接调用 Playwright 内附的 driver。</li>
+          <li><strong>PyInstaller，文件夹模式（onedir）。</strong>macOS 做成 <code>RPA Recorder.app</code>（显示名称「RPA 录制端」）再包成 DMG；Windows 用 Inno Setup 做成安装到用户目录的 <code>RPA-Worker-Setup.exe</code>。不用单档模式（每次启动解压上百 MB，也较容易被杀毒误判）。</li>
+          <li><strong>建置信息。</strong>版本、程序指纹、协定版本在建置时写进 App（打包后没有源代码文件可以算指纹）。版本规则沿用 M9a：协定不同才拒绝，程序指纹不同只提醒。</li>
+          <li><strong>浏览器。</strong>第一次启动用 App 内附的 Playwright driver 下载，版本必定相符；放在 Playwright 默认的用户缓存。可以在设置填内部镜像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）。录制端必要 Chromium、选用 Firefox；Worker 同。</li>
+          <li><strong>Python 脚本场景。</strong>打包后用 App 内的 Python 运行，只能 import 标准函数库与 App 内附的包（Playwright、Pydantic 等）。</li>
+          <li><strong>CI。</strong>添加桌面端构建流程：macOS（Apple 芯片）建录制端、Windows 建 Worker；建好后跑<strong>自我测试</strong>：用打包后的 App 下载 Chromium、启动测试网站，以无头模式跑 BA-001，确认打包后的子进程路径真的能用。产物（DMG、安装档）挂在该次建置上。</li>
+          <li><strong>估计大小。</strong>安装档约 70～100 MB；第一次下载 Chromium 约 150 MB、Firefox 约 90 MB。M10.0 实测后更新。</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="signing">
+        <div class="panel-header"><h2>签章与第一次打开</h2><span class="muted">MVP 不签章</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>macOS。</strong>只有 ad-hoc 签章（Apple 芯片必需，PyInstaller 自动处理），没有公证。从浏览器下载后第一次打开会被挡下：到「系统设置 › 隐私权与安全性」，在下方找到这个 App，选择允许打开并输入密码。macOS 15 起，按住 Control 点「打开」已经不能略过这一步。熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>。</li>
+            <li><strong>Windows。</strong>没有代码签章：SmartScreen 显示「Windows 已保护您的电脑」时按「其他信息 › 仍要运行」；浏览器下载时也可能要确认保留文件。</li>
+            <li><strong>之后。</strong>有 Apple Developer 账号后加上 Developer ID 签章与公证；Windows 加代码签章凭证。只改 CI 的建置步骤。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="client-api">
+        <div class="panel-header"><h2>Client API v1</h2><span class="muted"><code>/client-api/v1</code>，只在对外端口</span></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>界面</th><th>做什么</th></tr></thead>
+            <tbody>
+              <tr><td><code>POST /pair</code></td><td>用邀请代码与 App 种类换设备权杖；回传设备代号、名称、服务器版本</td></tr>
+              <tr><td><code>POST /hello</code></td><td>录制端上线：协定、版本、指纹、操作系统、已下载的浏览器</td></tr>
+              <tr><td><code>POST /control</code></td><td>长轮询（最多 25 秒）取得指令：启动子进程、送一行、结束；也当作心跳</td></tr>
+              <tr><td><code>PUT /processes/{id}/files</code></td><td>上传添加或改变的文件（zip；只接受安全的相对路径，有大小上限）</td></tr>
+              <tr><td><code>POST /processes/{id}/output</code></td><td>标准输出的几行；子进程结束时附结束码</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="phases">
+      <div class="panel-header"><h2>分期与验收</h2><span class="muted">先 Worker 再录制端：Worker 几乎全是沿用，先把打包、安装、配对走通</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>阶段</th><th>内容</th><th>验收</th></tr></thead>
+          <tbody>
+            <tr><td><span class="milestone">M10.0</span></td><td>打包地基：子进程命令集中、建置信息、rpa-desktop 骨架与打包后的入口、两个 App 的 PyInstaller 设置、CI 建置与自我测试</td><td>macOS 的录制端与 Windows 的 Worker 打包版在 CI 跑通 BA-001；开发环境的测试全部照旧通过</td></tr>
+            <tr><td><span class="milestone">M10.1</span></td><td>Windows Worker：设备页与邀请、Client API 的配对、状态窗口、通知区、自动启动、下载浏览器、安装档；M9a 剩下的三项</td><td>在没装过开发工具的 Windows 上：安装 → 贴邀请 → 下载浏览器 → 以有头模式跑 BA-001 → BA-002，报告回到 Portal；重开机登录后自动上线</td></tr>
+            <tr><td><span class="milestone">M10.2</span></td><td>macOS 录制端：本机闸道、对外端口上的 Portal 与访问控制、DeviceHost（录制 → 人工登录 → 逐步调试）、DMG</td><td>在 Mac 上录一段（浏览器开在 Mac）→ 草稿 → 逐步调试 → 人工登录角色 → 交给 Windows Worker 验证 → 发布；没配对的电脑打开 8081 看不到管理页面</td></tr>
+            <tr><td><span class="milestone">M10.3</span></td><td>文档与验收：桌面端安装说明、管理 Portal 的手动验收、路线图</td><td>文档检查通过；两机手动验收记录</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="reserved">
+        <div class="panel-header"><h2>保留方案</h2><span class="muted">这期不做，设计已预留</span></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>项目</th><th>方案</th></tr></thead>
+            <tbody>
+              <tr><td>录制端 Windows 版</td><td>同一份代码，多一个建置组合与验收</td></tr>
+              <tr><td>Worker macOS 版</td><td>同上，加上「登录时启动」（登录项目）</td></tr>
+              <tr><td>服务器</td><td>同一套打包工具打出 <code>rpa serve</code>（macOS、Windows、Linux）；M9 的 Docker Compose 另做</td></tr>
+              <tr><td>自动更新</td><td>MVP 只提醒并连到下载页；之后用 Sparkle、WinSparkle</td></tr>
+              <tr><td>HTTPS</td><td>服务器产生自签凭证，邀请里带凭证指纹，闸道与 worker 钉选；不必购买凭证</td></tr>
+              <tr><td>脱机安装档</td><td>安装档内含 Chromium，给连不到下载站的内网</td></tr>
+              <tr><td>录制端兼当运行机</td><td>运行位置多一个「这台录制端」，沿用串行固定 worker 的机制</td></tr>
+              <tr><td>Intel Mac</td><td>多一个 x86_64 建置</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel" id="risks">
+        <div class="panel-header"><h2>要实测的风险</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>WebView2。</strong>Windows 11 内置，Windows 10 大多已随 Edge 更新装好；安装档侦测不到时先安装。</li>
+            <li><strong>macOS 本地网络权限。</strong>确认 Playwright 开的 Chromium 连内网网站时，权限算在 App 身上。</li>
+            <li><strong>杀毒误判。</strong>PyInstaller 的启动器偶尔被误判；文件夹模式较少，必要时回报给杀毒厂商。</li>
+            <li><strong>Playwright 私有命令。</strong>「接著录制」用 codegen 内部的 <code>enableRecorder</code>；打包后要用同一个 driver，升级 Playwright 时由自我测试发现。</li>
+            <li><strong>pywebview 的新窗口与下载。</strong>WKWebView 与 WebView2 的行为不同，两边都要手动确认。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>
