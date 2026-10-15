@@ -41,7 +41,7 @@ class BuildInfo:
     def from_json(cls, data: dict[str, object]) -> "BuildInfo":
         app = str(data.get("app", "development"))
         return cls(
-            app=cast("App", app if app in (*APPS, "development") else "development"),
+            app=app if app in (*APPS, "development") else "development",
             version=str(data.get("version", "")),
             fingerprint=str(data.get("fingerprint", "")),
             protocol=int(cast("int", data.get("protocol", 0))),

@@ -59,7 +59,7 @@ def test_module_exit_codes_follow_python(tmp_path: Path, monkeypatch: pytest.Mon
         "import sys\nraise SystemExit(sys.argv[1] if sys.argv[1] != 'int' else 7)\n",
         encoding="utf-8",
     )
-    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setattr(sys, "path", [str(tmp_path), *sys.path])
     monkeypatch.setattr(sys, "argv", list(sys.argv))
     assert run_module("rpa_exit_probe", ["int"]) == 7
     assert run_module("rpa_exit_probe", ["message"]) == 1
