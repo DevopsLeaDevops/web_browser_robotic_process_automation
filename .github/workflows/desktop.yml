@@ -55,6 +55,10 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # 開發工具（uv run python …）印出中文時用 UTF-8；Windows 的主控台預設是 cp1252。
+      # 打包後的 App 不讀這個變數，它在建置時就開了 UTF-8 模式（apps/desktop/packaging）。
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
@@ -67,6 +71,8 @@ jobs:
         env:
           # 全新的資料夾：確定瀏覽器是打包後的 driver 下載的，不是開發環境留下的
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
+          # 刻意關掉：App 要靠建置時開的 UTF-8 模式，不能依賴使用者電腦的環境變數
+          PYTHONUTF8: "0"
         run: |
           "${{ steps.build.outputs.executable }}" --version
           set +e
@@ -83,11 +89,13 @@ jobs:
       - name: 大小與結果
         if: always()
         run: |
+          sizes="$( { du -sh dist/desktop/* "${{ runner.temp }}/pw-browsers" 2>/dev/null || true; } )"
+          # 大小也寫成 annotation，在 PR 頁面就看得到
+          echo "::notice title=大小（${{ matrix.app }}）::${sizes//$'\n'/%0A}"
           {
             echo "### ${{ matrix.name }}"
             echo '```'
-            du -sh dist/desktop/* 2>/dev/null || true
-            du -sh "${{ runner.temp }}/pw-browsers" 2>/dev/null || true
+            echo "$sizes"
             echo '```'
             if [ -f "${{ runner.temp }}/self-test.json" ]; then
               echo '<details><summary>self-test.json</summary>'
