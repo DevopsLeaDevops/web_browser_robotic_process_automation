@@ -24,7 +24,7 @@
   <div class="heading">
     <div>
       <h1>未完成工作</h1>
-      <p>2026-10-14 依 main <span class="mono">30fe7b8</span> 逐項確認（搜尋程式碼、比對分支與 PR）。每項寫現象、怎麼重現、影響、目前到哪、關聯檔案或提交、下一步。</p>
+      <p>2026-10-14 依 main <span class="mono">30fe7b8</span> 逐項確認（搜尋程式碼、比對分支與 PR）。每項寫現象、怎麼重現、影響、目前到哪、關聯檔案或提交、下一步。2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00） 依 main <span class="mono">878e4e0</span>（#28）新增<a href="#m6-gaps">M6 收尾後的待辦</a>。</p>
     </div>
   </div>
 
@@ -39,6 +39,21 @@
           <tr><td><strong>2. 場景網址是本機位址時提醒</strong></td><td>選「遠端 worker」執行一個網址是 <code>http://127.0.0.1:3000</code> 或 <code>localhost</code> 的場景：表單沒有提醒，執行在 worker 上連到它自己而失敗。</td><td>失敗原因不直觀。</td><td>未開始。只有執行位置下方的一般說明文字（訊息鍵 <code>target.hint</code>）。</td><td><code>templates/run_form.html</code>、<code>static/portal.js</code> 的 <code>bindTargetChoice</code></td><td>位置不是「本機」而網址主機是 127.0.0.1／localhost／::1、埠號不是 8765 時，顯示提醒（新增三種語言的訊息）。</td></tr>
           <tr><td><strong>3. 等待 worker 的提示</strong></td><td>登記一台 worker 但不啟動，用「遠端 worker」執行：執行頁一直是「排隊中」，沒有說明。</td><td>看不出是在等 worker。</td><td>未開始。worker 頁看得到「離線」。</td><td><code>templates/run.html</code>、<code>pages.run</code>、<code>WorkerHub.list_workers()</code></td><td>排隊中、位置是遠端或任一、沒有線上而能接的 worker 時，顯示「等待可以執行的 worker」並連到 worker 頁。</td></tr>
           <tr><td>4. HTTPS</td><td>Worker API 只有 HTTP。</td><td>Secrets 與登入狀態以明文經過區網。</td><td>沒有做；10-13 你選了 HTTP＋權杖（信任的區網）。</td><td><a href="../docs/adr/0012-remote-workers.html">ADR 0012</a>「代價」</td><td>只有網路不受信任時才需要：<code>rpa serve</code> 產生自簽憑證，worker 第一次連線時確認指紋。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="m6-gaps">
+      <div class="panel-header"><h2>一之二、M6 收尾後的待辦</h2><span class="muted">2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00），依 main 878e4e0；不阻擋 M6 完成（使用者決定）</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>現象與重現</th><th>影響</th><th>目前到哪</th><th>關聯</th><th>下一步</th></tr></thead>
+        <tbody>
+          <tr><td><strong>實際業務系統串接組合場景</strong></td><td>自動測試與已做的人工驗收都只用本機測試網站（BA-001／BA-002）。</td><td>登入角色、欄位值、環境網址、產物在真實系統上是否符合預期還不知道。</td><td>未驗。</td><td><a href="tasks/20261014-dag-composite-scenes.html#acceptance">M6 驗收操作</a>「仍需實際環境確認」</td><td>你選一組常用的業務場景排成 DAG 執行，結果記在<a href="acceptance.html#manual-other">驗收紀錄</a>。</td></tr>
+          <tr><td><strong>兩台實體電腦執行組合場景</strong></td><td>遠端執行只在 CI 的同一台虛擬機上模擬過。</td><td>Windows worker 上整張 DAG 是否都由同一台 worker 完成、報告是否回到 Portal 還不知道。</td><td>未驗；和 M9a 的兩機驗收一起做。</td><td><a href="acceptance.html#manual-m9a">M9a 兩機驗收</a></td><td>M9a 兩機驗收時多做一步：選遠端 worker 執行一張組合場景。</td></tr>
+          <tr><td>路線圖的 M6 描述還是線性序列</td><td><code>docs/roadmap.html</code>（含英文、簡中）的 M6 寫「排成序列、依序執行」。</td><td>正式文檔和現行產品（DAG、分叉匯合、卡片管理）不一致。</td><td>未改。Claude 這次的雲端環境裝不了依賴（含產生簡中用的 OpenCC），不手寫簡中。</td><td><a href="../docs/roadmap.html">路線圖</a>；<a href="decisions.html">決定</a>中 10-14 的 DAG 取代線性序列</td><td>在能跑 <code>uv sync</code> 的環境改繁中與英文，執行 <code>tools/i18n.py sync</code>、<code>stamp</code>、<code>check</code> 與 <code>pytest tests/docs tests/i18n</code>。</td></tr>
+          <tr><td>原型有、目前沒做的組合場景功能</td><td>原型展示平行節點、條件分支、重複次數、日期／隨機占位符、陣列／物件入參。</td><td>目前 DAG 依拓撲順序逐個執行，入參只有純值。</td><td>刻意不在 #28 範圍；不是已接受的功能。</td><td><a href="tasks/20261014-dag-composite-scenes.html#validation">M6 任務紀錄</a>「範圍說明」；路線圖 M7</td><td>等你決定要不要做、放在哪個里程碑。</td></tr>
+          <tr><td>已合併分支 <code>m6/dag-composite-scenes</code> 未刪除</td><td>分支最新提交就是 PR #28 的最終 head。</td><td>沒有獨有工作；只是分支清單變長。</td><td>可以刪除；Claude 沒有 GitHub 寫入權限。</td><td><a href="#branches">舊分支盤點</a></td><td>你在 GitHub 刪除，或連上 GitHub 後由 Claude 刪除。</td></tr>
+          <tr><td>CI 的 <code>ubuntu-latest</code> 將改為 Ubuntu 26</td><td>main run 38588185349 的 annotations：自 2026-10-19 起 <code>ubuntu-latest</code> 改為 Ubuntu 26。</td><td>Playwright 的瀏覽器系統依賴可能在新版本上缺少，CI 可能突然失敗。</td><td>只是通知，尚未發生。</td><td><code>.github/workflows/</code></td><td>10-19 之後看第一次 CI；失敗的話先把相關工作固定為 <code>ubuntu-24.04</code>，再另開任務升級。</td></tr>
         </tbody>
       </table></div>
     </section>

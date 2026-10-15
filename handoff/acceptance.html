@@ -50,6 +50,9 @@
           <tr><td class="mono">10-13 20:59～21:06</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/8f91944/checks">8f91944</a></td><td>main：合併 #24（含 #23、#25）</td><td>靜態檢查、測試 3.12／3.13 通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38509007292">run 38509007292</a>）</td></tr>
           <tr><td class="mono">10-13 23:14～23:21</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8/checks">30fe7b8</a></td><td>main：合併 #19（目前的 main）</td><td>通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38520999571">run 38520999571</a>）</td></tr>
           <tr><td class="mono">10-13 05:17</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/683acb0/checks">683acb0</a></td><td>main：合併 #22（M6）</td><td>通過（run 38396265652）</td></tr>
+          <tr><td class="mono">10-14（時刻未知）</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/f7a34f2/checks">f7a34f2</a></td><td>#28 的分支（DAG 參數連線與契約工作台）</td><td>通過；3.12／3.13 各 930 passed（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38580720020">run 38580720020</a>，取自 PR 說明）</td></tr>
+          <tr><td class="mono">10-14（時刻未知）</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/641518e/checks">641518e</a></td><td>#28 的最終 head（契約預覽平鋪）</td><td>通過；3.12：929 passed、1 skipped（取消測試因工作一秒內完成而跳過，不算通過）；3.13：930 passed（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38586912047">run 38586912047</a>，取自 PR 說明）</td></tr>
+          <tr><td class="mono">10-14 08:18～08:25</td><td><a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/878e4e0/checks">878e4e0</a></td><td>main：合併 #28（M6 DAG 組合場景；與 641518e 同一個 tree）</td><td>通過；靜態檢查、測試 3.12／3.13，各 930 個測試沒有失敗（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38588185349">run 38588185349</a>）</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p class="muted">PR #23 開出後第一次 CI 失敗只有一個測試：<code>test_migrations.py</code> 的資料表清單排序錯（check run 115277146639 的 annotations）。修正提交 <span class="mono">a558078</span>（rebase 後為 <span class="mono">8397164</span>）後全綠。</p></div>
@@ -84,7 +87,7 @@
         <tbody>
           <tr><td>M3（建立 → 驗證 → 發布 → 執行 → 看報告）</td><td>倉庫與 Claude 專案裡沒有人工驗收紀錄。之後的 #12～#15（領域劃分、埠號自動換、瀏覽器未下載的說明、篩選與有頭模式）看起來是實際使用後的調整，但當時的對話這次讀不到，<strong>無法確認是否做過完整驗收</strong>。</td></tr>
           <tr><td>M4（錄製、兩個角色、needs_login）</td><td>10-12 23:56 你表示「M4 視為完成」（見 <a href="materials/claude-project/m6-design-proposal.md">m6 提案</a>開頭），#17、#18 是之後的回饋修正。沒有逐步紀錄。</td></tr>
-          <tr><td>M6（試驗場 BA-001 → BA-002）</td><td>沒有人工驗收紀錄。</td></tr>
+          <tr><td>M6（試驗場 BA-001 → BA-002；#28 起為 DAG 組合場景）</td><td>#22 的線性試驗場沒有單獨的人工驗收紀錄。#28 的 DAG 組合場景：PR 期間你多次回報「功能沒有問題」（見<a href="tasks/20261014-dag-composite-scenes.html#ui-followup">任務紀錄</a>）；2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00） 你確認最後一輪 UI（<span class="mono">641518e</span>）、示範場景 DAG、舊序列與歷史報告通過，並決定 M6 記為完成。<strong>未驗</strong>：實際業務系統、兩台實體電腦（見<a href="open-work.html#m6-gaps">未完成工作</a>）。細節見<a href="tasks/20261014-dag-composite-scenes.html#closeout">合併與收尾</a>。</td></tr>
           <tr><td>Windows 上 Firefox 的穩定性</td><td>10-11～10-12 在 CI 的 Windows 虛擬機上做過一系列診斷（<code>ci/diag-windows</code>，見<a href="open-work.html#diag">未完成工作</a>），結論已做成修正（#12）。不是你的 Windows 上的實測。</td></tr>
         </tbody>
       </table></div>
