@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a1bf2a18a3e6ad95">
+<meta name="translation-source" content="sha256:fc874e889914dcca">
 <title>Tech stack · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -40,6 +40,8 @@
             <tr><td>Project tooling</td><td>uv workspace, ruff, pyright (strict), pytest, pre-commit</td><td>poetry, mypy</td><td>uv is fast and supports multiple packages natively; ruff handles both linting and formatting</td><td>M0</td></tr>
             <tr><td>Multilingual</td><td>JSON message catalogs per package; Simplified Chinese generated from Traditional Chinese with OpenCC</td><td>gettext, Babel</td><td>Traditional Chinese is the main language and the web UI must read the same translations; only Traditional Chinese and English are maintained by hand<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
             <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>The repository is on GitHub; tests run on Python 3.12 and 3.13 in parallel</td><td>M0</td></tr>
+            <tr><td>Desktop shell</td><td>pywebview (WKWebView on macOS, WebView2 on Windows)</td><td>Electron, Tauri</td><td>The interface is server-rendered pages, so the shell only needs to load a URL; no extra Chromium and no Node or Rust<small><a href="../adr/0014-desktop-apps.html">ADR 0014</a></small></td><td>M10</td></tr>
+            <tr><td>Desktop packaging</td><td>PyInstaller (folder mode); macOS DMG, Windows Inno Setup</td><td>Briefcase, Nuitka</td><td>The most mature option with packaging support for Playwright; folder mode starts fast and is flagged by antivirus less often</td><td>M10</td></tr>
             <tr><td>Deployment</td><td>Docker Compose</td><td>Kubernetes</td><td>Enough to start with; can be migrated later</td><td>M9</td></tr>
           </tbody>
         </table>

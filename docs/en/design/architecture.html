@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:00bb4eb7b892b25d">
+<meta name="translation-source" content="sha256:282171a24e748d66">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -123,6 +123,7 @@
         </div>
         <p class="muted">Requests flow portal → API → worker. The worker writes run status and artifacts, and the portal reads progress by polling or server-sent events; long tasks never block web requests. Before M2 there are only the CLI and the runner, running directly on your machine.</p>
         <p class="muted">Remote workers (M9a): the worker computer runs <code>rpa worker</code>, which connects to the Worker API on a second port of the management portal (<code>/worker-api/v1</code>, token), long-polls for jobs, sends a heartbeat every 5 seconds (learning whether to cancel), and uploads the whole run directory and reports the result when done. Only the portal touches the database; a worker silent for 60 seconds is considered lost and its run is marked failed, not retried. See <a href="../develop/remote-worker.html">Remote workers</a>.</p>
+        <p class="muted">Desktop apps (M10): recorders and execution machines install a desktop app and pair with an invitation; the recorder window loads the portal pages through the external port, and the browser for recording, debugging and manual login opens on the recorder's computer. See <a href="desktop.html">Desktop distribution</a>.</p>
 <pre class="source">runs/&lt;run-id&gt;/
   input.json          # this run's validated inputs
   facts.json          # page facts extracted by the automation
@@ -147,6 +148,7 @@
             <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, run, record, generate, push.</td><td>The packages above, click</td><td>M0</td></tr>
             <tr><td><code>rpa-server</code></td><td>API and management pages, database models, revisions and the publishing gate, debugging sessions, running playground sequences (M6); permissions (M8), scheduling (M9).</td><td>rpa-core, FastAPI, Jinja2, SQLAlchemy</td><td>M3</td></tr>
             <tr><td><code>rpa-worker</code></td><td>Takes pending tasks, runs rpa-runner in a subprocess with an overall deadline and cancellation, and writes back results and artifacts. On the same computer in M3; from M9a it can also run on another computer and claim jobs through the Worker API (<code>rpa worker</code>, ADR 0012).</td><td>rpa-runner; HTTP from the standard library</td><td>M3</td></tr>
+            <tr><td><code>rpa-desktop</code></td><td>Two desktop apps: RPA Recorder (a pywebview window loading the portal pages; recording, debugging and manual-login child processes run on this computer) and RPA Worker (status window plus remote worker); pairing, browser download, the packaged entry point. From M10 (ADR 0014).</td><td>rpa-runner, rpa-worker, pywebview</td><td>M10</td></tr>
           </tbody>
         </table>
       </div>

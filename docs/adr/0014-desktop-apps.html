@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0014 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0014" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0014：錄製端與 Worker 以桌面 App 分發，殼內沿用現有網頁</h1>
+      <p>伺服器與資料庫部署在一台電腦，錄製者與執行機各自安裝一個桌面 App 就能用。App 是 pywebview 殼＋伺服器現有的 Jinja 頁面；錄製、逐步調試、人工登入的瀏覽器改開在操作的那台電腦。</p>
+    </div>
+    <span class="badge amber">提議中</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-15</dd>
+        <dt>影響範圍</dt><dd>新套件 rpa-desktop；rpa-runner（子程序命令）、rpa-server（裝置、邀請、對外埠、互動子程序）、rpa-worker（版本資訊）；CI 與發布（M10 起）</dd>
+        <dt>相關</dt><dd>延伸 <a href="0012-remote-workers.html">ADR 0012</a>（對外埠與權杖）；<a href="0011-fastapi-jinja.html">ADR 0011</a>（只用 Python、伺服器渲染頁面）；<a href="0010-mvp-first.html">ADR 0010</a>；<a href="../design/desktop.html">桌面端分發</a>。編號 0013 保留未用。</dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>伺服器與資料庫之後會部署在固定的電腦（先在使用者自己的電腦調試，再搬到正式環境）。錄製者與執行機目前都要裝 uv、git、Python 並跑安裝腳本，版本也要手動對齊；使用者希望像 Claude Desktop 一樣，拿到一個安裝檔就能用。</p>
+          <p>更根本的限制是：錄製、逐步調試、人工登入的瀏覽器都開在執行 Portal 的那台電腦（M4 的設計，ADR 0012 也維持）。伺服器搬走以後，錄製者在自己的電腦上什麼都開不了。管理頁面又沒有登入（M8 才有），不能整個開放給區網。</p>
+          <p>Claude Desktop 是 Electron 應用：殼裡帶一個 Chromium，主要介面是網頁。我們的介面本來就是伺服器渲染的網頁，殼只需要一個能載入網址的視窗。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>兩個 App，同一份程式碼。</strong>「RPA 錄製端」與「RPA Worker」都在 <code>apps/desktop</code>（套件 rpa-desktop），各自一份建置設定。MVP 交付錄製端 macOS（Apple 晶片）與 Worker Windows（x64）；其他組合保留方案。</li>
+            <li><strong>殼用 pywebview。</strong>macOS 用系統的 WKWebView、Windows 用 WebView2，不另帶瀏覽器。錄製端的視窗載入伺服器現有的 Portal 頁面，模板不分兩套；App 自己的少數頁面（配對、下載瀏覽器、狀態）也用設計系統的 HTML。</li>
+            <li><strong>邀請配對。</strong>Portal 的「裝置」頁產生一次性邀請（24 小時內有效、只能用一次、限定是哪個 App）；App 用邀請換到裝置權杖，存在系統鑰匙圈或 Windows 認證管理員。</li>
+            <li><strong>對外埠多兩種用途。</strong><code>rpa serve --worker-port</code> 的埠除了 Worker API，也提供 Client API（配對、互動子程序）與 Portal 頁面；Portal 頁面只接受錄製端的裝置權杖，沒有就拒絕。<code>127.0.0.1:8080</code> 的本機用法不變。</li>
+            <li><strong>互動子程序在操作的那台執行。</strong>伺服器多一層子程序主機：請求從錄製端進來時，錄製、逐步調試、人工登入的子程序交給那台錄製端執行，輸出與檔案傳回；從本機瀏覽器進來時照舊在伺服器執行。轉換、遮罩、版本與發布門檻仍在伺服器。</li>
+            <li><strong>子程序命令集中。</strong>所有 <code>sys.executable -m …</code> 改由 <code>rpa_runner.commands</code> 產生；打包後改走 App 自己的入口。</li>
+            <li><strong>瀏覽器第一次啟動時下載。</strong>用 App 內附的 Playwright driver 下載，版本必定相符；可以設定內部鏡像。</li>
+            <li><strong>MVP 不簽章。</strong>macOS 只有 ad-hoc 簽章、Windows 沒有程式碼簽章；文件說明第一次開啟要怎麼允許。之後有帳號再加簽章與公證。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>錄製者與執行機不需要 uv、git、Python；貼上邀請、下載瀏覽器就能用。</li>
+            <li>錄製的瀏覽器開在錄製者自己的電腦，伺服器可以放在任何地方（包括沒有螢幕的正式環境）。</li>
+            <li>介面只有一套：Portal 頁面的修改，錄製端立即看到；工程仍然只有 Python。</li>
+            <li>Worker 沿用 M9a 的 Worker API 與 runner，沒有第二套執行邏輯。</li>
+            <li>沒配對的電腦打開對外埠看不到管理頁面，是 M8 之前最小的存取控制。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>多一個 CI 建置流程（macOS、Windows），每次發布要附兩個安裝檔；App 與伺服器版本要對齊。</li>
+            <li>沒有簽章時，第一次開啟要手動允許（macOS「隱私權與安全性」、Windows SmartScreen）。</li>
+            <li>錄製、調試要經過網路傳輸輸出與截圖；裝置權杖、Secrets 與登入狀態在 HTTP 下是明文，只適合信任的區網（同 ADR 0012）。</li>
+            <li>打包後的 Python 腳本場景只能 import 標準函式庫與 App 內附的套件。</li>
+            <li>系統 WebView 依賴作業系統版本：Windows 要有 WebView2（Windows 11 內建），macOS 依系統的 Safari 核心。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>Electron 殼＋Python 子程序（Claude Desktop 的做法）</td><td>生態完整（自動更新、簽章工具），但要多一套 Node／TypeScript 工具鏈與第二個 Chromium；殼只負責開視窗，換成本小，之後需要時可以替換。</td></tr>
+              <tr><td>Tauri 殼</td><td>安裝檔最小，但要 Rust 工具鏈；理由同上。</td></tr>
+              <tr><td>不做殼，用系統瀏覽器開 Portal，背景跑一個程式</td><td>看起來不像一個 App；權杖要放進瀏覽器 Cookie，換瀏覽器就失效。</td></tr>
+              <tr><td>一個 App，邀請決定角色</td><td>建置只有一份，但使用者選了兩個 App：名稱與安裝對象清楚，Worker 機器上不會出現錄製功能。</td></tr>
+              <tr><td>安裝檔內含瀏覽器</td><td>離線可用，但安裝檔多 150 MB 以上，macOS 之後公證也較麻煩；保留為離線方案。</td></tr>
+              <tr><td>整個 Portal 開放給區網</td><td>沒有登入（M8），區網上的人都能操作（ADR 0012 已排除）。</td></tr>
+              <tr><td>遠端畫面串流（錄製時看伺服器那台的瀏覽器）</td><td>操作延遲高、要另做串流元件，伺服器還是要有圖形介面。</td></tr>
+              <tr><td>PyInstaller 單檔（onefile）</td><td>每次啟動都要解壓上百 MB，也較容易被防毒誤判；改用資料夾（onedir）加安裝檔。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

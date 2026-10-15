@@ -46,4 +46,6 @@ M3 管理 Portal 已完成：`rpa serve` 在瀏覽器裡建立、驗證、發布
 M4 場景生產與登入進行中：錄製（`rpa record` 或 Portal）轉成 DSL 草稿、逐步調試、每個角色獨立的登入狀態與 needs_login、入參出參的表單編輯。
 範例在 `scenarios/`，規格見 `docs/design/dsl.html`。路線圖見 `docs/roadmap.html`。
 
+M10 桌面端分發（設計中，2026-10-15）：錄製端（macOS）與 Worker（Windows）以桌面 App 分發，見 [桌面端分發](docs/design/desktop.html) 與 [ADR 0014](docs/adr/0014-desktop-apps.html)；M5、M8、M9 其餘部分往後放。
+
 M6 DAG 組合場景已完成（#28，2026-10-14 合併）：DAG 畫布、四種入參來源、組合場景卡片管理與舊序列相容。示範場景與舊資料已人工驗收；實際業務系統與兩台電腦的驗收列在[未完成工作](handoff/open-work.html#m6-gaps)。詳見 [任務紀錄](handoff/tasks/20261014-dag-composite-scenes.html) 與 [Portal 設計](docs/design/portal.html#playground)。
