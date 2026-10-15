@@ -1,5 +1,6 @@
 """子程序的命令列：開發環境照舊是 python -m，打包後改走 App 自己的入口（M10，ADR 0014）。"""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -7,8 +8,10 @@ from pathlib import Path
 import pytest
 
 from rpa_runner.commands import (
+    CHILD_EXECUTABLE,
     FROZEN_MODULE,
     FROZEN_SCRIPT,
+    interpreter,
     is_frozen,
     module_command,
     playwright_command,
@@ -62,6 +65,19 @@ def test_frozen_commands_use_the_app_entry(monkeypatch: pytest.MonkeyPatch, tmp_
         "install",
         "chromium",
     ]
+
+
+def test_frozen_commands_prefer_the_console_child(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    app = tmp_path / "RPA Worker.exe"
+    child = tmp_path / (CHILD_EXECUTABLE + (".exe" if os.name == "nt" else ""))
+    app.write_bytes(b"")
+    child.write_bytes(b"")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(app))
+    assert interpreter() == str(child)
+    assert module_command("rpa_runner.child")[:3] == [str(child), FROZEN_MODULE, "rpa_runner.child"]
 
 
 def test_module_command_runs_a_real_module() -> None:

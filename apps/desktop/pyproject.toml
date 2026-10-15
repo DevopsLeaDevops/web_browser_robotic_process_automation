@@ -1,0 +1,22 @@
+[project]
+name = "rpa-desktop"
+version = "0.1.0"
+description = "桌面端（M10，ADR 0014）：RPA 錄製端與 RPA Worker 共用的程式碼、打包後的入口與自我測試"
+requires-python = ">=3.12"
+# M10.0 只有打包後的入口與自我測試；視窗（pywebview）在 M10.1、M10.2 加入
+dependencies = [
+  "rpa-core",
+  "rpa-runner",
+  "rpa-worker",
+  "rpa-testsite",
+]
+
+[tool.uv.sources]
+rpa-core = { workspace = true }
+rpa-runner = { workspace = true }
+rpa-worker = { workspace = true }
+rpa-testsite = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13"]
+build-backend = "uv_build"
