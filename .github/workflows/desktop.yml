@@ -69,7 +69,17 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
         run: |
           "${{ steps.build.outputs.executable }}" --version
-          "${{ steps.build.outputs.executable }}" --self-test --report "${{ runner.temp }}/self-test.json"
+          set +e
+          "${{ steps.build.outputs.executable }}" --self-test --report "${{ runner.temp }}/self-test.json" \
+            > "${{ runner.temp }}/self-test.log" 2>&1
+          code=$?
+          set -e
+          cat "${{ runner.temp }}/self-test.log"
+          exit "$code"
+      - name: 自我測試的結果寫成 annotations
+        if: always()
+        # 日誌在 PR 頁面就看得到：每一步的結果、失敗的原因與輸出的最後幾行
+        run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/self-test.json" "${{ runner.temp }}/self-test.log"
       - name: 大小與結果
         if: always()
         run: |

@@ -85,8 +85,11 @@ common = {
     "codesign_identity": None,
     "entitlements_file": None,
 }
-app_exe = EXE(pyz, a.scripts, [], name=NAMES["exe"], console=True, **common)
-child_exe = EXE(pyz, a.scripts, [], name="rpa-child", console=True, **common)
+# Python 的 UTF-8 模式：打包後的 App 不讀 PYTHONIOENCODING 等環境變數，Windows 上標準輸出
+# 與 open() 的預設編碼會是 cp1252 之類，子程序印出中文、寫檔案就會出錯。
+options = [("X utf8_mode=1", None, "OPTION")]
+app_exe = EXE(pyz, a.scripts, options, name=NAMES["exe"], console=True, **common)
+child_exe = EXE(pyz, a.scripts, options, name="rpa-child", console=True, **common)
 coll = COLLECT(app_exe, child_exe, a.binaries, a.datas, strip=False, upx=False, name=NAMES["exe"])
 
 if sys.platform == "darwin":

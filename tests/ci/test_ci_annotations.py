@@ -1,5 +1,6 @@
 """tools/ci_annotations.py：pytest 與 pyright 的錯誤轉成 GitHub annotations。"""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -92,3 +93,47 @@ def test_passing_report_is_a_notice(tmp_path: Path, capsys: pytest.CaptureFixtur
     )
     assert tool.main(["junit", str(report)]) == 0
     assert capsys.readouterr().out == "::notice title=pytest::report.xml 沒有失敗的測試（1 個）\n"
+
+
+def test_self_test_failures_one_per_step(tmp_path: Path) -> None:
+    report = tmp_path / "self-test.json"
+    report.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "steps": [
+                    {"step": "install", "engine": "chromium", "ok": True, "output": "done"},
+                    {
+                        "step": "run",
+                        "scenario": "ba-001",
+                        "ok": False,
+                        "status": "failed",
+                        "error": "TimeoutError: 逾時",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (annotation,) = tool.from_self_test(report)
+
+    assert annotation.title == "self-test run: ba-001"
+    assert annotation.message == "status: failed\nerror: TimeoutError: 逾時"
+
+
+def test_self_test_without_report_uses_the_log(tmp_path: Path) -> None:
+    log = tmp_path / "self-test.log"
+    log.write_text("Traceback ...\nUnicodeEncodeError: 'charmap'\n", encoding="utf-8")
+
+    (annotation,) = tool.from_self_test(tmp_path / "missing.json", log)
+
+    assert annotation.title == "self-test: 沒有產生報告"
+    assert annotation.message.endswith("UnicodeEncodeError: 'charmap'")
+
+
+def test_self_test_passing_is_a_notice(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    report = tmp_path / "self-test.json"
+    report.write_text(json.dumps({"ok": True, "steps": [{"step": "run", "ok": True}]}), "utf-8")
+    assert tool.main(["self-test", str(report), str(tmp_path / "self-test.log")]) == 0
+    assert capsys.readouterr().out == "::notice title=self-test::全部通過\n"

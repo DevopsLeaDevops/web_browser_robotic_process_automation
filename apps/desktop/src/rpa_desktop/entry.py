@@ -11,13 +11,14 @@
 子程序每次都從這裡啟動，所以這個模組只在需要時才匯入其他套件，讓啟動越快越好。
 """
 
+import io
 import json
 import runpy
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from rpa_runner.commands import FROZEN_MODULE, FROZEN_SCRIPT
+from rpa_runner.commands import FROZEN_MODULE, FROZEN_SCRIPT, is_frozen
 
 __all__ = ["main", "run_module", "run_script"]
 
@@ -66,7 +67,16 @@ def _usage() -> int:
     return 2
 
 
+def _utf8_streams() -> None:
+    """標準輸出與錯誤一律 UTF-8（打包時也開了 Python 的 UTF-8 模式，這裡是保險）。"""
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper) and stream.encoding.lower() != "utf-8":
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    if is_frozen():
+        _utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] in (FROZEN_MODULE, FROZEN_SCRIPT):
         if len(args) < 2:
