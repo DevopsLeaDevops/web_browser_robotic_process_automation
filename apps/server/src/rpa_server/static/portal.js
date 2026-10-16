@@ -1496,6 +1496,7 @@
     let dirty = false;
     let checkTimer = null;
     let checkSeq = 0;
+    let heldPointer = null, libraryDragging = false, deferredCheck = null;
     const saveButton = qs('[data-action="workflow-save"]');
     const json = value => JSON.stringify(value);
     const hasDefault = spec => spec.default !== undefined && spec.default !== null;
@@ -1836,20 +1837,55 @@
       qs('#parameter-save-state').textContent = qs('#workflow-save-state').textContent;
     }
 
+    // 校驗回覆不能在拖曳途中收起問題列、移動畫布或替換節點。
+    function applyCheck(sequence, result) {
+      if (sequence !== checkSeq) return;
+      if (heldPointer !== null || libraryDragging) { deferredCheck = {sequence, result}; return; }
+      if (!result.ok) {
+        qs('#workflow-save-state').textContent = fill(text.check_failed, {reason: errorMessage(result)});
+        return;
+      }
+      problems = result.data.problems;
+      render({settings: false});
+    }
+    function finishGesture() {
+      // 等 pointerup／drop 的既有處理完成；若有新修改，checkSeq 會淘汰舊回覆。
+      setTimeout(() => {
+        if (heldPointer !== null || libraryDragging || !deferredCheck) return;
+        const {sequence, result} = deferredCheck;
+        deferredCheck = null;
+        applyCheck(sequence, result);
+      }, 0);
+    }
+    document.addEventListener('pointerdown', event => {
+      if (event.button === 0 && event.target.closest('#library-list, #flow-stage, .flow-parameters')) heldPointer = event.pointerId;
+    }, true);
+    ['pointerup', 'pointercancel'].forEach(name => document.addEventListener(name, event => {
+      if (heldPointer !== event.pointerId) return;
+      heldPointer = null;
+      finishGesture();
+    }));
+    window.addEventListener('blur', () => {
+      heldPointer = null;
+      libraryDragging = false;
+      finishGesture();
+    });
+    qs('#library-list').addEventListener('dragstart', () => { libraryDragging = true; });
+    qs('#library-list').addEventListener('dragend', () => {
+      libraryDragging = false;
+      heldPointer = null;
+      finishGesture();
+    });
+
     // 每次修改後（稍等一下）請伺服器檢查，問題列在上方與節點上
     function scheduleCheck() {
       clearTimeout(checkTimer);
       checkSeq += 1;
+      deferredCheck = null;
       checkTimer = setTimeout(async () => {
         const sequence = ++checkSeq;
         const result = await api('POST', '/api/workflows/check', {definition});
-        if (sequence !== checkSeq) return;
-        if (!result.ok) {
-          qs('#workflow-save-state').textContent = fill(text.check_failed, {reason: errorMessage(result)});
-          return;
-        }
-        problems = result.data.problems;
-        render({settings: false});
+        applyCheck(sequence, result);
       }, 300);
     }
 
