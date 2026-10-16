@@ -8,6 +8,7 @@ Portal 用 uvicorn 在背景執行緒啟動（含背景 worker）；操作 Porta
 """
 
 import json
+import os
 import re
 import socket
 import threading
@@ -18,7 +19,7 @@ from pathlib import Path
 import click
 import pytest
 import uvicorn
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Locator, Page, expect, sync_playwright
 
 from rpa_cli.serve import open_listener
 from rpa_server.app import create_app
@@ -71,7 +72,7 @@ def portal(tmp_path: Path, request: pytest.FixtureRequest) -> Iterator[str]:
 
 
 @pytest.fixture
-def page() -> Iterator[Page]:
+def page(tmp_path: Path) -> Iterator[Page]:
     require_engine("chromium")
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
@@ -81,11 +82,38 @@ def page() -> Iterator[Page]:
             timezone_id="America/Los_Angeles",
         )
         context.set_default_timeout(15_000)
+        artifacts = os.environ.get("RPA_PORTAL_ARTIFACTS")
+        if artifacts:
+            context.tracing.start(screenshots=True, snapshots=True, sources=True)
         try:
             yield context.new_page()
         finally:
+            if artifacts:
+                trace = Path(artifacts) / f"{tmp_path.name}.zip"
+                trace.parent.mkdir(parents=True, exist_ok=True)
+                context.tracing.stop(path=trace)
             context.close()
             browser.close()
+
+
+def drag_to(
+    source: Locator, target: Locator, *, position: tuple[float, float] | None = None
+) -> None:
+    """真實滑鼠拖放：進入目標後再移動一次，讓各平台都送出 dragover。
+
+    https://playwright.dev/python/docs/input#dragging-manually
+    同樣覆蓋參數連線的 pointermove／pointerup，不用合成 DOM 事件或重試掩蓋失敗。
+    """
+    source.hover()
+    source.page.mouse.down()
+    try:
+        for _ in range(2):
+            if position is None:
+                target.hover()
+            else:
+                target.hover(position={"x": position[0], "y": position[1]})
+    finally:
+        source.page.mouse.up()
 
 
 def test_rpa_serve_recognizes_a_running_portal(portal: str) -> None:
@@ -281,8 +309,8 @@ def test_playground_chains_published_scenarios(
     dialog.locator("#dialog-action").click()
     page.wait_for_url(re.compile(r"/playground/\d+$"))
     page.locator('[data-add="ba-001"]').click()
-    page.locator('[data-add="ba-002"]').drag_to(
-        page.locator("#canvas-viewport"), target_position={"x": 440, "y": 100}
+    drag_to(
+        page.locator('[data-add="ba-002"]'), page.locator("#canvas-viewport"), position=(440, 100)
     )
     expect(page.locator('[data-node="n2"]')).to_be_visible()
     # 1440×900 下工具列、畫布與入參表同屏可見；說明與歷史預設收起。
@@ -298,15 +326,15 @@ def test_playground_chains_published_scenarios(
     expect(page.locator(".dag-edge")).to_have_count(1)
     expect(page.locator('[data-parameter-wire="recordId"]')).to_have_count(1)
     # 直接拖動出參到入參；型別不符時保留原綁定。也能以鍵盤逐端連線。
-    page.locator('[data-output-port="recordId"]').drag_to(
-        page.locator('[data-input-port="recordId"]')
+    drag_to(
+        page.locator('[data-output-port="recordId"]'), page.locator('[data-input-port="recordId"]')
     )
     expect(page.locator('[data-name="recordId"][data-mode="wire"]')).to_have_attribute(
         "aria-pressed", "true"
     )
     expect(page.locator('[data-source="recordId"]')).to_have_value("out:n1:recordId")
-    page.locator('[data-output-port="quantity"]').drag_to(
-        page.locator('[data-input-port="recordId"]')
+    drag_to(
+        page.locator('[data-output-port="quantity"]'), page.locator('[data-input-port="recordId"]')
     )
     expect(page.locator("#toast")).to_contain_text("型別不相容")
     expect(page.locator('[data-source="recordId"]')).to_have_value("out:n1:recordId")

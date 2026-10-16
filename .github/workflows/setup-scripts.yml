@@ -26,7 +26,7 @@ on:
       - "uv.lock"
       - ".python-version"
   schedule:
-    # 每週一 UTC 02:17（台北 10:17）。避開整點，整點排程多、容易延遲。
+    # America/Los_Angeles：週日 19:17 PDT（UTC−07:00）／18:17 PST（UTC−08:00）。避開整點。
     # 公開倉庫 60 天沒有任何活動時，GitHub 會自動停用排程。
     - cron: "17 2 * * 1"
   workflow_dispatch:
@@ -43,6 +43,9 @@ env:
   SETUP_LOG: setup.log
   # 從零開始的測試直接下載這次提交的腳本，跟文檔中的一行命令走同一條路
   SCRIPT_BASE: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha || github.sha }}/scripts
+  # 從零 clone 也驗證同一提交，避免 PR 腳本搭配 main 的程式碼／測試。
+  RPA_GIT_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+  RPA_PORTAL_ARTIFACTS: ${{ github.workspace }}/test-results/portal
 
 defaults:
   run:
@@ -63,6 +66,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: setup.sh
         if: runner.os != 'Windows'
@@ -123,6 +128,15 @@ jobs:
           if (Test-Path $uv) { & $uv run python tools/ci_annotations.py junit pytest-report.xml }
           exit 0
 
+      - name: 保留 Portal 瀏覽器軌跡
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: portal-in-repo-${{ matrix.os }}
+          path: ${{ env.RPA_PORTAL_ARTIFACTS }}
+          if-no-files-found: ignore
+          retention-days: 7
+
   from-scratch:
     name: 從零開始（${{ matrix.os }}）
     runs-on: ${{ matrix.os }}
@@ -143,6 +157,15 @@ jobs:
         run: |
           irm "$env:SCRIPT_BASE/setup.ps1" -OutFile $env:TEMP\rpa-setup.ps1
           powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -Dir (Join-Path $env:RUNNER_TEMP 'rpa')
+
+      - name: 保留 Portal 瀏覽器軌跡
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: portal-from-scratch-${{ matrix.os }}
+          path: ${{ env.RPA_PORTAL_ARTIFACTS }}
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: 失敗時把最後的輸出寫成註記
         if: failure() && runner.os != 'Windows'
