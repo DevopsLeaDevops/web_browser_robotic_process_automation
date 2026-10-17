@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261016-m10-1-windows-worker；2026-10-17 03:08 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261016-m10-1-windows-worker；2026-10-17 03:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-16 20:49 America/Los_Angeles（PDT，UTC−07:00）合併 #30 後要求開始下一步，並在審閱計畫後於 21:12 確認（見<a href="../decisions.html">決定</a>）。整個 M10.1 的驗收沿用設計：在沒裝過開發工具的 Windows 上安裝 → 貼邀請 → 下載瀏覽器 → 以有頭模式跑 BA-001 → BA-002，報告回到 Portal；重開機登入後自動上線。</dd>
         <dt>範圍／不包含</dt><dd>分三個 PR 依序交付：<strong>PR 1 伺服器端</strong>（本分支）：遷移 0008 的邀請、<code>POST /client-api/v1/pair</code>、對外埠分流、「遠端 Worker」頁改為「裝置」頁、worker 回報 App 版本、M9a 剩下三項（執行位置篩選、localhost 提醒、等待 worker 的提示，含序列固定的 worker 離線時）、「Worker API 埠」改稱「對外埠」。<strong>PR 2 Worker App</strong>（2026-10-17 分兩步：第一步主控台版，<code>m10/worker-app</code>，疊在 #31 上；第二步視窗介面）：狀態視窗、配對、下載瀏覽器、通知區、自動啟動、只執行一份、認證管理員、建置資訊指紋、子程序不跳主控台視窗。<strong>PR 3 安裝檔</strong>：Inno Setup、GitHub Releases、Windows 上安裝後配對並執行 BA-001 的 CI。不包含：錄製端（M10.2）、裝置頁的錄製端種類（M10.2）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude（使用者指派；同事確認不並行開始 M10.1）。審閱與合併由使用者決定。</dd>
@@ -72,7 +72,7 @@
               <li><span class="mono">2026-10-16 22:28～23:36 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）使用者問手工驗證的步驟，Claude 提供（#31 需切到分支，worker 仍用 <code>uv run rpa worker</code>）。使用者問為什麼還不是安裝包；Claude 說明 PR 2、PR 3 尚未做，提議 PR 2 分兩步，第一步先交付能直接用的打包版。</li>
         <li><span class="mono">2026-10-17 02:32～02:33 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者）同意繼續；表示這一步完成後與 #31 一起驗證。Claude 提出 PR 2 第一步的計畫（疊在 #31 上、主控台版），使用者回覆「核准」。</li>
         <li><span class="mono">2026-10-17 02:44 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）從 <code>m10/worker-pairing</code> 開 <code>m10/worker-app</code>，完成第一步的實作與本機檢查。</li>
-        <li><span class="mono">2026-10-17 03:08 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 <span class="mono">ef7de07</span>（bot 簡中 <span class="mono">24b69b1</span>），建立草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/32">PR #32</a>；修正 Windows 主控台偵測與 pyright 後（<span class="mono">4be3ff2</span>）CI 全部通過，包括 Windows 上打包版的端到端；PR 轉為可審閱。</li>
+        <li><span class="mono">2026-10-17 03:05 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 <span class="mono">ef7de07</span>（bot 簡中 <span class="mono">24b69b1</span>），建立草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/32">PR #32</a>；修正 Windows 主控台偵測與 pyright 後（<span class="mono">4be3ff2</span>）CI 全部通過，包括 Windows 上打包版的端到端；PR 轉為可審閱。</li>
       </ul></div>
     </section>
   </div>
