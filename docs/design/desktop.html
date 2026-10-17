@@ -157,7 +157,8 @@
         <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1，Windows</span></div>
         <div class="panel-body prose">
           <ul>
-            <li><strong>內部就是現有的 RemoteWorker。</strong>權杖改從配對取得；領取、心跳、上傳、測試網站的行為都和 <code>rpa worker</code> 一樣。</li>
+            <li><strong>內部就是現有的 RemoteWorker。</strong>權杖改從配對取得；領取、心跳、上傳、測試網站的行為都和 <code>rpa worker</code> 一樣（執行迴圈在 <code>rpa_worker.service</code>，兩邊共用）。</li>
+            <li><strong>分兩步交付</strong>（2026-10-16 決定）。第一步是主控台版：雙擊 <code>rpa-worker.exe</code> 貼上邀請、下載瀏覽器、接任務，配對結果暫存在資料夾裡只有本人能讀寫的 <code>pairing.json</code>；CI 用打包版實際配對並執行 BA-001 → BA-002。第二步加上下面的狀態視窗、通知區、自動啟動、只執行一份與認證管理員，之後是安裝檔。</li>
             <li><strong>狀態視窗。</strong>伺服器、線上狀態、目前執行、最近的執行、App 版本；版本與伺服器不同時提醒並連到下載頁。</li>
             <li><strong>通知區圖示。</strong>關掉視窗是縮到通知區；選單有「開啟視窗」「暫停接任務」「結束」。</li>
             <li><strong>自動啟動。</strong>勾選後寫入目前使用者的「登入時執行」；有頭模式需要使用者登入桌面，所以不做成系統服務。</li>

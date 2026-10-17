@@ -9,14 +9,17 @@
 - 只綁定 127.0.0.1；不連線任何外部系統
 
 ``rpa serve`` 會在 8765 一起啟動；測試用 ``running()`` 在隨機埠號啟動；
-單獨啟動：``uv run python -m testsite --port 8765``。
+單獨啟動：``uv run python -m testsite --port 8765``。``rpa worker`` 與打包的 RPA Worker
+用 ``start_in_background()``：8765 上已經是測試網站就沿用。
 """
 
+import errno
 import html
 import json
 import os
 import secrets
 import threading
+import urllib.request
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -25,18 +28,22 @@ from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from string import Template
-from typing import Final, cast
+from typing import Final, Literal, cast
 from urllib.parse import quote, unquote, urlsplit
 
 __all__ = [
     "ACCOUNTS",
+    "ADDRESS_IN_USE",
     "DEFAULT_PORT",
     "MAX_QUANTITY",
     "NAME",
     "PAGE",
     "SESSION_COOKIE",
+    "StartState",
     "create_server",
+    "is_testsite",
     "running",
+    "start_in_background",
 ]
 
 DEFAULT_PORT: Final = 8765
@@ -47,6 +54,20 @@ LOGIN_PAGE: Final = Path(__file__).with_name("login.html")
 MAX_QUANTITY: Final = 30
 SESSION_COOKIE: Final = "rpa_testsite_session"
 _MAX_BODY: Final = 8192
+
+ADDRESS_IN_USE: Final = frozenset(
+    code
+    for code in (
+        errno.EADDRINUSE,
+        getattr(errno, "WSAEADDRINUSE", None),
+        # Windows 保留給其他服務的埠號（例如 Hyper-V）綁定時回報存取被拒
+        getattr(errno, "WSAEACCES", None),
+    )
+    if code is not None
+)
+"""綁定埠號失敗、代表「已經有人在用」的錯誤碼。"""
+
+type StartState = Literal["started", "running", "busy", "failed"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,3 +266,32 @@ def running(port: int = 0) -> Generator[str, None, None]:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def is_testsite(port: int) -> bool:
+    """這個埠號上是不是已經在執行的測試網站（讀 /api/about）。"""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 本機位址不走代理
+    try:
+        with opener.open(f"http://127.0.0.1:{port}/api/about", timeout=1) as response:
+            data: object = json.load(response)
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and cast("dict[str, object]", data).get("name") == NAME
+
+
+def start_in_background(
+    port: int = DEFAULT_PORT,
+) -> tuple[ThreadingHTTPServer | None, StartState, str]:
+    """在背景執行緒啟動測試網站，回傳 (伺服器，沒有啟動時為 None；狀態；失敗的原因)。
+
+    狀態：``started`` 啟動了；``running`` 那個埠上已經是測試網站，沿用；
+    ``busy`` 被別的程式占用；``failed`` 其他錯誤。
+    """
+    try:
+        server = create_server(port)
+    except OSError as error:
+        if error.errno not in ADDRESS_IN_USE:
+            return None, "failed", error.strerror or str(error)
+        return None, ("running" if is_testsite(port) else "busy"), ""
+    threading.Thread(target=server.serve_forever, name="testsite", daemon=True).start()
+    return server, "started", ""

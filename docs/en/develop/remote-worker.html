@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4e6cb07dba13680e">
+<meta name="translation-source" content="sha256:a4f0a10a5ea5a883">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -73,6 +73,20 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
         </div>
       </section>
     </div>
+
+    <section class="panel" id="packaged">
+      <div class="panel-header"><h2>Windows build without installing (preview)</h2><span class="muted">M10.1: no uv, git or Python needed; the proper window and the installer come in later versions</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>On GitHub, open the “Desktop build” run of a PR or of <code>main</code>, download <code>worker-windows-latest</code> under <strong>Artifacts</strong>, and unzip it into any folder (for example <code>%USERPROFILE%\RPA Worker</code>).</li>
+          <li>Double-click <code>rpa-worker.exe</code>. It is not code-signed: when SmartScreen says “Windows protected your PC”, choose “More info › Run anyway”.</li>
+          <li>The console window asks you to paste the invitation (the line from step 2); after pairing it asks whether to download Firefox as well. The first time it downloads Chromium (about 600 MB unpacked) and shows the progress.</li>
+          <li>Once it says it is connected to the portal you are done; the devices page shows it online with its app version. <strong>Closing this window stops it</strong>; next time, double-click and it connects without a new invitation.</li>
+        </ol>
+        <p>Its data lives in <code>%LOCALAPPDATA%\rpa\worker</code> (the pairing in <code>pairing.json</code>, readable only by you, plus job files); browsers live in <code>%LOCALAPPDATA%\ms-playwright</code>. To use a new invitation, choose “Invite again” on the devices page and reopen it, or run <code>rpa-worker.exe --reset-pairing</code>. If your company has an internal mirror, set the <code>PLAYWRIGHT_DOWNLOAD_HOST</code> environment variable before opening it.</p>
+        <p class="muted">The preview has only a console window; minimizing to the notification area, starting when you sign in to Windows, keeping the token in Windows Credential Manager, and the installer come in later M10.1 versions.</p>
+      </div>
+    </section>
 
     <section class="panel" id="use">
       <div class="panel-header"><h2>5. Hand runs to the worker</h2></div>

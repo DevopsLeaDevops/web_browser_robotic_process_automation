@@ -126,17 +126,20 @@ class WorkerInfo:
     """App 的版本（M10.1）：命令列是 rpa-worker 套件的版本，桌面 App 是建置資訊裡的版本。"""
 
     @classmethod
-    def detect(cls, name: str | None = None) -> "WorkerInfo":
+    def detect(
+        cls, name: str | None = None, *, fingerprint: str | None = None, version: str | None = None
+    ) -> "WorkerInfo":
+        """這台電腦的資訊。打包後的 App 沒有原始碼可以算指紋，改給建置資訊裡的指紋與版本。"""
         host = socket.gethostname()
         return cls(
             name=name or host,
-            fingerprint=code_fingerprint(),
+            fingerprint=code_fingerprint() if fingerprint is None else fingerprint,
             os=f"{platform.system()} {platform.release()}".strip(),
             python=platform.python_version(),
             host=host,
             browsers=tuple(installed_browsers()),
             display=has_display(),
-            version=package_version(),
+            version=package_version() if version is None else version,
         )
 
     def to_json(self) -> dict[str, object]:
