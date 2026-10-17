@@ -2,6 +2,8 @@
 # 再用打包後的 App 跑自我測試（rpa_desktop.selftest）：
 #   App 用內附的 Playwright driver 把 Chromium 下載到全新的資料夾 → 啟動測試網站 →
 #   無頭執行 BA-001（子程序走 --rpa-module）與它的 Python 腳本版（走 --rpa-script）。
+# Worker 另外跑端到端（M10.1，tools/desktop_e2e.py）：從原始碼啟動管理 Portal、產生邀請，
+#   打包版用邀請配對，以「遠端 worker」執行 BA-001 → BA-002。
 # 產物（DMG、zip）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
 name: 桌面端建置
 
@@ -11,9 +13,12 @@ on:
       - "apps/desktop/**"
       - "apps/worker/**"
       - "apps/testsite/**"
+      - "apps/server/**"
+      - "apps/cli/**"
       - "packages/**"
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
+      - "tools/desktop_e2e.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/desktop.yml"
@@ -23,9 +28,12 @@ on:
       - "apps/desktop/**"
       - "apps/worker/**"
       - "apps/testsite/**"
+      - "apps/server/**"
+      - "apps/cli/**"
       - "packages/**"
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
+      - "tools/desktop_e2e.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/desktop.yml"
@@ -86,6 +94,23 @@ jobs:
         if: always()
         # 日誌在 PR 頁面就看得到：每一步的結果、失敗的原因與輸出的最後幾行
         run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/self-test.json" "${{ runner.temp }}/self-test.log"
+      - name: 端到端：打包版用邀請配對並執行範例場景
+        id: e2e
+        if: matrix.app == 'worker'
+        env:
+          # 沿用自我測試下載的 Chromium；打包版只在沒有設定時改用 Playwright 的預設位置
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
+        run: |
+          set +e
+          uv run python tools/desktop_e2e.py "${{ steps.build.outputs.executable }}" \
+            --report "${{ runner.temp }}/e2e.json" > "${{ runner.temp }}/e2e.log" 2>&1
+          code=$?
+          set -e
+          cat "${{ runner.temp }}/e2e.log"
+          exit "$code"
+      - name: 端到端的結果寫成 annotations
+        if: always() && matrix.app == 'worker' && steps.e2e.outcome != 'skipped'
+        run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/e2e.json" "${{ runner.temp }}/e2e.log"
       - name: 大小與結果
         if: always()
         run: |
@@ -97,14 +122,16 @@ jobs:
             echo '```'
             echo "$sizes"
             echo '```'
-            if [ -f "${{ runner.temp }}/self-test.json" ]; then
-              echo '<details><summary>self-test.json</summary>'
-              echo
-              echo '```json'
-              cat "${{ runner.temp }}/self-test.json"
-              echo '```'
-              echo '</details>'
-            fi
+            for report in self-test e2e; do
+              if [ -f "${{ runner.temp }}/$report.json" ]; then
+                echo "<details><summary>$report.json</summary>"
+                echo
+                echo '```json'
+                cat "${{ runner.temp }}/$report.json"
+                echo '```'
+                echo '</details>'
+              fi
+            done
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:

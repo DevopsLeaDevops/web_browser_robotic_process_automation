@@ -73,6 +73,20 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
       </section>
     </div>
 
+    <section class="panel" id="packaged">
+      <div class="panel-header"><h2>Windows 免安裝版（預覽）</h2><span class="muted">M10.1：不需要 uv、git、Python；正式的視窗與安裝檔在之後的版本</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>在 GitHub 打開 PR 或 <code>main</code> 的「桌面端建置」執行紀錄，從 <strong>Artifacts</strong> 下載 <code>worker-windows-latest</code>，解壓縮到任何資料夾（例如 <code>%USERPROFILE%\RPA Worker</code>）。</li>
+          <li>雙擊 <code>rpa-worker.exe</code>。沒有程式碼簽章：SmartScreen 出現「Windows 已保護您的電腦」時按「其他資訊 › 仍要執行」。</li>
+          <li>主控台視窗請你貼上邀請（第 2 步產生的那一行），配對後詢問要不要也下載 Firefox。第一次會下載 Chromium（解壓後約 600 MB），看得到進度。</li>
+          <li>看到「已連上管理 Portal」就好了；裝置頁顯示「線上」與 App 版本。<strong>關掉這個視窗就停止</strong>，下次雙擊直接連線，不必再貼邀請。</li>
+        </ol>
+        <p>資料放在 <code>%LOCALAPPDATA%\rpa\worker</code>（配對結果 <code>pairing.json</code> 只有你能讀寫，以及任務的暫存）；瀏覽器在 <code>%LOCALAPPDATA%\ms-playwright</code>。要換一份邀請：在裝置頁「重新邀請」後重新開啟，或執行 <code>rpa-worker.exe --reset-pairing</code>。公司有內部鏡像時，先設定環境變數 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 再開啟。</p>
+        <p class="muted">預覽版只有主控台視窗；縮到通知區、登入 Windows 時自動啟動、權杖改存 Windows 認證管理員與安裝檔，在 M10.1 的後續版本加入。</p>
+      </div>
+    </section>
+
     <section class="panel" id="use">
       <div class="panel-header"><h2>5. 把執行交給 worker</h2></div>
       <div class="panel-body prose">

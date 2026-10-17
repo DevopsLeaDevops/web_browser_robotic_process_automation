@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c685ad24e912361c">
+<meta name="translation-source" content="sha256:facf6dc0df4f3e49">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -160,7 +160,8 @@
         <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1, Windows</span></div>
         <div class="panel-body prose">
           <ul>
-            <li><strong>Inside is the existing RemoteWorker.</strong>Only the token now comes from pairing; claiming, heartbeats, uploads and the test site behave exactly like <code>rpa worker</code>.</li>
+            <li><strong>Inside is the existing RemoteWorker.</strong>Only the token now comes from pairing; claiming, heartbeats, uploads and the test site behave exactly like <code>rpa worker</code> (the run loop lives in <code>rpa_worker.service</code>, shared by both).</li>
+            <li><strong>Delivered in two steps</strong> (decided 2026-10-16). Step one is a console build: double-click <code>rpa-worker.exe</code>, paste the invitation, download the browser and take jobs; the pairing is kept for now in <code>pairing.json</code>, readable only by the user, in its folder. CI pairs the packaged build for real and runs BA-001 → BA-002 with it. Step two adds the status window, notification area, auto-start, single instance and Credential Manager described below, followed by the installer.</li>
             <li><strong>Status window.</strong>Server, online status, current run, recent runs, app version; a version different from the server's is flagged with a link to the download page.</li>
             <li><strong>Notification-area icon.</strong>Closing the window minimizes it to the notification area; the menu has "Open window", "Pause taking jobs" and "Quit".</li>
             <li><strong>Start at sign-in.</strong>When ticked, it is added to the current user's run-at-sign-in list; headed mode needs a signed-in desktop, so it is not a system service.</li>
