@@ -17,13 +17,13 @@
       <h1>ADR 0014: The recorder and the worker ship as desktop apps that reuse the existing web pages</h1>
       <p>The server and database are deployed on one computer; recorders and execution machines each install a desktop app and are ready to go. Each app is a pywebview shell around the server's existing Jinja pages. The browser for recording, step-by-step debugging and manual login opens on the computer the person is using.</p>
     </div>
-    <span class="badge amber">Proposed</span>
+    <span class="badge green">Accepted</span>
   </div>
 
   <div class="stack">
     <section class="panel panel-body">
       <dl class="spec-list">
-        <dt>Date</dt><dd class="mono">2026-10-15</dd>
+        <dt>Date</dt><dd class="mono">2026-10-15 (proposed); 2026-10-16 (accepted)</dd>
         <dt>Scope</dt><dd>New package rpa-desktop; rpa-runner (child-process commands), rpa-server (devices, invitations, the external port, interactive child processes), rpa-worker (version info); CI and releases (from M10)</dd>
         <dt>Related</dt><dd>Extends <a href="0012-remote-workers.html">ADR 0012</a> (external port and tokens); <a href="0011-fastapi-jinja.html">ADR 0011</a> (Python only, server-rendered pages); <a href="0010-mvp-first.html">ADR 0010</a>; <a href="../design/desktop.html">Desktop distribution</a>. Number 0013 is reserved and unused.</dd>
       </dl>
