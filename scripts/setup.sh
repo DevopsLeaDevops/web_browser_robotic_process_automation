@@ -284,6 +284,11 @@ prepare_code() {
     if ! run git clone "$REPO_URL" "$TARGET_DIR"; then
       die "下載程式碼失敗。" "確認連得到 github.com；公司網路可能需要設定代理（HTTPS_PROXY）。"
     fi
+    # CI 指定與下載腳本相同的提交；只作用於新 clone，不切換既有工作區。
+    if [ -n "${RPA_GIT_REF:-}" ]; then
+      run git -C "$TARGET_DIR" fetch origin "$RPA_GIT_REF"
+      run git -C "$TARGET_DIR" checkout --detach FETCH_HEAD
+    fi
     REPO_DIR="$TARGET_DIR"
     ok "已下載到：$REPO_DIR"
   fi

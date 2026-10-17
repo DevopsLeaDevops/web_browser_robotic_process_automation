@@ -7,9 +7,11 @@ CI 失敗時，原因直接標在 PR「Files changed」的對應行上；看不�
 
     uv run python tools/ci_annotations.py junit pytest-report.xml
     uv run python tools/ci_annotations.py pyright pyright.json
+    uv run python tools/ci_annotations.py self-test self-test.json [self-test.log]
 
 pytest 要用 ``--junitxml=… -o junit_family=xunit1``（xunit1 才有 file、line 屬性）；
-pyright 要用 ``--outputjson``。
+pyright 要用 ``--outputjson``。self-test 是桌面 App 自我測試的報告（rpa_desktop.selftest，M10），
+失敗的每一步一則；報告沒有產生時，改用輸出日誌的最後一段。
 
 GitHub 每個步驟最多顯示 10 個錯誤 annotation，所以 pytest 一個失敗的測試一則、
 pyright 一個檔案一則，超過的部分合併成最後一則。
@@ -137,6 +139,30 @@ def from_pyright(data: object) -> list[Annotation]:
     return limit(found, "pyright")
 
 
+def from_self_test(report: Path, log: Path | None = None) -> list[Annotation]:
+    """桌面 App 自我測試：失敗的每一步一則；沒有報告時用日誌的結尾。"""
+    if not report.exists():
+        text = log.read_text(encoding="utf-8", errors="replace") if log and log.exists() else ""
+        return [Annotation("self-test: 沒有產生報告", _tail(text) or "（沒有輸出）")]
+    data = json.loads(report.read_text(encoding="utf-8"))
+    summary = cast("dict[str, object]", data if isinstance(data, dict) else {})
+    steps = cast("list[dict[str, object]]", summary.get("steps") or [])
+    found: list[Annotation] = []
+    for step in steps:
+        if step.get("ok"):
+            continue
+        name = step.get("scenario") or step.get("engine") or ""
+        details = [
+            f"{key}: {step[key]}" for key in ("status", "exitCode", "error") if step.get(key)
+        ]
+        if step.get("output"):
+            details.append(str(step["output"]))
+        found.append(Annotation(f"self-test {step.get('step')}: {name}", _tail("\n".join(details))))
+    if not found and not summary.get("ok"):
+        found.append(Annotation("self-test: 失敗", _tail(json.dumps(summary, ensure_ascii=False))))
+    return limit(found, "self-test")
+
+
 def emit(annotations: Iterable[Annotation]) -> None:
     for annotation in annotations:
         print(annotation.command())
@@ -144,6 +170,17 @@ def emit(annotations: Iterable[Annotation]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    if len(args) == 3 and args[0] == "self-test":
+        annotations = from_self_test(Path(args[1]), Path(args[2]))
+    elif len(args) == 2 and args[0] == "self-test":
+        annotations = from_self_test(Path(args[1]))
+    else:
+        annotations = None
+    if annotations is not None:
+        emit(annotations)
+        if not annotations:
+            print("::notice title=self-test::全部通過")
+        return 0
     if len(args) != 2 or args[0] not in ("junit", "pyright"):
         print(__doc__, file=sys.stderr)
         return 2

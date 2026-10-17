@@ -15,7 +15,6 @@
 import json
 import re
 import subprocess
-import sys
 import threading
 import uuid
 from collections.abc import Callable, Sequence
@@ -31,6 +30,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from rpa_core.dsl import Scenario
 from rpa_core.i18n import Locale, use_locale
 from rpa_core.recording import Conversion, ConversionError, convert_recording, merge_recording
+from rpa_runner.commands import module_command, playwright_command
 from rpa_runner.contract import check_inputs
 from rpa_runner.record import EXIT_REPLAY_FAILED
 from rpa_server.domain import DOMAIN_ID, RecordingRecord, now
@@ -79,18 +79,17 @@ class RecordingTarget:
 
 def codegen_command(output: Path, url: str, engine: str, storage: Path | None) -> list[str]:
     """``python -m playwright codegen``：瀏覽器視窗與 Playwright Inspector 開在這台電腦上。"""
-    command = [
-        sys.executable,
-        "-m",
-        "playwright",
-        "codegen",
-        "--target",
-        "python",
-        "--output",
-        str(output),
-        "--browser",
-        engine,
-    ]
+    command = playwright_command(
+        [
+            "codegen",
+            "--target",
+            "python",
+            "--output",
+            str(output),
+            "--browser",
+            engine,
+        ]
+    )
     if storage is not None:
         command += ["--load-storage", str(storage)]
     return [*command, url]
@@ -305,21 +304,21 @@ class RecordingService:
         (folder / "input.json").write_text(
             json.dumps(replay.inputs, ensure_ascii=False), encoding="utf-8"
         )
-        command = [
-            sys.executable,
-            "-m",
+        command = module_command(
             "rpa_runner.record",
-            "--scenario",
-            str(folder / _BASE_FILE),
-            "--input",
-            str(folder / "input.json"),
-            "--output",
-            str(folder / _UNMASKED),
-            "--out",
-            str(folder / "replay"),
-            "--engine",
-            engine,
-        ]
+            [
+                "--scenario",
+                str(folder / _BASE_FILE),
+                "--input",
+                str(folder / "input.json"),
+                "--output",
+                str(folder / _UNMASKED),
+                "--out",
+                str(folder / "replay"),
+                "--engine",
+                engine,
+            ],
+        )
         if replay.base_url:
             command += ["--base-url", replay.base_url]
         if storage is not None:

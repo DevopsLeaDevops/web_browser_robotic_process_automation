@@ -122,6 +122,7 @@
         </div>
         <p class="muted">請求方向：Portal → API → worker。worker 寫入執行狀態與產物，Portal 以輪詢或伺服器推送事件讀取進度；長任務不阻塞網頁請求。M2 之前只有 CLI 與 Runner，直接在本機執行。</p>
         <p class="muted">遠端 worker（M9a）：worker 機器執行 <code>rpa worker</code>，主動連到管理 Portal 另一個埠上的 Worker API（<code>/worker-api/v1</code>，權杖），長輪詢領取任務、每 5 秒心跳（同時得知是否取消）、執行完上傳整個執行目錄並回報結果。只有管理 Portal 存取資料庫；60 秒沒有心跳就判定失聯，執行標為失敗、不自動重跑。見<a href="../develop/remote-worker.html">遠端 worker</a>。</p>
+        <p class="muted">桌面端（M10）：錄製者與執行機安裝桌面 App，用邀請配對；錄製端的視窗經由對外埠載入 Portal 頁面，錄製、調試、人工登入的瀏覽器開在錄製者的電腦。見<a href="desktop.html">桌面端分發</a>。</p>
 <pre class="source">runs/&lt;執行編號&gt;/
   input.json          # 校驗後的本次入參
   facts.json          # 自動化抽取的頁面事實
@@ -146,6 +147,7 @@
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、run、record、generate、push。</td><td>上述套件、click</td><td>M0</td></tr>
             <tr><td><code>rpa-server</code></td><td>API 與管理頁面、資料庫模型、版本與發布門檻、調試工作階段、試驗場序列的執行（M6）；權限（M8）、排程（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
             <tr><td><code>rpa-worker</code></td><td>取出待執行的任務，以子程序呼叫 rpa-runner，套用總期限與取消，回寫結果與產物。M3 在同一台電腦；M9a 起也可以在另一台電腦，經由 Worker API 領取（<code>rpa worker</code>，ADR 0012）。</td><td>rpa-runner；標準函式庫的 HTTP</td><td>M3</td></tr>
+            <tr><td><code>rpa-desktop</code></td><td>兩個桌面 App：RPA 錄製端（pywebview 視窗載入 Portal 頁面，在這台執行錄製、調試、人工登入的子程序）與 RPA Worker（狀態視窗＋遠端 worker）；配對、下載瀏覽器、打包後的入口。M10 起（ADR 0014）。</td><td>rpa-runner、rpa-worker、pywebview</td><td>M10</td></tr>
           </tbody>
         </table>
       </div>

@@ -8,17 +8,18 @@ Portal 用 uvicorn 在背景執行緒啟動（含背景 worker）；操作 Porta
 """
 
 import json
+import os
 import re
 import socket
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import click
 import pytest
 import uvicorn
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Locator, Page, Route, expect, sync_playwright
 
 from rpa_cli.serve import open_listener
 from rpa_server.app import create_app
@@ -71,7 +72,7 @@ def portal(tmp_path: Path, request: pytest.FixtureRequest) -> Iterator[str]:
 
 
 @pytest.fixture
-def page() -> Iterator[Page]:
+def page(tmp_path: Path) -> Iterator[Page]:
     require_engine("chromium")
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
@@ -81,11 +82,44 @@ def page() -> Iterator[Page]:
             timezone_id="America/Los_Angeles",
         )
         context.set_default_timeout(15_000)
+        artifacts = os.environ.get("RPA_PORTAL_ARTIFACTS")
+        if artifacts:
+            context.tracing.start(screenshots=True, snapshots=True, sources=True)
         try:
             yield context.new_page()
         finally:
+            if artifacts:
+                trace = Path(artifacts) / f"{tmp_path.name}.zip"
+                trace.parent.mkdir(parents=True, exist_ok=True)
+                context.tracing.stop(path=trace)
             context.close()
             browser.close()
+
+
+def drag_to(
+    source: Locator,
+    target: Locator,
+    *,
+    position: tuple[float, float] | None = None,
+    on_mouse_down: Callable[[], None] | None = None,
+) -> None:
+    """真實滑鼠拖放：進入目標後再移動一次，讓各平台都送出 dragover。
+
+    https://playwright.dev/python/docs/input#dragging-manually
+    同樣覆蓋參數連線的 pointermove／pointerup，不用合成 DOM 事件或重試掩蓋失敗。
+    """
+    source.hover()
+    source.page.mouse.down()
+    try:
+        if on_mouse_down is not None:
+            on_mouse_down()
+        for _ in range(2):
+            if position is None:
+                target.hover()
+            else:
+                target.hover(position={"x": position[0], "y": position[1]})
+    finally:
+        source.page.mouse.up()
 
 
 def test_rpa_serve_recognizes_a_running_portal(portal: str) -> None:
@@ -280,10 +314,37 @@ def test_playground_chains_published_scenarios(
     dialog.locator('input[name="name"]').fill("建立後查詢")
     dialog.locator("#dialog-action").click()
     page.wait_for_url(re.compile(r"/playground/\d+$"))
-    page.locator('[data-add="ba-001"]').click()
-    page.locator('[data-add="ba-002"]').drag_to(
-        page.locator("#canvas-viewport"), target_position={"x": 440, "y": 100}
-    )
+    # 固定重現 CI 時序：按住滑鼠後才回覆初次校驗，拖放途中不可收起提示、移動畫布。
+    checks: list[Route] = []
+    check_url = "**/api/workflows/check"
+    page.route(check_url, lambda route: checks.append(route))
+    with page.expect_request(check_url):
+        page.locator('[data-add="ba-001"]').click()
+    viewport = page.locator("#canvas-viewport")
+    before_drag = viewport.bounding_box()
+
+    def finish_check_during_drag() -> None:
+        assert len(checks) == 1
+        result = checks[0].fetch()
+        with page.expect_response(check_url) as received:
+            checks[0].fulfill(response=result)
+        received.value.finished()
+        # 等回覆處理與下一次繪製完成，不靠固定延時碰運氣。
+        page.evaluate(
+            "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+        )
+        expect(page.locator("#workflow-problems")).to_be_visible()
+        assert viewport.bounding_box() == before_drag
+
+    try:
+        drag_to(
+            page.locator('[data-add="ba-002"]'),
+            viewport,
+            position=(440, 100),
+            on_mouse_down=finish_check_during_drag,
+        )
+    finally:
+        page.unroute(check_url)
     expect(page.locator('[data-node="n2"]')).to_be_visible()
     # 1440×900 下工具列、畫布與入參表同屏可見；說明與歷史預設收起。
     expect(page.locator(".workflow-help")).not_to_have_attribute("open", "")
@@ -294,19 +355,20 @@ def test_playground_chains_published_scenarios(
     assert page.locator("#canvas-viewport").evaluate("el => el.clientHeight") >= 250
     page.locator('[data-out="n1"]').click()
     page.locator('[data-in="n2"]').click()
+    expect(page.locator("#workflow-problems")).to_be_hidden()
     expect(page.locator("#node-inputs")).to_contain_text("recordId ← n1.recordId")
     expect(page.locator(".dag-edge")).to_have_count(1)
     expect(page.locator('[data-parameter-wire="recordId"]')).to_have_count(1)
     # 直接拖動出參到入參；型別不符時保留原綁定。也能以鍵盤逐端連線。
-    page.locator('[data-output-port="recordId"]').drag_to(
-        page.locator('[data-input-port="recordId"]')
+    drag_to(
+        page.locator('[data-output-port="recordId"]'), page.locator('[data-input-port="recordId"]')
     )
     expect(page.locator('[data-name="recordId"][data-mode="wire"]')).to_have_attribute(
         "aria-pressed", "true"
     )
     expect(page.locator('[data-source="recordId"]')).to_have_value("out:n1:recordId")
-    page.locator('[data-output-port="quantity"]').drag_to(
-        page.locator('[data-input-port="recordId"]')
+    drag_to(
+        page.locator('[data-output-port="quantity"]'), page.locator('[data-input-port="recordId"]')
     )
     expect(page.locator("#toast")).to_contain_text("型別不相容")
     expect(page.locator('[data-source="recordId"]')).to_have_value("out:n1:recordId")
@@ -557,9 +619,14 @@ def test_contract_table_rename_survives_view_changes(portal: str, page: Page) ->
     assert "inputs.headline" not in files["scenario.yaml"]
     # 離開時保護尚未保存的修改，取消離開後仍能原地編輯。
     area = editor.locator('textarea[name="yaml"]')
+    # v2 已落盤時還可能正在刷新摘要；inert 解除後才能輸入下一份草稿。
+    expect(page.locator("#contract-workspace")).not_to_have_attribute("inert", "")
     text = area.input_value() + "\n# unsaved\n"
     area.fill(text)
+    expect(page.locator('[data-action="save-contract"]')).to_be_enabled()
     page.once("dialog", lambda dialog: dialog.dismiss())
-    page.locator('#page-actions a[href$="/edit"]').click(no_wait_after=True)
+    with page.expect_event("dialog") as leaving:
+        page.locator('#page-actions a[href$="/edit"]').click(no_wait_after=True)
+    assert leaving.value.type == "beforeunload"
     expect(area).to_have_value(text)
     assert page.url.endswith("/scenes/ba-001")

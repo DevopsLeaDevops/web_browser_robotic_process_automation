@@ -18,7 +18,6 @@ import os
 import shutil
 import signal
 import subprocess
-import sys
 import threading
 import time
 import uuid
@@ -31,6 +30,7 @@ from typing import Final, Literal, cast
 from rpa_core.dsl import Issue, Scenario, validate_file
 from rpa_core.i18n import ENV_VAR, get_locale
 from rpa_runner.browser import Deadline
+from rpa_runner.commands import module_command, script_command
 from rpa_runner.contract import (
     CheckResult,
     Problem,
@@ -531,18 +531,18 @@ def _login_stage(
             raise _StageFailedError(
                 "failed", t("run.login_secret_missing", role=login.label, names=", ".join(missing))
             )
-        command = [
-            sys.executable,
-            "-m",
+        command = module_command(
             "rpa_runner.login",
-            "check",
-            "--out",
-            str(folder),
-            "--deadline",
-            f"{max(0, deadline.remaining_ms()) / 1000:.3f}",
-            "--engine",
-            engine,
-        ]
+            [
+                "check",
+                "--out",
+                str(folder),
+                "--deadline",
+                f"{max(0, deadline.remaining_ms()) / 1000:.3f}",
+                "--engine",
+                engine,
+            ],
+        )
         env = _environment(secrets, deadline, engine)
         env[ENV_LOGIN] = json.dumps(login.to_json(), ensure_ascii=False)
         needs = _StageFailedError("needs_login", t("run.needs_login", role=login.label))
@@ -580,32 +580,33 @@ def _automation_stage(
     stage = result.stage("automation")
     url = base_url or scenario.browser.base_url
     if scenario.script is not None:
-        command = [
-            sys.executable,
+        command = script_command(
             str(snapshot.parent / scenario.script.automation),
-            "--input",
-            str(folder / INPUT),
-            "--facts",
-            str(folder / FACTS),
-            "--screenshot",
-            str(folder / SCREENSHOT),
-            "--target-url",
-            url or "",
-        ]
+            [
+                "--input",
+                str(folder / INPUT),
+                "--facts",
+                str(folder / FACTS),
+                "--screenshot",
+                str(folder / SCREENSHOT),
+                "--target-url",
+                url or "",
+            ],
+        )
     else:
-        command = [
-            sys.executable,
-            "-m",
+        command = module_command(
             "rpa_runner.child",
-            "--scenario",
-            str(snapshot),
-            "--input",
-            str(folder / INPUT),
-            "--out",
-            str(folder),
-            "--deadline",
-            f"{max(0, deadline.remaining_ms()) / 1000:.3f}",
-        ]
+            [
+                "--scenario",
+                str(snapshot),
+                "--input",
+                str(folder / INPUT),
+                "--out",
+                str(folder),
+                "--deadline",
+                f"{max(0, deadline.remaining_ms()) / 1000:.3f}",
+            ],
+        )
         command += ["--engine", engine] if engine else []
         command += ["--base-url", base_url] if base_url else []
         command += ["--headed"] if headed else []
@@ -646,16 +647,17 @@ def _verify_stage(
     started = time.monotonic()
     stage = result.stage("verify")
     if scenario.script is not None:
-        command = [
-            sys.executable,
+        command = script_command(
             str(snapshot.parent / scenario.script.assertion),
-            "--input",
-            str(folder / INPUT),
-            "--facts",
-            str(folder / FACTS),
-            "--output",
-            str(folder / CANDIDATE),
-        ]
+            [
+                "--input",
+                str(folder / INPUT),
+                "--facts",
+                str(folder / FACTS),
+                "--output",
+                str(folder / CANDIDATE),
+            ],
+        )
         try:
             env = _environment(secrets, deadline)
             _run_process(command, folder / ASSERTION_LOG, deadline, env, cancel)

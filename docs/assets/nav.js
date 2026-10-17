@@ -12,7 +12,7 @@ window.DOCS_NAV = {
   "subtitle": "ENGINEERING DOCS",
   "text": {
     "title": {"zh-Hant": "瀏覽器 RPA", "zh-Hans": "浏览器 RPA", "en": "Browser RPA"},
-    "badge": {"zh-Hant": "文檔 · M9a", "zh-Hans": "文档 · M9a", "en": "Docs · M9a"},
+    "badge": {"zh-Hant": "文檔 · M10", "zh-Hans": "文档 · M10", "en": "Docs · M10"},
     "skip": {"zh-Hant": "跳至主要內容", "zh-Hans": "跳至主要内容", "en": "Skip to main content"},
     "topnav": {"zh-Hant": "第一級選單", "zh-Hans": "第一级菜单", "en": "Primary navigation"},
     "sidenav": {"zh-Hant": "第二級選單", "zh-Hans": "第二级菜单", "en": "Section navigation"},
@@ -76,6 +76,11 @@ window.DOCS_NAV = {
           "id": "multi-user",
           "href": "design/multi-user.html",
           "name": {"zh-Hant": "多用戶與內網", "zh-Hans": "多用户与内网", "en": "Multi-user & intranet"}
+        },
+        {
+          "id": "desktop",
+          "href": "design/desktop.html",
+          "name": {"zh-Hant": "桌面端分發", "zh-Hans": "桌面端分发", "en": "Desktop distribution"}
         }
       ]
     },
@@ -148,6 +153,11 @@ window.DOCS_NAV = {
           "id": "adr-0012",
           "href": "adr/0012-remote-workers.html",
           "name": {"zh-Hant": "0012 遠端 worker", "zh-Hans": "0012 远程 worker", "en": "0012 Remote workers"}
+        },
+        {
+          "id": "adr-0014",
+          "href": "adr/0014-desktop-apps.html",
+          "name": {"zh-Hant": "0014 桌面 App", "zh-Hans": "0014 桌面 App", "en": "0014 Desktop apps"}
         }
       ]
     },

@@ -1,0 +1,114 @@
+# 桌面端建置（M10，ADR 0014）：建 RPA 錄製端（macOS，Apple 晶片）與 RPA Worker（Windows x64），
+# 再用打包後的 App 跑自我測試（rpa_desktop.selftest）：
+#   App 用內附的 Playwright driver 把 Chromium 下載到全新的資料夾 → 啟動測試網站 →
+#   無頭執行 BA-001（子程序走 --rpa-module）與它的 Python 腳本版（走 --rpa-script）。
+# 產物（DMG、zip）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
+name: 桌面端建置
+
+on:
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - "apps/worker/**"
+      - "apps/testsite/**"
+      - "packages/**"
+      - "scenarios/demo/**"
+      - "tools/build_desktop.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/desktop.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "apps/worker/**"
+      - "apps/testsite/**"
+      - "packages/**"
+      - "scenarios/demo/**"
+      - "tools/build_desktop.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: recorder
+            os: macos-14
+            name: RPA 錄製端（macOS）
+          - app: worker
+            os: windows-latest
+            name: RPA Worker（Windows）
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # 開發工具（uv run python …）印出中文時用 UTF-8；Windows 的主控台預設是 cp1252。
+      # 打包後的 App 不讀這個變數，它在建置時就開了 UTF-8 模式（apps/desktop/packaging）。
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - name: 安裝依賴（含打包工具）
+        run: uv sync --locked --group desktop-build
+      - name: 建置
+        id: build
+        run: uv run python tools/build_desktop.py ${{ matrix.app }}
+      - name: 自我測試（打包後的 App）
+        env:
+          # 全新的資料夾：確定瀏覽器是打包後的 driver 下載的，不是開發環境留下的
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
+          # 刻意關掉：App 要靠建置時開的 UTF-8 模式，不能依賴使用者電腦的環境變數
+          PYTHONUTF8: "0"
+        run: |
+          "${{ steps.build.outputs.executable }}" --version
+          set +e
+          "${{ steps.build.outputs.executable }}" --self-test --report "${{ runner.temp }}/self-test.json" \
+            > "${{ runner.temp }}/self-test.log" 2>&1
+          code=$?
+          set -e
+          cat "${{ runner.temp }}/self-test.log"
+          exit "$code"
+      - name: 自我測試的結果寫成 annotations
+        if: always()
+        # 日誌在 PR 頁面就看得到：每一步的結果、失敗的原因與輸出的最後幾行
+        run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/self-test.json" "${{ runner.temp }}/self-test.log"
+      - name: 大小與結果
+        if: always()
+        run: |
+          sizes="$( { du -sh dist/desktop/* "${{ runner.temp }}/pw-browsers" 2>/dev/null || true; } )"
+          # 大小也寫成 annotation，在 PR 頁面就看得到
+          echo "::notice title=大小（${{ matrix.app }}）::${sizes//$'\n'/%0A}"
+          {
+            echo "### ${{ matrix.name }}"
+            echo '```'
+            echo "$sizes"
+            echo '```'
+            if [ -f "${{ runner.temp }}/self-test.json" ]; then
+              echo '<details><summary>self-test.json</summary>'
+              echo
+              echo '```json'
+              cat "${{ runner.temp }}/self-test.json"
+              echo '```'
+              echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.app }}-${{ matrix.os }}
+          path: ${{ steps.build.outputs.artifact }}
+          retention-days: 14
+          if-no-files-found: error

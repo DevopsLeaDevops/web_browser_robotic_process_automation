@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:50df441c4f85d988">
+<title>Desktop distribution · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="desktop" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Desktop distribution</h1>
+      <p>M10: the server and database are deployed on one computer; recorders and execution machines each install a desktop app and paste an invitation. The app window reuses the server's existing pages; the browser for recording, step-by-step debugging and manual login opens on the computer the person is using. Decision in <a href="../adr/0014-desktop-apps.html">ADR 0014</a>.</p>
+    </div>
+    <span class="badge amber">M10 in design</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="scope">
+      <div class="panel-header"><h2>Goals and scope</h2><span class="muted">Confirmed with the user on 2026-10-15</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Component</th><th>macOS</th><th>Windows</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>RPA Recorder</td><td><span class="badge blue">Delivered in M10</span></td><td><span class="badge">Planned option</span></td><td>Recording, step-by-step debugging, manual login and the rest of the portal; Apple silicon (arm64)</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge">Planned option</span></td><td><span class="badge blue">Delivered in M10</span></td><td>Runs scenarios (headed mode included); Windows x64</td></tr>
+            <tr><td>Server (rpa serve)</td><td colspan="2"><span class="badge">Planned option</span>: stays <code>uv run rpa serve</code></td><td>Runs on the user's own computer for the MVP; moves to production once tuned</td></tr>
+            <tr><td>Database</td><td colspan="2"><span class="badge">No separate binary</span></td><td>SQLite is embedded in the server; production PostgreSQL uses the official installers or Docker (M8, M9)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>No interface rewrite.</strong>The recorder window loads the server's existing Jinja pages; portal changes show up in the recorder immediately.</li>
+          <li><strong>No change to execution.</strong>The DSL, scenario contract, publish gate, run folders, Worker API v1 and every CLI command stay as they are, as does local use of <code>127.0.0.1:8080</code>.</li>
+          <li><strong>Two apps, one codebase.</strong>Both live in <code>apps/desktop</code>, each with its own build configuration and installer.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col" id="flows">
+      <section class="panel">
+        <div class="panel-header"><h2>Recorder: what the user does</h2><span class="muted">macOS</span></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>Get the DMG from the portal's "Download desktop apps" and drag "RPA Recorder" (RPA Recorder.app) into Applications.</li>
+            <li>First launch: the app is unsigned, so macOS blocks it; allow it in System Settings › Privacy &amp; Security (steps under <a href="#signing">Signing and first launch</a>).</li>
+            <li>Paste the recorder invitation created on the portal's "Devices" page; pairing is done.</li>
+            <li>Download the browsers (first time only, with progress).</li>
+            <li>The window shows the portal. "Start recording", "Debug" and "Sign in" open the browser on this Mac.</li>
+          </ol>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Worker: what the user does</h2><span class="muted">Windows</span></div>
+        <div class="panel-body prose">
+          <ol>
+            <li>Get <code>RPA-Worker-Setup.exe</code> and install it into the user profile; no administrator rights, uv, git or Python needed.</li>
+            <li>If SmartScreen appears, choose "More info › Run anyway".</li>
+            <li>Paste the worker invitation; pairing is done.</li>
+            <li>Download the browsers; the status becomes "Online".</li>
+            <li>Closing the window minimizes it to the notification area; "Start when I sign in to Windows" can be ticked.</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="architecture">
+      <div class="panel-header"><h2>Architecture</h2><span class="muted">The server only gains two uses on the external port</span></div>
+      <div class="panel-body">
+<pre class="source">Server machine (MVP: the user's own computer, uv run rpa serve --worker-port 8081)
+┌──────────────────────────────────────────────────────────────┐
+│ 127.0.0.1:8080  Portal pages + /api (unchanged, local only)       │
+│ 0.0.0.0:8081    External port                                     │
+│   /worker-api/v1  Worker API (unchanged, worker token)            │
+│   /client-api/v1  New: pairing, recorder interactive processes    │
+│   all other paths New: portal pages + /api, recorder token only   │
+│ SQLite, data/ (unchanged)                                         │
+└──────────────────────────────────────────────────────────────┘
+          ▲ device token                            ▲ worker token
+┌─────────┴──────────────────────┐   ┌─────────┴───────────────────┐
+│ RPA Recorder (macOS)             │   │ RPA Worker (Windows)          │
+│ Window: WKWebView                │   │ Status window: WebView2 + tray│
+│  → local gateway 127.0.0.1:rand  │   │ Inside: the existing          │
+│    adds the token, forwards to   │   │  RemoteWorker                 │
+│    the server's port 8081        │   │ runner child processes        │
+│ Interactive host: recording,     │   │ Local test site               │
+│  debugging, manual-login child   │   │  127.0.0.1:8765               │
+│  processes run here, headed      │   └─────────────────────────────┘
+└────────────────────────────────┘</pre>
+        <p class="diagram-caption">Only the server touches the database (ADR 0008 and ADR 0012 unchanged). Both apps connect to the server; the server never needs to reach them.</p>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="pairing">
+        <div class="panel-header"><h2>Devices and invitations</h2><span class="muted">M10.1</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>The "Remote workers" page becomes "Devices".</strong>It lists both workers and recorders. Adding one means choosing the kind and a name and creating an <strong>invitation</strong>, replacing today's "copy the token and the start command".</li>
+            <li><strong>Invitation.</strong>One line of text: <code>rpa://pair?server=http://192.168.1.10:8081&amp;app=worker&amp;code=…</code>. The code is single use, valid for 24 hours and tied to one kind of app; the database stores only a hash. The app also accepts the server address and code entered separately.</li>
+            <li><strong>Pairing.</strong>The app calls <code>POST /client-api/v1/pair</code> with the invitation and receives a device token, stored in the macOS keychain or the Windows Credential Manager. A worker invitation pasted into the recorder (or the other way round) is refused with an explanation.</li>
+            <li><strong>A worker device</strong> is simply the existing worker record: the token it receives is used directly with the Worker API. <code>uv run rpa worker --token …</code> keeps working.</li>
+            <li><strong>Management.</strong>Disable, re-invite (the old token stops working at once), delete; the page shows online status, app version, operating system and browsers.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="remote-port">
+        <div class="panel-header"><h2>External port and access control</h2><span class="muted">M10.1, M10.2</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>Keep <code>--worker-port</code>.</strong>No new command-line option; the docs call it the "external port".</li>
+            <li><strong>Routing by path</strong> (extending <code>PortGateMiddleware</code>): <code>/worker-api/</code> needs a worker token; <code>/client-api/v1/pair</code> accepts only an invitation code; the rest of <code>/client-api/</code> needs a device token; every other path (portal pages, <code>/api</code>, static files) needs a <strong>recorder</strong> device token and otherwise gets 401.</li>
+            <li><strong>Result.</strong>An unpaired computer opening 8081 sees no management pages, and a worker token cannot open them either. This is the minimum access control before M8; M8 later maps devices to users.</li>
+            <li><strong>Local 8080 unchanged.</strong>A browser on the server machine keeps using it directly.</li>
+            <li><strong>Transport.</strong>HTTP plus tokens on a trusted LAN (the 2026-10-13 decision); HTTPS is listed under <a href="#reserved">planned options</a>.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="interactive">
+      <div class="panel-header"><h2>Interactive child processes: the browser opens where the person is</h2><span class="muted">M10.2; recording, step-by-step debugging, manual login</span></div>
+      <div class="panel-body prose">
+        <p><strong>"This computer" now means "the computer you are using".</strong> A request from a recorder hands the child process to that recorder; a request from a browser on the server machine (8080) still runs it on the server. The pages get no extra option.</p>
+        <ul>
+          <li><strong>Process host.</strong>The recording, debugging and manual-login services already start child processes through an injectable <code>launcher</code> and use only a small part of Popen: write a line to standard input, read standard output line by line, stop. <code>LocalHost</code> is today's behaviour; <code>DeviceHost</code> has the same interface but goes through the Client API to the recorder. The server code that reads <code>Lines</code> and parses events does not change.</li>
+          <li><strong>Start.</strong>The server sends a "start" command: the module (for example <code>rpa_runner.debug</code> or <code>playwright codegen</code>), arguments (the working folder as a placeholder, never a server path), the files it needs (scenario, inputs, sign-in state) and environment variables (language, the secrets in use). The recorder writes the files into its own temporary folder and starts the process.</li>
+          <li><strong>Output and files.</strong>The recorder sends back every line of standard output; before sending a line it uploads files created or changed since the last line (screenshots, the recording, sign-in state), so the files are always there when the server handles that line. On exit it syncs once more and reports the exit code.</li>
+          <li><strong>Input and stop.</strong>When the server needs to send a line (such as "run step 3" while debugging) or stop the process, it queues a command for the recorder, which picks it up by long polling.</li>
+          <li><strong>Lost connection.</strong>Each long poll from the recorder is a heartbeat. After 30 seconds without one, the server treats its child processes as ended (debugging marked interrupted, recording marked failed); when the recorder reconnects it closes any leftover browser.</li>
+          <li><strong>Unchanged.</strong>Converting the recording to DSL, masking passwords, creating the draft revision, confirming side effects while debugging and saving sign-in states all stay on the server. Secrets and sign-in states live on the recorder only in memory and temporary files and are deleted afterwards (as with M9a workers).</li>
+          <li><strong>Browser check.</strong>The recorder reports its downloaded browsers when it connects; picking a browser it lacks gets an explanation on the page instead of a child process.</li>
+          <li><strong>Records.</strong>Recording and debugging sessions remember which device they ran on; the page header shows which recorder is in use.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="recorder">
+        <div class="panel-header"><h2>RPA Recorder</h2><span class="muted">M10.2, macOS</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>Local gateway.</strong>The app runs a small gateway on a random <code>127.0.0.1</code> port and the window loads only gateway URLs; the gateway adds the device token and forwards to the server's external port. The token never enters the web page and does not depend on server cookies; when HTTPS arrives, the gateway pins the certificate so the WebView never deals with self-signed certificates.</li>
+            <li><strong>For this app only.</strong>The gateway creates a secret on every launch and sets it as a cookie on the window's first load; requests without it are refused, so other programs and browsers on the same computer cannot use it.</li>
+            <li><strong>The app's own pages</strong> (pairing, browser download, offline notice, settings) live under the gateway's <code>/__desktop/</code> and use the design-system CSS.</li>
+            <li><strong>New windows and downloads.</strong>Links with <code>target="_blank"</code> (reports, screenshots) open in a new app window; exported files go to Downloads.</li>
+            <li><strong>Server on the same computer</strong> (the MVP case): pair with <code>http://127.0.0.1:8081</code> and take the same path.</li>
+            <li><strong>Run-location wording.</strong>Seen through the recorder, "Local" is shown as "Server", so it is not mistaken for the recorder itself.</li>
+            <li><strong>Local network permission.</strong>From macOS 15 the user must allow LAN access; Info.plist carries the usage description (<code>NSLocalNetworkUsageDescription</code>).</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1, Windows</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>Inside is the existing RemoteWorker.</strong>Only the token now comes from pairing; claiming, heartbeats, uploads and the test site behave exactly like <code>rpa worker</code>.</li>
+            <li><strong>Status window.</strong>Server, online status, current run, recent runs, app version; a version different from the server's is flagged with a link to the download page.</li>
+            <li><strong>Notification-area icon.</strong>Closing the window minimizes it to the notification area; the menu has "Open window", "Pause taking jobs" and "Quit".</li>
+            <li><strong>Start at sign-in.</strong>When ticked, it is added to the current user's run-at-sign-in list; headed mode needs a signed-in desktop, so it is not a system service.</li>
+            <li><strong>Single instance.</strong>Opening it again brings up the running copy.</li>
+            <li><strong>Where data lives.</strong>Working data and logs in <code>%LOCALAPPDATA%\rpa\worker</code>, Firefox warm-up templates still in <code>%LOCALAPPDATA%\rpa\cache</code>, browsers in Playwright's default <code>%LOCALAPPDATA%\ms-playwright</code>.</li>
+            <li><strong>The three remaining M9a items join M10.1:</strong> a "run location" filter in run reports, a warning when a scenario URL is a local address, and a "waiting for a worker" hint.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="packaging">
+      <div class="panel-header"><h2>Packaging and builds</h2><span class="muted">M10.0</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>Child-process commands in one place.</strong>Ten places currently start child processes with <code>sys.executable -m …</code> (runner, sign-in check, recording, debugging, codegen). <code>rpa_runner.commands</code> produces them instead: <code>python -m module</code> in development, <code>App --rpa-module module</code> when packaged; Python script scenarios become <code>App --rpa-script file</code>; codegen calls the driver shipped with Playwright directly.</li>
+          <li><strong>PyInstaller, folder mode (onedir).</strong>macOS builds <code>RPA Recorder.app</code> and wraps it in a DMG; Windows uses Inno Setup for <code>RPA-Worker-Setup.exe</code>, which installs into the user profile. No one-file mode (it unpacks hundreds of MB on every launch and is more often flagged by antivirus).</li>
+          <li><strong>Build info.</strong>The version, code fingerprint and protocol version are written into the app at build time (a packaged app has no source files to fingerprint). Version rules follow M9a: a different protocol is refused, a different fingerprint is only flagged.</li>
+          <li><strong>Browsers.</strong>On first launch the Playwright driver inside the app downloads them, so the versions always match; they go to Playwright's default user cache. An internal mirror can be set in settings (<code>PLAYWRIGHT_DOWNLOAD_HOST</code>). Chromium is required and Firefox optional, for both apps.</li>
+          <li><strong>Python script scenarios.</strong>A packaged app runs them with its own Python, which can import only the standard library and the packages shipped inside the app (Playwright, Pydantic and so on).</li>
+          <li><strong>CI.</strong>A new desktop build workflow builds the recorder on macOS (Apple silicon) and the worker on Windows, then runs a <strong>self-test</strong>: the packaged app downloads Chromium, starts the test site and runs BA-001 headless, proving the packaged child-process path really works. The DMG and installer are attached to that build.</li>
+          <li><strong>Sizes (measured in CI for M10.0).</strong>The recorder DMG is 68 MB (166 MB unpacked); the worker zip is 58 MB (139 MB unpacked). The first Chromium download (headless shell included) takes about 570 MB (macOS) to 710 MB (Windows) unpacked; Firefox comes on top.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="signing">
+        <div class="panel-header"><h2>Signing and first launch</h2><span class="muted">No signing in the MVP</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>macOS.</strong>Only an ad-hoc signature (required on Apple silicon; PyInstaller handles it), no notarization. The first launch after downloading in a browser is blocked: in System Settings › Privacy &amp; Security, find the app near the bottom, choose to open it anyway and enter your password. Since macOS 15, Control-clicking "Open" no longer skips this step. Terminal users can instead run <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>.</li>
+            <li><strong>Windows.</strong>No code-signing certificate: when SmartScreen shows "Windows protected your PC", choose "More info › Run anyway"; the browser may also ask to keep the download.</li>
+            <li><strong>Later.</strong>With an Apple Developer account, add Developer ID signing and notarization; on Windows, add a code-signing certificate. Only the CI build steps change.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="client-api">
+        <div class="panel-header"><h2>Client API v1</h2><span class="muted"><code>/client-api/v1</code>, external port only</span></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>POST /pair</code></td><td>Exchange an invitation code and app kind for a device token; returns device id, name and server version</td></tr>
+              <tr><td><code>POST /hello</code></td><td>Recorder comes online: protocol, version, fingerprint, OS, downloaded browsers</td></tr>
+              <tr><td><code>POST /control</code></td><td>Long poll (up to 25 seconds) for commands: start a child process, send a line, stop; also serves as the heartbeat</td></tr>
+              <tr><td><code>PUT /processes/{id}/files</code></td><td>Upload created or changed files (zip; safe relative paths only, size limits)</td></tr>
+              <tr><td><code>POST /processes/{id}/output</code></td><td>Lines of standard output; the exit code when the child process ends</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="phases">
+      <div class="panel-header"><h2>Phases and acceptance</h2><span class="muted">Worker before recorder: the worker is almost all reuse, so it proves packaging, installation and pairing first</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Phase</th><th>Content</th><th>Acceptance</th></tr></thead>
+          <tbody>
+            <tr><td><span class="milestone">M10.0</span></td><td>Packaging groundwork: child-process commands in one place, build info, the rpa-desktop skeleton and packaged entry point, PyInstaller configuration for both apps, CI builds and self-test</td><td>The packaged macOS recorder and Windows worker run BA-001 in CI; every development-environment test still passes</td></tr>
+            <tr><td><span class="milestone">M10.1</span></td><td>Windows worker: devices page and invitations, Client API pairing, status window, notification area, start at sign-in, browser download, installer; the three remaining M9a items</td><td>On a Windows machine with no development tools: install → paste the invitation → download browsers → run BA-001 → BA-002 headed, reports back in the portal; online again automatically after a restart and sign-in</td></tr>
+            <tr><td><span class="milestone">M10.2</span></td><td>macOS recorder: local gateway, portal and access control on the external port, DeviceHost (recording → manual login → step-by-step debugging), DMG</td><td>Record on the Mac (browser opens on the Mac) → draft → step-by-step debugging → manual sign-in for a role → validate on the Windows worker → publish; an unpaired computer opening 8081 sees no management pages</td></tr>
+            <tr><td><span class="milestone">M10.3</span></td><td>Docs and acceptance: desktop installation guide, portal manual checks, roadmap</td><td>Docs checks pass; manual two-machine acceptance recorded</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="reserved">
+        <div class="panel-header"><h2>Planned options</h2><span class="muted">Not in this phase; the design leaves room</span></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Item</th><th>Plan</th></tr></thead>
+            <tbody>
+              <tr><td>Recorder for Windows</td><td>Same code, one more build combination plus acceptance</td></tr>
+              <tr><td>Worker for macOS</td><td>Same, plus start at login (login item)</td></tr>
+              <tr><td>Server</td><td>The same packaging tools build <code>rpa serve</code> (macOS, Windows, Linux); M9's Docker Compose is separate</td></tr>
+              <tr><td>Auto-update</td><td>The MVP only flags and links to the download page; later Sparkle and WinSparkle</td></tr>
+              <tr><td>HTTPS</td><td>The server creates a self-signed certificate, the invitation carries its fingerprint, and the gateway and workers pin it; no purchased certificate needed</td></tr>
+              <tr><td>Offline installers</td><td>Chromium bundled in the installer, for intranets that cannot reach the download site</td></tr>
+              <tr><td>Recorder that also executes</td><td>One more run location, "this recorder", reusing the pinned-worker mechanism of sequences</td></tr>
+              <tr><td>Intel Macs</td><td>One more x86_64 build</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel" id="risks">
+        <div class="panel-header"><h2>Risks to test</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>WebView2.</strong>Built into Windows 11 and usually present on Windows 10 through Edge updates; the installer installs it if missing.</li>
+            <li><strong>macOS local network permission.</strong>Confirm that the Chromium started by Playwright reaching intranet sites counts against the app's permission.</li>
+            <li><strong>Antivirus false positives.</strong>The PyInstaller launcher is occasionally flagged; folder mode is flagged less, and reports go to the vendor if needed.</li>
+            <li><strong>Private Playwright command.</strong>"Continue recording" uses codegen's internal <code>enableRecorder</code>; the packaged app must use the same driver, and a Playwright upgrade that breaks it is caught by the self-test.</li>
+            <li><strong>New windows and downloads in pywebview.</strong>WKWebView and WebView2 behave differently; both need a manual check.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

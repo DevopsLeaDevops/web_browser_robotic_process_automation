@@ -16,6 +16,7 @@ rpa-worker = { workspace = true }
 rpa-server = { workspace = true }
 rpa-testsite = { workspace = true }
 rpa-cli = { workspace = true }
+rpa-desktop = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -26,6 +27,7 @@ dev = [
   "rpa-server",
   "rpa-testsite",
   "rpa-cli",
+  "rpa-desktop",
   # 工具鏈
   "ruff>=0.16.10",
   "pyright>=1.1.414",
@@ -36,6 +38,11 @@ dev = [
   # 由繁中產生簡中（tools/i18n.py）。鎖定版本：詞庫一更新，產生的簡中就會不同，
   # 升級時要一併執行 uv run python tools/i18n.py sync 並提交結果。見 ADR 0007。
   "opencc==1.4.2",
+]
+# 桌面端的打包工具（M10，ADR 0014）：只有建置 App 時才需要，不放在預設的 dev 群組。
+# uv sync --locked --group desktop-build && uv run python tools/build_desktop.py worker
+desktop-build = [
+  "pyinstaller>=6.11",
 ]
 
 # ---------------------------------------------------------------- ruff

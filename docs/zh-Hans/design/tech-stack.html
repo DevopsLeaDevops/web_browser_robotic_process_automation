@@ -40,6 +40,8 @@
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支持多包；ruff 一个工具处理 lint 与格式化</td><td>M0</td></tr>
             <tr><td>多语言</td><td>各包的 JSON 消息目录；简中以 OpenCC 由繁中产生</td><td>gettext、Babel</td><td>繁中为主要语言，Web UI 也要读同一份翻译；只需人工维护繁中与英文<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
             <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>仓库在 GitHub；Python 3.12 / 3.13 两个版本并行测试</td><td>M0</td></tr>
+            <tr><td>桌面端壳</td><td>pywebview（macOS 的 WKWebView、Windows 的 WebView2）</td><td>Electron、Tauri</td><td>界面就是服务器渲染的页面，壳只要能加载网址；不多带一个 Chromium，也不引入 Node 或 Rust<small><a href="../adr/0014-desktop-apps.html">ADR 0014</a></small></td><td>M10</td></tr>
+            <tr><td>桌面端打包</td><td>PyInstaller（文件夹模式）；macOS DMG、Windows Inno Setup</td><td>Briefcase、Nuitka</td><td>最成熟、有 Playwright 的打包设置；文件夹模式启动快、较少被杀毒误判</td><td>M10</td></tr>
             <tr><td>部署</td><td>Docker Compose</td><td>Kubernetes</td><td>起步够用，之后可以迁移</td><td>M9</td></tr>
           </tbody>
         </table>

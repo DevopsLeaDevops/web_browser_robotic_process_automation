@@ -355,6 +355,11 @@ $RpaSetupArgs = @{
             if ($parentDir -and -not (Test-Path -LiteralPath $parentDir)) { New-Item -ItemType Directory -Path $parentDir | Out-Null }
             Invoke-Native git @('clone', $RepoUrl, $Dir) -Message '下載程式碼失敗。' `
                 -Hints @('確認連得到 github.com；公司網路可能需要設定代理（HTTPS_PROXY）。')
+            # CI 指定與下載腳本相同的提交；只作用於新 clone，不切換既有工作區。
+            if ($env:RPA_GIT_REF) {
+                Invoke-Native git @('-C', $Dir, 'fetch', 'origin', $env:RPA_GIT_REF) -Message '下載指定提交失敗。'
+                Invoke-Native git @('-C', $Dir, 'checkout', '--detach', 'FETCH_HEAD') -Message '切換指定提交失敗。'
+            }
             $State.RepoDir = $Dir
             Write-Ok "已下載到：$Dir"
         }

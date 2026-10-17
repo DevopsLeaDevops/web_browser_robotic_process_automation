@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:23d256fad1b65845">
+<title>ADR 0014 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0014" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0014: The recorder and the worker ship as desktop apps that reuse the existing web pages</h1>
+      <p>The server and database are deployed on one computer; recorders and execution machines each install a desktop app and are ready to go. Each app is a pywebview shell around the server's existing Jinja pages. The browser for recording, step-by-step debugging and manual login opens on the computer the person is using.</p>
+    </div>
+    <span class="badge amber">Proposed</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-15</dd>
+        <dt>Scope</dt><dd>New package rpa-desktop; rpa-runner (child-process commands), rpa-server (devices, invitations, the external port, interactive child processes), rpa-worker (version info); CI and releases (from M10)</dd>
+        <dt>Related</dt><dd>Extends <a href="0012-remote-workers.html">ADR 0012</a> (external port and tokens); <a href="0011-fastapi-jinja.html">ADR 0011</a> (Python only, server-rendered pages); <a href="0010-mvp-first.html">ADR 0010</a>; <a href="../design/desktop.html">Desktop distribution</a>. Number 0013 is reserved and unused.</dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>The server and database will live on a fixed computer (first on the user's own machine while things are tuned, then in production). Today both recorders and execution machines need uv, git and Python plus the setup script, and versions have to be aligned by hand. The user wants something like Claude Desktop: one installer and it works.</p>
+          <p>The deeper limitation: recording, step-by-step debugging and manual login all open their browser on the computer running the portal (the M4 design, kept by ADR 0012). Once the server moves elsewhere, a recorder can open none of them on their own computer. The management pages also have no sign-in (that comes in M8), so they cannot simply be opened to the LAN.</p>
+          <p>Claude Desktop is an Electron app: the shell carries its own Chromium and the main interface is a web page. Our interface is already server-rendered web pages, so the shell only needs a window that can load a URL.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Two apps, one codebase.</strong>"RPA Recorder" and "RPA Worker" both live in <code>apps/desktop</code> (package rpa-desktop), each with its own build configuration. M10 delivers the recorder for macOS (Apple silicon) and the worker for Windows (x64); the other combinations are kept as a planned option.</li>
+            <li><strong>pywebview as the shell.</strong>The system WKWebView on macOS and WebView2 on Windows; no extra browser bundled. The recorder window loads the server's existing portal pages, so there is one set of templates. The app's own few pages (pairing, browser download, status) are also HTML using the design system.</li>
+            <li><strong>Pairing by invitation.</strong>The portal's "Devices" page creates a one-time invitation (valid for 24 hours, single use, tied to one kind of app). The app exchanges it for a device token, stored in the macOS keychain or the Windows Credential Manager.</li>
+            <li><strong>The external port gains two uses.</strong>Besides the Worker API, the <code>rpa serve --worker-port</code> port also serves the Client API (pairing, interactive child processes) and the portal pages; the portal pages accept only a recorder's device token and refuse everything else. Local use of <code>127.0.0.1:8080</code> is unchanged.</li>
+            <li><strong>Interactive child processes run where the person is.</strong>The server gains a process-host layer: when a request comes from a recorder, the recording, debugging and manual-login child processes run on that recorder, and their output and files come back; requests from a local browser still run on the server. Conversion, masking, revisions and the publish gate stay on the server.</li>
+            <li><strong>Child-process commands in one place.</strong>Every <code>sys.executable -m …</code> is produced by <code>rpa_runner.commands</code> instead; a packaged app goes through its own entry point.</li>
+            <li><strong>Browsers download on first launch.</strong>The Playwright driver shipped inside the app downloads them, so the versions always match; an internal mirror can be configured.</li>
+            <li><strong>No code signing for the MVP.</strong>macOS gets only an ad-hoc signature and Windows has no code-signing certificate; the docs explain how to allow the first launch. Signing and notarization come once accounts exist.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Recorders and execution machines need no uv, git or Python: paste the invitation, download the browsers, done.</li>
+            <li>The recording browser opens on the recorder's own computer, so the server can live anywhere (including a production machine without a screen).</li>
+            <li>One interface: a change to the portal pages shows up in the recorder immediately, and the project is still Python only.</li>
+            <li>The worker reuses the M9a Worker API and runner; there is no second execution path.</li>
+            <li>An unpaired computer opening the external port sees no management pages: the minimum access control before M8.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>An extra CI build (macOS, Windows); each release ships two installers, and app and server versions must match.</li>
+            <li>Without signing, the first launch has to be allowed by hand (macOS Privacy &amp; Security, Windows SmartScreen).</li>
+            <li>Recording and debugging send output and screenshots over the network; with HTTP, device tokens, secrets and sign-in states travel in clear text, so this suits trusted LANs only (as in ADR 0012).</li>
+            <li>In the packaged app, Python script scenarios can import only the standard library and the packages shipped inside the app.</li>
+            <li>The system WebView depends on the OS: Windows needs WebView2 (built into Windows 11); macOS uses the system Safari engine.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Electron shell plus Python child processes (the Claude Desktop approach)</td><td>A complete ecosystem (auto-update, signing tools), but it adds a Node/TypeScript toolchain and a second Chromium. The shell only opens windows, so it is cheap to replace later if needed.</td></tr>
+              <tr><td>Tauri shell</td><td>Smallest installers, but needs a Rust toolchain; same reasoning as above.</td></tr>
+              <tr><td>No shell: open the portal in the system browser and run a background program</td><td>It does not feel like an app; the token would have to live in a browser cookie and is lost when switching browsers.</td></tr>
+              <tr><td>One app whose role comes from the invitation</td><td>Only one build, but the user chose two apps: clear names and audiences, and no recording features on worker machines.</td></tr>
+              <tr><td>Browsers bundled in the installer</td><td>Works offline, but adds 150 MB or more and makes later macOS notarization harder; kept as the offline option.</td></tr>
+              <tr><td>Open the whole portal to the LAN</td><td>No sign-in (M8), so anyone on the LAN could operate it (already ruled out in ADR 0012).</td></tr>
+              <tr><td>Remote screen streaming (watch the server's browser while recording)</td><td>Laggy, needs its own streaming component, and the server would still need a graphical desktop.</td></tr>
+              <tr><td>PyInstaller one-file mode</td><td>Unpacks hundreds of MB on every launch and is more often flagged by antivirus; use a folder (onedir) plus an installer instead.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

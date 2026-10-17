@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M10 桌面端分發 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M10 桌面端分發：設計與 M10.0 打包地基</h1><p>錄製端（macOS）與 Worker（Windows）以桌面 App 分發；本分支交付定案的設計文件與 M10.0。設計見 <a href="../../docs/design/desktop.html">桌面端分發</a>、<a href="../../docs/adr/0014-desktop-apps.html">ADR 0014</a>。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261015-m10-desktop；2026-10-16 20:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源</dt><dd>使用者於 2026-10-14 23:52 America/Los_Angeles（PDT，UTC−07:00）提出 M10：伺服器、資料庫、錄製方、worker 支援獨立二進位分發（macOS、Windows），像 Claude Desktop 一樣開箱即用；MVP 先做錄製方 macOS 版與 worker Windows 版，其他組合保留方案；不做完整重構，盡量內嵌現有 HTML；先設計好再開發。M5、M8、M9 其餘部分往後放。2026-10-15 00:22 America/Los_Angeles（PDT，UTC−07:00）確認決定（見下方「決定」）。</dd>
+        <dt>驗收條件</dt><dd>本分支：設計文件、ADR 0014、路線圖 M10 進 main；M10.0 的打包版（macOS 錄製端、Windows Worker）在 CI 跑通 BA-001，開發環境的測試全部照舊通過。整個 M10 的驗收見<a href="../../docs/design/desktop.html#phases">分期與驗收</a>。</dd>
+        <dt>範圍／不包含</dt><dd>包含：M10 設計文件（繁中、英文；簡中由 bootstrap 產生）、M10.0（子程序命令集中、建置資訊、rpa-desktop 骨架、PyInstaller 設定、CI 建置與自我測試）。不包含：M10.1 Windows Worker App、M10.2 macOS 錄製端、M10.3 文件與驗收；各自另開分支與任務紀錄（或在本紀錄追加後續階段）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原主責 Claude；2026-10-15 使用者明確交由 ChatGPT／Codex 接手，排除 macOS CI 失敗。2026-10-16 20:38 America/Los_Angeles（PDT，UTC−07:00）使用者在 Claude 對話中明確要求 Claude 檢查並續完 PR #30，目前主責為 Claude（見接收確認）；Codex 若要再寫入本分支，先重新約定。審閱與合併仍由使用者決定。</dd>
+        <dt>修改檔案／整合者</dt><dd>文件：<code>docs/adr/0014-desktop-apps.html</code>、<code>docs/design/desktop.html</code> 與英文版、<code>docs/adr/index.html</code>、<code>docs/roadmap.html</code>、<code>docs/index.html</code>、<code>docs/design/architecture.html</code>、<code>docs/design/tech-stack.html</code>、<code>docs/assets/nav.js</code>；交接：本紀錄、任務索引、<code>handoff/decisions.html</code>、<code>handoff/open-work.html</code>。M10.0 會再動：<code>packages/rpa_runner</code>（子程序命令）、<code>apps/server</code> 與 <code>apps/cli</code> 的呼叫處、新的 <code>apps/desktop</code>、<code>.github/workflows/</code>、<code>pyproject.toml</code>、<code>uv.lock</code>。共用檔案原由 Claude 整合；接手後由 Codex 維護本分支。此次排錯修改 Portal 校驗回覆的刷新時機、拖放／契約測試、一鍵安裝腳本及其 CI、交接紀錄；不擴充 M10 功能。</dd>
+        <dt>狀態</dt><dd><strong>實作完成、自動測試通過、待使用者審閱與合併。</strong>設計與 M10.0 打包地基已完成；Codex 修正的 macOS 拖放與契約測試時序已在最新 head <code>1212fd8</code> 的全部 CI 通過（見驗證表）。Claude 已完成程式審閱，無阻擋問題。人工驗收未執行（M10.1、M10.2 才有可安裝使用的 App）。尚未開始 M10.1。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m10/desktop</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/30">PR #30</a>（可審閱）；base <span class="mono">8a170c4</span>（origin/main，#29）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送到 <code>origin/m10/desktop</code>：設計 <span class="mono">f22a8c8</span>（bot 產生簡中 <span class="mono">876dd8b</span>）、子程序命令 <span class="mono">096228d</span>、M10.0 <span class="mono">1fefc14</span>（bot 產生 uv.lock <span class="mono">be11bee</span>）、修正 <span class="mono">5eb3d06</span>、<span class="mono">4624b51</span>、<span class="mono">725b046</span>、實測大小 <span class="mono">89c3825</span>（bot 產生簡中 <span class="mono">db51673</span>），任務紀錄 <span class="mono">8594fd5</span>；Codex 的排錯 <span class="mono">1e0de0a</span>、<span class="mono">1212fd8</span>（產品程式與測試的最後版本）；之後是 Claude 回填 CI 與接收結果的紀錄提交（只改交接文件）。CI 結果以 PR 最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude（2026-10-16 接手）：雲端 Linux 容器，Python 3.13.16、uv 0.11.32；<code>uv sync --locked</code> 仍因無法解析 PyPI 失敗（已實測），只做讀碼審閱、GitHub API 核對 CI 與交接文件修改，完整檢查以 CI 為準。Codex 的環境：使用者本機 macOS 26.3.1(a) arm64、Python 3.13、uv 0.12.24，<code>uv sync --locked</code> 已成功。以下是 Claude 原環境限制，不能套用到本機：Claude 雲端 Linux 容器，Python 3.13.16、uv 0.11.32。這個環境連不到 PyPI（直接解析 DNS 失敗、代理拒絕），<code>uv sync --locked</code> 失敗；本地只能用 uv 快取裡的 pytest 9.1.1 與 ruff 0.16.8（倉庫要求 ≥0.16.10）做局部檢查。簡中、<code>uv.lock</code> 由提交訊息含 <code>[bootstrap]</code> 時的 bootstrap workflow 產生，完整檢查以 CI 為準。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>設計文件（ADR 0014「提議中」、桌面端分發、路線圖 M10、架構與技術選型的補充、文檔首頁、導覽）。M10.0：<code>rpa_runner.commands</code>（10 處子程序改用它，打包後走同資料夾的 <code>rpa-child</code>）；<code>apps/desktop</code>（rpa-desktop：入口 <code>--rpa-module</code>／<code>--rpa-script</code>／<code>--version</code>／<code>--self-test</code>、建置資訊、自我測試）；PyInstaller 設定 <code>apps/desktop/packaging/rpa_desktop.spec</code>；<code>tools/build_desktop.py</code>；<code>.github/workflows/desktop.yml</code>；根目錄的 <code>desktop-build</code> 依賴群組（pyinstaller 6.22.3）；打包後開啟 Python 的 UTF-8 模式（Windows 的自我測試因 cp1252 失敗後加上）；<code>tools/ci_annotations.py self-test</code> 把自我測試的結果寫成 annotations。實測：DMG 68 MB、Worker zip 58 MB；Chromium 第一次下載解壓後約 570～710 MB。</li>
+        <li><strong>未完成／阻礙：</strong>M10.0 的 App 還沒有視窗（主程式是主控台程式）；視窗、Windows 子程序不跳主控台視窗（<code>CREATE_NO_WINDOW</code>）、Worker 上線時的程式指紋改用建置資訊，都在 M10.1 做。Claude 原雲端環境無法跑完整檢查；Codex 已接手使用者本機並補驗。</li>
+        <li><strong>審閱結論（Claude，2026-10-16 20:45 America/Los_Angeles（PDT，UTC−07:00），<code>1212fd8</code>）：</strong>無阻擋合併的問題。給後續階段的三點：(1) 打包設定的 <code>PACKAGES</code> 尚未收入 <code>rpa_server</code>／<code>rpa_cli</code>，M10.2 錄製端（內含伺服器）要補上，並確認模板、靜態檔、Alembic 遷移都進 App；(2) 打包後的自我測試只涵蓋 <code>rpa_runner.child</code> 與 Python 腳本，<code>rpa_runner.login</code>／<code>record</code>／<code>debug</code> 雖已收入但未在打包版實際執行，M10.2 驗收要涵蓋；(3) Portal 拖曳期間延後校驗回覆，依賴 <code>pointerup</code>／<code>pointercancel</code> 冒泡到 <code>document</code>（目前 <code>portal.js</code> 沒有任何 <code>stopPropagation</code>，另有視窗 <code>blur</code> 兜底）；之後新增的處理不要攔截這些事件，否則校驗結果會一直延後到下一次操作。</li>
+        <li><strong>決定（使用者明確決定，2026-10-15 00:22 America/Los_Angeles（PDT，UTC−07:00））：</strong>殼用 pywebview；目前沒有簽章，MVP 不簽章；瀏覽器第一次啟動時下載；MVP 的伺服器先放在使用者自己的電腦，調好後搬到正式環境；錄製端與 Worker 做成<strong>兩個 App</strong>；M9a 剩下的三個小項併入 M10.1；ADR 編號用 0014（0013 保留未用）。</li>
+        <li><strong>決定（使用者明確決定，2026-10-14 23:52 America/Los_Angeles（PDT，UTC−07:00））：</strong>M10 插在 M5 前；M5、M8、M9 其餘部分往後放；不做完整重構、內嵌現有 HTML；MVP 只交付 macOS 錄製端與 Windows Worker。</li>
+        <li><strong>實作選擇（Claude 提議、在設計文件中，待審閱）：</strong>對外埠沿用 <code>--worker-port</code>；邀請格式與 24 小時一次性；錄製端用本機閘道；子程序主機（LocalHost／DeviceHost）；Client API v1 的介面；App 名稱「RPA 錄製端」（RPA Recorder.app）與「RPA Worker」；先做 Worker 再做錄製端。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱並決定合併 PR #30（設計、ADR 0014 與 M10.0；CI 已全部通過）。合併後回填實際 merge SHA 與 main 的 CI，再從最新 main 開 M10.1（Windows Worker）：裝置頁與邀請、<code>/client-api/v1/pair</code>、Worker App 的視窗與通知區、自動啟動、下載瀏覽器的頁面、Inno Setup 安裝檔，以及 M9a 剩下的三項。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>Claude 這次沒有未提交或未推送的修改。Codex 先前：此紀錄隨排錯修正提交；診斷資料與本機測試軌跡在 <code>.git/pr30-*</code>，不提交。未操作使用者的驗收資料或 8080 服務。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td><code>1212fd8</code>；2026-10-15 19:47～20:12 America/Los_Angeles（PDT，UTC−07:00）；GitHub Actions（Claude 於 2026-10-16 以 API 核對）</td><td>CI（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38842229617">run 38842229617</a>）；桌面端建置（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38842229531">run 38842229531</a>）；一鍵安裝腳本（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38842229658">run 38842229658</a>）</td><td>三個 workflow 都是第 1 次執行即通過，沒有重跑：靜態檢查、Python 3.12／3.13 測試；macOS 錄製端與 Windows Worker 打包後自我測試「全部通過」（annotations：Chromium 下載到全新資料夾，macOS 574 MB、Windows 707 MB；DMG 68 MB、Worker zip 58 MB）；一鍵安裝 macOS／Ubuntu／Windows 的「從零開始」與「專案內執行」六項通過。共 11 項通過；bootstrap 條件未觸發，屬跳過，不計入。</td><td>人工安裝、未簽章的第一次開啟、兩台實體電腦未驗；App 仍無視窗</td></tr>
+          <tr><td><code>1212fd8</code>；Claude 雲端 Linux（讀碼）</td><td>審閱 <code>8a170c4...1212fd8</code>（57 個檔案）：所有子程序的啟動點、<code>rpa_desktop.entry</code>、PyInstaller 設定、<code>portal.js</code> 的拖曳延後校驗</td><td>啟動子程序的 10 處都經由 <code>rpa_runner.commands</code>，<code>apps</code>、<code>packages</code> 的非測試程式已無直接 <code>sys.executable</code>；沒有新增 TODO／FIXME；無阻擋問題，三點建議記在「進度」</td><td>這個環境裝不了依賴，沒有在本機重跑測試；以上方 CI 為準</td></tr>
+          <tr><td><code>1e0de0a</code>；本機 macOS</td><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -q</code>；新 clone 後帶另一個 <code>RPA_GIT_REF</code> 重複安裝</td><td>964 passed、0 skipped，493.59 秒；既有工作區仍保持 <code>8594fd5</code>，不被環境變數切換</td><td>這次完整本機測試早於下列產品修正；不能作為最後版本的完整結果</td></tr>
+          <tr><td><code>1e0de0a</code>；GitHub <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38840392412">run 38840392412</a></td><td>macOS 與 Ubuntu 失敗 trace／日誌</td><td>macOS 從零安裝通過，專案內在拖放時失敗；trace 顯示校驗收起問題列，畫布上移約 86 px。Ubuntu 專案內第二次與從零安裝失敗於契約草稿：輸入時 <code>#contract-workspace</code> 仍有 <code>inert</code>，不是有效輸入。一般 CI 與兩個桌面打包自測均通過。</td><td>兩個原因均在下列修正處理；沒有靠重跑把此輪標成通過</td></tr>
+          <tr><td><code>1e0de0a</code>＋產品刷新修正；本機 macOS</td><td>固定在 mouse down 後放行校驗回覆；同一新測試以原版 JS／修正版 JS 分別執行</td><td>原版 JS：1 failed（拖曳期間問題列被收起）；修正版：兩種引擎的組合場景與契約草稿共 3 passed。契約測試等待解除 inert、確認草稿為 dirty，並明確斷言 beforeunload 對話框。</td><td>修正後全部 Portal 測試 9 passed（83.92 秒）；最新完整 CI 結果記錄在 PR #30</td></tr>
+          <tr><td><code>8594fd5</code>＋此次修正；本機 macOS</td><td><code>RPA_PORTAL_ARTIFACTS=… uv run pytest -q apps/server/tests/test_portal.py</code>；變更檔案 pre-commit；<code>bash -n scripts/setup.sh</code></td><td>Portal 9 passed（83.97 秒），trace 已產生；格式、ruff、完整 pyright、YAML、Shell 語法皆通過。新 clone 安裝與指定版本核對通過。</td><td>全量 pytest 與推送後 CI 執行中，不能以定向測試代替</td></tr>
+          <tr><td><code>8594fd5</code>；Codex／本機 macOS</td><td><code>uv run pytest -q apps/server/tests/test_portal.py -k playground</code>；臨時隔離資料庫中的拖放事件診斷</td><td>原測試 2 passed；未修改產品程式碼時，正常速度 30 輪、CPU 降速 6 倍 100 輪皆未重現。CI 原日誌確認兩種場景引擎均在 Chromium Portal 拖放步驟失敗，不能歸因為 Firefox 執行問題。</td><td>本機未重現原 CI 時序；修正效果須以 macOS CI 再驗</td></tr>
+          <tr><td>基準 <span class="mono">8a170c4</span>＋設計文件的工作區差異；雲端 Linux，pytest 9.1.1（uv 快取）</td><td><code>python3 -m pytest -q tests/docs</code></td><td>239 通過、1 失敗：只有「簡中缺少新頁面」（簡中要由 bootstrap 產生）</td><td>簡中尚未產生</td></tr>
+          <tr><td>同上，複製到暫存資料夾、以不轉換的方式模擬 <code>tools/i18n.py sync</code></td><td><code>python3 -m pytest -q tests/docs</code></td><td>246 通過：新頁面的結構、導覽登記、連結與錨點都正確</td><td>真正的 OpenCC 轉換與 <code>tests/i18n</code> 只在 CI</td></tr>
+          <tr><td>同上</td><td><code>python3 tools/i18n.py stamp</code>（7 個英文頁）</td><td>已記錄對照的繁中版本</td><td>—</td></tr>
+          <tr><td><span class="mono">be11bee</span>＋工作區修正（M10.0）；雲端 Linux，ruff 0.16.8、pyright 1.1.414（本機工具，缺 playwright 等依賴）、pytest 9.1.1</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；pyright strict 只檢查新檔案；<code>pytest apps/desktop/tests/test_entry.py test_build_info.py packages/rpa_runner/tests/test_commands.py</code></td><td>ruff 通過；pyright 在新檔案上 0 個錯誤（缺依賴的匯入錯誤除外）；13 個測試通過</td><td>完整 pyright、全部 pytest、真實瀏覽器、PyInstaller 打包只在 CI</td></tr>
+          <tr><td><span class="mono">4624b51</span>：桌面端建置（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38705090371">run 38705090371</a>）</td><td>Windows 打包後的自我測試</td><td>開了 UTF-8 模式後自我測試通過；寫 annotations 的開發工具在 Windows 印中文失敗（cp1252）→ <span class="mono">725b046</span> 設 <code>PYTHONUTF8=1</code></td><td>—</td></tr>
+          <tr><td><span class="mono">725b046</span>：2026-10-15 01:29～01:53 America/Los_Angeles（PDT，UTC−07:00）</td><td>CI（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38705996895">run 38705996895</a>）；桌面端建置（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38705996878">run 38705996878</a>）；一鍵安裝腳本（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/38705996832">run 38705996832</a>）</td><td>CI 通過（靜態檢查、Python 3.12／3.13 的 pytest 含真實瀏覽器，也跑了開發環境的自我測試）。桌面端建置通過：macOS 的 RPA 錄製端與 Windows 的 RPA Worker 打包後，以全新的瀏覽器資料夾下載 Chromium、無頭執行 BA-001 與它的 Python 腳本版都「通過」（自我測試那一步刻意設 <code>PYTHONUTF8=0</code>）。一鍵安裝腳本：Ubuntu、Windows 四個組合通過；macOS 兩個組合在 <code>test_playground_chains_published_scenarios[firefox]</code> 失敗，「從零開始」用的是 main，屬既有問題，已記在未完成工作</td><td>真實電腦上的安裝與開啟（沒有簽章的第一次開啟）未驗；App 還沒有視窗</td></tr>
+          <tr><td><span class="mono">1fefc14</span> 的 bootstrap（GitHub Actions run 38701435118）</td><td>uv lock、uv sync、簡中、schema、檢查</td><td>uv.lock 已產生並提交（<span class="mono">be11bee</span>）；「檢查」失敗，日誌在這個環境下載不了；本地用 pyright 找到兩個型別錯誤（多餘的 cast、partially unknown 的 syspath_prepend），已修正</td><td>以修正後的 CI 為準</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：最新產品版本 <code>1212fd8</code> 全部通過（見表格第一列）；之後只改交接文件的提交，以 PR #30 最新 head 的 checks 為準。人工驗收：未執行（M10.1、M10.2 才有可以安裝使用的 App）。審閱：Claude 已審閱，無阻擋問題；合併由使用者決定。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-15 19:13 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex 依使用者明確要求接收 PR #30，核對遠端 head <code>8594fd5</code>、乾淨工作區與設計／實作。先處理 macOS 一鍵安裝的兩個失敗工作；最新日誌顯示 Chromium 與 Firefox 場景參數均受影響，Portal 操作瀏覽器皆為 Chromium。失敗發生於拖入場景或拖動出參，不能再僅記為 Firefox 問題。接手時本地定向回歸 2 passed，尚未重現間歇性失敗，已核對拖放手勢與安裝測試版本，見追加紀錄；後續已從 CI trace 定位版面位移，並以固定校驗回覆時序證明舊程式失敗、新程式通過；完整結果見 PR #30。</p>
+        <p>2026-10-16 20:45 America/Los_Angeles（PDT，UTC−07:00），Claude 依使用者在 Claude 對話中的明確要求（「檢查 PR #30 是否完成，未完成就續做」）接收 PR #30：fetch 後核對遠端 head <code>1212fd8</code>、base <code>8a170c4</code> 與 origin/main 相同、PR 無衝突（mergeable clean）、乾淨工作區；以 GitHub API 核對該 head 的 11 項 checks 與自我測試 annotations 均通過；閱讀本紀錄與 <code>8a170c4...1212fd8</code> 的差異。接受範圍：本紀錄列出的設計與 M10.0，不擴充 M10.1。Codex 未在紀錄標示「交出」，此次以使用者指示為準；Codex 之後若要寫入本分支，先重新約定。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><span class="mono">2026-10-14 23:52 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者）提出 M10 需求，要求先設計再開發。Claude 讀 main <span class="mono">878e4e0</span> 的 ADR 0012、遠端 worker、M4 的錄製／調試／人工登入實作與未完成工作後，在對話中提出初稿與六個待決定事項。</li>
+        <li><span class="mono">2026-10-15 00:22 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者）回覆決定（見上方）。Claude 從 origin/main <span class="mono">8a170c4</span> 開 <code>m10/desktop</code>，寫入設計文件與本紀錄。</li>
+        <li><span class="mono">2026-10-15 00:38 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送設計（<span class="mono">f22a8c8</span>，bootstrap 成功並提交簡中），建立草稿 PR #30。</li>
+        <li><span class="mono">2026-10-15 00:50 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 M10.0（<span class="mono">096228d</span>、<span class="mono">1fefc14</span>）；bootstrap 產生 uv.lock，檢查失敗；01:15 修正型別錯誤並補上 <code>rpa_desktop/py.typed</code>（<span class="mono">5eb3d06</span>）。</li>
+        <li><span class="mono">2026-10-15 01:21 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）macOS 錄製端第一次就通過自我測試；Windows Worker 的自我測試失敗。判斷是打包後的 App 不讀 <code>PYTHONIOENCODING</code>、Windows 標準輸出是 cp1252，加上 UTF-8 模式與自我測試的 annotations（<span class="mono">4624b51</span>），01:29 再修 Windows 上開發工具的編碼（<span class="mono">725b046</span>），之後全部通過。</li>
+        <li><span class="mono">2026-10-15 02:02 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）設計頁記下實測大小、未完成工作記下 macOS 既有的測試失敗（<span class="mono">89c3825</span>，bootstrap 產生簡中 <span class="mono">db51673</span>）；更新本紀錄，PR #30 轉為可審閱。</li>
+        <li><span class="mono">2026-10-15 19:23 America/Los_Angeles（PDT，UTC−07:00）</span>（Codex）依使用者要求接手，優先處理 macOS：測試改為目標上兩次滑鼠移動，以滿足 <a href="https://playwright.dev/python/docs/input#dragging-manually">Playwright 的 dragover 要求</a>，保留節點、綁定與實際執行斷言；CI 失敗時保留 Portal trace。修正「PR 腳本卻 clone main」的版本混用：<code>RPA_GIT_REF</code> 只在新 clone 時切換至指定提交，既有工作區不自動切換。本機實際新 clone／安裝依賴、核對 head 為 <code>8594fd5</code> 通過（該次明確略過瀏覽器下載與 pytest，UI 另測）。</li>
+        <li><span class="mono">2026-10-15 19:46 America/Los_Angeles（PDT，UTC−07:00）</span>（Codex）從失敗 trace 確認：單補兩次 hover 不足以消除 macOS 問題。背景校驗在手勢期間收起問題列並重建節點，導致位置改變。產品修正為手勢完成／取消後才套用回覆；手勢若已修改定義，沿用序號淘汰過期回覆。新增可固定觸發的回歸；舊 JS 失敗、新 JS 通過。另修正契約測試在 inert 期間過早輸入的時序。設計與 M10.1 開發範圍不變。</li>
+        <li><span class="mono">2026-10-16 20:45 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）依使用者要求接手並檢查 PR #30：<code>1212fd8</code> 的 CI、桌面端建置、一鍵安裝第 1 次執行全部通過；本分支驗收條件中可自動驗證的部分都已滿足。完成程式審閱（無阻擋問題，三點建議給 M10.1／M10.2）；回填本紀錄、未完成工作與 PR 說明。沒有修改產品程式碼或測試。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
