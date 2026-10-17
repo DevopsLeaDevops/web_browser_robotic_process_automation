@@ -5,6 +5,7 @@
 
 M9a：同一個應用也提供 Worker API（/worker-api/v1），只在 ``settings.worker_port`` 的埠上；
 遠端 worker 的租約由背景執行緒檢查。``settings.local_worker`` 為 False 時這台電腦不執行。
+M10.1：對外埠也提供桌面 App 的 Client API（/client-api/v1，目前只有配對）。
 """
 
 import logging
@@ -21,11 +22,13 @@ from sqlalchemy.orm import sessionmaker
 from rpa_core.i18n import use_locale
 from rpa_server import __version__
 from rpa_server.api import api_router
+from rpa_server.client_api import client_api_router
 from rpa_server.config import Settings
 from rpa_server.db import create_db_engine, upgrade
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.middleware import (
+    CLIENT_API,
     WORKER_API,
     LocaleMiddleware,
     PortGateMiddleware,
@@ -60,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         locale=settings.locale,
         local_worker=settings.local_worker,
         worker_port=settings.worker_port,
+        worker_host=settings.worker_host,
     )
     worker = Worker(services.queue, locale=settings.locale)
     hub = services.workers
@@ -110,7 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, error: ServiceError) -> Response:  # pyright: ignore[reportUnusedFunction]
-        if request.url.path.startswith(("/api/", WORKER_API)):
+        if request.url.path.startswith(("/api/", WORKER_API, CLIENT_API)):
             return JSONResponse(error.to_json(), status_code=error.status)
         page = render(
             "error.html",
@@ -124,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(api_router(services), prefix="/api")
     app.include_router(worker_api_router(hub))
+    app.include_router(client_api_router(hub))
     app.include_router(page_router(services))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.add_middleware(SameOriginMiddleware)

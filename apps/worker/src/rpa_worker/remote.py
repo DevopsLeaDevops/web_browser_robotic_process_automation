@@ -71,11 +71,21 @@ class ConnectionLostError(Exception):
 
 
 class WorkerClient:
-    """Worker API 的 HTTP 用戶端（標準函式庫，不加相依）。區網位址不經過系統代理。"""
+    """Worker API 的 HTTP 用戶端（標準函式庫，不加相依）。區網位址不經過系統代理。
 
-    def __init__(self, server: str, token: str, *, timeout: float = 30.0) -> None:
+    配對（M10.1）也用它：``prefix`` 換成 Client API，配對前沒有權杖（``token`` 為 None）。
+    """
+
+    def __init__(
+        self,
+        server: str,
+        token: str | None,
+        *,
+        prefix: str = API_PREFIX,
+        timeout: float = 30.0,
+    ) -> None:
         self.server = server.rstrip("/")
-        self.base = self.server + API_PREFIX
+        self.base = self.server + prefix
         self.token = token
         self.timeout = timeout
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -92,7 +102,9 @@ class WorkerClient:
         timeout: float | None = None,
     ) -> dict[str, object]:
         """送出請求，回傳 JSON 物件（204 回傳空物件）。"""
-        headers = {"Authorization": f"Bearer {self.token}", "Accept": "application/json"}
+        headers = {"Accept": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
         data: bytes | IO[bytes] | None = body
         if payload is not None:
             data = json.dumps(payload, ensure_ascii=False).encode("utf-8")

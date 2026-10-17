@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:50df441c4f85d988">
+<meta name="translation-source" content="sha256:c685ad24e912361c">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -17,7 +17,7 @@
       <h1>Desktop distribution</h1>
       <p>M10: the server and database are deployed on one computer; recorders and execution machines each install a desktop app and paste an invitation. The app window reuses the server's existing pages; the browser for recording, step-by-step debugging and manual login opens on the computer the person is using. Decision in <a href="../adr/0014-desktop-apps.html">ADR 0014</a>.</p>
     </div>
-    <span class="badge amber">M10 in design</span>
+    <span class="badge amber">M10 in development</span>
   </div>
 
   <div class="stack">
@@ -105,7 +105,7 @@
             <li><strong>The "Remote workers" page becomes "Devices".</strong>It lists both workers and recorders. Adding one means choosing the kind and a name and creating an <strong>invitation</strong>, replacing today's "copy the token and the start command".</li>
             <li><strong>Invitation.</strong>One line of text: <code>rpa://pair?server=http://192.168.1.10:8081&amp;app=worker&amp;code=…</code>. The code is single use, valid for 24 hours and tied to one kind of app; the database stores only a hash. The app also accepts the server address and code entered separately.</li>
             <li><strong>Pairing.</strong>The app calls <code>POST /client-api/v1/pair</code> with the invitation and receives a device token, stored in the macOS keychain or the Windows Credential Manager. A worker invitation pasted into the recorder (or the other way round) is refused with an explanation.</li>
-            <li><strong>A worker device</strong> is simply the existing worker record: the token it receives is used directly with the Worker API. <code>uv run rpa worker --token …</code> keeps working.</li>
+            <li><strong>A worker device</strong> is simply the existing worker record: the token it receives is used directly with the Worker API. The command line can pair with an invitation too: <code>uv run rpa worker --invite …</code> saves the token in the working folder, and after that <code>uv run rpa worker</code> is enough; giving a token through the environment variable or <code>--token-file</code> keeps working.</li>
             <li><strong>Management.</strong>Disable, re-invite (the old token stops working at once), delete; the page shows online status, app version, operating system and browsers.</li>
           </ul>
         </div>

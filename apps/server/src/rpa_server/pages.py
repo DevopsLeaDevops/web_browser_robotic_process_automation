@@ -2,7 +2,6 @@
 
 import mimetypes
 import os
-import socket
 from typing import Annotated, Final, Literal, cast
 from urllib.parse import urlsplit
 
@@ -23,7 +22,6 @@ from rpa_server.middleware import LANG_COOKIE
 from rpa_server.render import domain_page, render, run_filters, workflow_messages
 from rpa_server.services import Services
 from rpa_server.storage import SCENARIO_FILE
-from rpa_worker.environment import lan_address
 
 __all__ = ["page_router"]
 
@@ -286,12 +284,14 @@ def page_router(services: Services) -> APIRouter:
         category: Annotated[list[str] | None, Query()] = None,
         status: Annotated[list[str] | None, Query()] = None,
         purpose: Annotated[list[str] | None, Query()] = None,
+        worker: Annotated[list[str] | None, Query()] = None,
     ) -> HTMLResponse:
         selected = {
             "scene": [item for item in scene or [] if item],
             "category": [item for item in category or [] if item],
             "status": [item for item in status or [] if item],
             "purpose": [item for item in purpose or [] if item],
+            "worker": [item for item in worker or [] if item],
         }
         return page(
             "runs.html",
@@ -302,11 +302,13 @@ def page_router(services: Services) -> APIRouter:
                 categories=selected["category"],
                 statuses=selected["status"],
                 purposes=selected["purpose"],
+                workers=selected["worker"],
             ),
             filters=run_filters(
                 scenes=services.list_scenes(include_archived=True),
                 categories=services.run_categories(),
                 selected=selected,
+                locations=services.run_locations(),
             ),
             limit=200,
         )
@@ -336,6 +338,7 @@ def page_router(services: Services) -> APIRouter:
             result=services.run_result(run_id) if record.finished else None,
             files=services.storage.run_files(run_id) if record.finished else [],
             can_publish=can_publish,
+            worker_wait=None if record.finished else services.worker_wait(run_id),
         )
 
     @router.get("/runs/{run_id}/files/{relative:path}", include_in_schema=False)
@@ -462,10 +465,15 @@ def page_router(services: Services) -> APIRouter:
     workflows = services.workflows
 
     @router.get("/workers", include_in_schema=False)
-    def workers_page() -> HTMLResponse:
-        """遠端 worker：登記、權杖、狀態，以及預設執行位置（M9a）。"""
+    def workers_page() -> RedirectResponse:
+        """M10.1 起「遠端 Worker」頁改為「裝置」頁；舊網址轉過去。"""
+        return RedirectResponse("/devices", status_code=301)
+
+    @router.get("/devices", include_in_schema=False)
+    def devices_page() -> HTMLResponse:
+        """裝置：登記、邀請與配對、狀態，以及預設執行位置（M9a；M10.1 改為邀請）。"""
         port = services.worker_port
-        api_url = f"http://{lan_address() or socket.gethostname()}:{port}" if port else None
+        api_url = services.external_url()
         records = services.workers.list_workers()
         return page(
             "workers.html",
@@ -550,11 +558,18 @@ def page_router(services: Services) -> APIRouter:
             except ServiceError:
                 login = None
             role = login.role if login is not None else None
+        waiting = None
+        if not record.finished:
+            queued = (node.run for node in record.nodes if node.run is not None)
+            waiting = next(
+                (wait for run in queued if (wait := services.worker_wait(run.id)) is not None), None
+            )
         return page(
             "workflow_run.html",
             page="playground",
             title=t("workflow_run.title", id=record.id),
             run=record,
+            worker_wait=waiting,
             workflow_exists=exists and record.workflow_id is not None,
             role=role,
             messages=workflow_messages(),

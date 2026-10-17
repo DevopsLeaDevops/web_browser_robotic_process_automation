@@ -1,4 +1,5 @@
 """這台電腦能做什麼：能不能顯示瀏覽器視窗、下載了哪些瀏覽器、程式版本的指紋（M9a）。
+M10.1 加上 App 版本，管理 Portal 的裝置頁顯示。
 
 遠端 worker 上線時把這些告訴管理 Portal，Portal 只把它能跑的任務交給它；
 管理 Portal 自己（本機 worker）也用同一套判斷。
@@ -12,6 +13,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Final
 
@@ -20,9 +22,11 @@ __all__ = [
     "PROTOCOL",
     "WorkerInfo",
     "code_fingerprint",
+    "external_url",
     "has_display",
     "installed_browsers",
     "lan_address",
+    "package_version",
 ]
 
 PROTOCOL: Final = 1
@@ -32,6 +36,14 @@ FINGERPRINT_PACKAGES: Final = ("rpa_core", "rpa_runner", "rpa_worker")
 """執行結果取決於這些套件的程式；指紋不同代表兩邊的程式不是同一版。"""
 
 _ENGINES: Final = ("chromium", "firefox")
+
+
+def package_version(distribution: str = "rpa-worker") -> str:
+    """套件的版本（打包後的 App 也保留套件資訊）；查不到時回傳空字串。"""
+    try:
+        return version(distribution)
+    except PackageNotFoundError:
+        return ""
 
 
 def has_display(environ: Mapping[str, str] | None = None, platform_name: str | None = None) -> bool:
@@ -55,6 +67,18 @@ def lan_address() -> str | None:
     except OSError:
         return None
     return None if address.startswith("127.") or address == "0.0.0.0" else address
+
+
+def external_url(host: str, port: int) -> str:
+    """對外埠在區網上的網址（給 worker 與裝置邀請用）。
+
+    綁定所有介面（0.0.0.0、::）時猜這台電腦的區網位址；綁定特定位址時就用那個位址。
+    """
+    if host in ("0.0.0.0", "::", ""):
+        host = lan_address() or socket.gethostname()
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"  # IPv6 位址在網址裡要加方括號
+    return f"http://{host}:{port}"
 
 
 def installed_browsers(engines: Sequence[str] = _ENGINES) -> list[str]:
@@ -98,6 +122,8 @@ class WorkerInfo:
     host: str = ""
     browsers: tuple[str, ...] = ()
     display: bool = False
+    version: str = ""
+    """App 的版本（M10.1）：命令列是 rpa-worker 套件的版本，桌面 App 是建置資訊裡的版本。"""
 
     @classmethod
     def detect(cls, name: str | None = None) -> "WorkerInfo":
@@ -110,6 +136,7 @@ class WorkerInfo:
             host=host,
             browsers=tuple(installed_browsers()),
             display=has_display(),
+            version=package_version(),
         )
 
     def to_json(self) -> dict[str, object]:
@@ -122,4 +149,5 @@ class WorkerInfo:
             "host": self.host,
             "browsers": list(self.browsers),
             "display": self.display,
+            "version": self.version,
         }

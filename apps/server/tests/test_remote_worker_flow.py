@@ -6,6 +6,7 @@
 
 驗證 BA-001 → 發布 → 驗證 BA-002 → 發布 → 試驗場序列 BA-001 → BA-002；
 報告與截圖從管理 Portal 看得到，序列的兩個節點都在同一台 worker。Chromium 與 Firefox 各跑一次。
+M10.1：worker 用裝置頁的邀請經由 Client API 配對（真的 HTTP），拿到的權杖再用在 Worker API。
 """
 
 import socket
@@ -24,6 +25,7 @@ from rpa_server.app import create_app
 from rpa_server.config import Settings, sqlite_url
 from rpa_worker import Worker
 from rpa_worker.environment import WorkerInfo, code_fingerprint
+from rpa_worker.pairing import pair, parse_invite
 from rpa_worker.remote import RemoteJobSource, WorkerClient
 from testsite.browsers import ENGINES, require_engine
 from testsite.server import running
@@ -69,6 +71,7 @@ def portal(tmp_path: Path) -> Iterator[Portal]:
         examples_dir=DEMO,
         seed_examples=False,
         worker_port=worker_port,
+        worker_host="127.0.0.1",  # 邀請裡的伺服器網址就是這個埠
         local_worker=False,
     )
     server = uvicorn.Server(uvicorn.Config(create_app(settings), log_level="warning"))
@@ -98,10 +101,13 @@ def body(response: Response) -> JsonObject:
 
 @pytest.fixture
 def remote_worker(portal: Portal, engine: str, tmp_path: Path) -> Iterator[str]:
-    """登記一台 worker，在背景執行緒用 Worker API 領取任務；回傳 worker 代號。"""
+    """登記一台 worker、用邀請配對，在背景執行緒用 Worker API 領取任務；回傳 worker 代號。"""
     with Client(base_url=portal.url, timeout=30) as client:
-        created = body(client.post("/api/workers", json={"id": "box", "name": "測試機"}))
-    token = str(created["token"])
+        body(client.post("/api/workers", json={"id": "box", "name": "測試機"}))
+        invited = cast("JsonObject", body(client.post("/api/workers/box/invite"))["invite"])
+    paired = pair(parse_invite(str(invited["line"])), "worker")
+    assert (paired.server, paired.device, paired.name) == (portal.worker_api, "box", "測試機")
+    token = paired.token
     info = WorkerInfo(name="box", fingerprint=code_fingerprint(), browsers=(engine,), display=False)
     source = RemoteJobSource(
         WorkerClient(portal.worker_api, token),

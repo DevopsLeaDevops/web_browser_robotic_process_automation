@@ -21,6 +21,7 @@
 <div class="stack" id="run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-stage="{{ run.stage or '' }}"{% if not run.finished %} data-poll{% endif %}>
   {% if not run.finished %}
   <div class="notice">{{ t("run.polling") }}</div>
+  {{ m.worker_wait_notice(worker_wait | default(none)) }}
   {% endif %}
   {% if run.workflow_run_id %}
   <div class="notice">{{ t("run.workflow_node", node=run.node_id) }} <a href="/playground/runs/{{ run.workflow_run_id }}">{{ run.workflow_run_id }}</a></div>

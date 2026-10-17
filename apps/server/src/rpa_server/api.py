@@ -474,6 +474,7 @@ def api_router(services: Services) -> APIRouter:
         category: Annotated[list[str] | None, Query()] = None,
         status: Annotated[list[str] | None, Query()] = None,
         purpose: Annotated[list[str] | None, Query()] = None,
+        worker: Annotated[list[str] | None, Query()] = None,
         limit: Annotated[int, Query(ge=1, le=500)] = 200,
     ) -> dict[str, object]:
         runs = services.list_runs(
@@ -481,6 +482,7 @@ def api_router(services: Services) -> APIRouter:
             categories=category or [],
             statuses=status or [],
             purposes=purpose or [],
+            workers=worker or [],
             limit=limit,
         )
         return {"runs": [run.to_json() for run in runs]}
@@ -753,6 +755,11 @@ def api_router(services: Services) -> APIRouter:
     def rotate_worker_token(worker_id: str) -> dict[str, object]:
         record, token = hub.rotate_token(worker_id)
         return {"worker": record.to_json(), "token": token}
+
+    @router.post("/workers/{worker_id}/invite")
+    def invite_worker(worker_id: str) -> dict[str, object]:
+        """產生裝置邀請（M10.1）：舊權杖立刻失效；回應裡的邀請代碼只有這一次拿得到。"""
+        return services.invite_device(worker_id)
 
     @router.delete("/workers/{worker_id}")
     def delete_worker(worker_id: str) -> dict[str, object]:

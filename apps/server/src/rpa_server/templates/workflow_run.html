@@ -14,7 +14,7 @@
 {% block content %}
 {% set signature = run.status ~ "|" ~ (run.nodes | map(attribute="status") | join(",")) %}
 <div class="stack" id="workflow-run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-signature="{{ signature }}"{% if not run.finished %} data-poll{% endif %}>
-  {% if not run.finished %}<div class="notice">{{ t("workflow_run.polling") }}</div>{% endif %}
+  {% if not run.finished %}<div class="notice">{{ t("workflow_run.polling") }}</div>{{ m.worker_wait_notice(worker_wait | default(none)) }}{% endif %}
   {% if run.status == "needs_login" %}
   <div class="notice warn" role="alert">{{ run.error }}
     {% if role %}<span class="actions"><a class="button" href="/roles#role-{{ role }}">{{ t("run.go_login", role=role) }}</a></span>{% endif %}

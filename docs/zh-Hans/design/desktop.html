@@ -17,7 +17,7 @@
       <h1>桌面端分发</h1>
       <p>M10：服务器与数据库部署在一台电脑，录制者与运行机各装一个桌面 App，粘贴邀请就能用。App 的窗口沿用服务器现有的页面；录制、逐步调试、人工登录的浏览器开在操作的那台电脑。决策见 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
     </div>
-    <span class="badge amber">M10 设计中</span>
+    <span class="badge amber">M10 开发中</span>
   </div>
 
   <div class="stack">
@@ -103,7 +103,7 @@
             <li><strong>「远程 Worker」页改成「设备」页。</strong>列出 Worker 与录制端两种设备；添加时选种类与名称，产生<strong>邀请</strong>，取代现在「拷贝权杖＋启动命令」。</li>
             <li><strong>邀请。</strong>一行文字：<code>rpa://pair?server=http://192.168.1.10:8081&amp;app=worker&amp;code=…</code>。代码一次性、24 小时内有效、限定 App 种类；数据库只存哈希。App 也接受分开填写的服务器网址与代码。</li>
             <li><strong>配对。</strong>App 用邀请调用 <code>POST /client-api/v1/pair</code> 换到设备权杖，存进 macOS 钥匙圈或 Windows 认证管理员。Worker 邀请贴到录制端（或反过来）会被拒绝并说明。</li>
-            <li><strong>Worker 设备</strong>就是现有的 worker 记录：拿到的权杖直接用在 Worker API。<code>uv run rpa worker --token …</code> 的命令行方式照旧可用。</li>
+            <li><strong>Worker 设备</strong>就是现有的 worker 记录：拿到的权杖直接用在 Worker API。命令行也能用邀请配对：<code>uv run rpa worker --invite …</code>，权杖存在工作文件夹，之后直接 <code>uv run rpa worker</code>；用环境变量或 <code>--token-file</code> 给权杖的方式照旧可用。</li>
             <li><strong>管理。</strong>禁用、重新邀请（旧权杖立刻失效）、删除；页面显示在线状态、App 版本、操作系统、浏览器。</li>
           </ul>
         </div>

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
 {% block description %}{{ t("workers.description") }}{% endblock %}
-{% block actions %}<button class="button primary" data-action="new-worker">{{ t("workers.new") }}</button>{% endblock %}
+{% block actions %}<button class="button primary" data-action="new-worker"{% if not worker_port %} disabled title="{{ t('workers.api_off') }}"{% endif %}>{{ t("workers.new") }}</button>{% endblock %}
 {% block content %}
 <div class="stack" id="workers" data-api-url="{{ api_url or '' }}"{% if workers %} data-poll{% endif %}>
   <div class="notice">{{ t("workers.notice") }}</div>
@@ -31,15 +31,16 @@
         <td>{% if worker.last_seen_at %}{{ worker.host or "—" }}<span class="cell-sub">{{ worker.os or "" }}{% if worker.python %} · Python {{ worker.python }}{% endif %}</span>
           <span class="cell-sub">{{ t("workers.browsers", browsers=(worker.browsers | join(t("js.list_separator"))) or "—") }} · {{ t("workers.display_yes") if worker.display else t("workers.display_no") }}</span>
           {% else %}<span class="muted">{{ t("workers.never_seen") }}</span>{% endif %}</td>
-        <td>{% if worker.fingerprint %}<code class="mono">{{ worker.fingerprint }}</code>
-          {% if not worker.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% else %}—{% endif %}</td>
+        <td>{% if worker.version %}{{ t("workers.app_version", version=worker.version) }}{% endif %}
+          {% if worker.fingerprint %}<span class="cell-sub"><code class="mono">{{ worker.fingerprint }}</code></span>
+          {% if not worker.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not worker.version %}—{% endif %}</td>
         <td class="role-actions">
           {% if worker.disabled %}
           <button class="text-btn" data-action="enable-worker" data-worker="{{ worker.id }}">{{ t("workers.enable") }}</button>
           {% else %}
           <button class="text-btn" data-action="disable-worker" data-worker="{{ worker.id }}">{{ t("workers.disable") }}</button>
           {% endif %}
-          <button class="text-btn" data-action="rotate-worker" data-worker="{{ worker.id }}" data-name="{{ worker.name }}">{{ t("workers.rotate") }}</button>
+          {% if worker_port and not worker.disabled %}<button class="text-btn" data-action="invite-worker" data-worker="{{ worker.id }}" data-name="{{ worker.name }}">{{ t("workers.invite") }}</button>{% endif %}
           <button class="text-btn" data-action="delete-worker" data-worker="{{ worker.id }}" data-name="{{ worker.name }}">{{ t("workers.delete") }}</button>
         </td>
       </tr>
@@ -68,13 +69,17 @@
   <ul class="checklist form-issues"></ul>
   <p class="form-error" role="alert"></p>
 </template>
-<template id="worker-token">
-  <div class="notice warn">{{ t("workers.token_notice") }}</div>
-  <label>{{ t("workers.token") }}<input name="token" readonly class="mono"></label>
-  <h3>{{ t("workers.command_windows") }}</h3>
-  <pre class="source" data-command="windows"></pre>
-  <h3>{{ t("workers.command_unix") }}</h3>
-  <pre class="source" data-command="unix"></pre>
+<template id="worker-invite">
+  <div class="notice warn">{{ t("workers.invite_notice") }}</div>
+  <p>{{ t("workers.invite_app") }}</p>
+  <label>{{ t("workers.invite_line") }}<input name="invite" readonly class="mono"></label>
+  <p class="cell-sub">{{ t("workers.invite_expires") }} <time data-expires></time></p>
+  <div class="field-pair">
+    <label>{{ t("workers.invite_server") }}<input name="server" readonly class="mono"></label>
+    <label>{{ t("workers.invite_code") }}<input name="code" readonly class="mono"></label>
+  </div>
+  <h3>{{ t("workers.command_cli") }}</h3>
+  <pre class="source" data-command="cli"></pre>
   <p class="cell-sub">{{ t("workers.command_hint") }}</p>
 </template>
 {% endblock %}

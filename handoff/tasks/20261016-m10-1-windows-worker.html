@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M10.1 Windows Worker · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M10.1 Windows Worker：邀請與配對、Worker App、安裝檔</h1><p>M10 的第二階段。設計見 <a href="../../docs/design/desktop.html">桌面端分發</a>、<a href="../../docs/adr/0014-desktop-apps.html">ADR 0014</a>；M10.0 見 <a href="20261015-m10-desktop.html">M10 任務紀錄</a>。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261016-m10-1-windows-worker；2026-10-16 22:00 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-16 20:49 America/Los_Angeles（PDT，UTC−07:00）合併 #30 後要求開始下一步，並在審閱計畫後於 21:12 確認（見<a href="../decisions.html">決定</a>）。整個 M10.1 的驗收沿用設計：在沒裝過開發工具的 Windows 上安裝 → 貼邀請 → 下載瀏覽器 → 以有頭模式跑 BA-001 → BA-002，報告回到 Portal；重開機登入後自動上線。</dd>
+        <dt>範圍／不包含</dt><dd>分三個 PR 依序交付：<strong>PR 1 伺服器端</strong>（本分支）：遷移 0008 的邀請、<code>POST /client-api/v1/pair</code>、對外埠分流、「遠端 Worker」頁改為「裝置」頁、worker 回報 App 版本、M9a 剩下三項（執行位置篩選、localhost 提醒、等待 worker 的提示，含序列固定的 worker 離線時）、「Worker API 埠」改稱「對外埠」。<strong>PR 2 Worker App</strong>：狀態視窗、配對、下載瀏覽器、通知區、自動啟動、只執行一份、認證管理員、建置資訊指紋、子程序不跳主控台視窗。<strong>PR 3 安裝檔</strong>：Inno Setup、GitHub Releases、Windows 上安裝後配對並執行 BA-001 的 CI。不包含：錄製端（M10.2）、裝置頁的錄製端種類（M10.2）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責 Claude（使用者指派；同事確認不並行開始 M10.1）。審閱與合併由使用者決定。</dd>
+        <dt>修改檔案／整合者</dt><dd>PR 1：<code>apps/server</code>（遷移 0008、dispatch、api、client_api、middleware、pages、render、services、config、app、templates、static/portal.js、locales）、<code>apps/worker</code>（新的 <code>pairing</code>、hello 的版本欄位、<code>external_url</code>、<code>WorkerClient</code> 可不帶權杖）、<code>apps/cli</code>（<code>rpa worker --invite</code>、<code>rpa serve</code> 的對外埠用詞）、文件（Portal 設計、桌面端分發、遠端 worker、ADR 0014 狀態）、交接文件。共用檔案（遷移編號、訊息目錄、任務索引）由 Claude 整合。</dd>
+        <dt>狀態</dt><dd><strong>PR 1：實作完成、自動測試通過、待使用者審閱與合併</strong>（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/31">PR #31</a>）。PR 2、PR 3 未開始；PR 1 合併後從最新 main 開 PR 2。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m10/worker-pairing</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/31">PR #31</a>（可審閱）；base <span class="mono">ce88275</span>（origin/main，#30）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送到 <code>origin/m10/worker-pairing</code>：決定與紀錄 <span class="mono">87273f7</span>、<span class="mono">1ec38fb</span>；PR 1 實作 <span class="mono">c9e49ec</span>（bot 產生簡中 <span class="mono">a4da484</span>）；遷移測試修正 <span class="mono">002cb26</span>；之後是回填本紀錄的提交（只改交接文件）。CI 以 PR 最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器，Python 3.13.16、uv 0.11.32、ruff 0.16.8、pyright 1.1.414。這個工作階段的代理不允許連 PyPI（<code>pypi.org</code>、<code>files.pythonhosted.org</code> 回 403），<code>uv sync</code> 失敗；本機只能用 ruff、pyright 與 uv 快取裡的 pytest 9.1.1 跑不需要 SQLAlchemy／FastAPI／Playwright 的測試。<code>uv.lock</code> 與簡中由 <code>[bootstrap]</code> 觸發的 workflow 產生；完整檢查以 CI 為準。GitHub 代理也不允許刪除分支。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>記錄使用者決定；ADR 0014 改為已接受；M10 任務紀錄回填 #30 合併；複核 27 個已合併分支（刪除需使用者在 GitHub 操作）。</li>
+        <li><strong>PR 1 已實作（本機）：</strong>遷移 0008 <code>device_invites</code>；<code>WorkerHub.create_invite</code>／<code>pair</code>；<code>POST /api/workers/{代號}/invite</code>；Client API <code>POST /client-api/v1/pair</code>（只在對外埠，<code>PortGateMiddleware</code> 放行 <code>/client-api/</code>）；共用的邀請格式與配對用戶端 <code>rpa_worker.pairing</code>；「裝置」頁（<code>/devices</code>，<code>/workers</code> 301 轉址；新增與重新邀請都產生邀請並複製到剪貼簿；沒開對外埠時「新增裝置」不能按；顯示 App 版本）；worker 回報 App 版本；<code>rpa serve --worker-host</code> 決定邀請裡的伺服器網址；<code>rpa worker --invite</code>（配對結果存在工作資料夾的 <code>pairing.json</code>，之後不必給權杖）；M9a 三項與序列固定 worker 離線的提示；三語訊息（簡中待 bootstrap）；Portal 設計、遠端 worker 指南、桌面端分發的文件（繁中、英文）。</li>
+        <li><strong>未完成／阻礙：</strong>PR 1 待使用者審閱與合併。PR 2、PR 3 未開始。Claude 無法在本機跑完整測試或看到 Windows 視窗；PR 2 的視窗、通知區、自動啟動要使用者在 Windows 上人工確認。</li>
+        <li><strong>決定（使用者明確決定，2026-10-16 21:12 America/Los_Angeles（PDT，UTC−07:00））：</strong>接受 ADR 0014 及設計中的實作選擇；三個 PR 依序；新增 <code>pystray</code>（含 Pillow）、<code>keyring</code>；安裝檔發布到 GitHub Releases；M10.1 的裝置頁只提供 Worker；舊分支可刪除；同事不並行開始 M10.1。</li>
+        <li><strong>實作選擇（Claude，待審閱）：</strong>邀請存在新的 <code>device_invites</code> 表（只存雜湊、記錄裝置種類與裝置代號），M10.2 的錄製端沿用；配對成功時重新產生 worker 權杖；重新邀請時舊權杖立刻失效、之前的邀請（含已用過、已過期的）刪除；App 種類不對時代碼保留；<code>/client-api/</code> 只在對外埠提供，管理埠一律 404；裝置頁網址 <code>/devices</code>，舊的 <code>/workers</code> 轉址，內部頁面代號仍是 <code>workers</code>；管理 API 仍在 <code>/api/workers</code>，保留重新產生權杖的 API（介面改用邀請）；命令列加上 <code>--invite</code>，避免裝置頁不再顯示權杖後命令列 worker 拿不到權杖；localhost 提醒只看執行表單的網址欄位。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱並決定合併 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/31">PR #31</a>。合併後回填 merge SHA 與 main 的 CI，從最新 main 開 <code>m10/worker-app</code>（PR 2：Worker App；新增 <code>pystray</code>、<code>keyring</code>，以 <code>[bootstrap]</code> 產生 <code>uv.lock</code>）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">002cb26</span>；2026-10-16 21:50～21:59 America/Los_Angeles（PDT，UTC−07:00）；GitHub Actions</td><td>CI（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39004090344">run 39004090344</a>）；桌面端建置（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39004090343">run 39004090343</a>）</td><td>全部第 1 次執行即通過：靜態檢查（ruff、ruff format、完整 pyright）；Python 3.12／3.13 完整 pytest（安裝 Chromium、Firefox，<code>RPA_REQUIRE_BROWSER=1</code>，包含以邀請經真實 HTTP 配對的 <code>test_remote_worker_flow.py</code> 與 Portal 端到端）；macOS 錄製端與 Windows Worker 打包後自我測試。bootstrap 條件未觸發，屬跳過。</td><td>一鍵安裝的 workflow 依路徑篩選沒有觸發；人工驗收未執行</td></tr>
+          <tr><td><span class="mono">c9e49ec</span>＋bot <span class="mono">a4da484</span>；bootstrap（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39003352602">run 39003352602</a>）與 PR CI 第一輪</td><td>bootstrap 的「檢查」；PR 的測試</td><td>簡中已產生並提交；檢查失敗。日誌在 Claude 環境下載不了，從 PR CI 的 annotations 確認唯一失敗是 <code>test_migrations_match_models</code> 寫死的資料表清單少了 <code>device_invites</code>（模型與遷移的比對沒有差異）；<span class="mono">002cb26</span> 修正，沒有靠重跑</td><td>—</td></tr>
+          <tr><td>本機工作區（base <span class="mono">ce88275</span>＋PR 1 差異）；Claude 雲端 Linux，Python 3.13.16、ruff 0.16.8</td><td><code>ruff check .</code>、<code>ruff format --check .</code></td><td>通過</td><td>倉庫要求 ruff ≥0.16.10，CI 以新版再檢查</td></tr>
+          <tr><td>同上；uv 快取的 pytest 9.1.1，以原始碼路徑與替代套件資訊執行（沒有 SQLAlchemy、FastAPI、Playwright）</td><td><code>pytest apps/worker/tests apps/cli/tests packages/rpa_core/tests</code>；<code>pytest tests/docs</code>；<code>pytest tests/i18n</code></td><td>388 passed；docs 246 passed；i18n 24 passed、1 failed（簡中尚未由 OpenCC 產生，等 bootstrap）</td><td>伺服器測試（<code>test_device_pairing.py</code>、<code>test_remote_worker_api.py</code>、<code>test_render.py</code>）、真實 HTTP 與瀏覽器的 <code>test_remote_worker_flow.py</code>、Portal 端到端只在 CI</td></tr>
+          <tr><td>同上；pyright 1.1.414 strict</td><td><code>pyright</code> 新檔案 <code>rpa_worker/pairing.py</code></td><td>0 errors；CLI 與 environment 只剩缺少 Playwright 造成的未知型別</td><td>完整 pyright 只在 CI</td></tr>
+          <tr><td>同上；Node 22</td><td><code>node --check portal.js</code>；localhost 判斷 8 個網址；Jinja 解析 7 個改過的樣板</td><td>通過</td><td>瀏覽器裡的實際互動未測</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：PR 1 最新產品版本 <span class="mono">002cb26</span> 全部通過（見表格第一列）；之後只改交接文件的提交以 PR 最新 head 的 checks 為準。人工驗收：未執行（M10.1 的人工驗收在 Worker App 與安裝檔交付後）。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>不適用：Claude 開始的新任務，沒有從其他人接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><span class="mono">2026-10-16 20:49～20:52 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude；精確時刻未記錄）讀設計文件、未完成工作與現有 worker 程式碼後，提出 M10.1 計畫（三個 PR）與四個待決定事項。</li>
+        <li><span class="mono">2026-10-16 20:52～21:12 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude；精確時刻未記錄）依使用者要求複查計畫，補上 11 項遺漏（對外埠用詞、錯誤種類的邀請、App 版本、未開對外埠的說明、序列固定 worker 離線的提示、分開填寫伺服器與代碼、瀏覽器與鏡像設定、打包後的程式指紋、Windows 專用程式不影響 Linux CI、依賴與 uv.lock、Windows 的測試覆蓋）與三個新的待決定事項。</li>
+        <li><span class="mono">2026-10-16 21:12 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者）決定：ADR 0014 採納；舊分支可刪除；同事不啟動 M10.1；其餘照建議。</li>
+        <li><span class="mono">2026-10-16 21:16 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）從 origin/main <span class="mono">ce88275</span> 開 <code>m10/worker-pairing</code>；複核舊分支後刪除被代理拒絕（403），已請使用者在 GitHub 刪除。</li>
+        <li><span class="mono">2026-10-16 21:38 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）PR 1 實作完成並在本機檢查（見驗證表）；準備以 <code>[bootstrap]</code> 推送。</li>
+        <li><span class="mono">2026-10-16 21:40～21:59 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 <span class="mono">c9e49ec</span>，bot 提交簡中 <span class="mono">a4da484</span>；建立草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/31">PR #31</a>；修正遷移測試的資料表清單（<span class="mono">002cb26</span>）後 CI 全部通過，PR 轉為可審閱。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Final, cast
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -65,6 +65,8 @@ from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
 from rpa_server.workflows import WorkflowService
+from rpa_worker.environment import external_url
+from rpa_worker.pairing import Invite
 
 __all__ = [
     "ROLES_FILE",
@@ -288,6 +290,7 @@ class Services:
         locale: Locale = DEFAULT_LOCALE,
         local_worker: bool = True,
         worker_port: int | None = None,
+        worker_host: str = "0.0.0.0",
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -297,7 +300,8 @@ class Services:
         self.local_worker = local_worker
         """這台電腦執不執行（rpa serve --no-local-worker 時不執行，只給遠端 worker；M9a）。"""
         self.worker_port = worker_port
-        """Worker API 的埠；None 代表沒有開放遠端 worker 連線（頁面提示怎麼開啟）。"""
+        """對外埠（Worker API、Client API）；None 代表沒有開放（頁面提示怎麼開啟）。"""
+        self.worker_host = worker_host
         self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
         self.roles = RoleService(
             sessions,
@@ -544,6 +548,49 @@ class Services:
             for revision in revisions
             if (revision.scene_id, revision.number) in wanted
         }
+
+    def worker_wait(self, run_id: str) -> dict[str, str | None] | None:
+        """排隊中的執行是不是在等遠端 worker：沒有線上、可以接的 worker 時回傳提示用的資料（M9a）。
+
+        回傳 ``{"worker": 名稱}``（指定給某台 worker，例如序列固定的那台）或 ``{"worker": None}``
+        （任何一台遠端 worker）；本機會執行、已經有人領取或不是排隊中時回傳 None。
+        """
+        with self.sessions() as session:
+            run = session.get(Run, run_id)
+            if run is None or run.status != "queued" or run.worker_id is not None:
+                return None
+            target, required = run.target, run.required_worker
+        if target == "local" or required == LOCAL_WORKER:
+            return None
+        if required is None and target == "any" and self.local_worker:
+            return None
+        records = self.workers.list_workers()
+        ready = {record.id for record in records if record.status in ("online", "busy")}
+        if required is not None:
+            if required in ready:
+                return None
+            names = {record.id: record.name for record in records}
+            return {"worker": names.get(required, required)}
+        return None if ready else {"worker": None}
+
+    def run_locations(self) -> list[tuple[str, str]]:
+        """執行報告「執行位置」篩選的選項：本機、登記的 worker，以及執行過但已刪除的 worker。
+
+        沒有任何遠端 worker 時回傳空清單（不顯示這個篩選）。
+        """
+        names = self.workers.names()
+        with self.sessions() as session:
+            used = session.scalars(
+                select(Run.worker_id).where(Run.worker_id.is_not(None)).distinct()
+            ).all()
+        others = sorted({value for value in used if value} - names.keys())
+        options = [(LOCAL_WORKER, names[LOCAL_WORKER])]
+        options += sorted(
+            ((key, name) for key, name in names.items() if key != LOCAL_WORKER),
+            key=lambda item: item[1].casefold(),
+        )
+        options += [(value, value) for value in others]
+        return options if len(options) > 1 else []
 
     def run_categories(self) -> list[str]:
         with self.sessions() as session:
@@ -940,6 +987,30 @@ class Services:
             "display": {target: self.can_display(target) for target in TARGETS},
         }
 
+    def external_url(self) -> str | None:
+        """對外埠在區網上的網址（裝置邀請、worker 的 --server）；沒開對外埠時是 None。"""
+        if self.worker_port is None:
+            return None
+        return external_url(self.worker_host, self.worker_port)
+
+    def invite_device(self, worker_id: str) -> dict[str, object]:
+        """產生裝置邀請（M10.1）：要先開對外埠，邀請裡帶它的網址。代碼只有這次拿得到。"""
+        server = self.external_url()
+        if server is None:
+            raise _conflict("invite_needs_port", t("error.invite_needs_port"))
+        invitation = self.workers.create_invite(worker_id)
+        invite = Invite(server, invitation.code, "worker")
+        return {
+            "worker": invitation.worker.to_json(),
+            "invite": {
+                "line": invite.line(),
+                "server": server,
+                "code": invitation.code,
+                "app": invitation.app,
+                "expiresAt": invitation.expires_at.isoformat(timespec="seconds"),
+            },
+        }
+
     def resolve_headless(self, headless: bool | None, target: Target) -> bool:
         if headless is None:
             return not self.can_display(target)
@@ -986,10 +1057,22 @@ class Services:
         categories: Sequence[str] = (),
         statuses: Sequence[str] = (),
         purposes: Sequence[str] = (),
+        workers: Sequence[str] = (),
         revision: int | None = None,
         limit: int = RUN_LIST_LIMIT,
     ) -> list[RunRecord]:
         statement = select(Run).order_by(Run.created_at.desc(), Run.id.desc()).limit(limit)
+        if workers:
+            # 執行位置（M9a）：已經有人領取的看 worker_id；還在排隊的看指定的 worker 或本機
+            chosen = list(workers)
+            waiting = Run.worker_id.is_(None)
+            conditions = [
+                Run.worker_id.in_(chosen),
+                and_(waiting, Run.required_worker.in_(chosen)),
+            ]
+            if LOCAL_WORKER in chosen:
+                conditions.append(and_(waiting, Run.target == "local"))
+            statement = statement.where(or_(*conditions))
         if scenes:
             statement = statement.where(Run.scene_id.in_(list(scenes)))
         if categories:

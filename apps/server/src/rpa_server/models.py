@@ -1,6 +1,7 @@
 """資料庫模型：場景 scenes、版本 revisions、執行 runs；M4 加上登入角色 roles 與錄製 recordings；
 M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs；
-M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與由哪台 worker 執行。
+M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與由哪台 worker 執行；
+M10.1 加上裝置邀請 device_invites。
 
 版本內容（場景檔與腳本）不放資料庫，放在資料目錄（storage.py）；資料庫只記雜湊與狀態。
 改了模型就要新增遷移（rpa_server/migrations/versions），測試會比對兩者是否一致。
@@ -15,6 +16,7 @@ from rpa_server.db import NAMING_CONVENTION, JsonType, UtcDateTime
 
 __all__ = [
     "Base",
+    "DeviceInvite",
     "Domain",
     "Recording",
     "RemoteWorker",
@@ -247,6 +249,22 @@ class RemoteWorker(Base):
     current_run: Mapped[str | None] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class DeviceInvite(Base):
+    """裝置邀請（M10.1，ADR 0014）：一次性、限時、限定 App 種類；資料庫只存代碼的雜湊。
+
+    ``device_id`` 是要配對的裝置：Worker 是 workers 的代號（M10.2 的錄製端沿用這張表）。
+    """
+
+    __tablename__ = "device_invites"
+
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    app: Mapped[str] = mapped_column(String(16))
+    device_id: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    used_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
 
 class Setting(Base):
