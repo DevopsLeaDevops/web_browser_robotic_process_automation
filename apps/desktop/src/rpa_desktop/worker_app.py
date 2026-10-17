@@ -24,7 +24,7 @@ import sys
 import threading
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
-from typing import Final
+from typing import Final, TextIO
 
 from rpa_core.i18n import set_locale
 from rpa_desktop.build_info import load
@@ -228,12 +228,32 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _is_console(stream: TextIO | None) -> bool:
+    """標準輸入是不是真的主控台。Windows 上 NUL（沒有輸入）的 isatty() 也是 True，要再確認。"""
+    if stream is None or not stream.isatty():
+        return False
+    if sys.platform != "win32":
+        return True
+    import ctypes
+    import msvcrt
+
+    mode = ctypes.c_uint32()
+    handle = msvcrt.get_osfhandle(stream.fileno())
+    return bool(ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(mode)))
+
+
+def _answer(question: str) -> str:
+    """問一個問題；輸入結束（EOF）或按 Ctrl+C 視為沒有回答。"""
+    try:
+        return input(question)
+    except (EOFError, KeyboardInterrupt):
+        sys.stdout.write("\n")
+        return ""
+
+
 def _console_ask() -> Ask | None:
     """有人在主控台前（雙擊開啟、終端機）才問問題；CI、背景執行時回傳 None。"""
-    stdin = sys.stdin
-    if stdin is None or not stdin.isatty():
-        return None
-    return input
+    return _answer if _is_console(sys.stdin) else None
 
 
 def _say(line: str) -> None:

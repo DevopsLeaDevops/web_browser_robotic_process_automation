@@ -6,6 +6,7 @@
 """
 
 import json
+import sys
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
@@ -244,7 +245,7 @@ def routed(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
 def _frozen(monkeypatch: pytest.MonkeyPatch, executable: str, app: App) -> None:
     monkeypatch.setattr(entry, "is_frozen", lambda: True)
-    monkeypatch.setattr(entry.sys, "executable", executable)
+    monkeypatch.setattr(sys, "executable", executable)
     info = BuildInfo(app=app, version="0.1.0", fingerprint="f", protocol=1)
     monkeypatch.setattr("rpa_desktop.build_info.load", lambda: info)
 
@@ -275,3 +276,20 @@ def test_child_and_recorder_do_not_start_a_worker(
 def test_worker_flag_works_in_development(routed: list[list[str]]) -> None:
     assert entry.main(["--worker", "--reset-pairing"]) == 0
     assert routed == [["--reset-pairing"]]
+
+
+def test_console_detection_and_end_of_input(monkeypatch: pytest.MonkeyPatch) -> None:
+    """沒有輸入（CI 的 stdin 是 NUL、/dev/null）時不問問題；輸入結束視為沒有回答。"""
+
+    class _NotATerminal:
+        def isatty(self) -> bool:
+            return False
+
+    monkeypatch.setattr(sys, "stdin", _NotATerminal())
+    assert worker_app._console_ask() is None  # pyright: ignore[reportPrivateUsage]
+
+    def end_of_input(question: str) -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", end_of_input)
+    assert worker_app._answer("？") == ""  # pyright: ignore[reportPrivateUsage]
