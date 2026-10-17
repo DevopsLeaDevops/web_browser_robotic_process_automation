@@ -57,7 +57,9 @@ class Settings:
     display: bool = False
     """能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。from_env 會自動偵測，測試預設不顯示。"""
     worker_port: int | None = None
-    """Worker API 的埠（M9a）；None 代表不開放遠端 worker。"""
+    """對外埠（M9a 的 Worker API 埠；M10 起也提供 Client API）；None 代表不開放。"""
+    worker_host: str = "0.0.0.0"
+    """對外埠綁定的位址；裝置邀請用它決定伺服器網址（M10.1）。"""
     local_worker: bool = True
     """要不要在這台電腦執行（本機 worker）；False 時只有遠端 worker 執行。"""
 

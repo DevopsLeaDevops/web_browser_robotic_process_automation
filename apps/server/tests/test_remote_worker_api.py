@@ -609,3 +609,52 @@ def test_login_state_travels_and_comes_back(app: FastAPI, client: Client, remote
         headers=auth(token),
     )
     assert body(client.get("/api/roles/testsite-user"))["status"] == "logged_in"
+
+
+# ---------------------------------------------------------------- M9a 收尾（M10.1）
+
+
+def test_waiting_hint_location_filter_and_options(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    """排隊中而沒有線上的遠端 worker：執行頁說明在等什麼；執行報告可以依執行位置篩選。"""
+    body(client.post("/api/scenes/import"))
+    local_only = validate(client, target="local", engine="chromium")
+    portal = services(app)
+    assert portal.run_locations() == []  # 還沒有遠端 worker：不顯示這個篩選
+
+    token = register(client)
+    waiting = validate(client, target="remote", engine="chromium")
+    assert portal.worker_wait(str(waiting["id"])) == {"worker": None}
+    assert "目前沒有線上的遠端 worker" in client.get(f"/runs/{waiting['id']}").text
+    assert portal.worker_wait(str(local_only["id"])) is None
+    anywhere = validate(client, target="any", engine="chromium")
+    assert portal.worker_wait(str(anywhere["id"])) is None  # 本機會執行
+
+    hello(remote, token, browsers=["chromium"])
+    assert portal.worker_wait(str(waiting["id"])) is None
+    assert "data-worker-wait" not in client.get(f"/runs/{waiting['id']}").text
+    job = claim(remote, token)
+    assert job is not None
+    assert job["runId"] == waiting["id"]
+
+    assert portal.run_locations() == [("local", "本機"), ("win-01", "Windows 機器")]
+    runs = cast("list[JsonObject]", body(client.get("/api/runs?worker=win-01"))["runs"])
+    assert [run["id"] for run in runs] == [waiting["id"]]
+    local_runs = cast("list[JsonObject]", body(client.get("/api/runs?worker=local"))["runs"])
+    assert {run["id"] for run in local_runs} == {local_only["id"]}  # 「任一」還沒有人領取
+    page = client.get("/runs?worker=win-01").text
+    assert 'name="worker" value="win-01" checked' in page
+
+
+def test_pinned_worker_offline_is_named(app: FastAPI, client: Client) -> None:
+    """序列固定在某台 worker（required_worker），那台離線時提示寫出它的名稱。"""
+    body(client.post("/api/scenes/import"))
+    register(client)
+    queued = validate(client, target="remote", engine="chromium")
+    with services(app).sessions() as session:
+        run = session.get(Run, str(queued["id"]))
+        assert run is not None
+        run.required_worker = "win-01"
+        session.commit()
+    assert services(app).worker_wait(str(queued["id"])) == {"worker": "Windows 機器"}

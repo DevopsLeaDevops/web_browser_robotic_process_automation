@@ -249,6 +249,7 @@ def build_serve_command() -> click.Command:
             settings = dataclasses.replace(
                 Settings.from_env(data_dir=data_dir),
                 worker_port=worker_port,
+                worker_host=worker_host,
                 local_worker=local_worker,
             )
             if skipped is not None:
@@ -273,11 +274,10 @@ def build_serve_command() -> click.Command:
             sockets = [sock]
             if worker_sock is not None and worker_port is not None:
                 sockets.append(worker_sock)
-                from rpa_worker.environment import lan_address
+                from rpa_worker.environment import external_url
 
-                address = lan_address() or socket.gethostname()
-                shown = address if worker_host in ("0.0.0.0", "::", "") else worker_host
-                click.echo(t("cli.serve.worker_api", url=f"http://{shown}:{worker_port}"), err=True)
+                url = external_url(worker_host, worker_port)
+                click.echo(t("cli.serve.worker_api", url=url), err=True)
             if not local_worker:
                 click.echo(t("cli.serve.local_worker_off"), err=True)
             # 遠端 worker 的長輪詢最多 25 秒：Ctrl+C 時不必等它們結束

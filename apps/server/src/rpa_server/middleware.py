@@ -13,6 +13,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from rpa_core.i18n import Locale, parse_locale, use_locale
 
 __all__ = [
+    "CLIENT_API",
+    "EXTERNAL_PATHS",
     "LANG_COOKIE",
     "WORKER_API",
     "LocaleMiddleware",
@@ -92,14 +94,17 @@ class SameOriginMiddleware:
 
 
 WORKER_API: Final = "/worker-api/"
+CLIENT_API: Final = "/client-api/"
+EXTERNAL_PATHS: Final = (WORKER_API, CLIENT_API)
+"""只在對外埠提供的路徑：Worker API（M9a）與桌面 App 的 Client API（M10）。"""
 
 
 class PortGateMiddleware:
-    """Worker API 與管理頁面分開在兩個埠（M9a，ADR 0012）。
+    """對外埠與管理頁面分開在兩個埠（M9a，ADR 0012；M10 ADR 0014 改稱「對外埠」）。
 
-    - 從 Worker API 的埠（``worker_port``）進來的請求只能用 ``/worker-api/``，其他一律 404：
-      Worker API 的埠可以開放給區網，但管理頁面沒有登入（M8），不能跟著開放。
-    - 從其他埠進來的請求不能用 ``/worker-api/``（沒有開 Worker API 時也一樣）。
+    - 從對外埠（``worker_port``）進來的請求只能用 ``/worker-api/`` 與 ``/client-api/``，
+      其他一律 404：對外埠可以開放給區網，但管理頁面沒有登入（M8），不能跟著開放。
+    - 從其他埠進來的請求不能用這兩組路徑（沒有開對外埠時也一樣）。
     """
 
     def __init__(self, app: ASGIApp, worker_port: int | None) -> None:
@@ -113,8 +118,8 @@ class PortGateMiddleware:
         server = cast("tuple[str, int | None] | None", scope.get("server"))
         port = server[1] if server is not None else None
         on_worker_port = self.worker_port is not None and port == self.worker_port
-        is_worker_path = str(scope.get("path", "")).startswith(WORKER_API)
-        if on_worker_port != is_worker_path:
+        is_external_path = str(scope.get("path", "")).startswith(EXTERNAL_PATHS)
+        if on_worker_port != is_external_path:
             body = b'{"error": {"code": "not_found", "message": "Not Found"}}'
             await send(
                 {

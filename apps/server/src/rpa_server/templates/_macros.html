@@ -179,7 +179,18 @@
   <label><input type="radio" name="target" value="{{ target }}"{% if target == locations.default %} checked{% endif %}{% if target == "local" and not locations.local %} disabled{% endif %}> {{ t("target." + target) }}</label>
   {% endfor %}
   <span class="cell-sub">{{ t("target.hint") }}</span>
+  <p class="notice warn" data-local-url-warning hidden>{{ t("target.local_url_warning") }}</p>
 </fieldset>
+{% endif %}
+{%- endmacro %}
+
+{# 排隊中、沒有線上的遠端 worker 可以接：說明在等什麼，連到裝置頁（M9a） #}
+{% macro worker_wait_notice(wait) -%}
+{% if wait %}
+<div class="notice warn" role="status" data-worker-wait>
+  {% if wait.worker %}{{ t("run.waiting_worker_named", name=wait.worker) }}{% else %}{{ t("run.waiting_worker") }}{% endif %}
+  <span class="actions"><a class="button" href="/devices">{{ t("run.waiting_worker_devices") }}</a></span>
+</div>
 {% endif %}
 {%- endmacro %}
 

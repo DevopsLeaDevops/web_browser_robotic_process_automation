@@ -543,6 +543,8 @@ class WorkerRecord:
     host: str | None
     browsers: tuple[str, ...]
     display: bool
+    version: str | None = None
+    """App 的版本（M10.1；舊版 worker 沒有回報）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -561,4 +563,5 @@ class WorkerRecord:
             "host": self.host,
             "browsers": list(self.browsers),
             "display": self.display,
+            "version": self.version,
         }
