@@ -92,7 +92,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <li><strong>数据位置</strong>：<code>%LOCALAPPDATA%\rpa\worker</code>（配对的服务器与设备 <code>pairing.json</code>、设置 <code>settings.json</code>、日志 <code>logs\</code>、任务的暂存）。<strong>权杖存在 Windows 认证管理员</strong>（「一般认证」里的 <code>RPA Worker</code>）；认证管理员不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。第一步预览版存在文件里的权杖，第一次打开时自动搬进认证管理员。浏览器在 <code>%LOCALAPPDATA%\ms-playwright</code>。日志不记权杖与邀请代码。</li>
           <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 内置，Windows 10 大多已随 Edge 更新装好。没有时 RPA Worker 会说明怎么安装，在那之前只靠通知区接任务。</li>
           <li><strong>Windows 注销或关机</strong>：运行中的任务立刻被取消并回报；来不及回报时，管理 Portal 约一分钟后判定失联。</li>
-          <li><strong>排查问题</strong>：同文件夹的 <code>rpa-child.exe --worker</code> 是主控台版（和第一步的预览版相同，每一行消息都看得到）；<code>rpa-worker.exe --no-window --invite … --log 文件</code> 不开窗口（自动化用）。两者和窗口版用同一份配对，同一时间只能开一份。</li>
+          <li><strong>排查问题</strong>：同文件夹的 <code>rpa-child.exe --worker</code> 是主控台版（和第一步的预览版相同，每一行消息都看得到）；<code>rpa-worker.exe --no-window --invite … --log 文件</code> 不开窗口（自动化用；要它结束时在文件夹放一个 <code>stop.request</code> 文件，运行中的任务会被取消并回报）。两者和窗口版用同一份配对，同一时间只能开一份。</li>
         </ul>
       </div>
     </section>
