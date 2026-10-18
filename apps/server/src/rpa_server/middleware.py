@@ -4,13 +4,17 @@
 路由（包含在執行緒池跑的同步路由）與錯誤處理才讀得到。
 """
 
+from collections.abc import Callable
 from http.cookies import CookieError, SimpleCookie
 from typing import Final, cast
 from urllib.parse import parse_qs, urlsplit
 
+import anyio
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from rpa_core.i18n import Locale, parse_locale, use_locale
+from rpa_server.context import Via, use_recorder
+from rpa_server.errors import ServiceError
 
 __all__ = [
     "CLIENT_API",
@@ -99,17 +103,46 @@ EXTERNAL_PATHS: Final = (WORKER_API, CLIENT_API)
 """只在對外埠提供的路徑：Worker API（M9a）與桌面 App 的 Client API（M10）。"""
 
 
+async def _reply(send: Send, status: int, code: str, message: str) -> None:
+    body = f'{{"error": {{"code": "{code}", "message": "{message}"}}}}'.encode()
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": [(b"content-type", b"application/json")],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})
+
+
+def _bearer(scope: Scope) -> str | None:
+    value = _header(scope, b"authorization")
+    if value is not None and value.lower().startswith("bearer "):
+        return value[7:].strip() or None
+    return None
+
+
 class PortGateMiddleware:
     """對外埠與管理頁面分開在兩個埠（M9a，ADR 0012；M10 ADR 0014 改稱「對外埠」）。
 
-    - 從對外埠（``worker_port``）進來的請求只能用 ``/worker-api/`` 與 ``/client-api/``，
-      其他一律 404：對外埠可以開放給區網，但管理頁面沒有登入（M8），不能跟著開放。
+    - 從對外埠（``worker_port``）進來的 ``/worker-api/`` 與 ``/client-api/`` 照常交給路由，
+      權杖由路由自己檢查。
+    - 對外埠上的其他路徑（Portal 頁面、``/api``、靜態檔）只接受錄製端的裝置權杖（M10.2，
+      ``authenticate`` 驗證）：錄製端的本機閘道替每個請求加上 ``Authorization``。沒有或不對時 401；
+      worker 的權杖也不行。驗過的請求記在 :mod:`rpa_server.context`（頁面與服務知道透過哪台）。
+      沒給 ``authenticate`` 時一律 404（M10.1 的行為）。
     - 從其他埠進來的請求不能用這兩組路徑（沒有開對外埠時也一樣）。
     """
 
-    def __init__(self, app: ASGIApp, worker_port: int | None) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        worker_port: int | None,
+        authenticate: Callable[[str | None], Via] | None = None,
+    ) -> None:
         self.app = app
         self.worker_port = worker_port
+        self.authenticate = authenticate
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -119,15 +152,16 @@ class PortGateMiddleware:
         port = server[1] if server is not None else None
         on_worker_port = self.worker_port is not None and port == self.worker_port
         is_external_path = str(scope.get("path", "")).startswith(EXTERNAL_PATHS)
+        if on_worker_port and not is_external_path and self.authenticate is not None:
+            try:
+                via = await anyio.to_thread.run_sync(self.authenticate, _bearer(scope))
+            except ServiceError as error:
+                await _reply(send, error.status, error.code, "Unauthorized")
+                return
+            with use_recorder(via):
+                await self.app(scope, receive, send)
+            return
         if on_worker_port != is_external_path:
-            body = b'{"error": {"code": "not_found", "message": "Not Found"}}'
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": 404,
-                    "headers": [(b"content-type", b"application/json")],
-                }
-            )
-            await send({"type": "http.response.body", "body": body})
+            await _reply(send, 404, "not_found", "Not Found")
             return
         await self.app(scope, receive, send)

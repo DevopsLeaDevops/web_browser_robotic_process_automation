@@ -22,7 +22,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, cast
+from typing import TYPE_CHECKING, Final, cast
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
@@ -38,9 +38,12 @@ from rpa_server.domain import DOMAIN_ID, RoleRecord, RoleStatus, now
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.models import Role
-from rpa_server.processes import Lines, child_env, launch, send, stop
+from rpa_server.processes import ChildProcess, Launch, Lines, child_env, launch, send, stop
 from rpa_server.secret_store import SECRET_NAME, SecretInfo, SecretStore
 from rpa_server.storage import Storage
+
+if TYPE_CHECKING:
+    from rpa_server.devices import RecorderHub
 
 __all__ = ["CHECK_SECONDS", "LOGIN_SECONDS", "RoleService", "parse_locator"]
 
@@ -149,11 +152,13 @@ def parse_steps(text: str | None) -> tuple[list[dict[str, object]], tuple[str, .
 
 @dataclass(slots=True)
 class _LoginSession:
-    """一次人工登入：瀏覽器視窗開在這台電腦上，等使用者登入。"""
+    """一次人工登入：瀏覽器視窗開在操作的這台電腦上（伺服器或錄製端），等使用者登入。"""
 
     role_id: str
-    process: subprocess.Popen[str]
+    process: ChildProcess
     candidate: Path
+    device: str | None = None
+    """在哪台錄製端登入（M10.2）；伺服器這台是 None。"""
     status: str = "starting"
     """starting → waiting（視窗已開）→ checking（確認登入狀態）→ done／failed／cancelled。"""
     message: str | None = None
@@ -168,6 +173,7 @@ class _LoginSession:
         return {
             "status": self.status,
             "message": self.message,
+            "deviceId": self.device,
             "startedAt": self.started_at.isoformat(timespec="seconds"),
             "finishedAt": self.finished_at.isoformat(timespec="seconds")
             if self.finished_at
@@ -185,7 +191,8 @@ class RoleService:
         display: bool,
         locale: Locale,
         scene_roles: Callable[[], Mapping[str, str]] = dict,
-        launcher: Callable[..., subprocess.Popen[str]] | None = None,
+        launcher: Launch | None = None,
+        hosts: "RecorderHub | None" = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -194,8 +201,10 @@ class RoleService:
         self.locale: Locale = locale
         self.scene_roles = scene_roles
         """場景 → 用到的角色（最新版本）；由 Services 提供。"""
-        self.launcher: Callable[..., subprocess.Popen[str]] = launcher or launch
-        """啟動人工登入子程序的方式；測試換成不開瀏覽器視窗的假程式。"""
+        self.launcher: Launch = launcher or launch
+        """在這台啟動人工登入子程序的方式；測試換成不開瀏覽器視窗的假程式。"""
+        self.hosts = hosts
+        """錄製端（M10.2）：請求透過錄製端時，登入的瀏覽器視窗開在那台。"""
         self._lock = threading.Lock()
         self._logins: dict[str, _LoginSession] = {}
         self._checking: set[str] = set()
@@ -553,13 +562,21 @@ class RoleService:
     # ------------------------------------------------------------ 人工登入
 
     def start_login(self, role_id: str) -> RoleRecord:
-        """在這台電腦開瀏覽器視窗到登入網址，等使用者登入。"""
-        if not self.display:
+        """在操作的這台電腦開瀏覽器視窗到登入網址，等使用者登入。
+
+        請求透過錄製端時視窗開在那台（M10.2）；存下的登入狀態傳回這台，確認與保存照舊在這台。
+        """
+        via = self.hosts.current() if self.hosts is not None else None
+        if via is None and not self.display:
             raise _error(422, "display_unavailable", t("error.login_display_unavailable"))
         settings = self.login_settings(role_id)
         if settings is None:
             raise _error(404, "role_not_found", t("error.role_not_found", id=role_id))
         engine = self.get_role(role_id).engine
+        launcher = self.launcher
+        if via is not None and self.hosts is not None:
+            self.hosts.check(via, engine=engine)
+            launcher = self.hosts.launcher(via)
         folder = self.storage.roles / role_id
         folder.mkdir(parents=True, exist_ok=True)
         candidate = folder / "candidate.json"
@@ -568,7 +585,7 @@ class RoleService:
             current = self._logins.get(role_id)
             if (current is not None and current.active) or role_id in self._checking:
                 raise _error(409, "role_busy", t("error.role_busy", id=role_id))
-            process = self.launcher(
+            process = launcher(
                 module_command(
                     "rpa_runner.login",
                     [
@@ -582,7 +599,12 @@ class RoleService:
                 env=child_env(self.locale, {ENV_LOGIN: json.dumps(settings.to_json())}),
                 log=folder / "capture.log",
             )
-            login = _LoginSession(role_id=role_id, process=process, candidate=candidate)
+            login = _LoginSession(
+                role_id=role_id,
+                process=process,
+                candidate=candidate,
+                device=via.id if via is not None else None,
+            )
             self._logins[role_id] = login
         threading.Thread(
             target=self._follow,

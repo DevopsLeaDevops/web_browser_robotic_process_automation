@@ -22,6 +22,7 @@
     {% endfor %}
   </nav>
   <div class="top-end">
+    {% set via = via_recorder() %}{% if via %}<span class="badge blue" id="via-recorder" title="{{ t('app.via_recorder_hint') }}">{{ t("app.via_recorder", name=via.name) }}</span>{% endif %}
     <label class="language">
       <span class="visually-hidden">{{ t("app.language") }}</span>
       <select id="language" data-action="language">

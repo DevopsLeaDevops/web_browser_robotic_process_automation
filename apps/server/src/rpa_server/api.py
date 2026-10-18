@@ -12,6 +12,9 @@ M6：自由試驗場的序列（/api/workflows）與序列的執行（/api/workf
 M9a：遠端 worker 的登記（/api/workers）與預設執行位置（/api/settings/default-target）；
 執行、驗證、序列的執行可以指定執行位置 target（local、remote、any）。
 Worker 自己用的 API 在 /worker-api/v1（worker_api.py）。
+
+M10.2：錄製端的登記與邀請（/api/recorders）。錄製端自己用的 API 在 /client-api/v1（client_api.py）。
+透過錄製端呼叫這裡時，錄製、調試、人工登入的瀏覽器開在那台（rpa_server.devices）。
 """
 
 from typing import Annotated, Literal
@@ -765,6 +768,38 @@ def api_router(services: Services) -> APIRouter:
     def delete_worker(worker_id: str) -> dict[str, object]:
         hub.delete_worker(worker_id)
         return {"deleted": worker_id}
+
+    # ------------------------------------------------------------ 錄製端（M10.2）
+
+    recorders = services.recorders
+
+    @router.get("/recorders")
+    def list_recorders() -> dict[str, object]:
+        return {"recorders": [item.to_json() for item in recorders.list_recorders()]}
+
+    @router.post("/recorders", status_code=201)
+    def create_recorder(body: WorkerCreate) -> dict[str, object]:
+        """登記錄製端；權杖要用邀請配對（POST /recorders/{代號}/invite）。"""
+        return {"recorder": recorders.create_recorder(body.id, body.name).to_json()}
+
+    @router.get("/recorders/{recorder_id}")
+    def get_recorder(recorder_id: str) -> dict[str, object]:
+        return recorders.get_recorder(recorder_id).to_json()
+
+    @router.patch("/recorders/{recorder_id}")
+    def update_recorder(recorder_id: str, body: WorkerUpdate) -> dict[str, object]:
+        record = recorders.update_recorder(recorder_id, name=body.name, disabled=body.disabled)
+        return record.to_json()
+
+    @router.post("/recorders/{recorder_id}/invite")
+    def invite_recorder(recorder_id: str) -> dict[str, object]:
+        """產生錄製端的邀請：舊權杖立刻失效；回應裡的邀請代碼只有這一次拿得到。"""
+        return services.invite_recorder(recorder_id)
+
+    @router.delete("/recorders/{recorder_id}")
+    def delete_recorder(recorder_id: str) -> dict[str, object]:
+        recorders.delete_recorder(recorder_id)
+        return {"deleted": recorder_id}
 
     @router.put("/settings/default-target")
     def set_default_target(body: TargetSetting) -> dict[str, object]:

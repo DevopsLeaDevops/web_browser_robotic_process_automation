@@ -38,6 +38,7 @@ from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id, scenario_sources
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
+from rpa_server.devices import RecorderHub
 from rpa_server.dispatch import WorkerHub
 from rpa_server.domain import (
     DOMAIN_ID,
@@ -303,6 +304,8 @@ class Services:
         """對外埠（Worker API、Client API）；None 代表沒有開放（頁面提示怎麼開啟）。"""
         self.worker_host = worker_host
         self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
+        self.recorders = RecorderHub(sessions, locale=locale)
+        """錄製端的登記、上線，以及交給它執行的互動子程序（M10.2）。"""
         self.roles = RoleService(
             sessions,
             storage,
@@ -310,11 +313,20 @@ class Services:
             display=display,
             locale=locale,
             scene_roles=self.scene_roles,
+            hosts=self.recorders,
         )
         self.recordings = RecordingService(
-            sessions, storage, self, self.roles, display=display, locale=locale
+            sessions,
+            storage,
+            self,
+            self.roles,
+            display=display,
+            locale=locale,
+            hosts=self.recorders,
         )
-        self.debug = DebugManager(storage, self, self.roles, display=display, locale=locale)
+        self.debug = DebugManager(
+            storage, self, self.roles, display=display, locale=locale, hosts=self.recorders
+        )
         self.workflows = WorkflowService(sessions, self)
         self.queue = RunQueue(sessions, storage, self.roles)
         """執行佇列：本機 worker 的任務來源；遠端 worker 經由 workers 領取（M9a）。"""
@@ -1007,6 +1019,24 @@ class Services:
                 "server": server,
                 "code": invitation.code,
                 "app": invitation.app,
+                "expiresAt": invitation.expires_at.isoformat(timespec="seconds"),
+            },
+        }
+
+    def invite_recorder(self, recorder_id: str) -> dict[str, object]:
+        """產生錄製端的邀請（M10.2）：和 Worker 相同，要先開對外埠；代碼只有這次拿得到。"""
+        server = self.external_url()
+        if server is None:
+            raise _conflict("invite_needs_port", t("error.invite_needs_port"))
+        invitation = self.recorders.create_invite(recorder_id)
+        invite = Invite(server, invitation.code, "recorder")
+        return {
+            "recorder": invitation.recorder.to_json(),
+            "invite": {
+                "line": invite.line(),
+                "server": server,
+                "code": invitation.code,
+                "app": "recorder",
                 "expiresAt": invitation.expires_at.isoformat(timespec="seconds"),
             },
         }

@@ -6,6 +6,8 @@
 M9a：同一個應用也提供 Worker API（/worker-api/v1），只在 ``settings.worker_port`` 的埠上；
 遠端 worker 的租約由背景執行緒檢查。``settings.local_worker`` 為 False 時這台電腦不執行。
 M10.1：對外埠也提供桌面 App 的 Client API（/client-api/v1，目前只有配對）。
+M10.2：對外埠上的 Portal 頁面與 API 給帶著錄製端權杖的請求（錄製端的本機閘道）；
+錄製端的指令通道與互動子程序也在 Client API。
 """
 
 import logging
@@ -89,11 +91,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if settings.local_worker:
                 worker.start()
             hub.start_reaper()
+            services.recorders.start_reaper()
             services.debug.start_reaper()
         try:
             yield
         finally:
             hub.close()
+            services.recorders.close()
             worker.stop()
             services.debug.close_all()
             services.recordings.close()
@@ -128,10 +132,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(api_router(services), prefix="/api")
     app.include_router(worker_api_router(hub))
-    app.include_router(client_api_router(hub))
+    app.include_router(client_api_router(hub, services.recorders, storage))
     app.include_router(page_router(services))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.add_middleware(SameOriginMiddleware)
-    app.add_middleware(PortGateMiddleware, worker_port=settings.worker_port)
+    app.add_middleware(
+        PortGateMiddleware,
+        worker_port=settings.worker_port,
+        authenticate=services.recorders.authenticate,
+    )
     app.add_middleware(LocaleMiddleware, default=settings.locale)
     return app

@@ -1,11 +1,28 @@
 """rpa_server 的訊息目錄（頁面、API 錯誤訊息），規則見 docs/adr/0007-i18n.html。"""
 
-from rpa_core.i18n import LOCALES, Catalog
+from typing import Final
 
-__all__ = ["follow_locale", "t"]
+from rpa_core.i18n import LOCALES, Catalog
+from rpa_server.context import via_recorder
+
+__all__ = ["VIA_RECORDER_KEYS", "follow_locale", "page_t", "t"]
 
 t = Catalog("rpa_server")
 """本套件的訊息目錄。"""
+
+VIA_RECORDER_KEYS: Final = {
+    "target.local": "target.local_via_recorder",
+    "worker.local": "worker.local_via_recorder",
+    "target.local_url_warning": "target.local_url_warning_via_recorder",
+}
+"""透過錄製端看頁面時換掉的訊息：「本機」指的是伺服器，不是操作的這台（M10.2）。"""
+
+
+def page_t(key: str, /, **params: object) -> str:
+    """頁面上的文字：和 :data:`t` 相同，但透過錄製端看時把「本機」改稱「伺服器」。"""
+    if via_recorder() is not None:
+        key = VIA_RECORDER_KEYS.get(key, key)
+    return t(key, **params)
 
 
 def follow_locale(value: str | None, key: str) -> str | None:

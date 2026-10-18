@@ -11,11 +11,10 @@
 
 import json
 import shutil
-import subprocess
 import threading
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -29,13 +28,14 @@ from rpa_runner.commands import module_command
 from rpa_runner.contract import check_inputs
 from rpa_runner.run import ENV_STORAGE_STATE
 from rpa_server.domain import now
-from rpa_server.errors import conflict, invalid, not_found
+from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
-from rpa_server.processes import Lines, child_env, launch, send, stop
+from rpa_server.processes import ChildProcess, Launch, Lines, child_env, launch, send, stop
 from rpa_server.roles import parse_locator
 from rpa_server.storage import SCENARIO_FILE, Storage
 
 if TYPE_CHECKING:
+    from rpa_server.devices import RecorderHub
     from rpa_server.roles import RoleService
     from rpa_server.services import Services
 
@@ -49,8 +49,6 @@ SIDE_EFFECTS: Final = frozenset({"click", "fill", "select", "check", "press"})
 """有副作用的動作：執行過之後再執行要確認。"""
 ENGINES: Final = ("chromium", "firefox")
 _ACTIVE: Final = frozenset({"starting", "ready", "busy"})
-
-type Launch = Callable[..., subprocess.Popen[str]]
 
 
 @dataclass(slots=True)
@@ -117,8 +115,11 @@ class DebugSession:
     folder: Path
     scenario: Scenario
     steps: list[StepState]
-    process: subprocess.Popen[str] | None = None
+    process: ChildProcess | None = None
     lines: Lines | None = None
+    device: str | None = None
+    """瀏覽器開在哪台錄製端（M10.2）；伺服器這台是 None。"""
+    launcher: Launch | None = None
     status: str = "starting"
     """starting → ready ⇄ busy → closed／failed。"""
     message: str | None = None
@@ -158,6 +159,7 @@ class DebugSession:
             "facts": self.facts,
             "located": self.located,
             "role": self.role,
+            "deviceId": self.device,
             "steps": [step.to_json() for step in self.steps],
             "createdAt": self.created_at.isoformat(timespec="seconds"),
             "idleSeconds": int(time.monotonic() - self.last_used),
@@ -175,6 +177,7 @@ class DebugManager:
         locale: Locale,
         launcher: Launch | None = None,
         idle_seconds: float = IDLE_SECONDS,
+        hosts: "RecorderHub | None" = None,
     ) -> None:
         self.storage = storage
         self.services = services
@@ -182,6 +185,8 @@ class DebugManager:
         self.display = display
         self.locale: Locale = locale
         self.launcher: Launch = launcher or launch
+        self.hosts = hosts
+        """錄製端（M10.2）：請求透過錄製端時，瀏覽器開在那台。"""
         self.idle_seconds = idle_seconds
         self._lock = threading.Lock()
         self._sessions: dict[str, DebugSession] = {}
@@ -225,19 +230,26 @@ class DebugManager:
         if scene.archived:
             raise conflict("scene_archived", t("error.scene_archived", id=scene_id))
         existing = self.for_scene(scene_id)
-        if existing is not None and not restart:
-            return existing
+        via = self.hosts.current() if self.hosts is not None else None
+        here = via.id if via is not None else None
+        if existing is not None and not restart and existing.device == here:
+            return existing  # 進行中的工作階段在別台時，關掉它、在操作的這台重新開始
         number = revision or scene.latest_number
         scenario = self.services.revision_scenario(scene_id, number)
         if scenario.script is not None:
             raise invalid("debug_script", t("error.debug_script"))
+        display = self.display if via is None or self.hosts is None else self.hosts.display(via)
         if headless is None:
-            headless = not self.display
-        elif not headless and not self.display:
+            headless = not display
+        elif not headless and not display:
             raise invalid("display_unavailable", t("error.display_unavailable"))
         engine = engine or scenario.browser.engine
         if engine not in ENGINES:
             raise invalid("engine_invalid", t("error.role_engine_invalid", engine=engine))
+        launcher = self.launcher
+        if via is not None and self.hosts is not None:
+            self.hosts.check(via, engine=engine, headed=not headless)
+            launcher = self.hosts.launcher(via)
         if inputs is None:
             inputs = {n: s.default for n, s in scenario.inputs.items() if s.default is not None}
         resolved, problems = check_inputs(scenario, inputs)
@@ -269,10 +281,17 @@ class DebugManager:
             scenario=scenario,
             steps=_steps(scenario),
             role=scenario.login.role if scenario.login is not None else None,
+            device=via.id if via is not None else None,
+            launcher=launcher,
         )
         with self._lock:
             self._sessions[session_id] = session
-        self._launch(session)
+        try:
+            self._launch(session)
+        except ServiceError:
+            with self._lock:
+                self._sessions.pop(session_id, None)
+            raise
         return session
 
     def _launch(self, session: DebugSession) -> None:
@@ -298,9 +317,9 @@ class DebugManager:
             if state.is_file():
                 command += ["--storage-state", str(state)]
                 extra[ENV_STORAGE_STATE] = str(state)
-        process = self.launcher(
-            command, env=child_env(self.locale, extra), log=session.folder / "debug.log"
-        )
+        launcher = session.launcher or self.launcher
+        env = child_env(self.locale, extra)
+        process = launcher(command, env=env, log=session.folder / "debug.log")
         session.process = process
         session.lines = Lines(process)
         threading.Thread(target=self._wait_ready, args=(session,), daemon=True).start()

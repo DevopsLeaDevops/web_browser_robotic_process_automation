@@ -3,6 +3,8 @@
 - **在這台電腦錄製**：啟動 ``playwright codegen``，瀏覽器視窗開在執行 Portal 的電腦上；
   使用者操作完關掉視窗即結束。錄製中的原始稿（可能含密碼）放在暫存檔，轉換後刪除。
 - **貼上錄製稿**：用 ``rpa record`` 或在別台電腦錄好的 codegen 原始稿，直接轉換。
+- **透過錄製端**（M10.2）：請求從錄製端進來時，codegen 在**那台**執行（瀏覽器開在操作的人面前），
+  錄製稿傳回這台再轉換；同一時間每台（伺服器、各台錄製端）各自只能有一個錄製。
 - 轉換結果一律是草稿版本，之後一樣要驗證通過才能發布；原始錄製稿遮罩密碼後保存，只當來源。
 - 選了登入角色時，錄製前載入該角色的登入狀態，草稿寫上 ``login: { role: … }``。
 - **既有場景的新版本**有兩種方式：
@@ -14,10 +16,9 @@
 
 import json
 import re
-import subprocess
 import threading
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,10 +38,11 @@ from rpa_server.domain import DOMAIN_ID, RecordingRecord, now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
 from rpa_server.models import Recording
-from rpa_server.processes import child_env, launch, stop
+from rpa_server.processes import ChildProcess, Launch, child_env, launch, stop
 from rpa_server.storage import SCENARIO_FILE, Storage
 
 if TYPE_CHECKING:
+    from rpa_server.devices import RecorderHub
     from rpa_server.roles import RoleService
     from rpa_server.services import Services
 
@@ -56,8 +58,6 @@ MODES: Final = ("continue", "replace")
 """既有場景的新版本：接在既有步驟後面，或整份換成錄製的草稿。"""
 _BASE_FILE: Final = "base.yaml"
 """接著錄製時要先執行的版本（場景檔的複本）。"""
-
-type Launch = Callable[..., subprocess.Popen[str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +114,7 @@ def _record(row: Recording) -> RecordingRecord:
         finished_at=row.finished_at,
         mode=row.mode,
         base_revision=row.base_revision,
+        device_id=row.device_id,
     )
 
 
@@ -142,6 +143,7 @@ class RecordingService:
         display: bool,
         locale: Locale,
         launcher: Launch | None = None,
+        hosts: "RecorderHub | None" = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -150,9 +152,13 @@ class RecordingService:
         self.display = display
         self.locale: Locale = locale
         self.launcher: Launch = launcher or launch
-        """啟動 codegen 的方式；測試換成不開瀏覽器的假程式。"""
+        """在這台啟動 codegen 的方式；測試換成不開瀏覽器的假程式。"""
+        self.hosts = hosts
+        """錄製端（M10.2）：請求透過錄製端時，改在那台啟動。"""
         self._lock = threading.Lock()
-        self._processes: dict[str, subprocess.Popen[str]] = {}
+        self._processes: dict[str, ChildProcess] = {}
+        self._devices: dict[str, str | None] = {}
+        """錄製編號 → 在哪台錄製端（伺服器這台是 None）。"""
 
     # ------------------------------------------------------------ 查詢
 
@@ -232,11 +238,18 @@ class RecordingService:
         engine: str = "chromium",
         role_id: str | None = None,
     ) -> RecordingRecord:
-        """在這台電腦開瀏覽器錄製；使用者關掉視窗時轉換成草稿。"""
-        if not self.display:
-            raise invalid("display_unavailable", t("error.record_display_unavailable"))
+        """在操作的這台電腦開瀏覽器錄製；使用者關掉視窗時轉換成草稿。
+
+        請求透過錄製端時在那台錄製（M10.2），否則在伺服器這台。
+        """
         if engine not in ENGINES:
             raise invalid("engine_invalid", t("error.role_engine_invalid", engine=engine))
+        via = self.hosts.current() if self.hosts is not None else None
+        if via is None and not self.display:
+            raise invalid("display_unavailable", t("error.record_display_unavailable"))
+        if via is not None and self.hosts is not None:
+            self.hosts.check(via, engine=engine)
+        device = via.id if via is not None else None
         checked = self._target(target)
         role = self._role(role_id)
         storage = self.storage.role_state(role) if role is not None else None
@@ -249,7 +262,10 @@ class RecordingService:
         elif start_url is None:
             raise invalid("recording_url_invalid", t("error.recording_url_invalid", value=""))
         with self._lock:
-            if any(process.poll() is None for process in self._processes.values()):
+            if any(
+                process.poll() is None and self._devices.get(key) == device
+                for key, process in self._processes.items()
+            ):
                 raise conflict("recording_active", t("error.recording_active"))
             moment = now()
             recording_id = _new_id(moment)
@@ -257,6 +273,7 @@ class RecordingService:
             folder.mkdir(parents=True)
             row = self._row(recording_id, checked, "codegen", start_url, engine, role, moment)
             row.base_revision = replay.number if replay is not None else None
+            row.device_id = device
             with self.sessions() as session:
                 session.add(row)
                 session.commit()
@@ -269,14 +286,22 @@ class RecordingService:
             else:
                 command = self._replay_command(folder, replay, engine, storage)
                 extra = self.roles.secret_values(replay.scenario.secrets)
-            process = self.launcher(
-                command,
-                env=child_env(self.locale, extra),
-                log=folder / "codegen.log",
-                cwd=folder,
-                pipes=False,
-            )
+            launcher = self.launcher
+            if via is not None and self.hosts is not None:
+                launcher = self.hosts.launcher(via)
+            try:
+                process = launcher(
+                    command,
+                    env=child_env(self.locale, extra),
+                    log=folder / "codegen.log",
+                    cwd=folder,
+                    pipes=False,
+                )
+            except ServiceError as error:
+                self._fail(recording_id, error.message)
+                raise
             self._processes[recording_id] = process
+            self._devices[recording_id] = device
         threading.Thread(
             target=self._wait, args=(recording_id, process), name=recording_id, daemon=True
         ).start()
@@ -354,10 +379,11 @@ class RecordingService:
             created_at=moment,
         )
 
-    def _wait(self, recording_id: str, process: subprocess.Popen[str]) -> None:
+    def _wait(self, recording_id: str, process: ChildProcess) -> None:
         process.wait()
         with self._lock:
             self._processes.pop(recording_id, None)
+            self._devices.pop(recording_id, None)
         with use_locale(self.locale):
             folder = self.storage.recording_dir(recording_id)
             unmasked = folder / _UNMASKED

@@ -29,6 +29,7 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "alembic_version",
             "device_invites",
             "domains",
+            "recorders",
             "recordings",
             "revisions",
             "roles",

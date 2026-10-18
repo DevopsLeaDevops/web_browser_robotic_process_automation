@@ -3,7 +3,7 @@
 {% block description %}{{ t("workers.description") }}{% endblock %}
 {% block actions %}<button class="button primary" data-action="new-worker"{% if not worker_port %} disabled title="{{ t('workers.api_off') }}"{% endif %}>{{ t("workers.new") }}</button>{% endblock %}
 {% block content %}
-<div class="stack" id="workers" data-api-url="{{ api_url or '' }}"{% if workers %} data-poll{% endif %}>
+<div class="stack" id="workers" data-api-url="{{ api_url or '' }}"{% if workers or recorders %} data-poll{% endif %}>
   <div class="notice">{{ t("workers.notice") }}</div>
   {% if worker_port %}
   <div class="notice success">{{ t("workers.api_on", url=api_url) }}</div>
@@ -22,7 +22,7 @@
       </tr></thead>
       <tbody>
       {% for worker in workers %}
-      <tr id="worker-{{ worker.id }}" data-worker="{{ worker.id }}" data-state="{{ worker.status }}:{{ worker.current_run or '' }}">
+      <tr id="worker-{{ worker.id }}" data-worker="{{ worker.id }}" data-state="worker:{{ worker.id }}:{{ worker.status }}:{{ worker.current_run or '' }}">
         <td><strong>{{ worker.name }}</strong> <span class="tag">{{ worker.id }}</span>
           <span class="cell-sub">{{ t("workers.created") }} {{ m.time(worker.created_at) }}</span></td>
         <td>{{ m.badge(worker.status, t("workers.status_" + worker.status)) }}
@@ -36,18 +36,56 @@
           {% if not worker.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not worker.version %}—{% endif %}</td>
         <td class="role-actions">
           {% if worker.disabled %}
-          <button class="text-btn" data-action="enable-worker" data-worker="{{ worker.id }}">{{ t("workers.enable") }}</button>
+          <button class="text-btn" data-action="enable-worker" data-kind="worker" data-worker="{{ worker.id }}">{{ t("workers.enable") }}</button>
           {% else %}
-          <button class="text-btn" data-action="disable-worker" data-worker="{{ worker.id }}">{{ t("workers.disable") }}</button>
+          <button class="text-btn" data-action="disable-worker" data-kind="worker" data-worker="{{ worker.id }}">{{ t("workers.disable") }}</button>
           {% endif %}
-          {% if worker_port and not worker.disabled %}<button class="text-btn" data-action="invite-worker" data-worker="{{ worker.id }}" data-name="{{ worker.name }}">{{ t("workers.invite") }}</button>{% endif %}
-          <button class="text-btn" data-action="delete-worker" data-worker="{{ worker.id }}" data-name="{{ worker.name }}">{{ t("workers.delete") }}</button>
+          {% if worker_port and not worker.disabled %}<button class="text-btn" data-action="invite-worker" data-kind="worker" data-worker="{{ worker.id }}" data-name="{{ worker.name }}">{{ t("workers.invite") }}</button>{% endif %}
+          <button class="text-btn" data-action="delete-worker" data-kind="worker" data-worker="{{ worker.id }}" data-name="{{ worker.name }}">{{ t("workers.delete") }}</button>
         </td>
       </tr>
       {% endfor %}
       </tbody>
     </table></div>
     {% else %}<div class="empty">{{ t("workers.empty") }}</div>{% endif %}
+  </section>
+
+  <section class="panel" id="recorders">
+    <div class="panel-header"><h2>{{ t("recorders.list") }} <span class="count">{{ recorders | length }}</span></h2><span class="muted">{{ t("recorders.hint") }}</span></div>
+    {% if recorders %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr>
+        <th>{{ t("recorders.col_recorder") }}</th><th>{{ t("workers.col_status") }}</th><th>{{ t("workers.col_machine") }}</th>
+        <th>{{ t("workers.col_version") }}</th><th>{{ t("workers.col_actions") }}</th>
+      </tr></thead>
+      <tbody>
+      {% for recorder in recorders %}
+      <tr id="recorder-{{ recorder.id }}" data-recorder="{{ recorder.id }}" data-state="recorder:{{ recorder.id }}:{{ recorder.status }}:{{ recorder.active }}">
+        <td><strong>{{ recorder.name }}</strong> <span class="tag">{{ recorder.id }}</span>
+          <span class="cell-sub">{{ t("workers.created") }} {{ m.time(recorder.created_at) }}</span></td>
+        <td>{{ m.badge(recorder.status, t("recorders.status_" + recorder.status)) }}
+          <span class="cell-sub">{{ t("workers.last_seen") }} {{ m.time(recorder.last_seen_at) }}</span>
+          {% if recorder.active %}<span class="cell-sub">{{ t("recorders.active", count=recorder.active) }}</span>{% endif %}</td>
+        <td>{% if recorder.last_seen_at %}{{ recorder.host or "—" }}<span class="cell-sub">{{ recorder.os or "" }}</span>
+          <span class="cell-sub">{{ t("workers.browsers", browsers=(recorder.browsers | join(t("js.list_separator"))) or "—") }} · {{ t("workers.display_yes") if recorder.display else t("workers.display_no") }}</span>
+          {% else %}<span class="muted">{{ t("workers.never_seen") }}</span>{% endif %}</td>
+        <td>{% if recorder.version %}{{ t("workers.app_version", version=recorder.version) }}{% endif %}
+          {% if recorder.fingerprint %}<span class="cell-sub"><code class="mono">{{ recorder.fingerprint }}</code></span>
+          {% if not recorder.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not recorder.version %}—{% endif %}</td>
+        <td class="role-actions">
+          {% if recorder.disabled %}
+          <button class="text-btn" data-action="enable-worker" data-kind="recorder" data-worker="{{ recorder.id }}">{{ t("workers.enable") }}</button>
+          {% else %}
+          <button class="text-btn" data-action="disable-worker" data-kind="recorder" data-worker="{{ recorder.id }}">{{ t("workers.disable") }}</button>
+          {% endif %}
+          {% if worker_port and not recorder.disabled %}<button class="text-btn" data-action="invite-worker" data-kind="recorder" data-worker="{{ recorder.id }}" data-name="{{ recorder.name }}">{{ t("workers.invite") }}</button>{% endif %}
+          <button class="text-btn" data-action="delete-worker" data-kind="recorder" data-worker="{{ recorder.id }}" data-name="{{ recorder.name }}">{{ t("workers.delete") }}</button>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("recorders.empty") }}</div>{% endif %}
   </section>
 
   <section class="panel">
@@ -64,6 +102,10 @@
 </div>
 <template id="worker-form">
   <div class="notice">{{ t("workers.form_notice") }}</div>
+  <label>{{ t("workers.form_kind") }}<select name="kind">
+    <option value="worker">{{ t("device.app_worker") }}</option>
+    <option value="recorder">{{ t("device.app_recorder") }}</option>
+  </select><span class="cell-sub">{{ t("workers.form_kind_hint") }}</span></label>
   <label>{{ t("workers.form_id") }}<input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="win-01" autocomplete="off"><span class="cell-sub">{{ t("workers.form_id_hint") }}</span></label>
   <label>{{ t("workers.form_name") }}<input name="name" maxlength="100" placeholder="{{ t('workers.form_name_placeholder') }}"></label>
   <ul class="checklist form-issues"></ul>
@@ -71,7 +113,8 @@
 </template>
 <template id="worker-invite">
   <div class="notice warn">{{ t("workers.invite_notice") }}</div>
-  <p>{{ t("workers.invite_app") }}</p>
+  <p data-app="worker">{{ t("workers.invite_app") }}</p>
+  <p data-app="recorder" hidden>{{ t("recorders.invite_app") }}</p>
   <label>{{ t("workers.invite_line") }}<input name="invite" readonly class="mono"></label>
   <p class="cell-sub">{{ t("workers.invite_expires") }} <time data-expires></time></p>
   <div class="field-pair">

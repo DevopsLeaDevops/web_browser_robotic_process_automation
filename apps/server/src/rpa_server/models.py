@@ -1,7 +1,7 @@
 """資料庫模型：場景 scenes、版本 revisions、執行 runs；M4 加上登入角色 roles 與錄製 recordings；
 M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs；
 M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與由哪台 worker 執行；
-M10.1 加上裝置邀請 device_invites。
+M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄製的 device_id。
 
 版本內容（場景檔與腳本）不放資料庫，放在資料目錄（storage.py）；資料庫只記雜湊與狀態。
 改了模型就要新增遷移（rpa_server/migrations/versions），測試會比對兩者是否一致。
@@ -179,6 +179,8 @@ class Recording(Base):
     role_id: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(20), index=True)
     """recording → done／failed／cancelled。"""
+    device_id: Mapped[str | None] = mapped_column(String(64))
+    """在哪台錄製端錄製（M10.2）；在伺服器這台錄製或貼上的是 None。"""
     warnings: Mapped[list[dict[str, object]]] = mapped_column(JsonType)
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
@@ -247,6 +249,25 @@ class RemoteWorker(Base):
     info: Mapped[dict[str, object]] = mapped_column(JsonType)
     """上線時回報的資訊：協定版本、程式指紋、作業系統、瀏覽器、能不能顯示視窗。"""
     current_run: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class Recorder(Base):
+    """登記的錄製端（M10.2，ADR 0014）：錄製、逐步調試、人工登入的瀏覽器開在這台。
+
+    和 worker 分開存：錄製端不領取執行，worker 的分派完全不受影響。代號和 worker 共用一個
+    命名空間（邀請以代號找裝置），新增時兩邊都不能重複。
+    """
+
+    __tablename__ = "recorders"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    info: Mapped[dict[str, object]] = mapped_column(JsonType)
+    """上線時回報的資訊：協定版本、程式指紋、App 版本、作業系統、瀏覽器、能不能顯示視窗。"""
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 

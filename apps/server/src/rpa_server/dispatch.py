@@ -45,9 +45,9 @@ from rpa_server.domain import (
     now,
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
-from rpa_server.i18n import t
+from rpa_server.i18n import page_t, t
 from rpa_server.jobs import Outcome, RunQueue
-from rpa_server.models import DeviceInvite, RemoteWorker, Run, Setting
+from rpa_server.models import DeviceInvite, Recorder, RemoteWorker, Run, Setting
 from rpa_server.roles import RoleService
 from rpa_server.storage import Storage
 from rpa_worker.environment import PROTOCOL, code_fingerprint
@@ -215,7 +215,7 @@ class WorkerHub:
         """worker 代號 → 名稱（報告顯示用；本機是「本機」）。"""
         with self.sessions() as session:
             rows = session.execute(select(RemoteWorker.id, RemoteWorker.name)).all()
-        return {LOCAL_WORKER: t("worker.local"), **{row[0]: row[1] for row in rows}}
+        return {LOCAL_WORKER: page_t("worker.local"), **{row[0]: row[1] for row in rows}}
 
     def has_remote(self) -> bool:
         """有沒有登記（沒停用的）遠端 worker。"""
@@ -241,7 +241,11 @@ class WorkerHub:
         display_name = (name or "").strip() or worker_id
         token = secrets.token_urlsafe(32)
         with self.sessions() as session:
-            if session.get(RemoteWorker, worker_id) is not None:
+            # 代號和錄製端（M10.2）共用：邀請用代號找裝置
+            if (
+                session.get(RemoteWorker, worker_id) is not None
+                or session.get(Recorder, worker_id) is not None
+            ):
                 raise conflict("worker_exists", t("error.worker_exists", id=worker_id))
             row = RemoteWorker(
                 id=worker_id,
@@ -331,7 +335,10 @@ class WorkerHub:
         return Invitation(worker=record, code=code, app="worker", expires_at=expires)
 
     def pair(self, code: str, app: str) -> dict[str, object]:
-        """Client API 的配對：邀請代碼換權杖。代碼只能用一次；App 種類不對時代碼保留。"""
+        """Client API 的配對：邀請代碼換權杖。代碼只能用一次；App 種類不對時代碼保留。
+
+        Worker 的權杖存在 workers，錄製端（M10.2）的存在 recorders；邀請記著是哪一種。
+        """
         digest = hash_token(code.strip())
         moment = now()
         token = secrets.token_urlsafe(32)
@@ -349,7 +356,8 @@ class WorkerHub:
                     t("error.invite_wrong_app", app=t("device.app_" + invite.app)),
                     app=invite.app,
                 )
-            row = session.get(RemoteWorker, invite.device_id)
+            model = Recorder if invite.app == "recorder" else RemoteWorker
+            row = session.get(model, invite.device_id)
             if row is None:
                 raise _invite_invalid()
             if row.disabled:
