@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from rpa_desktop.single_instance import APP_MUTEX, SHOW_FILE, InstanceLock
+from rpa_desktop.single_instance import APP_MUTEX, SHOW_FILE, STOP_FILE, InstanceLock
 
 
 def test_second_copy_cannot_take_the_lock(tmp_path: Path) -> None:
@@ -63,6 +63,34 @@ def test_stop_request_reaches_the_running_copy(tmp_path: Path) -> None:
     finally:
         finished.set()
         first.release()
+
+
+def test_watch_retries_a_request_still_being_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows：寫入的那一方還開著檔案時刪不掉（PermissionError）。下一輪再試，監看不能停。"""
+    lock = InstanceLock(tmp_path)
+    assert lock.acquire()
+    original = Path.unlink
+    refused: list[Path] = []
+
+    def busy_once(self: Path, missing_ok: bool = False) -> None:
+        if self.name == STOP_FILE and not refused:
+            refused.append(self)
+            raise PermissionError(13, "檔案正在使用中", str(self))
+        original(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", busy_once)
+    stopped, finished = threading.Event(), threading.Event()
+    lock.watch(None, finished, interval=0.02, on_stop=stopped.set)
+    try:
+        lock.request_stop()
+        assert stopped.wait(5)
+        assert refused
+        assert not (tmp_path / STOP_FILE).exists()
+    finally:
+        finished.set()
+        lock.release()
 
 
 def _mutex_exists() -> bool:

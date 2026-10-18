@@ -169,7 +169,14 @@ class InstanceLock:
                 for request, action in actions:
                     if action is None or not request.exists():
                         continue
-                    request.unlink(missing_ok=True)
+                    try:
+                        request.unlink()
+                    except FileNotFoundError:
+                        continue
+                    except OSError:
+                        # Windows：寫入的那一方（安裝檔、另一份 App）還開著檔案時刪不掉；
+                        # 下一輪再試。不能讓例外結束這個執行緒，否則之後的請求都沒人處理
+                        continue
                     try:
                         action()
                     except Exception:
