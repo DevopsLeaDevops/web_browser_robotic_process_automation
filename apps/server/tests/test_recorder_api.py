@@ -478,15 +478,15 @@ def test_processes_the_recorder_does_not_have_are_ended(
     (start,) = device.commands()
     process = str(start["process"])
     # 還沒確認收到「啟動」時，不在清單裡也不算
-    early = {"after": 0, "wait": 0, "running": []}
+    early: JsonObject = {"after": 0, "wait": 0, "running": []}
     assert body(remote.post(f"{API}/control", json=early, headers=auth(device.token)))["commands"]
     assert body(client.get(f"/api/debug/{session['id']}"))["status"] == "starting"
     # 確認收到、而且還在執行
-    running = {"after": device.after, "wait": 0, "running": [process]}
+    running: JsonObject = {"after": device.after, "wait": 0, "running": [process]}
     body(remote.post(f"{API}/control", json=running, headers=auth(device.token)))
     assert body(client.get(f"/api/debug/{session['id']}"))["status"] == "starting"
     # 確認收到、但錄製端沒有這個子程序
-    gone = {"after": device.after, "wait": 0, "running": []}
+    gone: JsonObject = {"after": device.after, "wait": 0, "running": []}
     reply = body(remote.post(f"{API}/control", json=gone, headers=auth(device.token)))
     kills = cast("list[JsonObject]", reply["commands"])
     assert [(item["type"], item["process"]) for item in kills] == [("kill", process)]

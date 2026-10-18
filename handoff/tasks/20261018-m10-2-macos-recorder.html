@@ -65,6 +65,7 @@
           </ul>
         </li>
         <li><strong>第一次 CI（<span class="mono">1198f6d</span>，2026-10-18 10:02～10:11 America/Los_Angeles（PDT，UTC−07:00））：</strong>失敗。簡中還沒產生（bootstrap 之後補上）；pyright：<code>@contextmanager</code> 的回傳型別要用 <code>Generator</code>；英文頁的測試資料有中文名稱；測試的錄製端只有 Chromium、BA-001 用 Firefox；錄製端的協定版本訊息用了不存在的鍵（本機掃描時發現）。都已修正，並新增「這台沒有那個瀏覽器」的測試。</li>
+        <li><strong>第二次 CI（<span class="mono">ce0a41e</span>，2026-10-18 16:18～16:28 America/Los_Angeles（PDT，UTC−07:00））：</strong>伺服器端的測試（含 <code>test_recorder_api.py</code> 與真的 uvicorn＋閘道的 <code>test_recorder_flow.py</code>，Chromium、Firefox）全部通過；只剩簡中（bot 的 <span class="mono">f88f0a7</span> 已補上）與新測試裡兩個字典的 pyright 型別標註，修正後重跑。</li>
         <li><strong>實作選擇（Claude，使用者可以再改）：</strong>每台裝置同一時間各一段錄製；同一個場景的逐步調試只有一個，在另一台開始時關掉原本的；錄製端的權杖只能用邀請換。</li>
         <li><strong>未完成／阻礙：</strong>PR 1 推送修正後等 CI；PR 2、PR 3 未開始。v0.2.0：使用者在 2026-10-18 09:03 America/Los_Angeles（PDT，UTC−07:00）推了標籤，「發布」流程通過；Claude 核對草稿後發布被這個 session 擋下（403），請使用者按發布（<a href="20261016-m10-1-windows-worker.html">M10.1 任務紀錄</a>）。</li>
         <li><strong>下一個具體動作：</strong>推送 PR 1 的修正、看 CI；通過後把 #36 改成可審閱；從 PR 1 開 <code>m10/recorder-app</code> 做 PR 2。</li>
