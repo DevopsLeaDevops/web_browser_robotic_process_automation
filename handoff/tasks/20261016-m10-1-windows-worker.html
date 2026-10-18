@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261016-m10-1-windows-worker；2026-10-17 22:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261016-m10-1-windows-worker；2026-10-17 22:50 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-16 20:49 America/Los_Angeles（PDT，UTC−07:00）合併 #30 後要求開始下一步，並在審閱計畫後於 21:12 確認（見<a href="../decisions.html">決定</a>）。整個 M10.1 的驗收沿用設計：在沒裝過開發工具的 Windows 上安裝 → 貼邀請 → 下載瀏覽器 → 以有頭模式跑 BA-001 → BA-002，報告回到 Portal；重開機登入後自動上線。</dd>
         <dt>範圍／不包含</dt><dd>分三個 PR 依序交付：<strong>PR 1 伺服器端</strong>（本分支）：遷移 0008 的邀請、<code>POST /client-api/v1/pair</code>、對外埠分流、「遠端 Worker」頁改為「裝置」頁、worker 回報 App 版本、M9a 剩下三項（執行位置篩選、localhost 提醒、等待 worker 的提示，含序列固定的 worker 離線時）、「Worker API 埠」改稱「對外埠」。<strong>PR 2 Worker App</strong>（2026-10-17 分兩步：第一步主控台版，<code>m10/worker-app</code>，疊在 #31 上；第二步視窗介面）：狀態視窗、配對、下載瀏覽器、通知區、自動啟動、只執行一份、認證管理員、建置資訊指紋、子程序不跳主控台視窗。<strong>PR 3 安裝檔</strong>：Inno Setup、GitHub Releases、Windows 上安裝後配對並執行 BA-001 的 CI。不包含：錄製端（M10.2）、裝置頁的錄製端種類（M10.2）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude（使用者指派；同事確認不並行開始 M10.1）。審閱與合併由使用者決定。</dd>
@@ -46,7 +46,21 @@
         <li><strong>決定（使用者明確決定，2026-10-17 21:07 America/Los_Angeles（PDT，UTC−07:00），照 Claude 建議）：</strong>(1) 第二步加在 <code>m10/worker-app</code>（PR #32），不另開疊在上面的 PR；(2) 配對後預設開啟「登入 Windows 時自動啟動」，可在設定關閉；(3) 「暫停接任務」是做完目前的執行後不再領取，伺服器不改，Portal 約 60 秒後顯示離線（<code>ONLINE_SECONDS</code> = 25 + 35）。</li>
         <li><strong>依賴（2026-10-16 已決定，此次確定範圍）：</strong><code>pywebview</code>、<code>pystray</code> 只在 Windows；<code>keyring</code>、<code>Pillow</code> 各平台（Linux CI 可直接測認證管理員不能用時的退路與圖示）。<code>pywebview</code> 的 macOS 部分在 M10.2 加入。</li>
         <li><strong>PR 2 第二步（實作完成、本機檢查通過，2026-10-17 America/Los_Angeles（PDT，UTC−07:00））：</strong><code>rpa_desktop</code> 新增 <code>controller</code>（視窗、通知區、<code>--no-window</code> 共用的狀態與動作；訊息在讀取時依使用者選的語言產生，因為語言存在 ContextVar，背景執行緒看不到）、<code>gui</code>（pywebview 視窗、js_api、縮到通知區、WebView2 偵測、登出與關機、<code>--smoke-test</code>）、<code>tray</code>（pystray）、<code>ui</code> 與 <code>ui/</code>（頁面、設計系統 CSS 的複本、腳本）、<code>headless</code>（<code>--no-window</code>）、<code>credentials</code>（keyring，退回檔案，搬移第一步的檔案）、<code>autostart</code>（HKCU Run，路徑更新）、<code>single_instance</code>（資料夾的鎖，叫出視窗的請求檔）、<code>settings</code>、<code>downloads</code>（直接啟動 Playwright driver，解析進度）、<code>logs</code>（輪替、遮掉邀請代碼與權杖）、<code>icon</code>（Pillow 畫圖示）。<code>rpa_worker</code>：<code>RemoteJobSource</code> 的 <code>paused</code>、<code>run_remote_worker</code> 的 <code>paused</code> 與 <code>stop_seconds</code>。<code>rpa_runner.commands.no_window_flags</code>，用在 runner 的子程序與 <code>taskkill</code>。主控台版改用同一份配對與單一執行鎖。入口：打包的 RPA Worker 開視窗版，<code>--no-window</code>（任何位置）、<code>--window</code>（開發環境）、<code>--worker</code>（主控台版）。打包：RPA Worker 改為視窗程式、執行檔圖示、收入 pywebview／pythonnet／pystray／keyring。CI：Windows 先跑桌面端單元測試、新增視窗自我測試、<code>--version</code>／<code>--self-test</code> 改用 <code>rpa-child</code>、端到端改用 <code>--no-window --log</code> 並記下權杖存在哪裡。依賴：<code>pywebview</code>、<code>pystray</code>（Windows）、<code>pillow</code>、<code>keyring</code>（<code>uv.lock</code> 與簡中由 bootstrap 產生）。<code>typings/</code> 放 pywebview、pystray 的最小 stub。文件：遠端 worker 指南的 Windows 免安裝版、桌面端分發的 RPA Worker（繁中、英文，英文已 stamp）。</li>
-        <li><strong>下一個具體動作：</strong>Claude 完成第二步的實作、CI 與獨立審閱後，提供更新的人工驗證步驟；使用者把 #31、#32 一起人工驗證，結果回填驗收紀錄。之後先合併 #31，再把 #32 rebase 到 <code>main</code>。</li>
+        <li><strong>人工驗證步驟（#31＋#32 一起，2026-10-17 提供）：</strong>
+          <ol>
+            <li>Mac：<code>git fetch origin &amp;&amp; git switch m10/worker-app &amp;&amp; git pull &amp;&amp; uv sync</code>；用全新的資料夾 <code>uv run rpa serve --worker-port 8081 --data data-m10</code>（遷移 0008 不能降級，不要用平常的資料）。「場景生產 › 裝置」新增 <code>win-01</code>，產生邀請。</li>
+            <li>Windows：從 PR 最新 head 的「桌面端建置」下載 <code>worker-windows-latest</code>，解壓縮；雙擊 <code>rpa-worker.exe</code>（SmartScreen：其他資訊 › 仍要執行）。確認沒有主控台視窗、出現狀態視窗。</li>
+            <li>貼邀請、按「配對」→ 看到 Chromium 的下載進度 → 狀態「線上」；Mac 的裝置頁顯示「線上」、App 版本、沒有「版本不同」。視窗的「權杖存放」是「Windows 認證管理員」（控制台 › 認證管理員 › 一般認證裡有 <code>RPA Worker</code>）。</li>
+            <li>Mac 以「遠端 worker」有頭執行 BA-001：瀏覽器開在 Windows，<strong>不閃出黑色主控台視窗</strong>；Windows 視窗的「目前執行」「最近的執行」跟著變；報告標「在 win-01 執行」。再跑 BA-001 → BA-002 的組合場景，兩個都在 win-01。</li>
+            <li>關閉視窗 → 第一次有通知區的提示、仍在接任務；雙擊 <code>rpa-worker.exe</code> → 叫出原本的視窗（沒有第二份）。通知區選單：暫停接任務（約一分鐘後裝置頁顯示離線、新的執行顯示「等待 worker」）→ 取消暫停（重新上線、接走排隊的執行）。</li>
+            <li>執行中從通知區選「結束」→ 視窗裡先確認 → Portal 顯示「已取消」。</li>
+            <li>重新開機並登入 → RPA Worker 自動出現在通知區、裝置頁「線上」。在設定關掉自動啟動後再重開機 → 不會自動啟動。</li>
+            <li>Mac 的裝置頁「重新邀請」→ Windows 視窗回到配對畫面並說明配對已失效；貼新的邀請恢復。</li>
+            <li>M9a 三項（#31）：報告的「執行位置」篩選、執行表單的 localhost 提醒、沒有線上 worker 時的「等待」提示。</li>
+            <li>結果與遇到的問題（含截圖、<code>%LOCALAPPDATA%\rpa\worker\logs\worker.log</code>）回填驗收紀錄。</li>
+          </ol>
+        </li>
+        <li><strong>下一個具體動作：</strong>使用者照上面的步驟把 #31、#32 一起人工驗證，結果回填驗收紀錄。之後先合併 #31，再由 Claude 把 #32 rebase 到 <code>main</code>、改 PR 的目標分支、等 CI 通過後交給使用者合併。下載的打包版 14 天後過期。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -95,6 +109,7 @@
         <li><span class="mono">2026-10-17 20:28～21:07 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）使用者要求最後再查一次；Claude 補上 13 項並更正兩處（見「進度」）。使用者回覆「核准」，三個待決定事項照建議。</li>
         <li><span class="mono">2026-10-17 21:45 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 <span class="mono">e56178e</span>（<code>[bootstrap]</code>），bot 產生 <code>uv.lock</code> 與簡中（<span class="mono">03de1c8</span>；pywebview 6.2.1、pythonnet 3.2.1、pystray 0.19.5、keyring 25.7.0、Pillow 13.0.0）；推送交接紀錄 <span class="mono">c5a3ca9</span> 觸發 CI；修正 Pillow 13 的型別問題 <span class="mono">e7d0eab</span> 後 12 項 checks 全部通過。</li>
         <li><span class="mono">2026-10-17 22:00～22:26 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）依計畫請另一個 agent 獨立審閱，處理全部的審閱意見（見驗證表），新增對應的測試。</li>
+        <li><span class="mono">2026-10-17 22:26～22:50 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送審閱修正 <span class="mono">6030599</span>（Windows 建置、視窗自我測試、端到端通過；pytest 因簡中未產生而失敗）；帶 <code>[bootstrap]</code> 的 <span class="mono">d4c9440</span> 讓 bot 產生簡中（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39101513442">bootstrap run 39101513442</a> 的檢查全部通過，bot 提交 <span class="mono">0cc4b01</span>）；更新 PR #32 的標題與說明；提供人工驗證步驟。</li>
       </ul></div>
     </section>
   </div>
