@@ -4,9 +4,11 @@
     uv run python tools/build_desktop.py recorder   # macOS：dist/desktop/RPA Recorder.app 與 DMG
     uv run python tools/build_desktop.py worker     # Windows：dist/desktop/rpa-worker/ 與 zip
 
-產物都在 dist/desktop/，中間檔在 build/desktop/（兩者都在 .gitignore）。最後印出兩行：
-``executable: …``（App 的執行檔，自我測試用）與 ``artifact: …``（要上傳的檔案）；
-在 GitHub Actions 裡同時寫進步驟的輸出（executable、artifact）。
+產物都在 dist/desktop/，中間檔在 build/desktop/（兩者都在 .gitignore）。最後印出三行：
+``executable: …``（App 的執行檔）、``child: …``（同資料夾的 rpa-child，主控台程式：
+``--version``、``--self-test`` 要讀輸出時用；RPA Worker 是視窗程式，沒有標準輸出）與
+``artifact: …``（要上傳的檔案）；在 GitHub Actions 裡同時寫進步驟的輸出。
+RPA Worker 的執行檔圖示在建置時由 ``rpa_desktop.icon`` 畫出（倉庫不放二進位圖檔）。
 
 M10.0 的 Windows 產物是 zip，M10.1 改成 Inno Setup 的安裝檔；設定見 apps/desktop/packaging/。
 """
@@ -62,6 +64,20 @@ def executable(app: App) -> Path:
     return DIST / name / (name + (".exe" if os.name == "nt" else ""))
 
 
+def child(app: App) -> Path:
+    """建好之後同資料夾的 rpa-child（子程序與要讀輸出的命令用的主控台程式）。"""
+    return executable(app).with_name("rpa-child" + (".exe" if os.name == "nt" else ""))
+
+
+def _icon(app: App) -> Path | None:
+    """Windows 的執行檔圖示（.ico）。"""
+    if os.name != "nt" or app != "worker":
+        return None
+    from rpa_desktop.icon import save_ico
+
+    return save_ico(WORK / app / f"{EXECUTABLES[app]}.ico")
+
+
 def _dmg(app: App, version: str) -> Path:
     """把 .app 和指向「應用程式」的捷徑放進 DMG，打開後拖過去就安裝好。"""
     bundle = DIST / f"{BUNDLES[app]}.app"
@@ -104,6 +120,9 @@ def build(app: App) -> tuple[Path, Path]:
         "RPA_DESKTOP_INFO": str(info_path),
         "RPA_DESKTOP_VERSION": info.version,
     }
+    icon = _icon(app)
+    if icon is not None:
+        env["RPA_DESKTOP_ICON"] = str(icon)
     subprocess.run(
         [
             sys.executable,
@@ -131,7 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     built, artifact = build(cast("App", args.app))
     # 用正斜線：Windows 上的 bash 與 PowerShell 都看得懂
-    lines = {"executable": built.as_posix(), "artifact": artifact.as_posix()}
+    lines = {
+        "executable": built.as_posix(),
+        "child": child(cast("App", args.app)).as_posix(),
+        "artifact": artifact.as_posix(),
+    }
     for key, value in lines.items():
         print(f"{key}: {value}")
     output = os.environ.get("GITHUB_OUTPUT")

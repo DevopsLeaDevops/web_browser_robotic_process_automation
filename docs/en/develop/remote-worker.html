@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4e6cb07dba13680e">
+<meta name="translation-source" content="sha256:c0084046954959a3">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -69,10 +69,33 @@ uv run rpa worker --invite 'rpa://pair?server=…&amp;app=worker&amp;code=…'
 # When the server address needs changing: give the code separately
 uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
           <p>Once it says it is paired and connected to the portal you are done; the devices page shows it online. The token it receives is saved in the working folder as <code>worker-data\pairing.json</code> (readable only by you; do not commit it to git), so <strong>from then on just run <code>uv run rpa worker</code></strong>. Press Ctrl+C to stop: a running job is cancelled and its result reported.</p>
-          <p>The earlier way still works: create a new token through the API (<code>POST /api/workers/{id}/token</code>), put it in the <code>RPA_WORKER_TOKEN</code> environment variable or in <code>--token-file token.txt</code>, and add <code>--server</code>. Once the M10.1 RPA Worker app ships, paste the invitation into the app on Windows instead, with no development setup needed.</p>
+          <p>The earlier way still works: create a new token through the API (<code>POST /api/workers/{id}/token</code>), put it in the <code>RPA_WORKER_TOKEN</code> environment variable or in <code>--token-file token.txt</code>, and add <code>--server</code>. On Windows you can also paste the invitation into the <a href="#packaged">RPA Worker app</a> instead, with no development setup needed.</p>
         </div>
       </section>
     </div>
+
+    <section class="panel" id="packaged">
+      <div class="panel-header"><h2>Windows build without installing (RPA Worker app)</h2><span class="muted">M10.1: no uv, git or Python needed; the installer comes in a later version</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>On GitHub, open the “Desktop build” run of a PR or of <code>main</code>, download <code>worker-windows-latest</code> under <strong>Artifacts</strong>, and unzip it into any folder (for example <code>%USERPROFILE%\RPA Worker</code>).</li>
+          <li>Double-click <code>rpa-worker.exe</code>. It is not code-signed: when SmartScreen says “Windows protected your PC”, choose “More info › Run anyway”.</li>
+          <li>When the window opens, paste the invitation from step 2 into the Invitation box (if you paste only the code, also enter the portal address), tick Firefox if you need it, and choose Pair.</li>
+          <li>The first time it downloads Chromium (about 600 MB unpacked) and shows the progress in the window. Once the status says Online you are done; the devices page shows it online with its app version.</li>
+        </ol>
+        <ul>
+          <li><strong>Closing the window does not stop it.</strong> RPA Worker moves to the notification area and keeps taking jobs (it tells you the first time). The tray icon's menu has Open window, Pause jobs and Quit; the dot on the icon is green (online), yellow (paused) or red (offline or needs attention). Quitting while a job runs asks first, then cancels the job and reports it to the portal.</li>
+          <li><strong>Start when you sign in to Windows</strong>: turned on after the first successful pairing, tray only; turn it off under Settings in the window. If you move the folder, open RPA Worker once and auto-start follows the new location.</li>
+          <li><strong>Pause jobs</strong>: no new jobs are taken after the current one; the portal shows the computer as offline after about a minute. Resume jobs brings it back online right away.</li>
+          <li><strong>One copy only</strong>: double-clicking again brings up the window of the copy that is already running.</li>
+          <li><strong>Settings</strong>: language (Traditional Chinese by default), also download Firefox (ticked while running, it downloads the next time RPA Worker starts), an internal mirror for browser downloads (<code>PLAYWRIGHT_DOWNLOAD_HOST</code>), open the log folder, and pair again.</li>
+          <li><strong>Where data lives</strong>: <code>%LOCALAPPDATA%\rpa\worker</code> (the paired server and device in <code>pairing.json</code>, settings in <code>settings.json</code>, logs in <code>logs\</code>, and job files). <strong>The token is kept in Windows Credential Manager</strong> (<code>RPA Worker</code> under Generic Credentials); if Credential Manager is unavailable it falls back to <code>pairing.json</code> (readable only by you), and the window's “Token stored in” says so. A token saved in the file by the step-one preview is moved into Credential Manager the first time you open the app. Browsers live in <code>%LOCALAPPDATA%\ms-playwright</code>. Logs never contain the token or invitation code.</li>
+          <li><strong>Microsoft Edge WebView2 is required</strong>: built into Windows 11, and usually installed with Edge updates on Windows 10. If it is missing, RPA Worker explains how to install it and keeps taking jobs from the notification area in the meantime.</li>
+          <li><strong>Signing out or shutting down Windows</strong>: a running job is cancelled and reported right away; if there is no time to report, the portal marks the worker lost after about a minute.</li>
+          <li><strong>Troubleshooting</strong>: <code>rpa-child.exe --worker</code> in the same folder is the console version (the same as the step-one preview, with every message visible); <code>rpa-worker.exe --no-window --invite … --log FILE</code> runs without a window (for automation; to stop it, put a file named <code>stop.request</code> in the data folder, and the running job is cancelled and reported). Both share the window version's pairing, and only one copy can run at a time.</li>
+        </ul>
+      </div>
+    </section>
 
     <section class="panel" id="use">
       <div class="panel-header"><h2>5. Hand runs to the worker</h2></div>
@@ -92,6 +115,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
     <section class="panel" id="autostart">
       <div class="panel-header"><h2>Start automatically after sign-in (Windows, optional)</h2></div>
       <div class="panel-body prose">
+        <p>With the <a href="#packaged">RPA Worker app</a> you do not need this: tick it under Settings in the app (it is on by default after pairing). The steps below are for the command-line worker.</p>
         <p>Headed mode needs a signed-in desktop, so start the worker at sign-in rather than as a system service. Pair once as in step 4, then create <code>start-worker.cmd</code> in the project folder (do not commit it to git):</p>
 <pre class="source">@echo off
 cd /d %USERPROFILE%\code\web_browser_robotic_process_automation

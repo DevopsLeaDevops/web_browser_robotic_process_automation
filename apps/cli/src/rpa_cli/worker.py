@@ -176,30 +176,18 @@ def build_worker_command() -> click.Command:
         work.mkdir(parents=True, exist_ok=True)
         # 只有真的啟動 worker 時才載入 Playwright 與 runner
         from rpa_runner.installed import missing_browsers
-        from rpa_worker import Worker
         from rpa_worker.environment import WorkerInfo
-        from rpa_worker.remote import RemoteJobSource, WorkerClient
+        from rpa_worker.remote import WorkerClient
+        from rpa_worker.service import run_remote_worker
 
         info = WorkerInfo.detect(name or socket.gethostname())
         stopped = threading.Event()
-        fatal: list[str] = []
 
         def notify(event: str, details: Mapping[str, object]) -> None:
             line = describe_event(event, details)
             if line is not None:
                 click.echo(line, err=True)
 
-        source = RemoteJobSource(
-            WorkerClient(server, token), info, work, keep_runs=keep_runs, notify=notify
-        )
-        runner = Worker(source, poll_seconds=0.5)
-        source.on_cancel = runner.cancel
-
-        def on_fatal(message: str) -> None:
-            fatal.append(message)
-            stopped.set()
-
-        source.on_fatal = on_fatal
         site = None
         if testsite:
             site, message = start_testsite()
@@ -214,20 +202,22 @@ def build_worker_command() -> click.Command:
         signal.signal(signal.SIGINT, lambda signum, frame: stopped.set())
         if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, lambda signum, frame: stopped.set())
-        runner.start()
         try:
-            while not stopped.wait(0.5):
-                if not runner.alive:
-                    break
+            fatal = run_remote_worker(
+                WorkerClient(server, token),
+                info,
+                work,
+                stop=stopped,
+                notify=notify,
+                keep_runs=keep_runs,
+                on_stopping=lambda: click.echo(t("cli.worker.stopping"), err=True),
+            )
         finally:
-            click.echo(t("cli.worker.stopping"), err=True)
-            runner.stop(timeout=120)  # 執行中的任務被取消，結果照常回報
-            source.close()
             signal.signal(signal.SIGINT, previous)
             if site is not None:
                 site.shutdown()
                 site.server_close()
-        if fatal:
-            raise click.ClickException(t("cli.worker.rejected", message=fatal[0]))
+        if fatal is not None:
+            raise click.ClickException(t("cli.worker.rejected", message=fatal))
 
     return worker

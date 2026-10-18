@@ -69,10 +69,33 @@ uv run rpa worker --invite 'rpa://pair?server=…&amp;app=worker&amp;code=…'
 # 服务器地址要改时：代码分开给
 uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <p>看到「已配对」与「已连上管理 Portal」就好了；设备页的状态变成「在线」。换到的权杖存在工作文件夹的 <code>worker-data\pairing.json</code>（只有你能读写，不要提交到 git），<strong>之后只要运行 <code>uv run rpa worker</code></strong>。按 Ctrl+C 停止：运行中的任务会被取消并回报。</p>
-          <p>以前的方式照样可用：用 API（<code>POST /api/workers/{代号}/token</code>）重新产生权杖后，放在环境变量 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，并加上 <code>--server</code>。M10.1 的 RPA Worker App 交付后，Windows 上改用 App 粘贴邀请，不必安装开发环境。</p>
+          <p>以前的方式照样可用：用 API（<code>POST /api/workers/{代号}/token</code>）重新产生权杖后，放在环境变量 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，并加上 <code>--server</code>。Windows 上也可以改用 <a href="#packaged">RPA Worker App</a> 粘贴邀请，不必安装开发环境。</p>
         </div>
       </section>
     </div>
+
+    <section class="panel" id="packaged">
+      <div class="panel-header"><h2>Windows 免安装版（RPA Worker App）</h2><span class="muted">M10.1：不需要 uv、git、Python；安装档在之后的版本</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>在 GitHub 打开 PR 或 <code>main</code> 的「桌面端建置」运行记录，从 <strong>Artifacts</strong> 下载 <code>worker-windows-latest</code>，解压缩到任何文件夹（例如 <code>%USERPROFILE%\RPA Worker</code>）。</li>
+          <li>双击 <code>rpa-worker.exe</code>。没有代码签章：SmartScreen 出现「Windows 已保护您的电脑」时按「其他信息 › 仍要运行」。</li>
+          <li>窗口打开后，把第 2 步产生的邀请贴在「邀请」栏（只贴代码时另外填管理 Portal 的网址）；需要 Firefox 就勾选，按「配对」。</li>
+          <li>第一次会下载 Chromium（解压后约 600 MB），窗口显示进度。状态变成「在线」就好了；设备页显示「在线」与 App 版本。</li>
+        </ol>
+        <ul>
+          <li><strong>关闭窗口不会停止。</strong>RPA Worker 缩到通知区继续接任务（第一次会提示）。通知区图标的菜单：打开窗口、暂停接任务、结束；图标右下角的圆点是绿色（在线）、黄色（暂停）或红色（脱机、需要处理）。有任务在运行时按「结束」会先确认，取消后回报给管理 Portal。</li>
+          <li><strong>登录 Windows 时自动启动</strong>：第一次配对成功后默认打开，只出现在通知区；在窗口的「设置」可以关闭。文件夹搬走后开一次 RPA Worker，自动启动就会改成新的位置。</li>
+          <li><strong>暂停接任务</strong>：做完目前的任务后不再领取新的，管理 Portal 约一分钟后显示这台脱机；按「继续接任务」立刻重新上线。</li>
+          <li><strong>只运行一份</strong>：再双击一次会叫出已经在运行的那份窗口。</li>
+          <li><strong>设置</strong>：语言（默认繁体中文）、也下载 Firefox（运行中才勾选的话，下次打开时下载）、下载浏览器的内部镜像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）、打开日志文件夹、重新配对。</li>
+          <li><strong>数据位置</strong>：<code>%LOCALAPPDATA%\rpa\worker</code>（配对的服务器与设备 <code>pairing.json</code>、设置 <code>settings.json</code>、日志 <code>logs\</code>、任务的暂存）。<strong>权杖存在 Windows 认证管理员</strong>（「一般认证」里的 <code>RPA Worker</code>）；认证管理员不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。第一步预览版存在文件里的权杖，第一次打开时自动搬进认证管理员。浏览器在 <code>%LOCALAPPDATA%\ms-playwright</code>。日志不记权杖与邀请代码。</li>
+          <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 内置，Windows 10 大多已随 Edge 更新装好。没有时 RPA Worker 会说明怎么安装，在那之前只靠通知区接任务。</li>
+          <li><strong>Windows 注销或关机</strong>：运行中的任务立刻被取消并回报；来不及回报时，管理 Portal 约一分钟后判定失联。</li>
+          <li><strong>排查问题</strong>：同文件夹的 <code>rpa-child.exe --worker</code> 是主控台版（和第一步的预览版相同，每一行消息都看得到）；<code>rpa-worker.exe --no-window --invite … --log 文件</code> 不开窗口（自动化用；要它结束时在文件夹放一个 <code>stop.request</code> 文件，运行中的任务会被取消并回报）。两者和窗口版用同一份配对，同一时间只能开一份。</li>
+        </ul>
+      </div>
+    </section>
 
     <section class="panel" id="use">
       <div class="panel-header"><h2>5. 把运行交给 worker</h2></div>
@@ -92,6 +115,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
     <section class="panel" id="autostart">
       <div class="panel-header"><h2>开机后自动启动（Windows，选用）</h2></div>
       <div class="panel-body prose">
+        <p>用 <a href="#packaged">RPA Worker App</a> 时不需要这一步：在 App 的「设置」勾选即可（配对后默认打开）。以下是命令行 worker 的做法。</p>
         <p>有头模式需要用户已经登录桌面，所以用「登录时」启动，不要做成系统服务。先照第 4 步配对一次，再在项目文件夹创建 <code>start-worker.cmd</code>（不要提交到 git）：</p>
 <pre class="source">@echo off
 cd /d %USERPROFILE%\code\web_browser_robotic_process_automation

@@ -157,12 +157,17 @@
         <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1，Windows</span></div>
         <div class="panel-body prose">
           <ul>
-            <li><strong>內部就是現有的 RemoteWorker。</strong>權杖改從配對取得；領取、心跳、上傳、測試網站的行為都和 <code>rpa worker</code> 一樣。</li>
-            <li><strong>狀態視窗。</strong>伺服器、線上狀態、目前執行、最近的執行、App 版本；版本與伺服器不同時提醒並連到下載頁。</li>
-            <li><strong>通知區圖示。</strong>關掉視窗是縮到通知區；選單有「開啟視窗」「暫停接任務」「結束」。</li>
-            <li><strong>自動啟動。</strong>勾選後寫入目前使用者的「登入時執行」；有頭模式需要使用者登入桌面，所以不做成系統服務。</li>
-            <li><strong>只執行一份。</strong>重複開啟時叫出已經在跑的那份。</li>
-            <li><strong>資料位置。</strong>工作資料與日誌在 <code>%LOCALAPPDATA%\rpa\worker</code>，Firefox 預熱範本照舊在 <code>%LOCALAPPDATA%\rpa\cache</code>，瀏覽器在 Playwright 預設的 <code>%LOCALAPPDATA%\ms-playwright</code>。</li>
+            <li><strong>內部就是現有的 RemoteWorker。</strong>權杖改從配對取得；領取、心跳、上傳、測試網站的行為都和 <code>rpa worker</code> 一樣（執行迴圈在 <code>rpa_worker.service</code>，兩邊共用）。</li>
+            <li><strong>分兩步交付</strong>（2026-10-16 決定）。第一步是主控台版：雙擊 <code>rpa-worker.exe</code> 貼上邀請、下載瀏覽器、接任務；CI 用打包版實際配對並執行 BA-001 → BA-002。第二步（2026-10-17 核准）加上下面的狀態視窗、通知區、自動啟動、只執行一份與認證管理員；主控台版保留為同資料夾的 <code>rpa-child.exe --worker</code>，排查問題用。之後是安裝檔。</li>
+            <li><strong>狀態視窗。</strong>pywebview（WebView2）載入 App 內的頁面（設計系統的 CSS 內嵌，原檔不改）：配對（貼邀請，只貼代碼時另外填伺服器）、下載瀏覽器的進度、伺服器、線上狀態、目前執行、最近 10 筆、App 版本、權杖存放；版本與伺服器不同時提醒（下載頁的連結在安裝檔交付後加上）。「設定」：自動啟動、Firefox、內部鏡像、語言（依 <a href="../adr/0007-i18n.html">ADR 0007</a> 預設繁中、不跟作業系統，選擇記在資料夾的 <code>settings.json</code>）、開啟日誌資料夾、重新配對。視窗不連到 Portal 的頁面：管理頁只在伺服器那台的 127.0.0.1，對外埠要到 M10.2 才開放給錄製端。</li>
+            <li><strong>通知區圖示。</strong>關掉視窗是縮到通知區（第一次提示）；選單有「開啟視窗」「暫停接任務」「結束」，圖示的圓點表示狀態。有任務在執行時結束要先確認，取消後回報。「暫停接任務」是做完目前的任務後不再領取：伺服器不改，Portal 約一分鐘後顯示離線（2026-10-17 決定）。</li>
+            <li><strong>自動啟動。</strong>寫入目前使用者的「登入時執行」（<code>HKCU\…\Run</code>，加上 <code>--background</code> 只出現在通知區；還沒配對時仍打開視窗）。第一次配對成功後預設開啟，之後照使用者在設定裡的選擇；每次啟動時把路徑更新成目前的位置（免安裝的資料夾可能被搬走）。有頭模式需要使用者登入桌面，所以不做成系統服務。</li>
+            <li><strong>只執行一份。</strong>資料夾裡 <code>instance.lock</code> 的獨占鎖，視窗版、<code>--no-window</code> 與主控台版互斥；重複開啟時叫出已經在跑的那份。</li>
+            <li><strong>認證管理員。</strong>權杖經由 keyring 存在 Windows 認證管理員；不能用時退回 <code>pairing.json</code>（只有本人能讀寫）並記在日誌。第一步存在檔案裡的權杖自動搬過去。</li>
+            <li><strong>不跳主控台視窗。</strong>視窗程式啟動的主控台子程序（<code>rpa-child</code>、<code>taskkill</code>）加上 <code>CREATE_NO_WINDOW</code>；下載瀏覽器直接啟動 Playwright 的 driver，不經過 <code>rpa-child</code>。</li>
+            <li><strong>沒有 WebView2、登出與關機。</strong>沒有 WebView2 Runtime 時說明怎麼安裝，在那之前只用通知區接任務。Windows 登出或關機時立刻取消執行中的任務並回報（最多等 3 秒，不擋住關機）；來不及時由租約判定失聯（<a href="../adr/0012-remote-workers.html">ADR 0012</a>）。</li>
+            <li><strong>資料位置。</strong>工作資料、設定與日誌在 <code>%LOCALAPPDATA%\rpa\worker</code>（日誌會輪替，不記權杖與邀請代碼），Firefox 預熱範本照舊在 <code>%LOCALAPPDATA%\rpa\cache</code>，瀏覽器在 Playwright 預設的 <code>%LOCALAPPDATA%\ms-playwright</code>。</li>
+            <li><strong>CI。</strong>Windows 的建置工作先跑桌面端的單元測試（登錄檔、單一執行、認證管理員用真的）；<code>--smoke-test</code> 打開真的 WebView2 視窗與通知區圖示；端到端以 <code>--no-window</code> 配對並執行 BA-001 → BA-002。視窗程式沒有標準輸出，<code>--version</code>、<code>--self-test</code> 改用 <code>rpa-child</code>。</li>
             <li><strong>M9a 剩下的三項併入 M10.1：</strong>執行報告的「執行位置」篩選、場景網址是本機位址時的提醒、等待 worker 的提示。</li>
           </ul>
         </div>
