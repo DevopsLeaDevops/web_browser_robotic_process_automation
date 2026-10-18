@@ -124,3 +124,21 @@ def test_real_keyring_round_trip_or_clear_error() -> None:
         keys.delete(key)
     assert keys.get(key) is None
     keys.delete(key)  # 刪除不存在的項目不算錯
+
+
+def test_read_error_is_not_the_same_as_not_paired(tmp_path: Path, store: MemoryStore) -> None:
+    credentials = Credentials(tmp_path, store)
+    credentials.save(result())
+    credentials.store = BrokenStore()
+    with pytest.raises(TokenStoreError):
+        credentials.load()  # 呼叫的人顯示錯誤、稍後重試，不是要使用者重新配對
+
+
+def test_clear_uses_the_default_device_name(tmp_path: Path, store: MemoryStore) -> None:
+    (tmp_path / "pairing.json").write_text(json.dumps({"server": SERVER, "token": "t"}), "utf-8")
+    credentials = Credentials(tmp_path, store)
+    loaded = credentials.load()  # 沒有裝置代號的舊檔案：搬進認證管理員時用預設代號
+    assert loaded is not None
+    assert store.items == {f"worker@{SERVER}": "t"}
+    credentials.clear()
+    assert store.items == {}

@@ -134,5 +134,8 @@
   "tray.pause": "Pause jobs",
   "tray.quit": "Quit",
   "tray.tooltip": "RPA Worker · {status}",
-  "window.device_name": "{name} ({device})"
+  "window.device_name": "{name} ({device})",
+  "window.reset_busy": "The running job has not stopped yet, so the pairing was not removed. Choose Pair again in a moment.",
+  "window.keyring_failed": "Could not read the token from Windows Credential Manager ({error}). Choose Retry in a moment; if it keeps failing, choose Pair again.",
+  "window.status.unreported": "Not reported"
 }

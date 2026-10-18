@@ -14,7 +14,8 @@ CI 的桌面端建置在 Windows 建好 RPA Worker、跑完自我測試之後執
    ``rpa-child --version`` 讀（主控台程式）。記下權杖存在哪裡（認證管理員或退回的檔案）。
 5. 以「遠端 worker」無頭執行 BA-001，再用它的出參執行 BA-002：兩個都要通過、都由這台裝置執行，
    報告回到 Portal。
-6. 結束兩個程序，印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，
+6. 結束兩個程序（打包版先用資料夾的 ``stop.request`` 請它自己結束：視窗程式收不到 Ctrl+C），
+   印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，
    可以用 ``tools/ci_annotations.py self-test`` 轉成 annotations）。全部通過才回傳 0。
 """
 
@@ -94,9 +95,19 @@ def _tail(path: Path) -> str:
         return ""
 
 
-def _stop(process: subprocess.Popen[bytes] | None) -> None:
+def _stop(process: subprocess.Popen[bytes] | None, request: Path | None = None) -> None:
+    """結束程序。給了 ``request`` 時先寫入這個檔案請它自己結束（取消任務並回報），
+    等不到才強制結束。"""
     if process is None or process.poll() is not None:
         return
+    if request is not None:
+        request.parent.mkdir(parents=True, exist_ok=True)
+        request.write_text("e2e", encoding="utf-8")
+        try:
+            process.wait(timeout=60)
+            return
+        except subprocess.TimeoutExpired:
+            pass
     process.terminate()
     try:
         process.wait(timeout=30)
@@ -224,6 +235,11 @@ def run(app: Path, folder: Path) -> JsonObject:
         if not pairing.is_file():
             raise StepFailedError("配對結果沒有存在 RPA_WORKER_HOME")
         saved = cast("JsonObject", json.loads(pairing.read_text(encoding="utf-8")))
+        if sys.platform == "win32" and "token" in saved:
+            # 打包時漏了 keyring 的 Windows 後端（或 pywin32-ctypes）時會退回存在檔案：要擋下來
+            raise StepFailedError(
+                "權杖沒有存進 Windows 認證管理員（退回存在配對檔），見 worker.log"
+            )
         storage = "退回配對檔" if "token" in saved else "認證管理員"
         return f"{record.get('os')}；瀏覽器 {record.get('browsers')}；權杖存在{storage}"
 
@@ -248,7 +264,7 @@ def run(app: Path, folder: Path) -> JsonObject:
             if not step(name, action):
                 break
     finally:
-        _stop(worker)
+        _stop(worker, folder / "worker-home" / "stop.request")
         _stop(portal)
         for handle in handles:
             handle.close()

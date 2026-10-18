@@ -19,6 +19,7 @@ from typing import Final, Protocol, cast
 from rpa_worker.pairing import PAIRING_FILE, PairResult
 
 __all__ = [
+    "DEFAULT_DEVICE",
     "SERVICE",
     "Credentials",
     "KeyringStore",
@@ -116,8 +117,17 @@ class Pairing:
     """權杖存在哪裡：``keyring``（認證管理員）或 ``file``（退路）。"""
 
 
+DEFAULT_DEVICE: Final = "worker"
+"""配對檔沒有裝置代號時用的代號（讀取與清除要一致）。"""
+
+
 def _key(server: str, device: str) -> str:
     return f"{device}@{server}"
+
+
+def _device(data: dict[str, object]) -> str:
+    device = data.get("device")
+    return device if isinstance(device, str) and device else DEFAULT_DEVICE
 
 
 class Credentials:
@@ -150,14 +160,18 @@ class Credentials:
         temporary.replace(self.path)
 
     def load(self) -> Pairing | None:
-        """讀回配對；檔案裡還有權杖（主控台版或退路）時試著搬進認證管理員。"""
+        """讀回配對；檔案裡還有權杖（主控台版或退路）時試著搬進認證管理員。
+
+        沒有配對時回傳 None；認證管理員讀不到（不是「沒有這一項」）時拋出 :class:`TokenStoreError`，
+        讓呼叫的人顯示錯誤、稍後重試，而不是要使用者重新配對。
+        """
         data = self._read()
         if data is None:
             return None
-        server, device = data.get("server"), data.get("device")
+        server = data.get("server")
         if not isinstance(server, str) or not server:
             return None
-        device_id = device if isinstance(device, str) and device else "worker"
+        device_id = _device(data)
         name = data.get("name")
         label = name if isinstance(name, str) and name else device_id
         token = data.get("token")
@@ -175,7 +189,7 @@ class Credentials:
             stored = self.store.get(key)
         except TokenStoreError as error:
             logger.warning("認證管理員讀不到權杖：%s", error)
-            return None
+            raise
         if not stored:
             logger.warning("認證管理員裡沒有這次配對的權杖，需要重新配對")
             return None
@@ -203,10 +217,10 @@ class Credentials:
         """清除配對（重新配對、權杖被拒時）：認證管理員的項目與配對檔都刪掉。"""
         data = self._read()
         if data is not None:
-            server, device = data.get("server"), data.get("device")
-            if isinstance(server, str) and isinstance(device, str):
+            server = data.get("server")
+            if isinstance(server, str):
                 try:
-                    self.store.delete(_key(server, device))
+                    self.store.delete(_key(server, _device(data)))
                 except TokenStoreError as error:
                     logger.warning("認證管理員的權杖刪不掉：%s", error)
         self.path.unlink(missing_ok=True)

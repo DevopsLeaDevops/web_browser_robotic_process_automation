@@ -8,6 +8,7 @@
   let state = null;
   let busy = false;
   let pending = null;
+  let pairFormShown = false;
 
   function text(key, params) {
     const template = S[key] !== undefined ? S[key] : key;
@@ -158,6 +159,10 @@
     phase.className = "badge" + (PHASE_COLORS[s.phase] ? " " + PHASE_COLORS[s.phase] : "");
     const pairing = s.phase === "unpaired" || s.phase === "pairing" || (!s.paired && s.phase === "error");
     show("pair-panel", pairing);
+    if (pairing && !pairFormShown) {
+      $("pair-firefox").checked = s.settings.firefox; // 重新配對時沿用原本的選擇
+    }
+    pairFormShown = pairing;
     $("pair-button").disabled = s.phase === "pairing";
     show("download-panel", s.phase === "downloading");
     if (s.progress) {

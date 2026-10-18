@@ -20,6 +20,7 @@ from rpa_desktop.credentials import Credentials, MemoryStore
 from rpa_desktop.gui import Api, DesktopApp
 from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.tray import Tray
+from rpa_worker.pairing import PairResult
 
 
 def _unused(*args: object, **kwargs: object) -> object:
@@ -144,13 +145,39 @@ def test_shutdown_closes_without_hiding(tmp_path: Path, monkeypatch: pytest.Monk
     assert desktop._session_ending  # pyright: ignore[reportPrivateUsage]
 
 
-def test_background_start_shows_the_window_when_not_paired(tmp_path: Path) -> None:
+def test_lost_pairing_shows_the_window_once(tmp_path: Path) -> None:
     desktop, window, tray = app(tmp_path, background=True)
+    desktop._shown_for_pairing = False  # pyright: ignore[reportPrivateUsage]
     desktop.controller._phase = "unpaired"  # pyright: ignore[reportPrivateUsage]
     desktop._on_change()  # pyright: ignore[reportPrivateUsage]
     desktop._on_change()  # pyright: ignore[reportPrivateUsage]
     assert window.calls.count("show") == 1
     assert tray.updates == 2
+
+
+def test_failed_show_is_retried(tmp_path: Path) -> None:
+    desktop, window, _ = app(tmp_path, background=True)
+    desktop._shown_for_pairing = False  # pyright: ignore[reportPrivateUsage]
+    desktop.controller._phase = "unpaired"  # pyright: ignore[reportPrivateUsage]
+
+    def broken() -> None:
+        raise RuntimeError("GUI not ready")
+
+    window.show = broken  # type: ignore[method-assign]
+    desktop._on_change()  # pyright: ignore[reportPrivateUsage]
+    assert desktop._shown_for_pairing is False  # pyright: ignore[reportPrivateUsage]
+    del window.show
+    desktop._on_change()  # pyright: ignore[reportPrivateUsage]
+    assert window.calls.count("show") == 1
+
+
+def test_background_start_hides_only_when_paired(tmp_path: Path) -> None:
+    desktop, _, _ = app(tmp_path, background=True)
+    assert desktop._paired() is False  # pyright: ignore[reportPrivateUsage]
+    desktop.controller.credentials.save(
+        PairResult("http://x:8081", "w", "W", "worker", "t", 1, None, None)
+    )
+    assert desktop._paired() is True  # pyright: ignore[reportPrivateUsage]
 
 
 def test_api_routes_settings_and_language(tmp_path: Path) -> None:
@@ -250,3 +277,16 @@ def test_webview2_and_shutdown_checks_off_windows() -> None:
         pytest.skip("Windows 上看真的登錄檔")
     assert gui.webview2_version() == "n/a"
     assert gui.system_shutting_down() is False
+
+
+def test_windowed_exe_without_streams_does_not_crash(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rpa_desktop import entry
+
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    entry._missing_streams()  # pyright: ignore[reportPrivateUsage]
+    assert sys.stdout is not None
+    sys.stdout.write("ok")  # 視窗程式寫到 os.devnull，不會當掉
+    sys.stdout.close()
+    assert sys.stderr is not None
+    sys.stderr.close()

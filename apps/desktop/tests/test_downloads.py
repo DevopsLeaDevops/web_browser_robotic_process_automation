@@ -2,6 +2,8 @@
 
 import subprocess
 import sys
+import threading
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -93,3 +95,19 @@ def test_logs_never_contain_invite_codes_or_tokens() -> None:
     assert "s3cr3t-token-value" not in redact("Authorization: Bearer s3cr3t-token-value")
     assert "abcdef123456" not in redact('{"token": "abcdef123456"}')
     assert redact("nothing secret here") == "nothing secret here"
+
+
+def test_cancel_terminates_the_driver(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    script = tmp_path / "slow_driver.py"
+    script.write_text("import time\nprint('Downloading', flush=True)\ntime.sleep(60)\n", "utf-8")
+
+    def fake_driver(args: list[str]) -> list[str]:
+        return [sys.executable, str(script), *args]
+
+    monkeypatch.setattr(downloads, "driver_command", fake_driver)
+    cancel = threading.Event()
+    threading.Timer(0.3, cancel.set).start()
+    started = time.monotonic()
+    result = download_browser("chromium", lambda percent: None, {}, cancel=cancel)
+    assert time.monotonic() - started < 20
+    assert result.code != 0

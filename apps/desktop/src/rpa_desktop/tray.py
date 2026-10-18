@@ -32,8 +32,8 @@ class Tray:
         self,
         controller: WorkerController,
         *,
-        on_open: Callable[[], None],
-        on_quit: Callable[[], None],
+        on_open: Callable[[], object],
+        on_quit: Callable[[], object],
     ) -> None:
         self.controller = controller
         self.on_open = on_open
@@ -41,6 +41,7 @@ class Tray:
         self.ready = threading.Event()
         self._icon: pystray.Icon | None = None
         self._shown: tuple[str, str] | None = None
+        self._lock = threading.Lock()  # 狀態通知可能同時從幾個執行緒來
 
     def _menu(self) -> "pystray.Menu":
         import pystray
@@ -97,19 +98,20 @@ class Tray:
         icon = self._icon
         if icon is None:
             return
-        phase, locale = self.controller.phase, self.controller.locale
-        if self._shown == (phase, locale):
-            return
-        try:
-            if self._shown is None or self._shown[0] != phase:
-                icon.icon = draw(64, status_color(phase))
-            if self._shown is None or self._shown[1] != locale:
-                icon.menu = self._menu()
-            icon.title = self._tooltip()
-            icon.update_menu()
-        except Exception:
-            logger.exception("更新通知區圖示失敗")
-        self._shown = (phase, locale)
+        with self._lock:
+            phase, locale = self.controller.phase, self.controller.locale
+            if self._shown == (phase, locale):
+                return
+            try:
+                if self._shown is None or self._shown[0] != phase:
+                    icon.icon = draw(64, status_color(phase))
+                if self._shown is None or self._shown[1] != locale:
+                    icon.menu = self._menu()
+                icon.title = self._tooltip()
+                icon.update_menu()
+            except Exception:
+                logger.exception("更新通知區圖示失敗")
+            self._shown = (phase, locale)
 
     def notify(self, title: str, message: str) -> None:
         icon = self._icon

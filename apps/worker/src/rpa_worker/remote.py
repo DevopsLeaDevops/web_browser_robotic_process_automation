@@ -182,7 +182,8 @@ class RemoteJobSource:
     通知命令列的事件（``notify``）：``online``（上線，含 server、fingerprint 是否相同）、
     ``offline``（連不上，含原因）、``claimed``（領到任務）、``reported``（回報了結果）、
     ``abandoned``（管理 Portal 不再接受這次的結果）、``report_failed``（重試到上限仍失敗）、
-    ``rejected``（權杖或協定版本被拒，worker 會停止）、``paused``（暫停接任務，見 ``paused``）。
+    ``rejected``（權杖或協定版本被拒，worker 會停止）、``paused``（暫停接任務，見 ``paused``）、
+    ``done``（這台電腦上的執行結束了，不論結果有沒有送達；含 run）。
 
     ``paused``（M10.1 的 Worker App）：設定時不再領取新任務，執行中的照常做完並回報；
     不送任何請求，管理 Portal 約一分鐘後顯示離線。清除後重新上線（hello）再領取。
@@ -509,6 +510,7 @@ class RemoteJobSource:
         )
 
     def _done(self, active: _Active, *, keep_run: bool) -> None:
+        self.notify("done", {"run": active.job.run_id})
         active.stop.set()
         active.poke.set()
         if active.thread is not None and active.thread is not threading.current_thread():

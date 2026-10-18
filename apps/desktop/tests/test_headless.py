@@ -39,7 +39,9 @@ def services(runs: list[str]) -> Services:
     def missing(engines: Sequence[str]) -> list[str]:
         return []
 
-    def download(engine: str, progress: Progress, environ: Mapping[str, str]) -> DownloadResult:
+    def download(
+        engine: str, progress: Progress, environ: Mapping[str, str], cancel: threading.Event
+    ) -> DownloadResult:
         return DownloadResult(0, "")
 
     def run(
@@ -113,3 +115,44 @@ def test_second_copy_exits_4(tmp_path: Path) -> None:
         held.release()
     assert code == 4
     assert "已經有一份 RPA Worker" in (tmp_path / "w.log").read_text(encoding="utf-8")
+
+
+def test_stop_request_ends_the_worker_cleanly(tmp_path: Path) -> None:
+    """--no-window 是視窗程式，收不到 Ctrl+C：自動化用資料夾的 stop.request 請它結束。"""
+    home = tmp_path / "home"
+    stopped: list[bool] = []
+    base = services([])
+
+    def run(
+        client: WorkerClient,
+        info: WorkerInfo,
+        work_dir: Path,
+        *,
+        stop: threading.Event,
+        notify: Notify,
+        keep_runs: bool = False,
+        on_stopping: Callable[[], None] = lambda: None,
+        poll_seconds: float = 0.5,
+        paused: threading.Event | None = None,
+        stop_seconds: Callable[[], float] = lambda: 120.0,
+    ) -> str | None:
+        InstanceLock(home).request_stop()
+        stopped.append(stop.wait(10))
+        return None
+
+    fake = Services(
+        pair=base.pair,
+        missing=base.missing,
+        download=base.download,
+        run=run,
+        testsite=base.testsite,
+        detect=base.detect,
+    )
+    code = headless.main(
+        ["--invite", LINE, "--log", str(tmp_path / "w.log")],
+        environ={"RPA_WORKER_HOME": str(home)},
+        store=MemoryStore(),
+        services=fake,
+    )
+    assert code == 0
+    assert stopped == [True]

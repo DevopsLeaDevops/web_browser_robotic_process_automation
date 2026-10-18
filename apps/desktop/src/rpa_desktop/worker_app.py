@@ -29,7 +29,7 @@ from typing import Final, TextIO
 
 from rpa_core.i18n import set_locale
 from rpa_desktop.build_info import load
-from rpa_desktop.credentials import Credentials, TokenStore
+from rpa_desktop.credentials import Credentials, TokenStore, TokenStoreError
 from rpa_desktop.i18n import resolve_locale, t
 from rpa_desktop.single_instance import InstanceLock
 from rpa_runner.commands import is_frozen, playwright_command
@@ -141,7 +141,11 @@ def obtain_credentials(
     配對成功就存起來。沒有人可以回答又沒有配對、或使用者放棄時回傳 None。
     """
     if invite is None:
-        saved = credentials.load()
+        try:
+            saved = credentials.load()
+        except TokenStoreError as error:
+            say(t("window.keyring_failed", error=error))
+            return None
         if saved is not None:
             say(t("worker.saved", server=saved.server))
             return saved.server, saved.token
@@ -323,7 +327,10 @@ def _work(
     if args.reset_pairing:
         credentials.clear()
         say(t("worker.reset_done"))
-    first_time = credentials.load() is None or args.invite is not None
+    try:
+        first_time = credentials.load() is None or args.invite is not None
+    except TokenStoreError:
+        first_time = args.invite is not None
     found = obtain_credentials(
         credentials, invite=args.invite, server=args.server, ask=ask, say=say
     )

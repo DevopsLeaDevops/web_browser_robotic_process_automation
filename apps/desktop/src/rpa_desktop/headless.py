@@ -3,6 +3,9 @@
 和視窗版走同一個 :class:`rpa_desktop.controller.WorkerController`（配對、認證管理員、下載瀏覽器、
 接任務），只是沒有視窗與通知區圖示，訊息寫到日誌（``--log``，預設在資料夾的 ``logs/``）。
 不寫「登入時自動啟動」：那是視窗版的選擇。視窗程式沒有主控台，用 ``--log`` 看進度。
+結束：在資料夾寫一個 ``stop.request``（視窗程式收不到 Ctrl+C；見
+:meth:`rpa_desktop.single_instance.InstanceLock.request_stop`），執行中的任務會被取消並回報；
+或直接結束程序（任務約一分鐘後判定失聯）。
 
 結束碼：0 正常停止、1 被管理 Portal 拒絕或程式出錯、2 沒有配對（也沒有給 ``--invite``）、
 3 必要的瀏覽器下載失敗、4 同一個資料夾已經有一份在執行。
@@ -13,6 +16,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 from collections.abc import MutableMapping, Sequence
 from pathlib import Path
 from typing import Final
@@ -98,11 +102,14 @@ def main(
         previous = signal.signal(signal.SIGINT, request_stop)
         if sys.platform != "win32":
             signal.signal(signal.SIGTERM, request_stop)
+        finished = threading.Event()
+        lock.watch(None, finished, on_stop=controller.stop)
         try:
             controller.start(args.invite, args.server)
             while not controller.wait(0.5):
                 pass
         finally:
+            finished.set()
             signal.signal(signal.SIGINT, previous)
         logger.info("RPA Worker 結束（%s）：%s", controller.phase, controller.exit_code)
         return controller.exit_code

@@ -15,7 +15,7 @@ import pytest
 from rpa_desktop.autostart import AutoStart, command_line
 from rpa_desktop.build_info import BuildInfo
 from rpa_desktop.controller import QUICK_STOP_SECONDS, Closable, Services, WorkerController
-from rpa_desktop.credentials import Credentials, MemoryStore
+from rpa_desktop.credentials import Credentials, MemoryStore, TokenStoreError
 from rpa_desktop.downloads import DownloadResult, Progress
 from rpa_worker.environment import WorkerInfo
 from rpa_worker.pairing import App, Invite, PairResult
@@ -73,6 +73,8 @@ class Fakes:
     downloaded: list[str] = field(default_factory=lambda: [])
     runs: list[dict[str, object]] = field(default_factory=lambda: [])
     site: Site = field(default_factory=Site)
+    block_download: threading.Event | None = None
+    """設定時下載一直不結束，直到被取消（測試結束、重新配對時的取消）。"""
     started: threading.Event = field(default_factory=threading.Event)
 
     def services(self) -> Services:
@@ -85,8 +87,14 @@ class Fakes:
         def missing(engines: Sequence[str]) -> list[str]:
             return [engine for engine in engines if engine in self.missing_engines]
 
-        def download(engine: str, progress: Progress, environ: Mapping[str, str]) -> DownloadResult:
+        def download(
+            engine: str, progress: Progress, environ: Mapping[str, str], cancel: threading.Event
+        ) -> DownloadResult:
             self.downloaded.append(engine)
+            if self.block_download is not None:
+                self.block_download.set()  # 告訴測試：下載開始了
+                cancel.wait(10)  # 像真的下載一樣，直到被取消
+                return DownloadResult(1, "cancelled")
             progress(None)
             progress(50)
             progress(100)
@@ -127,7 +135,9 @@ class Fakes:
             return self.site, "started", ""
 
         def detect(name: str | None, fingerprint: str, version: str) -> WorkerInfo:
-            return WorkerInfo(name=name or "box", fingerprint=fingerprint, version=version)
+            return WorkerInfo(
+                name=name or "box", fingerprint=fingerprint, version=version, display=True
+            )
 
         return Services(
             pair=pair, missing=missing, download=download, run=run, testsite=testsite, detect=detect
@@ -461,3 +471,154 @@ def test_tray_hint_only_once(tmp_path: Path, fakes: Fakes, store: MemoryStore) -
     assert controller.mark_tray_hint_shown()
     assert not controller.mark_tray_hint_shown()
     assert not make(tmp_path, fakes, store).mark_tray_hint_shown()
+
+
+# ---------------------------------------------------------------- 審閱後補上的情況
+
+
+def test_reset_during_download_cancels_it_and_never_runs_the_old_token(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    fakes.block_download = threading.Event()
+    controller = make(tmp_path, fakes, store)
+    controller.pair(LINE)
+    assert fakes.block_download.wait(5)  # 正在下載 Chromium
+    assert controller.reset_pairing(timeout=5)
+    assert controller.phase == "unpaired"
+    assert store.items == {}
+    assert fakes.runs == []  # 下載被取消後沒有拿舊的權杖連線
+    assert controller.pair(LINE)  # 可以馬上重新配對
+
+
+def test_quit_during_download_stops_without_connecting(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    fakes.block_download = threading.Event()
+    controller = make(tmp_path, fakes, store)
+    controller.pair(LINE)
+    assert fakes.block_download.wait(5)
+    controller.stop()
+    assert controller.wait(5)
+    assert controller.phase == "stopped"
+    assert controller.exit_code == 0
+    assert fakes.runs == []
+
+
+def test_reset_keeps_the_pairing_when_the_worker_does_not_stop(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    controller = make(tmp_path, fakes, store)
+    controller.pair(LINE)
+    wait_for(fakes.started.is_set)
+
+    def never_stops(self: WorkerController, timeout: float | None = None) -> bool:
+        return False
+
+    monkeypatch.setattr(WorkerController, "wait", never_stops)
+    assert not controller.reset_pairing(timeout=0.1)
+    assert store.items != {}  # 還沒停下來就不清除
+    assert "還沒停下來" in text_of(controller)
+    monkeypatch.undo()
+    controller.wait(5)
+
+
+def test_undelivered_result_does_not_stay_running(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    fakes.events = [
+        ("online", {"worker": "win-01", "sameVersion": True}),
+        ("claimed", {"run": "r1", "headless": True, "engine": "chromium"}),
+        ("report_failed", {"reason": "refused"}),
+        ("done", {"run": "r1"}),
+        ("claimed", {"run": "r2", "headless": True, "engine": "chromium"}),
+        ("reported", {"run": "r2", "status": "passed"}),
+        ("done", {"run": "r2"}),
+    ]
+    controller = make(tmp_path, fakes, store)
+    controller.pair(LINE)
+    wait_for(fakes.started.is_set)
+    assert not controller.busy  # 結束時不必確認「有任務在執行」
+    recent = runs_of(controller.snapshot())
+    assert [(item["run"], item["status"]) for item in recent] == [
+        ("r2", "passed"),  # done 不會改掉已經有的結果
+        ("r1", "unreported"),
+    ]
+    controller.stop()
+    controller.wait(5)
+
+
+def test_going_online_keeps_warnings_but_clears_connection_problems(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    fakes.missing_engines = ["chromium", "firefox"]
+    fakes.download_codes = {"firefox": 1}
+    controller = make(tmp_path, fakes, store)
+    controller.pair(LINE, firefox=True)
+    wait_for(fakes.started.is_set)
+    message = message_of(controller)
+    assert message["level"] == "warn"
+    assert "Firefox" in str(message["text"])  # 上線後仍看得到選用的瀏覽器沒下載成功
+    controller.stop()
+    controller.wait(5)
+
+    again = Fakes(
+        events=[
+            ("offline", {"server": SERVER, "reason": "refused"}),
+            ("online", {"worker": "win-01", "sameVersion": True}),
+        ]
+    )
+    reopened = make(tmp_path, again, store)
+    reopened.start()
+    wait_for(again.started.is_set)
+    assert reopened.snapshot()["message"] is None  # 連不上的提醒在重新上線後清掉
+    reopened.stop()
+    reopened.wait(5)
+
+
+class _FlakyStore(MemoryStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.broken = False
+
+    def get(self, key: str) -> str | None:
+        if self.broken:
+            raise TokenStoreError("locked")
+        return super().get(key)
+
+
+def test_unreadable_credential_manager_is_an_error_with_retry(tmp_path: Path, fakes: Fakes) -> None:
+    flaky = _FlakyStore()
+    Credentials(tmp_path, flaky).save(
+        PairResult(SERVER, "win-01", "Windows", "worker", "saved", 1, None, None)
+    )
+    flaky.broken = True
+    controller = make(tmp_path, fakes, flaky)
+    controller.start()
+    assert controller.wait(5)
+    assert controller.phase == "error"  # 不是「尚未配對」：不必重新配對
+    assert "認證管理員" in text_of(controller)
+    assert flaky.items != {}
+    flaky.broken = False
+    assert controller.retry()
+    wait_for(fakes.started.is_set)
+    assert fakes.runs[0]["token"] == "saved"
+    controller.stop()
+    controller.wait(5)
+
+
+def test_concurrent_pair_calls_start_one_worker(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    fakes.block_download = threading.Event()
+    controller = make(tmp_path, fakes, store)
+    results: list[bool] = []
+    threads = [
+        threading.Thread(target=lambda: results.append(controller.pair(LINE))) for _ in range(5)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(5)
+    assert results.count(True) == 1
+    controller.stop()
+    controller.wait(5)

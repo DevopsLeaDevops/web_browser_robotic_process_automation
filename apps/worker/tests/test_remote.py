@@ -175,7 +175,8 @@ def test_job_runs_and_reports_artifacts_and_result(tmp_path: Path) -> None:
     # 上傳後刪除本機的暫存與執行目錄
     assert not (tmp_path / "work" / "jobs" / "ba-001-remote-1").exists()
     assert not (tmp_path / "work" / "runs" / "ba-001-remote-1").exists()
-    assert [event for event, _ in events] == ["online", "claimed", "reported"]
+    assert [event for event, _ in events] == ["online", "claimed", "reported", "done"]
+    assert events[-1][1] == {"run": events[1][1]["run"]}  # 這台的執行結束了（不論有沒有送達）
     assert events[0][1]["sameVersion"] is True
 
 
@@ -288,7 +289,7 @@ def test_run_taken_away_is_abandoned(tmp_path: Path) -> None:
 
     assert "ba-001-remote-4" not in api.finished
     assert "ba-001-remote-4" not in api.artifacts
-    assert events[-1][0] == "abandoned"
+    assert [event for event, _ in events[-2:]] == ["abandoned", "done"]
 
 
 def login_job(run_id: str) -> dict[str, object]:

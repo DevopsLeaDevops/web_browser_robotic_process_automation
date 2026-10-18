@@ -134,5 +134,8 @@
   "tray.pause": "暫停接任務",
   "tray.quit": "結束",
   "tray.tooltip": "RPA Worker · {status}",
-  "window.device_name": "{name}（{device}）"
+  "window.device_name": "{name}（{device}）",
+  "window.reset_busy": "執行中的任務還沒停下來，配對沒有清除；稍後再按一次「重新配對」。",
+  "window.keyring_failed": "讀不到 Windows 認證管理員裡的權杖（{error}）。稍後按「重試」；一直失敗時按「重新配對」。",
+  "window.status.unreported": "未回報"
 }

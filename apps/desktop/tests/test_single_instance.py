@@ -45,3 +45,18 @@ def test_stale_show_request_is_ignored(tmp_path: Path) -> None:
     assert lock.acquire()
     assert not (tmp_path / SHOW_FILE).exists()
     lock.release()
+
+
+def test_stop_request_reaches_the_running_copy(tmp_path: Path) -> None:
+    first = InstanceLock(tmp_path)
+    assert first.acquire()
+    stopped = threading.Event()
+    finished = threading.Event()
+    first.watch(None, finished, interval=0.02, on_stop=stopped.set)
+    try:
+        InstanceLock(tmp_path).request_show()  # 沒有處理叫出視窗的動作：不理會
+        InstanceLock(tmp_path).request_stop()
+        assert stopped.wait(5)
+    finally:
+        finished.set()
+        first.release()

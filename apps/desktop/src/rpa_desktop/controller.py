@@ -28,7 +28,7 @@ from typing import Final, Literal, Protocol
 from rpa_core.i18n import Locale, use_locale
 from rpa_desktop.autostart import AutoStart
 from rpa_desktop.build_info import BuildInfo
-from rpa_desktop.credentials import Credentials, Pairing
+from rpa_desktop.credentials import Credentials, Pairing, TokenStoreError
 from rpa_desktop.downloads import DownloadResult, Progress
 from rpa_desktop.i18n import t
 from rpa_desktop.settings import SETTINGS_FILE, Settings, load_settings, save_settings
@@ -58,6 +58,8 @@ RECENT_RUNS: Final = 10
 QUICK_STOP_SECONDS: Final = 3.0
 """Windows 關機或登出時，最多等執行中的任務這麼久（Windows 只給幾秒）。"""
 DOWNLOAD_HOST_ENV: Final = "PLAYWRIGHT_DOWNLOAD_HOST"
+_CONNECTION: Final = frozenset({"worker.event_offline"})
+"""重新上線時要清掉的訊息（連線問題已經解決）；其他警告留著給使用者看。"""
 TESTSITE_PORT: Final = 8765
 
 Phase = Literal[
@@ -107,7 +109,7 @@ class Services:
 
     pair: Callable[[Invite, App], PairResult]
     missing: Callable[[Sequence[str]], list[str]]
-    download: Callable[[str, Progress, Mapping[str, str]], DownloadResult]
+    download: Callable[[str, Progress, Mapping[str, str], threading.Event], DownloadResult]
     run: RunWorker
     testsite: Callable[[int], tuple[Closable | None, str, str]]
     detect: Callable[[str | None, str, str], WorkerInfo]
@@ -127,10 +129,12 @@ def default_services() -> Services:
 
         return missing_browsers(engines)
 
-    def download(engine: str, progress: Progress, environ: Mapping[str, str]) -> DownloadResult:
+    def download(
+        engine: str, progress: Progress, environ: Mapping[str, str], cancel: threading.Event
+    ) -> DownloadResult:
         from rpa_desktop.downloads import download_browser
 
-        return download_browser(engine, progress, environ)
+        return download_browser(engine, progress, environ, cancel=cancel)
 
     def testsite(port: int) -> tuple[Closable | None, str, str]:
         from testsite.server import start_in_background
@@ -335,35 +339,39 @@ class WorkerController:
 
     # ------------------------------------------------------------ 動作
 
-    def start(self, invite: str | None = None, server: str | None = None) -> None:
-        """在背景開始：給了邀請就先配對；否則有存下的配對就連線，沒有就等使用者配對。"""
-        if self.running:
-            return
-        self._thread = threading.Thread(
-            target=self._main, args=(invite, server), name="rpa-worker-app", daemon=True
-        )
-        self._thread.start()
+    def start(self, invite: str | None = None, server: str | None = None) -> bool:
+        """在背景開始：給了邀請就先配對；否則有存下的配對就連線，沒有就等使用者配對。
+
+        已經在執行時不理會（回傳 False）。每次開始用新的停止旗標，背景工作只看自己的那一個：
+        舊的工作就算還沒結束，也不會被之後的開始誤用。
+        """
+        with self._lock:
+            if self.running:
+                return False
+            stop = threading.Event()
+            self._stop = stop
+            self._quick = False
+            self._thread = threading.Thread(
+                target=self._main, args=(invite, server, stop), name="rpa-worker-app", daemon=True
+            )
+            self._thread.start()
+        return True
 
     def pair(self, text: str, server: str | None = None, firefox: bool | None = None) -> bool:
         """使用者在畫面上貼了邀請；開始配對時回傳 True（已經在連線或配對時不理會）。"""
         with self._lock:
             if self.running or self._phase not in ("unpaired", "error", "starting"):
                 return False
-        if firefox is not None and firefox != self.settings.firefox:
-            self._save(firefox=firefox)
-        self._stop = threading.Event()
-        self.start(text, server)
-        return True
+            if firefox is not None and firefox != self.settings.firefox:
+                self._save(firefox=firefox)
+            return self.start(text, server)
 
     def retry(self) -> bool:
-        """出錯停下後（例如瀏覽器下載失敗）再試一次；回傳有沒有開始。"""
+        """出錯停下後（例如瀏覽器下載失敗、認證管理員讀不到）再試一次；回傳有沒有開始。"""
         with self._lock:
             if self.running or self._phase != "error":
                 return False
-        self._stop = threading.Event()
-        self._quick = False
-        self.start()
-        return True
+            return self.start()
 
     def set_paused(self, paused: bool) -> None:
         if paused:
@@ -391,18 +399,23 @@ class WorkerController:
             thread.join(timeout)
         return not self.running
 
-    def reset_pairing(self) -> None:
-        """重新配對：停止接任務（執行中的會被取消）、清除配對，回到貼邀請的畫面。"""
-        self._stop.set()
-        self.wait(150.0)
+    def reset_pairing(self, timeout: float = STOP_SECONDS + 30) -> bool:
+        """重新配對：停止接任務（執行中的會被取消）、清除配對，回到貼邀請的畫面。
+
+        背景工作在 ``timeout`` 秒內沒有停下來時不清除（回傳 False），免得舊的工作拿著舊的權杖繼續。
+        """
+        self.stop()
+        if not self.wait(timeout):
+            self._set(message=_Message("window.reset_busy", level="warn"))
+            return False
         self.credentials.clear()
         with self._lock:
             self._pairing = None
             self._current = None
             self._device_name = None
             self._same_version = None
-        self._stop = threading.Event()
         self._set("unpaired", _Message("window.pairing_reset"))
+        return True
 
     def set_language(self, language: Locale) -> None:
         self.language_override = None  # 使用者在畫面上選的語言優先於環境變數
@@ -441,10 +454,11 @@ class WorkerController:
 
     def mark_tray_hint_shown(self) -> bool:
         """第一次縮到通知區時回傳 True（要提示），之後回傳 False。"""
-        if self.settings.tray_hint_shown:
-            return False
-        self._save(tray_hint_shown=True)
-        return True
+        with self._lock:
+            if self.settings.tray_hint_shown:
+                return False
+            self._save(tray_hint_shown=True)
+            return True
 
     def _save(
         self,
@@ -454,6 +468,17 @@ class WorkerController:
         download_host: str | None = None,
         autostart_offered: bool | None = None,
         tray_hint_shown: bool | None = None,
+    ) -> None:
+        with self._lock:
+            self._save_locked(language, firefox, download_host, autostart_offered, tray_hint_shown)
+
+    def _save_locked(
+        self,
+        language: Locale | None,
+        firefox: bool | None,
+        download_host: str | None,
+        autostart_offered: bool | None,
+        tray_hint_shown: bool | None,
     ) -> None:
         current = self.settings
         self.settings = Settings(
@@ -472,7 +497,7 @@ class WorkerController:
 
     # ------------------------------------------------------------ 背景工作
 
-    def _main(self, invite: str | None, server: str | None) -> None:
+    def _main(self, invite: str | None, server: str | None, stop: threading.Event) -> None:
         self._exit_code = 0
         self._rejected_status = None
         try:
@@ -481,14 +506,20 @@ class WorkerController:
                     self._exit_code = 2
                     return
             else:
-                pairing = self.credentials.load()
+                try:
+                    pairing = self.credentials.load()
+                except TokenStoreError as error:
+                    self._exit_code = 1
+                    params: dict[str, object] = {"error": error}
+                    self._set("error", _Message("window.keyring_failed", params, "error"))
+                    return
                 if pairing is None:
                     self._exit_code = 2
                     self._set("unpaired")
                     return
                 with self._lock:
                     self._pairing = pairing
-            self._work()
+            self._work(stop)
         except Exception as error:
             logger.exception("RPA Worker 停止了")
             self._exit_code = 1
@@ -530,7 +561,7 @@ class WorkerController:
         self._set(message=_Message("worker.paired", params))
         return True
 
-    def _prepare_browsers(self) -> bool:
+    def _prepare_browsers(self, stop: threading.Event) -> bool:
         engines = [REQUIRED_ENGINE]
         if self.settings.firefox:
             engines.append(OPTIONAL_ENGINE)
@@ -544,9 +575,11 @@ class WorkerController:
 
             logger.info("下載 %s", name)
             self._set("downloading", None)  # 進度與說明在下載的面板上
-            result = self.services.download(engine, progress, self.environ)
+            result = self.services.download(engine, progress, self.environ, stop)
             with self._lock:
                 self._progress = None
+            if stop.is_set():
+                return False  # 結束或重新配對：下載被取消
             if result.code != 0:
                 params: dict[str, object] = {"browser": name, "code": result.code}
                 if engine == REQUIRED_ENGINE:
@@ -559,12 +592,18 @@ class WorkerController:
             self._set(message=_Message("worker.downloaded", {"browser": name}))
         return True
 
-    def _work(self) -> None:
+    def _work(self, stop: threading.Event) -> None:
         pairing = self._pairing
         assert pairing is not None
         self.autostart.refresh()
-        if not self._prepare_browsers():
-            self._exit_code = 3
+        if not self._prepare_browsers(stop):
+            if stop.is_set():
+                self._set("stopped")
+            else:
+                self._exit_code = 3
+            return
+        if stop.is_set():
+            self._set("stopped")
             return
         site: Closable | None = None
         if self.testsite:
@@ -587,7 +626,7 @@ class WorkerController:
                 self.services.client(pairing.server, pairing.token),
                 info,
                 self.home / "work",
-                stop=self._stop,
+                stop=stop,
                 notify=self._notify,
                 keep_runs=self.keep_runs,
                 paused=self._paused,
@@ -638,7 +677,12 @@ class WorkerController:
                 self._same_version = details.get("sameVersion") is not False
                 self._server_fingerprint = str(fingerprint) if fingerprint else None
                 self._device_name = str(worker) if worker else None
-            self._set("paused" if self._paused.is_set() else "online", None)
+            with self._lock:
+                message = self._message
+            keep = (
+                message is not None and message.level != "info" and message.key not in _CONNECTION
+            )
+            self._set("paused" if self._paused.is_set() else "online", False if keep else None)
         elif event == "offline":
             params = {"server": details.get("server"), "reason": details.get("reason")}
             self._set("offline", _Message("worker.event_offline", params, "warn"))
@@ -664,6 +708,9 @@ class WorkerController:
         elif event == "report_failed":
             params = {"reason": details.get("reason")}
             self._set(message=_Message("worker.event_report_failed", params, "warn"))
+        elif event == "done":
+            self._finish(str(details.get("run")), "unreported")  # 已經有結果的不會被改
+            self._changed()
         elif event == "rejected":
             status = details.get("status")
             with self._lock:

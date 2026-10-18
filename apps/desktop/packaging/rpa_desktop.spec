@@ -74,10 +74,11 @@ datas.append((str(INFO), "rpa_desktop"))
 # entry points 找後端）都明確收進來。
 WINDOWS_WORKER = APP == "worker" and sys.platform == "win32"
 binaries = []
+# 其他系統的介面後端不收（它們匯入 gi、PyQt、AppKit 之類 Windows 沒有的套件）。
+# keyring 的後端全部收進來：它依 entry points 逐一載入，少了模組會在日誌留下錯誤（後端自己會判斷能不能用）。
 _OTHER_GUIS = ("webview.platforms.gtk", "webview.platforms.qt", "webview.platforms.cocoa",
                "webview.platforms.android", "pystray._xorg", "pystray._gtk", "pystray._appindicator",
-               "pystray._darwin", "keyring.backends.macOS", "keyring.backends.SecretService",
-               "keyring.backends.kwallet", "keyring.backends.libsecret")
+               "pystray._darwin")
 
 
 def _windows_only(name):

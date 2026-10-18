@@ -22,6 +22,7 @@
 
 import io
 import json
+import os
 import runpy
 import sys
 from collections.abc import Sequence
@@ -105,8 +106,20 @@ def _worker_app() -> bool:
     return load().app == "worker"
 
 
+def _missing_streams() -> None:
+    """視窗程式（打包的 RPA Worker）沒有標準輸出與錯誤：接到 os.devnull，免得寫入時當掉。
+
+    要讀輸出的命令（``--version``、``--self-test``）請用同資料夾的 ``rpa-child``。
+    """
+    if sys.stdout is None:
+        sys.stdout = Path(os.devnull).open("w", encoding="utf-8")  # noqa: SIM115 - 整個程序都用
+    if sys.stderr is None:
+        sys.stderr = Path(os.devnull).open("w", encoding="utf-8")  # noqa: SIM115 - 整個程序都用
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     if is_frozen():
+        _missing_streams()
         _utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] == WORKER_FLAG:

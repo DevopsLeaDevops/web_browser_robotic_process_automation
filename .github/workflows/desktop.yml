@@ -82,7 +82,7 @@ jobs:
         run: |
           set +e
           uv run pytest -q apps/desktop/tests packages/rpa_runner/tests/test_commands.py apps/worker/tests/test_service.py \
-            --junitxml="${{ runner.temp }}/desktop-pytest.xml"
+            --junitxml="${{ runner.temp }}/desktop-pytest.xml" -o junit_family=xunit1
           code=$?
           set -e
           uv run python tools/ci_annotations.py junit "${{ runner.temp }}/desktop-pytest.xml"

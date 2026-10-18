@@ -4,6 +4,8 @@
 都拿同一把鎖，所以同一份配對不會有兩個程序同時領任務。程序結束（含當掉）時作業系統自動釋放鎖。
 
 第二份開啟時不另外執行：寫一個 ``show.request`` 檔案後結束；第一份每半秒看一次，看到就叫出視窗。
+``stop.request`` 同理：請正在執行的那份結束（``--no-window`` 是視窗程式，收不到 Ctrl+C；
+自動化與 CI 用它讓 worker 取消執行中的任務、回報後結束）。
 用檔案而不用 Windows 的具名事件：各系統的行為一樣，Linux 的 CI 也測得到。
 """
 
@@ -16,12 +18,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import IO, Final
 
-__all__ = ["LOCK_FILE", "SHOW_FILE", "InstanceLock"]
+__all__ = ["LOCK_FILE", "SHOW_FILE", "STOP_FILE", "InstanceLock"]
 
 logger = logging.getLogger("rpa_desktop.single_instance")
 
 LOCK_FILE: Final = "instance.lock"
 SHOW_FILE: Final = "show.request"
+STOP_FILE: Final = "stop.request"
 
 
 def _try_lock(handle: IO[bytes]) -> bool:
@@ -79,7 +82,8 @@ class InstanceLock:
             handle.close()
             return False
         self._handle = handle
-        (self.folder / SHOW_FILE).unlink(missing_ok=True)  # 之前留下的請求不算
+        for stale in (SHOW_FILE, STOP_FILE):  # 之前留下的請求不算
+            (self.folder / stale).unlink(missing_ok=True)
         return True
 
     def release(self) -> None:
@@ -92,24 +96,42 @@ class InstanceLock:
 
     def request_show(self) -> None:
         """（第二份）請已經在執行的那份叫出視窗。"""
+        if sys.platform == "win32":
+            import ctypes
+
+            # 讓第一份可以把視窗叫到最前面（Windows 只准目前在前景的程序轉交前景）
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)  # ASFW_ANY
+        self._request(SHOW_FILE)
+
+    def request_stop(self) -> None:
+        """請正在執行的那份結束（取消執行中的任務、回報後結束）。"""
+        self._request(STOP_FILE)
+
+    def _request(self, name: str) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
-        (self.folder / SHOW_FILE).write_text(str(os.getpid()), encoding="utf-8")
+        (self.folder / name).write_text(str(os.getpid()), encoding="utf-8")
 
     def watch(
-        self, on_show: Callable[[], None], stop: threading.Event, interval: float = 0.5
+        self,
+        on_show: Callable[[], object] | None,
+        stop: threading.Event,
+        interval: float = 0.5,
+        *,
+        on_stop: Callable[[], object] | None = None,
     ) -> threading.Thread:
-        """（第一份）在背景看有沒有叫出視窗的請求。"""
-        request = self.folder / SHOW_FILE
+        """（第一份）在背景看有沒有叫出視窗或結束的請求。"""
+        actions = [(self.folder / SHOW_FILE, on_show), (self.folder / STOP_FILE, on_stop)]
 
         def loop() -> None:
             while not stop.wait(interval):
-                if not request.exists():
-                    continue
-                request.unlink(missing_ok=True)
-                try:
-                    on_show()
-                except Exception:
-                    logger.exception("叫出視窗失敗")
+                for request, action in actions:
+                    if action is None or not request.exists():
+                        continue
+                    request.unlink(missing_ok=True)
+                    try:
+                        action()
+                    except Exception:
+                        logger.exception("處理 %s 失敗", request.name)
 
         thread = threading.Thread(target=loop, name="rpa-show-request", daemon=True)
         thread.start()

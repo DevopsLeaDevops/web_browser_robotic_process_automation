@@ -29,7 +29,7 @@ from rpa_core.i18n import ENV_VAR, Locale, parse_locale, set_locale, use_locale
 from rpa_desktop.autostart import AutoStart
 from rpa_desktop.build_info import load
 from rpa_desktop.controller import QUICK_STOP_SECONDS, WorkerController
-from rpa_desktop.credentials import Credentials
+from rpa_desktop.credentials import Credentials, TokenStoreError
 from rpa_desktop.i18n import resolve_locale, t
 from rpa_desktop.logs import setup_logging
 from rpa_desktop.single_instance import InstanceLock
@@ -193,6 +193,9 @@ class DesktopApp:
 
         with use_locale(self.controller.locale):
             title = t("window.title")
+        # 自動啟動時只開通知區；還沒配對（或讀不到配對）時一開始就打開視窗讓人貼邀請
+        hidden = self.background and self.invite is None and self._paired()
+        self._shown_for_pairing = not hidden
         self.window = webview.create_window(
             title,
             html=render_page(self.controller.locale),
@@ -200,22 +203,29 @@ class DesktopApp:
             width=WINDOW_SIZE[0],
             height=WINDOW_SIZE[1],
             min_size=MIN_SIZE,
-            hidden=self.background,
+            hidden=hidden,
             text_select=True,
         )
         self.window.events.closing += self._on_closing
-        self.tray.start()
-        self.controller.subscribe(self._on_change)
-        self.lock.watch(self.show, self._finished)
-        threading.Thread(target=self._pusher, name="rpa-window-push", daemon=True).start()
-        self.controller.start(self.invite, self.server)
-        webview.start(
-            self._on_started,
-            gui="edgechromium" if sys.platform == "win32" else None,
-            private_mode=True,
-        )
-        self._finish()
+        try:
+            self.tray.start()
+            self.controller.subscribe(self._on_change)
+            self.lock.watch(self.show, self._finished, on_stop=lambda: self.request_quit(True))
+            threading.Thread(target=self._pusher, name="rpa-window-push", daemon=True).start()
+            webview.start(
+                self._on_started,
+                gui="edgechromium" if sys.platform == "win32" else None,
+                private_mode=True,
+            )
+        finally:
+            self._finish()
         return 0
+
+    def _paired(self) -> bool:
+        try:
+            return self.controller.credentials.load() is not None
+        except TokenStoreError:
+            return False
 
     def _run_tray_only(self) -> int:
         with use_locale(self.controller.locale):
@@ -236,8 +246,12 @@ class DesktopApp:
         self.tray.stop()
 
     def _on_started(self) -> None:
-        """pywebview 的介面迴圈開始後（在另一個執行緒）。"""
+        """pywebview 的介面迴圈開始後（在另一個執行緒）。
+
+        這時才開始配對與連線：狀態一改變就可能要叫出視窗，視窗必須已經建好。
+        """
         self._watch_session_end()
+        self.controller.start(self.invite, self.server)
 
     def _finish(self) -> None:
         self._finished.set()
@@ -250,16 +264,19 @@ class DesktopApp:
 
     # ------------------------------------------------------------ 視窗
 
-    def show(self) -> None:
+    def show(self) -> bool:
+        """叫出視窗；回傳是否成功。"""
         window = self.window
         if window is None:
-            return
+            return False
         try:
             window.show()
             window.restore()
         except Exception:
             logger.warning("叫出視窗失敗", exc_info=True)
+            return False
         self._push.set()
+        return True
 
     def _hide_with_hint(self) -> None:
         window = self.window
@@ -282,9 +299,9 @@ class DesktopApp:
 
     def _on_change(self) -> None:
         self.tray.update()
-        if self.controller.phase == "unpaired" and self.background and not self._shown_for_pairing:
-            self._shown_for_pairing = True  # 自動啟動時還沒配對（或配對失效）：打開視窗讓人貼邀請
-            self.show()
+        if self.controller.phase == "unpaired" and not self._shown_for_pairing:
+            # 自動啟動時配對失效（例如在裝置頁重新邀請）：打開視窗讓人貼新的邀請
+            self._shown_for_pairing = self.show()
         self._push.set()
 
     def _pusher(self) -> None:
@@ -482,9 +499,11 @@ def main(argv: Sequence[str] = (), *, environ: MutableMapping[str, str] | None =
             worker, lock, background=bool(args.background), invite=args.invite, server=args.server
         )
         return app.run()
-    except ImportError as error:
-        logger.exception("視窗元件載入失敗")
-        _message_box("RPA Worker", str(error))
+    except Exception as error:
+        # 視窗程式沒有主控台：記在日誌並用訊息方塊說明，不讓 PyInstaller 跳出原始的錯誤對話框
+        logger.exception("RPA Worker 視窗版停止了")
+        with use_locale(resolve_locale(env)):
+            _message_box(t("window.title"), t("window.crashed", error=error))
         return 1
     finally:
         lock.release()

@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -84,9 +85,13 @@ def download_browser(
     on_progress: Progress,
     environ: Mapping[str, str],
     *,
+    cancel: threading.Event | None = None,
     popen: Callable[..., subprocess.Popen[bytes]] = subprocess.Popen,
 ) -> DownloadResult:
-    """下載一個瀏覽器（``chromium``、``firefox``）；回傳結束碼與最後幾行輸出。"""
+    """下載一個瀏覽器（``chromium``、``firefox``）；回傳結束碼與最後幾行輸出。
+
+    ``cancel`` 被設定時結束 driver（結束 App、重新配對時不必等下載完）。
+    """
     command = driver_command(["install", engine])
     logger.info("下載瀏覽器：%s", engine)
     process = popen(
@@ -97,6 +102,17 @@ def download_browser(
         env=_driver_env(environ),
         creationflags=no_window_flags(),
     )
+    if cancel is not None:
+
+        def watch() -> None:
+            while process.poll() is None:
+                if cancel.wait(0.5):
+                    if process.poll() is None:
+                        logger.info("取消下載 %s", engine)
+                        process.terminate()
+                    return
+
+        threading.Thread(target=watch, name=f"download-{engine}-cancel", daemon=True).start()
     tail: deque[str] = deque(maxlen=_TAIL_LINES)
     pending = ""
     last: int | None = None
