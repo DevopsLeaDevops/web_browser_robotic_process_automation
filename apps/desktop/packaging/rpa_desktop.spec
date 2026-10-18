@@ -8,7 +8,7 @@
 #
 # 資料夾模式（onedir），兩個執行檔共用同一份程式與資料：
 #   rpa-worker                RPA Worker（M10.1）：視窗程式（WebView2 狀態視窗＋通知區），沒有主控台
-#   rpa-recorder              RPA 錄製端：還是主控台程式（視窗在 M10.2）
+#   rpa-recorder              RPA 錄製端（M10.2）：視窗程式（WKWebView 視窗，連本機閘道）
 #   rpa-child                 子程序用的主控台程式：runner、登入檢查、錄製、調試、playwright
 #                             （rpa_runner.commands 依檔名找它）；也是 --version、--self-test、
 #                             --worker（主控台版）要讀輸出時用的入口
@@ -79,10 +79,19 @@ binaries = []
 _OTHER_GUIS = ("webview.platforms.gtk", "webview.platforms.qt", "webview.platforms.cocoa",
                "webview.platforms.android", "pystray._xorg", "pystray._gtk", "pystray._appindicator",
                "pystray._darwin")
+# macOS 的錄製端（M10.2）：pywebview 只要 cocoa 後端（WKWebView，經由 PyObjC）；keyring 用鑰匙圈。
+MAC_RECORDER = APP == "recorder" and sys.platform == "darwin"
+_NOT_COCOA = ("webview.platforms.gtk", "webview.platforms.qt", "webview.platforms.android",
+              "webview.platforms.winforms", "webview.platforms.edgechromium",
+              "webview.platforms.mshtml", "webview.platforms.cef", "webview.platforms.win32")
 
 
 def _windows_only(name):
     return not name.startswith(_OTHER_GUIS)
+
+
+def _cocoa_only(name):
+    return not name.startswith(_NOT_COCOA)
 
 
 if WINDOWS_WORKER:
@@ -92,6 +101,15 @@ if WINDOWS_WORKER:
         binaries += collect_dynamic_libs(package)
     hiddenimports += ["clr"]
     for distribution in ("pywebview", "pystray", "keyring", "pythonnet", "clr_loader", "pillow"):
+        datas += copy_metadata(distribution)
+if MAC_RECORDER:
+    for package in ("webview", "keyring"):
+        hiddenimports += collect_submodules(package, filter=_cocoa_only)
+        datas += collect_data_files(package)
+    # PyObjC 的框架在執行時才依名稱載入（pywebview 的 cocoa 後端）；pyinstaller-hooks-contrib 有它們的 hook
+    hiddenimports += ["objc", "AppKit", "Foundation", "WebKit", "Quartz", "Security",
+                      "UniformTypeIdentifiers", "PyObjCTools", "PyObjCTools.AppHelper"]
+    for distribution in ("pywebview", "keyring"):
         datas += copy_metadata(distribution)
 # 自我測試用的範例場景（rpa_desktop.selftest）
 datas.append((str(DEMO / "ba-001.yaml"), "rpa_desktop/scenarios"))
@@ -122,10 +140,8 @@ common = {
 # Python 的 UTF-8 模式：打包後的 App 不讀 PYTHONIOENCODING 等環境變數，Windows 上標準輸出
 # 與 open() 的預設編碼會是 cp1252 之類，子程序印出中文、寫檔案就會出錯。
 options = [("X utf8_mode=1", None, "OPTION")]
-# RPA Worker 是視窗程式：雙擊不跳主控台。子程序與要讀輸出的命令用同資料夾的 rpa-child（主控台程式）。
-app_exe = EXE(
-    pyz, a.scripts, options, name=NAMES["exe"], console=APP != "worker", icon=ICON, **common
-)
+# 兩個 App 都是視窗程式：雙擊不跳主控台。子程序與要讀輸出的命令用同資料夾的 rpa-child（主控台程式）。
+app_exe = EXE(pyz, a.scripts, options, name=NAMES["exe"], console=False, icon=ICON, **common)
 child_exe = EXE(pyz, a.scripts, options, name="rpa-child", console=True, icon=ICON, **common)
 coll = COLLECT(app_exe, child_exe, a.binaries, a.datas, strip=False, upx=False, name=NAMES["exe"])
 
@@ -142,6 +158,8 @@ if sys.platform == "darwin":
             "LSMinimumSystemVersion": "12.0",
             "LSApplicationCategoryType": "public.app-category.developer-tools",
             "NSHighResolutionCapable": True,
+            # 視窗只載入 127.0.0.1 上的本機閘道（HTTP）；轉送到管理 Portal 的是 Python，不受 ATS 管
+            "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
             # macOS 15 起連區網要使用者允許：管理 Portal 與內部網站都在區網上
             "NSLocalNetworkUsageDescription": (
                 "RPA 錄製端要連到區網上的管理 Portal 與內部系統。"

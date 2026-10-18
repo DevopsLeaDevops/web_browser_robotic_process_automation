@@ -20,8 +20,8 @@
         <dt>範圍／不包含</dt><dd><strong>PR 1 伺服器端＋命令列錄製端</strong>（<code>m10/recorder-server</code>）：裝置頁新增、邀請「錄製端」；帶錄製端權杖才能從對外埠看 Portal；Client API 的上線、指令通道、子程序輸出與檔案回傳；錄製、逐步調試、人工登入可以交給錄製端執行；頁首顯示透過哪台錄製端、從錄製端看時「本機」改叫「伺服器」；<code>rpa recorder --invite …</code>（本機閘道＋系統瀏覽器）。<strong>PR 2 錄製端 App</strong>（<code>m10/recorder-app</code>，疊在 PR 1 上）：pywebview（WKWebView）視窗只連本機閘道、配對與下載瀏覽器與離線的頁面、鑰匙圈、只執行一份、新視窗與下載。<strong>PR 3</strong>：DMG 進 Release、macOS 端到端 CI、文件、v0.3.0。不包含：Windows 版錄製端、錄製端兼當執行機、HTTPS、自動更新、Intel Mac。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude（使用者指派）。審閱與合併由使用者決定；合併前另由沒寫這段程式的 agent 審閱。</dd>
         <dt>修改檔案／整合者</dt><dd>PR 1：<code>apps/server</code>（遷移 0009、裝置與錄製端、Client API、middleware、三個互動服務、頁面與訊息）、<code>apps/worker</code>（錄製端的指令通道與本機閘道）、<code>apps/cli</code>（<code>rpa recorder</code>）、文件與交接。PR 2：<code>apps/desktop</code>、打包設定、<code>.github/workflows/desktop.yml</code>。共用檔案（訊息目錄、遷移編號、任務索引、<code>uv.lock</code>）由 Claude 整合；簡中與 <code>uv.lock</code> 由 bootstrap 產生。</dd>
-        <dt>狀態</dt><dd><strong>PR 1：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>（草稿），依審閱與第一次 CI 修正中</strong>（伺服器端的測試只能在 CI 跑）。<strong>PR 2：PR 1 推上去後接著做</strong>（介面已經定下來：<code>rpa_worker.recorder</code>、<code>rpa_worker.gateway</code>）。計畫在 2026-10-18 08:59 America/Los_Angeles（PDT，UTC−07:00）由使用者核准，要求兩個一起開始。</dd>
-        <dt>分支／PR／base SHA</dt><dd>PR 1：<code>m10/recorder-server</code>，從 <code>origin/main</code> <span class="mono">d71f513</span>（#35）開出；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>。PR 2：<code>m10/recorder-app</code>，疊在 PR 1 上；未建立。</dd>
+        <dt>狀態</dt><dd><strong>PR 1：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a> 可以審閱</strong>（CI 在 <span class="mono">2b4fd64</span> 全部通過，獨立審閱的問題已修正）。<strong>PR 2：實作完成、本機檢查通過，推送並開 PR（疊在 #36 上）</strong>；WKWebView 的視窗只能在 CI 的 macOS 測。計畫在 2026-10-18 08:59 America/Los_Angeles（PDT，UTC−07:00）由使用者核准，要求兩個一起開始。</dd>
+        <dt>分支／PR／base SHA</dt><dd>PR 1：<code>m10/recorder-server</code>，從 <code>origin/main</code> <span class="mono">d71f513</span>（#35）開出；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>。PR 2：<code>m10/recorder-app</code>，從 <span class="mono">2b4fd64</span> 開出、疊在 #36 上；#36 合併後把 base 改成 <code>main</code>。</dd>
         <dt>交接版本／同步狀態</dt><dd>PR 1 的提交推送到 <code>m10/recorder-server</code> 後以 GitHub 上的 PR 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器，Python 3.13、ruff、pyright；不能連 PyPI（<code>uv sync</code> 失敗），本機只跑不需要新依賴的測試；macOS 的視窗只能在 CI 的 macOS 執行環境測。GitHub 代理不允許推標籤（2026-10-18 09:00 推 <code>v0.2.0</code> 被拒，403），標籤請使用者推。</dd>
       </dl></div>
@@ -66,9 +66,20 @@
         </li>
         <li><strong>第一次 CI（<span class="mono">1198f6d</span>，2026-10-18 10:02～10:11 America/Los_Angeles（PDT，UTC−07:00））：</strong>失敗。簡中還沒產生（bootstrap 之後補上）；pyright：<code>@contextmanager</code> 的回傳型別要用 <code>Generator</code>；英文頁的測試資料有中文名稱；測試的錄製端只有 Chromium、BA-001 用 Firefox；錄製端的協定版本訊息用了不存在的鍵（本機掃描時發現）。都已修正，並新增「這台沒有那個瀏覽器」的測試。</li>
         <li><strong>第二次 CI（<span class="mono">ce0a41e</span>，2026-10-18 16:18～16:28 America/Los_Angeles（PDT，UTC−07:00））：</strong>伺服器端的測試（含 <code>test_recorder_api.py</code> 與真的 uvicorn＋閘道的 <code>test_recorder_flow.py</code>，Chromium、Firefox）全部通過；只剩簡中（bot 的 <span class="mono">f88f0a7</span> 已補上）與新測試裡兩個字典的 pyright 型別標註，修正後重跑。</li>
+        <li><strong>PR 2 的內容（實作完成，2026-10-18 16:50 America/Los_Angeles（PDT，UTC−07:00））：</strong>
+          <ul>
+            <li><strong>視窗：</strong><code>rpa_desktop.recorder_gui</code>（pywebview／WKWebView）只載入本機閘道；選單「RPA 錄製端」（狀態與設定、管理 Portal、重新整理），系統的「編輯」選單讓 ⌘V 能貼上邀請。打包的 RPA 錄製端開這個視窗（<code>entry</code>）；開發環境 <code>rpa-desktop --recorder</code>。</li>
+            <li><strong>App 自己的頁面：</strong>閘道的 <code>/__desktop/</code>（<code>rpa_desktop.recorder_pages</code>、<code>ui/recorder.html</code>、<code>ui/recorder.js</code>）：配對、下載瀏覽器的進度、狀態（伺服器、錄製端、版本、權杖存放、進行中的工作）、設定（Firefox、鏡像、語言）、重新配對、結束。用 fetch，不用 pywebview 的 js_api，所以 Portal 的頁面碰不到 App 的動作。在這一頁配對、連上後自動打開 Portal。</li>
+            <li><strong>狀態與動作：</strong><code>rpa_desktop.recorder_controller</code>（沒有配對 → 等邀請；配對 → 下載瀏覽器 → 測試網站 → <code>RecorderHost</code>；權杖被拒時清除配對、協定不同只停下來說明）。閘道還沒配對時只有 App 的頁面；Portal 回 401 時打開頁面的請求轉回 App 的頁面；連不上時顯示說明頁。</li>
+            <li><strong>新視窗與下載：</strong>自訂的 <code>webbrowser</code> 處理器：閘道的網址開 App 的新視窗，其他網站用預設瀏覽器；下載（<code>ALLOW_DOWNLOADS</code>）用的 <code>NSURLSession</code> 也帶閘道的 Cookie。</li>
+            <li><strong>結束與單一執行：</strong>關掉主視窗就結束（有進行中的工作先確認，⌘Q 也一樣），子視窗一起關；<code>InstanceLock</code> 只執行一份。權杖在鑰匙圈「RPA Recorder」；資料在 <code>~/Library/Application Support/rpa/recorder</code>，日誌 <code>logs/recorder.log</code>。</li>
+            <li><strong>打包與 CI：</strong>pywebview 也裝在 macOS（PyObjC；<code>uv.lock</code> 由 bootstrap 更新）；spec 收 cocoa 後端與 PyObjC 框架、錄製端也是視窗程式、Info.plist 加 <code>NSAllowsLocalNetworking</code>。<code>desktop.yml</code> 的 macOS：建置前跑錄製端 App、閘道與錄製端程式的單元測試；<code>rpa-recorder --smoke-test</code> 打開真的 WKWebView 視窗，確認頁面經由閘道（含 Cookie）載入。</li>
+            <li><strong>文件：</strong>遠端 worker 指南新增「macOS：RPA 錄製端 App」；桌面端分發的「RPA 錄製端」補上 App 的做法（繁中、英文）。</li>
+          </ul>
+        </li>
         <li><strong>實作選擇（Claude，使用者可以再改）：</strong>每台裝置同一時間各一段錄製；同一個場景的逐步調試只有一個，在另一台開始時關掉原本的；錄製端的權杖只能用邀請換。</li>
-        <li><strong>未完成／阻礙：</strong>PR 1 推送修正後等 CI；PR 2、PR 3 未開始。v0.2.0：使用者在 2026-10-18 09:03 America/Los_Angeles（PDT，UTC−07:00）推了標籤，「發布」流程通過；Claude 核對草稿後發布被這個 session 擋下（403），請使用者按發布（<a href="20261016-m10-1-windows-worker.html">M10.1 任務紀錄</a>）。</li>
-        <li><strong>下一個具體動作：</strong>推送 PR 1 的修正、看 CI；通過後把 #36 改成可審閱；從 PR 1 開 <code>m10/recorder-app</code> 做 PR 2。</li>
+        <li><strong>未完成／阻礙：</strong>PR 2 等 CI 與審閱；PR 3 未開始。v0.2.0：使用者在 2026-10-18 09:03 America/Los_Angeles（PDT，UTC−07:00）推了標籤，「發布」流程通過；Claude 核對草稿後發布被這個 session 擋下（403），請使用者按發布（<a href="20261016-m10-1-windows-worker.html">M10.1 任務紀錄</a>）。</li>
+        <li><strong>下一個具體動作：</strong>使用者審 #36；Claude 推送 PR 2、看 macOS 的建置與視窗自我測試、請沒寫這段程式的 agent 審閱 PR 2。之後是 PR 3（DMG 進 Release、macOS 端到端、v0.3.0）。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無（本機的 <code>pyrightconfig.local.json</code> 用完即刪）。</li>
       </ul></div>
     </section>
@@ -96,6 +107,7 @@
         <li><span class="mono">2026-10-18 09:56 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）使用者已推 <code>v0.2.0</code> 標籤（09:03），「發布」流程（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39143285503">run 39143285503</a>）通過。核對草稿：三個檔案、<code>sha256sum -c</code> 通過、zip 裡的建置資訊是 0.2.0／d71f513。發布時 GitHub 回 403（這個 session 不能建立或修改 Release），沒有繞路，請使用者按發布。main 的「一鍵安裝腳本」Windows 失敗一次（WinError 32），修正放進 PR 1 的獨立提交。</li>
         <li><span class="mono">2026-10-18 10:00～10:31 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 <span class="mono">842e7c9</span>、<span class="mono">1198f6d</span>（<code>[bootstrap]</code>），開 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>（草稿）；bot 產生簡中 <span class="mono">c275865</span>。第一次 CI 失敗（見進度）；請沒寫這段程式的 agent 審閱。</li>
         <li><span class="mono">2026-10-18 16:08～16:20 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）使用者說「go on please」。Claude 修正審閱與 CI 的問題、補測試；v0.2.0 的草稿 Release 仍等使用者發布。</li>
+        <li><span class="mono">2026-10-18 16:30～16:50 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）#36 的 CI 在 <span class="mono">2b4fd64</span> 全部通過，改成可審閱並通知使用者。從 <span class="mono">2b4fd64</span> 開 <code>m10/recorder-app</code> 寫 PR 2；讀 pywebview 6.2.1 的 cocoa 後端確認 <code>target="_blank"</code>、下載與資料儲存的行為（倉庫外的參考，不放進倉庫）。</li>
       </ul></div>
     </section>
   </div>

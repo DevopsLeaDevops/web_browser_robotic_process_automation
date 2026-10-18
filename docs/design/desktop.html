@@ -148,6 +148,7 @@
             <li><strong>App 自己的頁面</strong>（配對、下載瀏覽器、離線提示、設定）放在閘道的 <code>/__desktop/</code> 下，用設計系統的 CSS。</li>
             <li><strong>新視窗與下載。</strong><code>target="_blank"</code> 的連結（報告、截圖）在 App 內開新視窗；匯出檔案存到「下載項目」。</li>
             <li><strong>伺服器在同一台時</strong>（MVP 的情況）：一樣配對 <code>http://127.0.0.1:8081</code>，走同一條路。</li>
+            <li><strong>App（M10.2 PR 2）。</strong>pywebview（WKWebView）的視窗只載入閘道的網址；狀態、配對、下載瀏覽器、設定是閘道 <code>/__desktop/</code> 的頁面（<code>rpa_desktop.recorder_pages</code>，用 fetch 呼叫，不用 pywebview 的 js_api，Portal 的頁面碰不到 App 的動作）。還沒配對時閘道只有這些頁面；Portal 回 401 時打開頁面的請求轉回這裡。選單「RPA 錄製端」：狀態與設定、管理 Portal、重新整理。<code>target="_blank"</code> 經由自訂的 <code>webbrowser</code> 處理器：閘道的網址開 App 的新視窗（共用 Cookie），其他網站用預設瀏覽器；下載不能顯示的檔案時 pywebview 改用 <code>NSURLSession</code>，所以閘道的 Cookie 也放進 App 的 <code>NSHTTPCookieStorage</code>。關掉主視窗就結束（有進行中的工作先確認）；只執行一份；權杖在鑰匙圈的「RPA Recorder」；資料在 <code>~/Library/Application Support/rpa/recorder</code>。CI：macOS 跑錄製端 App、閘道與錄製端程式的單元測試，<code>--smoke-test</code> 打開真的 WKWebView 視窗確認頁面經由閘道載入。</li>
             <li><strong>開發環境的 <code>rpa recorder</code>。</strong>同一套閘道（<code>rpa_worker.gateway</code>）與子程序主機（<code>rpa_worker.recorder</code>），改在預設瀏覽器打開；給有開發環境的人與端到端測試用（<a href="../develop/remote-worker.html#recorder">用法</a>）。</li>
             <li><strong>執行位置的用詞。</strong>透過錄製端看頁面時，「本機」顯示為「伺服器」，避免誤會成錄製端這台。</li>
             <li><strong>本地網路權限。</strong>macOS 15 起連區網要使用者允許；Info.plist 寫用途說明（<code>NSLocalNetworkUsageDescription</code>）。</li>

@@ -10,7 +10,8 @@
   ``Location`` 指到管理 Portal 時換回閘道。
 - ``/__desktop/`` 底下是 App 自己的頁面（配對、下載瀏覽器、離線提示），由 ``local`` 處理。
 - 連不上管理 Portal 時回 502 與 ``offline_page``；管理 Portal 回 401（權杖失效）時呼叫
-  ``on_unauthorized``。
+  ``on_unauthorized``，有 ``local`` 時把打開頁面的請求轉到 App 自己的頁面（API 的請求照樣回 401）。
+- 還沒配對（``server`` 是 None）時只有 App 自己的頁面：其他網址轉到 ``/__desktop/``。
 - 不轉送 ``/client-api/`` 與 ``/worker-api/``：那是錄製端程式自己用的通道，網頁不該拿閘道的
   權杖去確認或偽造指令與輸出。
 - 轉送的 ``Host`` 和換過的 ``Origin`` 用同一個寫法（管理 Portal 比對兩者）：伺服器網址有大寫或
@@ -32,7 +33,7 @@ from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Final
-from urllib.parse import parse_qs, quote, urlsplit
+from urllib.parse import SplitResult, parse_qs, quote, urlsplit
 
 __all__ = ["COOKIE", "DESKTOP_PREFIX", "Gateway", "LocalResponse"]
 
@@ -80,6 +81,16 @@ def _default_offline(reason: str) -> str:
     return f"<!doctype html><meta charset=utf-8><title>RPA</title><p>{_escape(reason)}</p>"
 
 
+def _opens_page(request: BaseHTTPRequestHandler) -> bool:
+    """是不是打開一個頁面（不是頁面裡的腳本呼叫 API）。"""
+    if request.command != "GET":
+        return False
+    mode = request.headers.get("Sec-Fetch-Mode")
+    if mode is not None:
+        return mode == "navigate"
+    return "text/html" in (request.headers.get("Accept") or "")
+
+
 def _same(given: str, expected: str) -> bool:
     """比對密語（固定時間；非 ASCII 的輸入不會讓 compare_digest 拋出例外）。"""
     return hmac.compare_digest(given.encode("utf-8"), expected.encode("utf-8"))
@@ -94,7 +105,7 @@ class Gateway:
 
     def __init__(
         self,
-        server: str,
+        server: str | None,
         token: Callable[[], str | None],
         *,
         port: int = 0,
@@ -102,16 +113,14 @@ class Gateway:
         on_unauthorized: Callable[[], object] | None = None,
         offline_page: Callable[[str], str] = _default_offline,
     ) -> None:
-        self.server = server.rstrip("/")
         self.token = token
         self.local = local
         self.on_unauthorized = on_unauthorized
         self.offline_page = offline_page
         self.secret = secrets.token_urlsafe(24)
-        parts = urlsplit(self.server)
-        if parts.scheme not in ("http", "https") or not parts.hostname:
-            raise ValueError(f"not a server URL: {server!r}")
-        self._upstream = parts
+        self.server: str | None = None
+        self._upstream: SplitResult | None = None
+        self.set_server(server)
         self._httpd = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self._httpd.daemon_threads = True
         self._thread: threading.Thread | None = None
@@ -128,13 +137,15 @@ class Gateway:
         """第一次打開的網址：設好 Cookie 後轉到 ``next_path``。"""
         return f"{self.origin}{LOGIN_PATH}?key={quote(self.secret)}&next={quote(next_path)}"
 
-    def set_server(self, server: str) -> None:
-        """重新配對到別的管理 Portal 時換掉轉送的目標。"""
+    def set_server(self, server: str | None) -> None:
+        """換掉轉送的目標（配對好、重新配對到別的管理 Portal）；None 是還沒配對。"""
+        if server is None:
+            self.server, self._upstream = None, None
+            return
         parts = urlsplit(server.rstrip("/"))
         if parts.scheme not in ("http", "https") or not parts.hostname:
             raise ValueError(f"not a server URL: {server!r}")
-        self.server = server.rstrip("/")
-        self._upstream = parts
+        self.server, self._upstream = server.rstrip("/"), parts
 
     def start(self) -> None:
         if self._thread is None:
@@ -259,6 +270,10 @@ class Gateway:
         if parts.path.startswith(BLOCKED_PREFIXES):
             self._reply(request, 403, b"not available through the gateway")
             return
+        origin = request.headers.get("Origin")
+        if origin is not None and origin not in (self.origin, f"http://localhost:{self.port}"):
+            self._reply(request, 403, b"cross-origin request blocked")
+            return
         body = self._read_body(request)
         if body is None:
             self._reply(request, 413, b"request too large")
@@ -272,14 +287,18 @@ class Gateway:
             )
             self._reply(request, result.status, result.body, result.content_type, result.headers)
             return
-        origin = request.headers.get("Origin")
-        if origin is not None and origin not in (self.origin, f"http://localhost:{self.port}"):
-            self._reply(request, 403, b"cross-origin request blocked")
-            return
-        self._forward(request, body, origin is not None)
-
-    def _forward(self, request: BaseHTTPRequestHandler, body: bytes, has_origin: bool) -> None:
         upstream = self._upstream
+        if upstream is None:  # 還沒配對：只有 App 自己的頁面
+            if request.command in ("GET", "HEAD"):
+                self._reply(request, 303, b"", headers={"Location": DESKTOP_PREFIX})
+            else:
+                self._reply(request, 409, b"not paired")
+            return
+        self._forward(request, upstream, body, origin is not None)
+
+    def _forward(
+        self, request: BaseHTTPRequestHandler, upstream: SplitResult, body: bytes, has_origin: bool
+    ) -> None:
         server_origin = f"{upstream.scheme}://{upstream.netloc}"
         headers: dict[str, str] = {"Host": upstream.netloc}  # 和 Origin 一致
         for key, value in request.headers.items():
@@ -315,8 +334,13 @@ class Gateway:
                 page = self.offline_page(str(error)).encode("utf-8")
                 self._reply(request, 502, page, "text/html; charset=utf-8")
                 return
-            if response.status == HTTPStatus.UNAUTHORIZED and self.on_unauthorized is not None:
-                self.on_unauthorized()
+            if response.status == HTTPStatus.UNAUTHORIZED:
+                if self.on_unauthorized is not None:
+                    self.on_unauthorized()
+                if self.local is not None and _opens_page(request):
+                    # 權杖失效：打開頁面時改到 App 自己的頁面（說明怎麼重新配對），不顯示錯誤的 JSON
+                    self._reply(request, 303, b"", headers={"Location": DESKTOP_PREFIX})
+                    return
             request.send_response(response.status, response.reason)
             for key, value in response.getheaders():
                 lower = key.lower()
