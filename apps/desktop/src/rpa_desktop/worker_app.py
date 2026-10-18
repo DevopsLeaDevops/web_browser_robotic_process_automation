@@ -302,9 +302,14 @@ def _run(
     if not lock.acquire():
         say(t("worker.already_running", home=home))
         return 4
+    stop, finished = threading.Event(), threading.Event()
+    # 安裝檔升級或解除安裝時寫 stop.request：和 Ctrl+C 一樣取消任務、回報後結束。從拿到鎖就開始看，
+    # 配對與下載瀏覽器做完那一步就停（等使用者輸入時要輸入完才停得下來）
+    lock.watch(None, finished, on_stop=stop.set)
     try:
-        return _work(args, env, ask, say, Credentials(home, store), home)
+        return _work(args, env, ask, say, Credentials(home, store), home, stop)
     finally:
+        finished.set()
         lock.release()
 
 
@@ -315,6 +320,7 @@ def _work(
     say: Say,
     credentials: Credentials,
     home: Path,
+    stop: threading.Event,
 ) -> int:
     # 只有真的執行 worker 時才載入 Playwright 與 runner（子程序也經過 entry，要啟動得快）
     from rpa_runner.installed import missing_browsers
@@ -336,6 +342,8 @@ def _work(
     )
     if found is None:
         return 2
+    if stop.is_set():
+        return 0
     server, token = found
 
     engines = [REQUIRED_ENGINE]
@@ -346,6 +354,8 @@ def _work(
         engines.append(OPTIONAL_ENGINE)
     if not prepare_browsers(engines, missing=missing_browsers, say=say):
         return 3
+    if stop.is_set():
+        return 0
 
     site = None
     if args.testsite:
@@ -360,7 +370,6 @@ def _work(
         say(t("worker.no_display"))
     say(t("worker.started", name=info.name, server=server))
 
-    stop = threading.Event()
     rejected: list[int] = []
 
     def notify(event: str, details: Mapping[str, object]) -> None:

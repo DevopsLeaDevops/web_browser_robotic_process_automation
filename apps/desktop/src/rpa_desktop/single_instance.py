@@ -7,6 +7,9 @@
 ``stop.request`` 同理：請正在執行的那份結束（``--no-window`` 是視窗程式，收不到 Ctrl+C；
 自動化與 CI 用它讓 worker 取消執行中的任務、回報後結束）。
 用檔案而不用 Windows 的具名事件：各系統的行為一樣，Linux 的 CI 也測得到。
+
+Windows 上取得鎖的同時建立具名 mutex :data:`APP_MUTEX`，只是給安裝檔看的記號（Inno Setup 的
+``CheckForMutexes``）：安裝或解除安裝時知道 RPA Worker 是否還在執行（PR 3，安裝檔）。
 """
 
 import contextlib
@@ -18,13 +21,47 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import IO, Final
 
-__all__ = ["LOCK_FILE", "SHOW_FILE", "STOP_FILE", "InstanceLock"]
+__all__ = ["APP_MUTEX", "LOCK_FILE", "SHOW_FILE", "STOP_FILE", "InstanceLock"]
 
 logger = logging.getLogger("rpa_desktop.single_instance")
 
 LOCK_FILE: Final = "instance.lock"
 SHOW_FILE: Final = "show.request"
 STOP_FILE: Final = "stop.request"
+APP_MUTEX: Final = "RPAWorker.App"
+"""執行中的 RPA Worker 持有的具名 mutex（安裝檔 packaging/rpa_worker.iss 用同一個名稱）。"""
+
+
+def _create_mutex() -> int | None:
+    if sys.platform != "win32":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    create = ctypes.WinDLL("kernel32", use_last_error=True).CreateMutexW
+    create.argtypes = (ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR)
+    create.restype = wintypes.HANDLE  # 64 位元的 handle，不要用預設的 int
+    handle = create(None, False, APP_MUTEX)
+    if not handle:
+        logger.warning(
+            "建立 mutex %s 失敗（%s）：安裝檔看不出 App 正在執行",
+            APP_MUTEX,
+            ctypes.get_last_error(),
+        )
+        return None
+    return int(handle)
+
+
+def _close_mutex(handle: int | None) -> None:
+    if handle is None or sys.platform != "win32":
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    close = ctypes.WinDLL("kernel32", use_last_error=True).CloseHandle
+    close.argtypes = (wintypes.HANDLE,)
+    close.restype = wintypes.BOOL
+    close(handle)
 
 
 def _try_lock(handle: IO[bytes]) -> bool:
@@ -64,6 +101,7 @@ class InstanceLock:
     def __init__(self, folder: Path) -> None:
         self.folder = folder
         self._handle: IO[bytes] | None = None
+        self._mutex: int | None = None
 
     @property
     def held(self) -> bool:
@@ -84,6 +122,8 @@ class InstanceLock:
         self._handle = handle
         for stale in (SHOW_FILE, STOP_FILE):  # 之前留下的請求不算
             (self.folder / stale).unlink(missing_ok=True)
+        # 清掉舊的請求之後才建立：安裝檔看到 mutex 才寫 stop.request，不會被上面刪掉
+        self._mutex = _create_mutex()
         return True
 
     def release(self) -> None:
@@ -93,6 +133,8 @@ class InstanceLock:
             _unlock(self._handle)
         self._handle.close()
         self._handle = None
+        _close_mutex(self._mutex)
+        self._mutex = None
 
     def request_show(self) -> None:
         """（第二份）請已經在執行的那份叫出視窗。"""

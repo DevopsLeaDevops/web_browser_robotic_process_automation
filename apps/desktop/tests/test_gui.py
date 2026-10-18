@@ -18,6 +18,7 @@ from rpa_desktop.build_info import BuildInfo
 from rpa_desktop.controller import Services, WorkerController
 from rpa_desktop.credentials import Credentials, MemoryStore
 from rpa_desktop.gui import Api, DesktopApp
+from rpa_desktop.release import RELEASES_URL
 from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.tray import Tray
 from rpa_worker.pairing import PairResult
@@ -178,6 +179,54 @@ def test_background_start_hides_only_when_paired(tmp_path: Path) -> None:
         PairResult("http://x:8081", "w", "W", "worker", "t", 1, None, None)
     )
     assert desktop._paired() is True  # pyright: ignore[reportPrivateUsage]
+
+
+def test_tray_only_mode_quits_on_stop_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """沒有 WebView2 時只有通知區：安裝檔寫的 stop.request 一樣讓它結束（升級、解除安裝）。"""
+    desktop, _, tray = app(tmp_path)
+    shown, stopped = threading.Event(), threading.Event()
+
+    def run_blocking() -> None:
+        shown.set()
+        assert stopped.wait(10)
+
+    monkeypatch.setattr(tray, "run_blocking", run_blocking)
+    monkeypatch.setattr(tray, "stop", stopped.set)
+    monkeypatch.setattr(gui, "webview2_version", lambda: None)
+
+    def no_box(title: str, text: str) -> None:
+        return None
+
+    monkeypatch.setattr(gui, "_message_box", no_box)
+    assert desktop.lock.acquire()
+    codes: list[int] = []
+    runner = threading.Thread(target=lambda: codes.append(desktop.run()))
+    runner.start()
+    try:
+        assert shown.wait(5)
+        desktop.lock.request_stop()
+        runner.join(10)
+        assert codes == [0]
+        assert desktop.controller.wait(5)
+    finally:
+        stopped.set()
+        desktop.lock.release()
+
+
+def test_download_opens_the_latest_release(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    desktop, _, _ = app(tmp_path)
+    opened: list[str] = []
+
+    def fake_open(url: str) -> bool:
+        opened.append(url)
+        return True
+
+    monkeypatch.setattr("webbrowser.open", fake_open)
+    Api(desktop).open_download()
+    assert opened == [RELEASES_URL]
+    assert RELEASES_URL.endswith("/releases/latest")  # 草稿與預先發布的不算
 
 
 def test_api_routes_settings_and_language(tmp_path: Path) -> None:

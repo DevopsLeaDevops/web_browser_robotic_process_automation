@@ -74,22 +74,25 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
     </div>
 
     <section class="panel" id="packaged">
-      <div class="panel-header"><h2>Windows 免安裝版（RPA Worker App）</h2><span class="muted">M10.1：不需要 uv、git、Python；安裝檔在之後的版本</span></div>
+      <div class="panel-header"><h2>Windows：RPA Worker App</h2><span class="muted">M10.1：不需要 uv、git、Python</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>在 GitHub 打開 PR 或 <code>main</code> 的「桌面端建置」執行紀錄，從 <strong>Artifacts</strong> 下載 <code>worker-windows-latest</code>，解壓縮到任何資料夾（例如 <code>%USERPROFILE%\RPA Worker</code>）。</li>
-          <li>雙擊 <code>rpa-worker.exe</code>。沒有程式碼簽章：SmartScreen 出現「Windows 已保護您的電腦」時按「其他資訊 › 仍要執行」。</li>
+          <li>從 GitHub 倉庫的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下載和管理 Portal 同一個版本的 <code>RPA-Worker-Setup-版本-windows-x64.exe</code>（安裝檔）。測試還沒發布的版本時，改從 PR 或 <code>main</code> 的「桌面端建置」執行紀錄的 <strong>Artifacts</strong> 下載 <code>worker-windows-latest</code>（裡面有安裝檔與免安裝的 zip）。</li>
+          <li>執行安裝檔。沒有程式碼簽章：SmartScreen 出現「Windows 已保護您的電腦」時按「其他資訊 › 仍要執行」。選語言（預設繁體中文）後一路「下一步」：只裝給目前的使用者，<strong>不需要管理員</strong>，裝在 <code>%LOCALAPPDATA%\Programs\RPA Worker</code>，開始功能表有捷徑（桌面捷徑可以勾選）；裝完直接開啟 RPA Worker。沒有 WebView2 Runtime 時安裝檔會順便安裝（需要連上網路）。</li>
           <li>視窗打開後，把第 2 步產生的邀請貼在「邀請」欄（只貼代碼時另外填管理 Portal 的網址）；需要 Firefox 就勾選，按「配對」。</li>
           <li>第一次會下載 Chromium（解壓後約 600 MB），視窗顯示進度。狀態變成「線上」就好了；裝置頁顯示「線上」與 App 版本。</li>
         </ol>
         <ul>
+          <li><strong>升級</strong>：執行新版的安裝檔即可。RPA Worker 正在執行時，安裝檔會先請它結束（執行中的任務被取消並回報給管理 Portal）再換檔案；配對、設定與自動啟動都保留。視窗提醒「程式版本和管理 Portal 不同」時，旁邊的「下載新版」會打開最新的 Release。</li>
+          <li><strong>解除安裝</strong>：Windows 的「設定 › 應用程式」找到 RPA Worker。確認要解除安裝後，先問要不要也刪除配對、設定與日誌：預設「否」（保留），之後重新安裝不必再配對；選「是」會一併刪除認證管理員裡的權杖。接著結束 RPA Worker（執行中的任務被取消並回報）、刪除程式、捷徑與自動啟動。瀏覽器（<code>%LOCALAPPDATA%\ms-playwright</code>）與 Firefox 範本的快取（<code>%LOCALAPPDATA%\rpa\cache</code>）別的程式也可能在用，不會刪除。用命令列靜默解除安裝（<code>unins000.exe /VERYSILENT</code>）時不問、保留資料，加上 <code>/REMOVEDATA=yes</code> 才刪除。</li>
+          <li><strong>免安裝版</strong>：Release 也附 <code>RPA-Worker-版本-windows-x64.zip</code>，解壓縮到任何資料夾（例如 <code>%USERPROFILE%\RPA Worker</code>）後雙擊 <code>rpa-worker.exe</code>，用法和安裝版相同；升級時先從通知區結束，再解壓縮新版覆蓋。免安裝版和安裝版用同一個資料夾的配對，不要同時使用。</li>
           <li><strong>關閉視窗不會停止。</strong>RPA Worker 縮到通知區繼續接任務（第一次會提示）。通知區圖示的選單：開啟視窗、暫停接任務、結束；圖示右下角的圓點是綠色（線上）、黃色（暫停）或紅色（離線、需要處理）。有任務在執行時按「結束」會先確認，取消後回報給管理 Portal。</li>
           <li><strong>登入 Windows 時自動啟動</strong>：第一次配對成功後預設開啟，只出現在通知區；在視窗的「設定」可以關閉。資料夾搬走後開一次 RPA Worker，自動啟動就會改成新的位置。</li>
           <li><strong>暫停接任務</strong>：做完目前的任務後不再領取新的，管理 Portal 約一分鐘後顯示這台離線；按「繼續接任務」立刻重新上線。</li>
           <li><strong>只執行一份</strong>：再雙擊一次會叫出已經在執行的那份視窗。</li>
           <li><strong>設定</strong>：語言（預設繁體中文）、也下載 Firefox（執行中才勾選的話，下次開啟時下載）、下載瀏覽器的內部鏡像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）、開啟日誌資料夾、重新配對。</li>
           <li><strong>資料位置</strong>：<code>%LOCALAPPDATA%\rpa\worker</code>（配對的伺服器與裝置 <code>pairing.json</code>、設定 <code>settings.json</code>、日誌 <code>logs\</code>、任務的暫存）。<strong>權杖存在 Windows 認證管理員</strong>（「一般認證」裡的 <code>RPA Worker</code>）；認證管理員不能用時退回存在 <code>pairing.json</code>（只有你能讀寫），視窗的「權杖存放」會標出來。第一步預覽版存在檔案裡的權杖，第一次開啟時自動搬進認證管理員。瀏覽器在 <code>%LOCALAPPDATA%\ms-playwright</code>。日誌不記權杖與邀請代碼。</li>
-          <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 內建，Windows 10 大多已隨 Edge 更新裝好。沒有時 RPA Worker 會說明怎麼安裝，在那之前只靠通知區接任務。</li>
+          <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 內建，Windows 10 大多已隨 Edge 更新裝好；安裝檔在沒有時會安裝。還是沒有時（例如免安裝版、安裝時沒有網路），RPA Worker 會說明怎麼安裝，在那之前只靠通知區接任務。</li>
           <li><strong>Windows 登出或關機</strong>：執行中的任務立刻被取消並回報；來不及回報時，管理 Portal 約一分鐘後判定失聯。</li>
           <li><strong>排查問題</strong>：同資料夾的 <code>rpa-child.exe --worker</code> 是主控台版（和第一步的預覽版相同，每一行訊息都看得到）；<code>rpa-worker.exe --no-window --invite … --log 檔案</code> 不開視窗（自動化用；要它結束時在資料夾放一個 <code>stop.request</code> 檔案，執行中的任務會被取消並回報）。兩者和視窗版用同一份配對，同一時間只能開一份。</li>
         </ul>

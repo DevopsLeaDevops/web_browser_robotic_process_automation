@@ -32,6 +32,7 @@ from rpa_desktop.controller import QUICK_STOP_SECONDS, WorkerController
 from rpa_desktop.credentials import Credentials, TokenStoreError
 from rpa_desktop.i18n import resolve_locale, t
 from rpa_desktop.logs import setup_logging
+from rpa_desktop.release import RELEASES_URL
 from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.tray import Tray
 from rpa_desktop.ui import render_page
@@ -151,6 +152,12 @@ class Api:
     def open_logs(self) -> None:
         _open_folder(self._app.controller.home / "logs")
 
+    def open_download(self) -> None:
+        """版本和管理 Portal 不同時：在預設瀏覽器打開最新的 Release（安裝檔）。"""
+        import webbrowser
+
+        webbrowser.open(RELEASES_URL)
+
     def quit(self, confirmed: bool = False) -> None:
         self._app.request_quit(confirmed=bool(confirmed))
 
@@ -234,6 +241,8 @@ class DesktopApp:
         self.tray.on_open = lambda: _message_box(title, text)
         self.tray.on_quit = self._quit_tray_only
         self.controller.subscribe(self.tray.update)
+        # 安裝檔升級或解除安裝時寫 stop.request：沒有視窗時一樣要結束（WebView2 裝不起來的退路）
+        self.lock.watch(None, self._finished, on_stop=self._quit_tray_only)
         self.controller.start(self.invite, self.server)
         threading.Thread(target=_message_box, args=(title, text), daemon=True).start()
         self.tray.run_blocking()

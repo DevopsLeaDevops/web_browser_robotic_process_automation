@@ -137,5 +137,11 @@
   "window.device_name": "{name}（{device}）",
   "window.reset_busy": "运行中的任务还没停下来，配对没有清除；稍后再按一次「重新配对」。",
   "window.keyring_failed": "读不到 Windows 认证管理员里的权杖（{error}）。稍后按「重试」；一直失败时按「重新配对」。",
-  "window.status.unreported": "未回报"
+  "window.status.unreported": "未回报",
+  "window.download_new": "下载新版",
+  "installer.Stopping": "正在请 RPA Worker 结束：运行中的任务会被取消并回报给管理 Portal……",
+  "installer.StillRunning": "RPA Worker 还在运行，没办法继续。请从通知区的 RPA Worker 图标选「结束」，再运行一次。",
+  "installer.WebView2Installing": "正在安装 Microsoft Edge WebView2……",
+  "installer.WebView2Failed": "Microsoft Edge WebView2 没有安装成功（结束码 %1）。RPA Worker 仍会在通知区接任务；状态窗口需要 WebView2，请到 https://go.microsoft.com/fwlink/p/?LinkId=2124703 下载安装。",
+  "installer.RemoveData": "也删除这台电脑的配对、设置与日志吗？%n%n选「否」会保留，之后重新安装不必再配对。"
 }
