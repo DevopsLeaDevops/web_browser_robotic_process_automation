@@ -1,6 +1,6 @@
 [project]
 name = "rpa-testsite"
-version = "0.1.0"
+version = "0.2.0"
 description = "模擬內部系統的本機測試網站：「測試網站自動化」的案例與測試都對它執行；rpa serve 會一起啟動"
 requires-python = ">=3.12"
 # 網站本身只用標準函式庫。testsite.browsers 是給測試用的輔助（需要 pytest 與 playwright，開發環境才有）。
