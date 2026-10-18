@@ -68,22 +68,31 @@ uv run rpa worker --invite 'rpa://pair?server=…&amp;app=worker&amp;code=…'
 # 伺服器位址要改時：代碼分開給
 uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
           <p>看到「已配對」與「已連上管理 Portal」就好了；裝置頁的狀態變成「線上」。換到的權杖存在工作資料夾的 <code>worker-data\pairing.json</code>（只有你能讀寫，不要提交到 git），<strong>之後只要執行 <code>uv run rpa worker</code></strong>。按 Ctrl+C 停止：執行中的任務會被取消並回報。</p>
-          <p>以前的方式照樣可用：用 API（<code>POST /api/workers/{代號}/token</code>）重新產生權杖後，放在環境變數 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，並加上 <code>--server</code>。M10.1 的 RPA Worker App 交付後，Windows 上改用 App 貼上邀請，不必安裝開發環境。</p>
+          <p>以前的方式照樣可用：用 API（<code>POST /api/workers/{代號}/token</code>）重新產生權杖後，放在環境變數 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，並加上 <code>--server</code>。Windows 上也可以改用 <a href="#packaged">RPA Worker App</a> 貼上邀請，不必安裝開發環境。</p>
         </div>
       </section>
     </div>
 
     <section class="panel" id="packaged">
-      <div class="panel-header"><h2>Windows 免安裝版（預覽）</h2><span class="muted">M10.1：不需要 uv、git、Python；正式的視窗與安裝檔在之後的版本</span></div>
+      <div class="panel-header"><h2>Windows 免安裝版（RPA Worker App）</h2><span class="muted">M10.1：不需要 uv、git、Python；安裝檔在之後的版本</span></div>
       <div class="panel-body prose">
         <ol>
           <li>在 GitHub 打開 PR 或 <code>main</code> 的「桌面端建置」執行紀錄，從 <strong>Artifacts</strong> 下載 <code>worker-windows-latest</code>，解壓縮到任何資料夾（例如 <code>%USERPROFILE%\RPA Worker</code>）。</li>
           <li>雙擊 <code>rpa-worker.exe</code>。沒有程式碼簽章：SmartScreen 出現「Windows 已保護您的電腦」時按「其他資訊 › 仍要執行」。</li>
-          <li>主控台視窗請你貼上邀請（第 2 步產生的那一行），配對後詢問要不要也下載 Firefox。第一次會下載 Chromium（解壓後約 600 MB），看得到進度。</li>
-          <li>看到「已連上管理 Portal」就好了；裝置頁顯示「線上」與 App 版本。<strong>關掉這個視窗就停止</strong>，下次雙擊直接連線，不必再貼邀請。</li>
+          <li>視窗打開後，把第 2 步產生的邀請貼在「邀請」欄（只貼代碼時另外填管理 Portal 的網址）；需要 Firefox 就勾選，按「配對」。</li>
+          <li>第一次會下載 Chromium（解壓後約 600 MB），視窗顯示進度。狀態變成「線上」就好了；裝置頁顯示「線上」與 App 版本。</li>
         </ol>
-        <p>資料放在 <code>%LOCALAPPDATA%\rpa\worker</code>（配對結果 <code>pairing.json</code> 只有你能讀寫，以及任務的暫存）；瀏覽器在 <code>%LOCALAPPDATA%\ms-playwright</code>。要換一份邀請：在裝置頁「重新邀請」後重新開啟，或執行 <code>rpa-worker.exe --reset-pairing</code>。公司有內部鏡像時，先設定環境變數 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 再開啟。</p>
-        <p class="muted">預覽版只有主控台視窗；縮到通知區、登入 Windows 時自動啟動、權杖改存 Windows 認證管理員與安裝檔，在 M10.1 的後續版本加入。</p>
+        <ul>
+          <li><strong>關閉視窗不會停止。</strong>RPA Worker 縮到通知區繼續接任務（第一次會提示）。通知區圖示的選單：開啟視窗、暫停接任務、結束；圖示右下角的圓點是綠色（線上）、黃色（暫停）或紅色（離線、需要處理）。有任務在執行時按「結束」會先確認，取消後回報給管理 Portal。</li>
+          <li><strong>登入 Windows 時自動啟動</strong>：第一次配對成功後預設開啟，只出現在通知區；在視窗的「設定」可以關閉。資料夾搬走後開一次 RPA Worker，自動啟動就會改成新的位置。</li>
+          <li><strong>暫停接任務</strong>：做完目前的任務後不再領取新的，管理 Portal 約一分鐘後顯示這台離線；按「繼續接任務」立刻重新上線。</li>
+          <li><strong>只執行一份</strong>：再雙擊一次會叫出已經在執行的那份視窗。</li>
+          <li><strong>設定</strong>：語言（預設繁體中文）、也下載 Firefox（執行中才勾選的話，下次開啟時下載）、下載瀏覽器的內部鏡像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）、開啟日誌資料夾、重新配對。</li>
+          <li><strong>資料位置</strong>：<code>%LOCALAPPDATA%\rpa\worker</code>（配對的伺服器與裝置 <code>pairing.json</code>、設定 <code>settings.json</code>、日誌 <code>logs\</code>、任務的暫存）。<strong>權杖存在 Windows 認證管理員</strong>（「一般認證」裡的 <code>RPA Worker</code>）；認證管理員不能用時退回存在 <code>pairing.json</code>（只有你能讀寫），視窗的「權杖存放」會標出來。第一步預覽版存在檔案裡的權杖，第一次開啟時自動搬進認證管理員。瀏覽器在 <code>%LOCALAPPDATA%\ms-playwright</code>。日誌不記權杖與邀請代碼。</li>
+          <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 內建，Windows 10 大多已隨 Edge 更新裝好。沒有時 RPA Worker 會說明怎麼安裝，在那之前只靠通知區接任務。</li>
+          <li><strong>Windows 登出或關機</strong>：執行中的任務立刻被取消並回報；來不及回報時，管理 Portal 約一分鐘後判定失聯。</li>
+          <li><strong>排查問題</strong>：同資料夾的 <code>rpa-child.exe --worker</code> 是主控台版（和第一步的預覽版相同，每一行訊息都看得到）；<code>rpa-worker.exe --no-window --invite … --log 檔案</code> 不開視窗（自動化用）。兩者和視窗版用同一份配對，同一時間只能開一份。</li>
+        </ul>
       </div>
     </section>
 
@@ -105,6 +114,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
     <section class="panel" id="autostart">
       <div class="panel-header"><h2>開機後自動啟動（Windows，選用）</h2></div>
       <div class="panel-body prose">
+        <p>用 <a href="#packaged">RPA Worker App</a> 時不需要這一步：在 App 的「設定」勾選即可（配對後預設開啟）。以下是命令列 worker 的做法。</p>
         <p>有頭模式需要使用者已經登入桌面，所以用「登入時」啟動，不要做成系統服務。先照第 4 步配對一次，再在專案資料夾建立 <code>start-worker.cmd</code>（不要提交到 git）：</p>
 <pre class="source">@echo off
 cd /d %USERPROFILE%\code\web_browser_robotic_process_automation

@@ -182,7 +182,10 @@ class RemoteJobSource:
     通知命令列的事件（``notify``）：``online``（上線，含 server、fingerprint 是否相同）、
     ``offline``（連不上，含原因）、``claimed``（領到任務）、``reported``（回報了結果）、
     ``abandoned``（管理 Portal 不再接受這次的結果）、``report_failed``（重試到上限仍失敗）、
-    ``rejected``（權杖或協定版本被拒，worker 會停止）。
+    ``rejected``（權杖或協定版本被拒，worker 會停止）、``paused``（暫停接任務，見 ``paused``）。
+
+    ``paused``（M10.1 的 Worker App）：設定時不再領取新任務，執行中的照常做完並回報；
+    不送任何請求，管理 Portal 約一分鐘後顯示離線。清除後重新上線（hello）再領取。
     """
 
     def __init__(
@@ -196,6 +199,7 @@ class RemoteJobSource:
         heartbeat_seconds: float = HEARTBEAT_SECONDS,
         claim_wait_seconds: float = CLAIM_WAIT_SECONDS,
         delivery_seconds: float = DELIVERY_SECONDS,
+        paused: threading.Event | None = None,
     ) -> None:
         self.client = client
         self.info = info
@@ -205,6 +209,8 @@ class RemoteJobSource:
         self.heartbeat_seconds = heartbeat_seconds
         self.claim_wait_seconds = claim_wait_seconds
         self.delivery_seconds = delivery_seconds
+        self.paused = paused
+        self._paused_reported = False
         self.on_cancel: Callable[[str], object] = lambda run_id: None
         """管理 Portal 要求取消（由命令列接到 :meth:`rpa_worker.Worker.cancel`）。"""
         self.on_fatal: Callable[[str], None] = lambda message: None
@@ -275,6 +281,14 @@ class RemoteJobSource:
     def claim(self) -> Job | None:
         if self._closing.is_set():
             return None
+        if self.paused is not None and self.paused.is_set():
+            if not self._paused_reported:
+                self._paused_reported = True
+                self._online = False  # 恢復時重新 hello，管理 Portal 立刻看到上線
+                self.notify("paused", {"server": self.client.server})
+            self._closing.wait(1.0)
+            return None
+        self._paused_reported = False
         try:
             if not self._online:
                 self.hello()

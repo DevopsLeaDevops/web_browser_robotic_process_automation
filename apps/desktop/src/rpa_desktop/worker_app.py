@@ -1,6 +1,7 @@
-"""RPA Worker 的 worker 模式（M10.1，ADR 0014）：打包後雙擊就進入，不需要 uv、git、Python。
+"""RPA Worker 的主控台版（M10.1，ADR 0014）：``rpa-child.exe --worker``，排查問題用。
 
-第一步先用主控台視窗（正式的視窗、通知區、開機自動啟動在第二步）：
+打包後雙擊 ``rpa-worker.exe`` 開的是視窗版（:mod:`rpa_desktop.gui`）；這裡是第一步交付的主控台版，
+兩者共用同一份配對（:mod:`rpa_desktop.credentials`）與單一執行鎖（同一時間只能開一份）：
 
 1. 讀存下的配對；沒有就請使用者貼上邀請（或用 ``--invite``），經由 Client API 換到權杖並存起來。
 2. 必要的 Chromium 還沒下載時，用 App 內附的 Playwright 下載（主控台上看得到進度）；
@@ -11,8 +12,8 @@
    下次開啟重新貼邀請。
 
 資料夾：Windows 是 ``%LOCALAPPDATA%\\rpa\\worker``（開發時的 macOS、Linux 見 :func:`data_dir`），
-可以用環境變數 ``RPA_WORKER_HOME`` 改。權杖暫時存在資料夾裡只有本人能讀寫的 ``pairing.json``；
-第二步改存作業系統的認證管理員。瀏覽器放在 Playwright 預設的位置（:func:`browsers_dir`）。
+可以用環境變數 ``RPA_WORKER_HOME`` 改。權杖存在作業系統的認證管理員，不能用時退回資料夾裡只有本人
+能讀寫的 ``pairing.json``。瀏覽器放在 Playwright 預設的位置（:func:`browsers_dir`）。
 """
 
 import argparse
@@ -28,16 +29,11 @@ from typing import Final, TextIO
 
 from rpa_core.i18n import set_locale
 from rpa_desktop.build_info import load
+from rpa_desktop.credentials import Credentials, TokenStore
 from rpa_desktop.i18n import resolve_locale, t
+from rpa_desktop.single_instance import InstanceLock
 from rpa_runner.commands import is_frozen, playwright_command
-from rpa_worker.pairing import (
-    PAIRING_FILE,
-    InviteError,
-    load_pairing,
-    pair,
-    parse_invite,
-    save_pairing,
-)
+from rpa_worker.pairing import InviteError, pair, parse_invite
 from rpa_worker.remote import ConnectionLostError, WorkerApiError
 from testsite.server import DEFAULT_PORT as TESTSITE_PORT
 
@@ -133,7 +129,7 @@ def _invite_problem(error: InviteError) -> str:
 
 
 def obtain_credentials(
-    pairing_file: Path,
+    credentials: Credentials,
     *,
     invite: str | None,
     server: str | None,
@@ -145,10 +141,10 @@ def obtain_credentials(
     配對成功就存起來。沒有人可以回答又沒有配對、或使用者放棄時回傳 None。
     """
     if invite is None:
-        saved = load_pairing(pairing_file)
+        saved = credentials.load()
         if saved is not None:
-            say(t("worker.saved", server=saved[0]))
-            return saved
+            say(t("worker.saved", server=saved.server))
+            return saved.server, saved.token
         if ask is None:
             say(t("worker.no_pairing"))
             return None
@@ -180,7 +176,7 @@ def obtain_credentials(
         except ConnectionLostError as error:
             say(t("worker.pair_offline", server=parsed.server, reason=error))
             continue
-        save_pairing(pairing_file, result)
+        credentials.save(result)
         say(t("worker.paired", name=result.name, device=result.device))
         return result.server, result.token
 
@@ -268,23 +264,54 @@ def main(
     ask: Ask | None = None,
     say: Say = _say,
     console: bool = True,
+    store: TokenStore | None = None,
 ) -> int:
-    """worker 模式的入口；回傳結束碼（0 正常停止、1 被管理 Portal 拒絕、2 沒有配對、3 瀏覽器）。
+    """主控台版的入口；回傳結束碼（0 正常停止、1 被管理 Portal 拒絕、2 沒有配對、3 瀏覽器、
+    4 已經有一份在執行）。
 
-    ``console`` 為 True 時，有人在主控台前才問問題（測試改傳 ``ask``）。
+    ``console`` 為 True 時，有人在主控台前才問問題（測試改傳 ``ask``）；``store`` 是測試用的
+    認證管理員替身。
     """
     env: MutableMapping[str, str] = os.environ if environ is None else environ
     set_locale(resolve_locale(env))
     args = _parser().parse_args(list(argv))
     if console:
         ask = _console_ask()
-    code = _run(args, env, ask, say)
+    code = _run(args, env, ask, say, store)
     if code != 0 and ask is not None:
         ask(t("worker.press_enter"))  # 雙擊開啟的視窗不要一閃就關掉，讓人看得到原因
     return code
 
 
-def _run(args: argparse.Namespace, env: MutableMapping[str, str], ask: Ask | None, say: Say) -> int:
+def _run(
+    args: argparse.Namespace,
+    env: MutableMapping[str, str],
+    ask: Ask | None,
+    say: Say,
+    store: TokenStore | None,
+) -> int:
+    ensure_browsers_path(env)
+    build = load()
+    home = data_dir(env)
+    say(t("worker.banner", version=build.version, home=home))
+    lock = InstanceLock(home)
+    if not lock.acquire():
+        say(t("worker.already_running", home=home))
+        return 4
+    try:
+        return _work(args, env, ask, say, Credentials(home, store), home)
+    finally:
+        lock.release()
+
+
+def _work(
+    args: argparse.Namespace,
+    env: MutableMapping[str, str],
+    ask: Ask | None,
+    say: Say,
+    credentials: Credentials,
+    home: Path,
+) -> int:
     # 只有真的執行 worker 時才載入 Playwright 與 runner（子程序也經過 entry，要啟動得快）
     from rpa_runner.installed import missing_browsers
     from rpa_worker.environment import WorkerInfo
@@ -292,21 +319,17 @@ def _run(args: argparse.Namespace, env: MutableMapping[str, str], ask: Ask | Non
     from rpa_worker.service import run_remote_worker
     from testsite.server import start_in_background
 
-    ensure_browsers_path(env)
     build = load()
-    home = data_dir(env)
-    say(t("worker.banner", version=build.version, home=home))
-    pairing_file = home / PAIRING_FILE
     if args.reset_pairing:
-        pairing_file.unlink(missing_ok=True)
+        credentials.clear()
         say(t("worker.reset_done"))
-    first_time = load_pairing(pairing_file) is None or args.invite is not None
-    credentials = obtain_credentials(
-        pairing_file, invite=args.invite, server=args.server, ask=ask, say=say
+    first_time = credentials.load() is None or args.invite is not None
+    found = obtain_credentials(
+        credentials, invite=args.invite, server=args.server, ask=ask, say=say
     )
-    if credentials is None:
+    if found is None:
         return 2
-    server, token = credentials
+    server, token = found
 
     engines = [REQUIRED_ENGINE]
     wants_firefox = bool(args.firefox)
@@ -365,6 +388,6 @@ def _run(args: argparse.Namespace, env: MutableMapping[str, str], ask: Ask | Non
     if fatal is None:
         return 0
     if rejected and rejected[-1] in (401, 403):
-        pairing_file.unlink(missing_ok=True)
+        credentials.clear()
         say(t("worker.pairing_cleared"))
     return 1

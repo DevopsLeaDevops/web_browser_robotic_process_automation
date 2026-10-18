@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="__LANG__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<style>
+__PORTAL_CSS__
+</style>
+<style>
+__WORKER_CSS__
+</style>
+</head>
+<body class="worker-app">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1><span data-text="window.title"></span> <span id="phase" class="badge"></span></h1>
+      <p class="muted" data-text="window.subtitle"></p>
+    </div>
+    <div class="actions">
+      <button id="pause" class="button" type="button" hidden></button>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div id="message" class="notice" role="status" hidden>
+      <span id="message-text"></span>
+      <button id="retry" class="button" type="button" data-text="window.retry" hidden></button>
+    </div>
+
+    <section id="pair-panel" class="panel" hidden>
+      <div class="panel-header"><h2 data-text="window.pair_heading"></h2></div>
+      <form id="pair-form" class="panel-body">
+        <p class="hint" data-text="window.pair_intro"></p>
+        <label class="field"><span data-text="window.invite_label"></span>
+          <textarea id="invite" rows="3" required spellcheck="false" autocomplete="off" data-placeholder="window.invite_placeholder"></textarea>
+        </label>
+        <label class="field"><span data-text="window.server_label"></span>
+          <input id="server" type="text" spellcheck="false" autocomplete="off" data-placeholder="window.server_placeholder">
+        </label>
+        <div class="checklist"><label><input id="pair-firefox" type="checkbox"> <span data-text="window.firefox_label"></span></label></div>
+        <div class="form-actions"><button id="pair-button" class="button primary" type="submit" data-text="window.pair_button"></button></div>
+      </form>
+    </section>
+
+    <section id="download-panel" class="panel" hidden>
+      <div class="panel-header"><h2 data-text="window.download_heading"></h2><span id="download-browser" class="muted"></span></div>
+      <div class="panel-body">
+        <div id="download-bar" class="progress"><i></i></div>
+        <p><span id="download-text"></span> <span class="hint" data-text="window.download_hint"></span></p>
+      </div>
+    </section>
+
+    <section id="status-panel" class="panel" hidden>
+      <div class="panel-header"><h2 data-text="window.status_heading"></h2></div>
+      <div class="panel-body stack">
+        <dl class="kv-grid">
+          <div class="wide"><dt data-text="window.server"></dt><dd id="server-value" class="mono"></dd></div>
+          <div><dt data-text="window.device"></dt><dd id="device-value"></dd></div>
+          <div><dt data-text="window.version"></dt><dd id="version-value" class="mono"></dd></div>
+          <div class="wide"><dt data-text="window.token_storage"></dt><dd id="storage-value"></dd></div>
+          <div class="wide"><dt data-text="window.data_dir"></dt><dd id="home-value" class="mono"></dd></div>
+        </dl>
+        <div id="version-warning" class="notice warn" data-text="window.version_mismatch" hidden></div>
+        <div id="paused-hint" class="notice warn" data-text="window.paused_hint" hidden></div>
+        <div id="stopping-hint" class="notice" data-text="window.stopping_hint" hidden></div>
+        <div>
+          <h3 data-text="window.current_heading"></h3>
+          <p id="current" class="current"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="recent-panel" class="panel" hidden>
+      <div class="panel-header"><h2 data-text="window.recent_heading"></h2></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th data-text="window.col_run"></th><th data-text="window.col_started"></th><th data-text="window.col_window"></th><th data-text="window.col_result"></th></tr></thead>
+          <tbody id="recent"></tbody>
+        </table>
+      </div>
+      <p id="recent-empty" class="panel-body hint" data-text="window.recent_empty"></p>
+    </section>
+
+    <section id="settings-panel" class="panel">
+      <div class="panel-header"><h2 data-text="window.settings_heading"></h2></div>
+      <div class="panel-body stack">
+        <div class="checklist">
+          <label><input id="autostart" type="checkbox"> <span data-text="window.autostart_label"></span></label>
+          <p id="autostart-unsupported" class="hint" data-text="window.autostart_unsupported" hidden></p>
+          <label id="firefox-setting"><input id="firefox" type="checkbox"> <span data-text="window.firefox_label"></span></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span data-text="window.mirror_label"></span>
+            <input id="mirror" type="text" spellcheck="false" autocomplete="off" placeholder="https://mirror.example/playwright">
+          </label>
+          <button id="mirror-save" class="button" type="button" data-text="window.save"></button>
+        </div>
+        <div class="field-row">
+          <label class="field"><span data-text="window.language_label"></span>
+            <select id="language">
+              <option value="zh-Hant">繁體中文</option>
+              <option value="zh-Hans">简体中文</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button id="open-logs" class="button" type="button" data-text="window.open_logs"></button>
+          <button id="reset" class="button danger" type="button" data-text="window.reset_pairing" hidden></button>
+          <button id="quit" class="button" type="button" data-text="window.quit"></button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<dialog id="dialog" aria-labelledby="dialog-text">
+  <div class="dialog-body"><p id="dialog-text"></p></div>
+  <div class="dialog-foot">
+    <button id="dialog-cancel" class="button" type="button" data-text="window.cancel"></button>
+    <button id="dialog-ok" class="button primary" type="button" data-text="window.confirm"></button>
+  </div>
+</dialog>
+
+<script id="strings" type="application/json">__STRINGS__</script>
+<script>
+__WORKER_JS__
+</script>
+</body>
+</html>

@@ -30,7 +30,7 @@ from typing import Final, Literal, cast
 from rpa_core.dsl import Issue, Scenario, validate_file
 from rpa_core.i18n import ENV_VAR, get_locale
 from rpa_runner.browser import Deadline
-from rpa_runner.commands import module_command, script_command
+from rpa_runner.commands import module_command, no_window_flags, script_command
 from rpa_runner.contract import (
     CheckResult,
     Problem,
@@ -207,6 +207,7 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
             stderr=subprocess.DEVNULL,
             check=False,
             timeout=10,
+            creationflags=no_window_flags(),
         )
     else:
         with contextlib.suppress(ProcessLookupError):
@@ -265,6 +266,7 @@ def _run_process(
             stderr=subprocess.STDOUT,
             env=dict(env),
             start_new_session=os.name != "nt",
+            creationflags=no_window_flags(),
         )
         try:
             code = _wait(process, remaining + _GRACE_SECONDS, cancel)

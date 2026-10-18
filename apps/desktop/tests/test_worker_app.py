@@ -7,14 +7,16 @@
 
 import json
 import sys
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 import pytest
 
 from rpa_core.i18n import use_locale
-from rpa_desktop import entry, worker_app
+from rpa_desktop import entry, gui, headless, worker_app
 from rpa_desktop.build_info import App, BuildInfo
+from rpa_desktop.credentials import Credentials, MemoryStore
+from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.worker_app import (
     BROWSERS_ENV,
     ENV_HOME,
@@ -25,7 +27,7 @@ from rpa_desktop.worker_app import (
     obtain_credentials,
     prepare_browsers,
 )
-from rpa_worker.pairing import Invite, PairResult, load_pairing, save_pairing
+from rpa_worker.pairing import Invite, PairResult
 from rpa_worker.remote import ConnectionLostError, WorkerApiError
 
 CODE = "abcdefghijklmnopqrstuvwxyz012345"
@@ -69,9 +71,9 @@ def test_browsers_path_is_set_only_when_frozen() -> None:
     assert custom[BROWSERS_ENV] == "/opt/browsers"
 
 
-def test_saved_pairing_is_used_without_asking(tmp_path: Path) -> None:
-    pairing = tmp_path / "pairing.json"
-    save_pairing(pairing, result())
+def test_saved_pairing_is_used_without_asking(tmp_path: Path, store: MemoryStore) -> None:
+    pairing = Credentials(tmp_path, store)
+    pairing.save(result())
     lines: list[str] = []
 
     found = obtain_credentials(pairing, invite=None, server=None, ask=None, say=lines.append)
@@ -80,16 +82,18 @@ def test_saved_pairing_is_used_without_asking(tmp_path: Path) -> None:
     assert "使用已配對的管理 Portal" in lines[0]
 
 
-def test_no_pairing_and_nobody_to_ask(tmp_path: Path) -> None:
+def test_no_pairing_and_nobody_to_ask(tmp_path: Path, store: MemoryStore) -> None:
     lines: list[str] = []
     found = obtain_credentials(
-        tmp_path / "pairing.json", invite=None, server=None, ask=None, say=lines.append
+        Credentials(tmp_path, store), invite=None, server=None, ask=None, say=lines.append
     )
     assert found is None
     assert "還沒有配對" in lines[0]
 
 
-def test_invite_argument_pairs_and_saves(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_invite_argument_pairs_and_saves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, store: MemoryStore
+) -> None:
     calls: list[tuple[Invite, str]] = []
 
     def fake_pair(invite: Invite, app: str) -> PairResult:
@@ -97,20 +101,23 @@ def test_invite_argument_pairs_and_saves(tmp_path: Path, monkeypatch: pytest.Mon
         return result(token="new")
 
     monkeypatch.setattr(worker_app, "pair", fake_pair)
-    pairing = tmp_path / "work" / "pairing.json"
-    save_pairing(pairing, result(token="old"))  # --invite 換掉存下的配對
+    pairing = Credentials(tmp_path / "work", store)
+    pairing.save(result(token="old"))  # --invite 換掉存下的配對
     lines: list[str] = []
 
     found = obtain_credentials(pairing, invite=LINE, server=None, ask=None, say=lines.append)
 
     assert found == ("http://192.168.1.10:8081", "new")
     assert calls == [(Invite("http://192.168.1.10:8081", CODE, "worker"), "worker")]
-    assert load_pairing(pairing) == ("http://192.168.1.10:8081", "new")
+    saved = pairing.load()
+    assert saved is not None
+    assert (saved.server, saved.token) == ("http://192.168.1.10:8081", "new")
+    assert "token" not in json.loads(pairing.path.read_text(encoding="utf-8"))  # 權杖在認證管理員
     assert "已配對：Windows（win-01）" in lines[-1]
 
 
 def test_asking_retries_and_asks_for_the_server(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, store: MemoryStore
 ) -> None:
     outcomes: list[Exception | PairResult] = [
         WorkerApiError(401, "invite_invalid", "邀請代碼不對"),
@@ -134,7 +141,7 @@ def test_asking_retries_and_asks_for_the_server(
 
     lines: list[str] = []
     found = obtain_credentials(
-        tmp_path / "pairing.json", invite=None, server=None, ask=ask, say=lines.append
+        Credentials(tmp_path, store), invite=None, server=None, ask=ask, say=lines.append
     )
 
     assert found == ("http://10.0.0.5:8081", "tok")
@@ -145,10 +152,10 @@ def test_asking_retries_and_asks_for_the_server(
     assert answers == []
 
 
-def test_giving_up_returns_nothing(tmp_path: Path) -> None:
+def test_giving_up_returns_nothing(tmp_path: Path, store: MemoryStore) -> None:
     answers = [CODE, ""]  # 只有代碼、問網址時直接按 Enter
     found = obtain_credentials(
-        tmp_path / "pairing.json",
+        Credentials(tmp_path, store),
         invite=None,
         server=None,
         ask=lambda question: answers.pop(0),
@@ -156,7 +163,7 @@ def test_giving_up_returns_nothing(tmp_path: Path) -> None:
     )
     assert found is None
     nobody = obtain_credentials(
-        tmp_path / "pairing.json",
+        Credentials(tmp_path, store),
         invite=None,
         server=None,
         ask=lambda question: "",
@@ -206,40 +213,68 @@ def test_events_are_described() -> None:
     assert describe_event("unknown", {}) is None
 
 
-def test_main_without_pairing_and_nobody_to_ask(tmp_path: Path) -> None:
+def test_main_without_pairing_and_nobody_to_ask(tmp_path: Path, store: MemoryStore) -> None:
     lines: list[str] = []
     code = worker_app.main(
-        [], environ={ENV_HOME: str(tmp_path), "RPA_LANG": "en"}, say=lines.append, console=False
+        [],
+        environ={ENV_HOME: str(tmp_path), "RPA_LANG": "en"},
+        say=lines.append,
+        console=False,
+        store=store,
     )
     assert code == 2
     assert lines[0].startswith("RPA Worker ")
     assert "Not paired yet" in lines[1]
 
 
-def test_reset_clears_the_saved_pairing(tmp_path: Path) -> None:
-    save_pairing(tmp_path / "pairing.json", result())
+def test_reset_clears_the_saved_pairing(tmp_path: Path, store: MemoryStore) -> None:
+    Credentials(tmp_path, store).save(result())
     lines: list[str] = []
     code = worker_app.main(
-        ["--reset-pairing"], environ={ENV_HOME: str(tmp_path)}, say=lines.append, console=False
+        ["--reset-pairing"],
+        environ={ENV_HOME: str(tmp_path)},
+        say=lines.append,
+        console=False,
+        store=store,
     )
     assert code == 2
     assert not (tmp_path / "pairing.json").exists()
+    assert store.items == {}  # 認證管理員裡的權杖也刪了
     assert "已清除配對" in lines[1]
+
+
+def test_only_one_copy_runs_per_folder(tmp_path: Path, store: MemoryStore) -> None:
+    held = InstanceLock(tmp_path)
+    assert held.acquire()  # 例如視窗版正在執行
+    try:
+        lines: list[str] = []
+        code = worker_app.main(
+            [], environ={ENV_HOME: str(tmp_path)}, say=lines.append, console=False, store=store
+        )
+    finally:
+        held.release()
+    assert code == 4
+    assert "已經有一份 RPA Worker" in lines[1]
 
 
 # ---------------------------------------------------------------- 打包後的入口
 
 
 @pytest.fixture
-def routed(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    """把 worker 模式換成記錄參數；回傳每次進入 worker 模式時的參數。"""
-    calls: list[list[str]] = []
+def routed(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, list[str]]]:
+    """把三種 worker 的入口換成記錄；回傳 (哪一種, 參數)。"""
+    calls: list[tuple[str, list[str]]] = []
 
-    def fake(argv: Sequence[str] = ()) -> int:
-        calls.append(list(argv))
-        return 0
+    def recorder(kind: str) -> Callable[..., int]:
+        def fake(argv: Sequence[str] = ()) -> int:
+            calls.append((kind, list(argv)))
+            return 0
 
-    monkeypatch.setattr(worker_app, "main", fake)
+        return fake
+
+    monkeypatch.setattr(worker_app, "main", recorder("console"))
+    monkeypatch.setattr(gui, "main", recorder("window"))
+    monkeypatch.setattr(headless, "main", recorder("no-window"))
     return calls
 
 
@@ -250,20 +285,34 @@ def _frozen(monkeypatch: pytest.MonkeyPatch, executable: str, app: App) -> None:
     monkeypatch.setattr("rpa_desktop.build_info.load", lambda: info)
 
 
-def test_packaged_worker_starts_worker_mode(
-    monkeypatch: pytest.MonkeyPatch, routed: list[list[str]], capsys: pytest.CaptureFixture[str]
+def test_packaged_worker_opens_the_window(
+    monkeypatch: pytest.MonkeyPatch,
+    routed: list[tuple[str, list[str]]],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     _frozen(monkeypatch, str(Path("RPA Worker") / "rpa-worker.exe"), "worker")
     assert entry.main([]) == 0
+    assert entry.main(["--background"]) == 0
     assert entry.main(["--invite", LINE]) == 0
-    assert routed == [[], ["--invite", LINE]]
+    assert routed == [("window", []), ("window", ["--background"]), ("window", ["--invite", LINE])]
     assert entry.main(["--version"]) == 0  # 自己的旗標照舊
     assert json.loads(capsys.readouterr().out)["app"] == "worker"
-    assert len(routed) == 2
+    assert len(routed) == 3
+
+
+def test_no_window_flag_anywhere(
+    monkeypatch: pytest.MonkeyPatch, routed: list[tuple[str, list[str]]]
+) -> None:
+    _frozen(monkeypatch, str(Path("RPA Worker") / "rpa-worker.exe"), "worker")
+    assert entry.main(["--no-window", "--invite", LINE]) == 0
+    assert entry.main(["--invite", LINE, "--no-window"]) == 0
+    assert routed == [("no-window", ["--invite", LINE]), ("no-window", ["--invite", LINE])]
 
 
 def test_child_and_recorder_do_not_start_a_worker(
-    monkeypatch: pytest.MonkeyPatch, routed: list[list[str]], capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    routed: list[tuple[str, list[str]]],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     _frozen(monkeypatch, str(Path("RPA Worker") / "rpa-child.exe"), "worker")
     assert entry.main([]) == 0
@@ -273,9 +322,15 @@ def test_child_and_recorder_do_not_start_a_worker(
     capsys.readouterr()
 
 
-def test_worker_flag_works_in_development(routed: list[list[str]]) -> None:
-    assert entry.main(["--worker", "--reset-pairing"]) == 0
-    assert routed == [["--reset-pairing"]]
+def test_worker_flags_work_in_development(routed: list[tuple[str, list[str]]]) -> None:
+    assert entry.main(["--worker", "--reset-pairing"]) == 0  # 主控台版（rpa-child.exe --worker）
+    assert entry.main(["--window", "--background"]) == 0
+    assert entry.main(["--no-window"]) == 0
+    assert routed == [
+        ("console", ["--reset-pairing"]),
+        ("window", ["--background"]),
+        ("no-window", []),
+    ]
 
 
 def test_console_detection_and_end_of_input(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -8,8 +8,10 @@ CI 的桌面端建置在 Windows 建好 RPA Worker、跑完自我測試之後執
 1. 從原始碼啟動管理 Portal：暫存資料夾、對外埠只聽 127.0.0.1、這台不執行（--no-local-worker）、
    不啟動測試網站（打包版自己在 127.0.0.1:8765 啟動）。
 2. 用管理 API 新增裝置、產生邀請。
-3. **打包版**以 ``--invite`` 配對並啟動（沒有人回答問題，資料夾放在暫存區）。
-4. 等裝置上線，確認回報的是建置資訊的版本與程式指紋（和 Portal 相同）。
+3. **打包版**以 ``--no-window --invite`` 配對並啟動：和視窗版同一個 controller（配對、權杖存進
+   Windows 認證管理員、下載瀏覽器、接任務），訊息寫到 ``--log``（視窗程式沒有標準輸出）。
+4. 等裝置上線，確認回報的是建置資訊的版本與程式指紋（和 Portal 相同）；建置資訊從同資料夾的
+   ``rpa-child --version`` 讀（主控台程式）。記下權杖存在哪裡（認證管理員或退回的檔案）。
 5. 以「遠端 worker」無頭執行 BA-001，再用它的出參執行 BA-002：兩個都要通過、都由這台裝置執行，
    報告回到 Portal。
 6. 結束兩個程序，印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，
@@ -130,6 +132,7 @@ def run(app: Path, folder: Path) -> JsonObject:
     portal_port, external_port = _free_port(), _free_port()
     base = f"http://127.0.0.1:{portal_port}"
     portal_log, app_log = folder / "portal.log", folder / "worker.log"
+    app_output = folder / "worker.out"  # 視窗程式沒有標準輸出；正常是空的
     portal: subprocess.Popen[bytes] | None = None
     worker: subprocess.Popen[bytes] | None = None
     handles: list[IO[bytes]] = []
@@ -156,7 +159,8 @@ def run(app: Path, folder: Path) -> JsonObject:
         return True
 
     api = Api(base)
-    printed = subprocess.run([str(app), "--version"], capture_output=True, check=True).stdout
+    child = app.with_name("rpa-child" + app.suffix)  # 主控台程式，同一份建置
+    printed = subprocess.run([str(child), "--version"], capture_output=True, check=True).stdout
     version = cast("JsonObject", json.loads(printed))
     state: JsonObject = {}
 
@@ -188,11 +192,11 @@ def run(app: Path, folder: Path) -> JsonObject:
 
     def start_worker() -> str:
         nonlocal worker
-        handle = app_log.open("wb")
+        handle = app_output.open("wb")
         handles.append(handle)
         env = {**os.environ, "RPA_WORKER_HOME": str(folder / "worker-home")}
         worker = subprocess.Popen(
-            [str(app), "--invite", str(state["line"])],
+            [str(app), "--no-window", "--invite", str(state["line"]), "--log", str(app_log)],
             env=env,
             stdin=subprocess.DEVNULL,
             stdout=handle,
@@ -216,9 +220,12 @@ def run(app: Path, folder: Path) -> JsonObject:
             raise StepFailedError(
                 f"回報的程式指紋 {mine}，建置資訊是 {built}，和 Portal 相同：{same}"
             )
-        if not (folder / "worker-home" / "pairing.json").is_file():
+        pairing = folder / "worker-home" / "pairing.json"
+        if not pairing.is_file():
             raise StepFailedError("配對結果沒有存在 RPA_WORKER_HOME")
-        return f"{record.get('os')}；瀏覽器 {record.get('browsers')}"
+        saved = cast("JsonObject", json.loads(pairing.read_text(encoding="utf-8")))
+        storage = "退回配對檔" if "token" in saved else "認證管理員"
+        return f"{record.get('os')}；瀏覽器 {record.get('browsers')}；權杖存在{storage}"
 
     def ba_001() -> str:
         result = _validate(api, "ba-001", {})

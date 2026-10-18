@@ -30,9 +30,17 @@ def run_remote_worker(
     keep_runs: bool = False,
     on_stopping: Callable[[], None] = lambda: None,
     poll_seconds: float = 0.5,
+    paused: threading.Event | None = None,
+    stop_seconds: Callable[[], float] = lambda: STOP_SECONDS,
 ) -> str | None:
-    """執行到 ``stop`` 被設定為止；管理 Portal 拒絕這台 worker 時回傳拒絕的訊息，否則回傳 None。"""
-    source = RemoteJobSource(client, info, work_dir, keep_runs=keep_runs, notify=notify)
+    """執行到 ``stop`` 被設定為止；管理 Portal 拒絕這台 worker 時回傳拒絕的訊息，否則回傳 None。
+
+    ``paused`` 設定時做完目前的任務後不再領取（Worker App 的「暫停接任務」）。
+    ``stop_seconds`` 在停止時才呼叫：停止時最多等執行中的任務多久（Windows 關機時要很短）。
+    """
+    source = RemoteJobSource(
+        client, info, work_dir, keep_runs=keep_runs, notify=notify, paused=paused
+    )
     runner = Worker(source, poll_seconds=poll_seconds)
     source.on_cancel = runner.cancel
     fatal: list[str] = []
@@ -49,6 +57,6 @@ def run_remote_worker(
                 break
     finally:
         on_stopping()
-        runner.stop(timeout=STOP_SECONDS)  # 執行中的任務被取消，結果照常回報
+        runner.stop(timeout=stop_seconds())  # 執行中的任務被取消，結果照常回報
         source.close()
     return fatal[0] if fatal else None
