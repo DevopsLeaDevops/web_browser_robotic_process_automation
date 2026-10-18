@@ -243,6 +243,7 @@
     $("mirror-save").addEventListener("click", () => call("set_setting", "download_host", $("mirror").value).then(refresh));
     $("language").addEventListener("change", (event) => call("set_setting", "language", event.target.value));
     $("open-logs").addEventListener("click", () => call("open_logs"));
+    $("download").addEventListener("click", () => call("open_download"));
     $("reset").addEventListener("click", () =>
       confirmDialog(text("window.reset_confirm")).then((yes) => (yes ? call("reset_pairing").then(refresh) : null)),
     );

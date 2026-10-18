@@ -7,8 +7,11 @@
 #   視窗自我測試（rpa-worker.exe --smoke-test）：打開 WebView2 視窗與通知區圖示，確認頁面的腳本跑起來；
 #   端到端（M10.1，tools/desktop_e2e.py）：從原始碼啟動管理 Portal、產生邀請，打包版以 --no-window
 #   用邀請配對（權杖存進認證管理員），以「遠端 worker」執行 BA-001 → BA-002。
+#   安裝檔（M10.1 PR 3，Inno Setup）：端到端先靜默安裝、用裝好的 App 跑，最後在 App 執行中
+#   再安裝一次（升級）、解除安裝，確認自動啟動已刪、配對保留。
 # RPA Worker 是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
-# 產物（DMG、zip）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
+# 產物（DMG、zip、安裝檔）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
+# 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
 name: 桌面端建置
 
 on:
@@ -41,6 +44,7 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/desktop.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
@@ -131,7 +135,7 @@ jobs:
           else
             echo "::error title=視窗自我測試::沒有產生報告，日誌：$(tail -n 20 "${{ runner.temp }}/smoke-home/logs/worker.log" 2>/dev/null | tr '\n' ' ')"
           fi
-      - name: 端到端：打包版用邀請配對並執行範例場景
+      - name: 端到端：安裝、用邀請配對並執行範例場景、升級、解除安裝
         id: e2e
         if: matrix.app == 'worker'
         env:
@@ -140,6 +144,7 @@ jobs:
         run: |
           set +e
           uv run python tools/desktop_e2e.py "${{ steps.build.outputs.executable }}" \
+            --installer "${{ steps.build.outputs.installer }}" \
             --report "${{ runner.temp }}/e2e.json" > "${{ runner.temp }}/e2e.log" 2>&1
           code=$?
           set -e
@@ -173,6 +178,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.app }}-${{ matrix.os }}
-          path: ${{ steps.build.outputs.artifact }}
+          # 錄製端沒有安裝檔（installer 是空的那行會被略過）
+          path: |
+            ${{ steps.build.outputs.artifact }}
+            ${{ steps.build.outputs.installer }}
           retention-days: 14
           if-no-files-found: error

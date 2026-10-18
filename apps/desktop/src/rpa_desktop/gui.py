@@ -32,6 +32,7 @@ from rpa_desktop.controller import QUICK_STOP_SECONDS, WorkerController
 from rpa_desktop.credentials import Credentials, TokenStoreError
 from rpa_desktop.i18n import resolve_locale, t
 from rpa_desktop.logs import setup_logging
+from rpa_desktop.release import RELEASES_URL
 from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.tray import Tray
 from rpa_desktop.ui import render_page
@@ -150,6 +151,12 @@ class Api:
 
     def open_logs(self) -> None:
         _open_folder(self._app.controller.home / "logs")
+
+    def open_download(self) -> None:
+        """版本和管理 Portal 不同時：在預設瀏覽器打開最新的 Release（安裝檔）。"""
+        import webbrowser
+
+        webbrowser.open(RELEASES_URL)
 
     def quit(self, confirmed: bool = False) -> None:
         self._app.request_quit(confirmed=bool(confirmed))

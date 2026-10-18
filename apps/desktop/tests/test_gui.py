@@ -18,6 +18,7 @@ from rpa_desktop.build_info import BuildInfo
 from rpa_desktop.controller import Services, WorkerController
 from rpa_desktop.credentials import Credentials, MemoryStore
 from rpa_desktop.gui import Api, DesktopApp
+from rpa_desktop.release import RELEASES_URL
 from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.tray import Tray
 from rpa_worker.pairing import PairResult
@@ -178,6 +179,20 @@ def test_background_start_hides_only_when_paired(tmp_path: Path) -> None:
         PairResult("http://x:8081", "w", "W", "worker", "t", 1, None, None)
     )
     assert desktop._paired() is True  # pyright: ignore[reportPrivateUsage]
+
+
+def test_download_opens_the_latest_release(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    desktop, _, _ = app(tmp_path)
+    opened: list[str] = []
+
+    def fake_open(url: str) -> bool:
+        opened.append(url)
+        return True
+
+    monkeypatch.setattr("webbrowser.open", fake_open)
+    Api(desktop).open_download()
+    assert opened == [RELEASES_URL]
+    assert RELEASES_URL.endswith("/releases/latest")  # 草稿與預先發布的不算
 
 
 def test_api_routes_settings_and_language(tmp_path: Path) -> None:

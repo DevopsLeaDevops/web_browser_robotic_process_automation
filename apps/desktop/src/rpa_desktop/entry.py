@@ -9,6 +9,8 @@
 - ``--no-window …``：不開視窗的 worker（:mod:`rpa_desktop.headless`），自動化與 CI 用；
   旗標在任何位置都算。
 - ``--window …``：視窗版的 worker（:mod:`rpa_desktop.gui`），開發環境試視窗用。
+- ``--forget-pairing``：清除這台電腦的配對（認證管理員裡的權杖與配對檔）後結束。解除安裝時
+  選擇「也刪除配對、設定與日誌」會先執行這個（安裝檔 apps/desktop/packaging/rpa_worker.iss）。
 - 其他：啟動 App。打包的 RPA Worker 開視窗版（M10.1；沒有參數或其他參數都交給它）；
   錄製端還沒有視窗（M10.2），先印出建置資訊。同資料夾的 ``rpa-child`` 只跑子程序，
   不會變成第二個 worker。
@@ -27,15 +29,28 @@ import runpy
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rpa_runner.commands import CHILD_EXECUTABLE, FROZEN_MODULE, FROZEN_SCRIPT, is_frozen
 
-__all__ = ["NO_WINDOW_FLAG", "WINDOW_FLAG", "WORKER_FLAG", "main", "run_module", "run_script"]
+if TYPE_CHECKING:  # 子程序也經過這裡：執行時只在需要時才載入
+    from rpa_desktop.credentials import TokenStore
+
+__all__ = [
+    "FORGET_FLAG",
+    "NO_WINDOW_FLAG",
+    "WINDOW_FLAG",
+    "WORKER_FLAG",
+    "main",
+    "run_module",
+    "run_script",
+]
 
 WORKER_FLAG = "--worker"
 NO_WINDOW_FLAG = "--no-window"
 WINDOW_FLAG = "--window"
-_OWN_FLAGS = (FROZEN_MODULE, FROZEN_SCRIPT, "--self-test", "--version")
+FORGET_FLAG = "--forget-pairing"
+_OWN_FLAGS = (FROZEN_MODULE, FROZEN_SCRIPT, "--self-test", "--version", FORGET_FLAG)
 
 _USAGE = f"""usage:
   {{app}} {FROZEN_MODULE} MODULE [ARGS...]
@@ -117,6 +132,15 @@ def _missing_streams() -> None:
         sys.stderr = Path(os.devnull).open("w", encoding="utf-8")  # noqa: SIM115 - 整個程序都用
 
 
+def forget_pairing(store: "TokenStore | None" = None) -> int:
+    """清除這台電腦的配對（解除安裝時用）；認證管理員不能用時只刪配對檔。"""
+    from rpa_desktop.credentials import Credentials
+    from rpa_desktop.worker_app import data_dir
+
+    Credentials(data_dir(os.environ), store).clear()
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     if is_frozen():
         _missing_streams()
@@ -126,6 +150,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         from rpa_desktop.worker_app import main as worker
 
         return worker(args[1:])
+    if args and args[0] == FORGET_FLAG:
+        return forget_pairing()
     if NO_WINDOW_FLAG in args and (not args or args[0] not in (FROZEN_MODULE, FROZEN_SCRIPT)):
         from rpa_desktop.headless import main as headless
 

@@ -137,5 +137,11 @@
   "window.device_name": "{name} ({device})",
   "window.reset_busy": "The running job has not stopped yet, so the pairing was not removed. Choose Pair again in a moment.",
   "window.keyring_failed": "Could not read the token from Windows Credential Manager ({error}). Choose Retry in a moment; if it keeps failing, choose Pair again.",
-  "window.status.unreported": "Not reported"
+  "window.status.unreported": "Not reported",
+  "window.download_new": "Download the new version",
+  "installer.Stopping": "Asking RPA Worker to quit: a running job is cancelled and reported to the management portal…",
+  "installer.StillRunning": "RPA Worker is still running, so setup cannot continue. Choose Quit from the RPA Worker tray icon, then run this again.",
+  "installer.WebView2Installing": "Installing Microsoft Edge WebView2…",
+  "installer.WebView2Failed": "Microsoft Edge WebView2 was not installed (exit code %1). RPA Worker still takes jobs from the notification area; the status window needs WebView2, which you can install from https://go.microsoft.com/fwlink/p/?LinkId=2124703.",
+  "installer.RemoveData": "Also delete this computer's pairing, settings and logs?%n%nChoose No to keep them, so a reinstall does not need pairing again."
 }

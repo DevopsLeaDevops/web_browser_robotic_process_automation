@@ -303,7 +303,7 @@ def _run(
         say(t("worker.already_running", home=home))
         return 4
     try:
-        return _work(args, env, ask, say, Credentials(home, store), home)
+        return _work(args, env, ask, say, Credentials(home, store), lock)
     finally:
         lock.release()
 
@@ -314,10 +314,12 @@ def _work(
     ask: Ask | None,
     say: Say,
     credentials: Credentials,
-    home: Path,
+    lock: InstanceLock,
 ) -> int:
     # 只有真的執行 worker 時才載入 Playwright 與 runner（子程序也經過 entry，要啟動得快）
     from rpa_runner.installed import missing_browsers
+
+    home = lock.folder
     from rpa_worker.environment import WorkerInfo
     from rpa_worker.remote import WorkerClient
     from rpa_worker.service import run_remote_worker
@@ -377,6 +379,9 @@ def _work(
     previous = signal.signal(signal.SIGINT, request_stop)
     if sys.platform == "win32":  # Windows 主控台的 Ctrl+Break
         signal.signal(signal.SIGBREAK, request_stop)
+    finished = threading.Event()
+    # 安裝檔升級或解除安裝時寫 stop.request：和 Ctrl+C 一樣取消任務、回報後結束
+    lock.watch(None, finished, on_stop=stop.set)
     try:
         fatal = run_remote_worker(
             WorkerClient(server, token),
@@ -388,6 +393,7 @@ def _work(
             on_stopping=lambda: say(t("worker.stopping")),
         )
     finally:
+        finished.set()
         signal.signal(signal.SIGINT, previous)
         if site is not None:
             site.shutdown()

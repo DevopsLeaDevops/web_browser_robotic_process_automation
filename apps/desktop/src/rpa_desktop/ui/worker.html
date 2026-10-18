@@ -62,7 +62,10 @@ __WORKER_CSS__
           <div class="wide"><dt data-text="window.token_storage"></dt><dd id="storage-value"></dd></div>
           <div class="wide"><dt data-text="window.data_dir"></dt><dd id="home-value" class="mono"></dd></div>
         </dl>
-        <div id="version-warning" class="notice warn" data-text="window.version_mismatch" hidden></div>
+        <div id="version-warning" class="notice warn" hidden>
+          <span data-text="window.version_mismatch"></span>
+          <button id="download" class="text-btn" type="button" data-text="window.download_new"></button>
+        </div>
         <div id="paused-hint" class="notice warn" data-text="window.paused_hint" hidden></div>
         <div id="stopping-hint" class="notice" data-text="window.stopping_hint" hidden></div>
         <div>

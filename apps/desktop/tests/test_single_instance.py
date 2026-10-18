@@ -1,9 +1,12 @@
 """同一個資料夾只執行一份（rpa_desktop.single_instance）。"""
 
+import sys
 import threading
 from pathlib import Path
 
-from rpa_desktop.single_instance import SHOW_FILE, InstanceLock
+import pytest
+
+from rpa_desktop.single_instance import APP_MUTEX, SHOW_FILE, InstanceLock
 
 
 def test_second_copy_cannot_take_the_lock(tmp_path: Path) -> None:
@@ -60,3 +63,37 @@ def test_stop_request_reaches_the_running_copy(tmp_path: Path) -> None:
     finally:
         finished.set()
         first.release()
+
+
+def _mutex_exists() -> bool:
+    """和 Inno Setup 的 CheckForMutexes 一樣，用 SYNCHRONIZE 權限打開看看。"""
+    if sys.platform != "win32":
+        raise AssertionError("只在 Windows 上")
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    open_mutex = kernel32.OpenMutexW
+    open_mutex.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR)
+    open_mutex.restype = wintypes.HANDLE
+    close = kernel32.CloseHandle
+    close.argtypes = (wintypes.HANDLE,)
+    handle = open_mutex(0x00100000, False, APP_MUTEX)
+    if handle:
+        close(handle)
+    return bool(handle)
+
+
+def test_running_copy_holds_the_named_mutex(tmp_path: Path) -> None:
+    """安裝檔用 CheckForMutexes 判斷 App 是否在執行：拿到鎖時有、釋放後沒有。"""
+    if sys.platform != "win32":
+        pytest.skip("Windows 的具名 mutex")
+    lock, other = InstanceLock(tmp_path / "a"), InstanceLock(tmp_path / "b")
+    assert not _mutex_exists()
+    assert lock.acquire()
+    assert _mutex_exists()
+    assert other.acquire()  # 另一個資料夾的那份也持有，釋放其中一份時仍然在
+    lock.release()
+    assert _mutex_exists()
+    other.release()
+    assert not _mutex_exists()

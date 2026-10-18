@@ -11,8 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from rpa_desktop.entry import main, run_module, run_script
+from rpa_desktop.credentials import Credentials, MemoryStore
+from rpa_desktop.entry import FORGET_FLAG, forget_pairing, main, run_module, run_script
 from rpa_runner.commands import FROZEN_MODULE, FROZEN_SCRIPT
+from rpa_worker.pairing import PairResult
 
 
 def _desktop(*args: str) -> subprocess.CompletedProcess[str]:
@@ -86,3 +88,32 @@ def test_bad_usage(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--unknown"]) == 2
     assert main(["--help"]) == 0
     assert FROZEN_SCRIPT in capsys.readouterr().err
+
+
+def test_forget_pairing_clears_token_and_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """解除安裝時選「也刪除配對」：認證管理員的權杖與配對檔都刪掉（安裝檔執行 rpa-child）。"""
+    monkeypatch.setenv("RPA_WORKER_HOME", str(tmp_path))
+    store = MemoryStore()
+    credentials = Credentials(tmp_path, store)
+    result = PairResult("http://192.0.2.1:8081", "win-01", "Win", "worker", "t", 1, "f", "0.1.0")
+    credentials.save(result)
+    assert store.items
+    assert forget_pairing(store) == 0
+    assert not store.items
+    assert credentials.load() is None
+
+
+def test_forget_pairing_flag_without_credential_manager(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """用真的預設認證管理員（Linux CI 通常不能用）：權杖刪不掉時仍然刪配對檔、結束碼 0。"""
+    monkeypatch.setenv("RPA_WORKER_HOME", str(tmp_path))
+    pairing = tmp_path / "pairing.json"
+    pairing.write_text(
+        json.dumps({"server": "http://192.0.2.1:8081", "device": "forget-test"}), encoding="utf-8"
+    )
+    assert main([FORGET_FLAG]) == 0
+    assert not pairing.exists()
+    assert main([FORGET_FLAG]) == 0  # 沒有配對也可以
