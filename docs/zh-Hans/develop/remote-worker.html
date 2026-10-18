@@ -85,7 +85,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
         </ol>
         <ul>
           <li><strong>升级</strong>：运行新版的安装档即可。RPA Worker 正在运行时，安装档会先请它结束（运行中的任务被取消并回报给管理 Portal）再换文件；配对、设置与自动启动都保留。窗口提醒「程序版本和管理 Portal 不同」时，旁边的「下载新版」会打开最新的 Release。</li>
-          <li><strong>卸载</strong>：Windows 的「设置 › 应用程序」找到 RPA Worker。会先结束 RPA Worker、删除程序、捷径与自动启动，再问要不要也删除配对、设置与日志：默认「否」（保留），之后重新安装不必再配对；选「是」会一并删除认证管理员里的权杖。</li>
+          <li><strong>卸载</strong>：Windows 的「设置 › 应用程序」找到 RPA Worker。确认要卸载后，先问要不要也删除配对、设置与日志：默认「否」（保留），之后重新安装不必再配对；选「是」会一并删除认证管理员里的权杖。接着结束 RPA Worker（运行中的任务被取消并回报）、删除程序、捷径与自动启动。浏览器（<code>%LOCALAPPDATA%\ms-playwright</code>）与 Firefox 模板的缓存（<code>%LOCALAPPDATA%\rpa\cache</code>）别的程序也可能在用，不会删除。用命令行静默卸载（<code>unins000.exe /VERYSILENT</code>）时不问、保留数据，加上 <code>/REMOVEDATA=yes</code> 才删除。</li>
           <li><strong>免安装版</strong>：Release 也附 <code>RPA-Worker-版本-windows-x64.zip</code>，解压缩到任何文件夹（例如 <code>%USERPROFILE%\RPA Worker</code>）后双击 <code>rpa-worker.exe</code>，用法和安装版相同；升级时先从通知区结束，再解压缩新版覆盖。免安装版和安装版用同一个文件夹的配对，不要同时使用。</li>
           <li><strong>关闭窗口不会停止。</strong>RPA Worker 缩到通知区继续接任务（第一次会提示）。通知区图标的菜单：打开窗口、暂停接任务、结束；图标右下角的圆点是绿色（在线）、黄色（暂停）或红色（脱机、需要处理）。有任务在运行时按「结束」会先确认，取消后回报给管理 Portal。</li>
           <li><strong>登录 Windows 时自动启动</strong>：第一次配对成功后默认打开，只出现在通知区；在窗口的「设置」可以关闭。文件夹搬走后开一次 RPA Worker，自动启动就会改成新的位置。</li>

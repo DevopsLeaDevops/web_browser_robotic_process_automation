@@ -197,10 +197,10 @@
           <ul>
             <li><strong>只装给目前的用户。</strong>不需要管理员，装到 <code>%LOCALAPPDATA%\Programs\RPA Worker</code>；开始功能表捷径，桌面捷径选用；装完打开。文件夹 <code>%LOCALAPPDATA%\rpa\worker</code> 和免安装版相同。</li>
             <li><strong>语言。</strong>繁中、简中、英文，默认繁中、安装时可以选（<a href="../adr/0007-i18n.html">ADR 0007</a>）。Inno Setup 的界面用它源代码 <code>is-6_7_1</code> 的翻译档（建置时下载并核对 SHA-256，仓库不放）；安装档自己的消息从 App 的消息目录（<code>installer.*</code>）产生，所以一样是繁中、英文人工维护，简中由工具产生。</li>
-            <li><strong>App 正在运行时。</strong>用 App 的具名 mutex 判断，在文件夹写 <code>stop.request</code> 请它取消运行中的任务、回报后结束（最多等 150 秒），再换文件；不用 Windows 的 Restart Manager 强制关闭。升级时配对、设置与自动启动都保留，旧版的程序库先删掉。</li>
+            <li><strong>App 正在运行时。</strong>用 App 的具名 mutex 判断，在文件夹写 <code>stop.request</code> 请它取消运行中的任务、回报后结束（最多等 150 秒），再换文件（只有通知区、没有 WebView2 时也一样；主控台版在配对、下载浏览器那一步做完后结束）；不用 Windows 的 Restart Manager 强制关闭。升级时配对、设置与自动启动都保留，旧版的程序库先删掉。</li>
             <li><strong>WebView2。</strong>没有 Runtime 时运行建置时附上的 Microsoft Evergreen 引导程序（建置时核对 Microsoft 的数字签章）；失败时说明，App 仍可只用通知区接任务。</li>
-            <li><strong>卸载。</strong>停止 App，删除程序、捷径与「登录时运行」的项目；询问是否也删除配对、设置与日志（含认证管理员里的权杖），默认保留，静默卸载时也保留。</li>
-            <li><strong>建置与 CI。</strong><code>tools/build_desktop.py worker</code> 在 Windows 上建好 App 与 zip 后调用 ISCC（GitHub 的 Windows 运行环境已装 Inno Setup）。端到端：静默安装 → 检查文件、捷径、卸载项目的版本 → 用装好的 App 配对并运行 BA-001 → BA-002 → App 运行中再安装一次（App 要以结束码 0 结束）→ 卸载，确认程序、卸载项目与自动启动已删、配对保留。</li>
+            <li><strong>卸载。</strong>用户确认要卸载后（Inno Setup 的 <code>usAppMutexCheck</code>，取消时 App 不受影响）才询问是否也删除配对、设置与日志（含认证管理员里的权杖）：默认保留；静默卸载不问、保留，命令行 <code>/REMOVEDATA=yes</code> 才删除。接着停止 App，删除程序、捷径与「登录时运行」的项目。只删 App 自己的文件：文件夹可能是 <code>RPA_WORKER_HOME</code> 指定的任何地方，浏览器与 Firefox 模板的缓存别的程序也在用。</li>
+            <li><strong>建置与 CI。</strong><code>tools/build_desktop.py worker</code> 在 Windows 上建好 App 与 zip 后调用 ISCC（GitHub 的 Windows 运行环境已装 Inno Setup）。端到端：静默安装 → 检查文件、捷径、卸载项目的版本 → 用装好的 App 配对并运行 BA-001 → BA-002 → App 运行中再安装一次（App 要以结束码 0 结束）→ 卸载，确认程序、捷径、卸载项目与自动启动已删、配对保留 → 再安装一次并以 <code>/REMOVEDATA=yes</code> 卸载，确认文件夹与认证管理员里的权杖已删。失败时附上 Inno Setup 的日志。</li>
             <li><strong>不包含。</strong>代码签章、自动更新、内含 Chromium 的脱机安装档。</li>
           </ul>
         </div>
