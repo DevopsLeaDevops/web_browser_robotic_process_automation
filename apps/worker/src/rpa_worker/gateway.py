@@ -11,6 +11,10 @@
 - ``/__desktop/`` 底下是 App 自己的頁面（配對、下載瀏覽器、離線提示），由 ``local`` 處理。
 - 連不上管理 Portal 時回 502 與 ``offline_page``；管理 Portal 回 401（權杖失效）時呼叫
   ``on_unauthorized``。
+- 不轉送 ``/client-api/`` 與 ``/worker-api/``：那是錄製端程式自己用的通道，網頁不該拿閘道的
+  權杖去確認或偽造指令與輸出。
+- 轉送的 ``Host`` 和換過的 ``Origin`` 用同一個寫法（管理 Portal 比對兩者）：伺服器網址有大寫或
+  寫了預設埠號時才不會被當成跨站。
 - 以後改 HTTPS 時在這裡釘選憑證即可，WebView 不必處理自簽憑證。
 
 只用標準函式庫（``http.server``、``http.client``）。
@@ -37,6 +41,7 @@ logger = logging.getLogger("rpa_worker.gateway")
 COOKIE: Final = "rpa_gateway"
 DESKTOP_PREFIX: Final = "/__desktop/"
 LOGIN_PATH: Final = "/__gateway/login"
+BLOCKED_PREFIXES: Final = ("/client-api/", "/worker-api/")
 MAX_BODY_BYTES: Final = 100 * 1024 * 1024
 UPSTREAM_TIMEOUT: Final = 600.0
 """逐步調試的一步、上傳匯入檔都可能很久。"""
@@ -73,6 +78,11 @@ LocalHandler = Callable[[str, str, Mapping[str, list[str]], bytes], LocalRespons
 
 def _default_offline(reason: str) -> str:
     return f"<!doctype html><meta charset=utf-8><title>RPA</title><p>{_escape(reason)}</p>"
+
+
+def _same(given: str, expected: str) -> bool:
+    """比對密語（固定時間；非 ASCII 的輸入不會讓 compare_digest 拋出例外）。"""
+    return hmac.compare_digest(given.encode("utf-8"), expected.encode("utf-8"))
 
 
 def _escape(text: str) -> str:
@@ -165,7 +175,7 @@ class Gateway:
         except CookieError:
             return False
         morsel = jar.get(COOKIE)
-        return morsel is not None and hmac.compare_digest(morsel.value, self.secret)
+        return morsel is not None and _same(morsel.value, self.secret)
 
     def _host_ok(self, request: BaseHTTPRequestHandler) -> bool:
         host = (request.headers.get("Host") or "").lower()
@@ -235,9 +245,9 @@ class Gateway:
             query = parse_qs(parts.query)
             key = (query.get("key") or [""])[0]
             target = (query.get("next") or ["/"])[0]
-            if not target.startswith("/") or target.startswith("//"):
+            if not target.startswith("/") or target.startswith(("//", "/\\")):
                 target = "/"
-            if not hmac.compare_digest(key, self.secret):
+            if not _same(key, self.secret):
                 self._reply(request, 403, b"forbidden")
                 return
             cookie = f"{COOKIE}={self.secret}; Path=/; HttpOnly; SameSite=Strict"
@@ -245,6 +255,9 @@ class Gateway:
             return
         if not self._authorized(request):
             self._reply(request, 403, b"forbidden: open this page from the RPA app")
+            return
+        if parts.path.startswith(BLOCKED_PREFIXES):
+            self._reply(request, 403, b"not available through the gateway")
             return
         body = self._read_body(request)
         if body is None:
@@ -268,7 +281,7 @@ class Gateway:
     def _forward(self, request: BaseHTTPRequestHandler, body: bytes, has_origin: bool) -> None:
         upstream = self._upstream
         server_origin = f"{upstream.scheme}://{upstream.netloc}"
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = {"Host": upstream.netloc}  # 和 Origin 一致
         for key, value in request.headers.items():
             lower = key.lower()
             if lower in _HOP or lower in ("authorization", "cookie", "origin"):
@@ -309,7 +322,9 @@ class Gateway:
                 lower = key.lower()
                 if lower in _HOP and lower != "content-length":
                     continue
-                if lower == "location" and value.startswith(server_origin):
+                if lower == "location" and (
+                    value == server_origin or value.startswith(server_origin + "/")
+                ):
                     value = self.origin + value[len(server_origin) :]
                 request.send_header(key, value)
             request.send_header("Connection", "close")

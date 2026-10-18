@@ -38,7 +38,7 @@ INFO: JsonObject = {
     "version": "0.3.0",
     "os": "macOS 15",
     "host": "amy-mac",
-    "browsers": ["chromium"],
+    "browsers": ["chromium", "firefox"],
     "display": True,
 }
 
@@ -236,12 +236,19 @@ def test_hello_and_control(app: FastAPI, client: Client, remote: Client) -> None
     assert "錄製端的協定版本 99" in str(problem["message"])
     reply = device.hello()
     assert reply["device"] == "mac-01"
+    assert reply["seq"] == 0
+    channel = reply["channel"]
+    assert isinstance(channel, str)
+    assert device.hello()["channel"] == channel  # 同一次啟動：同一個通道
+    # 錄製端以為還是上一個通道（序號比這邊發過的大）：要它重新 hello
+    stale = remote.post(f"{API}/control", json={"after": 5, "wait": 0}, headers=auth(device.token))
+    assert error(stale, 409)["code"] == "recorder_hello_first"
     assert reply["protocol"] == PROTOCOL
     assert reply["sameVersion"] is False  # 指紋 f 和管理 Portal 不同
     assert device.commands() == []
     record = body(client.get("/api/recorders/mac-01"))
     assert record["status"] == "online"
-    assert record["browsers"] == ["chromium"]
+    assert record["browsers"] == ["chromium", "firefox"]
     assert record["version"] == "0.3.0"
     # 指令依序號，確認後才丟掉
     hub = services(app).recorders
@@ -275,7 +282,12 @@ def test_debug_session_runs_on_the_recorder(app: FastAPI, client: Client, remote
     # 錄製端沒有連線：說明，不啟動
     offline = remote.post("/api/scenes/ba-001/debug", json={}, headers=auth(device.token))
     assert error(offline, 409)["code"] == "recorder_offline"
-    device.hello()
+    # BA-001 用 Firefox：這台只下載了 Chromium 時說明，不啟動
+    device.hello(browsers=["chromium"])
+    missing = remote.post("/api/scenes/ba-001/debug", json={}, headers=auth(device.token))
+    assert error(missing, 422)["code"] == "recorder_browser_missing"
+    assert device.commands() == []
+    device.hello()  # 同一個開機代號：只是更新資訊
     session = start_debug(remote, device)
     assert session["deviceId"] == "mac-01"
     assert session["headless"] is False  # 錄製端有桌面：預設有頭模式，視窗開在那台
@@ -384,7 +396,9 @@ def test_remote_process_translates_paths(
         "--engine",
         "chromium",
     ]
-    env = child_env("en", {"RPA_SECRET_X": "s", "RPA_STORAGE_STATE": str(state)})
+    env = child_env(
+        "en", {"RPA_SECRET_X": str(state), "RPA_STORAGE_STATE": str(state)}
+    )  # Secrets 的值剛好是伺服器上的路徑：原樣送出
     process = hub.start("mac-01", command, env=env, log=work / "codegen.log", cwd=work, pipes=False)
     assert process.stdin is None
     assert process.stdout is None
@@ -396,7 +410,7 @@ def test_remote_process_translates_paths(
     assert cast("dict[str, str]", start["env"]) == {
         "PYTHONIOENCODING": "utf-8",
         "RPA_LANG": "en",
-        "RPA_SECRET_X": "s",
+        "RPA_SECRET_X": str(state),
         "RPA_STORAGE_STATE": f"{WORK}/{INPUTS}/0-state.json",
     }
     assert set(cast("dict[str, str]", start["files"])) == {"base.yaml", f"{INPUTS}/0-state.json"}
@@ -408,6 +422,9 @@ def test_remote_process_translates_paths(
     assert (work / ".recording.py").read_text(encoding="utf-8") == "page.goto('x')"
     # 已經結束：再傳也不收
     device.files(str(start["process"]), {"x.txt": b"x"}, status=404)
+    # 伺服器自己的環境不送：一定要用 child_env()
+    with pytest.raises(TypeError, match="child_env"):
+        hub.start("mac-01", command, env={"PATH": "/bin"}, log=work / "codegen.log", cwd=work)
 
 
 def test_stop_asks_the_recorder_to_kill(
@@ -448,3 +465,31 @@ def test_lost_exit_code_and_requests_without_recorder() -> None:
         from rpa_server.context import via_recorder
 
         assert via_recorder() == Via("mac-01", "Mac")
+
+
+def test_processes_the_recorder_does_not_have_are_ended(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    """錄製端確認收到「啟動」，正在執行的清單裡卻沒有它（啟動失敗沒回報到）：視為結束。"""
+    body(client.post("/api/scenes/import"))
+    device = paired(client, remote)
+    device.hello()
+    session = start_debug(remote, device)
+    (start,) = device.commands()
+    process = str(start["process"])
+    # 還沒確認收到「啟動」時，不在清單裡也不算
+    early = {"after": 0, "wait": 0, "running": []}
+    assert body(remote.post(f"{API}/control", json=early, headers=auth(device.token)))["commands"]
+    assert body(client.get(f"/api/debug/{session['id']}"))["status"] == "starting"
+    # 確認收到、而且還在執行
+    running = {"after": device.after, "wait": 0, "running": [process]}
+    body(remote.post(f"{API}/control", json=running, headers=auth(device.token)))
+    assert body(client.get(f"/api/debug/{session['id']}"))["status"] == "starting"
+    # 確認收到、但錄製端沒有這個子程序
+    gone = {"after": device.after, "wait": 0, "running": []}
+    reply = body(remote.post(f"{API}/control", json=gone, headers=auth(device.token)))
+    kills = cast("list[JsonObject]", reply["commands"])
+    assert [(item["type"], item["process"]) for item in kills] == [("kill", process)]
+    wait_until(lambda: body(client.get(f"/api/debug/{session['id']}"))["status"] == "failed")
+    log = services(app).storage.debug_dir(str(session["id"])) / "debug.log"
+    assert "那邊沒有這個子程序" in log.read_text(encoding="utf-8")

@@ -92,6 +92,7 @@ def test_events_are_described() -> None:
     assert "mac-01" in online
     assert "git pull" in online
     assert describe_event("started", {"module": "rpa_runner.record"}) == "開始錄製。"
+    assert describe_event("started", {"module": "playwright"}) == "開始錄製。"
     assert describe_event("finished", {"module": "rpa_runner.debug", "exit": 0}) == (
         "逐步調試結束（結束碼 0）。"
     )

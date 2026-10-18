@@ -42,6 +42,8 @@ class PairBody(_Body):
 class ControlBody(_Body):
     after: int = Field(default=0, ge=0)
     wait: float = Field(default=CONTROL_WAIT_SECONDS, ge=0, le=CONTROL_WAIT_SECONDS)
+    running: list[str] | None = Field(default=None, max_length=1000)
+    """錄製端正在執行的子程序；給了就和這邊對照（見 :meth:`RecorderHub.poll`）。"""
 
 
 class OutputBody(_Body):
@@ -76,7 +78,7 @@ def client_api_router(hub: WorkerHub, recorders: RecorderHub, storage: Storage) 
         recorder: Annotated[Via, Depends(current_recorder)], body: ControlBody | None = None
     ) -> dict[str, object]:
         body = body or ControlBody()
-        return recorders.poll(recorder.id, body.after, body.wait)
+        return recorders.poll(recorder.id, body.after, body.wait, body.running)
 
     @router.post("/processes/{process_id}/output", status_code=204)
     def output(

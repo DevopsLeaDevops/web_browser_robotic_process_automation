@@ -7,6 +7,7 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import cast
+from urllib.parse import quote
 
 import pytest
 
@@ -198,3 +199,41 @@ def test_offline_page() -> None:
 def test_rejects_bad_server() -> None:
     with pytest.raises(ValueError, match="server URL"):
         Gateway("ftp://x", lambda: TOKEN)
+
+
+def test_channels_of_the_app_are_not_forwarded(
+    gateway: Gateway, upstream: tuple[Upstream, str]
+) -> None:
+    """網頁不能拿閘道的權杖確認、偽造錄製端的指令與輸出。"""
+    for path in ("/client-api/v1/control", "/worker-api/v1/hello"):
+        status, _, _ = request(gateway, "POST", path, body=b"{}")
+        assert status == 403
+    assert upstream[0].requests == []
+
+
+def test_host_matches_the_rewritten_origin(upstream: tuple[Upstream, str]) -> None:
+    """伺服器網址有大寫時，Host 與 Origin 寫法一致（管理 Portal 比對兩者）。"""
+    port = upstream[1].rsplit(":", 1)[1]
+    server = f"http://LocalHost:{port}"
+    item = Gateway(server, lambda: TOKEN)
+    item.start()
+    try:
+        status, _, _ = request(item, "POST", "/api/x", headers={"Origin": item.origin}, body=b"{}")
+    finally:
+        item.close()
+    assert status == 200
+    raw = cast("dict[str, str]", upstream[0].requests[-1]["headers"])
+    sent = {key.lower(): value for key, value in raw.items()}
+    assert sent["origin"] == server
+    assert sent["host"] == f"LocalHost:{port}"
+
+
+def test_login_rejects_odd_targets_and_keys(gateway: Gateway) -> None:
+    key = quote(gateway.secret)
+    status, headers, _ = request(
+        gateway, "GET", f"/__gateway/login?key={key}&next=/%5Cevil.example", cookie=False
+    )
+    assert status == 303
+    assert headers["location"] == "/"
+    status, _, _ = request(gateway, "GET", "/__gateway/login?key=%E5%AF%86", cookie=False)
+    assert status == 403  # 非 ASCII 的密語：拒絕，不是 500

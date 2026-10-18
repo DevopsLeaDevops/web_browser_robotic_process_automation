@@ -32,6 +32,7 @@ DEFAULT_WORK_DIR: Final = Path("recorder-data")
 
 
 _KINDS: Final = {
+    "playwright": "cli.recorder.kind_record",  # 新場景的錄製是 playwright codegen
     "rpa_runner.record": "cli.recorder.kind_record",
     "rpa_runner.debug": "cli.recorder.kind_debug",
     "rpa_runner.login": "cli.recorder.kind_login",

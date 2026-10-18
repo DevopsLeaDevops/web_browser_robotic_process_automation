@@ -9,7 +9,12 @@
 - 連不上管理 Portal 時逐步拉長間隔重試（最多 30 秒），恢復後重新上線；子程序照常執行，
   輸出與檔案等連上再送（順序不變）。管理 Portal 回 404（已經判定失聯、或重新啟動過）時結束子程序。
 - 權杖被拒（401／403）或協定版本不同時呼叫 ``notify("rejected", …)`` 並停止。
-- Secrets 只在記憶體與子程序的環境變數；暫存資料夾只有本人能讀寫，用完刪除。
+- Secrets 只在記憶體與子程序的環境變數；暫存資料夾只有本人能讀寫，用完刪除（啟動時也清掉上次
+  沒刪掉的）。
+- 只執行錄製、逐步調試、人工登入的模組（:data:`MODULES`），也不接受會改變直譯器或載入程式庫的
+  環境變數：連線是區網裡的 HTTP，不讓偽造的指令在這台執行任意程式。
+- 每次輪詢附上正在執行的子程序；上線時管理 Portal 給的通道代號換了（重新啟動過），指令序號從
+  0 重新開始。
 """
 
 import contextlib
@@ -45,6 +50,15 @@ logger = logging.getLogger("rpa_worker.recorder")
 
 MAX_BACKOFF_SECONDS: Final = 30.0
 _KILL_GRACE_SECONDS: Final = 5.0
+_CLEANUP_SECONDS: Final = 10.0
+"""結束時最多等這麼久，讓子程序把最後的檔案與結束碼傳回去，再刪暫存資料夾。"""
+MODULES: Final = frozenset({"rpa_runner.record", "rpa_runner.debug", "rpa_runner.login"})
+"""管理 Portal 可以要這台執行的模組；另外 ``playwright`` 只接受 ``codegen``（錄製）。"""
+_ENV_ALLOWED: Final = frozenset({"PYTHONIOENCODING", "PYTHONUTF8"})
+_ENV_DENIED_PREFIXES: Final = ("PYTHON", "NODE_", "DYLD_", "LD_", "PLAYWRIGHT_", "BASH_")
+_ENV_DENIED: Final = frozenset({"PATH", "HOME", "SHELL", "ENV", "IFS", "TMPDIR", "PERL5OPT"})
+_FATAL_STATUSES: Final = frozenset({400, 413, 422})
+"""回報子程序時這些錯誤重試也不會好：結束那個子程序。"""
 
 Notify = Callable[[str, Mapping[str, object]], None]
 """通知顯示給人看的地方：事件名稱與內容（見 :class:`RecorderHost`）。"""
@@ -61,6 +75,22 @@ def translate(value: str, folder: Path) -> str:
         if is_safe_relative(relative):
             return str(folder / relative)
     return value
+
+
+def check_module(module: str, args: Sequence[str]) -> None:
+    """只執行錄製、逐步調試、人工登入；其他的拋出 ValueError。"""
+    if module in MODULES or (module == "playwright" and list(args[:1]) == ["codegen"]):
+        return
+    raise ValueError(f"module not allowed: {module!r}")
+
+
+def check_env(name: str) -> None:
+    """會改變直譯器、Node 或動態載入的環境變數不接受（Secrets、語言、登入設定可以）。"""
+    upper = name.upper()
+    if upper in _ENV_ALLOWED:
+        return
+    if not name or "=" in name or upper in _ENV_DENIED or upper.startswith(_ENV_DENIED_PREFIXES):
+        raise ValueError(f"environment variable not allowed: {name!r}")
 
 
 def _kill_tree(process: subprocess.Popen[bytes]) -> None:
@@ -109,7 +139,13 @@ class _Child:
         except BaseException:
             shutil.rmtree(self.folder, ignore_errors=True)
             raise
-        threading.Thread(target=self._follow, name=f"recorder-{process_id}", daemon=True).start()
+        self.thread = threading.Thread(
+            target=self._follow, name=f"recorder-{process_id}", daemon=True
+        )
+
+    def follow(self) -> None:
+        """開始讀輸出（先登記到 RecorderHost 再呼叫：很快結束的子程序才不會先被忘掉）。"""
+        self.thread.start()
 
     def _start(self, spec: Mapping[str, object]) -> subprocess.Popen[bytes]:
         files = cast("dict[object, object]", spec.get("files") or {})
@@ -122,13 +158,14 @@ class _Child:
         self.snapshot = scan(self.folder)
         """已經在管理 Portal 那邊的檔案（送來的輸入檔）：沒有改就不傳回。"""
         module = self.module
-        if not module:
-            raise ValueError("missing module")
         raw_args = cast("list[object]", spec.get("args") or [])
         args = [translate(str(item), self.folder) for item in raw_args]
+        check_module(module, args)
         extra = cast("dict[object, object]", spec.get("env") or {})
         env = {**os.environ}
-        env.update({str(key): translate(str(value), self.folder) for key, value in extra.items()})
+        for key, value in extra.items():
+            check_env(str(key))
+            env[str(key)] = translate(str(value), self.folder)
         self.log.parent.mkdir(parents=True, exist_ok=True)
         with self.log.open("ab") as error:
             return subprocess.Popen(
@@ -182,7 +219,11 @@ class _Child:
         names = changed_files(self.snapshot, now)
         if not names:
             return
-        archive = self.folder.parent / f".{self.id}-{uuid.uuid4().hex[:8]}.zip"
+        handle, name = tempfile.mkstemp(
+            prefix=f".rpa-{self.id}-", suffix=".zip", dir=self.folder.parent
+        )
+        os.close(handle)  # mkstemp 建的檔案只有本人能讀寫
+        archive = Path(name)
         try:
             pack_files(self.folder, names, archive)
             with archive.open("rb") as body:
@@ -210,7 +251,7 @@ class _Child:
                     self.host.call("POST", f"/processes/{self.id}/output", payload)
                     return
                 except WorkerApiError as error:
-                    if error.status in (404, 409):
+                    if error.status in (404, 409) or error.status in _FATAL_STATUSES:
                         logger.info("管理 Portal 不再接受子程序 %s：%s", self.id, error.message)
                         self.lost = True
                         self.kill()
@@ -267,6 +308,8 @@ class RecorderHost:
         self._children: dict[str, _Child] = {}
         self._lock = threading.Lock()
         self._after = 0
+        self._channel: object = None
+        """管理 Portal 這次的通道代號（上線時拿到）。"""
         self._online = False
 
     # ------------------------------------------------------------ 連線
@@ -300,6 +343,13 @@ class RecorderHost:
 
     def _hello(self) -> None:
         reply = self.call("POST", "/hello", {**self.info, "boot": self.boot})
+        channel, seq = reply.get("channel"), reply.get("seq")
+        if channel != self._channel:
+            # 管理 Portal 重新啟動過（或通道重建）：那邊的序號從 0 開始
+            self._channel = channel
+            self._after = 0
+        elif isinstance(seq, int) and seq < self._after:
+            self._after = seq
         self._online = True
         self.notify(
             "online",
@@ -316,16 +366,19 @@ class RecorderHost:
         stop = stop or threading.Event()
         threading.Thread(target=lambda: (stop.wait(), self.stopping.set()), daemon=True).start()
         self.work_dir.mkdir(parents=True, exist_ok=True)
+        self._sweep()
         delay = 1.0
         try:
             while not self.stopping.is_set():
                 try:
                     if not self._online:
                         self._hello()
+                    with self._lock:
+                        running = sorted(self._children)
                     reply = self.call(
                         "POST",
                         "/control",
-                        {"after": self._after, "wait": self.wait_seconds},
+                        {"after": self._after, "wait": self.wait_seconds, "running": running},
                         timeout=self.wait_seconds + 30,
                     )
                     delay = 1.0
@@ -350,6 +403,13 @@ class RecorderHost:
                     delay = min(delay * 2, MAX_BACKOFF_SECONDS)
                 except ConnectionLostError as error:
                     self._offline(str(error))
+                    if self.stopping.wait(delay):
+                        break
+                    delay = min(delay * 2, MAX_BACKOFF_SECONDS)
+                except Exception as error:
+                    # 預期外的回應（例如中間的代理回了不是 JSON 的內容）：當作離線，稍後重試
+                    logger.exception("和管理 Portal 通訊時出錯")
+                    self._offline(f"{type(error).__name__}: {error}")
                     if self.stopping.wait(delay):
                         break
                     delay = min(delay * 2, MAX_BACKOFF_SECONDS)
@@ -384,6 +444,7 @@ class RecorderHost:
                 return
             with self._lock:
                 self._children[process_id] = child
+            child.follow()
             self.notify("started", {"module": command.get("module"), "process": process_id})
         elif child is None:
             return
@@ -416,7 +477,8 @@ class RecorderHost:
             return len(self._children)
 
     def stop_all(self) -> None:
-        """結束時：先關標準輸入讓子程序自己結束（調試會關掉瀏覽器），等不到就結束整個程序樹。"""
+        """結束時：先關標準輸入讓子程序自己結束（調試會關掉瀏覽器），等不到就結束整個程序樹；
+        再等一下讓結果傳回去，最後一定刪掉暫存資料夾（可能有登入狀態與沒遮罩的錄製稿）。"""
         self.stopping.set()
         with self._lock:
             children = list(self._children.values())
@@ -427,3 +489,18 @@ class RecorderHost:
             with contextlib.suppress(subprocess.TimeoutExpired):
                 child.process.wait(timeout=max(0.1, deadline - time.monotonic()))
             child.kill()
+        deadline = time.monotonic() + _CLEANUP_SECONDS
+        for child in children:
+            if child.thread.is_alive():
+                child.thread.join(timeout=max(0.1, deadline - time.monotonic()))
+            child.cleanup()
+
+    def _sweep(self) -> None:
+        """刪掉上次沒刪掉的暫存資料夾與上傳檔（例如上次被強制結束）。"""
+        if self.keep:
+            return
+        for item in self.work_dir.glob("rpa-*"):
+            if item.is_dir():
+                shutil.rmtree(item, ignore_errors=True)
+        for item in self.work_dir.glob(".rpa-*.zip"):
+            item.unlink(missing_ok=True)

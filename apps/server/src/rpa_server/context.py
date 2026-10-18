@@ -10,7 +10,7 @@
 背景執行緒（佇列、租約、子程序的輸出）不在任何請求裡，看到的永遠是 None。
 """
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -35,7 +35,8 @@ def via_recorder() -> Via | None:
 
 
 @contextmanager
-def use_recorder(via: Via | None) -> Iterator[None]:
+def use_recorder(via: Via | None) -> Generator[None]:
+    """在這段期間把 ``via`` 當成目前的錄製端（middleware 與測試用）。"""
     token = _CURRENT.set(via)
     try:
         yield

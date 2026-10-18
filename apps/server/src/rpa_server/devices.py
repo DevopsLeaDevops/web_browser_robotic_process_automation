@@ -13,7 +13,8 @@
   停用或刪除時，它的子程序視為結束（結束碼 :data:`LOST_EXIT`，日誌最後加一行原因）。
 
 這一層的狀態（指令佇列、子程序）只在記憶體：管理 Portal 重新啟動後，錄製端的子程序在下一次
-回報輸出時得到 404，錄製端自己結束它們。
+回報輸出時得到 404，錄製端自己結束它們；上線時拿到新的通道代號，指令序號從 0 重新開始。
+錄製端每次輪詢附上正在執行的子程序，確認收到「啟動」卻不在裡面的也視為結束。
 """
 
 import logging
@@ -23,7 +24,7 @@ import threading
 import time
 import uuid
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -34,6 +35,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.commands import FROZEN_MODULE
+from rpa_runner.run import ENV_STORAGE_STATE
 from rpa_server.context import Via, via_recorder
 from rpa_server.dispatch import hash_token
 from rpa_server.domain import DOMAIN_ID, LOCAL_WORKER, RecorderRecord, RecorderStatus, now
@@ -160,6 +162,8 @@ class RemoteProcess:
         self._returncode: int | None = None
         self._done = threading.Event()
         self._lock = threading.Lock()
+        self.start_seq: int | None = None
+        """「啟動」指令的序號：錄製端確認收到之後，還在跑的清單裡沒有它就是不見了。"""
 
     @property
     def stdin(self) -> _Stdin | None:
@@ -223,6 +227,8 @@ class _Channel:
     """一台錄製端的指令佇列與最近的輪詢。"""
 
     boot: str | None = None
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    """通道的代號：管理 Portal 重新啟動或通道重建時換掉；錄製端看到不同的代號就從序號 0 開始。"""
     seq: int = 0
     pending: deque[tuple[int, dict[str, object]]] = field(
         default_factory=deque[tuple[int, dict[str, object]]]
@@ -238,6 +244,10 @@ def _module(command: Sequence[str]) -> tuple[str, list[str]]:
     if len(command) >= 3 and command[1] in ("-m", FROZEN_MODULE):
         return command[2], list(command[3:])
     raise ValueError(f"not a module command: {command[:3]}")
+
+
+_PATH_ENV: Final = frozenset({ENV_STORAGE_STATE})
+"""值是伺服器路徑的環境變數：換成錄製端的工作資料夾。其他（Secrets、語言）原樣送出。"""
 
 
 class _Translator:
@@ -553,8 +563,12 @@ class RecorderHub:
             row.info = dict(values)
             row.last_seen_at = now()
             session.commit()
+        with self._lock:
+            channel_id, seq = channel.id, channel.seq
         return {
             "device": recorder_id,
+            "channel": channel_id,
+            "seq": seq,
             "protocol": PROTOCOL,
             "fingerprint": self.fingerprint,
             "sameVersion": not values.get("fingerprint")
@@ -572,14 +586,40 @@ class RecorderHub:
             return channel.seq
 
     def poll(
-        self, recorder_id: str, after: int, wait: float = CONTROL_WAIT_SECONDS
+        self,
+        recorder_id: str,
+        after: int,
+        wait: float = CONTROL_WAIT_SECONDS,
+        running: Collection[str] | None = None,
     ) -> dict[str, object]:
-        """長輪詢：丟掉已經處理到 ``after`` 的指令，回傳還沒處理的（沒有就等到有或逾時）。"""
+        """長輪詢：丟掉已經處理到 ``after`` 的指令，回傳還沒處理的（沒有就等到有或逾時）。
+
+        ``running`` 是錄製端正在執行的子程序：確認收到「啟動」之後卻不在裡面的（啟動失敗沒回報到、
+        處理指令時出錯），視為結束，不讓服務一直等下去。
+        """
         deadline = time.monotonic() + max(0.0, min(wait, CONTROL_WAIT_SECONDS))
         write_seen = False
         with self._lock:
             channel = self._channels.get(recorder_id)
-            if channel is None or channel.boot is None:
+            if channel is None or channel.boot is None or after > channel.seq:
+                # 序號比這邊發過的還大：錄製端以為還是上一次的通道（例如管理 Portal 重新啟動過）
+                raise conflict("recorder_hello_first", t("error.recorder_hello_first"))
+            gone: list[RemoteProcess] = []
+            if running is not None:
+                still = set(running)
+                gone = [
+                    process
+                    for process in self._processes.values()
+                    if process.device == recorder_id
+                    and process.start_seq is not None
+                    and process.start_seq <= after
+                    and process.id not in still
+                ]
+        for process in gone:
+            self._lose(process, "error.recorder_process_gone")
+        with self._lock:
+            channel = self._channels.get(recorder_id)
+            if channel is None:
                 raise conflict("recorder_hello_first", t("error.recorder_hello_first"))
             while True:
                 channel.last_poll = time.monotonic()
@@ -635,10 +675,6 @@ class RecorderHub:
             return unpack_files(archive, process.workdir)
         except SyncError as error:
             raise invalid("files_invalid", t("error.files_invalid", detail=str(error))) from None
-
-    def active(self, recorder_id: str) -> int:
-        with self._lock:
-            return sum(1 for item in self._processes.values() if item.device == recorder_id)
 
     def display(self, via: Via) -> bool:
         """這台錄製端能不能顯示瀏覽器視窗（還沒回報時當作可以）。"""
@@ -696,11 +732,16 @@ class RecorderHub:
         log_name = translate.relative(log.absolute())
         if log_name is None or log_name == ".":
             raise ValueError("log must be inside the working folder")
-        extra = env.extra if isinstance(env, ChildEnv) else dict(env)
+        if not isinstance(env, ChildEnv):
+            # 伺服器自己的環境（PATH、HOME…）不能送到錄製端：只送 child_env() 另外給的
+            raise TypeError("env for a recorder must come from child_env()")
         values = {
             "module": module,
             "args": [translate(arg) for arg in args],
-            "env": {key: translate(value) for key, value in extra.items()},
+            "env": {
+                key: translate(value) if key in _PATH_ENV else value
+                for key, value in env.extra.items()
+            },
             "pipes": pipes,
             "log": log_name,
         }
@@ -712,9 +753,11 @@ class RecorderHub:
         process = RemoteProcess(
             self, recorder_id, process_id, workdir=workdir, log=log, pipes=pipes
         )
-        with self._lock:
+        with self._lock:  # 可重入：enqueue 也拿這個鎖
             self._processes[process_id] = process
-        self.enqueue(recorder_id, {"type": "start", "process": process_id, **values})
+            process.start_seq = self.enqueue(
+                recorder_id, {"type": "start", "process": process_id, **values}
+            )
         logger.info("在錄製端 %s 啟動 %s（%s）", recorder_id, module, process_id)
         return process
 
@@ -723,13 +766,3 @@ class RecorderHub:
     def current(self) -> Via | None:
         """目前的請求透過哪台錄製端（見 :mod:`rpa_server.context`）。"""
         return via_recorder()
-
-    def launcher_for(
-        self, local: Launch, *, engine: str | None, headed: bool
-    ) -> tuple[Launch, str | None]:
-        """請求透過錄製端時改用它（先檢查能不能執行），否則用本機的；回傳 (啟動函式, 錄製端)。"""
-        via = self.current()
-        if via is None:
-            return local, None
-        self.check(via, engine=engine, headed=headed)
-        return self.launcher(via), via.id

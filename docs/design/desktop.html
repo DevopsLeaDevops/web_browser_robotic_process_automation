@@ -127,7 +127,7 @@
         <p><strong>「這台電腦」改成指「你正在操作的那台」。</strong>請求從錄製端進來，子程序就交給那台錄製端；從伺服器本機的瀏覽器（8080）進來，照舊在伺服器執行。頁面不多一個選項。</p>
         <ul>
           <li><strong>子程序主機。</strong>錄製、調試、人工登入三個服務用可注入的 <code>launcher</code> 啟動子程序，只用到一小部分 Popen 的功能：寫一行到標準輸入、逐行讀標準輸出、結束。從伺服器本機來的請求照舊是 <code>subprocess.Popen</code>；從錄製端來的請求改用 <code>RecorderHub.launcher(裝置)</code>（<code>rpa_server.devices</code>），傳回介面相同的 <code>RemoteProcess</code>，經由 Client API 交給那台。哪一台由請求決定：對外埠的存取控制認出錄製端的權杖後，把裝置放進這個請求的 context（<code>rpa_server.context</code>）。伺服器端讀 <code>Lines</code>、解析事件的程式不變。</li>
-          <li><strong>啟動。</strong>伺服器送出「啟動」指令：模組名稱（<code>rpa_runner.record</code>、<code>rpa_runner.debug</code>、<code>rpa_runner.login</code>）、參數（工作目錄用代號 <code>{work}</code>，不帶伺服器的路徑；工作目錄外的輸入檔，例如角色的登入狀態，放進 <code>.inputs/</code>）、需要的檔案（場景、入參、登入狀態）、環境變數（只送服務明確指定的：語言、用到的 Secrets）。錄製端在自己的暫存資料夾寫出檔案並啟動，結束後刪掉整個資料夾。</li>
+          <li><strong>啟動。</strong>伺服器送出「啟動」指令：模組名稱（<code>rpa_runner.record</code>、<code>rpa_runner.debug</code>、<code>rpa_runner.login</code>）、參數（工作目錄用代號 <code>{work}</code>，不帶伺服器的路徑；工作目錄外的輸入檔，例如角色的登入狀態，放進 <code>.inputs/</code>）、需要的檔案（場景、入參、登入狀態）、環境變數（只送服務明確指定的：語言、用到的 Secrets）。錄製端在自己的暫存資料夾寫出檔案並啟動，結束後刪掉整個資料夾（下次啟動時也清掉上次沒刪的）。連線是區網裡的 HTTP，所以錄製端只執行這三個模組與 <code>playwright codegen</code>，也不接受會改變直譯器或載入程式庫的環境變數（<code>PYTHON*</code>、<code>NODE_*</code>、<code>DYLD_*</code>、<code>PATH</code> 等）。</li>
           <li><strong>輸出與檔案。</strong>錄製端把每一行標準輸出傳回；在傳一行之前先上傳這段期間新增或改變的檔案（截圖、錄製稿、登入狀態），所以伺服器處理那一行時檔案一定已經到了。結束時再同步一次並回報結束碼。</li>
           <li><strong>輸入與結束。</strong>伺服器要送一行命令（例如調試的「執行第 3 步」）或結束時，放進錄製端的指令佇列；錄製端以長輪詢取得。</li>
           <li><strong>失聯。</strong>錄製端每次長輪詢就是心跳；超過 30 秒沒有回來，伺服器把它的子程序視為結束（結束碼 <code>-1001</code>，原因寫進那段工作的日誌，頁面照一般的失敗顯示），錄製端重新連上時結束殘留的瀏覽器。錄製端重新啟動（上線時的開機代號不同）、在裝置頁被停用、刪除或重新邀請，以及伺服器停止時也一樣。</li>
@@ -144,7 +144,7 @@
         <div class="panel-body prose">
           <ul>
             <li><strong>本機閘道。</strong>App 在 <code>127.0.0.1</code> 的隨機埠開一個小閘道，視窗只載入閘道的網址；閘道加上裝置權杖後轉給伺服器的對外埠。權杖不進網頁、也不靠伺服器的 Cookie；以後改 HTTPS 時在閘道釘選憑證即可，WebView 不必處理自簽憑證。</li>
-            <li><strong>只給這個 App 用。</strong>閘道每次啟動產生一個密語，視窗第一次載入時設成 Cookie；沒有這個 Cookie 的請求一律拒絕，同一台電腦上的其他程式與瀏覽器用不了。</li>
+            <li><strong>只給這個 App 用。</strong>閘道每次啟動產生一個密語，視窗第一次載入時設成 Cookie；沒有這個 Cookie 的請求一律拒絕，同一台電腦上的其他程式與瀏覽器用不了。閘道不轉送 <code>/client-api/</code> 與 <code>/worker-api/</code>：網頁不能拿權杖去確認或偽造錄製端的指令與輸出。</li>
             <li><strong>App 自己的頁面</strong>（配對、下載瀏覽器、離線提示、設定）放在閘道的 <code>/__desktop/</code> 下，用設計系統的 CSS。</li>
             <li><strong>新視窗與下載。</strong><code>target="_blank"</code> 的連結（報告、截圖）在 App 內開新視窗；匯出檔案存到「下載項目」。</li>
             <li><strong>伺服器在同一台時</strong>（MVP 的情況）：一樣配對 <code>http://127.0.0.1:8081</code>，走同一條路。</li>
@@ -236,8 +236,8 @@
             <thead><tr><th>介面</th><th>做什麼</th></tr></thead>
             <tbody>
               <tr><td><code>POST /pair</code></td><td>用邀請代碼與 App 種類換裝置權杖；回傳裝置代號、名稱、伺服器版本</td></tr>
-              <tr><td><code>POST /hello</code></td><td>錄製端上線：協定、版本、指紋、作業系統、已下載的瀏覽器、能不能顯示視窗，以及這次啟動的開機代號（換了代表重新啟動，之前的子程序視為結束）</td></tr>
-              <tr><td><code>POST /control</code></td><td>長輪詢（最多 25 秒）取得指令：啟動子程序、送一行、關閉輸入、結束；帶上收到的最後一個序號（<code>after</code>），沒確認的指令下次再給；也當作心跳</td></tr>
+              <tr><td><code>POST /hello</code></td><td>錄製端上線：協定、版本、指紋、作業系統、已下載的瀏覽器、能不能顯示視窗，以及這次啟動的開機代號（換了代表重新啟動，之前的子程序視為結束）。回傳通道代號與目前的序號：管理 Portal 重新啟動過時代號不同，錄製端的序號從 0 重新開始</td></tr>
+              <tr><td><code>POST /control</code></td><td>長輪詢（最多 25 秒）取得指令：啟動子程序、送一行、關閉輸入、結束；帶上收到的最後一個序號（<code>after</code>），沒確認的指令下次再給；附上正在執行的子程序，確認收到「啟動」卻不在裡面的視為結束；也當作心跳</td></tr>
               <tr><td><code>PUT /processes/{id}/files</code></td><td>上傳新增或改變的檔案（zip；只接受安全的相對路徑，有大小上限）</td></tr>
               <tr><td><code>POST /processes/{id}/output</code></td><td>標準輸出的幾行；子程序結束時附結束碼</td></tr>
             </tbody>

@@ -125,7 +125,8 @@ def pack_files(folder: Path, names: Iterable[str], target: Path) -> int:
 def unpack_files(source: Path, folder: Path) -> list[str]:
     """把同步的 zip 解到工作資料夾（覆蓋同名的檔案），回傳檔案清單。
 
-    任何一個檔名不安全、檔案數或解壓後大小超過上限，就整個拒絕、不寫任何檔案。
+    任何一個檔名不安全（含指到資料夾外的符號連結、檔案與資料夾同名）、檔案數或解壓後大小超過
+    上限，就整個拒絕、不寫任何檔案。寫到一半失敗（磁碟滿、zip 損壞）時拋出 :class:`SyncError`。
     """
     try:
         archive = zipfile.ZipFile(source)
@@ -143,15 +144,26 @@ def unpack_files(source: Path, folder: Path) -> list[str]:
                 raise SyncError(f"unsafe path: {name!r}")
         if len(set(names)) != len(names):
             raise SyncError("duplicate file names")
+        parents = {str(parent) for name in names for parent in PurePosixPath(name).parents}
+        if clash := sorted(parents.intersection(names)):
+            raise SyncError(f"file and folder with the same name: {clash[0]!r}")
         root = folder.resolve()
+        for name in names:
+            target = folder / name
+            if not target.resolve().is_relative_to(root):  # 資料夾裡的符號連結指到外面
+                raise SyncError(f"unsafe path: {name!r}")
+            if target.is_dir():
+                raise SyncError(f"a folder already has this name: {name!r}")
         for item in members:
             target = folder / item.filename
-            if not target.resolve().is_relative_to(root):  # 資料夾裡的符號連結指到外面
-                raise SyncError(f"unsafe path: {item.filename!r}")
-            target.parent.mkdir(parents=True, exist_ok=True)
             temporary = target.with_name(target.name + ".sync")
-            with archive.open(item) as reader, temporary.open("wb") as writer:
-                while chunk := reader.read(1024 * 1024):
-                    writer.write(chunk)
-            temporary.replace(target)
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(item) as reader, temporary.open("wb") as writer:
+                    while chunk := reader.read(1024 * 1024):
+                        writer.write(chunk)
+                temporary.replace(target)
+            except (OSError, zipfile.BadZipFile) as error:
+                temporary.unlink(missing_ok=True)
+                raise SyncError(f"cannot write {item.filename!r}: {error}") from error
         return names

@@ -101,3 +101,30 @@ def test_unpack_limits(tmp_path: Path) -> None:
     (tmp_path / "not.zip").write_bytes(b"plain")
     with pytest.raises(SyncError, match="not a zip"):
         unpack_files(tmp_path / "not.zip", tmp_path / "server")
+
+
+def test_unpack_rejects_before_writing_anything(tmp_path: Path) -> None:
+    folder = tmp_path / "work"
+    folder.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (folder / "link").symlink_to(outside, target_is_directory=True)
+    archive = tmp_path / "sync.zip"
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("a.txt", "first")
+        handle.writestr("link/escape.txt", "x")
+    with pytest.raises(SyncError, match="unsafe path"):
+        unpack_files(archive, folder)
+    assert not (folder / "a.txt").exists()  # 第一個檔案也沒寫
+    assert not (outside / "escape.txt").exists()
+
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("out", "file")
+        handle.writestr("out/shot.png", "png")
+    with pytest.raises(SyncError, match="same name"):
+        unpack_files(archive, folder)
+    (folder / "shots").mkdir()
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("shots", "file")
+    with pytest.raises(SyncError, match="folder already"):
+        unpack_files(archive, folder)

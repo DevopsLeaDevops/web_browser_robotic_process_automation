@@ -958,6 +958,7 @@
   "error.recorder_browser_missing": "Recorder “{name}” has not downloaded {engine} yet. Download it in RPA Recorder and try again",
   "error.recorder_lost": "Lost contact with recorder {name} (no response for over 30 seconds), so this session has ended",
   "error.recorder_restarted": "Recorder {name} restarted, so this session has ended",
+  "error.recorder_process_gone": "Recorder {name} is no longer running this process (it failed to start or ended without reporting back), so this session has ended",
   "error.recorder_disabled": "Recorder {name} was disabled, so this session has ended",
   "error.recorder_removed": "Recorder {name} was deleted, so this session has ended",
   "error.recorder_reinvited": "Recorder {name} was invited again (the old pairing no longer works), so this session has ended",

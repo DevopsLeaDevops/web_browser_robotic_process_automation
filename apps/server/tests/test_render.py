@@ -951,7 +951,7 @@ def _english_domain_pages() -> dict[str, str]:
                     replace(WORKER, name="Windows PC", os="Windows", host="PC"),
                     replace(WORKER, id="mac", name="Mac", status="disabled", disabled=True),
                 ],
-                recorders=[RECORDER],
+                recorders=[replace(RECORDER, name="Amy Mac")],
                 default_target="remote",
                 targets=("local", "remote", "any"),
                 local_worker=False,

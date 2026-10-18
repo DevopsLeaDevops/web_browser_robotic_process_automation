@@ -958,6 +958,7 @@
   "error.recorder_browser_missing": "錄製端「{name}」還沒下載 {engine}，請在 RPA 錄製端下載後再試",
   "error.recorder_lost": "錄製端 {name} 失聯（超過 30 秒沒有回應），這次的工作已經結束",
   "error.recorder_restarted": "錄製端 {name} 重新啟動了，這次的工作已經結束",
+  "error.recorder_process_gone": "錄製端 {name} 那邊沒有這個子程序（啟動失敗或已經結束，但結果沒有傳回來），這次的工作已經結束",
   "error.recorder_disabled": "錄製端 {name} 被停用，這次的工作已經結束",
   "error.recorder_removed": "錄製端 {name} 被刪除，這次的工作已經結束",
   "error.recorder_reinvited": "錄製端 {name} 重新邀請了（舊的配對失效），這次的工作已經結束",
