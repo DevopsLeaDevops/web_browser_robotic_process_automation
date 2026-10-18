@@ -60,6 +60,7 @@ _USAGE = f"""usage:
   {{app}} --worker [--invite INVITE] [--server URL] ...
   {{app}} --no-window [--invite INVITE] [--log FILE] ...
   {{app}} --window [--background] [--smoke-test --report FILE]
+  {{app}} {FORGET_FLAG}
 """
 
 

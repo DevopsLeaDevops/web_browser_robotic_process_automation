@@ -7,6 +7,7 @@
 
 import json
 import sys
+import threading
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
@@ -348,3 +349,34 @@ def test_console_detection_and_end_of_input(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr("builtins.input", end_of_input)
     assert worker_app._answer("？") == ""  # pyright: ignore[reportPrivateUsage]
+
+
+def test_console_worker_stops_on_request_before_connecting(
+    tmp_path: Path, store: MemoryStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """安裝檔在下載瀏覽器時就寫 stop.request：那一步做完就結束，不再連線（結束碼 0）。"""
+    Credentials(tmp_path, store).save(result())
+
+    def downloading(*args: object, **kwargs: object) -> bool:
+        request = tmp_path / "stop.request"
+        InstanceLock(tmp_path).request_stop()
+        for _ in range(500):  # 等背景的監看讀走請求
+            if not request.exists():
+                break
+            threading.Event().wait(0.01)
+        return True
+
+    def never(*args: object, **kwargs: object) -> object:
+        raise AssertionError("收到結束的請求後不應該連線")
+
+    monkeypatch.setattr(worker_app, "prepare_browsers", downloading)
+    monkeypatch.setattr("rpa_worker.service.run_remote_worker", never)
+    code = worker_app.main(
+        ["--no-testsite"],
+        environ={ENV_HOME: str(tmp_path)},
+        say=lambda line: None,
+        console=False,
+        store=store,
+    )
+    assert code == 0
+    assert not (tmp_path / "stop.request").exists()

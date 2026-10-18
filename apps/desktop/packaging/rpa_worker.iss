@@ -16,7 +16,9 @@
 ; - RPA Worker 正在執行時（具名 mutex RPAWorker.App，rpa_desktop.single_instance）：在資料夾寫
 ;   stop.request 請它取消執行中的任務、回報後結束，再換檔案（升級時配對、設定、自動啟動都保留）。
 ; - 沒有 WebView2 Runtime 時執行引導程式；失敗時說明，App 仍可只用通知區接任務。
-; - 解除安裝：停止 App、刪除「登入時執行」的項目；詢問是否也刪除配對、設定與日誌（預設保留）。
+; - 解除安裝：確認要解除安裝後停止 App、刪除「登入時執行」的項目；詢問是否也刪除配對、設定與日誌
+;   （預設保留；靜默解除安裝不問、保留，加上 /REMOVEDATA=yes 才刪除）。只刪 App 自己的檔案：
+;   資料夾可能是 RPA_WORKER_HOME 指定的任何地方，瀏覽器與 Firefox 範本的快取別的程式也在用。
 ; 名稱與路徑和 Python 那邊的常數一致，由 tests/ci/test_installer.py 檢查。
 
 #ifndef AppVersion
@@ -28,6 +30,12 @@
 #define ChildExe "rpa-child.exe"
 #define AppMutexName "RPAWorker.App"
 #define StopFile "stop.request"
+#define ShowFile "show.request"
+#define LockFile "instance.lock"
+#define PairingFile "pairing.json"
+#define SettingsFile "settings.json"
+#define LogsDir "logs"
+#define WorkDir "work"
 #define RunKey "Software\Microsoft\Windows\CurrentVersion\Run"
 #define RunValue "RPA Worker"
 #define WebView2Client "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
@@ -83,8 +91,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
-Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 引導程式放第一個：SolidCompression 時取出它不必先解壓整個 App
 Source: "{#WebView2Setup}"; Flags: dontcopy
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
@@ -210,8 +219,10 @@ begin
     SW_HIDE, ewWaitUntilTerminated, ResultCode) or not WebView2Installed then
   begin
     Log(Format('WebView2 沒有安裝成功（%d）', [ResultCode]));
-    SuppressibleMsgBox(FmtMessage(CustomMessage('WebView2Failed'), [IntToStr(ResultCode)]),
-      mbInformation, MB_OK, IDOK);
+    { 靜默安裝（/SILENT、/VERYSILENT）不跳訊息擋住自動化；App 開啟時會再說明 }
+    if not WizardSilent then
+      SuppressibleMsgBox(FmtMessage(CustomMessage('WebView2Failed'), [IntToStr(ResultCode)]),
+        mbInformation, MB_OK, IDOK);
   end;
 end;
 
@@ -221,20 +232,59 @@ begin
     InstallWebView2;
 end;
 
-function InitializeUninstall: Boolean;
+{ 是否也刪除配對、設定與日誌。預設保留：之後重新安裝不必再配對。
+  命令列 /REMOVEDATA=yes 或 no 優先（自動化用）；靜默解除安裝不問，保留。 }
+function AskRemoveData: Boolean;
+var
+  Answer: String;
 begin
-  { 預設保留：之後重新安裝不必再配對。靜默解除安裝時也是保留。 }
-  RemoveData := SuppressibleMsgBox(CustomMessage('RemoveData'), mbConfirmation,
-    MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES;
-  Result := StopWorkerQuietly;
-  if not Result then
-    SuppressibleMsgBox(CustomMessage('StillRunning'), mbError, MB_OK, IDOK);
+  Answer := ExpandConstant('{param:REMOVEDATA|}');
+  if Answer <> '' then
+    Result := SameText(Answer, 'yes')
+  else if UninstallSilent then
+    Result := False
+  else
+    Result := SuppressibleMsgBox(CustomMessage('RemoveData'), mbConfirmation,
+      MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES;
+  if Result then
+    Log('也刪除配對、設定與日誌')
+  else
+    Log('保留配對、設定與日誌');
+end;
+
+{ 只刪 App 自己的檔案；資料夾空了才刪資料夾本身（RPA_WORKER_HOME 可能指到別的資料夾）。 }
+procedure RemoveDataFolder;
+var
+  Dir: String;
+begin
+  Dir := AddBackslash(DataDir);
+  DeleteFile(Dir + '{#PairingFile}');
+  DeleteFile(Dir + '{#SettingsFile}');
+  DeleteFile(Dir + '{#LockFile}');
+  DeleteFile(Dir + '{#ShowFile}');
+  DeleteFile(Dir + '{#StopFile}');
+  DelTree(Dir + '{#LogsDir}', True, True, True);
+  DelTree(Dir + '{#WorkDir}', True, True, True);
+  if not RemoveDir(DataDir) then
+    Log('資料夾裡還有別的檔案，保留資料夾：' + DataDir);
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   ResultCode: Integer;
 begin
+  { Inno Setup 問過「確定要解除安裝嗎」之後才到這一步：使用者取消時 App 照常執行 }
+  if CurUninstallStep = usAppMutexCheck then
+  begin
+    RemoveData := AskRemoveData;
+    if not StopWorkerQuietly then
+    begin
+      Log('RPA Worker 沒有在時間內結束，取消解除安裝');
+      if not UninstallSilent then
+        SuppressibleMsgBox(CustomMessage('StillRunning'), mbError, MB_OK, IDOK);
+      Abort;
+    end;
+  end;
   if CurUninstallStep = usUninstall then
   begin
     { App 自己寫的「登入時執行」：程式刪掉後留著會指向不存在的檔案 }
@@ -244,8 +294,5 @@ begin
         ewWaitUntilTerminated, ResultCode);
   end;
   if (CurUninstallStep = usPostUninstall) and RemoveData then
-  begin
-    DelTree(DataDir, True, True, True);
-    DelTree(ExpandConstant('{localappdata}\rpa\cache'), True, True, True);
-  end;
+    RemoveDataFolder;
 end;

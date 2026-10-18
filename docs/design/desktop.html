@@ -196,10 +196,10 @@
           <ul>
             <li><strong>只裝給目前的使用者。</strong>不需要管理員，裝到 <code>%LOCALAPPDATA%\Programs\RPA Worker</code>；開始功能表捷徑，桌面捷徑選用；裝完開啟。資料夾 <code>%LOCALAPPDATA%\rpa\worker</code> 和免安裝版相同。</li>
             <li><strong>語言。</strong>繁中、簡中、英文，預設繁中、安裝時可以選（<a href="../adr/0007-i18n.html">ADR 0007</a>）。Inno Setup 的介面用它原始碼 <code>is-6_7_1</code> 的翻譯檔（建置時下載並核對 SHA-256，倉庫不放）；安裝檔自己的訊息從 App 的訊息目錄（<code>installer.*</code>）產生，所以一樣是繁中、英文人工維護，簡中由工具產生。</li>
-            <li><strong>App 正在執行時。</strong>用 App 的具名 mutex 判斷，在資料夾寫 <code>stop.request</code> 請它取消執行中的任務、回報後結束（最多等 150 秒），再換檔案；不用 Windows 的 Restart Manager 強制關閉。升級時配對、設定與自動啟動都保留，舊版的程式庫先刪掉。</li>
+            <li><strong>App 正在執行時。</strong>用 App 的具名 mutex 判斷，在資料夾寫 <code>stop.request</code> 請它取消執行中的任務、回報後結束（最多等 150 秒），再換檔案（只有通知區、沒有 WebView2 時也一樣；主控台版在配對、下載瀏覽器那一步做完後結束）；不用 Windows 的 Restart Manager 強制關閉。升級時配對、設定與自動啟動都保留，舊版的程式庫先刪掉。</li>
             <li><strong>WebView2。</strong>沒有 Runtime 時執行建置時附上的 Microsoft Evergreen 引導程式（建置時核對 Microsoft 的數位簽章）；失敗時說明，App 仍可只用通知區接任務。</li>
-            <li><strong>解除安裝。</strong>停止 App，刪除程式、捷徑與「登入時執行」的項目；詢問是否也刪除配對、設定與日誌（含認證管理員裡的權杖），預設保留，靜默解除安裝時也保留。</li>
-            <li><strong>建置與 CI。</strong><code>tools/build_desktop.py worker</code> 在 Windows 上建好 App 與 zip 後呼叫 ISCC（GitHub 的 Windows 執行環境已裝 Inno Setup）。端到端：靜默安裝 → 檢查檔案、捷徑、解除安裝項目的版本 → 用裝好的 App 配對並執行 BA-001 → BA-002 → App 執行中再安裝一次（App 要以結束碼 0 結束）→ 解除安裝，確認程式、解除安裝項目與自動啟動已刪、配對保留。</li>
+            <li><strong>解除安裝。</strong>使用者確認要解除安裝後（Inno Setup 的 <code>usAppMutexCheck</code>，取消時 App 不受影響）才詢問是否也刪除配對、設定與日誌（含認證管理員裡的權杖）：預設保留；靜默解除安裝不問、保留，命令列 <code>/REMOVEDATA=yes</code> 才刪除。接著停止 App，刪除程式、捷徑與「登入時執行」的項目。只刪 App 自己的檔案：資料夾可能是 <code>RPA_WORKER_HOME</code> 指定的任何地方，瀏覽器與 Firefox 範本的快取別的程式也在用。</li>
+            <li><strong>建置與 CI。</strong><code>tools/build_desktop.py worker</code> 在 Windows 上建好 App 與 zip 後呼叫 ISCC（GitHub 的 Windows 執行環境已裝 Inno Setup）。端到端：靜默安裝 → 檢查檔案、捷徑、解除安裝項目的版本 → 用裝好的 App 配對並執行 BA-001 → BA-002 → App 執行中再安裝一次（App 要以結束碼 0 結束）→ 解除安裝，確認程式、捷徑、解除安裝項目與自動啟動已刪、配對保留 → 再安裝一次並以 <code>/REMOVEDATA=yes</code> 解除安裝，確認資料夾與認證管理員裡的權杖已刪。失敗時附上 Inno Setup 的日誌。</li>
             <li><strong>不包含。</strong>程式碼簽章、自動更新、內含 Chromium 的離線安裝檔。</li>
           </ul>
         </div>

@@ -15,11 +15,15 @@ CI 的桌面端建置在 Windows 建好 RPA Worker、跑完自我測試之後執
 5. 以「遠端 worker」無頭執行 BA-001，再用它的出參執行 BA-002：兩個都要通過、都由這台裝置執行，
    報告回到 Portal。
 給了 ``--installer``（M10.1 PR 3）時，第 3 步之前先**靜默安裝**到暫存資料夾（檢查檔案、開始功能表
-捷徑、解除安裝項目的版本），之後的步驟都用**裝好的** App；第 5 步之後再加兩步：
+捷徑、解除安裝項目的版本），之後的步驟都用**裝好的** App；第 5 步之後再加三步：
 
 - **升級**：App 還在接任務時再安裝一次，安裝檔要用 ``stop.request`` 請它結束（結束碼 0）再換檔案。
-- **解除安裝**：先放一個「登入時執行」的值（模擬自動啟動），靜默解除安裝後確認程式、解除安裝項目
-  與那個值都刪了，資料夾的配對保留（靜默解除安裝時「也刪除資料」的問題用預設的「否」）。
+- **解除安裝**：先放一個「登入時執行」的值（模擬自動啟動），靜默解除安裝後確認程式、捷徑、
+  解除安裝項目與那個值都刪了，資料夾的配對保留（靜默解除安裝不問「也刪除資料」，保留）。
+- **刪除資料**：再安裝一次，以 ``/REMOVEDATA=yes`` 解除安裝：資料夾刪掉、認證管理員裡的權杖也刪掉
+  （解除安裝程式執行 ``rpa-child.exe --forget-pairing``）。
+
+安裝檔與解除安裝的日誌（Inno Setup 的 ``/LOG``）在失敗時附在那一步的輸出。
 
 6. 結束兩個程序（打包版先用資料夾的 ``stop.request`` 請它自己結束：視窗程式收不到 Ctrl+C），
    印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，
@@ -211,6 +215,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
     portal: subprocess.Popen[bytes] | None = None
     worker: subprocess.Popen[bytes] | None = None
     handles: list[IO[bytes]] = []
+    setup_logs: list[Path] = []
 
     def step(name: str, action: Callable[[], str]) -> bool:
         started = time.monotonic()
@@ -223,8 +228,10 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
                     "ok": False,
                     "error": f"{type(error).__name__}: {error}",
                     "seconds": round(time.monotonic() - started, 1),
-                    "output": (
-                        f"--- portal ---\n{_tail(portal_log)}\n--- worker ---\n{_tail(app_log)}"
+                    "output": "\n".join(
+                        f"--- {log.name} ---\n{_tail(log)}"
+                        for log in [portal_log, app_log, *setup_logs]
+                        if log.exists()
                     ),
                 }
             )
@@ -250,8 +257,23 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
 
     def run_setup(log: str) -> subprocess.CompletedProcess[bytes]:
         assert installer is not None
+        setup_logs.append(folder / log)
         command = [str(installer), *SILENT, f"/DIR={install_dir}", f"/LOG={folder / log}"]
         return subprocess.run(command, env=env, capture_output=True, timeout=600, check=False)
+
+    def run_uninstall(log: str, *options: str) -> None:
+        setup_logs.append(folder / log)
+        uninstaller = install_dir / "unins000.exe"
+        command = [str(uninstaller), *SILENT, f"/LOG={folder / log}", *options]
+        subprocess.run(command, env=env, timeout=600, check=False)
+
+        # 解除安裝程式會把自己複製到暫存資料夾再執行，原本的程序可能先結束：等到真的刪完
+        def removed() -> JsonObject | None:
+            return {} if not app.exists() and _uninstall_entry() is None else None
+
+        _wait("解除安裝完成", removed, 300)
+        if _start_menu_shortcut().exists():
+            raise StepFailedError(f"解除安裝後開始功能表捷徑還在：{_start_menu_shortcut()}")
 
     def install() -> str:
         nonlocal app
@@ -293,19 +315,33 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
 
     def uninstall() -> str:
         _set_run_value(f'"{app}" --background')  # 模擬 App 寫的自動啟動
-        uninstaller = install_dir / "unins000.exe"
-        subprocess.run([str(uninstaller), *SILENT], env=env, timeout=600, check=False)
-
-        # 解除安裝程式會把自己複製到暫存資料夾再執行，原本的程序可能先結束：等到真的刪完
-        def removed() -> JsonObject | None:
-            return {} if not app.exists() and _uninstall_entry() is None else None
-
-        _wait("解除安裝完成", removed, 300)
+        run_uninstall("uninstall.log")
         if _run_value() is not None:
             raise StepFailedError("解除安裝後「登入時執行」的 RPA Worker 還在")
         if not (home / "pairing.json").is_file():
             raise StepFailedError("靜默解除安裝預設應該保留配對，但 pairing.json 不見了")
-        return "程式、解除安裝項目、自動啟動已刪除；配對保留"
+        return "程式、捷徑、解除安裝項目、自動啟動已刪除；配對保留"
+
+    def remove_data() -> str:
+        from rpa_desktop.credentials import Credentials
+
+        completed = run_setup("setup-reinstall.log")
+        if completed.returncode != 0:
+            raise StepFailedError(f"重新安裝的結束碼 {completed.returncode}")
+        pairing = (home / "pairing.json").read_text(encoding="utf-8")
+        run_uninstall("uninstall-remove-data.log", "/REMOVEDATA=yes")
+        if home.exists():
+            left = sorted(path.name for path in home.iterdir())
+            raise StepFailedError(f"選擇刪除資料，資料夾還在：{left}")
+        if state.get("storage") != "認證管理員":
+            return "資料夾已刪除（權杖存在配對檔，沒有認證管理員可查）"
+        # 用剛才的配對檔（沒有權杖）在認證管理員找同一個項目：應該已經刪掉
+        check = folder / "token-check"
+        check.mkdir()
+        (check / "pairing.json").write_text(pairing, encoding="utf-8")
+        if Credentials(check).load() is not None:
+            raise StepFailedError("解除安裝時選擇刪除資料，認證管理員裡的權杖還在")
+        return "資料夾與認證管理員裡的權杖都已刪除"
 
     def start_portal() -> str:
         nonlocal portal
@@ -373,6 +409,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
                 "權杖沒有存進 Windows 認證管理員（退回存在配對檔），見 worker.log"
             )
         storage = "退回配對檔" if "token" in saved else "認證管理員"
+        state["storage"] = storage
         return f"{record.get('os')}；瀏覽器 {record.get('browsers')}；權杖存在{storage}"
 
     def ba_001() -> str:
@@ -390,7 +427,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
         plan.append(("install", install))
     plan += [("pair", start_worker), ("ba-001", ba_001), ("ba-002", ba_002)]
     if installer is not None:
-        plan += [("upgrade", upgrade), ("uninstall", uninstall)]
+        plan += [("upgrade", upgrade), ("uninstall", uninstall), ("remove-data", remove_data)]
     try:
         for name, action in plan:
             if not step(name, action):

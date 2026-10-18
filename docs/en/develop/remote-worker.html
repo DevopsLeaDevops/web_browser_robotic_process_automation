@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:2b8bb962cdec6ff2">
+<meta name="translation-source" content="sha256:40df968ab5b78416">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -85,7 +85,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
         </ol>
         <ul>
           <li><strong>Upgrading</strong>: run the new version's installer. If RPA Worker is running, the installer first asks it to quit (a running job is cancelled and reported to the management portal) and then replaces the files; pairing, settings and auto-start are kept. When the window says the program version differs from the management portal, the Download the new version button next to it opens the latest release.</li>
-          <li><strong>Uninstalling</strong>: find RPA Worker under Windows Settings › Apps. It quits RPA Worker, removes the program, shortcuts and auto-start, then asks whether to also delete the pairing, settings and logs: No (keep them) is the default, so a reinstall does not need pairing again; Yes also removes the token from Credential Manager.</li>
+          <li><strong>Uninstalling</strong>: find RPA Worker under Windows Settings › Apps. After you confirm, it first asks whether to also delete the pairing, settings and logs: No (keep them) is the default, so a reinstall does not need pairing again; Yes also removes the token from Credential Manager. It then quits RPA Worker (a running job is cancelled and reported) and removes the program, shortcuts and auto-start. Browsers (<code>%LOCALAPPDATA%\ms-playwright</code>) and the Firefox template cache (<code>%LOCALAPPDATA%\rpa\cache</code>) may be used by other programs too, so they are not deleted. A silent uninstall from the command line (<code>unins000.exe /VERYSILENT</code>) does not ask and keeps the data; add <code>/REMOVEDATA=yes</code> to delete it.</li>
           <li><strong>Portable version</strong>: each release also has <code>RPA-Worker-VERSION-windows-x64.zip</code>. Unzip it into any folder (for example <code>%USERPROFILE%\RPA Worker</code>) and double-click <code>rpa-worker.exe</code>; it works like the installed version. To upgrade, quit it from the notification area first, then unzip the new version over it. The portable and installed versions share the same data folder and pairing, so do not use both at once.</li>
           <li><strong>Closing the window does not stop it.</strong> RPA Worker moves to the notification area and keeps taking jobs (it tells you the first time). The tray icon's menu has Open window, Pause jobs and Quit; the dot on the icon is green (online), yellow (paused) or red (offline or needs attention). Quitting while a job runs asks first, then cancels the job and reports it to the portal.</li>
           <li><strong>Start when you sign in to Windows</strong>: turned on after the first successful pairing, tray only; turn it off under Settings in the window. If you move the folder, open RPA Worker once and auto-start follows the new location.</li>

@@ -10,10 +10,13 @@ from pathlib import Path
 import pytest
 
 from rpa_core.i18n import LOCALES
-from rpa_desktop import autostart, entry, gui, release, single_instance
+from rpa_desktop import autostart, entry, gui, release, settings, single_instance
 from rpa_desktop.i18n import t
 from rpa_desktop.worker_app import data_dir
+from rpa_worker.pairing import PAIRING_FILE
 from tools import build_desktop as build
+
+ROOT = Path(__file__).resolve().parents[2]
 
 SCRIPT = build.INSTALLER_SCRIPT.read_text(encoding="utf-8")
 
@@ -35,6 +38,32 @@ def test_names_match_the_app() -> None:
     assert define("Repository") == release.REPOSITORY
     assert f"'{entry.FORGET_FLAG}'" in SCRIPT
     assert "--background" not in SCRIPT  # 自動啟動由 App 自己寫，安裝檔只負責刪除
+
+
+def test_remove_data_deletes_only_the_apps_files() -> None:
+    """「也刪除資料」只刪 App 自己的檔案：資料夾可能是 RPA_WORKER_HOME 指定的任何地方。"""
+    assert define("ShowFile") == single_instance.SHOW_FILE
+    assert define("LockFile") == single_instance.LOCK_FILE
+    assert define("PairingFile") == PAIRING_FILE
+    assert define("SettingsFile") == settings.SETTINGS_FILE
+    sources = "".join(
+        (ROOT / "apps/desktop/src/rpa_desktop" / name).read_text(encoding="utf-8")
+        for name in ("gui.py", "headless.py", "worker_app.py", "controller.py")
+    )
+    assert f'home / "{define("LogsDir")}"' in sources
+    assert f'home / "{define("WorkDir")}"' in sources
+    assert "DelTree(DataDir" not in SCRIPT
+    assert "rpa\\cache" not in SCRIPT  # 瀏覽器範本的快取別的程式也在用
+    # 靜默解除安裝不問、保留；/REMOVEDATA=yes 才刪（CI 的端到端用它測刪除）
+    assert "{param:REMOVEDATA|}" in SCRIPT
+    e2e = (ROOT / "tools/desktop_e2e.py").read_text(encoding="utf-8")
+    assert '"/REMOVEDATA=yes"' in e2e
+
+
+def test_uninstall_stops_the_app_only_after_confirmation() -> None:
+    """InitializeUninstall 在「確定要解除安裝嗎」之前：在那裡停 App，使用者取消時 App 已經停了。"""
+    assert "function InitializeUninstall" not in SCRIPT
+    assert "usAppMutexCheck" in SCRIPT
 
 
 def test_data_folder_matches_the_app() -> None:

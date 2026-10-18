@@ -241,6 +241,8 @@ class DesktopApp:
         self.tray.on_open = lambda: _message_box(title, text)
         self.tray.on_quit = self._quit_tray_only
         self.controller.subscribe(self.tray.update)
+        # 安裝檔升級或解除安裝時寫 stop.request：沒有視窗時一樣要結束（WebView2 裝不起來的退路）
+        self.lock.watch(None, self._finished, on_stop=self._quit_tray_only)
         self.controller.start(self.invite, self.server)
         threading.Thread(target=_message_box, args=(title, text), daemon=True).start()
         self.tray.run_blocking()

@@ -160,7 +160,7 @@ def _verify_microsoft_signature(path: Path) -> None:
     script = (
         f"$s = Get-AuthenticodeSignature -LiteralPath '{path}'; "
         "if ($s.Status -ne 'Valid') { Write-Output ('status: ' + $s.Status); exit 1 }; "
-        "if ($s.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') "
+        "if ($s.SignerCertificate.Subject -notmatch '(^|, )O=Microsoft Corporation(,|$)') "
         "{ Write-Output ('signer: ' + $s.SignerCertificate.Subject); exit 1 }"
     )
     completed = subprocess.run(

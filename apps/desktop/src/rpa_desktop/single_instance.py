@@ -120,9 +120,10 @@ class InstanceLock:
             handle.close()
             return False
         self._handle = handle
-        self._mutex = _create_mutex()
         for stale in (SHOW_FILE, STOP_FILE):  # 之前留下的請求不算
             (self.folder / stale).unlink(missing_ok=True)
+        # 清掉舊的請求之後才建立：安裝檔看到 mutex 才寫 stop.request，不會被上面刪掉
+        self._mutex = _create_mutex()
         return True
 
     def release(self) -> None:
