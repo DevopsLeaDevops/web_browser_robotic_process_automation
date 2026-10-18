@@ -1,6 +1,7 @@
 'use strict';
 // 管理 Portal 的頁面互動：呼叫 /api、輪詢執行狀態、對話框；M4 加上登入與憑證、錄製、逐步調試、入參出參表單；
 // M6 加上自由試驗場（DAG 畫布、組合場景管理與執行）；M9a 加上遠端 worker 頁與執行位置。
+// M10.1：遠端 worker 頁改為裝置頁，新增與重新邀請都產生邀請（一次性、24 小時內有效）。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -367,13 +368,31 @@
     return checked ? checked.value : null;
   }
 
+  // 場景網址指向本機（127.0.0.1、localhost、::1；測試網站的 8765 除外）：
+  // 遠端 worker 上那指的是 worker 自己，交給它執行很可能連不到
+  const TESTSITE_PORT = '8765';
+  function pointsToThisComputer(value) {
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      return false;
+    }
+    const host = url.hostname.replace(/^\[|\]$/g, '');
+    const local = host === 'localhost' || host === '::1' || /^127\./.test(host);
+    return local && url.port !== TESTSITE_PORT;
+  }
+
   // 換執行位置時，有頭模式能不能選跟著那個位置（本機看這台電腦，遠端看 worker）
   function bindTargetChoice(root) {
     const choice = qs('[data-target-choice]', root);
     if (!choice) return;
     const display = JSON.parse(choice.dataset.display || '{}');
+    const baseUrl = qs('[name="baseUrl"]', root);
+    const warning = qs('[data-local-url-warning]', root);
     const update = () => {
       const target = chosenTarget(root);
+      if (warning) warning.hidden = !(baseUrl && target && target !== 'local' && pointsToThisComputer(baseUrl.value));
       const headed = qs('[name="headless"][value="0"]', root);
       const headless = qs('[name="headless"][value="1"]', root);
       if (!target || !headed || !headless) return;
@@ -384,6 +403,7 @@
       if (hint) hint.textContent = allowed ? hint.dataset.hint : hint.dataset.unavailable;
     };
     qsa('[name="target"]', root).forEach(input => input.addEventListener('change', update));
+    if (baseUrl) baseUrl.addEventListener('input', update);
     update();
   }
 
@@ -2328,21 +2348,31 @@
   }
 
   localizeTimes();
-  // ---------------------------------------------------------------- 遠端 worker（M9a）
+  // ---------------------------------------------------------------- 裝置（M9a 遠端 worker；M10.1 邀請）
 
-  function showToken(worker, token) {
-    modal(fill(messages.worker_token_title, {name: worker.name}), qs('#worker-token').innerHTML, null);
+  // 邀請只在這時候拿得到：一行邀請、分開的伺服器與代碼、命令列的用法
+  function showInvite(worker, invite) {
+    modal(fill(messages.worker_invite_title, {name: worker.name}), qs('#worker-invite').innerHTML, null);
     const dialog = qs('#dialog-content');
-    const root = qs('#workers');
-    const server = root.dataset.apiUrl || 'http://<IP>:8081';
-    qs('[name="token"]', dialog).value = token;
-    const run = 'uv run rpa worker --server ' + server + ' --name ' + worker.id;
-    qs('[data-command="windows"]', dialog).textContent = '$env:RPA_WORKER_TOKEN = "' + token + '"\n' + run;
-    qs('[data-command="unix"]', dialog).textContent = "export RPA_WORKER_TOKEN='" + token + "'\n" + run;
-    const field = qs('[name="token"]', dialog);
+    qs('[name="invite"]', dialog).value = invite.line;
+    qs('[name="server"]', dialog).value = invite.server;
+    qs('[name="code"]', dialog).value = invite.code;
+    const expires = qs('time[data-expires]', dialog);
+    expires.setAttribute('datetime', invite.expiresAt);
+    expires.textContent = invite.expiresAt;
+    localizeTimes();
+    qs('[data-command="cli"]', dialog).textContent = 'uv run rpa worker --invite "' + invite.line + '"';
+    const field = qs('[name="invite"]', dialog);
     field.focus();
     field.select();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(invite.line).then(() => toast(messages.worker_copied), () => {});
+    }
     $('#dialog').addEventListener('close', () => location.reload(), {once: true});
+  }
+
+  async function inviteWorker(workerId) {
+    return api('POST', '/api/workers/' + path(workerId) + '/invite');
   }
 
   function bindWorkers() {
@@ -2354,7 +2384,13 @@
         const value = name => qs('[name="' + name + '"]', dialog).value.trim();
         const result = await api('POST', '/api/workers', {id: value('id'), name: value('name') || null});
         if (!result.ok) return dialogError(dialog, result);
-        showToken(result.data.worker, result.data.token);
+        const invited = await inviteWorker(result.data.worker.id);
+        if (!invited.ok) {
+          $('#dialog').close();
+          toast(errorMessage(invited));
+          return location.reload();
+        }
+        showInvite(invited.data.worker, invited.data.invite);
       }});
       qs('[name="id"]', qs('#dialog-content')).focus();
     });
@@ -2370,15 +2406,15 @@
     };
     qsa('[data-action="disable-worker"]').forEach(button => button.addEventListener('click', () => patch(button, true)));
     qsa('[data-action="enable-worker"]').forEach(button => button.addEventListener('click', () => patch(button, false)));
-    qsa('[data-action="rotate-worker"]').forEach(button => {
+    qsa('[data-action="invite-worker"]').forEach(button => {
       button.addEventListener('click', () => {
-        confirmDialog(fill(messages.worker_rotate_title, {name: button.dataset.name}), messages.worker_rotate_body, messages.worker_rotate_action, async () => {
-          const result = await api('POST', '/api/workers/' + path(button.dataset.worker) + '/token');
+        confirmDialog(fill(messages.worker_invite_again_title, {name: button.dataset.name}), messages.worker_invite_again_body, messages.worker_invite_again_action, async () => {
+          const result = await inviteWorker(button.dataset.worker);
           if (!result.ok) {
             $('#dialog').close();
             return toast(errorMessage(result));
           }
-          showToken(result.data.worker, result.data.token);
+          showInvite(result.data.worker, result.data.invite);
         });
       });
     });

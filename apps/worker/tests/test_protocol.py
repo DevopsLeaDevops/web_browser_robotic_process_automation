@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 from rpa_runner.login import LoginSettings
-from rpa_worker.environment import PROTOCOL, WorkerInfo, code_fingerprint, has_display
+from rpa_worker.environment import (
+    PROTOCOL,
+    WorkerInfo,
+    code_fingerprint,
+    has_display,
+    package_version,
+)
 from rpa_worker.protocol import (
     ArtifactError,
     JobPayload,
@@ -226,6 +232,7 @@ def test_worker_info_to_json() -> None:
         host="WIN-01",
         browsers=("chromium",),
         display=True,
+        version="0.1.0",
     )
 
     assert info.to_json() == {
@@ -237,4 +244,10 @@ def test_worker_info_to_json() -> None:
         "host": "WIN-01",
         "browsers": ["chromium"],
         "display": True,
+        "version": "0.1.0",
     }
+
+
+def test_worker_info_reports_the_package_version() -> None:
+    assert WorkerInfo.detect("box").version == package_version() != ""
+    assert package_version("no-such-distribution") == ""

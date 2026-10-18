@@ -12,6 +12,9 @@
   因為可能已經有副作用。之後 worker 才回報的結果一律 409。
 - **結果**：上傳的執行目錄（zip）解到 data/runs/<執行編號>/；result.json 的內容照本機的規則寫回
   （包括發布門檻的雜湊比對）；自動登入後的登入狀態傳回角色。
+- **邀請與配對**（M10.1，ADR 0014）：裝置頁產生邀請時，舊權杖立刻失效、之前的邀請作廢；
+  邀請代碼一次性、24 小時內有效、限定 App 種類，資料庫只存雜湊。App 用代碼呼叫
+  Client API 的 ``/pair``，管理 Portal 重新產生權杖交給它。
 """
 
 import hashlib
@@ -22,14 +25,16 @@ import threading
 import time
 import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Final, cast
+from typing import Any, Final, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import CursorResult, delete, or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.i18n import Locale, use_locale
+from rpa_server import __version__
 from rpa_server.domain import (
     DOMAIN_ID,
     LOCAL_WORKER,
@@ -42,10 +47,11 @@ from rpa_server.domain import (
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
 from rpa_server.jobs import Outcome, RunQueue
-from rpa_server.models import RemoteWorker, Run, Setting
+from rpa_server.models import DeviceInvite, RemoteWorker, Run, Setting
 from rpa_server.roles import RoleService
 from rpa_server.storage import Storage
 from rpa_worker.environment import PROTOCOL, code_fingerprint
+from rpa_worker.pairing import INVITE_HOURS
 from rpa_worker.protocol import (
     CLAIM_WAIT_SECONDS,
     LEASE_SECONDS,
@@ -54,7 +60,7 @@ from rpa_worker.protocol import (
     unpack_directory,
 )
 
-__all__ = ["ONLINE_SECONDS", "WorkerHub", "hash_token"]
+__all__ = ["ONLINE_SECONDS", "Invitation", "WorkerHub", "hash_token"]
 
 logger = logging.getLogger("rpa_server.dispatch")
 
@@ -71,6 +77,20 @@ def hash_token(token: str) -> str:
 
 def _info(row: RemoteWorker) -> dict[str, object]:
     return dict(row.info or {})
+
+
+@dataclass(frozen=True, slots=True)
+class Invitation:
+    """剛產生的邀請（M10.1）：代碼只有這時候拿得到，資料庫只存雜湊。"""
+
+    worker: WorkerRecord
+    code: str
+    app: str
+    expires_at: datetime
+
+
+def _invite_invalid() -> ServiceError:
+    return ServiceError(401, "invite_invalid", t("error.invite_invalid"))
 
 
 class WorkerHub:
@@ -178,6 +198,7 @@ class WorkerHub:
             if isinstance(browsers, list)
             else (),
             display=info.get("display") is True,
+            version=text("version"),
         )
 
     def list_workers(self) -> list[WorkerRecord]:
@@ -271,10 +292,94 @@ class WorkerHub:
             waiting = session.scalars(
                 select(Run.id).where(Run.required_worker == worker_id, Run.status == "queued")
             ).all()
+            session.execute(delete(DeviceInvite).where(DeviceInvite.device_id == worker_id))
             session.delete(row)
             session.commit()
         for run_id in waiting:
             self.queue.fail_run(run_id, t("run.worker_removed", worker=worker_id))
+
+    # ------------------------------------------------------------ 邀請與配對（M10.1）
+
+    def create_invite(self, worker_id: str) -> Invitation:
+        """產生這台 worker 的邀請：舊權杖立刻失效，之前的邀請作廢。停用中的 worker 不能邀請。"""
+        code = secrets.token_urlsafe(24)
+        moment = now()
+        expires = moment + timedelta(hours=INVITE_HOURS)
+        with self.sessions() as session:
+            row = self._row(session, worker_id)
+            if row.disabled:
+                raise conflict("worker_disabled", t("error.worker_disabled", id=worker_id))
+            # 沒有人拿得到這個權杖：配對時才產生真正交給 App 的權杖
+            row.token_hash = hash_token(secrets.token_urlsafe(32))
+            session.execute(
+                delete(DeviceInvite).where(
+                    or_(DeviceInvite.device_id == worker_id, DeviceInvite.expires_at <= moment)
+                )
+            )
+            session.add(
+                DeviceInvite(
+                    code_hash=hash_token(code),
+                    app="worker",
+                    device_id=worker_id,
+                    created_at=moment,
+                    expires_at=expires,
+                    used_at=None,
+                )
+            )
+            session.commit()
+            record = self._record(row, moment)
+        return Invitation(worker=record, code=code, app="worker", expires_at=expires)
+
+    def pair(self, code: str, app: str) -> dict[str, object]:
+        """Client API 的配對：邀請代碼換權杖。代碼只能用一次；App 種類不對時代碼保留。"""
+        digest = hash_token(code.strip())
+        moment = now()
+        token = secrets.token_urlsafe(32)
+        with self.sessions() as session:
+            invite = session.get(DeviceInvite, digest)
+            if invite is None or invite.used_at is not None:
+                raise _invite_invalid()
+            if invite.expires_at <= moment:
+                raise ServiceError(
+                    401, "invite_expired", t("error.invite_expired", hours=INVITE_HOURS)
+                )
+            if invite.app != app:
+                raise conflict(
+                    "invite_wrong_app",
+                    t("error.invite_wrong_app", app=t("device.app_" + invite.app)),
+                    app=invite.app,
+                )
+            row = session.get(RemoteWorker, invite.device_id)
+            if row is None:
+                raise _invite_invalid()
+            if row.disabled:
+                raise conflict("worker_disabled", t("error.worker_disabled", id=row.id))
+            used = cast(
+                "CursorResult[Any]",
+                session.execute(
+                    update(DeviceInvite)
+                    .where(DeviceInvite.code_hash == digest, DeviceInvite.used_at.is_(None))
+                    .values(used_at=moment)
+                ),
+            )
+            if used.rowcount != 1:  # 同一個代碼同時被用了兩次
+                session.rollback()
+                raise _invite_invalid()
+            row.token_hash = hash_token(token)
+            session.commit()
+            device, name = row.id, row.name
+        logger.info("裝置 %s 已配對（%s）", device, app)
+        return {
+            "device": device,
+            "name": name,
+            "app": app,
+            "token": token,
+            "server": {
+                "protocol": PROTOCOL,
+                "fingerprint": self.fingerprint,
+                "version": __version__,
+            },
+        }
 
     # ------------------------------------------------------------ 設定
 
@@ -322,7 +427,7 @@ class WorkerHub:
                 "protocol_mismatch",
                 t("error.worker_protocol", worker=protocol, server=PROTOCOL),
             )
-        keys = ("protocol", "fingerprint", "os", "python", "host", "browsers", "display")
+        keys = ("protocol", "fingerprint", "os", "python", "host", "browsers", "display", "version")
         with self.sessions() as session:
             row = self._touch(session, worker_id)
             row.info = {key: info.get(key) for key in keys}

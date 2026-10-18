@@ -47,7 +47,7 @@
           <tr><td><strong>M9a 遠端 worker</strong></td><td><strong>是（#23，2026-10-13 20:54 America/Los_Angeles（PDT，UTC−07:00））</strong></td><td>是（PR 與 main 的 CI；同一台虛擬機上模擬遠端 worker）</td><td><span class="kind pending">沒有通過</span>：10-13 20:52 回報 Windows 上「沒有 worker 這個命令」（當時 #23 還沒合併）；之後的步驟沒有紀錄</td></tr>
           <tr><td>安裝腳本：受限語言模式（你寫的 #25）</td><td>是（#25，10-13 20:58 America/Los_Angeles（PDT，UTC−07:00））</td><td>是，但 <strong>CI 沒有在受限語言模式下跑</strong></td><td><span class="kind unknown">需你補充</span>（在你的 Windows 上裝完了嗎）</td></tr>
           <tr><td>交接材料（#24）、setup-uv 10.3.0（#19）</td><td>是（10-13）</td><td>是</td><td>—</td></tr>
-          <tr><td><strong>M10 桌面端分發</strong></td><td>否（設計與 M10.0 在 <code>m10/desktop</code>，<a href="tasks/20261015-m10-desktop.html">任務紀錄</a>）</td><td>—</td><td>—</td></tr>
+          <tr><td><strong>M10 桌面端分發</strong></td><td>M10.0：是（#30，2026-10-16 20:48 America/Los_Angeles（PDT，UTC−07:00），main <span class="mono">ce88275</span>，<a href="tasks/20261015-m10-desktop.html">任務紀錄</a>）。M10.1：進行中（<a href="tasks/20261016-m10-1-windows-worker.html">任務紀錄</a>）</td><td>M10.0：是（main 的 CI 與桌面端建置）</td><td><span class="kind pending">未驗</span>：要等 M10.1／M10.2 有可以安裝的 App</td></tr>
           <tr><td>M5 AI 助手</td><td>否</td><td>—</td><td><span class="kind pending">等你決定</span>模型與資料去向</td></tr>
         </tbody>
       </table></div>
@@ -60,7 +60,7 @@
           <li><strong>兩台電腦更新到 main</strong>：專案資料夾 <code>git pull</code>，再重跑安裝腳本（macOS／Linux：<code>./scripts/setup.sh</code>；Windows：<code>powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</code>）。確認 <code>uv run rpa worker --help</code> 有輸出。</li>
           <li><strong>做 M9a 的兩機驗收</strong>，結果記在<a href="acceptance.html#manual-m9a">驗收紀錄</a>的表格（或第 7 節的交接紀錄）。步驟見<a href="../docs/develop/remote-worker.html">遠端 worker</a> 與<a href="../docs/design/portal.html#manual-check">管理 Portal › 手動驗收</a>第 8 步。</li>
           <li><strong>補上只有你知道的資訊</strong>：<a href="environment.html">運作環境與資料</a>裡標「需使用者補充」的欄位，以及<a href="decisions.html#pending">待你決定</a>的 M5 事項。</li>
-          <li>M9a 的三個小項目（執行位置篩選、localhost 提醒、等待 worker 的提示）已在 2026-10-15 併入 M10.1，見<a href="tasks/20261015-m10-desktop.html">M10 任務紀錄</a>。</li>
+          <li>M9a 的三個小項目（執行位置篩選、localhost 提醒、等待 worker 的提示）已在 2026-10-15 併入 M10.1，由 M10.1 的第一個 PR 交付，見<a href="tasks/20261016-m10-1-windows-worker.html">M10.1 任務紀錄</a>。</li>
         </ol>
       </div>
     </section>

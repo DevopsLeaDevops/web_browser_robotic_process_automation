@@ -17,13 +17,13 @@
       <h1>ADR 0014：录制端与 Worker 以桌面 App 分发，壳内沿用现有网页</h1>
       <p>服务器与数据库部署在一台电脑，录制者与运行机各自安装一个桌面 App 就能用。App 是 pywebview 壳＋服务器现有的 Jinja 页面；录制、逐步调试、人工登录的浏览器改开在操作的那台电脑。</p>
     </div>
-    <span class="badge amber">提议中</span>
+    <span class="badge green">已接受</span>
   </div>
 
   <div class="stack">
     <section class="panel panel-body">
       <dl class="spec-list">
-        <dt>日期</dt><dd class="mono">2026-10-15</dd>
+        <dt>日期</dt><dd class="mono">2026-10-15（提议）；2026-10-16（接受）</dd>
         <dt>影响范围</dt><dd>新包 rpa-desktop；rpa-runner（子进程命令）、rpa-server（设备、邀请、对外端口、交互子进程）、rpa-worker（版本信息）；CI 与发布（M10 起）</dd>
         <dt>相关</dt><dd>延伸 <a href="0012-remote-workers.html">ADR 0012</a>（对外端口与权杖）；<a href="0011-fastapi-jinja.html">ADR 0011</a>（只用 Python、服务器渲染页面）；<a href="0010-mvp-first.html">ADR 0010</a>；<a href="../design/desktop.html">桌面端分发</a>。编号 0013 保留未用。</dd>
       </dl>

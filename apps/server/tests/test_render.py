@@ -121,6 +121,7 @@ WORKER = WorkerRecord(
     host="WIN-01",
     browsers=("chromium", "firefox"),
     display=True,
+    version="0.1.0",
 )
 WORKER_NAMES = {"local": "本機", "win-01": "Windows <測試機>"}
 RESULT: dict[str, object] = {
@@ -1165,6 +1166,54 @@ def test_workflow_pages_show_sources_and_actions() -> None:
     assert 'data-action="rerun"' not in node_run
 
 
+def test_waiting_for_a_worker_is_explained() -> None:
+    """M9a 收尾：排隊中、沒有線上的遠端 worker 時說明在等什麼，並連到裝置頁。"""
+    queued = replace(RUN, status="queued", target="remote", finished_at=None)
+    with use_locale("zh-Hant"):
+        pages = {
+            name: render(
+                "run.html",
+                page="runs",
+                title="執行",
+                run=queued,
+                revision=REVISIONS[0],
+                result=None,
+                files=[],
+                can_publish=False,
+                role=None,
+                worker_wait=wait,
+            )
+            for name, wait in (
+                ("any", {"worker": None}),
+                ("named", {"worker": "Windows <測試機>"}),
+                ("none", None),
+            )
+        }
+    assert "目前沒有線上的遠端 worker" in _text(pages["any"])
+    assert 'href="/devices"' in pages["any"].split("data-worker-wait")[1]
+    assert "等待 worker「Windows &lt;測試機&gt;」" in pages["named"]
+    assert "data-worker-wait" not in pages["none"]
+
+
+def test_location_filter_and_local_url_warning() -> None:
+    """有遠端 worker 時執行報告多一個「執行位置」篩選；執行表單有網址指向本機的提醒（預設隱藏）。"""
+    with use_locale("zh-Hant"):
+        filters = run_filters(
+            scenes=[SCENE],
+            categories=[],
+            selected={"worker": ["win-01"]},
+            locations=[("local", "本機"), ("win-01", "Windows")],
+        )
+        html = render("runs.html", page="runs", title="報告", runs=[], filters=filters, limit=200)
+        alone = run_filters(scenes=[SCENE], categories=[], selected={}, locations=[])
+        form = _pages()["run-form-remote"]
+    assert [menu.name for menu in filters][-1] == "worker"
+    assert len(alone) == 4
+    assert 'name="worker" value="win-01" checked' in html
+    assert "執行位置 Windows" in " ".join(_text(html).split())
+    assert "data-local-url-warning hidden" in form
+
+
 def test_remote_worker_pages() -> None:
     """M9a：執行位置的選項、由哪台 worker 執行、遠端 Worker 頁（名稱要跳脫）。"""
     with use_locale("zh-Hant"):
@@ -1185,7 +1234,16 @@ def test_remote_worker_pages() -> None:
     assert 'value="local" disabled' in workers  # --no-local-worker
     assert "rpa serve --worker-port 8081" in _text(pages["workers-empty"])
     produce = pages["workers"].split('id="sidenav"')[1].split("</nav>")[0]
-    assert 'href="/workers"' in produce
+    assert 'href="/devices"' in produce
+    assert "裝置" in _text(produce)
+    # M10.1：重新邀請取代重新產生權杖；停用的裝置與沒開對外埠時不能邀請
+    assert 'data-action="invite-worker" data-worker="win-01"' in workers
+    assert 'data-action="invite-worker" data-worker="mac"' not in workers
+    assert "rotate-worker" not in workers
+    assert "App 0.1.0" in _text(workers)
+    assert 'id="worker-invite"' in workers
+    assert 'data-action="new-worker" disabled' in pages["workers-empty"]
+    assert 'data-action="new-worker" disabled' not in workers
 
 
 @pytest.mark.parametrize("mode", ["serial", "explicit", "binding"])

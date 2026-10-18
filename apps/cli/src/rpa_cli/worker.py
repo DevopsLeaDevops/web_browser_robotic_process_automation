@@ -1,6 +1,8 @@
 """`rpa worker`：在這台電腦當遠端 worker，向管理 Portal 領取任務執行（M9a，ADR 0012）。
 
 - 權杖來自環境變數 ``RPA_WORKER_TOKEN`` 或 ``--token-file``（不放在命令列，避免留在命令歷史）。
+- M10.1：也可以用裝置頁的邀請配對（``--invite``）：邀請一次性、24 小時內有效，換到的權杖存在
+  工作資料夾的 ``pairing.json``（只有本人能讀寫），之後直接 ``rpa worker`` 就能啟動。
 - 預設一起在 127.0.0.1:8765 啟動本機測試網站：範例場景對它執行，網址和管理 Portal 那台一樣。
 - 一次執行一個任務；有頭模式的瀏覽器視窗出現在這台電腦。Ctrl+C 停止（執行中的任務會被取消並回報）。
 - 連不上管理 Portal 時自動重試；權杖被拒或協定版本不同時結束。
@@ -20,7 +22,13 @@ from rpa_cli.i18n import t
 from rpa_cli.serve import browser_warning, start_testsite
 from testsite.server import DEFAULT_PORT as TESTSITE_PORT
 
-__all__ = ["DEFAULT_WORK_DIR", "TOKEN_ENV", "build_worker_command", "describe_event"]
+__all__ = [
+    "DEFAULT_WORK_DIR",
+    "TOKEN_ENV",
+    "build_worker_command",
+    "describe_event",
+    "resolve_credentials",
+]
 
 TOKEN_ENV: Final = "RPA_WORKER_TOKEN"
 DEFAULT_WORK_DIR: Final = Path("worker-data")
@@ -57,7 +65,8 @@ def describe_event(event: str, details: Mapping[str, object]) -> str | None:
     return None
 
 
-def _read_token(token_file: Path | None) -> str:
+def _read_token(token_file: Path | None) -> str | None:
+    """權杖檔或環境變數裡的權杖；都沒有時回傳 None。"""
     if token_file is not None:
         try:
             token = token_file.read_text(encoding="utf-8").strip()
@@ -65,11 +74,56 @@ def _read_token(token_file: Path | None) -> str:
             raise click.ClickException(
                 t("cli.worker.token_file_failed", path=token_file, error=error.strerror or error)
             ) from None
-    else:
-        token = os.environ.get(TOKEN_ENV, "").strip()
-    if not token:
+        if not token:
+            raise click.ClickException(t("cli.worker.no_token", env=TOKEN_ENV))
+        return token
+    return os.environ.get(TOKEN_ENV, "").strip() or None
+
+
+def _pair(invite_text: str, server: str | None, work: Path) -> tuple[str, str]:
+    """用邀請換權杖並存進工作資料夾；回傳 (伺服器網址, 權杖)。"""
+    from rpa_worker.pairing import PAIRING_FILE, InviteError, pair, parse_invite, save_pairing
+    from rpa_worker.remote import ConnectionLostError, WorkerApiError
+
+    try:
+        invite = parse_invite(invite_text, server)
+    except InviteError as error:
+        raise click.ClickException(t("cli.worker.invite_" + error.reason)) from None
+    try:
+        result = pair(invite, "worker")
+    except WorkerApiError as error:
+        raise click.ClickException(t("cli.worker.pair_rejected", message=error.message)) from None
+    except ConnectionLostError as error:
+        raise click.ClickException(
+            t("cli.worker.pair_offline", server=invite.server, reason=error)
+        ) from None
+    path = work / PAIRING_FILE
+    save_pairing(path, result)
+    click.echo(t("cli.worker.paired", name=result.name, device=result.device, path=path), err=True)
+    return result.server, result.token
+
+
+def resolve_credentials(
+    server: str | None, token_file: Path | None, invite: str | None, work: Path
+) -> tuple[str, str]:
+    """決定連哪個管理 Portal、用哪個權杖：邀請 → 權杖檔或環境變數 → 之前配對存下的。"""
+    from rpa_worker.pairing import PAIRING_FILE, load_pairing, normalize_server
+
+    if invite is not None:
+        return _pair(invite, server, work)
+    token = _read_token(token_file)
+    saved = load_pairing(work / PAIRING_FILE)
+    if saved is not None:
+        token = token or saved[1]
+        server = server or saved[0]
+    if token is None:
         raise click.ClickException(t("cli.worker.no_token", env=TOKEN_ENV))
-    return token
+    if not server:
+        raise click.ClickException(t("cli.worker.no_server"))
+    try:
+        return normalize_server(server), token
+    except ValueError:
+        raise click.ClickException(t("cli.worker.invite_server")) from None
 
 
 def build_worker_command() -> click.Command:
@@ -81,7 +135,13 @@ def build_worker_command() -> click.Command:
         short_help=t("cli.worker.short_help"),
         options_metavar=t("cli.options_metavar"),
     )
-    @click.option("--server", required=True, metavar="URL", help=t("cli.worker.server_help"))
+    @click.option("--server", default=None, metavar="URL", help=t("cli.worker.server_help"))
+    @click.option(
+        "--invite",
+        default=None,
+        metavar=t("cli.worker.invite_metavar"),
+        help=t("cli.worker.invite_help"),
+    )
     @click.option(
         "--token-file",
         type=click.Path(dir_okay=False, path_type=Path),
@@ -103,16 +163,17 @@ def build_worker_command() -> click.Command:
         help=t("cli.worker.testsite_help", port=TESTSITE_PORT),
     )
     def worker(
-        server: str,
+        server: str | None,
+        invite: str | None,
         token_file: Path | None,
         name: str | None,
         work_dir: Path,
         keep_runs: bool,
         testsite: bool,
     ) -> None:
-        token = _read_token(token_file)
-        if not server.startswith(("http://", "https://")):
-            server = "http://" + server
+        work = work_dir.expanduser().absolute()
+        server, token = resolve_credentials(server, token_file, invite, work)
+        work.mkdir(parents=True, exist_ok=True)
         # 只有真的啟動 worker 時才載入 Playwright 與 runner
         from rpa_runner.installed import missing_browsers
         from rpa_worker import Worker
@@ -120,8 +181,6 @@ def build_worker_command() -> click.Command:
         from rpa_worker.remote import RemoteJobSource, WorkerClient
 
         info = WorkerInfo.detect(name or socket.gethostname())
-        work = work_dir.expanduser().absolute()
-        work.mkdir(parents=True, exist_ok=True)
         stopped = threading.Event()
         fatal: list[str] = []
 

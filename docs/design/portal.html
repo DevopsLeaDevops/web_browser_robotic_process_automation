@@ -153,7 +153,7 @@
     <section class="panel" id="playground">
       <div class="panel-header"><h2>自由試驗場與組合場景</h2><span class="muted">DAG：可分叉、可匯合，成功出參傳給下游，失敗即停</span></div>
       <div class="panel-body prose"><ul>
-        <li><strong>管理與生產。</strong>「場景管理 › 組合場景自動化」沿用測試網站自動化的卡片風格，以真實節點座標和依賴產生 DAG 縮圖，管理名稱、節點、問題與最近執行；卡片的「執行組合場景」可直接選引擎、執行位置與視窗模式；「場景生產 › 自由試驗場」建立、開啟與編輯畫布。場景生產選單依序為自主腳本錄製、自由試驗場、運行報告、遠端 Worker。</li>
+        <li><strong>管理與生產。</strong>「場景管理 › 組合場景自動化」沿用測試網站自動化的卡片風格，以真實節點座標和依賴產生 DAG 縮圖，管理名稱、節點、問題與最近執行；卡片的「執行組合場景」可直接選引擎、執行位置與視窗模式；「場景生產 › 自由試驗場」建立、開啟與編輯畫布。場景生產選單依序為自主腳本錄製、自由試驗場、運行報告、裝置（M10.1 前叫「遠端 Worker」）。</li>
         <li><strong>依賴畫布。</strong>場景庫可點選加入或拖入畫布。拖動節點或用方向鍵微調位置；點上游右側圓點，再點下游左側圓點建立連線。點連線設定下游入參，也可以從右側加入上游。縮放與適應只改視角，不改座標。節點座標隨組合場景保存；畫布位置和節點陣列順序不代表執行順序。頂部名稱與操作合併成一列，說明收在「說明」，執行歷史預設折疊。畫布下方的全寬參數區獨立捲動，並列上游出參、下游入參、匹配方式、取值／來源；點選 DAG 連線會切到該組上游與下游。多上游可切換來源節點。</li>
         <li><strong>四種入參來源。</strong>同名匹配僅搜尋直接連線的上游，唯一同名且型別相容時取其出參，沒有命中則用場景預設，多個命中必須指定來源；場景預設強制忽略上游同名值；人工指定只覆蓋此節點；指定上游出參可以跨欄位綁定。選擇出參會建立依賴；一個出參可供多個下游，一個入參只有一個來源。整數可以傳給數字，其他型別必須相同。</li>
         <li><strong>參數連線。</strong>拖動出參圓點到入參，或依次用滑鼠／鍵盤選取兩端，建立顯式綁定；型別不符不修改原值。四種模式以按鈕同列呈現，仍可用出參選單精確選擇。唯一同名匹配與顯式來源畫出對應連線；歧義、預設值及人工值不畫假連線。契約按鈕原地顯示該固定版本的唯讀原文；編輯場景明示另開分頁，並提示驗證、發布後回畫布選新版本。</li>
@@ -171,13 +171,13 @@
       <div class="panel-header"><h2>遠端 worker</h2><span class="muted">M9a：執行交給另一台電腦，這台電腦不再被瀏覽器視窗占住（<a href="../adr/0012-remote-workers.html">ADR 0012</a>）</span></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>兩個埠。</strong><code>rpa serve --worker-port 8081</code> 另外開一個埠，只有 Worker API（<code>/worker-api/v1</code>），預設聽所有網路介面；管理頁面與 <code>/api</code> 仍然只在 <code>--host</code>（預設 127.0.0.1）。兩邊的路徑互相擋掉：從 Worker API 的埠看不到管理頁面，從管理頁面的埠也呼叫不到 Worker API。</li>
-          <li><strong>登記與權杖。</strong>「場景生產 › 遠端 Worker」新增 worker（代號、名稱），產生的權杖只顯示一次，資料庫只存雜湊；可以停用、重新產生權杖（舊的立刻失效）、刪除（執行中不能刪；指定給它而還在排隊的執行標為失敗）。頁面列出每台的狀態（線上、執行中、離線、停用）、最後回報、作業系統、瀏覽器、能不能有頭模式，以及程式版本是否和 Portal 相同。</li>
+          <li><strong>兩個埠。</strong><code>rpa serve --worker-port 8081</code> 另外開一個<strong>對外埠</strong>（M10 起的稱呼），只有 Worker API（<code>/worker-api/v1</code>）與桌面 App 的 Client API（<code>/client-api/v1</code>，M10.1 只有配對），預設聽所有網路介面；管理頁面與 <code>/api</code> 仍然只在 <code>--host</code>（預設 127.0.0.1）。兩邊的路徑互相擋掉：從對外埠看不到管理頁面，從管理頁面的埠也呼叫不到 Worker API 與 Client API。</li>
+          <li><strong>裝置與邀請（M10.1）。</strong>「場景生產 › 裝置」（原「遠端 Worker」頁，舊網址 <code>/workers</code> 轉到 <code>/devices</code>）新增裝置（代號、名稱；目前種類只有 Worker），產生一份<strong>邀請</strong>：一行 <code>rpa://pair?server=…&amp;app=worker&amp;code=…</code>，代碼一次性、24 小時內有效、限定 App 種類，資料庫只存雜湊；也分開顯示伺服器與代碼。在那台電腦的 RPA Worker（或 <code>rpa worker --invite</code>）貼上，經由 Client API 的 <code>/pair</code> 換到權杖。「重新邀請」讓舊權杖與之前的邀請立刻失效。邀請要先開對外埠；沒開時「新增裝置」不能按。可以停用、刪除（執行中不能刪；指定給它而還在排隊的執行標為失敗）。頁面列出每台的狀態（線上、執行中、離線、停用）、最後回報、作業系統、瀏覽器、能不能有頭模式、App 版本，以及程式版本是否和 Portal 相同。</li>
           <li><strong>領取。</strong>worker 執行 <code>rpa worker --server …</code>，上線時回報協定版本（不同就拒絕）、程式指紋（不同只提醒）、瀏覽器與能不能顯示視窗；之後長輪詢（最多 25 秒）領取任務。只給它能跑的：執行位置是遠端或任一、瀏覽器有下載、有頭模式要能顯示視窗、指定給它的。依建立順序先進先出。</li>
           <li><strong>任務的內容。</strong>場景版本的檔案（照位元組傳送，雜湊和 Portal 一致）、入參、瀏覽器、網址、視窗模式、語言；場景有登入角色時加上登入設定與目前的登入狀態，以及用到的 Secrets 的值。worker 只放在記憶體與執行期間的暫存檔，執行完刪除。</li>
           <li><strong>心跳、取消、失聯。</strong>執行中每 5 秒心跳，同時回報階段；在 Portal 取消時，下一次心跳就終止瀏覽器。領取時給 60 秒租約、心跳延長；過期就把執行標為失敗「worker 失聯」，<strong>不自動重跑</strong>（可能已經有副作用），之後 worker 才回報的結果一律拒絕。Portal 重新啟動時，遠端執行中的任務給一次租約的時間重新報到；本機的照舊標為中斷。</li>
           <li><strong>結果。</strong>worker 把整個執行目錄打包上傳（只接受安全的相對路徑，有檔案數與大小上限），再回報 result.json 的內容；寫回的規則和本機相同，包括驗證時的雜湊比對。自動登入後的新登入狀態傳回角色。</li>
-          <li><strong>執行位置。</strong>登記了遠端 worker 之後，驗證、執行與「執行序列」的表單多一個「執行位置」：本機、遠端 worker、任一；預設在 worker 頁設定（沒設定是本機）。有頭模式能不能選，跟著所選的位置。執行報告與執行頁顯示由哪台執行。</li>
+          <li><strong>執行位置。</strong>登記了遠端 worker 之後，驗證、執行與「執行序列」的表單多一個「執行位置」：本機、遠端 worker、任一；預設在裝置頁設定（沒設定是本機）。有頭模式能不能選，跟著所選的位置。場景的網址指向本機（127.0.0.1、localhost、::1，測試網站的 8765 除外）而位置不是本機時，表單提醒那指的是 worker 自己。執行報告與執行頁顯示由哪台執行；執行報告可以依「執行位置」篩選（本機與各台 worker）。排隊中而沒有線上的遠端 worker 可以接時（包括序列固定的那台離線），執行頁與序列執行頁說明正在等待並連到裝置頁。</li>
           <li><strong>試驗場序列。</strong>整個序列用同一個執行位置，而且第一個節點由哪台 worker 領取，後面的節點都固定給它（測試網站的資料、登入狀態一致）；那台離線時後面的節點等著，可以取消。「從停下的節點繼續」也固定給原本那台。</li>
           <li><strong>只讓 worker 執行。</strong><code>--no-local-worker</code>：這台電腦不執行，執行位置不能選本機，預設改成任一。</li>
           <li><strong>仍在這台電腦的。</strong>錄製、逐步調試、人工登入要有人操作，還是在執行 Portal 的電腦。</li>
@@ -197,7 +197,7 @@
           <li><strong>兩個角色。</strong>「場景管理 › 登入與憑證」對 <code>testsite-user</code> 按「登入」，在跳出的視窗用 user / user-pass 登入後按「完成登入」；<code>testsite-manager</code> 用 manager / manager-pass。再分別運行 BA-004、BA-005：兩份報告看到的待辦不同。</li>
           <li><strong>需要登入與重新執行。</strong>對 <code>testsite-user</code> 按「登出」，再運行 BA-004：停在「需要登入」，沒有執行任何步驟；點執行頁的登入角色回到「登入與憑證」再登入一次，回到執行頁按「重新執行」，結果是「通過」。</li>
           <li><strong>自由試驗場。</strong>先驗證並發布 BA-001、BA-002。建立組合場景，加入一個 BA-001、兩個 BA-002 及另一個 BA-001 作為匯合節點；連接「建立 → 兩次查詢 → 匯合」，讓兩個查詢的 recordId 同名匹配上游，匯合的 title 與 quantity 分別取自兩個查詢。拖動節點、儲存並重載，確認位置保留。執行後四個節點都通過且實際入參相符；反向連線應被拒絕。從場景管理的組合場景卡片打開最近執行，確認報告可追溯。</li>
-          <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「場景生產 › 遠端 Worker」新增 <code>win-01</code>，在另一台電腦照對話框的命令啟動 <code>rpa worker</code>（步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），worker 頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的組合場景，四個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
+          <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「場景生產 › 裝置」新增 <code>win-01</code>，在另一台電腦用對話框裡的邀請啟動 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付後改在 App 貼上；步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），裝置頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的組合場景，四個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
         </ol>
         <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可；worker 機器上的 <code>worker-data</code> 資料夾也可以刪掉。</p>
       </div>
@@ -225,7 +225,7 @@
             <tr><td><code>/playground</code></td><td>自由試驗場：建立、匯入組合場景與繼續編輯畫布</td></tr>
             <tr><td><code>/playground/{序列}</code></td><td>編輯組合場景：場景庫、DAG 畫布、入參與節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
             <tr><td><code>/playground/runs/{序列執行}</code></td><td>序列的執行：每個節點的狀態、入參的值與來源、出參、報告；取消、從頭再執行、從停下的節點繼續</td></tr>
-            <tr><td><code>/workers</code></td><td>遠端 Worker：登記（產生權杖與啟動命令）、狀態、停用、重新產生權杖、刪除；預設執行位置</td></tr>
+            <tr><td><code>/devices</code></td><td>裝置（M10.1；<code>/workers</code> 轉到這裡）：新增並產生邀請、狀態、停用、重新邀請、刪除；預設執行位置</td></tr>
           </tbody>
         </table>
       </div>
@@ -271,9 +271,11 @@
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{序列執行}</code></td><td>序列執行清單（可用 <code>workflow</code> 篩選）；單次的狀態與每個節點（狀態、入參的來源、那次執行）</td></tr>
             <tr><td><code>POST /api/workflow-runs/{序列執行}/cancel</code>、<code>…/rerun</code></td><td>取消；再執行一次（<code>resume: true</code> 從停下的節點繼續，否則從頭）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/workers</code></td><td>遠端 worker 清單（含預設執行位置、本機執不執行、Portal 的程式指紋）；登記（<code>id</code>、<code>name</code>），回應的 <code>token</code> 只有這一次拿得到</td></tr>
-            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代號}</code>；<code>POST …/token</code></td><td>狀態；改名稱、停用（<code>disabled</code>）；刪除（執行中 409）；重新產生權杖</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代號}</code>；<code>POST …/token</code></td><td>狀態（含 App 版本）；改名稱、停用（<code>disabled</code>）；刪除（執行中 409）；重新產生權杖（命令列與腳本用）</td></tr>
+            <tr><td><code>POST /api/workers/{代號}/invite</code></td><td>產生邀請（M10.1）：舊權杖與之前的邀請立刻失效；回應的 <code>invite</code>（<code>line</code>、<code>server</code>、<code>code</code>、<code>app</code>、<code>expiresAt</code>）只有這一次拿得到；沒開對外埠時 409 <code>invite_needs_port</code>，停用中 409 <code>worker_disabled</code></td></tr>
             <tr><td><code>PUT /api/settings/default-target</code></td><td>預設執行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
-            <tr><td><code>/worker-api/v1/…</code></td><td>只在 Worker API 的埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
+            <tr><td><code>POST /client-api/v1/pair</code></td><td>只在對外埠、不需要權杖（M10.1）：<code>code</code>、<code>app</code> 換權杖，回應裝置代號、名稱、<code>token</code> 與伺服器的協定、指紋、版本；代碼不對或已用過 401 <code>invite_invalid</code>、過期 401 <code>invite_expired</code>、App 種類不對 409 <code>invite_wrong_app</code>（代碼保留）、裝置停用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
+            <tr><td><code>/worker-api/v1/…</code></td><td>只在對外埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -304,7 +306,8 @@
             <dt>recordings</dt><dd>錄製編號、目標場景與版本、方式（新場景、接著現有步驟、整份換掉）與接續的版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
             <dt>workflows</dt><dd>試驗場的序列：名稱、說明、定義（JSON）、存檔次數</dd>
             <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間；執行位置與固定的 worker</dd>
-            <dt>workers</dt><dd>遠端 worker：代號、名稱、權杖的雜湊、停用、上線時回報的資訊、目前的執行、最後回報時間</dd>
+            <dt>workers</dt><dd>遠端 worker：代號、名稱、權杖的雜湊、停用、上線時回報的資訊（M10.1 加上 App 版本）、目前的執行、最後回報時間</dd>
+            <dt>device_invites</dt><dd>裝置邀請（M10.1）：代碼的雜湊、App 種類、裝置代號、產生時間、期限、使用時間</dd>
             <dt>settings</dt><dd>設定（預設執行位置）</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
@@ -321,7 +324,7 @@
             <dt><code>--no-testsite</code></dt><dd>不要一起啟動測試網站（預設會在 <code>127.0.0.1:8765</code> 啟動；已經在執行就沿用）</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「測試網站自動化」的範例資料夾，預設 <code>scenarios/demo</code></dd>
             <dt>Secrets</dt><dd>在「登入與憑證」設定；沒有設定的，從伺服器程序的同名環境變數讀取（遠端 worker 執行時，從 worker 程序的環境變數讀取）</dd>
-            <dt><code>--worker-port</code>、<code>--worker-host</code></dt><dd>開放 Worker API 給遠端 worker（M9a）：另一個埠，預設聽 <code>0.0.0.0</code>；只有 <code>/worker-api</code>，要權杖</dd>
+            <dt><code>--worker-port</code>、<code>--worker-host</code></dt><dd>開放對外埠給裝置（M9a；M10 起稱「對外埠」）：另一個埠，預設聽 <code>0.0.0.0</code>；只有 <code>/worker-api</code>（要權杖）與 <code>/client-api</code>（配對用邀請代碼）。邀請裡的伺服器網址：聽所有介面時猜這台的區網位址，聽特定位址時就用那個位址</dd>
             <dt><code>--no-local-worker</code></dt><dd>這台電腦不執行，全部交給遠端 worker</dd>
           </dl>
         </div>

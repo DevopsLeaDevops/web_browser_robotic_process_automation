@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:51f00ec3f790d414">
+<meta name="translation-source" content="sha256:4e6cb07dba13680e">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -24,23 +24,23 @@
 
     <div class="two-col">
       <section class="panel" id="portal">
-        <div class="panel-header"><h2>1. Your computer: open the Worker API</h2></div>
+        <div class="panel-header"><h2>1. Your computer: open the external port</h2></div>
         <div class="panel-body prose">
           <p>Stop the running <code>rpa serve</code> with Ctrl+C, then start it again with <code>--worker-port</code>:</p>
 <pre class="source">uv run rpa serve --worker-port 8081</pre>
-          <p>The start-up messages gain a line like <code>Worker API: http://192.168.1.10:8081</code> (the address is a guess at your LAN IP). The first time, macOS asks whether Python may accept incoming connections; choose “Allow”. The Windows firewall asks as well.</p>
-          <p>The portal pages stay on <code>http://127.0.0.1:8080</code> only; port 8081 serves just the Worker API, and every request needs a token.</p>
+          <p>The start-up messages gain a line like <code>External port: http://192.168.1.10:8081</code> (the address is a guess at your LAN IP). The first time, macOS asks whether Python may accept incoming connections; choose “Allow”. The Windows firewall asks as well.</p>
+          <p>The portal pages stay on <code>http://127.0.0.1:8080</code> only; port 8081, the <strong>external port</strong>, serves just the Worker API and pairing, and every request needs a token or an invitation.</p>
         </div>
       </section>
       <section class="panel" id="register">
-        <div class="panel-header"><h2>2. Register the worker and get a token</h2></div>
+        <div class="panel-header"><h2>2. Add the device and get an invitation</h2></div>
         <div class="panel-body prose">
           <ol>
-            <li>In the portal, open “Production › Remote workers” and choose “Add worker”.</li>
-            <li>Use an ID such as <code>win-01</code> and a name such as “Windows test PC”, then choose “Create token”.</li>
-            <li>The dialog shows the token and two start commands. <strong>The token is shown only this once</strong>, so copy it now; if you lose it, choose “New token” (the old one stops working immediately).</li>
+            <li>In the portal, open “Production › Devices” and choose “Add device”.</li>
+            <li>Use an ID such as <code>win-01</code> and a name such as “Windows test PC”, then choose “Create invitation”.</li>
+            <li>The dialog shows a one-line <strong>invitation</strong> (<code>rpa://pair?…</code>, already copied to the clipboard), the server and code separately, and how to use it on the command line. The invitation is <strong>shown only this once, valid for 24 hours, and single use</strong>; if you lose it or it expires, choose “Invite again” (the old pairing stops working immediately).</li>
           </ol>
-          <p>The address in the commands is a guess; if the worker cannot connect, use your computer's LAN IP instead (macOS: System Settings › Network; Windows: <code>ipconfig</code>).</p>
+          <p>The server address in the invitation is a guess; if the worker cannot connect, use your computer's LAN IP instead (macOS: System Settings › Network; Windows: <code>ipconfig</code>) and give it separately from the code. An invitation can be exchanged for a token, so do not share it.</p>
         </div>
       </section>
     </div>
@@ -52,23 +52,24 @@
           <p>Use the one-command script from <a href="quickstart.html#windows">Run locally</a> (in PowerShell):</p>
 <pre class="source">irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
 powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1</pre>
-          <p>The code goes to <code>%USERPROFILE%\code\web_browser_robotic_process_automation</code>, and Chromium and Firefox are downloaded. <strong>Both computers must run the same version</strong>: whenever you <code>git pull</code> on your computer, also <code>git pull</code> on the worker and run the script again. The workers page flags a version mismatch.</p>
+          <p>The code goes to <code>%USERPROFILE%\code\web_browser_robotic_process_automation</code>, and Chromium and Firefox are downloaded. <strong>Both computers must run the same version</strong>: whenever you <code>git pull</code> on your computer, also <code>git pull</code> on the worker and run the script again. The devices page flags a version mismatch.</p>
         </div>
       </section>
       <section class="panel" id="start">
         <div class="panel-header"><h2>4. Worker computer: start</h2></div>
         <div class="panel-body prose">
-          <p>In the project folder, paste the command from the dialog:</p>
+          <p>The first time, pair with the invitation and start in the project folder (quote the whole line):</p>
 <pre class="source"># Windows PowerShell
 cd $env:USERPROFILE\code\web_browser_robotic_process_automation
-$env:RPA_WORKER_TOKEN = "(token)"
-uv run rpa worker --server http://192.168.1.10:8081 --name win-01
+uv run rpa worker --invite "rpa://pair?server=…&amp;app=worker&amp;code=…"
 
-# macOS, Linux
-export RPA_WORKER_TOKEN='(token)'
-uv run rpa worker --server http://192.168.1.10:8081 --name win-01</pre>
-          <p>Once it says it is connected to the portal you are done; the workers page shows it online. Press Ctrl+C to stop: a running job is cancelled and its result reported.</p>
-          <p>The token can also live in a file: <code>--token-file token.txt</code> (do not commit it to git).</p>
+# macOS, Linux (also in the project folder)
+uv run rpa worker --invite 'rpa://pair?server=…&amp;app=worker&amp;code=…'
+
+# When the server address needs changing: give the code separately
+uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
+          <p>Once it says it is paired and connected to the portal you are done; the devices page shows it online. The token it receives is saved in the working folder as <code>worker-data\pairing.json</code> (readable only by you; do not commit it to git), so <strong>from then on just run <code>uv run rpa worker</code></strong>. Press Ctrl+C to stop: a running job is cancelled and its result reported.</p>
+          <p>The earlier way still works: create a new token through the API (<code>POST /api/workers/{id}/token</code>), put it in the <code>RPA_WORKER_TOKEN</code> environment variable or in <code>--token-file token.txt</code>, and add <code>--server</code>. Once the M10.1 RPA Worker app ships, paste the invitation into the app on Windows instead, with no development setup needed.</p>
         </div>
       </section>
     </div>
@@ -78,7 +79,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --name win-01</pre>
       <div class="panel-body prose">
         <ul>
           <li><strong>Where to run.</strong> Once a remote worker is registered, the validation, run and “Run sequence” forms gain “Where to run”: this computer, remote worker, or any (whichever is free). Headed browser windows appear on the computer that runs the job.</li>
-          <li><strong>Default place to run.</strong> Set it on the workers page; it is this computer by default (as before). If you mostly use the worker, set it to “Remote worker” so you do not have to choose each time.</li>
+          <li><strong>Default place to run.</strong> Set it on the devices page; it is this computer by default (as before). If you mostly use the worker, set it to “Remote worker” so you do not have to choose each time.</li>
           <li><strong>Reports.</strong> When done, the worker sends the whole run directory (report, screenshots, trace, logs) back; run reports say “on win-01” and otherwise look the same as local runs.</li>
           <li><strong>Test site.</strong> <code>rpa worker</code> also starts its own test site (127.0.0.1:8765) on the worker computer, so the “Test site automation” examples still run; its data is separate from the test site on your computer. Any other URL written as 127.0.0.1 or localhost means the worker itself when run there.</li>
           <li><strong>Playground sequences</strong> run entirely on one worker: whichever worker claims the first node gets all later nodes.</li>
@@ -91,11 +92,10 @@ uv run rpa worker --server http://192.168.1.10:8081 --name win-01</pre>
     <section class="panel" id="autostart">
       <div class="panel-header"><h2>Start automatically after sign-in (Windows, optional)</h2></div>
       <div class="panel-body prose">
-        <p>Headed mode needs a signed-in desktop, so start the worker at sign-in rather than as a system service. Create <code>start-worker.cmd</code> in the project folder (do not commit it to git):</p>
+        <p>Headed mode needs a signed-in desktop, so start the worker at sign-in rather than as a system service. Pair once as in step 4, then create <code>start-worker.cmd</code> in the project folder (do not commit it to git):</p>
 <pre class="source">@echo off
 cd /d %USERPROFILE%\code\web_browser_robotic_process_automation
-set RPA_WORKER_TOKEN=(token)
-uv run rpa worker --server http://192.168.1.10:8081 --name win-01</pre>
+uv run rpa worker</pre>
         <p>Then press Win+R, enter <code>shell:startup</code>, and put a shortcut to <code>start-worker.cmd</code> in the folder that opens.</p>
       </div>
     </section>
@@ -107,11 +107,12 @@ uv run rpa worker --server http://192.168.1.10:8081 --name win-01</pre>
           <thead><tr><th>Situation</th><th>What to do</th></tr></thead>
           <tbody>
             <tr><td>“Cannot reach the portal” keeps retrying</td><td>Check that the portal was started with <code>--worker-port</code>, that the IP and port in the URL are right, and that your computer's firewall allows incoming connections. Open <code>http://IP:8081/worker-api/v1/hello</code> in a browser on the worker computer: <code>405</code> or <code>Method Not Allowed</code> means it can connect.</td></tr>
-            <tr><td>“The portal rejected this worker”</td><td>The token is wrong or was replaced, or the worker is disabled. Create a new token or enable it on the workers page.</td></tr>
-            <tr><td>A run stays queued</td><td>Check on the workers page that it is online; headed jobs only go to workers that can show windows; the browser the scenario uses must be downloaded on the worker computer (run the install script again).</td></tr>
+            <tr><td>“The portal rejected this worker”</td><td>The token is wrong or the device was invited again, or it is disabled. Choose “Invite again” on the devices page and run <code>rpa worker --invite</code> with the new invitation, or choose “Enable”.</td></tr>
+            <tr><td>“Pairing failed”</td><td>The invitation was already used, has expired (24 hours), was meant for another app, or the device is disabled: follow the message and create a new invitation on the devices page.</td></tr>
+            <tr><td>A run stays queued</td><td>The run page says which worker it is waiting for. Check on the devices page that it is online; headed jobs only go to workers that can show windows; the browser the scenario uses must be downloaded on the worker computer (run the install script again).</td></tr>
             <tr><td>A run failed as “considered lost”</td><td>The worker did not report for over a minute (shut down, network loss, program closed). The run is not retried automatically because some actions may already have happened on the site; check, then run it again.</td></tr>
-            <tr><td>The workers page shows a version mismatch</td><td><code>git pull</code> both computers to the same version, run the install script on the worker computer and restart <code>rpa worker</code>.</td></tr>
-            <tr><td>You want to stop using the worker for a while</td><td>Choose “Disable” on the workers page or press Ctrl+C on the worker computer; set the default place to run back to this computer.</td></tr>
+            <tr><td>The devices page shows a version mismatch</td><td><code>git pull</code> both computers to the same version, run the install script on the worker computer and restart <code>rpa worker</code>.</td></tr>
+            <tr><td>You want to stop using the worker for a while</td><td>Choose “Disable” on the devices page or press Ctrl+C on the worker computer; set the default place to run back to this computer.</td></tr>
           </tbody>
         </table>
       </div>

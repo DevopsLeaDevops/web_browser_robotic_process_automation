@@ -154,7 +154,7 @@
     <section class="panel" id="playground">
       <div class="panel-header"><h2>自由试验场与组合场景</h2><span class="muted">DAG：可分叉、可汇合，成功出参传给下游，失败即停</span></div>
       <div class="panel-body prose"><ul>
-        <li><strong>管理与生产。</strong>「场景管理 › 组合场景自动化」沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场、运行报告、远程 Worker。</li>
+        <li><strong>管理与生产。</strong>「场景管理 › 组合场景自动化」沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场、运行报告、设备（M10.1 前叫「远程 Worker」）。</li>
         <li><strong>依赖画布。</strong>场景库可点击加入或拖入画布。拖动节点或用方向键微调位置；点上游右侧圆点，再点下游左侧圆点创建连接。点连接设置下游入参，也可以从右侧加入上游。缩放与适应只改视角，不改座标。节点座标随组合场景保存；画布位置和节点数组顺序不代表运行顺序。顶部名称与操作合并成一列，说明收在「说明」，运行历史默认折叠。画布下方的全宽参数区独立卷动，并列上游出参、下游入参、匹配方式、取值／来源；点击 DAG 连接会切到该组上游与下游。多上游可切换来源节点。</li>
         <li><strong>四种入参来源。</strong>同名匹配仅搜索直接连接的上游，唯一同名且类型兼容时取其出参，没有命中则用场景默认，多个命中必须指定来源；场景默认强制忽略上游同名值；人工指定只覆盖此节点；指定上游出参可以跨字段绑定。选择出参会创建依赖；一个出参可供多个下游，一个入参只有一个来源。整数可以传给数字，其他类型必须相同。</li>
         <li><strong>参数连接。</strong>拖动出参圆点到入参，或依次用鼠标／键盘选取两端，创建显式绑定；类型不符不修改原值。四种模式以按钮同列呈现，仍可用出参选单精确选择。唯一同名匹配与显式来源画出对应连接；歧义、默认值及人工值不画假连接。契约按钮原地显示该固定版本的唯读原文；编辑场景明示另开分页，并提示验证、发布后回画布选新版本。</li>
@@ -172,13 +172,13 @@
       <div class="panel-header"><h2>远程 worker</h2><span class="muted">M9a：运行交给另一台电脑，这台电脑不再被浏览器窗口占住（<a href="../adr/0012-remote-workers.html">ADR 0012</a>）</span></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>两个端口。</strong><code>rpa serve --worker-port 8081</code> 另外开一个端口，只有 Worker API（<code>/worker-api/v1</code>），默认听所有网络界面；管理页面与 <code>/api</code> 仍然只在 <code>--host</code>（默认 127.0.0.1）。两边的路径互相挡掉：从 Worker API 的端口看不到管理页面，从管理页面的端口也调用不到 Worker API。</li>
-          <li><strong>登记与权杖。</strong>「场景生产 › 远程 Worker」添加 worker（代号、名称），产生的权杖只显示一次，数据库只存哈希；可以禁用、重新产生权杖（旧的立刻失效）、删除（运行中不能删；指定给它而还在排队的运行标为失败）。页面列出每台的状态（在线、运行中、脱机、禁用）、最后回报、操作系统、浏览器、能不能有头模式，以及程序版本是否和 Portal 相同。</li>
+          <li><strong>两个端口。</strong><code>rpa serve --worker-port 8081</code> 另外开一个<strong>对外端口</strong>（M10 起的称呼），只有 Worker API（<code>/worker-api/v1</code>）与桌面 App 的 Client API（<code>/client-api/v1</code>，M10.1 只有配对），默认听所有网络界面；管理页面与 <code>/api</code> 仍然只在 <code>--host</code>（默认 127.0.0.1）。两边的路径互相挡掉：从对外端口看不到管理页面，从管理页面的端口也调用不到 Worker API 与 Client API。</li>
+          <li><strong>设备与邀请（M10.1）。</strong>「场景生产 › 设备」（原「远程 Worker」页，旧网址 <code>/workers</code> 转到 <code>/devices</code>）添加设备（代号、名称；目前种类只有 Worker），产生一份<strong>邀请</strong>：一行 <code>rpa://pair?server=…&amp;app=worker&amp;code=…</code>，代码一次性、24 小时内有效、限定 App 种类，数据库只存哈希；也分开显示服务器与代码。在那台电脑的 RPA Worker（或 <code>rpa worker --invite</code>）粘贴，经由 Client API 的 <code>/pair</code> 换到权杖。「重新邀请」让旧权杖与之前的邀请立刻失效。邀请要先开对外端口；没开时「添加设备」不能按。可以禁用、删除（运行中不能删；指定给它而还在排队的运行标为失败）。页面列出每台的状态（在线、运行中、脱机、禁用）、最后回报、操作系统、浏览器、能不能有头模式、App 版本，以及程序版本是否和 Portal 相同。</li>
           <li><strong>领取。</strong>worker 运行 <code>rpa worker --server …</code>，上线时回报协定版本（不同就拒绝）、程序指纹（不同只提醒）、浏览器与能不能显示窗口；之后长轮询（最多 25 秒）领取任务。只给它能跑的：运行位置是远程或任一、浏览器有下载、有头模式要能显示窗口、指定给它的。依创建顺序先进先出。</li>
           <li><strong>任务的内容。</strong>场景版本的文件（照字节发送，哈希和 Portal 一致）、入参、浏览器、网址、窗口模式、语言；场景有登录角色时加上登录设置与目前的登录状态，以及用到的 Secrets 的值。worker 只放在内存与运行期间的暂保存，运行完删除。</li>
           <li><strong>心跳、取消、失联。</strong>运行中每 5 秒心跳，同时回报阶段；在 Portal 取消时，下一次心跳就终止浏览器。领取时给 60 秒租约、心跳延长；过期就把运行标为失败「worker 失联」，<strong>不自动重跑</strong>（可能已经有副作用），之后 worker 才回报的结果一律拒绝。Portal 重新启动时，远程运行中的任务给一次租约的时间重新报到；本机的照旧标为中断。</li>
           <li><strong>结果。</strong>worker 把整个运行目录打包上传（只接受安全的相对路径，有文件数与大小上限），再回报 result.json 的内容；写回的规则和本机相同，包括验证时的哈希比较。自动登录后的新登录状态传回角色。</li>
-          <li><strong>运行位置。</strong>登记了远程 worker 之后，验证、运行与「运行串行」的表单多一个「运行位置」：本机、远程 worker、任一；默认在 worker 页设置（没设置是本机）。有头模式能不能选，跟着所选的位置。运行报告与运行页显示由哪台运行。</li>
+          <li><strong>运行位置。</strong>登记了远程 worker 之后，验证、运行与「运行串行」的表单多一个「运行位置」：本机、远程 worker、任一；默认在设备页设置（没设置是本机）。有头模式能不能选，跟着所选的位置。场景的网址指向本机（127.0.0.1、localhost、::1，测试网站的 8765 除外）而位置不是本机时，表单提醒那指的是 worker 自己。运行报告与运行页显示由哪台运行；运行报告可以依「运行位置」筛选（本机与各台 worker）。排队中而没有在线的远程 worker 可以接时（包括串行固定的那台脱机），运行页与串行运行页说明正在等待并连到设备页。</li>
           <li><strong>试验场串行。</strong>整个串行用同一个运行位置，而且第一个节点由哪台 worker 领取，后面的节点都固定给它（测试网站的数据、登录状态一致）；那台脱机时后面的节点等着，可以取消。「从停下的节点继续」也固定给原本那台。</li>
           <li><strong>只让 worker 运行。</strong><code>--no-local-worker</code>：这台电脑不运行，运行位置不能选本机，默认改成任一。</li>
           <li><strong>仍在这台电脑的。</strong>录制、逐步调试、人工登录要有人操作，还是在运行 Portal 的电脑。</li>
@@ -198,7 +198,7 @@
           <li><strong>两个角色。</strong>「场景管理 › 登录与凭证」对 <code>testsite-user</code> 按「登录」，在跳出的窗口用 user / user-pass 登录后按「完成登录」；<code>testsite-manager</code> 用 manager / manager-pass。再分别运行 BA-004、BA-005：两份报告看到的待办不同。</li>
           <li><strong>需要登录与重新运行。</strong>对 <code>testsite-user</code> 按「注销」，再运行 BA-004：停在「需要登录」，没有运行任何步骤；点运行页的登录角色回到「登录与凭证」再登录一次，回到运行页按「重新运行」，结果是「通过」。</li>
           <li><strong>自由试验场。</strong>先验证并发布 BA-001、BA-002。创建组合场景，加入一个 BA-001、两个 BA-002 及另一个 BA-001 作为汇合节点；连接「创建 → 两次查询 → 汇合」，让两个查询的 recordId 同名匹配上游，汇合的 title 与 quantity 分别取自两个查询。拖动节点、保存并重载，确认位置保留。运行后四个节点都通过且实际入参相符；反向连接应被拒绝。从场景管理的组合场景卡片打开最近运行，确认报告可追溯。</li>
-          <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「场景生产 › 远程 Worker」添加 <code>win-01</code>，在另一台电脑照对话框的命令启动 <code>rpa worker</code>（步骤见<a href="../develop/remote-worker.html">远程 worker</a>），worker 页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
+          <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「场景生产 › 设备」添加 <code>win-01</code>，在另一台电脑用对话框里的邀请启动 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付后改在 App 粘贴；步骤见<a href="../develop/remote-worker.html">远程 worker</a>），设备页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
         </ol>
         <p>结束后停止管理 Portal，删掉 <code>data-check</code> 文件夹即可；worker 机器上的 <code>worker-data</code> 文件夹也可以删掉。</p>
       </div>
@@ -226,7 +226,7 @@
             <tr><td><code>/playground</code></td><td>自由试验场：创建、导入组合场景与继续编辑画布</td></tr>
             <tr><td><code>/playground/{串行}</code></td><td>编辑组合场景：场景库、DAG 画布、入参与节点设置（固定版本、入参的来源）；保存、运行、导出</td></tr>
             <tr><td><code>/playground/runs/{串行运行}</code></td><td>串行的运行：每个节点的状态、入参的值与来源、出参、报告；取消、从头再运行、从停下的节点继续</td></tr>
-            <tr><td><code>/workers</code></td><td>远程 Worker：登记（产生权杖与启动命令）、状态、禁用、重新产生权杖、删除；默认运行位置</td></tr>
+            <tr><td><code>/devices</code></td><td>设备（M10.1；<code>/workers</code> 转到这里）：添加并产生邀请、状态、禁用、重新邀请、删除；默认运行位置</td></tr>
           </tbody>
         </table>
       </div>
@@ -272,9 +272,11 @@
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{串行运行}</code></td><td>串行运行清单（可用 <code>workflow</code> 筛选）；单次的状态与每个节点（状态、入参的来源、那次运行）</td></tr>
             <tr><td><code>POST /api/workflow-runs/{串行运行}/cancel</code>、<code>…/rerun</code></td><td>取消；再运行一次（<code>resume: true</code> 从停下的节点继续，否则从头）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/workers</code></td><td>远程 worker 清单（含默认运行位置、本机执不运行、Portal 的程序指纹）；登记（<code>id</code>、<code>name</code>），回应的 <code>token</code> 只有这一次拿得到</td></tr>
-            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代号}</code>；<code>POST …/token</code></td><td>状态；改名称、禁用（<code>disabled</code>）；删除（运行中 409）；重新产生权杖</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代号}</code>；<code>POST …/token</code></td><td>状态（含 App 版本）；改名称、禁用（<code>disabled</code>）；删除（运行中 409）；重新产生权杖（命令行与脚本用）</td></tr>
+            <tr><td><code>POST /api/workers/{代号}/invite</code></td><td>产生邀请（M10.1）：旧权杖与之前的邀请立刻失效；回应的 <code>invite</code>（<code>line</code>、<code>server</code>、<code>code</code>、<code>app</code>、<code>expiresAt</code>）只有这一次拿得到；没开对外端口时 409 <code>invite_needs_port</code>，禁用中 409 <code>worker_disabled</code></td></tr>
             <tr><td><code>PUT /api/settings/default-target</code></td><td>默认运行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
-            <tr><td><code>/worker-api/v1/…</code></td><td>只在 Worker API 的端口、要权杖：<code>hello</code>、<code>claim</code>、<code>runs/{运行编号}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
+            <tr><td><code>POST /client-api/v1/pair</code></td><td>只在对外端口、不需要权杖（M10.1）：<code>code</code>、<code>app</code> 换权杖，回应设备代号、名称、<code>token</code> 与服务器的协定、指纹、版本；代码不对或已用过 401 <code>invite_invalid</code>、过期 401 <code>invite_expired</code>、App 种类不对 409 <code>invite_wrong_app</code>（代码保留）、设备禁用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
+            <tr><td><code>/worker-api/v1/…</code></td><td>只在对外端口、要权杖：<code>hello</code>、<code>claim</code>、<code>runs/{运行编号}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -305,7 +307,8 @@
             <dt>recordings</dt><dd>录制编号、目标场景与版本、方式（新场景、接着现有步骤、整份换掉）与接续的版本、来源（录制或粘贴）、网址、浏览器、角色、状态、转不了的行</dd>
             <dt>workflows</dt><dd>试验场的串行：名称、说明、定义（JSON）、保存次数</dd>
             <dt>workflow_runs</dt><dd>串行的运行：串行与当时的名称、定义的快照、状态、停在哪个节点与原因、沿用的节点（从停下的节点继续时）、浏览器与窗口模式、时间；运行位置与固定的 worker</dd>
-            <dt>workers</dt><dd>远程 worker：代号、名称、权杖的哈希、禁用、上线时回报的信息、目前的运行、最后回报时间</dd>
+            <dt>workers</dt><dd>远程 worker：代号、名称、权杖的哈希、禁用、上线时回报的信息（M10.1 加上 App 版本）、目前的运行、最后回报时间</dd>
+            <dt>device_invites</dt><dd>设备邀请（M10.1）：代码的哈希、App 种类、设备代号、产生时间、期限、使用时间</dd>
             <dt>settings</dt><dd>设置（默认运行位置）</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，结构变更走 Alembic 迁移（服务器启动时自动升级）；测试会比较迁移与模型是否一致。</p>
@@ -322,7 +325,7 @@
             <dt><code>--no-testsite</code></dt><dd>不要一起启动测试网站（默认会在 <code>127.0.0.1:8765</code> 启动；已经在运行就沿用）</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「测试网站自动化」的示例文件夹，默认 <code>scenarios/demo</code></dd>
             <dt>Secrets</dt><dd>在「登录与凭证」设置；没有设置的，从服务器进程的同名环境变量读取（远程 worker 运行时，从 worker 进程的环境变量读取）</dd>
-            <dt><code>--worker-port</code>、<code>--worker-host</code></dt><dd>开放 Worker API 给远程 worker（M9a）：另一个端口，默认听 <code>0.0.0.0</code>；只有 <code>/worker-api</code>，要权杖</dd>
+            <dt><code>--worker-port</code>、<code>--worker-host</code></dt><dd>开放对外端口给设备（M9a；M10 起称「对外端口」）：另一个端口，默认听 <code>0.0.0.0</code>；只有 <code>/worker-api</code>（要权杖）与 <code>/client-api</code>（配对用邀请代码）。邀请里的服务器网址：听所有界面时猜这台的区网地址，听特定地址时就用那个地址</dd>
             <dt><code>--no-local-worker</code></dt><dd>这台电脑不运行，全部交给远程 worker</dd>
           </dl>
         </div>

@@ -97,7 +97,7 @@ NAV: Final = (
             NavPage("recording", "/recording"),
             NavPage("playground", "/playground"),
             NavPage("runs", "/runs"),
-            NavPage("workers", "/workers"),
+            NavPage("workers", "/devices"),
         ),
     ),
 )
@@ -133,13 +133,17 @@ def run_filters(
     scenes: Sequence[SceneRecord],
     categories: Sequence[str],
     selected: Mapping[str, Sequence[str]],
+    locations: Sequence[tuple[str, str]] = (),
 ) -> list[FilterMenu]:
-    """執行報告的篩選條件：分類、場景、結果、目的；每一項都可以複選，沒選代表全部。"""
+    """執行報告的篩選條件：分類、場景、結果、目的；每一項都可以複選，沒選代表全部。
+
+    有遠端 worker 時多一個「執行位置」：本機與各台 worker（``locations`` 是（代號, 名稱））。
+    """
 
     def chosen(name: str) -> tuple[str, ...]:
         return tuple(selected.get(name, ()))
 
-    return [
+    menus = [
         FilterMenu(
             "category",
             t("runs.filter_category"),
@@ -166,6 +170,17 @@ def run_filters(
             chosen("purpose"),
         ),
     ]
+    if locations:
+        menus.append(
+            FilterMenu(
+                "worker",
+                t("runs.filter_worker"),
+                tuple(locations),
+                chosen("worker"),
+                searchable=len(locations) > 8,
+            )
+        )
+    return menus
 
 
 def badge_color(status: str) -> str:
@@ -285,10 +300,11 @@ def js_messages() -> dict[str, str]:
         "js.section_line",
         "js.worker_create_title",
         "js.worker_create_action",
-        "js.worker_token_title",
-        "js.worker_rotate_title",
-        "js.worker_rotate_body",
-        "js.worker_rotate_action",
+        "js.worker_invite_title",
+        "js.worker_invite_again_title",
+        "js.worker_invite_again_body",
+        "js.worker_invite_again_action",
+        "js.worker_copied",
         "js.worker_delete_title",
         "js.worker_delete_body",
         "js.worker_delete_action",
