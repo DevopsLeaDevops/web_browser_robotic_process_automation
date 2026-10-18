@@ -12,6 +12,9 @@ Runner、登入檢查、錄製、逐步調試與 codegen 都在子程序執行�
 
 codegen 用 ``playwright`` 模組本身（``python -m playwright codegen …``），打包後一樣經由
 ``--rpa-module``，由 Playwright 自己找到內附的 driver。
+
+Windows 上打包的 RPA Worker 是視窗程式（M10.1），沒有主控台；它啟動的主控台子程序
+（``rpa-child``、``taskkill``）要加上 :func:`no_window_flags`，否則每次執行都會跳出一個主控台視窗。
 """
 
 import os
@@ -22,11 +25,13 @@ from typing import Final
 
 __all__ = [
     "CHILD_EXECUTABLE",
+    "CREATE_NO_WINDOW",
     "FROZEN_MODULE",
     "FROZEN_SCRIPT",
     "interpreter",
     "is_frozen",
     "module_command",
+    "no_window_flags",
     "playwright_command",
     "script_command",
 ]
@@ -35,6 +40,8 @@ FROZEN_MODULE: Final = "--rpa-module"
 """打包後的 App 收到這個旗標時，把下一個參數當成模組名稱，以 ``__main__`` 執行。"""
 FROZEN_SCRIPT: Final = "--rpa-script"
 """打包後的 App 收到這個旗標時，把下一個參數當成 Python 腳本的路徑執行（Python 腳本場景）。"""
+CREATE_NO_WINDOW: Final = 0x08000000
+"""Windows 的 ``subprocess.CREATE_NO_WINDOW``（其他系統的 subprocess 沒有這個常數）。"""
 CHILD_EXECUTABLE: Final = "rpa-child"
 """打包後跑子程序用的主控台程式名稱（Windows 加 .exe），和 App 放在同一個資料夾。"""
 
@@ -42,6 +49,17 @@ CHILD_EXECUTABLE: Final = "rpa-child"
 def is_frozen() -> bool:
     """目前是不是打包後的 App（PyInstaller 會設定 ``sys.frozen``）。"""
     return bool(getattr(sys, "frozen", False))
+
+
+def no_window_flags(*, windows: bool | None = None, frozen: bool | None = None) -> int:
+    """啟動主控台子程序時給 ``Popen`` 的 ``creationflags``：打包後的 Windows App 不開主控台視窗。
+
+    子程序的輸出都另外導到檔案或管道，不需要主控台；瀏覽器等有視窗的程式不受影響。
+    開發環境與其他系統回傳 0（照舊共用目前的主控台）。
+    """
+    on_windows = os.name == "nt" if windows is None else windows
+    packaged = is_frozen() if frozen is None else frozen
+    return CREATE_NO_WINDOW if on_windows and packaged else 0
 
 
 def interpreter() -> str:

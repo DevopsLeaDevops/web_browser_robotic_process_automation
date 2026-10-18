@@ -1,0 +1,32 @@
+/* RPA Worker 狀態視窗（M10.1）：在設計系統（portal.css，原檔不改）之上，只補桌面視窗需要的部分。 */
+
+/* 視窗沒有頁首與左側選單：main 不留它們的位置 */
+body.worker-app { background: var(--bg); margin: 0; }
+body.worker-app main { margin: 0; padding: 16px 18px 20px; max-width: 920px; }
+.worker-app h1 { display: flex; align-items: center; gap: 10px; margin: 0; }
+.worker-app h1 .badge { font-size: 12px; font-weight: 500; }
+.worker-app .heading p { margin: 2px 0 0; }
+.worker-app h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+
+/* 錯誤訊息（設計系統的 notice 只有一般、warn、success）：沿用 badge.red 的配色 */
+.notice.error { background: #fff0ef; color: var(--danger); border-color: #f1cfcd; }
+#message { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.form-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.panel-body .form-actions:first-child { margin-top: 0; }
+#pair-form textarea { width: 100%; min-height: 64px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; resize: vertical; }
+#pair-form input[type=text], .field-row input[type=text] { width: 100%; }
+.field-row > .button { flex: none; }
+.checklist { display: grid; gap: 2px; }
+
+#download-bar { margin: 4px 0 8px; }
+#download-bar.unknown i { width: 35%; animation: rpa-indeterminate 1.4s ease-in-out infinite; }
+@keyframes rpa-indeterminate { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+
+.current { margin: 0; font-size: 13px; }
+.current .mono, .current .badge { margin-right: 8px; }
+#recent td:first-child { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+@media (max-width: 640px) {
+  body.worker-app main { padding: 12px; }
+}

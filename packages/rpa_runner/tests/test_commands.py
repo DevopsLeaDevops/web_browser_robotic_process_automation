@@ -9,11 +9,13 @@ import pytest
 
 from rpa_runner.commands import (
     CHILD_EXECUTABLE,
+    CREATE_NO_WINDOW,
     FROZEN_MODULE,
     FROZEN_SCRIPT,
     interpreter,
     is_frozen,
     module_command,
+    no_window_flags,
     playwright_command,
     script_command,
 )
@@ -85,3 +87,12 @@ def test_module_command_runs_a_real_module() -> None:
         module_command("rpa_runner.commands"), capture_output=True, text=True, check=False
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_no_window_flags_only_for_the_packaged_windows_app() -> None:
+    assert no_window_flags(windows=True, frozen=True) == CREATE_NO_WINDOW
+    assert no_window_flags(windows=True, frozen=False) == 0  # 開發環境照舊共用主控台
+    assert no_window_flags(windows=False, frozen=True) == 0  # 其他系統的 Popen 只接受 0
+    assert no_window_flags() == 0  # 測試環境不是打包版
+    if sys.platform == "win32":
+        assert CREATE_NO_WINDOW == subprocess.CREATE_NO_WINDOW

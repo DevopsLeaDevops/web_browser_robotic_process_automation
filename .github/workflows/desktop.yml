@@ -2,7 +2,16 @@
 # 再用打包後的 App 跑自我測試（rpa_desktop.selftest）：
 #   App 用內附的 Playwright driver 把 Chromium 下載到全新的資料夾 → 啟動測試網站 →
 #   無頭執行 BA-001（子程序走 --rpa-module）與它的 Python 腳本版（走 --rpa-script）。
-# 產物（DMG、zip）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
+# Worker（Windows）另外：
+#   建置前跑 apps/desktop 的單元測試（登錄檔、單一執行、認證管理員用真的）；
+#   視窗自我測試（rpa-worker.exe --smoke-test）：打開 WebView2 視窗與通知區圖示，確認頁面的腳本跑起來；
+#   端到端（M10.1，tools/desktop_e2e.py）：從原始碼啟動管理 Portal、產生邀請，打包版以 --no-window
+#   用邀請配對（權杖存進認證管理員），以「遠端 worker」執行 BA-001 → BA-002。
+#   安裝檔（M10.1 PR 3，Inno Setup）：端到端先靜默安裝、用裝好的 App 跑，最後在 App 執行中
+#   再安裝一次（升級）、解除安裝，確認自動啟動已刪、配對保留。
+# RPA Worker 是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
+# 產物（DMG、zip、安裝檔）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
+# 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
 name: 桌面端建置
 
 on:
@@ -11,9 +20,12 @@ on:
       - "apps/desktop/**"
       - "apps/worker/**"
       - "apps/testsite/**"
+      - "apps/server/**"
+      - "apps/cli/**"
       - "packages/**"
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
+      - "tools/desktop_e2e.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/desktop.yml"
@@ -23,12 +35,16 @@ on:
       - "apps/desktop/**"
       - "apps/worker/**"
       - "apps/testsite/**"
+      - "apps/server/**"
+      - "apps/cli/**"
       - "packages/**"
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
+      - "tools/desktop_e2e.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/desktop.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
@@ -64,6 +80,17 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
       - name: 安裝依賴（含打包工具）
         run: uv sync --locked --group desktop-build
+      - name: 單元測試（Windows：登錄檔、單一執行、認證管理員用真的）
+        if: matrix.app == 'worker'
+        # Linux 的 CI 測不到 Windows 專用的部分（自動啟動、WebView2 偵測、認證管理員）
+        run: |
+          set +e
+          uv run pytest -q apps/desktop/tests packages/rpa_runner/tests/test_commands.py apps/worker/tests/test_service.py \
+            --junitxml="${{ runner.temp }}/desktop-pytest.xml" -o junit_family=xunit1
+          code=$?
+          set -e
+          uv run python tools/ci_annotations.py junit "${{ runner.temp }}/desktop-pytest.xml"
+          exit "$code"
       - name: 建置
         id: build
         run: uv run python tools/build_desktop.py ${{ matrix.app }}
@@ -74,9 +101,10 @@ jobs:
           # 刻意關掉：App 要靠建置時開的 UTF-8 模式，不能依賴使用者電腦的環境變數
           PYTHONUTF8: "0"
         run: |
-          "${{ steps.build.outputs.executable }}" --version
+          # 用 rpa-child（主控台程式）：RPA Worker 是視窗程式，沒有標準輸出可讀
+          "${{ steps.build.outputs.child }}" --version
           set +e
-          "${{ steps.build.outputs.executable }}" --self-test --report "${{ runner.temp }}/self-test.json" \
+          "${{ steps.build.outputs.child }}" --self-test --report "${{ runner.temp }}/self-test.json" \
             > "${{ runner.temp }}/self-test.log" 2>&1
           code=$?
           set -e
@@ -86,6 +114,45 @@ jobs:
         if: always()
         # 日誌在 PR 頁面就看得到：每一步的結果、失敗的原因與輸出的最後幾行
         run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/self-test.json" "${{ runner.temp }}/self-test.log"
+      - name: 視窗自我測試：WebView2 視窗與通知區圖示
+        id: smoke
+        if: matrix.app == 'worker'
+        env:
+          RPA_WORKER_HOME: ${{ runner.temp }}/smoke-home
+        run: |
+          set +e
+          timeout 300 "${{ steps.build.outputs.executable }}" --smoke-test --report "${{ runner.temp }}/smoke.json"
+          code=$?
+          set -e
+          cat "${{ runner.temp }}/smoke.json" 2>/dev/null || echo "沒有產生報告（結束碼 $code）"
+          cat "${{ runner.temp }}"/smoke-home/logs/worker.log 2>/dev/null | tail -n 40
+          exit "$code"
+      - name: 視窗自我測試的結果寫成 annotations
+        if: always() && matrix.app == 'worker' && steps.smoke.outcome != 'skipped'
+        run: |
+          if [ -f "${{ runner.temp }}/smoke.json" ]; then
+            uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/smoke.json" "${{ runner.temp }}/smoke-home/logs/worker.log"
+          else
+            echo "::error title=視窗自我測試::沒有產生報告，日誌：$(tail -n 20 "${{ runner.temp }}/smoke-home/logs/worker.log" 2>/dev/null | tr '\n' ' ')"
+          fi
+      - name: 端到端：安裝、用邀請配對並執行範例場景、升級、解除安裝
+        id: e2e
+        if: matrix.app == 'worker'
+        env:
+          # 沿用自我測試下載的 Chromium；打包版只在沒有設定時改用 Playwright 的預設位置
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
+        run: |
+          set +e
+          uv run python tools/desktop_e2e.py "${{ steps.build.outputs.executable }}" \
+            --installer "${{ steps.build.outputs.installer }}" \
+            --report "${{ runner.temp }}/e2e.json" > "${{ runner.temp }}/e2e.log" 2>&1
+          code=$?
+          set -e
+          cat "${{ runner.temp }}/e2e.log"
+          exit "$code"
+      - name: 端到端的結果寫成 annotations
+        if: always() && matrix.app == 'worker' && steps.e2e.outcome != 'skipped'
+        run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/e2e.json" "${{ runner.temp }}/e2e.log"
       - name: 大小與結果
         if: always()
         run: |
@@ -97,18 +164,23 @@ jobs:
             echo '```'
             echo "$sizes"
             echo '```'
-            if [ -f "${{ runner.temp }}/self-test.json" ]; then
-              echo '<details><summary>self-test.json</summary>'
-              echo
-              echo '```json'
-              cat "${{ runner.temp }}/self-test.json"
-              echo '```'
-              echo '</details>'
-            fi
+            for report in self-test smoke e2e; do
+              if [ -f "${{ runner.temp }}/$report.json" ]; then
+                echo "<details><summary>$report.json</summary>"
+                echo
+                echo '```json'
+                cat "${{ runner.temp }}/$report.json"
+                echo '```'
+                echo '</details>'
+              fi
+            done
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.app }}-${{ matrix.os }}
-          path: ${{ steps.build.outputs.artifact }}
+          # 錄製端沒有安裝檔（installer 是空的那行會被略過）
+          path: |
+            ${{ steps.build.outputs.artifact }}
+            ${{ steps.build.outputs.installer }}
           retention-days: 14
           if-no-files-found: error

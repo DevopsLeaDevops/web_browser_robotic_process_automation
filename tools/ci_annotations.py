@@ -10,8 +10,9 @@ CI 失敗時，原因直接標在 PR「Files changed」的對應行上；看不�
     uv run python tools/ci_annotations.py self-test self-test.json [self-test.log]
 
 pytest 要用 ``--junitxml=… -o junit_family=xunit1``（xunit1 才有 file、line 屬性）；
-pyright 要用 ``--outputjson``。self-test 是桌面 App 自我測試的報告（rpa_desktop.selftest，M10），
-失敗的每一步一則；報告沒有產生時，改用輸出日誌的最後一段。
+pyright 要用 ``--outputjson``。self-test 是桌面 App 自我測試的報告（rpa_desktop.selftest，M10；
+視窗自我測試與端到端也是同一種格式），失敗的每一步一則；報告沒有產生時，改用輸出日誌的最後一段。
+全部通過時一則 notice，步驟有 ``detail`` 的話一併列出（例如 WebView2 的 User-Agent、權杖存在哪裡）。
 
 GitHub 每個步驟最多顯示 10 個錯誤 annotation，所以 pytest 一個失敗的測試一則、
 pyright 一個檔案一則，超過的部分合併成最後一則。
@@ -60,9 +61,9 @@ def _escape_property(text: str) -> str:
     return _escape_data(text).replace(":", "%3A").replace(",", "%2C")
 
 
-def _tail(text: str) -> str:
+def _tail(text: str, chars: int = DETAIL_CHARS) -> str:
     text = text.strip()
-    return text if len(text) <= DETAIL_CHARS else "…\n" + text[-DETAIL_CHARS:]
+    return text if len(text) <= chars else "…\n" + text[-chars:]
 
 
 def _relative(path: str) -> str:
@@ -152,15 +153,31 @@ def from_self_test(report: Path, log: Path | None = None) -> list[Annotation]:
         if step.get("ok"):
             continue
         name = step.get("scenario") or step.get("engine") or ""
-        details = [
+        # 錯誤放前面、一定保留；輸出很長時只保留結尾
+        head = "\n".join(
             f"{key}: {step[key]}" for key in ("status", "exitCode", "error") if step.get(key)
-        ]
-        if step.get("output"):
-            details.append(str(step["output"]))
-        found.append(Annotation(f"self-test {step.get('step')}: {name}", _tail("\n".join(details))))
+        )
+        output = str(step.get("output") or "").strip()
+        if output:
+            budget = max(DETAIL_CHARS - len(head), DETAIL_CHARS // 2)
+            head = f"{head}\n{_tail(output, budget)}" if head else _tail(output, budget)
+        found.append(Annotation(f"self-test {step.get('step')}: {name}", head))
     if not found and not summary.get("ok"):
         found.append(Annotation("self-test: 失敗", _tail(json.dumps(summary, ensure_ascii=False))))
     return limit(found, "self-test")
+
+
+def passing_details(report: Path) -> str:
+    """全部通過時，每一步的 ``detail``（一步一行）；沒有就是空字串。"""
+    try:
+        data = json.loads(report.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    summary = cast("dict[str, object]", data if isinstance(data, dict) else {})
+    steps = cast("list[dict[str, object]]", summary.get("steps") or [])
+    return "\n".join(
+        f"{step.get('step')}: {step['detail']}" for step in steps if step.get("detail")
+    )
 
 
 def emit(annotations: Iterable[Annotation]) -> None:
@@ -179,7 +196,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if annotations is not None:
         emit(annotations)
         if not annotations:
-            print("::notice title=self-test::全部通過")
+            details = passing_details(Path(args[1]))
+            suffix = _escape_data("\n" + details) if details else ""
+            print(f"::notice title=self-test::全部通過{suffix}")
         return 0
     if len(args) != 2 or args[0] not in ("junit", "pyright"):
         print(__doc__, file=sys.stderr)

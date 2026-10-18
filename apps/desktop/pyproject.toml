@@ -1,14 +1,22 @@
 [project]
 name = "rpa-desktop"
 version = "0.1.0"
-description = "桌面端（M10，ADR 0014）：RPA 錄製端與 RPA Worker 共用的程式碼、打包後的入口與自我測試"
+description = "桌面端（M10，ADR 0014）：RPA 錄製端與 RPA Worker 共用的程式碼、RPA Worker 的視窗與通知區、打包後的入口與自我測試"
 requires-python = ">=3.12"
-# M10.0 只有打包後的入口與自我測試；視窗（pywebview）在 M10.1、M10.2 加入
 dependencies = [
   "rpa-core",
   "rpa-runner",
   "rpa-worker",
   "rpa-testsite",
+  # RPA Worker 的狀態視窗（Windows 的 WebView2，經由 pythonnet）與通知區圖示（M10.1）。
+  # 只在 Windows 安裝；macOS 的錄製端視窗在 M10.2 再把 pywebview 擴到 darwin。
+  "pywebview>=5.4; sys_platform == 'win32'",
+  "pystray>=0.19.5; sys_platform == 'win32'",
+  # 通知區與執行檔的圖示（用程式畫，倉庫不放圖檔）；各平台都裝，Linux 的 CI 也能測
+  "pillow>=11.0",
+  # 權杖存在作業系統的認證管理員（Windows 認證管理員、macOS 鑰匙圈）；各平台都裝，
+  # Linux 的 CI 沒有後端，正好測到退回檔案的路徑
+  "keyring>=25.6",
 ]
 
 [tool.uv.sources]
