@@ -61,6 +61,7 @@
     <section class="panel" id="manual-m9a">
       <div class="panel-header"><h2>二、M9a 兩台真實電腦的驗收</h2><span class="muted">步驟來自<a href="../docs/develop/remote-worker.html">遠端 worker</a>與 <a href="../docs/design/portal.html#manual-check">手動驗收第 8 步</a></span></div>
       <div class="panel-body">
+        <div class="notice">2026-10-18 07:44 America/Los_Angeles（PDT，UTC−07:00）：你在 M10.1（#31＋#32＋#33）的人工驗證後回報「整體流程是通暢的，細節慢慢驗收」。這次用的是 RPA Worker App 與裝置邀請（不是下表的 <code>rpa worker</code> 命令列），見下方「其他里程碑」的 M10.1。逐步的結果還沒有紀錄，所以下表的狀態不改。</div>
         <div class="notice warn">截至 2026-10-14，Claude 只收到一則實測回報（10-13 20:52）。之後的步驟<strong>沒有任何紀錄</strong>，下表標「未知」的請你補上：日期、哪個提交（<code>git rev-parse --short HEAD</code>）、通過或失敗、錯誤訊息。</div>
       </div>
       <div class="table-scroll"><table class="wrap">
@@ -88,6 +89,7 @@
           <tr><td>M3（建立 → 驗證 → 發布 → 執行 → 看報告）</td><td>倉庫與 Claude 專案裡沒有人工驗收紀錄。之後的 #12～#15（領域劃分、埠號自動換、瀏覽器未下載的說明、篩選與有頭模式）看起來是實際使用後的調整，但當時的對話這次讀不到，<strong>無法確認是否做過完整驗收</strong>。</td></tr>
           <tr><td>M4（錄製、兩個角色、needs_login）</td><td>10-12 23:56 你表示「M4 視為完成」（見 <a href="materials/claude-project/m6-design-proposal.md">m6 提案</a>開頭），#17、#18 是之後的回饋修正。沒有逐步紀錄。</td></tr>
           <tr><td>M6（試驗場 BA-001 → BA-002；#28 起為 DAG 組合場景）</td><td>#22 的線性試驗場沒有單獨的人工驗收紀錄。#28 的 DAG 組合場景：PR 期間你多次回報「功能沒有問題」（見<a href="tasks/20261014-dag-composite-scenes.html#ui-followup">任務紀錄</a>）；2026-10-14 23:50 America/Los_Angeles（PDT，UTC−07:00） 你確認最後一輪 UI（<span class="mono">641518e</span>）、示範場景 DAG、舊序列與歷史報告通過，並決定 M6 記為完成。<strong>未驗</strong>：實際業務系統、兩台實體電腦（見<a href="open-work.html#m6-gaps">未完成工作</a>）。細節見<a href="tasks/20261014-dag-composite-scenes.html#closeout">合併與收尾</a>。</td></tr>
+          <tr><td>M10.1（裝置邀請與配對、RPA Worker App、安裝檔；#31＋#32＋#33）</td><td><span class="kind tentative">部分</span>：2026-10-18 07:44 America/Los_Angeles（PDT，UTC−07:00）你回報整體流程通暢，細節慢慢驗收。逐步紀錄（<a href="tasks/20261016-m10-1-windows-worker.html">任務紀錄</a>的兩份人工驗證步驟：#31＋#32 一起、PR 3 的安裝檔）還沒有回填，哪些步驟做過、在哪個版本做的都不知道。CI 的 Windows 端到端見任務紀錄的驗證表。</td></tr>
           <tr><td>Windows 上 Firefox 的穩定性</td><td>10-11～10-12 在 CI 的 Windows 虛擬機上做過一系列診斷（<code>ci/diag-windows</code>，見<a href="open-work.html#diag">未完成工作</a>），結論已做成修正（#12）。不是你的 Windows 上的實測。</td></tr>
         </tbody>
       </table></div>
