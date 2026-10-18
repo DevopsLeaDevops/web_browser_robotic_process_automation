@@ -137,3 +137,20 @@ def test_self_test_passing_is_a_notice(tmp_path: Path, capsys: pytest.CaptureFix
     report.write_text(json.dumps({"ok": True, "steps": [{"step": "run", "ok": True}]}), "utf-8")
     assert tool.main(["self-test", str(report), str(tmp_path / "self-test.log")]) == 0
     assert capsys.readouterr().out == "::notice title=self-test::全部通過\n"
+
+
+def test_self_test_passing_lists_step_details(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    report = tmp_path / "smoke.json"
+    steps = [
+        {"step": "webview2", "ok": True, "detail": "141.0"},
+        {"step": "window", "ok": True, "detail": "Mozilla/5.0 Edg/141"},
+        {"step": "tray", "ok": True},
+    ]
+    report.write_text(json.dumps({"ok": True, "steps": steps}), "utf-8")
+    assert tool.main(["self-test", str(report)]) == 0
+    expected = (
+        "::notice title=self-test::全部通過%0Awebview2: 141.0%0Awindow: Mozilla/5.0 Edg/141\n"
+    )
+    assert capsys.readouterr().out == expected

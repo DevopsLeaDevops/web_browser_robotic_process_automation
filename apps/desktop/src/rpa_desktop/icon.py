@@ -49,9 +49,9 @@ def draw(size: int = 64, status: str | None = None) -> Image.Image:
     if status is not None:
         pen.ellipse((164, 164, 252, 252), fill="white")
         pen.ellipse((176, 176, 240, 240), fill=status)
-    if size == _CANVAS:
-        return image
-    return image.resize((size, size), Image.Resampling.LANCZOS)
+    if size != _CANVAS:
+        image.thumbnail((size, size), Image.Resampling.LANCZOS)  # 正方形縮成正方形
+    return image
 
 
 def save_ico(path: Path) -> Path:
