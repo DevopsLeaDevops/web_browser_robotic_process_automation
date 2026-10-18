@@ -159,16 +159,16 @@
         <div class="panel-body prose">
           <ul>
             <li><strong>内部就是现有的 RemoteWorker。</strong>权杖改从配对取得；领取、心跳、上传、测试网站的行为都和 <code>rpa worker</code> 一样（运行循环在 <code>rpa_worker.service</code>，两边共用）。</li>
-            <li><strong>分两步交付</strong>（2026-10-16 决定）。第一步是主控台版：双击 <code>rpa-worker.exe</code> 粘贴邀请、下载浏览器、接任务；CI 用打包版实际配对并运行 BA-001 → BA-002。第二步（2026-10-17 核准）加上下面的状态窗口、通知区、自动启动、只运行一份与认证管理员；主控台版保留为同文件夹的 <code>rpa-child.exe --worker</code>，排查问题用。之后是安装档。</li>
-            <li><strong>状态窗口。</strong>pywebview（WebView2）加载 App 内的页面（设计系统的 CSS 内嵌，原档不改）：配对（贴邀请，只贴代码时另外填服务器）、下载浏览器的进度、服务器、在线状态、目前运行、最近 10 笔、App 版本、权杖存放；版本与服务器不同时提醒（下载页的链接在安装档交付后加上）。「设置」：自动启动、Firefox、内部镜像、语言（依 <a href="../adr/0007-i18n.html">ADR 0007</a> 默认繁中、不跟操作系统，选择记在文件夹的 <code>settings.json</code>）、打开日志文件夹、重新配对。窗口不连到 Portal 的页面：管理页只在服务器那台的 127.0.0.1，对外端口要到 M10.2 才开放给录制端。</li>
+            <li><strong>分两步交付</strong>（2026-10-16 决定）。第一步是主控台版：双击 <code>rpa-worker.exe</code> 粘贴邀请、下载浏览器、接任务；CI 用打包版实际配对并运行 BA-001 → BA-002。第二步（2026-10-17 核准）加上下面的状态窗口、通知区、自动启动、只运行一份与认证管理员；主控台版保留为同文件夹的 <code>rpa-child.exe --worker</code>，排查问题用。之后是<a href="#installer">安装档</a>（2026-10-18 核准）。</li>
+            <li><strong>状态窗口。</strong>pywebview（WebView2）加载 App 内的页面（设计系统的 CSS 内嵌，原档不改）：配对（贴邀请，只贴代码时另外填服务器）、下载浏览器的进度、服务器、在线状态、目前运行、最近 10 笔、App 版本、权杖存放；版本与服务器不同时提醒，附「下载新版」打开最新的 GitHub Release。「设置」：自动启动、Firefox、内部镜像、语言（依 <a href="../adr/0007-i18n.html">ADR 0007</a> 默认繁中、不跟操作系统，选择记在文件夹的 <code>settings.json</code>）、打开日志文件夹、重新配对。窗口不连到 Portal 的页面：管理页只在服务器那台的 127.0.0.1，对外端口要到 M10.2 才开放给录制端。</li>
             <li><strong>通知区图标。</strong>关掉窗口是缩到通知区（第一次提示）；菜单有「打开窗口」「暂停接任务」「结束」，图标的圆点表示状态。有任务在运行时结束要先确认，取消后回报。「暂停接任务」是做完目前的任务后不再领取：服务器不改，Portal 约一分钟后显示脱机（2026-10-17 决定）。</li>
             <li><strong>自动启动。</strong>写入目前用户的「登录时运行」（<code>HKCU\…\Run</code>，加上 <code>--background</code> 只出现在通知区；还没配对时仍打开窗口）。第一次配对成功后默认打开，之后照用户在设置里的选择；每次启动时把路径更新成目前的位置（免安装的文件夹可能被搬走）。有头模式需要用户登录桌面，所以不做成系统服务。</li>
-            <li><strong>只运行一份。</strong>文件夹里 <code>instance.lock</code> 的独占锁，窗口版、<code>--no-window</code> 与主控台版互斥；重复打开时叫出已经在跑的那份。</li>
+            <li><strong>只运行一份。</strong>文件夹里 <code>instance.lock</code> 的独占锁，窗口版、<code>--no-window</code> 与主控台版互斥；重复打开时叫出已经在跑的那份。拿到锁的那份另外创建具名 mutex <code>RPAWorker.App</code>，让安装档知道 App 正在运行；文件夹的 <code>stop.request</code> 请它取消任务、回报后结束。</li>
             <li><strong>认证管理员。</strong>权杖经由 keyring 存在 Windows 认证管理员；不能用时退回 <code>pairing.json</code>（只有本人能读写）并记在日志。第一步存在文件里的权杖自动搬过去。</li>
             <li><strong>不跳主控台窗口。</strong>窗口程序启动的主控台子进程（<code>rpa-child</code>、<code>taskkill</code>）加上 <code>CREATE_NO_WINDOW</code>；下载浏览器直接启动 Playwright 的 driver，不经过 <code>rpa-child</code>。</li>
             <li><strong>没有 WebView2、注销与关机。</strong>没有 WebView2 Runtime 时说明怎么安装，在那之前只用通知区接任务。Windows 注销或关机时立刻取消运行中的任务并回报（最多等 3 秒，不挡住关机）；来不及时由租约判定失联（<a href="../adr/0012-remote-workers.html">ADR 0012</a>）。</li>
             <li><strong>数据位置。</strong>工作数据、设置与日志在 <code>%LOCALAPPDATA%\rpa\worker</code>（日志会轮替，不记权杖与邀请代码），Firefox 预热模板照旧在 <code>%LOCALAPPDATA%\rpa\cache</code>，浏览器在 Playwright 默认的 <code>%LOCALAPPDATA%\ms-playwright</code>。</li>
-            <li><strong>CI。</strong>Windows 的建置工作先跑桌面端的单元测试（注册表、单一运行、认证管理员用真的）；<code>--smoke-test</code> 打开真的 WebView2 窗口与通知区图标；端到端以 <code>--no-window</code> 配对并运行 BA-001 → BA-002。窗口程序没有标准输出，<code>--version</code>、<code>--self-test</code> 改用 <code>rpa-child</code>。</li>
+            <li><strong>CI。</strong>Windows 的建置工作先跑桌面端的单元测试（注册表、单一运行、认证管理员用真的）；<code>--smoke-test</code> 打开真的 WebView2 窗口与通知区图标；端到端先静默安装，用装好的 App 以 <code>--no-window</code> 配对并运行 BA-001 → BA-002，再在 App 运行中升级、卸载（<a href="#installer">安装档</a>）。窗口程序没有标准输出，<code>--version</code>、<code>--self-test</code> 改用 <code>rpa-child</code>。</li>
             <li><strong>M9a 剩下的三项并入 M10.1：</strong>运行报告的「运行位置」筛选、场景网址是本机地址时的提醒、等待 worker 的提示。</li>
           </ul>
         </div>
@@ -180,7 +180,7 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>子进程命令集中。</strong>目前 10 处用 <code>sys.executable -m …</code> 启动子进程（runner、登录检查、录制、调试、codegen）。改由 <code>rpa_runner.commands</code> 产生：开发环境是 <code>python -m 模块</code>，打包后是 <code>App --rpa-module 模块</code>；Python 脚本场景是 <code>App --rpa-script 文件</code>；codegen 直接调用 Playwright 内附的 driver。</li>
-          <li><strong>PyInstaller，文件夹模式（onedir）。</strong>macOS 做成 <code>RPA Recorder.app</code>（显示名称「RPA 录制端」）再包成 DMG；Windows 用 Inno Setup 做成安装到用户目录的 <code>RPA-Worker-Setup.exe</code>。不用单档模式（每次启动解压上百 MB，也较容易被杀毒误判）。</li>
+          <li><strong>PyInstaller，文件夹模式（onedir）。</strong>macOS 做成 <code>RPA Recorder.app</code>（显示名称「RPA 录制端」）再包成 DMG；Windows 用 Inno Setup 做成安装到用户目录的 <code>RPA-Worker-Setup-版本-windows-x64.exe</code>（<a href="#installer">安装档</a>），另外照样产生免安装的 zip。不用单档模式（每次启动解压上百 MB，也较容易被杀毒误判）。</li>
           <li><strong>建置信息。</strong>版本、程序指纹、协定版本在建置时写进 App（打包后没有源代码文件可以算指纹）。版本规则沿用 M9a：协定不同才拒绝，程序指纹不同只提醒。</li>
           <li><strong>浏览器。</strong>第一次启动用 App 内附的 Playwright driver 下载，版本必定相符；放在 Playwright 默认的用户缓存。可以在设置填内部镜像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）。录制端必要 Chromium、选用 Firefox；Worker 同。</li>
           <li><strong>Python 脚本场景。</strong>打包后用 App 内的 Python 运行，只能 import 标准函数库与 App 内附的包（Playwright、Pydantic 等）。</li>
@@ -189,6 +189,34 @@
         </ul>
       </div>
     </section>
+
+    <div class="two-col">
+      <section class="panel" id="installer">
+        <div class="panel-header"><h2>Worker 的安装档</h2><span class="muted">M10.1，Inno Setup 6.7</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>只装给目前的用户。</strong>不需要管理员，装到 <code>%LOCALAPPDATA%\Programs\RPA Worker</code>；开始功能表捷径，桌面捷径选用；装完打开。文件夹 <code>%LOCALAPPDATA%\rpa\worker</code> 和免安装版相同。</li>
+            <li><strong>语言。</strong>繁中、简中、英文，默认繁中、安装时可以选（<a href="../adr/0007-i18n.html">ADR 0007</a>）。Inno Setup 的界面用它源代码 <code>is-6_7_1</code> 的翻译档（建置时下载并核对 SHA-256，仓库不放）；安装档自己的消息从 App 的消息目录（<code>installer.*</code>）产生，所以一样是繁中、英文人工维护，简中由工具产生。</li>
+            <li><strong>App 正在运行时。</strong>用 App 的具名 mutex 判断，在文件夹写 <code>stop.request</code> 请它取消运行中的任务、回报后结束（最多等 150 秒），再换文件；不用 Windows 的 Restart Manager 强制关闭。升级时配对、设置与自动启动都保留，旧版的程序库先删掉。</li>
+            <li><strong>WebView2。</strong>没有 Runtime 时运行建置时附上的 Microsoft Evergreen 引导程序（建置时核对 Microsoft 的数字签章）；失败时说明，App 仍可只用通知区接任务。</li>
+            <li><strong>卸载。</strong>停止 App，删除程序、捷径与「登录时运行」的项目；询问是否也删除配对、设置与日志（含认证管理员里的权杖），默认保留，静默卸载时也保留。</li>
+            <li><strong>建置与 CI。</strong><code>tools/build_desktop.py worker</code> 在 Windows 上建好 App 与 zip 后调用 ISCC（GitHub 的 Windows 运行环境已装 Inno Setup）。端到端：静默安装 → 检查文件、捷径、卸载项目的版本 → 用装好的 App 配对并运行 BA-001 → BA-002 → App 运行中再安装一次（App 要以结束码 0 结束）→ 卸载，确认程序、卸载项目与自动启动已删、配对保留。</li>
+            <li><strong>不包含。</strong>代码签章、自动更新、内含 Chromium 的脱机安装档。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="release">
+        <div class="panel-header"><h2>版本与发布</h2><span class="muted">GitHub Releases，草稿由维护者发布</span></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>同一个版本。</strong>服务器、Worker、录制端与所有包用同一个版本（<code>主.次.修</code>，数字），标签是 <code>v0.2.0</code> 这种格式（2026-10-18 决定）。<code>python3 tools/release_version.py bump 0.2.0</code> 一次改全部包与 <code>uv.lock</code>。</li>
+            <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合并 → 在 <code>main</code> 上打标签并推送 → 「发布」流程（<code>.github/workflows/release.yml</code>）确认标签和包版本一致、标签在 <code>main</code> 上，调用桌面端建置（含安装、升级、卸载的端到端），创建<strong>草稿</strong> Release：安装档、免安装 zip、<code>SHA256SUMS.txt</code>。</li>
+            <li><strong>草稿。</strong>仓库是公开的，发布后任何人都下载得到（没有邀请连不上 Portal）；所以由维护者确认草稿的内容后才按「发布」。重新运行时换掉同一个草稿的文件；已经发布的版本不换，改用新的版本。</li>
+            <li><strong>下载新版。</strong>App 的版本和服务器不同时，窗口的「下载新版」打开最新的 Release（<code>…/releases/latest</code>，只算已发布的）。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
 
     <div class="two-col">
       <section class="panel" id="signing">
