@@ -219,6 +219,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
 
     def step(name: str, action: Callable[[], str]) -> bool:
         started = time.monotonic()
+        first_log = len(setup_logs)  # 失敗時只附這一步的安裝檔日誌
         try:
             detail = action()
         except Exception as error:
@@ -230,7 +231,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
                     "seconds": round(time.monotonic() - started, 1),
                     "output": "\n".join(
                         f"--- {log.name} ---\n{_tail(log)}"
-                        for log in [portal_log, app_log, *setup_logs]
+                        for log in [portal_log, app_log, *setup_logs[first_log:]]
                         if log.exists()
                     ),
                 }
@@ -267,9 +268,11 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
         command = [str(uninstaller), *SILENT, f"/LOG={folder / log}", *options]
         subprocess.run(command, env=env, timeout=600, check=False)
 
-        # 解除安裝程式會把自己複製到暫存資料夾再執行，原本的程序可能先結束：等到真的刪完
+        # 解除安裝程式會把自己複製到暫存資料夾再執行，原本的程序在刪檔案時就先結束了：
+        # 等到日誌寫完（usPostUninstall 刪資料在刪完程式之後）
         def removed() -> JsonObject | None:
-            return {} if not app.exists() and _uninstall_entry() is None else None
+            closed = "Log closed." in _tail(folder / log)
+            return {} if closed and not app.exists() and _uninstall_entry() is None else None
 
         _wait("解除安裝完成", removed, 300)
         if _start_menu_shortcut().exists():

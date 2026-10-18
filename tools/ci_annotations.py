@@ -61,9 +61,9 @@ def _escape_property(text: str) -> str:
     return _escape_data(text).replace(":", "%3A").replace(",", "%2C")
 
 
-def _tail(text: str) -> str:
+def _tail(text: str, chars: int = DETAIL_CHARS) -> str:
     text = text.strip()
-    return text if len(text) <= DETAIL_CHARS else "…\n" + text[-DETAIL_CHARS:]
+    return text if len(text) <= chars else "…\n" + text[-chars:]
 
 
 def _relative(path: str) -> str:
@@ -153,12 +153,15 @@ def from_self_test(report: Path, log: Path | None = None) -> list[Annotation]:
         if step.get("ok"):
             continue
         name = step.get("scenario") or step.get("engine") or ""
-        details = [
+        # 錯誤放前面、一定保留；輸出很長時只保留結尾
+        head = "\n".join(
             f"{key}: {step[key]}" for key in ("status", "exitCode", "error") if step.get(key)
-        ]
-        if step.get("output"):
-            details.append(str(step["output"]))
-        found.append(Annotation(f"self-test {step.get('step')}: {name}", _tail("\n".join(details))))
+        )
+        output = str(step.get("output") or "").strip()
+        if output:
+            budget = max(DETAIL_CHARS - len(head), DETAIL_CHARS // 2)
+            head = f"{head}\n{_tail(output, budget)}" if head else _tail(output, budget)
+        found.append(Annotation(f"self-test {step.get('step')}: {name}", head))
     if not found and not summary.get("ok"):
         found.append(Annotation("self-test: 失敗", _tail(json.dumps(summary, ensure_ascii=False))))
     return limit(found, "self-test")

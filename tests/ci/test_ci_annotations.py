@@ -122,6 +122,22 @@ def test_self_test_failures_one_per_step(tmp_path: Path) -> None:
     assert annotation.message == "status: failed\nerror: TimeoutError: 逾時"
 
 
+def test_self_test_keeps_the_error_when_the_output_is_long(tmp_path: Path) -> None:
+    """端到端附上的日誌很長（安裝檔的 /LOG）：錯誤在最前面，一定要留著；日誌只留結尾。"""
+    report = tmp_path / "e2e.json"
+    output = "開頭的日誌\n" + "x" * (tool.DETAIL_CHARS * 2) + "\n最後一行"
+    error = "StepFailedError: 資料夾還在"
+    step = {"step": "remove-data", "ok": False, "error": error, "output": output}
+    report.write_text(json.dumps({"ok": False, "steps": [step]}), encoding="utf-8")
+
+    (annotation,) = tool.from_self_test(report)
+
+    assert annotation.message.startswith("error: StepFailedError: 資料夾還在\n…\n")
+    assert annotation.message.endswith("最後一行")
+    assert "開頭的日誌" not in annotation.message
+    assert len(annotation.message) <= tool.DETAIL_CHARS + 10
+
+
 def test_self_test_without_report_uses_the_log(tmp_path: Path) -> None:
     log = tmp_path / "self-test.log"
     log.write_text("Traceback ...\nUnicodeEncodeError: 'charmap'\n", encoding="utf-8")
