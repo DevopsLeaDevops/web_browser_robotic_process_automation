@@ -219,6 +219,8 @@
   "recorder.offline_reload": "Reload",
   "recorder.notice_unpaired": "This RPA Recorder is not paired yet. Use the menu “RPA Recorder › Status and settings” to paste a recorder invitation from the portal's Devices page.",
   "recorder.notice_unauthorized": "The portal no longer accepts this recorder's token (it may have been invited again, disabled or deleted on the Devices page). Use the menu “RPA Recorder › Status and settings” to pair again.",
+  "recorder.notice_unpaired_no_window": "This RPA Recorder is not paired yet: start it again with --invite and a recorder invitation from the portal's Devices page.",
+  "recorder.notice_unauthorized_no_window": "The portal no longer accepts this recorder's token (it may have been invited again, disabled or deleted on the Devices page): create a new recorder invitation and start it again with --invite.",
   "recorder.already_running": "RPA Recorder is already running: bringing its window to the front.",
   "installer.Stopping": "Asking RPA Worker to quit: a running job is cancelled and reported to the management portal…",
   "installer.StillRunning": "RPA Worker is still running, so setup cannot continue. Choose Quit from the RPA Worker tray icon, then run this again.",

@@ -190,14 +190,18 @@ def _page(locale: str, title: str, text: str, actions: str) -> str:
     )
 
 
-def notice_page(locale: Callable[[], Locale]) -> Callable[[str], str]:
-    """還沒配對（``unpaired``）或配對失效（``unauthorized``）時，Portal 那個埠的說明頁。"""
+def notice_page(locale: Callable[[], Locale], *, window: bool = True) -> Callable[[str], str]:
+    """還沒配對（``unpaired``）或配對失效（``unauthorized``）時，Portal 那個埠的說明頁。
+
+    ``window`` 是 False 時（``--no-window``）沒有 App 的選單可以點，改說明用 ``--invite`` 重新啟動。
+    """
+    suffix = "" if window else "_no_window"
 
     def render(kind: str) -> str:
         language = locale()
         key = (
             "recorder.notice_unauthorized" if kind == "unauthorized" else "recorder.notice_unpaired"
-        )
+        ) + suffix
         with use_locale(language):
             return _page(language, t("recorder.title"), t(key), "")
 

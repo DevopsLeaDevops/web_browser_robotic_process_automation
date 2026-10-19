@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:75a7e2efa14fe38f">
+<meta name="translation-source" content="sha256:5fb1aecbfd4a0e98">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -138,7 +138,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
           <li><strong>Server on the same Mac</strong>: open the external port with <code>rpa serve --worker-port 8081</code> as usual and pair with <code>http://127.0.0.1:8081</code>.</li>
           <li><strong>Upgrading</strong>: quit the app, open the new DMG and drag “RPA Recorder” into Applications to replace the old one; pairing, settings and logs are kept. The first launch of the new version may need allowing again under “Privacy &amp; Security”. When the status page warns that the program version differs from the portal, “Download the new version” next to it opens the latest release.</li>
           <li><strong>Uninstalling</strong>: quit the app and move “RPA Recorder” to the Trash. Pairing, settings and logs are in the folder above and the token is the “RPA Recorder” Keychain item; delete them if you no longer need them. The browser cache is shared with the development environment and need not be deleted.</li>
-          <li><strong>Without the app window</strong> (troubleshooting, automation): in Terminal run <code>"/Applications/RPA Recorder.app/Contents/MacOS/rpa-recorder" --no-window --open</code>; once connected it opens the portal in the default browser. <strong>Headed mode still works</strong>: the browser windows for recording, step-by-step debugging and manual login still open on this computer; only the app's own window is missing. It shares the app's pairing and only one copy can run at a time; press Ctrl+C to stop (or put a <code>stop.request</code> file in the folder). Other options: <code>--invite</code>, <code>--server</code>, <code>--firefox</code>, <code>--log file</code>, and <code>--url-file file</code> (writes the address that opens the portal through the gateway to a file, for automation).</li>
+          <li><strong>Without the app window</strong> (troubleshooting, automation): in Terminal run <code>"/Applications/RPA Recorder.app/Contents/MacOS/rpa-recorder" --no-window --open</code>; once connected it opens the portal in the default browser. <strong>Headed mode still works</strong>: the browser windows for recording, step-by-step debugging and manual login still open on this computer; only the app's own window is missing, so run it from a signed-in desktop session (not over SSH). Messages are printed in the terminal and written to the log. It shares the app's pairing and only one copy can run at a time (double-clicking the app meanwhile opens the portal in the default browser); press Ctrl+C to stop (or put a <code>stop.request</code> file in the folder). Other options: <code>--invite</code>, <code>--server</code>, <code>--firefox</code>, <code>--log file</code>, and <code>--url-file file</code> (writes the address that opens the portal through the gateway to a file, for automation).</li>
         </ul>
       </div>
     </section>

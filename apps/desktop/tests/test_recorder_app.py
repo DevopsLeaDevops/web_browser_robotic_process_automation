@@ -7,7 +7,9 @@
 
 import http.client
 import json
+import os
 import re
+import signal
 import sys
 import threading
 from collections.abc import Iterator, Mapping, Sequence
@@ -24,6 +26,7 @@ from rpa_desktop.controller import Closable
 from rpa_desktop.credentials import Credentials, MemoryStore
 from rpa_desktop.downloads import DownloadResult, Progress
 from rpa_desktop.i18n import t
+from rpa_desktop.logs import redact
 from rpa_desktop.recorder_controller import (
     Notify,
     Phase,
@@ -613,3 +616,60 @@ def test_no_window_refuses_a_second_copy(tmp_path: Path, fakes: Fakes, store: Me
     finally:
         held.release()
     assert not fakes.paired
+
+
+def test_no_window_show_request_opens_the_browser(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    """已經在執行時再雙擊 App：這一份沒有視窗可以叫出來，改用預設瀏覽器打開管理 Portal。"""
+    home = tmp_path / "home"
+    with NoWindow(home, fakes, store, ["--invite", LINE]) as run:
+        assert fakes.started.wait(10)
+        assert run.opened == []  # 沒有 --open：一開始不開
+        InstanceLock(home).request_show()
+        assert wait_for(lambda: len(run.opened) == 1, 5)
+        assert "/__gateway/login?key=" in run.opened[0]
+        InstanceLock(home).request_stop()
+        assert run.finished() == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM 只在 macOS、Linux")
+def test_no_window_ends_on_sigterm(tmp_path: Path, fakes: Fakes, store: MemoryStore) -> None:
+    """訊號只設旗標，收拾在主執行緒做；結束碼 0，之前的訊號處理還原。"""
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def send() -> None:
+        assert fakes.started.wait(10)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    sender = threading.Thread(target=send, daemon=True)
+    sender.start()
+    code = recorder_headless.main(
+        ["--invite", LINE],
+        environ={"RPA_RECORDER_HOME": str(tmp_path / "home")},
+        store=store,
+        services=fakes.services(),
+        open_browser=lambda url: None,
+    )
+    assert code == 0
+    assert fakes.stopped_all >= 1
+    assert signal.getsignal(signal.SIGTERM) is previous
+
+
+def test_no_window_arguments_and_notice() -> None:
+    args = recorder_headless._parse(["-psn_0_12345", "--open"])  # pyright: ignore[reportPrivateUsage]
+    assert args.open is True  # macOS 經由 LaunchServices 帶的參數略過
+    with pytest.raises(SystemExit) as raised:
+        recorder_headless._parse(["--bogus"])  # pyright: ignore[reportPrivateUsage]
+    assert raised.value.code == 2
+    # 沒有 App 的選單可以點：說明用 --invite 重新啟動
+    html = notice_page(lambda: "en", window=False)("unauthorized")
+    assert "--invite" in html
+    assert "Status and settings" not in html
+    assert "Status and settings" in notice_page(lambda: "en")("unauthorized")
+
+
+def test_logs_hide_the_gateway_secret() -> None:
+    line = "open http://127.0.0.1:5000/__gateway/login?key=AbC_123-xyz789&next=/"
+    assert "AbC_123-xyz789" not in redact(line)
+    assert "next=/" in redact(line)

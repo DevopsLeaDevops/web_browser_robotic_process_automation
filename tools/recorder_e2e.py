@@ -17,7 +17,9 @@ CI 的桌面端建置在 macOS 建好 RPA 錄製端、跑完自我測試之後�
 6. 經由閘道開始 BA-001 的逐步調試，**無頭與有頭各一次**（有頭：瀏覽器視窗開在這台，
    ``--no-window`` 少的只是 App 的視窗）：工作階段在錄製端、執行第一步通過、截圖傳回管理 Portal
    再經由閘道拿得到；結束後錄製端的暫存資料夾清空。
-7. 在資料夾寫 ``stop.request`` 請打包版結束（結束碼 0），網址檔刪掉；最後結束管理 Portal。
+   調試中檢查程序：無頭時只有 headless shell（或帶 ``--headless``），有頭時有一般的 Chromium。
+7. 在資料夾寫 ``stop.request`` 請打包版結束（結束碼 0），網址檔刪掉。
+8. 不給邀請再啟動一次（用鑰匙圈裡存下的配對），上線後送 SIGTERM，結束碼 0；最後結束管理 Portal。
 
 印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，可以用
 ``tools/ci_annotations.py self-test`` 轉成 annotations）。全部通過才回傳 0。
@@ -26,6 +28,7 @@ CI 的桌面端建置在 macOS 建好 RPA 錄製端、跑完自我測試之後�
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -89,6 +92,37 @@ class Gateway:
             raise StepFailedError(f"{method} {path}（經由閘道）→ {status}: {text[:500]}")
         value: object = json.loads(body or b"{}")
         return cast("JsonObject", value) if isinstance(value, dict) else {}
+
+
+def browser_processes() -> list[str]:
+    """Playwright 下載的瀏覽器的主程序（不含 ``--type=`` 的子程序與 crashpad）的命令列。"""
+    folder = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if not folder:
+        return []
+    listed = subprocess.run(
+        ["ps", "-axww", "-o", "command="], capture_output=True, text=True, check=False
+    ).stdout
+    return [
+        line
+        for line in listed.splitlines()
+        if folder in line and "--type=" not in line and "crashpad" not in line.lower()
+    ]
+
+
+def check_browser(headless: bool) -> str:
+    """調試中真的開了有頭（或無頭）的瀏覽器：無頭用 headless shell 或 ``--headless``，有頭沒有。"""
+    if not os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+        return "（沒有 PLAYWRIGHT_BROWSERS_PATH，不檢查程序）"
+    lines = browser_processes()
+    if not lines:
+        raise StepFailedError("調試中找不到 Playwright 的瀏覽器程序")
+    headed = [line for line in lines if "headless" not in line.lower()]
+    sample = (headed or lines)[0][:300]
+    if headless and headed:
+        raise StepFailedError(f"要的是無頭，卻有有頭的瀏覽器：{sample}")
+    if not headless and not headed:
+        raise StepFailedError(f"要的是有頭，瀏覽器卻是無頭的：{sample}")
+    return Path(sample.split(" --", 1)[0]).name
 
 
 def run(app: Path, folder: Path) -> JsonObject:
@@ -164,16 +198,14 @@ def run(app: Path, folder: Path) -> JsonObject:
         state["line"] = str(reply["line"])
         return str(reply["server"])
 
-    def start_recorder() -> str:
+    def launch(invite: bool) -> JsonObject:
+        """以 --no-window 啟動打包版（第一次用邀請配對，之後用存下的配對），等它上線。"""
         nonlocal recorder
-        handle = app_output.open("wb")
+        handle = app_output.open("ab")
         handles.append(handle)
-        command = [
-            str(app), "--no-window",
-            "--invite", str(state["line"]),
-            "--url-file", str(url_file),
-            "--log", str(app_log),
-        ]  # fmt: skip
+        command = [str(app), "--no-window", "--url-file", str(url_file), "--log", str(app_log)]
+        if invite:
+            command += ["--invite", str(state["line"])]
         recorder = subprocess.Popen(
             command, env=env, stdin=subprocess.DEVNULL, stdout=handle, stderr=subprocess.STDOUT
         )
@@ -184,7 +216,10 @@ def run(app: Path, folder: Path) -> JsonObject:
             record = api.call("GET", f"/api/recorders/{DEVICE}")
             return record if record.get("status") == "online" else None
 
-        record = wait_until("錄製端上線", online, 300)
+        return wait_until("錄製端上線", online, 300)
+
+    def start_recorder() -> str:
+        record = launch(invite=True)
         version = build_info()
         if record.get("version") != version.get("version"):
             raise StepFailedError(
@@ -253,6 +288,7 @@ def run(app: Path, folder: Path) -> JsonObject:
         record = api.call("GET", f"/api/recorders/{DEVICE}")
         if record.get("status") != "busy":
             raise StepFailedError(f"調試中錄製端的狀態是 {record.get('status')}，應該是使用中")
+        seen = check_browser(headless)
         result = gateway.json("POST", f"/api/debug/{session_id}/steps/0")
         first = cast("list[JsonObject]", result.get("steps") or [{}])[0]
         if first.get("status") != "passed":
@@ -269,7 +305,22 @@ def run(app: Path, folder: Path) -> JsonObject:
 
         wait_until("錄製端的子程序結束、暫存資料夾刪掉", cleaned, 60)
         mode = "無頭" if headless else "有頭（瀏覽器視窗開在這台）"
-        return f"{mode}：第一步通過，截圖 {len(image)} bytes"
+        return f"{mode}：第一步通過，截圖 {len(image)} bytes；瀏覽器 {seen}"
+
+    def restart() -> str:
+        """再啟動一次（不給邀請：用鑰匙圈裡存下的配對），用 SIGTERM 結束（Ctrl+C 同理）。"""
+        launch(invite=False)
+        assert recorder is not None
+        recorder.send_signal(signal.SIGTERM)
+        try:
+            code = recorder.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            raise StepFailedError("送了 SIGTERM，打包版 60 秒內沒有結束") from None
+        if code != 0:
+            raise StepFailedError(f"SIGTERM 之後的結束碼是 {code}（應該是 0）")
+        if url_file.exists():
+            raise StepFailedError("結束後網址檔還在")
+        return "用存下的配對（鑰匙圈）直接上線；SIGTERM 後正常結束"
 
     def stop() -> str:
         if recorder is None:
@@ -293,6 +344,7 @@ def run(app: Path, folder: Path) -> JsonObject:
         ("debug-headless", lambda: debug(True)),
         ("debug-headed", lambda: debug(False)),
         ("stop", stop),
+        ("restart", restart),
     ]
     try:
         for name, action in plan:

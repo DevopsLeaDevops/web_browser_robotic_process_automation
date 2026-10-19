@@ -6,12 +6,14 @@ WKWebView 視窗：管理 Portal 用系統的預設瀏覽器打開（``--open``�
 ``--url-file``（只有本人能讀；自動化用）。訊息寫到日誌（``--log``，預設 ``logs/recorder.log``）。
 
 **有頭模式照樣可以用**：少的只是 App 的視窗。錄製、有頭模式的逐步調試、人工登入的瀏覽器視窗
-照樣開在這台；錄製端上線時照樣回報這台能顯示視窗（macOS 一定可以）。
+照樣開在這台；錄製端上線時照樣回報這台能顯示視窗。所以要在登入中的桌面啟動（例如「終端機」），
+不要從 SSH 或 launchd 的背景服務啟動：那裡開不出視窗，有頭的工作會失敗。從終端機執行時訊息也印在
+終端機。已經在執行時再雙擊 App，這一份用預設瀏覽器打開管理 Portal（沒有視窗可以叫出來）。
 
 結束：在資料夾寫一個 ``stop.request``（見
-:meth:`rpa_desktop.single_instance.InstanceLock.request_stop`），或送 SIGINT／SIGTERM。
-進行中的錄製、調試、人工登入會結束（管理 Portal 那邊標成結束），暫存刪掉；不等管理 Portal 的
-長輪詢回來（最多等 :data:`STOP_SECONDS` 秒）。
+:meth:`rpa_desktop.single_instance.InstanceLock.request_stop`），或送 SIGINT、SIGTERM、SIGHUP
+（關掉終端機）。主執行緒先結束這台的子程序、回報、刪暫存（同視窗版），之後不等管理 Portal 的
+長輪詢回來（最多再等 :data:`STOP_SECONDS` 秒）。
 
 結束碼：0 正常停止、1 被管理 Portal 拒絕或程式出錯、2 沒有配對（也沒有給 ``--invite``）或配對失敗、
 3 必要的瀏覽器下載失敗、4 同一個資料夾已經有一份在執行（視窗版或另一份 ``--no-window``）。
@@ -34,7 +36,7 @@ from rpa_core.i18n import ENV_VAR, parse_locale, set_locale
 from rpa_desktop.build_info import load
 from rpa_desktop.credentials import Credentials, KeyringStore, TokenStore
 from rpa_desktop.i18n import resolve_locale, t
-from rpa_desktop.logs import setup_logging
+from rpa_desktop.logs import RedactingFormatter, setup_logging
 from rpa_desktop.recorder_controller import SERVICE, RecorderController, RecorderServices
 from rpa_desktop.recorder_pages import notice_page, offline_page
 from rpa_desktop.single_instance import InstanceLock
@@ -83,11 +85,17 @@ def write_private(path: Path, text: str) -> None:
 
 @contextlib.contextmanager
 def _signals(handler: Callable[[], object]) -> Generator[None]:
-    """Ctrl+C（SIGINT）與 SIGTERM 要求結束；只有主執行緒能設定（測試在別的執行緒呼叫時略過）。"""
+    """Ctrl+C（SIGINT）、SIGTERM 與關掉終端機（SIGHUP）要求結束。
+
+    ``handler`` 只能設旗標：收拾（結束子程序、刪暫存）在主迴圈做。只有主執行緒能設定訊號
+    （測試在別的執行緒呼叫時略過）。
+    """
     if threading.current_thread() is not threading.main_thread():
         yield
         return
-    names = [signal.SIGINT] if sys.platform == "win32" else [signal.SIGINT, signal.SIGTERM]
+    names = [signal.SIGINT]
+    if sys.platform != "win32":
+        names += [signal.SIGTERM, signal.SIGHUP]
     previous = {name: signal.getsignal(name) for name in names}
     for name in names:
         signal.signal(name, lambda signum, frame: handler())
@@ -96,6 +104,31 @@ def _signals(handler: Callable[[], object]) -> Generator[None]:
     finally:
         for name, value in previous.items():
             signal.signal(name, value)
+
+
+def _terminal_output() -> logging.Handler | None:
+    """從終端機執行時，訊息也印在終端機（日誌照寫；權杖、邀請代碼、閘道的密語一樣遮掉）。"""
+    stream = sys.stderr
+    try:
+        interactive = stream is not None and stream.isatty()
+    except (AttributeError, ValueError):
+        interactive = False
+    if not interactive:
+        return None
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(RedactingFormatter("%(message)s"))
+    logging.getLogger().addHandler(handler)
+    return handler
+
+
+def _parse(argv: Sequence[str]) -> argparse.Namespace:
+    """macOS 經由 LaunchServices 啟動時可能帶著 ``-psn_…``：略過它，其他不認得的參數照樣報錯。"""
+    parser = _parser()
+    args, unknown = parser.parse_known_args(list(argv))
+    others = [arg for arg in unknown if not arg.startswith("-psn_")]
+    if others:
+        parser.error(" ".join(others))
+    return args
 
 
 def main(
@@ -110,15 +143,18 @@ def main(
 
     env: MutableMapping[str, str] = os.environ if environ is None else environ
     set_locale(resolve_locale(env))
-    args = _parser().parse_args(list(argv))
+    args = _parse(argv)
     ensure_browsers_path(env)
     home = recorder_dir(env)
     path = setup_logging(home / "logs", file=args.log or home / "logs" / LOG_FILE)
+    terminal = _terminal_output()
     build = load()
     logger.info("RPA 錄製端 %s（--no-window）資料夾 %s，日誌 %s", build.version, home, path)
     lock = InstanceLock(home)
     if not lock.acquire():
         logger.error("%s", t("recorder.no_window_busy", home=home))
+        if terminal is not None:
+            logging.getLogger().removeHandler(terminal)
         return 4
     url_file: Path | None = args.url_file
     gateway: Gateway | None = None
@@ -146,7 +182,7 @@ def main(
             controller.token,
             on_unauthorized=controller.unauthorized,
             offline_page=offline_page(lambda: controller.locale, lambda: servers[0].server),
-            notice_page=notice_page(lambda: controller.locale),
+            notice_page=notice_page(lambda: controller.locale, window=False),
         )
         servers.append(gateway)
         controller.attach(gateway)
@@ -165,24 +201,27 @@ def main(
         controller.subscribe(on_change)
         stopping = threading.Event()
 
-        def request_stop() -> None:
-            if not stopping.is_set():
-                logger.info("要求結束")
-            stopping.set()
-            controller.stop_now()
+        def on_show() -> None:
+            # 又雙擊了 App（視窗版拿不到鎖，請這一份叫出畫面）：這一份沒有視窗，改開瀏覽器
+            logger.info("又開了一次 RPA 錄製端：用預設瀏覽器打開管理 Portal")
+            open_browser(portal)
 
         finished = threading.Event()
-        lock.watch(None, finished, on_stop=request_stop)
-        with _signals(request_stop):
+        lock.watch(on_show, finished, on_stop=stopping.set)
+        with _signals(stopping.set):
             try:
                 controller.start(args.invite, args.server)
                 deadline: float | None = None
                 while not controller.wait(0.5):
-                    if stopping.is_set():
-                        deadline = deadline or time.monotonic() + STOP_SECONDS
-                        if time.monotonic() > deadline:
-                            logger.info("錄製端的連線還沒結束，直接結束")
-                            break
+                    if stopping.is_set() and deadline is None:
+                        # 在主執行緒做完收拾（結束子程序、回報、刪暫存）才開始計時：不讓背景的
+                        # 收拾做到一半就結束程序（同視窗版的 _finish）
+                        logger.info("要求結束")
+                        controller.stop_now()
+                        deadline = time.monotonic() + STOP_SECONDS
+                    if deadline is not None and time.monotonic() > deadline:
+                        logger.info("錄製端的連線還沒結束，直接結束")
+                        break
             finally:
                 finished.set()
         code = controller.exit_code
@@ -195,3 +234,5 @@ def main(
             with contextlib.suppress(OSError):
                 url_file.unlink()
         lock.release()
+        if terminal is not None:
+            logging.getLogger().removeHandler(terminal)
