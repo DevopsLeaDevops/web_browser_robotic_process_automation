@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:821315cfb8605838">
+<meta name="translation-source" content="sha256:3343f886cdada844">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -63,6 +63,8 @@ uv run rpa --version</pre>
             <tr><td>Install or check the whole environment</td><td><code>./scripts/setup.sh</code> (Windows: <code>scripts\setup.ps1</code>), see <a href="quickstart.html">Run locally from scratch</a></td></tr>
             <tr><td>Run all tests</td><td><code>uv run pytest</code></td></tr>
             <tr><td>Skip tests that need a browser</td><td><code>uv run pytest -m "not browser"</code></td></tr>
+            <tr><td>Run tests in parallel (faster; CI runs them this way on Linux)</td><td><code>uv run pytest -n 4 --dist loadfile</code> (the number is the process count; keep it at or below the number of CPU cores, since browser steps time out more easily on a busy machine)</td></tr>
+            <tr><td>Run only the smoke tests (browsers launch, <code>rpa run</code> finishes the example)</td><td><code>uv run pytest -m smoke</code></td></tr>
             <tr><td>Check the docs only</td><td><code>uv run pytest tests/docs</code></td></tr>
             <tr><td>Lint and fix automatically</td><td><code>uv run ruff check --fix .</code></td></tr>
             <tr><td>Format</td><td><code>uv run ruff format .</code></td></tr>

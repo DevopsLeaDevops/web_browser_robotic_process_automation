@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:7f3c9022076e5c25">
+<meta name="translation-source" content="sha256:5e76d1160acbfd47">
 <title>Conventions · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -70,7 +70,8 @@ docs(adr): 新增 0008 Secrets 加密方式</pre>
         <div class="panel-body">
           <ul class="points">
             <li>Each package tests under its own <code>tests/</code>; cross-package tests go in the root <code>tests/</code>.</li>
-            <li>Tests that need a real browser are marked <code>@pytest.mark.browser</code>.</li>
+            <li>Tests that need a real browser are marked <code>@pytest.mark.browser</code>. The few tests that a freshly installed environment must pass are also marked <code>@pytest.mark.smoke</code>: the repeated and from-scratch runs of the setup scripts only run the smoke tests and the tests that need no browser.</li>
+            <li>Tests must be able to run in parallel (CI uses <code>pytest -n 4</code>): put files in <code>tmp_path</code>, start servers on a random port (port 0), do not write into the repository, and do not depend on other tests running first.</li>
             <li>Tests do not depend on external websites; when a web page is needed, use the test site (from M2).</li>
             <li>When fixing a bug, first write a test that reproduces it.</li>
             <li><code>tests/docs</code> checks the structure and links of docs pages; <code>tests/i18n</code> checks that the three languages are in sync.</li>

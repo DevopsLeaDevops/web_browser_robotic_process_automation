@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>縮短 CI 與一鍵安裝腳本的執行時間 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>縮短 CI 與一鍵安裝腳本的執行時間</h1><p>PR 上的 CI 平行化、一鍵安裝腳本不重複跑全部測試；重複執行與 Python 3.12 的完整測試移到每晚排程，覆蓋範圍不縮小。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261019-ci-test-time；2026-10-19 09:49 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求（2026-10-19 08:49～09:44 America/Los_Angeles（PDT，UTC−07:00））：分析為什麼每次執行都很久、提出提升策略，確認不會造成功能測試不全後按修正後的方案開分支；排隊太久，優先級提高。完成條件：PR 上 CI 的 pytest 明顯縮短、一鍵安裝腳本不再把全部測試跑三遍，同時每個測試仍在三個系統與兩個 Python 版本上定期執行。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>.github/workflows/ci.yml</code>、<code>setup-scripts.yml</code>、新增 <code>nightly.yml</code>；<code>pytest-xdist</code> 依賴與 <code>smoke</code> 標記；工程文檔。不包含：改測試本身的寫法（例如共用瀏覽器）、桌面端建置流程、安裝腳本的行為。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（Opus 5.5，claude.ai 雲端環境）；審閱：未指定；接收方：未指定，合併由使用者決定。</dd>
+        <dt>修改檔案／整合者</dt><dd>上列 workflow、<code>pyproject.toml</code>、<code>uv.lock</code>（bootstrap 產生）、<code>tests/smoke/test_browser.py</code>、<code>packages/rpa_runner/tests/test_run.py</code>、<code>docs/</code> 三頁（繁中、英文；簡中由 bootstrap 產生）、本紀錄與任務索引。與開啟中的 PR 重疊：#44 也改 <code>setup-scripts.yml</code>（新增 Rocky 8 工作與觸發路徑，與本分支改的步驟不在同一段）；#42 也改 <code>uv.lock</code>。建議合併順序：本 PR 優先，之後 #42、#44 從 main 更新，<code>uv.lock</code> 衝突以重新 <code>uv lock</code> 解決，不手改鎖檔。</dd>
+        <dt>狀態</dt><dd>實作中：本地修改完成，準備推送並由 bootstrap 產生 <code>uv.lock</code> 與簡中。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/ci-test-time</code>；PR 尚未建立；base <code>2cf3c9f</code>（main，#43 合併後）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 <code>2cf3c9f</code>＋本分支提交；推送後在追加紀錄補上 SHA。</dd>
+        <dt>工作區／環境</dt><dd>claude.ai 雲端 Linux（x86_64，Python 3.13、uv 0.11.32）。這個環境連不上 PyPI（代理拒絕 pypi.org、files.pythonhosted.org），裝不了依賴；CI 日誌的下載網域也被拒絕。耗時資料取自 GitHub Actions API（runs、jobs、steps 的時間戳）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="analysis">
+      <div class="panel-header"><h2>分析：時間花在哪裡</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>CI 隨瀏覽器測試線性增長：</strong>每日成功執行的中位數從 10-09 的 0.7 分鐘到 10-19 的 9.6 分鐘。main 上瀏覽器測試函數從 15 個到 38 個時 CI 從 2.9 分鐘到 8.7 分鐘；10-18 一次加了 115 個不需瀏覽器的測試只多約 6 秒。bootstrap 的「檢查」（ruff、pyright 加上全部不需瀏覽器的測試）共 129 秒（run 39255728554），所以 pytest 的約 9 分鐘（run 39261604128）大部分是瀏覽器測試。</li>
+        <li><strong>全部逐一執行：</strong>沒有平行化；每個瀏覽器測試都啟動新的子程序與瀏覽器，Portal 測試另外啟動 uvicorn 與一個 Chromium。ubuntu-latest 有 4 核，只用了 1 核。</li>
+        <li><strong>一鍵安裝腳本每次跑全部測試 9 遍：</strong>腳本最後一步就是完整 pytest；專案內執行兩次、從零開始一次、三個系統。run 39261604093（2026-10-19 06:36 America/Los_Angeles（PDT，UTC−07:00）開始）：「再執行一次（應該很快）」Windows 11.8 分、macOS 11.0 分、Ubuntu 8.9 分；整個流程 40.0 分鐘。</li>
+        <li><strong>macOS 並行名額：</strong>GitHub 每個帳號最多 5 個 macOS 工作同時執行。一鍵安裝腳本佔 2 個、桌面端建置佔 1 個，PR 重疊時排隊；上面那次 macOS 工作排隊 13.6 分鐘。</li>
+        <li><strong>2026-10-19 08:39 America/Los_Angeles（PDT，UTC−07:00）起的排隊：</strong>只有 3、4 個工作在執行，Ubuntu 工作也排隊超過 23 分鐘，main 的測試跑了 30 分鐘以上；倉庫設定解釋不了，看起來是 GitHub 端的延遲，未查到公開事故，記為未知。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成（本地）：</strong>CI 的 pytest 以 <code>-n 4 --dist loadfile</code> 平行，加 <code>--durations=30</code> 並保留 JUnit 報告；Python 3.12 在 PR 上只跑 <code>-m "not browser"</code>（不裝瀏覽器），推到 main 與手動觸發時跑全部。一鍵安裝腳本：第一次照舊跑全部，第二次只跑 <code>-m smoke</code>，從零開始跑 <code>-m "not browser or smoke"</code>（瀏覽器照常下載）。新增 <code>nightly.yml</code>：每天 00:17 PDT（UTC−07:00）／前一天 23:17 PST（UTC−08:00），三個系統的 Python 3.13 跑全部測試、瀏覽器測試再跑兩遍，Ubuntu 的 Python 3.12 跑全部；修改本流程的 PR 也會執行一次。<code>smoke</code> 標記：<code>tests/smoke/test_browser.py</code>（兩種瀏覽器能啟動）與 <code>test_run.py::test_cli_run</code>（<code>rpa run</code> 經由子程序跑完 BA-001）。文檔：總覽的 CI 說明、常用命令、測試規範（平行安全的要求）。</li>
+        <li><strong>平行安全的檢查（讀碼）：</strong>測試使用 <code>tmp_path</code> 與埠號 0；Firefox 設定檔範本本來就為並行建立而設計（暫存資料夾後改名，24 小時才清理）；沒有寫入倉庫目錄的測試。風險：<code>apps/cli/tests/test_serve.py</code> 兩個測試先取得剛釋放的埠號再使用，其他程序可能剛好拿到同一個埠號，機率很低；機器忙時瀏覽器步驟較容易逾時。</li>
+        <li><strong>決定：</strong>已確認（使用者，2026-10-19 09:44 America/Los_Angeles（PDT，UTC−07:00））：照修正後的方案做，優先處理。實作選擇：只在 Linux 平行；每晚逐一執行；失敗不自動重跑；工作名稱「測試（Python 3.12／3.13）」不變。待定：是否繼續支援 Python 3.12（<code>requires-python &gt;=3.12</code>，ADR 0002），屬產品決定，本任務不改。</li>
+        <li><strong>覆蓋範圍的交代：</strong>每個測試在 PR 上至少跑一次（Ubuntu、Python 3.13）；Windows、macOS 的全部測試從「只有改腳本或依賴與每週」變成每晚加上改腳本或依賴時；重複執行從一鍵安裝腳本裡的意外重複，變成每晚刻意的三遍。PR 上減少的是：Python 3.12 的瀏覽器測試、一鍵安裝腳本的第二、三遍。</li>
+        <li><strong>下一個具體動作：</strong>推送帶 <code>[bootstrap]</code> 的提交，等機器人產生 <code>uv.lock</code> 與簡中後 <code>git pull --ff-only</code>，建立 PR；確認 CI、一鍵安裝腳本、每晚完整測試的結果與耗時，回填下方驗證表。平行化若出現新的失敗，先看是否為測試之間的依賴，再考慮降到 <code>-n 3</code>，不加自動重跑。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>2cf3c9f＋工作區差異；雲端 Linux</td><td><code>git diff --check</code>；以 PyYAML 解析三個 workflow；變更行的顯示寬度（中文算 2）；<code>python3 tools/i18n.py stamp</code> 三個英文頁</td><td>通過</td><td>只是語法與格式層級</td></tr>
+          <tr><td>同上</td><td><code>uv sync --locked</code>、ruff、pyright、pytest、<code>tools/i18n.py sync／check</code></td><td>受阻：連不上 PyPI，未執行</td><td>改由 bootstrap（ruff、pyright、<code>pytest -m "not browser"</code>）與 PR 的 CI 驗證</td></tr>
+          <tr><td>同上</td><td>actionlint</td><td>受阻：取不到 Go 依賴，未執行</td><td>workflow 的語意錯誤要等 GitHub 實際執行</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：不適用（流程變更）；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-19 09:49 America/Los_Angeles（PDT，UTC−07:00），Claude：建立紀錄；本地修改完成，尚未推送。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
