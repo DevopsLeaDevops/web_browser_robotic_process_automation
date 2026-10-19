@@ -158,6 +158,9 @@ if sys.platform == "darwin":
             "LSMinimumSystemVersion": "12.0",
             "LSApplicationCategoryType": "public.app-category.developer-tools",
             "NSHighResolutionCapable": True,
+            # COLLECT 從最後一個 EXE（主控台的 rpa-child）取 console，BUNDLE 會因此加上
+            # LSBackgroundOnly：明確關掉，App 才有 Dock 圖示與選單列
+            "LSBackgroundOnly": False,
             # 視窗只載入 127.0.0.1 上的本機閘道（HTTP）；轉送到管理 Portal 的是 Python，不受 ATS 管
             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
             # macOS 15 起連區網要使用者允許：管理 Portal 與內部網站都在區網上

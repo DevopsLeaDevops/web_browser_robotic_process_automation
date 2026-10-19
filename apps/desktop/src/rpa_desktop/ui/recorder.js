@@ -115,13 +115,15 @@
       $("download-text").textContent = known ? s.progress.percent + "%" : text("recorder.download_unknown");
     }
     show("status-panel", s.paired);
-    show("open-portal", s.paired && ["online", "offline", "connecting"].includes(s.phase));
+    const portal = $("open-portal");
+    portal.hidden = !(s.portalUrl && ["online", "offline", "connecting"].includes(s.phase));
+    if (s.portalUrl) portal.href = s.portalUrl; // 帶著管理 Portal 那邊的密語（另一個埠）
     renderMessage(s);
     if (s.paired) renderStatus(s);
     renderSettings(s);
-    if (pairedHere && s.phase === "online") {
+    if (pairedHere && s.phase === "online" && s.portalUrl) {
       pairedHere = false;
-      location.href = "/";
+      location.href = s.portalUrl;
     }
   }
 
@@ -148,6 +150,9 @@
 
   function confirmDialog(message) {
     const dialog = $("dialog");
+    if (typeof dialog.showModal !== "function") {
+      return Promise.resolve(window.confirm(message)); // 舊的 WebKit（macOS 12.3 之前）沒有 <dialog>
+    }
     $("dialog-text").textContent = message;
     return new Promise((resolve) => {
       const done = (answer) => {

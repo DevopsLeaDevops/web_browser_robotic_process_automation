@@ -30,10 +30,10 @@ from rpa_desktop.recorder_controller import (
     wait_for,
 )
 from rpa_desktop.recorder_gui import recorder_dir
-from rpa_desktop.recorder_pages import DesktopPages, offline_page
+from rpa_desktop.recorder_pages import DesktopPages, notice_page, offline_page
 from rpa_desktop.ui import PAGES, page_strings, render_page
 from rpa_worker.environment import WorkerInfo
-from rpa_worker.gateway import COOKIE, DESKTOP_PREFIX, Gateway
+from rpa_worker.gateway import COOKIE, DESKTOP_COOKIE, DESKTOP_PREFIX, Gateway
 from rpa_worker.pairing import CLIENT_API_PREFIX, App, Invite, PairResult
 from rpa_worker.remote import ConnectionLostError, WorkerApiError, WorkerClient
 
@@ -80,6 +80,9 @@ class FakeHost:
     def active(self) -> int:
         return self.fakes.active
 
+    def stop_all(self) -> None:
+        self.fakes.stopped_all += 1
+
 
 @dataclass
 class Fakes:
@@ -95,6 +98,7 @@ class Fakes:
     )
     fatal: tuple[str, int | None] | None = None
     active: int = 0
+    stopped_all: int = 0
     paired: list[tuple[Invite, App]] = field(default_factory=lambda: [])
     downloaded: list[str] = field(default_factory=lambda: [])
     hosts: list[FakeHost] = field(default_factory=lambda: [])
@@ -334,7 +338,8 @@ def test_page_is_complete_in_every_language(locale: str) -> None:
 
 
 class Browser:
-    """經由閘道送請求的小工具（帶著閘道的 Cookie）。"""
+    """經由閘道送請求的小工具：App 自己的頁面那個埠（帶著那一邊的 Cookie 與 Origin），
+    或（``portal``）轉送到管理 Portal 的埠。"""
 
     def __init__(self, gateway: Gateway) -> None:
         self.gateway = gateway
@@ -345,9 +350,19 @@ class Browser:
         path: str,
         body: object = None,
         headers: Mapping[str, str] | None = None,
+        *,
+        portal: bool = False,
     ) -> tuple[int, dict[str, str], bytes]:
-        connection = http.client.HTTPConnection("127.0.0.1", self.gateway.port, timeout=10)
-        values = {"Cookie": f"{COOKIE}={self.gateway.secret}", **(headers or {})}
+        gateway = self.gateway
+        if portal:
+            port, cookie = gateway.port, f"{COOKIE}={gateway.secret}"
+            values = {"Cookie": cookie}
+        else:
+            assert gateway.desktop_port is not None
+            port, cookie = gateway.desktop_port, f"{DESKTOP_COOKIE}={gateway.desktop_secret}"
+            values = {"Cookie": cookie, "Origin": str(gateway.desktop_origin)}
+        values.update(headers or {})
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
         data = None if body is None else json.dumps(body).encode()
         if data is not None:
             values["Content-Type"] = "application/json"
@@ -365,14 +380,23 @@ class Browser:
 @pytest.fixture
 def served(controller: RecorderController) -> Iterator[tuple[Browser, list[str]]]:
     calls: list[str] = []
+    gateway: Gateway | None = None
+
+    def portal_url() -> str:
+        assert gateway is not None
+        return gateway.login_url("/")
+
     pages = DesktopPages(
         controller,
         on_quit=lambda: calls.append("quit"),
         on_logs=lambda: calls.append("logs"),
         on_download=lambda: calls.append("download"),
         on_ready=lambda agent: calls.append("ready:" + agent),
+        portal_url=portal_url,
     )
-    gateway = Gateway(None, controller.token, local=pages)
+    gateway = Gateway(
+        None, controller.token, local=pages, notice_page=notice_page(lambda: controller.locale)
+    )
     controller.attach(gateway)
     gateway.start()
     try:
@@ -389,18 +413,25 @@ def test_pages_through_the_gateway(
     assert status == 200
     assert b'<html lang="zh-Hant">' in page
     assert "RPA 錄製端".encode() in page
-    # 還沒配對：管理 Portal 的網址轉到 App 自己的頁面
-    status, headers, _ = browser.request("GET", "/scenes")
-    assert (status, headers["location"]) == (303, DESKTOP_PREFIX)
-    assert browser.request("POST", "/api/scenes", {})[0] == 409
+    # 還沒配對：Portal 那個埠只有說明頁（沒有 App 頁面的網址）
+    status, _, page = browser.request(
+        "GET", "/scenes", headers={"Accept": "text/html"}, portal=True
+    )
+    assert status == 409
+    assert t.messages("zh-Hant")["recorder.notice_unpaired"].encode() in page
+    assert browser.gateway.desktop_secret.encode() not in page
+    assert browser.request("POST", "/api/scenes", {}, portal=True)[0] == 409
     controller.start()
     assert phase_is(controller, "unpaired")
     status, _, data = browser.request("GET", DESKTOP_PREFIX + "state")
-    assert json.loads(data)["phase"] == "unpaired"
+    state = json.loads(data)
+    assert (state["phase"], state["portalUrl"]) == ("unpaired", None)
     status, _, data = browser.request("POST", DESKTOP_PREFIX + "pair", {"invite": LINE})
     assert json.loads(data) == {"ok": True}
     assert phase_is(controller, "online")
     assert browser.gateway.server == SERVER
+    state = json.loads(browser.request("GET", DESKTOP_PREFIX + "state")[2])
+    assert state["portalUrl"] == browser.gateway.login_url("/")
     for name in ("logs", "download", "quit"):
         assert browser.request("POST", DESKTOP_PREFIX + name, {})[0] == 200
     browser.request("POST", DESKTOP_PREFIX + "ready", {"userAgent": "AppleWebKit"})
@@ -411,13 +442,68 @@ def test_pages_through_the_gateway(
     assert json.loads(data) == {"ok": True}
     assert controller.locale == "en"
     assert browser.request("POST", DESKTOP_PREFIX + "settings", {"name": "x", "value": 1})[0] == 200
+    mirror = {"name": "download_host", "value": "file:///tmp/evil"}
+    assert json.loads(browser.request("POST", DESKTOP_PREFIX + "settings", mirror)[2]) == {
+        "ok": False
+    }
     assert browser.request("GET", DESKTOP_PREFIX + "nope")[0] == 404
-    # 別的網站不能叫 App 做事
-    foreign = browser.request(
-        "POST", DESKTOP_PREFIX + "quit", {}, headers={"Origin": "http://evil.example"}
-    )
-    assert foreign[0] == 403
-    assert calls.count("quit") == 1
+
+
+def test_portal_pages_cannot_drive_the_app(
+    served: tuple[Browser, list[str]], controller: RecorderController
+) -> None:
+    """Portal 的頁面（或塞進去的腳本）和 App 的頁面不同來源：叫不動 App。"""
+    browser, calls = served
+    # Portal 那個埠沒有 App 的頁面
+    assert browser.request("POST", DESKTOP_PREFIX + "quit", {}, portal=True)[0] == 403
+    # 從 Portal 的來源送到 App 的埠（瀏覽器會帶上 Cookie）：Origin 不對，拒絕
+    portal = {"Origin": browser.gateway.origin}
+    assert browser.request("POST", DESKTOP_PREFIX + "quit", {}, headers=portal)[0] == 403
+    assert browser.request("POST", DESKTOP_PREFIX + "reset", {}, headers=portal)[0] == 403
+    foreign = {"Origin": "http://evil.example"}
+    assert browser.request("POST", DESKTOP_PREFIX + "quit", {}, headers=foreign)[0] == 403
+    assert calls == []
+
+
+def test_stop_now_ends_the_children_without_waiting(
+    controller: RecorderController, fakes: Fakes
+) -> None:
+    controller.start(LINE)
+    assert phase_is(controller, "online")
+    controller.stop_now()
+    assert fakes.stopped_all == 1
+
+
+def test_new_windows_and_external_links(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rpa_desktop import recorder_gui
+
+    launched: list[str] = []
+
+    def launch(target: str) -> bool:
+        launched.append(target)
+        return True
+
+    monkeypatch.setattr(recorder_gui, "_launch", launch)
+    gateway = Gateway(SERVER, lambda: "tok")
+    opened: list[tuple[str, str]] = []
+    done = threading.Event()
+
+    def open_window(url: str) -> None:
+        opened.append((url, threading.current_thread().name))
+        done.set()
+
+    browser = recorder_gui._WindowBrowser(gateway, open_window)  # pyright: ignore[reportPrivateUsage]
+    try:
+        assert browser.open(gateway.origin + "/runs/x/files/report.html")
+        assert done.wait(5)
+        # pywebview 在主執行緒呼叫：新視窗要在另一個執行緒開，才建得出來
+        assert opened[0][1] != threading.current_thread().name
+        assert browser.open("https://login.example.com/")
+        assert not browser.open("smb://server/share")
+        assert not browser.open("file:///etc/passwd")
+        assert launched == ["https://login.example.com/"]
+    finally:
+        gateway.close()
 
 
 def test_offline_page() -> None:
@@ -425,4 +511,5 @@ def test_offline_page() -> None:
     html = render("connection refused <x>")
     assert t.messages("en")["recorder.offline_title"] in html
     assert "connection refused &lt;x&gt;" in html
-    assert f'href="{DESKTOP_PREFIX}"' in html
+    assert "location.reload()" in html
+    assert "__gateway" not in html  # 不放帶著密語的網址

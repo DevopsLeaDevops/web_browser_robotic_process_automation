@@ -77,6 +77,8 @@ class Host(Protocol):
 
     def active(self) -> int: ...
 
+    def stop_all(self) -> None: ...
+
 
 class Server(Protocol):
     """本機閘道用到的部分（:class:`rpa_worker.gateway.Gateway`）。"""
@@ -311,6 +313,18 @@ class RecorderController:
         if self.running:
             self._set("stopping")
         self._stop.set()
+
+    def stop_now(self) -> None:
+        """結束 App 時：除了 :meth:`stop`，直接結束這台的子程序並刪掉暫存資料夾。
+
+        錄製端程式正在等管理 Portal 的長輪詢（最多 25 秒）時，停止旗標要等它回來才看得到；
+        App 不等它，免得關掉之後程序還留著、鎖也還沒放開。
+        """
+        self.stop()
+        with self._lock:
+            host = self._host
+        if host is not None:
+            host.stop_all()
 
     def wait(self, timeout: float | None = None) -> bool:
         thread = self._thread

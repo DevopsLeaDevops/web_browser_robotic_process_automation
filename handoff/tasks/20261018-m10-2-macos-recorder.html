@@ -64,12 +64,20 @@
             <li>審閱確認沒問題的：8080 照舊；worker 權杖看不到 Portal、錄製端權杖不能用 Worker API；權杖不進網頁；ContextVar 帶進同步路由的執行緒池、背景執行緒看不到；邀請一次性；zip 的安全路徑與大小上限；<code>RemoteProcess</code> 和 Popen 的行為一致；檔案先於那一行輸出；遷移 0009。</li>
           </ul>
         </li>
+        <li><strong>PR 2 的獨立審閱（2026-10-18 17:00～17:16 America/Los_Angeles（PDT，UTC−07:00））與修正：</strong>
+          <ul>
+            <li><strong>高：</strong>報告、截圖等 <code>target="_blank"</code> 的連結打不開：pywebview 在主執行緒呼叫 <code>webbrowser.open</code>，那裡呼叫 <code>create_window</code> 不會建出視窗。修正：新視窗在另一個執行緒開；關掉的子視窗從清單拿掉。</li>
+            <li><strong>中（安全）：</strong>App 的頁面和 Portal 同一個來源，Portal 的頁面（XSS、被竄改的區網 HTTP）可以叫 App 改鏡像、重新配對到別的伺服器。修正：App 的頁面搬到閘道的另一個埠（另一個來源、另一個密語與 Cookie），寫入的請求一定要帶那個埠的 Origin；Portal 那個埠只回說明頁、不放帶著密語的網址；鏡像只接受 http(s)。文件裡「Portal 碰不到 App」的說法改成現在的做法。</li>
+            <li><strong>低：</strong>⌘Q 直接放行時 AppKit 立刻結束程序，子程序與暫存沒收拾 → 關閉一律先攔下、由 App 自己關；結束時不等長輪詢（<code>stop_now</code> 直接結束子程序）；外部連結只開 http(s)；<code>LSBackgroundOnly</code> 明確關掉（PyInstaller 從 rpa-child 繼承了主控台）；舊的 WebKit 沒有 <code>&lt;dialog&gt;</code> 時改用 <code>confirm</code>。補測試：新視窗的執行緒、外部連結、Portal 的來源叫不動 App、401 與還沒配對的說明頁、<code>RecorderHost</code> 的 rejected 事件帶 status。</li>
+          </ul>
+        </li>
+        <li><strong>PR 2 第一次 CI（<span class="mono">b342f8b</span>）：</strong>macOS 的單元測試（93 個）、打包版的自我測試、WKWebView 視窗的自我測試都通過（頁面經由閘道載入，User-Agent 是 AppleWebKit），但視窗關掉、報告寫好之後程序沒有結束，5 分鐘後被 <code>alarm</code> 結束（結束碼 142）。原因是 pywebview 在背景開的執行緒不是 daemon（例如注入腳本、等 JavaScript 的結果），視窗關掉後可能永遠等不到。修正：收拾完（子程序、閘道、鎖、日誌）後 <code>os._exit</code>，報告裡記下當時還在跑的執行緒。</li>
         <li><strong>第一次 CI（<span class="mono">1198f6d</span>，2026-10-18 10:02～10:11 America/Los_Angeles（PDT，UTC−07:00））：</strong>失敗。簡中還沒產生（bootstrap 之後補上）；pyright：<code>@contextmanager</code> 的回傳型別要用 <code>Generator</code>；英文頁的測試資料有中文名稱；測試的錄製端只有 Chromium、BA-001 用 Firefox；錄製端的協定版本訊息用了不存在的鍵（本機掃描時發現）。都已修正，並新增「這台沒有那個瀏覽器」的測試。</li>
         <li><strong>第二次 CI（<span class="mono">ce0a41e</span>，2026-10-18 16:18～16:28 America/Los_Angeles（PDT，UTC−07:00））：</strong>伺服器端的測試（含 <code>test_recorder_api.py</code> 與真的 uvicorn＋閘道的 <code>test_recorder_flow.py</code>，Chromium、Firefox）全部通過；只剩簡中（bot 的 <span class="mono">f88f0a7</span> 已補上）與新測試裡兩個字典的 pyright 型別標註，修正後重跑。</li>
         <li><strong>PR 2 的內容（實作完成，2026-10-18 16:50 America/Los_Angeles（PDT，UTC−07:00））：</strong>
           <ul>
             <li><strong>視窗：</strong><code>rpa_desktop.recorder_gui</code>（pywebview／WKWebView）只載入本機閘道；選單「RPA 錄製端」（狀態與設定、管理 Portal、重新整理），系統的「編輯」選單讓 ⌘V 能貼上邀請。打包的 RPA 錄製端開這個視窗（<code>entry</code>）；開發環境 <code>rpa-desktop --recorder</code>。</li>
-            <li><strong>App 自己的頁面：</strong>閘道的 <code>/__desktop/</code>（<code>rpa_desktop.recorder_pages</code>、<code>ui/recorder.html</code>、<code>ui/recorder.js</code>）：配對、下載瀏覽器的進度、狀態（伺服器、錄製端、版本、權杖存放、進行中的工作）、設定（Firefox、鏡像、語言）、重新配對、結束。用 fetch，不用 pywebview 的 js_api，所以 Portal 的頁面碰不到 App 的動作。在這一頁配對、連上後自動打開 Portal。</li>
+            <li><strong>App 自己的頁面：</strong>閘道的 <code>/__desktop/</code>（<code>rpa_desktop.recorder_pages</code>、<code>ui/recorder.html</code>、<code>ui/recorder.js</code>）：配對、下載瀏覽器的進度、狀態（伺服器、錄製端、版本、權杖存放、進行中的工作）、設定（Firefox、鏡像、語言）、重新配對、結束。用 fetch，不用 pywebview 的 js_api；放在閘道的另一個埠（審閱後改的，見下）。在這一頁配對、連上後自動打開 Portal。</li>
             <li><strong>狀態與動作：</strong><code>rpa_desktop.recorder_controller</code>（沒有配對 → 等邀請；配對 → 下載瀏覽器 → 測試網站 → <code>RecorderHost</code>；權杖被拒時清除配對、協定不同只停下來說明）。閘道還沒配對時只有 App 的頁面；Portal 回 401 時打開頁面的請求轉回 App 的頁面；連不上時顯示說明頁。</li>
             <li><strong>新視窗與下載：</strong>自訂的 <code>webbrowser</code> 處理器：閘道的網址開 App 的新視窗，其他網站用預設瀏覽器；下載（<code>ALLOW_DOWNLOADS</code>）用的 <code>NSURLSession</code> 也帶閘道的 Cookie。</li>
             <li><strong>結束與單一執行：</strong>關掉主視窗就結束（有進行中的工作先確認，⌘Q 也一樣），子視窗一起關；<code>InstanceLock</code> 只執行一份。權杖在鑰匙圈「RPA Recorder」；資料在 <code>~/Library/Application Support/rpa/recorder</code>，日誌 <code>logs/recorder.log</code>。</li>

@@ -1,18 +1,20 @@
 """RPA 錄製端 App（M10.2，ADR 0014）：雙擊「RPA 錄製端」開啟的就是這個（macOS，WKWebView）。
 
 - 視窗只載入本機閘道（:class:`rpa_worker.gateway.Gateway`）的網址：管理 Portal 的頁面經由閘道加上
-  權杖轉送；App 自己的頁面（狀態、配對、下載瀏覽器、設定）在閘道的 ``/__desktop/``
-  （:mod:`rpa_desktop.recorder_pages`）。狀態與動作在
-  :class:`rpa_desktop.recorder_controller.RecorderController`。
+  權杖轉送；App 自己的頁面（狀態、配對、下載瀏覽器、設定）在閘道**另一個埠**的 ``/__desktop/``
+  （:mod:`rpa_desktop.recorder_pages`），和 Portal 不同來源，Portal 的頁面叫不動 App。狀態與動作在
+  :class:`rpa_desktop.recorder_controller.RecorderController`。配對失效時主視窗回到 App 的頁面。
 - 選單「RPA 錄製端」：狀態與設定、管理 Portal、重新整理。系統預設的「編輯」選單讓 ⌘V 能貼上邀請。
 - ``target="_blank"`` 的連結（報告、截圖、執行檔案）在 App 內開新視窗；連到別的網站（例如角色的
   登入網址）時用預設瀏覽器。下載的檔案存到使用者選的位置（預設「下載項目」）。
-- 關掉主視窗就結束 App；有錄製、調試或人工登入在進行時先確認（⌘Q 也一樣）。
+- 關掉主視窗就結束 App；有錄製、調試或人工登入在進行時先確認（⌘Q 也一樣）。結束時不等管理
+  Portal 的長輪詢回來：直接結束這台的子程序、刪暫存，讓馬上再打開也行。
 - 只執行一份：已經在執行時叫出那一份的視窗後結束（:mod:`rpa_desktop.single_instance`）。
 - ``--smoke-test``：CI 用，打開真的視窗，確認 App 的頁面經由閘道（含 Cookie）載入後結束。
 """
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -23,6 +25,7 @@ import webbrowser
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
+from urllib.parse import urlsplit
 
 from rpa_core.i18n import ENV_VAR, Locale, parse_locale, set_locale, use_locale
 from rpa_desktop.build_info import load
@@ -30,11 +33,11 @@ from rpa_desktop.credentials import Credentials, KeyringStore, TokenStore
 from rpa_desktop.i18n import resolve_locale, t
 from rpa_desktop.logs import setup_logging
 from rpa_desktop.recorder_controller import SERVICE, RecorderController
-from rpa_desktop.recorder_pages import DesktopPages, offline_page
+from rpa_desktop.recorder_pages import DesktopPages, notice_page, offline_page
 from rpa_desktop.release import RELEASES_URL
 from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.worker_app import ensure_browsers_path
-from rpa_worker.gateway import COOKIE, DESKTOP_PREFIX, Gateway
+from rpa_worker.gateway import COOKIE, Gateway
 
 if TYPE_CHECKING:
     import webview
@@ -68,30 +71,38 @@ def recorder_dir(environ: Mapping[str, str], platform: str = sys.platform) -> Pa
 
 
 def _open_external(url: str) -> bool:
-    """用系統的預設瀏覽器打開（不經過 App 的視窗）。"""
+    """用系統的預設瀏覽器打開（不經過 App 的視窗）；只接受 http、https（不讓頁面叫起別的程式）。"""
+    if urlsplit(url).scheme not in ("http", "https"):
+        logger.warning("不打開這種網址：%s", url.split(":", 1)[0])
+        return False
+    return _launch(url)
+
+
+def _launch(target: str) -> bool:
     try:
         if sys.platform == "darwin":
-            subprocess.Popen(["open", url])
+            subprocess.Popen(["open", target])
         elif sys.platform == "win32":
-            os.startfile(url)
+            os.startfile(target)
         else:
-            subprocess.Popen(["xdg-open", url])
+            subprocess.Popen(["xdg-open", target])
     except OSError:
-        logger.warning("打不開 %s", url, exc_info=True)
+        logger.warning("打不開 %s", target, exc_info=True)
         return False
     return True
 
 
 def _open_folder(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    _open_external(str(path))
+    _launch(str(path))
 
 
 class _WindowBrowser(webbrowser.BaseBrowser):
     """``webbrowser.open`` 的去處：閘道的網址開 App 的新視窗，其他的交給系統的預設瀏覽器。
 
-    pywebview 遇到 ``target="_blank"`` 的連結時呼叫 ``webbrowser.open``；系統瀏覽器沒有閘道的
-    Cookie，所以閘道的網址要留在 App 裡。
+    pywebview 遇到 ``target="_blank"`` 的連結時，在主執行緒（WKUIDelegate）呼叫
+    ``webbrowser.open``；系統瀏覽器沒有閘道的 Cookie，所以閘道的網址要留在 App 裡。pywebview 在
+    主執行緒呼叫 ``create_window`` 時不會建出視窗，所以新視窗在另一個執行緒開。
     """
 
     def __init__(self, gateway: Gateway, open_window: Callable[[str], object]) -> None:
@@ -102,7 +113,7 @@ class _WindowBrowser(webbrowser.BaseBrowser):
     def open(self, url: str, new: int = 0, autoraise: bool = True) -> bool:
         origin = self.gateway.origin
         if url == origin or url.startswith(origin + "/"):
-            self.open_window(url)
+            threading.Thread(target=self.open_window, args=(url,), daemon=True).start()
             return True
         return _open_external(url)
 
@@ -147,6 +158,7 @@ class RecorderApp:
             on_logs=lambda: _open_folder(controller.home / "logs"),
             on_download=lambda: _open_external(RELEASES_URL),
             on_language=self._set_language,
+            portal_url=lambda: self.gateway.login_url("/"),
         )
         self.gateway = Gateway(
             None,
@@ -154,6 +166,7 @@ class RecorderApp:
             local=self.pages,
             on_unauthorized=controller.unauthorized,
             offline_page=offline_page(lambda: controller.locale, lambda: self.gateway.server),
+            notice_page=notice_page(lambda: controller.locale),
         )
         controller.attach(self.gateway)
         self.window: webview.Window | None = None
@@ -161,6 +174,7 @@ class RecorderApp:
         self._quitting = False
         self._asking = False
         self._finished = threading.Event()
+        self._phase: str | None = None
 
     # ------------------------------------------------------------ 執行
 
@@ -180,8 +194,8 @@ class RecorderApp:
                 Menu(
                     t("recorder.menu"),
                     [
-                        MenuAction(t("recorder.menu_status"), lambda: self.go(DESKTOP_PREFIX)),
-                        MenuAction(t("recorder.menu_portal"), lambda: self.go("/")),
+                        MenuAction(t("recorder.menu_status"), self.go_desktop),
+                        MenuAction(t("recorder.menu_portal"), self.go_portal),
                         MenuSeparator(),
                         MenuAction(t("recorder.menu_reload"), self.reload),
                     ],
@@ -189,7 +203,7 @@ class RecorderApp:
             ]
         self.window = webview.create_window(
             title,
-            url=self.gateway.login_url(DESKTOP_PREFIX),
+            url=self.gateway.desktop_url(),
             width=WINDOW_SIZE[0],
             height=WINDOW_SIZE[1],
             min_size=MIN_SIZE,
@@ -198,6 +212,7 @@ class RecorderApp:
         )
         self.window.events.closing += self._on_closing
         self.window.events.closed += self._on_closed
+        self.controller.subscribe(self._on_change)
         try:
             self.lock.watch(self.show, self._finished, on_stop=lambda: self.request_quit(True))
             # 不用私密模式：管理 Portal 記住的介面語言之類的 Cookie 留著；閘道的 Cookie 每次啟動都換
@@ -211,18 +226,32 @@ class RecorderApp:
         self.controller.start(self.invite, self.server)
 
     def _finish(self) -> None:
+        # 先結束子程序、刪暫存，不等管理 Portal 的長輪詢（最多 25 秒）回來：
+        # 程序還在、鎖還沒放開時，馬上再打開 App 會什麼都沒發生
+        self.controller.stop_now()
+        if not self.controller.wait(10):
+            logger.info("錄製端的連線還沒結束，直接關閉")
         self._finished.set()
-        self.controller.stop()
-        if not self.controller.wait(40):
-            logger.warning("等不到錄製端的工作結束，直接關閉")
         self.gateway.close()
 
     # ------------------------------------------------------------ 視窗
 
-    def go(self, path: str) -> None:
+    def go_desktop(self) -> None:
         window = self.window
         if window is not None:
-            window.load_url(self.gateway.origin + path)
+            window.load_url(self.gateway.desktop_url())
+
+    def go_portal(self) -> None:
+        window = self.window
+        if window is not None and self.gateway.server is not None:
+            window.load_url(self.gateway.login_url("/"))
+
+    def _on_change(self) -> None:
+        """配對失效（重新邀請、停用、刪除）時，主視窗回到 App 的頁面貼新的邀請。"""
+        phase = self.controller.phase
+        previous, self._phase = self._phase, phase
+        if phase == "unpaired" and previous not in (None, "starting", "unpaired", "pairing"):
+            self.go_desktop()
 
     def reload(self) -> None:
         window = self.window
@@ -247,10 +276,17 @@ class RecorderApp:
 
         with use_locale(self.controller.locale):
             title = t("recorder.title")
+        if self._quitting:
+            return
         child = webview.create_window(
             title, url=url, width=CHILD_SIZE[0], height=CHILD_SIZE[1], text_select=True
         )
         self.children.append(child)
+        child.events.closed += lambda: self._forget(child)
+
+    def _forget(self, child: "webview.Window") -> None:
+        if child in self.children:
+            self.children.remove(child)
 
     def _set_language(self, language: Locale) -> None:
         set_locale(language)
@@ -262,9 +298,12 @@ class RecorderApp:
     # ------------------------------------------------------------ 結束
 
     def _on_closing(self) -> bool:
-        """按主視窗的關閉鈕或 ⌘Q：沒有進行中的工作就結束；有的話先確認（回傳 False 取消關閉）。"""
-        if self._quitting or self.controller.active == 0:
-            self._quitting = True
+        """按主視窗的關閉鈕或 ⌘Q：一律先取消（回傳 False），在另一個執行緒確認後由 :meth:`quit` 關。
+
+        ⌘Q 時直接放行的話 AppKit 會立刻結束程序，``webview.start`` 不會回來，子程序與暫存都
+        來不及收拾；由 :meth:`quit` 關掉主視窗則會照常回到 :meth:`run` 的 ``_finish``。
+        """
+        if self._quitting:
             return True
         if not self._asking:
             self._asking = True
@@ -272,15 +311,19 @@ class RecorderApp:
         return False
 
     def _confirm_quit(self) -> None:
+        """有進行中的工作時先確認；沒有就直接結束。"""
         try:
             window = self.window
             if window is None:
                 return
-            with use_locale(self.controller.locale):
-                title = t("recorder.quit_title")
-                text = t("recorder.quit_active", count=self.controller.active)
-            if window.create_confirmation_dialog(title, text):
-                self.quit()
+            active = self.controller.active
+            if active:
+                with use_locale(self.controller.locale):
+                    title = t("recorder.quit_title")
+                    text = t("recorder.quit_active", count=active)
+                if not window.create_confirmation_dialog(title, text):
+                    return
+            self.quit()
         finally:
             self._asking = False
 
@@ -294,7 +337,7 @@ class RecorderApp:
                 logger.debug("視窗已經關了", exc_info=True)
 
     def request_quit(self, confirmed: bool = False) -> None:
-        if self.controller.active and not confirmed:
+        if not confirmed:
             threading.Thread(target=self._confirm_quit, daemon=True).start()
             return
         self.quit()
@@ -332,7 +375,7 @@ def smoke_test(
         import webview
 
         window = webview.create_window(
-            "RPA Recorder", url=gateway.login_url(DESKTOP_PREFIX), width=WINDOW_SIZE[0]
+            "RPA Recorder", url=gateway.desktop_url(), width=WINDOW_SIZE[0]
         )
 
         def check() -> None:
@@ -355,6 +398,10 @@ def smoke_test(
         gateway.close()
     if not steps:
         steps.append({"step": "window", "ok": False, "detail": "window did not start"})
+    lingering = _lingering()
+    steps.append(
+        {"step": "threads", "ok": True, "detail": ", ".join(lingering) or "none"}
+    )  # 只是記錄：結束時由 _exit 直接結束程序
     summary: dict[str, object] = {"ok": all(bool(step["ok"]) for step in steps), "steps": steps}
     text = json.dumps(summary, ensure_ascii=False, indent=2)
     logger.info("視窗自我測試：%s", text)
@@ -387,13 +434,42 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _lingering() -> list[str]:
+    """還在跑、會擋住程序結束的執行緒（pywebview 的事件與注入腳本的執行緒都不是 daemon）。"""
+    return sorted(
+        thread.name
+        for thread in threading.enumerate()
+        if thread.is_alive() and not thread.daemon and thread is not threading.main_thread()
+    )
+
+
+def _exit(code: int) -> int:
+    """視窗關了、收拾完之後直接結束程序。
+
+    pywebview 在背景開的執行緒（例如頁面載入時注入腳本、等 JavaScript 的結果）在視窗關掉後
+    可能永遠等不到，又不是 daemon：一般的結束會一直等它們，App 關不掉。
+    """
+    lingering = _lingering()
+    if lingering:
+        logger.info("結束時還在跑的執行緒：%s", ", ".join(lingering))
+    logging.shutdown()
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            stream.flush()
+    os._exit(code)
+
+
 def main(
     argv: Sequence[str] = (),
     *,
     environ: MutableMapping[str, str] | None = None,
     store: TokenStore | None = None,
+    exit_process: bool = True,
 ) -> int:
-    """錄製端 App 的入口；回傳結束碼。"""
+    """錄製端 App 的入口；回傳結束碼。
+
+    ``exit_process`` 時開過視窗就直接結束程序（見 :func:`_exit`），不會回來。
+    """
     env: MutableMapping[str, str] = os.environ if environ is None else environ
     set_locale(resolve_locale(env))
     # macOS 的 App 啟動時可能帶著 -psn_… 之類系統給的參數：不認得的參數略過
@@ -413,18 +489,20 @@ def main(
     )
     set_locale(controller.locale)
     if args.smoke_test:
-        return smoke_test(controller, args.report)
+        code = smoke_test(controller, args.report)
+        return _exit(code) if exit_process else code
     lock = InstanceLock(home)
     if not lock.acquire():
         logger.info("已經有一份在執行：請它叫出視窗")
         lock.request_show()
         return 0
     try:
-        return RecorderApp(controller, lock, invite=args.invite, server=args.server).run()
+        code = RecorderApp(controller, lock, invite=args.invite, server=args.server).run()
     except Exception as error:
         logger.exception("RPA 錄製端停止了")
         with use_locale(controller.locale):
             _alert(t("recorder.title"), t("recorder.crashed", error=error))
-        return 1
+        code = 1
     finally:
         lock.release()
+    return _exit(code) if exit_process else code
