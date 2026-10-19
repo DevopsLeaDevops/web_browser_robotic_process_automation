@@ -1,0 +1,216 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/operations.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>部署与操作 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="operations" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>部署与操作</h1>
+      <p>服务器、运行端（RPA Worker）、录制端（RPA 录制端）各放在哪里、怎么启动、平常怎么用、出问题看哪里。第一次配对与安装 App 的逐步说明在<a href="remote-worker.html">远程 worker</a>，这一页只连过去，不重复。设计见 <a href="../adr/0012-remote-workers.html">ADR 0012</a>、<a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="roles">
+      <div class="panel-header"><h2>三种角色</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>角色</th><th>做什么</th><th>装什么</th><th>启动</th></tr></thead>
+          <tbody>
+            <tr><td><strong>服务器</strong></td><td>管理 Portal、数据库、场景版本、运行报告、登录状态与 Secrets 都在这台；也可以自己运行任务（本机 worker）。</td><td>开发环境（<a href="quickstart.html">一键脚本</a>），macOS、Linux、Windows 都可以。</td><td><code>uv run rpa serve --worker-port 8081</code></td></tr>
+            <tr><td><strong>运行端</strong></td><td>领取并运行场景，有头模式的浏览器窗口开在这台；报告、截图、Trace 传回服务器。</td><td>Windows：<a href="remote-worker.html#packaged">RPA Worker App</a>；其他系统用开发环境。</td><td>App 登录时自动启动；命令行 <code>uv run rpa worker</code></td></tr>
+            <tr><td><strong>录制端</strong></td><td>通过它操作管理 Portal 时，录制、逐步调试、人工登录的浏览器开在这台；录制稿、截图与登录状态传回服务器。不运行场景。</td><td>macOS（Apple 芯片）：<a href="remote-worker.html#recorder-app">RPA 录制端 App</a>；其他系统用开发环境。</td><td>打开 App；命令行 <code>uv run rpa recorder</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <p><strong>连接方向只有一种：运行端与录制端主动连到服务器的对外端口</strong>（默认 8081），服务器不连它们。三台都要连得到被测试的网站。三种角色可以在同一台电脑，也可以各自一台。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="layouts">
+      <div class="panel-header"><h2>常见的部署方式</h2></div>
+      <div class="panel-body prose">
+        <dl class="spec-list">
+          <dt>一台 Mac 全包</dt>
+          <dd><code>uv run rpa serve</code>，打开 <code>http://127.0.0.1:8080</code>。录制、调试、人工登录、运行都在这台，不需要配对任何设备。</dd>
+          <dt>Linux 服务器 ＋ Mac 录制端 ＋ Windows 运行端</dt>
+          <dd>服务器放在一直开着的 Linux（没有桌面也可以）；在 Mac 打开 RPA 录制端 App 操作管理 Portal，录制、调试、人工登录的窗口开在 Mac；有头模式的运行交给 Windows 的 RPA Worker。Linux 自己也能运行无头模式的任务；全部交给 Windows 时加 <code>--no-local-worker</code>。</dd>
+          <dt>Mac 服务器 ＋ Windows 运行端</dt>
+          <dd>在 Mac 的 8080 操作，录制在 Mac；运行交给 Windows，Mac 不再被有头模式的窗口占住。</dd>
+        </dl>
+        <p>服务器没有桌面时，从 8080（例如 SSH 通道）打开的页面不能录制、不能人工登录，逐步调试只有无头模式：浏览器会开在服务器上。要在 Mac 录制，一定要通过录制端打开管理 Portal。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="server">
+      <div class="panel-header"><h2>服务器</h2></div>
+      <div class="panel-body prose">
+        <h3>安装</h3>
+        <p>用<a href="quickstart.html">一键脚本</a>安装（装 uv、下载代码、安装依赖、下载 Chromium 与 Firefox、跑测试）。Linux 上浏览器缺系统函数库时，脚本会用 <code>sudo</code> 交给 Playwright 安装（只支持 Debian、Ubuntu 自动安装）。之后的命令都在项目文件夹运行。</p>
+
+        <h3>启动</h3>
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+uv run rpa serve --worker-port 8081                      # 有远程设备时
+uv run rpa serve --worker-port 8081 --no-local-worker    # 全部交给远程 worker
+uv run rpa serve --worker-port 8081 --data ~/rpa-data    # 数据放在项目以外</pre>
+        <p>启动消息会印出管理 Portal 的网址、文件夹，以及「对外端口：http://区网 IP:8081」。按 Ctrl+C 停止。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>选项</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>--worker-port 8081</code></td><td>开放对外端口给运行端与录制端。不加就只有本机能用，设备页不能产生邀请。</td></tr>
+            <tr><td><code>--worker-host</code></td><td>对外端口监听的地址，默认 <code>0.0.0.0</code>（所有网络界面）。只想让某张网卡收连接时指定它的 IP。</td></tr>
+            <tr><td><code>--no-local-worker</code></td><td>这台不运行任务，全部交给远程 worker。</td></tr>
+            <tr><td><code>--data 文件夹</code></td><td>数据放哪里，默认项目里的 <code>data</code>（也可以用环境变量 <code>RPA_DATA_DIR</code>）。见<a href="../design/portal.html#data-folder">管理 Portal › 文件夹</a>。</td></tr>
+            <tr><td><code>--port</code>、<code>--host</code></td><td>管理页面的端口与地址，默认 <code>127.0.0.1:8080</code>。<strong>不要改成 0.0.0.0</strong>：管理页面没有登录保护。</td></tr>
+            <tr><td><code>--no-testsite</code></td><td>不在 127.0.0.1:8765 启动测试网站。</td></tr>
+            <tr><td><code>RPA_LANG</code></td><td>环境变量：服务器创建的消息用哪种语言（<code>zh-Hant</code>、<code>zh-Hans</code>、<code>en</code>）。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <h3 id="ports">两个端口</h3>
+        <ul>
+          <li><strong>8080，管理页面。</strong>没有登录保护，只听 127.0.0.1，只有服务器本机打得开。</li>
+          <li><strong>8081，对外端口。</strong>每个请求都要权杖或一次性的邀请：运行端用 Worker API，录制端用 Client API，并用录制端的权杖打开管理页面。没配对的电脑打开只会看到 401。防火墙只开这个端口，而且只开给区网（或 VPN），例如 Ubuntu：<code>sudo ufw allow from 192.168.1.0/24 to any port 8081 proto tcp</code>。</li>
+          <li><strong>是 HTTP，不加密。</strong>Secrets 与登录状态会经过网络，只在信任的区网或 VPN 使用。服务器在云端或不同网段时，可以用 SSH 通道把对外端口带到设备那台：<code>ssh -N -L 8081:127.0.0.1:8081 用户@服务器</code>，设备配对时服务器填 <code>http://127.0.0.1:8081</code>。</li>
+        </ul>
+
+        <h3 id="open-portal">从别台电脑打开管理 Portal</h3>
+        <ul>
+          <li><strong>通过录制端（建议）。</strong>在 Mac 配对录制端后，App 的窗口就是管理 Portal；录制、调试、人工登录的浏览器开在 Mac。</li>
+          <li><strong>SSH 通道。</strong><code>ssh -N -L 8080:127.0.0.1:8080 用户@服务器</code>，再打开 <code>http://127.0.0.1:8080</code>。能做所有管理工作，但浏览器开在服务器上（见上方的部署方式）。</li>
+        </ul>
+
+        <h3 id="systemd">Linux：开机自动启动（systemd）</h3>
+        <p>用运行一键脚本的那个账号（浏览器下载在它的家目录）。创建 <code>/etc/systemd/system/rpa-portal.service</code>，把 <code>rpa</code> 换成实际的账号：</p>
+<pre class="source">[Unit]
+Description=RPA management portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rpa
+WorkingDirectory=/home/rpa/code/web_browser_robotic_process_automation
+ExecStart=/home/rpa/.local/bin/uv run rpa serve --worker-port 8081 --data /home/rpa/rpa-data
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target</pre>
+<pre class="source">sudo systemctl daemon-reload
+sudo systemctl enable --now rpa-portal     # 现在启动，之后开机自动启动
+sudo systemctl status rpa-portal
+journalctl -u rpa-portal -f                # 看启动消息与日志
+sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
+
+        <h3 id="upgrade">更新版本</h3>
+        <ol>
+          <li>到「运行报告」确认没有运行中的任务，录制端那边也没有进行中的录制或调试。</li>
+          <li>停止服务器（Ctrl+C 或 <code>sudo systemctl stop rpa-portal</code>），建议先<a href="#backup">备份</a>。</li>
+          <li><code>git pull</code>，再运行 <code>./scripts/setup.sh</code>（依赖与浏览器有变动才安装；只想更新依赖用 <code>uv sync</code>）。</li>
+          <li>启动服务器。数据库在启动时自动升级，原有的场景与记录都保留。</li>
+          <li>把运行端与录制端更新到同一个版本：App 下载同版本的安装档或 DMG，命令行的那台 <code>git pull</code> 后重新启动。</li>
+        </ol>
+        <p>服务器重新启动时，录制端进行中的录制、调试、人工登录会结束；运行端与录制端会自己重新连上，不必重新配对。</p>
+
+        <h3 id="backup">备份与搬家</h3>
+        <p>所有数据都在文件夹里（里面有什么见<a href="../design/portal.html#data-folder">管理 Portal › 文件夹</a>）。停止服务器后拷贝整个文件夹就是备份，例如 <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>。搬到新的服务器：在新的那台安装同一个版本，把文件夹放回去，用同样的 <code>--data</code> 启动。设备的权杖也在文件夹里，服务器网址不变时不必重新配对；网址变了（换了 IP）时，在设备页按「重新邀请」，到那台用新的邀请重新配对。文件夹里有 Secrets 的值与登录状态，备份档请一样只有本人能读。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="devices">
+      <div class="panel-header"><h2>管理设备</h2><span class="muted">管理 Portal › 场景生产 › 设备</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>添加。</strong>「添加设备」选种类（RPA Worker 或 RPA 录制端），产生一次性的邀请（24 小时内有效），贴到那台的 App 或命令行。步骤见<a href="remote-worker.html#register">远程 worker › 添加设备</a>。</li>
+          <li><strong>状态。</strong>在线、运行中、脱机、已禁用；另外显示操作系统、App 版本与下载过的浏览器。和服务器版本不同时会标出来。</li>
+          <li><strong>禁用、激活。</strong>禁用后那台立刻连不上。命令行的 worker、录制端会停下来，激活后重新运行即可；两个 App 被拒绝时会清掉配对，激活后要用新的邀请再配对。</li>
+          <li><strong>重新邀请。</strong>旧的权杖立刻失效，要用新的邀请在那台重新配对。怀疑权杖外流、换电脑时用。</li>
+          <li><strong>删除。</strong>那台不能再连接；指定给它、还在排队的运行会标为失败，运行记录保留。</li>
+          <li><strong>默认运行位置。</strong>本机、远程 worker、任一。主要用 Windows 运行时改成「远程 worker」，不必每次选。</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="recorder">
+        <div class="panel-header"><h2>录制端：平常怎么用</h2></div>
+        <div class="panel-body prose">
+          <p>第一次安装与配对见<a href="remote-worker.html#recorder-app">macOS：RPA 录制端 App</a>（命令行见<a href="remote-worker.html#recorder">录制端</a>）。</p>
+          <ol>
+            <li><strong>打开。</strong>双击「RPA 录制端」；连上后窗口就是管理 Portal，页眉显示「通过录制端「名称」」。命令行：项目文件夹运行 <code>uv run rpa recorder</code>，会在默认浏览器打开。</li>
+            <li><strong>录制。</strong>「场景生产 › 自主脚本录制」选新场景或既有场景、起始网址、浏览器与角色，按「开始录制」。浏览器与 Playwright Inspector 开在 Mac；操作完关掉浏览器窗口，草稿自动产生。</li>
+            <li><strong>逐步调试。</strong>场景页按「逐步调试」，有头模式的窗口开在 Mac，每一步的截图也显示在页面上。</li>
+            <li><strong>人工登录。</strong>「场景管理 › 登录与凭证」按角色的「登录」，在 Mac 开的窗口里登录，按「完成登录」或关掉窗口；登录状态存回服务器。</li>
+            <li><strong>运行。</strong>验证与运行的「运行位置」里，「服务器」是服务器自己，「远程 worker」是运行端。录制端不运行场景。</li>
+            <li><strong>结束。</strong>关掉 App 窗口或 ⌘Q；有录制、调试、人工登录在进行时会先确认。命令行按 Ctrl+C。</li>
+          </ol>
+          <ul>
+            <li>菜单「RPA 录制端 › 状态与设置」：连接状态、版本、进行中的工作、Firefox、浏览器下载镜像、语言、打开日志文件夹、重新配对。</li>
+            <li>每台电脑同一时间各一段录制；同一个场景的逐步调试只有一个，在另一台开始时，原本那台的会关掉。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>运行端：平常怎么用</h2></div>
+        <div class="panel-body prose">
+          <p>第一次安装与配对见<a href="remote-worker.html#packaged">Windows：RPA Worker App</a>（命令行见<a href="remote-worker.html#start">worker 机器：启动</a>）。</p>
+          <ol>
+            <li><strong>开着就好。</strong>App 在登录 Windows 时自动启动，缩在通知区接任务；关掉窗口不会停止。命令行：项目文件夹运行 <code>uv run rpa worker</code>，保持终端开着。</li>
+            <li><strong>交任务。</strong>在管理 Portal 验证、运行或运行串行时，「运行位置」选「远程 worker」或「任一」，或把设备页的默认运行位置改成远程 worker。</li>
+            <li><strong>看结果。</strong>运行报告在服务器的「运行报告」，标出「在 win-01 运行」。</li>
+            <li><strong>暂停。</strong>通知区菜单「暂停接任务」：做完目前的任务后不再领取。要长时间不用，在设备页按「禁用」。</li>
+            <li><strong>结束。</strong>通知区菜单「结束」；有任务在运行时先确认，被取消的任务会回报。命令行按 Ctrl+C。</li>
+          </ol>
+          <ul>
+            <li>有头模式的窗口开在登录中的 Windows 桌面上；App 在用户登录后才启动，注销或关机时运行中的任务会被取消并回报。</li>
+            <li>运行时用到的登录状态由服务器送过去、用完就删；人工登录不在运行端做。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="logs">
+      <div class="panel-header"><h2>日志在哪里</h2></div>
+      <div class="panel-body prose">
+        <dl class="spec-list">
+          <dt>服务器</dt><dd>启动的终端；systemd 用 <code>journalctl -u rpa-portal</code>。每次运行的日志与报告在文件夹的 <code>runs/&lt;运行编号&gt;/</code>，也可以在「运行报告」打开。</dd>
+          <dt>RPA 录制端 App</dt><dd><code>~/Library/Application Support/rpa/recorder/logs/recorder.log</code>；「状态与设置 › 打开日志文件夹」。</dd>
+          <dt>RPA Worker App</dt><dd><code>%LOCALAPPDATA%\rpa\worker\logs</code>；窗口的「设置 › 打开日志文件夹」。</dd>
+          <dt>命令行的 worker、录制端</dt><dd>运行它的终端。</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>常见问题</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>状况</th><th>处理</th></tr></thead>
+          <tbody>
+            <tr><td>设备连不上服务器</td><td>服务器有没有加 <code>--worker-port</code>、IP 与端口号对不对、服务器的防火墙有没有开 8081。检查方法见<a href="remote-worker.html#faq">远程 worker › 常见问题</a>。邀请里的地址是猜的，服务器有多张网卡时常猜错：服务器网址和代码分开填。</td></tr>
+            <tr><td>录制、人工登录的按钮是灰的，写着没有图形界面</td><td>页面是从服务器的 8080（例如 SSH 通道）打开的，而服务器没有桌面：改从录制端打开。通过录制端也这样时，是录制端那台没有桌面。</td></tr>
+            <tr><td>「开始录制」是灰的，上方写著录制中</td><td>这台已经有一段录制在进行：先把那个浏览器窗口关掉，或按「取消录制」。</td></tr>
+            <tr><td>录制端说管理 Portal 不再接受这台的权杖</td><td>设备页重新邀请过、禁用或删除了这台。在设备页产生新的录制端邀请（被禁用时先按「激活」），到「状态与设置」粘贴重新配对。</td></tr>
+            <tr><td>版本不同的提醒</td><td>只是程序版本不同时仍可使用，但建议更新到同一个版本；协定版本不同时连不上，一定要更新。见<a href="#upgrade">更新版本</a>。</td></tr>
+            <tr><td>录制、调试突然结束，原因是失联</td><td>录制端停掉、睡眠或断线超过 30 秒，或服务器重新启动。重新打开后再开始一次。</td></tr>
+            <tr><td>任务一直排队</td><td>见<a href="remote-worker.html#faq">远程 worker › 常见问题</a>。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
