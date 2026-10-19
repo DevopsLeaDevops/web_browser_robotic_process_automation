@@ -23,7 +23,7 @@
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計階段只有本頁與 <code>handoff/tasks/index.html</code> 的一行連結。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域頁面，與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
         <dt>狀態</dt><dd>設計討論中（待使用者確認決定點）</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>design/data-storage</code>；base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）；PR：只有設計文件的草稿 PR（編號見<a href="#log">追加紀錄</a>）。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>design/data-storage</code>；base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）；PR：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（草稿，只有設計文件）。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁隨分支推送；沒有未提交的程式碼。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 12 節</a>）。</dd>
       </dl></div>
@@ -363,7 +363,7 @@ requires:                      # 存檔時由定義產生，載入時用來校�
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-10-19 05:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>design/data-storage</code>，提出設計與決定點；尚未寫程式。</li>
+        <li>2026-10-19 05:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>design/data-storage</code>，提出設計與決定點；尚未寫程式。提交 <code>6be8776</code>，開草稿 PR #40。</li>
       </ul></div>
     </section>
   </div>
