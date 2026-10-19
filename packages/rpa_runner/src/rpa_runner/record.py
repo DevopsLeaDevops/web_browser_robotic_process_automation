@@ -58,7 +58,10 @@ def enable_recorder(context: BrowserContext, output: Path) -> None:
         "handleSIGINT": False,
     }
     context._sync(  # pyright: ignore[reportPrivateUsage]
-        impl._channel.send("enableRecorder", None, params)  # pyright: ignore[reportPrivateUsage]
+        # 內部 API：Playwright 1.64 起 send 的 params 型別是 Dict[Unknown, Unknown]
+        impl._channel.send(  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType]
+            "enableRecorder", None, params
+        )
     )
 
 
