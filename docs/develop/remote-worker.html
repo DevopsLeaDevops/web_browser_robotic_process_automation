@@ -125,7 +125,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
       <div class="panel-header"><h2>macOS：RPA 錄製端 App</h2><span class="muted">M10.2：不需要 uv、git、Python；Apple 晶片</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>還沒有正式發布前，從 PR 或 <code>main</code> 的「桌面端建置」執行紀錄的 <strong>Artifacts</strong> 下載 <code>recorder-macos-14</code>，解壓縮得到 <code>RPA-Recorder-版本-macos-arm64.dmg</code>。打開 DMG，把「RPA 錄製端」拖進「應用程式」。</li>
+          <li>從 GitHub 倉庫的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下載和管理 Portal 同一個版本的 <code>RPA-Recorder-版本-macos-arm64.dmg</code>（v0.3.0 起）。測試還沒發布的版本時，改從 PR 或 <code>main</code> 的「桌面端建置」執行紀錄的 <strong>Artifacts</strong> 下載 <code>recorder-macos-14</code>（裡面是 DMG）。打開 DMG，把「RPA 錄製端」拖進「應用程式」。</li>
           <li>沒有簽章：第一次打開會被擋下。到「系統設定 › 隱私權與安全性」，在下方找到 RPA 錄製端，選擇允許打開並輸入密碼（熟悉終端機的人也可以執行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>）。macOS 15 起會詢問是否允許連到區網上的裝置，請按「允許」。</li>
           <li>視窗打開後，把裝置頁產生的<strong>錄製端</strong>邀請貼在「邀請」欄（只貼代碼時另外填管理 Portal 的網址），需要 Firefox 就勾選，按「配對」。第一次會下載 Chromium，視窗顯示進度；連上後自動打開管理 Portal，頁首顯示「透過錄製端「名稱」」。</li>
         </ol>
@@ -135,6 +135,9 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
           <li><strong>關掉視窗就結束。</strong>有錄製、調試或人工登入在進行時先確認（⌘Q 也一樣），結束會中斷它們，管理 Portal 那邊標成結束。再打開一次會叫出已經在執行的那份。</li>
           <li><strong>資料位置</strong>：<code>~/Library/Application Support/rpa/recorder</code>（配對的伺服器與裝置 <code>pairing.json</code>、設定、日誌 <code>logs/recorder.log</code>、錄製與調試的暫存，用完刪除）。<strong>權杖存在鑰匙圈</strong>（「RPA Recorder」項目）；鑰匙圈不能用時退回存在 <code>pairing.json</code>（只有你能讀寫），狀態頁的「權杖存放」會標出來。瀏覽器在 <code>~/Library/Caches/ms-playwright</code>，和開發環境共用。</li>
           <li><strong>伺服器在同一台 Mac</strong>：一樣用 <code>rpa serve --worker-port 8081</code> 開對外埠，配對 <code>http://127.0.0.1:8081</code>。</li>
+          <li><strong>升級</strong>：先結束 App，打開新版的 DMG，把「RPA 錄製端」拖進「應用程式」取代舊的；配對、設定與日誌都保留。新版第一次打開可能又要到「隱私權與安全性」允許。狀態頁提醒「程式版本和管理 Portal 不同」時，旁邊的「下載新版」會打開最新的 Release。</li>
+          <li><strong>解除安裝</strong>：結束 App 後把「RPA 錄製端」丟到垃圾桶。配對、設定與日誌在上面的資料夾，權杖在鑰匙圈的「RPA Recorder」，不要了再刪；瀏覽器的快取和開發環境共用，不一定要刪。</li>
+          <li><strong>不開 App 的視窗</strong>（排查問題、自動化）：在終端機執行 <code>"/Applications/RPA Recorder.app/Contents/MacOS/rpa-recorder" --no-window --open</code>，連上後用預設瀏覽器打開管理 Portal。<strong>有頭模式照樣可以用</strong>：錄製、逐步調試、人工登入的瀏覽器視窗照樣開在這台，少的只是 App 的視窗。和 App 用同一份配對，同一時間只能開一份；按 Ctrl+C 結束（或在資料夾放一個 <code>stop.request</code> 檔案）。其他選項：<code>--invite</code>、<code>--server</code>、<code>--firefox</code>、<code>--log 檔案</code>、<code>--url-file 檔案</code>（把經由閘道打開 Portal 的網址寫到檔案，自動化用）。</li>
         </ul>
       </div>
     </section>
