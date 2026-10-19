@@ -98,7 +98,7 @@ as_root() {
 }
 
 check_service() {
-  if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet rpa-server.service; then
+  if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet rpa-server.service 2>/dev/null; then
     die 'rpa-server.service 正在執行。請先 sudo systemctl stop rpa-server，再更新環境，完成後重新啟動。'
   fi
   if [ "$INSTALL_SERVICE" = 1 ]; then
@@ -207,7 +207,7 @@ write_launchers() {
   {
     printf '[Unit]\nDescription=RPA Server\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\n'
     printf 'User=%s\n' "$(id -un)"
-    printf 'WorkingDirectory=%s\n' "$(systemd_quote "$REPO_DIR")"
+    # 舊版 systemd 不接受 WorkingDirectory 的外層引號；由啟動器的 cd 處理工作目錄。
     printf 'Environment=%s\n' "$(systemd_quote "HOME=$HOME")"
     printf 'Environment=PYTHONUTF8=1\nUMask=0077\n'
     printf 'ExecStart=/bin/bash %s\n' "$(systemd_quote "${launcher//\$/\$\$}")"
