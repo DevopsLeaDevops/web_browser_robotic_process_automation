@@ -132,7 +132,7 @@ uv run playwright install chromium firefox</pre>
         <table class="wrap">
           <thead><tr><th>命令</th><th>预期结果</th></tr></thead>
           <tbody>
-            <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.2.0（rpa-core 0.2.0）</code></td></tr>
+            <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.3.0（rpa-core 0.3.0）</code></td></tr>
             <tr><td><code>uv run rpa -h</code></td><td>显示用法与说明「浏览器自动化场景的生成、管理与运行工具。」，以及 validate、schema、run、record、serve 子命令。</td></tr>
             <tr><td><code>uv run pytest</code></td><td>最后一行只有 <code>passed</code>，没有 <code>failed</code>，也没有 <code>skipped</code>。</td></tr>
             <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td>只有 <code>passed</code>（需要浏览器的测试，Chromium 与 Firefox 都会跑；其余测试显示为 deselected）。跟 CI 一样缺浏览器就失败，而不是略过。</td></tr>
