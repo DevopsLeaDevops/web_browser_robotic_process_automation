@@ -187,6 +187,11 @@ window.DOCS_NAV = {
           "name": {"zh-Hant": "遠端 worker", "zh-Hans": "远程 worker", "en": "Remote workers"}
         },
         {
+          "id": "operations",
+          "href": "develop/operations.html",
+          "name": {"zh-Hant": "部署與操作", "zh-Hans": "部署与操作", "en": "Deployment & operations"}
+        },
+        {
           "id": "conventions",
           "href": "develop/conventions.html",
           "name": {"zh-Hant": "開發規範", "zh-Hans": "开发规范", "en": "Conventions"}

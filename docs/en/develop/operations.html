@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:3350f85036a0f3bb">
+<title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="operations" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Deployment &amp; operations</h1>
+      <p>Where the server, the workers (RPA Worker) and the recorders (RPA Recorder) go, how to start them, how to use them day to day, and where to look when something goes wrong. Step-by-step pairing and app installation are in <a href="remote-worker.html">Remote workers</a>; this page links there instead of repeating them. The design is in <a href="../adr/0012-remote-workers.html">ADR 0012</a> and <a href="../adr/0014-desktop-apps.html">ADR 0014</a>.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="roles">
+      <div class="panel-header"><h2>Three roles</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Role</th><th>What it does</th><th>What to install</th><th>Start</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Server</strong></td><td>Holds the management portal, the database, scene versions, run reports, sign-in state and secrets; it can also run jobs itself (the local worker).</td><td>The development environment (<a href="quickstart.html">one-line script</a>) on macOS, Linux or Windows.</td><td><code>uv run rpa serve --worker-port 8081</code></td></tr>
+            <tr><td><strong>Worker</strong></td><td>Picks up and runs scenarios; headed browser windows open on this computer, and reports, screenshots and traces go back to the server.</td><td>Windows: the <a href="remote-worker.html#packaged">RPA Worker app</a>; other systems use the development environment.</td><td>The app starts when you sign in; on the command line <code>uv run rpa worker</code></td></tr>
+            <tr><td><strong>Recorder</strong></td><td>When you use the portal through it, the browsers for recording, step-by-step debugging and manual login open on this computer; recordings, screenshots and sign-in state go back to the server. It does not run scenarios.</td><td>macOS (Apple silicon): the <a href="remote-worker.html#recorder-app">RPA Recorder app</a>; other systems use the development environment.</td><td>Open the app; on the command line <code>uv run rpa recorder</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <p><strong>Connections go one way only: workers and recorders connect to the server's external port</strong> (8081 by default); the server never connects to them. All of them must reach the sites under test. The three roles can share one computer or each have their own.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="layouts">
+      <div class="panel-header"><h2>Common layouts</h2></div>
+      <div class="panel-body prose">
+        <dl class="spec-list">
+          <dt>One Mac does everything</dt>
+          <dd><code>uv run rpa serve</code>, then open <code>http://127.0.0.1:8080</code>. Recording, debugging, manual login and runs all happen on this Mac; no devices need pairing.</dd>
+          <dt>Linux server + Mac recorder + Windows worker</dt>
+          <dd>The server lives on an always-on Linux machine (no desktop needed). On the Mac, the RPA Recorder app shows the portal, and the windows for recording, debugging and manual login open on the Mac; headed runs go to RPA Worker on Windows. Linux can still run headless jobs itself; add <code>--no-local-worker</code> to send everything to Windows.</dd>
+          <dt>Mac server + Windows worker</dt>
+          <dd>Work on port 8080 of the Mac and record there; runs go to Windows, so headed windows no longer take over the Mac.</dd>
+        </dl>
+        <p>When the server has no desktop, pages opened from port 8080 (through an SSH tunnel, say) cannot record or log in manually, and step-by-step debugging is headless only: the browser would open on the server. To record on the Mac, always open the portal through the recorder.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="server">
+      <div class="panel-header"><h2>Server</h2></div>
+      <div class="panel-body prose">
+        <h3>Install</h3>
+        <p>Use the <a href="quickstart.html">one-line script</a> (it installs uv, downloads the code, installs dependencies, downloads Chromium and Firefox and runs the tests). On Linux, if the browsers lack system libraries the script has Playwright install them with <code>sudo</code> (automatic only on Debian and Ubuntu). Run the commands below in the project folder.</p>
+
+        <h3>Start</h3>
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+uv run rpa serve --worker-port 8081                      # with remote devices
+uv run rpa serve --worker-port 8081 --no-local-worker    # everything runs on remote workers
+uv run rpa serve --worker-port 8081 --data ~/rpa-data    # keep the data outside the project</pre>
+        <p>The start-up message shows the portal address, the data folder and “External port: http://LAN IP:8081”. Press Ctrl+C to stop.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Option</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td><code>--worker-port 8081</code></td><td>Opens the external port for workers and recorders. Without it only this computer can be used, and the Devices page cannot create invitations.</td></tr>
+            <tr><td><code>--worker-host</code></td><td>The address the external port listens on, <code>0.0.0.0</code> (all interfaces) by default. Give one network card's IP to accept connections only there.</td></tr>
+            <tr><td><code>--no-local-worker</code></td><td>This computer runs no jobs; everything goes to remote workers.</td></tr>
+            <tr><td><code>--data folder</code></td><td>Where the data lives, <code>data</code> in the project by default (or the <code>RPA_DATA_DIR</code> environment variable). See <a href="../design/portal.html#data-folder">Management portal › Data folder</a>.</td></tr>
+            <tr><td><code>--port</code>, <code>--host</code></td><td>The port and address of the management pages, <code>127.0.0.1:8080</code> by default. <strong>Do not change it to 0.0.0.0</strong>: the management pages have no login.</td></tr>
+            <tr><td><code>--no-testsite</code></td><td>Does not start the test site on 127.0.0.1:8765.</td></tr>
+            <tr><td><code>RPA_LANG</code></td><td>Environment variable: the language of messages the server creates (<code>zh-Hant</code>, <code>zh-Hans</code>, <code>en</code>).</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <h3 id="ports">Two ports</h3>
+        <ul>
+          <li><strong>8080, the management pages.</strong> No login; it listens on 127.0.0.1 only, so only the server itself can open it.</li>
+          <li><strong>8081, the external port.</strong> Every request needs a token or a one-time invitation: workers use the Worker API, recorders use the Client API and open the management pages with the recorder's token. Unpaired computers only get 401. Open only this port in the firewall, and only to the LAN (or VPN), for example on Ubuntu: <code>sudo ufw allow from 192.168.1.0/24 to any port 8081 proto tcp</code>.</li>
+          <li><strong>It is plain HTTP.</strong> Secrets and sign-in state cross the network, so use it only on a trusted LAN or VPN. When the server is in the cloud or on another network, an SSH tunnel can bring the external port to the device: <code>ssh -N -L 8081:127.0.0.1:8081 user@server</code>, then use <code>http://127.0.0.1:8081</code> as the server when pairing.</li>
+        </ul>
+
+        <h3 id="open-portal">Opening the portal from another computer</h3>
+        <ul>
+          <li><strong>Through a recorder (recommended).</strong> Once the recorder is paired on the Mac, the app window is the management portal, and the browsers for recording, debugging and manual login open on the Mac.</li>
+          <li><strong>SSH tunnel.</strong> <code>ssh -N -L 8080:127.0.0.1:8080 user@server</code>, then open <code>http://127.0.0.1:8080</code>. All management works, but browsers open on the server (see the layouts above).</li>
+        </ul>
+
+        <h3 id="systemd">Linux: start at boot (systemd)</h3>
+        <p>Use the account that ran the one-line script (the browsers are downloaded into its home folder). Create <code>/etc/systemd/system/rpa-portal.service</code>, replacing <code>rpa</code> with that account:</p>
+<pre class="source">[Unit]
+Description=RPA management portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rpa
+WorkingDirectory=/home/rpa/code/web_browser_robotic_process_automation
+ExecStart=/home/rpa/.local/bin/uv run rpa serve --worker-port 8081 --data /home/rpa/rpa-data
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target</pre>
+<pre class="source">sudo systemctl daemon-reload
+sudo systemctl enable --now rpa-portal     # start now and at every boot
+sudo systemctl status rpa-portal
+journalctl -u rpa-portal -f                # start-up messages and logs
+sudo systemctl restart rpa-portal          # restart after an update</pre>
+
+        <h3 id="upgrade">Updating</h3>
+        <ol>
+          <li>Check “Run reports” for jobs still running, and make sure no recording or debugging is in progress on a recorder.</li>
+          <li>Stop the server (Ctrl+C or <code>sudo systemctl stop rpa-portal</code>); a <a href="#backup">backup</a> first is a good idea.</li>
+          <li><code>git pull</code>, then run <code>./scripts/setup.sh</code> (it installs only what changed; use <code>uv sync</code> to update just the dependencies).</li>
+          <li>Start the server. The database is upgraded on start, and existing scenes and history are kept.</li>
+          <li>Bring workers and recorders to the same version: the apps take the installer or DMG of that version, and command-line machines <code>git pull</code> and restart.</li>
+        </ol>
+        <p>When the server restarts, recordings, debugging and manual logins in progress on recorders end; workers and recorders reconnect by themselves without pairing again.</p>
+
+        <h3 id="backup">Backup and moving</h3>
+        <p>All data is in the data folder (its contents are in <a href="../design/portal.html#data-folder">Management portal › Data folder</a>). Stop the server and copy the whole folder to back it up, for example <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>. To move to a new server, install the same version there, put the folder back and start with the same <code>--data</code>. Device tokens are in the folder too, so no pairing is needed while the server address stays the same; if the address changes (a new IP), choose “Invite again” on the Devices page and pair that device with the new invitation. The folder holds secret values and sign-in state, so keep backups readable only by you.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="devices">
+      <div class="panel-header"><h2>Managing devices</h2><span class="muted">Management portal › Production › Devices</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>Add.</strong> “Add device”, choose the kind (RPA Worker or RPA Recorder) and create a one-time invitation (valid for 24 hours) to paste into that computer's app or command line. Steps in <a href="remote-worker.html#register">Remote workers › Add the device</a>.</li>
+          <li><strong>Status.</strong> Online, Busy, Offline or Disabled, plus the operating system, app version and downloaded browsers. A version that differs from the server is flagged.</li>
+          <li><strong>Disable, enable.</strong> A disabled device cannot connect at once. The command-line worker and recorder stop; run them again after enabling. Both apps forget the pairing when they are refused, so after enabling pair them again with a new invitation.</li>
+          <li><strong>Invite again.</strong> The old token stops working at once; pair that computer again with the new invitation. Use it when a token may have leaked or the device is replaced.</li>
+          <li><strong>Delete.</strong> The device can no longer connect; queued runs assigned to it are marked failed, and run history is kept.</li>
+          <li><strong>Default place to run.</strong> This computer, a remote worker, or any. When Windows does most of the runs, set it to “Remote worker” so you do not have to choose every time.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="recorder">
+        <div class="panel-header"><h2>Recorders day to day</h2></div>
+        <div class="panel-body prose">
+          <p>First-time installation and pairing: <a href="remote-worker.html#recorder-app">macOS: the RPA Recorder app</a> (command line: <a href="remote-worker.html#recorder">Recorders</a>).</p>
+          <ol>
+            <li><strong>Open.</strong> Double-click “RPA Recorder”; once connected the window is the management portal and the header shows “Via recorder “name””. On the command line, run <code>uv run rpa recorder</code> in the project folder; it opens in the default browser.</li>
+            <li><strong>Record.</strong> In “Production › Recording”, choose a new or existing scene, the start URL, the browser and the role, then “Start recording”. The browser and the Playwright Inspector open on the Mac; close the browser window when you are done and the draft is created.</li>
+            <li><strong>Debug step by step.</strong> On the scene page choose “Step debugging”; the headed window opens on the Mac, and a screenshot after every step also appears on the page.</li>
+            <li><strong>Log in manually.</strong> In “Scenarios › Logins &amp; secrets” choose the role's “Log in”, log in in the window that opens on the Mac, then press “Finish login” or close the window; the sign-in state is saved on the server.</li>
+            <li><strong>Run.</strong> In the “place to run” of validate and run forms, “Server” is the server itself and “Remote worker” is a worker. Recorders do not run scenarios.</li>
+            <li><strong>Quit.</strong> Close the app window or press ⌘Q; you are asked first if a recording, debugging or manual login is in progress. On the command line press Ctrl+C.</li>
+          </ol>
+          <ul>
+            <li>The “RPA Recorder › Status and settings” menu shows the connection, the version and work in progress, and has Firefox, the browser download mirror, language, “Open the log folder” and pairing again.</li>
+            <li>Each computer can have one recording at a time; a scene has a single step-by-step debugging session, so starting it on another computer closes the one on the first.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>Workers day to day</h2></div>
+        <div class="panel-body prose">
+          <p>First-time installation and pairing: <a href="remote-worker.html#packaged">Windows: the RPA Worker app</a> (command line: <a href="remote-worker.html#start">Worker computer: start</a>).</p>
+          <ol>
+            <li><strong>Leave it running.</strong> The app starts when you sign in to Windows and waits for jobs in the notification area; closing the window does not stop it. On the command line, run <code>uv run rpa worker</code> in the project folder and keep the terminal open.</li>
+            <li><strong>Send jobs.</strong> When you validate, run or run a sequence in the portal, set “place to run” to “Remote worker” or “Any”, or make Remote worker the default on the Devices page.</li>
+            <li><strong>See results.</strong> Run reports are in “Run reports” on the server, marked “Ran on win-01”.</li>
+            <li><strong>Pause.</strong> “Pause jobs” in the notification-area menu: it finishes the current job and takes no new ones. For a long break, choose “Disable” on the Devices page.</li>
+            <li><strong>Quit.</strong> “Quit” in the notification-area menu; with a job running you are asked first, and the cancelled job is reported. On the command line press Ctrl+C.</li>
+          </ol>
+          <ul>
+            <li>Headed windows open on the signed-in Windows desktop; the app starts after the user signs in, and signing out or shutting down cancels and reports the running job.</li>
+            <li>The sign-in state a run needs is sent by the server and deleted afterwards; manual login does not happen on workers.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="logs">
+      <div class="panel-header"><h2>Where the logs are</h2></div>
+      <div class="panel-body prose">
+        <dl class="spec-list">
+          <dt>Server</dt><dd>The terminal it was started from; with systemd, <code>journalctl -u rpa-portal</code>. Each run's log and report are in <code>runs/&lt;run id&gt;/</code> of the data folder and can also be opened from “Run reports”.</dd>
+          <dt>RPA Recorder app</dt><dd><code>~/Library/Application Support/rpa/recorder/logs/recorder.log</code>; “Status and settings › Open the log folder”.</dd>
+          <dt>RPA Worker app</dt><dd><code>%LOCALAPPDATA%\rpa\worker\logs</code>; “Settings › Open log folder” in the window.</dd>
+          <dt>Command-line worker and recorder</dt><dd>The terminal running them.</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>Troubleshooting</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Symptom</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td>A device cannot reach the server</td><td>Check that the server has <code>--worker-port</code>, that the IP and port are right, and that the server's firewall allows 8081. How to test is in <a href="remote-worker.html#faq">Remote workers › Troubleshooting</a>. The address in the invitation is a guess and is often wrong on servers with several network cards: enter the server URL and the code separately.</td></tr>
+            <tr><td>The recording and manual-login buttons are grey and say there is no display</td><td>The page was opened from port 8080 of a server without a desktop (through an SSH tunnel, say): open it through the recorder instead. If it happens through the recorder, the recorder computer has no desktop.</td></tr>
+            <tr><td>“Start recording” is grey and a recording is shown above it</td><td>This computer already has a recording in progress: close that browser window first, or choose “Cancel recording”.</td></tr>
+            <tr><td>The recorder says the portal no longer accepts its token</td><td>This device was invited again, disabled or deleted on the Devices page. Create a new recorder invitation there (choose “Enable” first if it was disabled) and paste it under “Status and settings” to pair again.</td></tr>
+            <tr><td>A version-mismatch warning</td><td>A different program version still works, but updating to the same version is safer; a different protocol version cannot connect and must be updated. See <a href="#upgrade">Updating</a>.</td></tr>
+            <tr><td>A recording or debugging session ended because contact was lost</td><td>The recorder stopped, slept or was disconnected for more than 30 seconds, or the server restarted. Open it again and start over.</td></tr>
+            <tr><td>Jobs stay queued</td><td>See <a href="remote-worker.html#faq">Remote workers › Troubleshooting</a>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
