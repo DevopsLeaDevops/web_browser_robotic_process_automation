@@ -8,6 +8,7 @@
 import http.client
 import json
 import re
+import sys
 import threading
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -546,26 +547,36 @@ class NoWindow:
         assert self.code, "--no-window 沒有結束"
         return self.code[0]
 
+    def __enter__(self) -> "NoWindow":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """測試失敗時也結束背景的那份，不讓它一直拿著鎖（Windows 上還有具名 mutex）。"""
+        if self.thread.is_alive():
+            InstanceLock(self.home).request_stop()
+            self.thread.join(30)
+
 
 def test_no_window_pairs_and_stops_on_request(
     tmp_path: Path, fakes: Fakes, store: MemoryStore
 ) -> None:
     home, url_file = tmp_path / "home", tmp_path / "portal.txt"
     argv = ["--invite", LINE, "--url-file", str(url_file), "--open", "--firefox"]
-    run = NoWindow(home, fakes, store, argv)
-    assert fakes.started.wait(10)
-    assert wait_for(lambda: bool(run.opened), 5)
-    url = url_file.read_text(encoding="utf-8").strip()
-    assert re.fullmatch(r"http://127\.0\.0\.1:\d+/__gateway/login\?key=[^&]+&next=/", url)
-    assert url_file.stat().st_mode & 0o077 == 0  # 網址帶著閘道的密語：只有本人能讀
-    assert run.opened == [url]  # --open：連上後用預設瀏覽器打開一次
-    assert fakes.downloaded == ["chromium"]
-    assert fakes.paired[0][1] == "recorder"
-    # 有頭模式照樣可以用：上線時回報能顯示視窗（沒有的只是 App 自己的視窗）
-    assert fakes.hosts[0].info["display"] is True
-    assert json.loads((home / "settings.json").read_text(encoding="utf-8"))["firefox"] is True
-    InstanceLock(home).request_stop()
-    assert run.finished() == 0
+    with NoWindow(home, fakes, store, argv) as run:
+        assert fakes.started.wait(10)
+        assert wait_for(lambda: bool(run.opened), 5)
+        url = url_file.read_text(encoding="utf-8").strip()
+        assert re.fullmatch(r"http://127\.0\.0\.1:\d+/__gateway/login\?key=[^&]+&next=/", url)
+        if sys.platform != "win32":  # 網址帶著閘道的密語：只有本人能讀
+            assert url_file.stat().st_mode & 0o077 == 0
+        assert run.opened == [url]  # --open：連上後用預設瀏覽器打開一次
+        assert fakes.downloaded == ["chromium"]
+        assert fakes.paired[0][1] == "recorder"
+        # 有頭模式照樣可以用：上線時回報能顯示視窗（沒有的只是 App 自己的視窗）
+        assert fakes.hosts[0].info["display"] is True
+        assert json.loads((home / "settings.json").read_text(encoding="utf-8"))["firefox"] is True
+        InstanceLock(home).request_stop()
+        assert run.finished() == 0
     assert fakes.stopped_all >= 1  # 不等長輪詢：直接結束子程序
     assert not url_file.exists()
     assert fakes.site.closed
@@ -586,7 +597,8 @@ def test_no_window_exit_codes(
         fakes.fatal = ("權杖已失效", 401)
     if setup == "download":
         fakes.download_codes = {"chromium": 1}
-    assert NoWindow(tmp_path / "home", fakes, store, argv).finished() == code
+    with NoWindow(tmp_path / "home", fakes, store, argv) as run:
+        assert run.finished() == code
     if setup == "rejected":
         assert not store.items  # 被拒時清除配對
 
@@ -596,7 +608,8 @@ def test_no_window_refuses_a_second_copy(tmp_path: Path, fakes: Fakes, store: Me
     held = InstanceLock(home)
     assert held.acquire()
     try:
-        assert NoWindow(home, fakes, store, ["--invite", LINE]).finished() == 4
+        with NoWindow(home, fakes, store, ["--invite", LINE]) as run:
+            assert run.finished() == 4
     finally:
         held.release()
     assert not fakes.paired
