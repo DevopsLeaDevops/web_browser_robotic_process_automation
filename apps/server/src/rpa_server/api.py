@@ -518,7 +518,7 @@ def api_router(services: Services) -> APIRouter:
         return {
             "roles": [role.to_json() for role in roles.list_roles()],
             "secrets": [info.to_json() for info in roles.list_secrets()],
-            "display": services.display,
+            "display": services.display_here(),
         }
 
     @router.post("/roles", status_code=201)
@@ -582,12 +582,12 @@ def api_router(services: Services) -> APIRouter:
     def list_recordings() -> dict[str, object]:
         return {
             "recordings": [item.to_json() for item in recordings.list_recordings()],
-            "display": services.display,
+            "display": services.display_here(),
         }
 
     @router.post("/recordings", status_code=202)
     def start_recording(body: RecordingStart) -> dict[str, object]:
-        """在執行 Portal 的電腦上開瀏覽器錄製；關掉視窗後轉換成草稿。"""
+        """在操作的那台開瀏覽器錄製（透過錄製端時在錄製端）；關掉視窗後轉換成草稿。"""
         record = recordings.start(
             body.target.target(), url=body.url, engine=body.engine, role_id=body.role_id
         )
@@ -682,7 +682,7 @@ def api_router(services: Services) -> APIRouter:
     @router.get("/workflows/library")
     def workflow_library() -> dict[str, object]:
         """場景庫：發布過的場景版本與它們的入參、出參（編輯序列用）。"""
-        return {"scenes": workflows.library(), "display": services.display}
+        return {"scenes": workflows.library(), "display": services.display_here()}
 
     @router.post("/workflows/check")
     def check_workflow(body: WorkflowCheck) -> dict[str, object]:

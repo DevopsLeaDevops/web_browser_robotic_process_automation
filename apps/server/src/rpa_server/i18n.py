@@ -14,8 +14,25 @@ VIA_RECORDER_KEYS: Final = {
     "target.local": "target.local_via_recorder",
     "worker.local": "worker.local_via_recorder",
     "target.local_url_warning": "target.local_url_warning_via_recorder",
+    # 錄製、逐步調試、人工登入的瀏覽器開在錄製端（操作的那台），不是執行 Portal 的電腦
+    "roles.notice": "roles.notice_via_recorder",
+    "roles.no_display": "roles.no_display_via_recorder",
+    "roles.session_waiting": "roles.session_waiting_via_recorder",
+    "roles.login_title": "roles.login_title_via_recorder",
+    "recording.active": "recording.active_via_recorder",
+    "recording.in_progress": "recording.in_progress_via_recorder",
+    "recording.record_hint": "recording.record_hint_via_recorder",
+    "recording.no_display": "recording.no_display_via_recorder",
+    "debug.window_hint": "debug.window_hint_via_recorder",
+    "js.recording_started": "js.recording_started_via_recorder",
+    # 登入狀態與 Secrets 存在伺服器，不是操作的這台
+    "secrets.hint": "secrets.hint_via_recorder",
+    "js.role_clear_body": "js.role_clear_body_via_recorder",
+    "app.env": "app.env_via_recorder",
+    "app.footer_note": "app.footer_note_via_recorder",
 }
-"""透過錄製端看頁面時換掉的訊息：「本機」指的是伺服器，不是操作的這台（M10.2）。"""
+"""透過錄製端看頁面時換掉的訊息（M10.2）：「本機」指的是伺服器，不是操作的這台；
+錄製、逐步調試、人工登入的瀏覽器則開在錄製端。"""
 
 
 def page_t(key: str, /, **params: object) -> str:

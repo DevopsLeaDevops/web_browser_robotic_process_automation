@@ -976,6 +976,15 @@ class Services:
             raise _conflict("no_remote_worker", t("error.no_remote_worker"))
         return target
 
+    def display_here(self) -> bool:
+        """操作的那台能不能開瀏覽器視窗（錄製、逐步調試、人工登入）。
+
+        瀏覽器開在操作的那台：透過錄製端時看錄製端回報的（M10.2），否則看伺服器這台。
+        伺服器是沒有畫面的 Linux 時，透過 Mac 的錄製端照樣可以錄製與人工登入。
+        """
+        via = self.recorders.current()
+        return self.recorders.display(via) if via is not None else self.display
+
     def can_display(self, target: Target) -> bool:
         """執行的地方能不能顯示瀏覽器視窗：本機看這台電腦，遠端看有沒有能顯示的 worker。"""
         local = self.display and self.local_worker
