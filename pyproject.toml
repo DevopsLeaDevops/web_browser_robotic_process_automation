@@ -32,6 +32,8 @@ dev = [
   "ruff>=0.16.10",
   "pyright>=1.1.414",
   "pytest>=9.1.1",
+  # 平行執行測試（pytest -n 4）。CI 在 Linux 上用它；本機不加 -n 時照舊逐一執行。
+  "pytest-xdist>=3.8",
   # FastAPI（Starlette 1.x）的 TestClient；Starlette 改用 httpx2，httpx 已不建議
   "httpx2>=2.13.0",
   "pre-commit>=4.6.2",
@@ -99,4 +101,6 @@ addopts = ["--import-mode=importlib", "--strict-markers", "-ra"]
 pythonpath = ["."]
 markers = [
   "browser: 需要真實瀏覽器（Playwright + Chromium）的測試",
+  # 一鍵安裝的重複執行與從零開始只跑冒煙測試加上不需瀏覽器的測試：-m "not browser or smoke"
+  "smoke: 冒煙測試：剛裝好的環境能啟動瀏覽器、執行範例場景",
 ]
