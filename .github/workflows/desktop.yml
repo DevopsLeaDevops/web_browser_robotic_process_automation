@@ -9,7 +9,11 @@
 #   用邀請配對（權杖存進認證管理員），以「遠端 worker」執行 BA-001 → BA-002。
 #   安裝檔（M10.1 PR 3，Inno Setup）：端到端先靜默安裝、用裝好的 App 跑，最後在 App 執行中
 #   再安裝一次（升級）、解除安裝，確認自動啟動已刪、配對保留。
-# RPA Worker 是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
+# 錄製端（macOS）另外（M10.2）：
+#   建置前跑錄製端 App、本機閘道與錄製端程式的單元測試；
+#   視窗自我測試（open RPA Recorder.app --args --smoke-test，和雙擊一樣經由 LaunchServices）：
+#   打開 WKWebView 視窗，確認 App 的頁面經由本機閘道載入；建置時也檢查 Info.plist 指的執行檔。
+# 兩個 App 都是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
 # 產物（DMG、zip、安裝檔）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
 # 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
 name: 桌面端建置
@@ -91,6 +95,18 @@ jobs:
           set -e
           uv run python tools/ci_annotations.py junit "${{ runner.temp }}/desktop-pytest.xml"
           exit "$code"
+      - name: 單元測試（macOS：錄製端 App、本機閘道、錄製端程式）
+        if: matrix.app == 'recorder'
+        run: |
+          set +e
+          uv run pytest -q apps/desktop/tests/test_recorder_app.py apps/desktop/tests/test_ui.py \
+            apps/desktop/tests/test_worker_app.py apps/worker/tests/test_gateway.py \
+            apps/worker/tests/test_recorder.py apps/worker/tests/test_interactive.py \
+            --junitxml="${{ runner.temp }}/desktop-pytest.xml" -o junit_family=xunit1
+          code=$?
+          set -e
+          uv run python tools/ci_annotations.py junit "${{ runner.temp }}/desktop-pytest.xml"
+          exit "$code"
       - name: 建置
         id: build
         run: uv run python tools/build_desktop.py ${{ matrix.app }}
@@ -134,6 +150,36 @@ jobs:
             uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/smoke.json" "${{ runner.temp }}/smoke-home/logs/worker.log"
           else
             echo "::error title=視窗自我測試::沒有產生報告，日誌：$(tail -n 20 "${{ runner.temp }}/smoke-home/logs/worker.log" 2>/dev/null | tr '\n' ' ')"
+          fi
+      - name: 視窗自我測試：像雙擊一樣用 open 開 App，WKWebView 視窗經由本機閘道載入 App 的頁面
+        id: recorder-smoke
+        if: matrix.app == 'recorder'
+        run: |
+          # 經由 LaunchServices（和在 Finder 雙擊相同）：Info.plist 指錯執行檔時這裡就會失敗。
+          # open 不傳環境變數，也不回傳 App 的結束碼：資料夾用預設的位置，結果看報告。
+          app="$(dirname "$(dirname "$(dirname "${{ steps.build.outputs.executable }}")")")"
+          report="${{ runner.temp }}/smoke.json"
+          rm -f "$report"
+          set +e
+          # macOS 沒有 GNU timeout：用 perl 的 alarm 限制時間
+          perl -e 'alarm shift; exec @ARGV' 300 open -W -n "$app" --args --smoke-test --report "$report"
+          set -e
+          log="$HOME/Library/Application Support/rpa/recorder/logs/recorder.log"
+          tail -n 40 "$log" 2>/dev/null || true
+          if [ ! -f "$report" ]; then
+            echo "沒有產生報告：雙擊 App 時沒有啟動 App 本身，或啟動後當掉"
+            exit 1
+          fi
+          cat "$report"
+          python3 -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))["ok"] else 1)' "$report"
+      - name: 錄製端視窗自我測試的結果寫成 annotations
+        if: always() && matrix.app == 'recorder' && steps.recorder-smoke.outcome != 'skipped'
+        run: |
+          log="$HOME/Library/Application Support/rpa/recorder/logs/recorder.log"
+          if [ -f "${{ runner.temp }}/smoke.json" ]; then
+            uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/smoke.json" "$log"
+          else
+            echo "::error title=錄製端視窗自我測試::沒有產生報告（雙擊 App 時沒有啟動 App 本身，或啟動後當掉），日誌：$(tail -n 20 "$log" 2>/dev/null | tr '\n' ' ')"
           fi
       - name: 端到端：安裝、用邀請配對並執行範例場景、升級、解除安裝
         id: e2e

@@ -24,6 +24,7 @@ import argparse
 import hashlib
 import os
 import platform
+import plistlib
 import re
 import shutil
 import subprocess
@@ -251,9 +252,27 @@ def _installer(version: str) -> Path:
     return built
 
 
+def check_bundle(bundle: Path, app: App) -> None:
+    """macOS：確認雙擊 App 時啟動的是 App 本身，不是 rpa-child（Info.plist 的 CFBundleExecutable）。
+
+    也確認不是 LSBackgroundOnly（PyInstaller 從主控台的 rpa-child 繼承時會加上）。
+    """
+    with (bundle / "Contents" / "Info.plist").open("rb") as handle:
+        info = plistlib.load(handle)
+    expected = EXECUTABLES[app]
+    actual = info.get("CFBundleExecutable")
+    if actual != expected:
+        raise RuntimeError(
+            f"{bundle.name} 的 CFBundleExecutable 是 {actual!r}，應該是 {expected!r}"
+        )
+    if info.get("LSBackgroundOnly"):
+        raise RuntimeError(f"{bundle.name} 是 LSBackgroundOnly：沒有 Dock 圖示與選單列")
+
+
 def _dmg(app: App, version: str) -> Path:
     """把 .app 和指向「應用程式」的捷徑放進 DMG，打開後拖過去就安裝好。"""
     bundle = DIST / f"{BUNDLES[app]}.app"
+    check_bundle(bundle, app)
     staging = WORK / app / "dmg"
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)

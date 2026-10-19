@@ -11,7 +11,7 @@ from urllib.parse import quote
 
 import pytest
 
-from rpa_worker.gateway import COOKIE, Gateway, LocalResponse
+from rpa_worker.gateway import COOKIE, DESKTOP_COOKIE, DESKTOP_PREFIX, Gateway, LocalResponse
 
 TOKEN = "device-token"
 
@@ -84,6 +84,7 @@ def gateway(upstream: tuple[Upstream, str]) -> Iterator[Gateway]:
         lambda: TOKEN,
         local=local,
         on_unauthorized=lambda: unauthorized.append(True),
+        notice_page=lambda kind: f"NOTICE {kind}",
     )
     item.start()
     item.unauthorized = unauthorized  # type: ignore[attr-defined]
@@ -101,11 +102,18 @@ def request(
     cookie: bool = True,
     headers: Mapping[str, str] | None = None,
     body: bytes | None = None,
+    desktop: bool = False,
 ) -> tuple[int, dict[str, str], bytes]:
-    connection = http.client.HTTPConnection("127.0.0.1", gateway.port, timeout=10)
+    """送到轉送的埠，或（``desktop``）App 自己的頁面的埠，帶著那一邊的 Cookie。"""
+    port = gateway.desktop_port if desktop else gateway.port
+    assert port is not None
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     values = dict(headers or {})
     if cookie:
-        values["Cookie"] = f"{COOKIE}={gateway.secret}; rpa_lang=zh-Hant"
+        name, secret = (
+            (DESKTOP_COOKIE, gateway.desktop_secret) if desktop else (COOKIE, gateway.secret)
+        )
+        values["Cookie"] = f"{name}={secret}; rpa_lang=zh-Hant"
     connection.request(method, path, body=body, headers=values)
     response = connection.getresponse()
     data = response.read()
@@ -173,16 +181,71 @@ def test_location_is_rewritten(gateway: Gateway, upstream: tuple[Upstream, str])
 
 def test_unauthorized_is_reported(gateway: Gateway, upstream: tuple[Upstream, str]) -> None:
     upstream[0].status = 401
-    status, _, _ = request(gateway, "GET", "/scenes")
+    status, _, data = request(gateway, "GET", "/api/scenes")
     assert status == 401
+    assert data != b"NOTICE unauthorized"  # API 的請求照樣回 401 與 JSON
     assert gateway.unauthorized == [True]  # type: ignore[attr-defined]
+    page = {"Accept": "text/html", "Sec-Fetch-Mode": "navigate"}
+    status, _, data = request(gateway, "GET", "/scenes", headers=page)
+    assert (status, data) == (401, b"NOTICE unauthorized")  # 打開頁面時說明
 
 
-def test_local_pages(gateway: Gateway, upstream: tuple[Upstream, str]) -> None:
-    status, _, data = request(gateway, "GET", "/__desktop/pair?x=1")
-    assert status == 200
-    assert data == b"local GET pair"
+def test_local_pages_are_on_their_own_port(
+    gateway: Gateway, upstream: tuple[Upstream, str]
+) -> None:
+    """App 自己的頁面和管理 Portal 不同來源：Portal 的頁面（或塞進去的腳本）叫不動 App。"""
+    assert gateway.desktop_port not in (None, gateway.port)
+    status, _, data = request(gateway, "GET", "/__desktop/pair?x=1", desktop=True)
+    assert (status, data) == (200, b"local GET pair")
+    own = {"Origin": str(gateway.desktop_origin)}
+    status, _, data = request(
+        gateway, "POST", "/__desktop/quit", headers=own, body=b"{}", desktop=True
+    )
+    assert (status, data) == (200, b"local POST quit")
+    # 寫入的請求沒有 Origin、或是 Portal 那個埠的 Origin：拒絕
+    for headers in ({}, {"Origin": gateway.origin}):
+        status, _, _ = request(
+            gateway, "POST", "/__desktop/quit", headers=headers, body=b"{}", desktop=True
+        )
+        assert status == 403
+    # Portal 那個埠沒有 App 的頁面；兩邊的 Cookie 不通用
+    assert request(gateway, "GET", "/__desktop/pair")[0] == 403
+    cross = {"Cookie": f"{COOKIE}={gateway.secret}"}
+    assert (
+        request(gateway, "GET", "/__desktop/", cookie=False, headers=cross, desktop=True)[0] == 403
+    )
+    status, headers, _ = request(gateway, "GET", "/scenes", desktop=True)
+    assert (status, headers["location"]) == (303, DESKTOP_PREFIX)
     assert upstream[0].requests == []
+    path = gateway.desktop_url("state").removeprefix(str(gateway.desktop_origin))
+    status, headers, _ = request(gateway, "GET", path, cookie=False, desktop=True)
+    assert (status, headers["location"]) == (303, DESKTOP_PREFIX + "state")
+    assert f"{DESKTOP_COOKIE}={gateway.desktop_secret}" in headers["set-cookie"]
+
+
+def test_unpaired_portal_side(upstream: tuple[Upstream, str]) -> None:
+    def local(method: str, path: str, query: Mapping[str, list[str]], body: bytes) -> LocalResponse:
+        return LocalResponse()
+
+    item = Gateway(None, lambda: None, local=local, notice_page=lambda kind: kind)
+    item.start()
+    try:
+        status, _, data = request(item, "GET", "/scenes", headers={"Accept": "text/html"})
+        assert (status, data) == (409, b"unpaired")  # 說明頁裡沒有 App 頁面的網址（帶著密語）
+        assert request(item, "POST", "/api/x", body=b"{}")[0] == 409
+        item.set_server(upstream[1])
+        assert request(item, "GET", "/scenes")[0] == 200
+    finally:
+        item.close()
+    assert upstream[0].requests[-1]["path"] == "/scenes"
+
+
+def test_without_local_pages_there_is_no_second_port() -> None:
+    item = Gateway("http://127.0.0.1:9", lambda: TOKEN)
+    assert item.desktop_port is None
+    with pytest.raises(ValueError, match="desktop"):
+        item.desktop_url()
+    item.close()
 
 
 def test_offline_page() -> None:

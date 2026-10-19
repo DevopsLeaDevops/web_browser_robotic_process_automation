@@ -1,8 +1,11 @@
-# pyright（strict）用的最小 stub，只寫倉庫實際用到的部分（rpa_desktop，M10.1）。
-# pywebview 只在 Windows 安裝，Linux 的 CI 與開發環境沒有；介面以 pywebview 5／6 的文件為準，
-# 用到新的函式時在這裡補上。typings/ 是 pyright 的 stubPath 預設位置，優先於套件自己的型別。
-from collections.abc import Callable
+# pyright（strict）用的最小 stub，只寫倉庫實際用到的部分（rpa_desktop，M10.1、M10.2）。
+# pywebview 只在 Windows 與 macOS 安裝，Linux 的 CI 與開發環境沒有；介面以 pywebview 5／6 的
+# 文件為準，用到新的函式時在這裡補上。typings/ 是 pyright 的 stubPath 預設位置，
+# 優先於套件自己的型別。
+from collections.abc import Callable, MutableMapping
 from typing import Any
+
+from webview.menu import Menu
 
 class Event:
     def __iadd__(self, handler: Callable[..., Any]) -> Event: ...
@@ -21,6 +24,9 @@ class Window:
     def restore(self) -> None: ...
     def destroy(self) -> None: ...
     def load_html(self, content: str) -> None: ...
+    def load_url(self, url: str) -> None: ...
+    def get_current_url(self) -> str | None: ...
+    def create_confirmation_dialog(self, title: str, message: str) -> bool: ...
     def evaluate_js(self, script: str) -> Any: ...
     def set_title(self, title: str) -> None: ...
 
@@ -50,6 +56,8 @@ def start(
     debug: bool = False,
     private_mode: bool = True,
     storage_path: str | None = None,
+    menu: list[Menu] = ...,
 ) -> None: ...
 
 windows: list[Window]
+settings: MutableMapping[str, Any]

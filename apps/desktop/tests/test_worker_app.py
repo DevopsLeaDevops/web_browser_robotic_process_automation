@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from rpa_core.i18n import use_locale
-from rpa_desktop import entry, gui, headless, worker_app
+from rpa_desktop import entry, gui, headless, recorder_gui, worker_app
 from rpa_desktop.build_info import App, BuildInfo
 from rpa_desktop.credentials import Credentials, MemoryStore
 from rpa_desktop.single_instance import InstanceLock
@@ -263,7 +263,7 @@ def test_only_one_copy_runs_per_folder(tmp_path: Path, store: MemoryStore) -> No
 
 @pytest.fixture
 def routed(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, list[str]]]:
-    """把三種 worker 的入口換成記錄；回傳 (哪一種, 參數)。"""
+    """把三種 worker 與錄製端視窗的入口換成記錄；回傳 (哪一種, 參數)。"""
     calls: list[tuple[str, list[str]]] = []
 
     def recorder(kind: str) -> Callable[..., int]:
@@ -276,6 +276,7 @@ def routed(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, list[str]]]:
     monkeypatch.setattr(worker_app, "main", recorder("console"))
     monkeypatch.setattr(gui, "main", recorder("window"))
     monkeypatch.setattr(headless, "main", recorder("no-window"))
+    monkeypatch.setattr(recorder_gui, "main", recorder("recorder"))
     return calls
 
 
@@ -317,9 +318,17 @@ def test_child_and_recorder_do_not_start_a_worker(
 ) -> None:
     _frozen(monkeypatch, str(Path("RPA Worker") / "rpa-child.exe"), "worker")
     assert entry.main([]) == 0
-    _frozen(monkeypatch, "/Applications/RPA Recorder.app/Contents/MacOS/rpa-recorder", "recorder")
-    assert entry.main([]) == 0
     assert routed == []
+    capsys.readouterr()
+    # 打包的錄製端開錄製端的視窗（M10.2），同資料夾的 rpa-child 不會
+    recorder = "/Applications/RPA Recorder.app/Contents/MacOS/"
+    _frozen(monkeypatch, recorder + "rpa-recorder", "recorder")
+    assert entry.main(["-psn_0_123"]) == 0
+    _frozen(monkeypatch, recorder + "rpa-child", "recorder")
+    assert entry.main([]) == 0
+    assert routed == [("recorder", ["-psn_0_123"])]
+    assert entry.main(["--recorder", "--smoke-test"]) == 0  # 開發環境試視窗
+    assert routed[-1] == ("recorder", ["--smoke-test"])
     capsys.readouterr()
 
 

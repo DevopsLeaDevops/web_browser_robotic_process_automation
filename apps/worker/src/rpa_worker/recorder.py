@@ -259,7 +259,7 @@ class _Child:
                     if error.status in (401, 403):
                         self.lost = True
                         self.kill()
-                        self.host.reject(error.message)
+                        self.host.reject(error.message, status=error.status, code=error.code)
                         return
                     logger.warning("回報子程序 %s 失敗：%s", self.id, error)
                 except (ConnectionLostError, OSError) as error:
@@ -335,10 +335,14 @@ class RecorderHost:
             timeout=timeout,
         )
 
-    def reject(self, message: str) -> None:
+    def reject(self, message: str, *, status: int | None = None, code: str | None = None) -> None:
+        """權杖被拒（401／403）或協定版本不同：停止。
+
+        ``status``、``code`` 給畫面判斷要不要清除配對。
+        """
         if self.rejected is None:
             self.rejected = message
-            self.notify("rejected", {"message": message})
+            self.notify("rejected", {"message": message, "status": status, "code": code})
         self.stopping.set()
 
     def _hello(self) -> None:
@@ -392,7 +396,7 @@ class RecorderHost:
                                 logger.exception("處理指令失敗：%s", command.get("type"))
                 except WorkerApiError as error:
                     if error.status in (401, 403) or error.code == "protocol_mismatch":
-                        self.reject(error.message)
+                        self.reject(error.message, status=error.status, code=error.code)
                         break
                     if error.code == "recorder_hello_first":
                         self._online = False

@@ -1,0 +1,13 @@
+# pywebview 的選單（rpa_desktop.recorder_gui，M10.2）；見 typings/webview/__init__.pyi 的說明。
+from collections.abc import Callable
+from typing import Any
+
+class MenuSeparator: ...
+
+class MenuAction:
+    def __init__(self, title: str, function: Callable[[], Any]) -> None: ...
+
+class Menu:
+    def __init__(
+        self, title: str, items: list[Menu | MenuAction | MenuSeparator] = ...
+    ) -> None: ...
