@@ -319,19 +319,22 @@ def test_rejected_token_stops(tmp_path: Path) -> None:
     client = WorkerClient(
         f"http://127.0.0.1:{server.server_address[1]}", TOKEN, prefix=CLIENT_API_PREFIX
     )
-    events: list[str] = []
+    events: list[tuple[str, dict[str, object]]] = []
     host = RecorderHost(
         client,
         {"protocol": 1},
         tmp_path / "work",
-        notify=lambda event, details: events.append(event),
+        notify=lambda event, details: events.append((event, dict(details))),
     )
     try:
         assert host.run() == "權杖不對"
     finally:
         server.shutdown()
         server.server_close()
-    assert events == ["rejected"]
+    # 畫面靠 status 判斷要不要清除配對（401／403 清除；協定版本不同不清）
+    assert events == [
+        ("rejected", {"message": "權杖不對", "status": 401, "code": "recorder_unauthorized"})
+    ]
 
 
 def test_needs_the_client_api(tmp_path: Path) -> None:

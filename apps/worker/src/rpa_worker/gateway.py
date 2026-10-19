@@ -8,9 +8,14 @@
 - 轉送時：加上 ``Authorization: Bearer <錄製端權杖>``，拿掉閘道自己的 Cookie；``Origin`` 是閘道
   自己時換成管理 Portal 的（管理 Portal 擋跨站的寫入請求），是別的網站就拒絕。回應的
   ``Location`` 指到管理 Portal 時換回閘道。
-- ``/__desktop/`` 底下是 App 自己的頁面（配對、下載瀏覽器、離線提示），由 ``local`` 處理。
+- **App 自己的頁面**（配對、下載瀏覽器、設定）在**另一個埠**的 ``/__desktop/``，由 ``local``
+  處理（:meth:`Gateway.desktop_url`）：和管理 Portal 的頁面不同來源，Portal 的頁面（或塞進去的
+  腳本）讀不到 App 的狀態，也叫不動 App 的動作——寫入的請求一定要帶 App 自己的 ``Origin``。
+  兩邊各有自己的密語與 Cookie。
 - 連不上管理 Portal 時回 502 與 ``offline_page``；管理 Portal 回 401（權杖失效）時呼叫
-  ``on_unauthorized``。
+  ``on_unauthorized``，打開頁面的請求改回 ``notice_page("unauthorized")``（API 的請求照樣回 401）。
+- 還沒配對（``server`` 是 None）時 Portal 那邊只回 ``notice_page("unpaired")``。說明頁不放
+  App 頁面的網址：那個網址帶著密語，Portal 那邊的腳本讀得到的地方都不能有。
 - 不轉送 ``/client-api/`` 與 ``/worker-api/``：那是錄製端程式自己用的通道，網頁不該拿閘道的
   權杖去確認或偽造指令與輸出。
 - 轉送的 ``Host`` 和換過的 ``Origin`` 用同一個寫法（管理 Portal 比對兩者）：伺服器網址有大寫或
@@ -31,14 +36,16 @@ from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Final
-from urllib.parse import parse_qs, quote, urlsplit
+from typing import Final, Literal
+from urllib.parse import SplitResult, parse_qs, quote, urlsplit
 
-__all__ = ["COOKIE", "DESKTOP_PREFIX", "Gateway", "LocalResponse"]
+__all__ = ["COOKIE", "DESKTOP_COOKIE", "DESKTOP_PREFIX", "Gateway", "LocalResponse", "Side"]
 
 logger = logging.getLogger("rpa_worker.gateway")
 
 COOKIE: Final = "rpa_gateway"
+DESKTOP_COOKIE: Final = "rpa_desktop"
+"""App 自己的頁面那個埠的 Cookie（同一台主機的 Cookie 不分埠，名稱要不同）。"""
 DESKTOP_PREFIX: Final = "/__desktop/"
 LOGIN_PATH: Final = "/__gateway/login"
 BLOCKED_PREFIXES: Final = ("/client-api/", "/worker-api/")
@@ -74,10 +81,22 @@ class LocalResponse:
 
 LocalHandler = Callable[[str, str, Mapping[str, list[str]], bytes], LocalResponse]
 """(方法, ``/__desktop/`` 之後的路徑, 查詢參數, 內容) → 回應。"""
+Side = Literal["portal", "desktop"]
+"""轉送到管理 Portal 的埠，或 App 自己的頁面的埠。"""
 
 
 def _default_offline(reason: str) -> str:
     return f"<!doctype html><meta charset=utf-8><title>RPA</title><p>{_escape(reason)}</p>"
+
+
+def _opens_page(request: BaseHTTPRequestHandler) -> bool:
+    """是不是打開一個頁面（不是頁面裡的腳本呼叫 API）。"""
+    if request.command != "GET":
+        return False
+    mode = request.headers.get("Sec-Fetch-Mode")
+    if mode is not None:
+        return mode == "navigate"
+    return "text/html" in (request.headers.get("Accept") or "")
 
 
 def _same(given: str, expected: str) -> bool:
@@ -94,27 +113,32 @@ class Gateway:
 
     def __init__(
         self,
-        server: str,
+        server: str | None,
         token: Callable[[], str | None],
         *,
         port: int = 0,
         local: LocalHandler | None = None,
         on_unauthorized: Callable[[], object] | None = None,
         offline_page: Callable[[str], str] = _default_offline,
+        notice_page: Callable[[str], str] | None = None,
     ) -> None:
-        self.server = server.rstrip("/")
         self.token = token
         self.local = local
         self.on_unauthorized = on_unauthorized
         self.offline_page = offline_page
+        self.notice_page = notice_page
         self.secret = secrets.token_urlsafe(24)
-        parts = urlsplit(self.server)
-        if parts.scheme not in ("http", "https") or not parts.hostname:
-            raise ValueError(f"not a server URL: {server!r}")
-        self._upstream = parts
-        self._httpd = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
+        self.desktop_secret = secrets.token_urlsafe(24)
+        self.server: str | None = None
+        self._upstream: SplitResult | None = None
+        self.set_server(server)
+        self._httpd = ThreadingHTTPServer(("127.0.0.1", port), self._handler("portal"))
         self._httpd.daemon_threads = True
-        self._thread: threading.Thread | None = None
+        self._desktop: ThreadingHTTPServer | None = None
+        if local is not None:
+            self._desktop = ThreadingHTTPServer(("127.0.0.1", 0), self._handler("desktop"))
+            self._desktop.daemon_threads = True
+        self._threads: list[threading.Thread] = []
 
     @property
     def port(self) -> int:
@@ -124,32 +148,56 @@ class Gateway:
     def origin(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 
+    @property
+    def desktop_port(self) -> int | None:
+        return int(self._desktop.server_address[1]) if self._desktop is not None else None
+
+    @property
+    def desktop_origin(self) -> str | None:
+        port = self.desktop_port
+        return f"http://127.0.0.1:{port}" if port is not None else None
+
     def login_url(self, next_path: str = "/") -> str:
-        """第一次打開的網址：設好 Cookie 後轉到 ``next_path``。"""
+        """打開管理 Portal 的網址：設好 Cookie 後轉到 ``next_path``。"""
         return f"{self.origin}{LOGIN_PATH}?key={quote(self.secret)}&next={quote(next_path)}"
 
-    def set_server(self, server: str) -> None:
-        """重新配對到別的管理 Portal 時換掉轉送的目標。"""
+    def desktop_url(self, path: str = "") -> str:
+        """打開 App 自己的頁面的網址（另一個埠、另一個密語）。"""
+        if self.desktop_origin is None:
+            raise ValueError("this gateway has no desktop pages")
+        target = quote(DESKTOP_PREFIX + path)
+        return f"{self.desktop_origin}{LOGIN_PATH}?key={quote(self.desktop_secret)}&next={target}"
+
+    def set_server(self, server: str | None) -> None:
+        """換掉轉送的目標（配對好、重新配對到別的管理 Portal）；None 是還沒配對。"""
+        if server is None:
+            self.server, self._upstream = None, None
+            return
         parts = urlsplit(server.rstrip("/"))
         if parts.scheme not in ("http", "https") or not parts.hostname:
             raise ValueError(f"not a server URL: {server!r}")
-        self.server = server.rstrip("/")
-        self._upstream = parts
+        self.server, self._upstream = server.rstrip("/"), parts
+
+    def _servers(self) -> list[ThreadingHTTPServer]:
+        return [self._httpd] + ([self._desktop] if self._desktop is not None else [])
 
     def start(self) -> None:
-        if self._thread is None:
-            self._thread = threading.Thread(
-                target=self._httpd.serve_forever, name="rpa-gateway", daemon=True
-            )
-            self._thread.start()
+        if self._threads:
+            return
+        for server in self._servers():
+            thread = threading.Thread(target=server.serve_forever, name="rpa-gateway", daemon=True)
+            thread.start()
+            self._threads.append(thread)
 
     def close(self) -> None:
-        self._httpd.shutdown()
-        self._httpd.server_close()
+        for server in self._servers():
+            if self._threads:
+                server.shutdown()
+            server.server_close()
 
     # ------------------------------------------------------------ 處理請求
 
-    def _handler(self) -> type[BaseHTTPRequestHandler]:
+    def _handler(self, side: Side) -> type[BaseHTTPRequestHandler]:
         gateway = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -159,13 +207,19 @@ class Gateway:
                 logger.debug("%s " + format, self.address_string(), *args)
 
             def do_GET(self) -> None:
-                gateway.handle(self)
+                gateway.handle(self, side)
 
             do_POST = do_PUT = do_PATCH = do_DELETE = do_HEAD = do_OPTIONS = do_GET  # noqa: N815
 
         return Handler
 
-    def _authorized(self, request: BaseHTTPRequestHandler) -> bool:
+    def _secret(self, side: Side) -> tuple[str, str]:
+        """(Cookie 的名稱, 密語)。"""
+        if side == "desktop":
+            return DESKTOP_COOKIE, self.desktop_secret
+        return COOKIE, self.secret
+
+    def _authorized(self, request: BaseHTTPRequestHandler, side: Side) -> bool:
         raw = request.headers.get("Cookie")
         if not raw:
             return False
@@ -174,12 +228,19 @@ class Gateway:
             jar.load(raw)
         except CookieError:
             return False
-        morsel = jar.get(COOKIE)
-        return morsel is not None and _same(morsel.value, self.secret)
+        name, secret = self._secret(side)
+        morsel = jar.get(name)
+        return morsel is not None and _same(morsel.value, secret)
 
-    def _host_ok(self, request: BaseHTTPRequestHandler) -> bool:
-        host = (request.headers.get("Host") or "").lower()
-        return host in (f"127.0.0.1:{self.port}", f"localhost:{self.port}")
+    def _hosts(self, side: Side) -> tuple[str, str]:
+        port = self.desktop_port if side == "desktop" else self.port
+        return f"127.0.0.1:{port}", f"localhost:{port}"
+
+    def _host_ok(self, request: BaseHTTPRequestHandler, side: Side) -> bool:
+        return (request.headers.get("Host") or "").lower() in self._hosts(side)
+
+    def _origin_ok(self, origin: str | None, side: Side) -> bool:
+        return origin is None or origin in tuple(f"http://{host}" for host in self._hosts(side))
 
     @staticmethod
     def _reply(
@@ -226,9 +287,9 @@ class Gateway:
             return b"".join(chunks)
         return b""
 
-    def handle(self, request: BaseHTTPRequestHandler) -> None:
+    def handle(self, request: BaseHTTPRequestHandler, side: Side = "portal") -> None:
         try:
-            self._handle(request)
+            self._handle(request, side)
         except (BrokenPipeError, ConnectionResetError):
             pass
         except Exception:
@@ -236,50 +297,83 @@ class Gateway:
             with contextlib.suppress(OSError):
                 self._reply(request, 500, b"gateway error")
 
-    def _handle(self, request: BaseHTTPRequestHandler) -> None:
-        if not self._host_ok(request):
+    def _handle(self, request: BaseHTTPRequestHandler, side: Side) -> None:
+        if not self._host_ok(request, side):
             self._reply(request, 403, b"forbidden host")
             return
         parts = urlsplit(request.path)
         if parts.path == LOGIN_PATH:
-            query = parse_qs(parts.query)
-            key = (query.get("key") or [""])[0]
-            target = (query.get("next") or ["/"])[0]
-            if not target.startswith("/") or target.startswith(("//", "/\\")):
-                target = "/"
-            if not _same(key, self.secret):
-                self._reply(request, 403, b"forbidden")
-                return
-            cookie = f"{COOKIE}={self.secret}; Path=/; HttpOnly; SameSite=Strict"
-            self._reply(request, 303, b"", headers={"Location": target, "Set-Cookie": cookie})
+            self._login(request, side, parse_qs(parts.query))
             return
-        if not self._authorized(request):
+        if not self._authorized(request, side):
             self._reply(request, 403, b"forbidden: open this page from the RPA app")
             return
-        if parts.path.startswith(BLOCKED_PREFIXES):
+        origin = request.headers.get("Origin")
+        if not self._origin_ok(origin, side):
+            self._reply(request, 403, b"cross-origin request blocked")
+            return
+        if side == "desktop":
+            self._desktop_page(request, parts.path, parts.query, origin)
+            return
+        if parts.path.startswith((*BLOCKED_PREFIXES, DESKTOP_PREFIX)):
             self._reply(request, 403, b"not available through the gateway")
             return
         body = self._read_body(request)
         if body is None:
             self._reply(request, 413, b"request too large")
             return
-        if parts.path.startswith(DESKTOP_PREFIX) and self.local is not None:
-            result = self.local(
-                request.command,
-                parts.path.removeprefix(DESKTOP_PREFIX),
-                parse_qs(parts.query),
-                body,
-            )
-            self._reply(request, result.status, result.body, result.content_type, result.headers)
+        upstream = self._upstream
+        if upstream is None:  # 還沒配對
+            self._notice(request, "unpaired", 409)
             return
-        origin = request.headers.get("Origin")
-        if origin is not None and origin not in (self.origin, f"http://localhost:{self.port}"):
+        self._forward(request, upstream, body, origin is not None)
+
+    def _login(
+        self, request: BaseHTTPRequestHandler, side: Side, query: Mapping[str, list[str]]
+    ) -> None:
+        key = (query.get("key") or [""])[0]
+        target = (query.get("next") or ["/"])[0]
+        if not target.startswith("/") or target.startswith(("//", "/\\")):
+            target = "/"
+        name, secret = self._secret(side)
+        if not _same(key, secret):
+            self._reply(request, 403, b"forbidden")
+            return
+        cookie = f"{name}={secret}; Path=/; HttpOnly; SameSite=Strict"
+        self._reply(request, 303, b"", headers={"Location": target, "Set-Cookie": cookie})
+
+    def _desktop_page(
+        self, request: BaseHTTPRequestHandler, path: str, query: str, origin: str | None
+    ) -> None:
+        """App 自己的頁面：寫入的請求一定要帶這個埠的 Origin（其他頁面送不出來）。"""
+        if request.command not in ("GET", "HEAD") and origin is None:
             self._reply(request, 403, b"cross-origin request blocked")
             return
-        self._forward(request, body, origin is not None)
+        if not path.startswith(DESKTOP_PREFIX) or self.local is None:
+            if request.command in ("GET", "HEAD"):
+                self._reply(request, 303, b"", headers={"Location": DESKTOP_PREFIX})
+            else:
+                self._reply(request, 404, b"not found")
+            return
+        body = self._read_body(request)
+        if body is None:
+            self._reply(request, 413, b"request too large")
+            return
+        result = self.local(
+            request.command, path.removeprefix(DESKTOP_PREFIX), parse_qs(query), body
+        )
+        self._reply(request, result.status, result.body, result.content_type, result.headers)
 
-    def _forward(self, request: BaseHTTPRequestHandler, body: bytes, has_origin: bool) -> None:
-        upstream = self._upstream
+    def _notice(self, request: BaseHTTPRequestHandler, kind: str, status: int) -> None:
+        if self.notice_page is not None and _opens_page(request):
+            page = self.notice_page(kind).encode("utf-8")
+            self._reply(request, status, page, "text/html; charset=utf-8")
+        else:
+            self._reply(request, status, kind.encode("ascii"))
+
+    def _forward(
+        self, request: BaseHTTPRequestHandler, upstream: SplitResult, body: bytes, has_origin: bool
+    ) -> None:
         server_origin = f"{upstream.scheme}://{upstream.netloc}"
         headers: dict[str, str] = {"Host": upstream.netloc}  # 和 Origin 一致
         for key, value in request.headers.items():
@@ -315,8 +409,13 @@ class Gateway:
                 page = self.offline_page(str(error)).encode("utf-8")
                 self._reply(request, 502, page, "text/html; charset=utf-8")
                 return
-            if response.status == HTTPStatus.UNAUTHORIZED and self.on_unauthorized is not None:
-                self.on_unauthorized()
+            if response.status == HTTPStatus.UNAUTHORIZED:
+                if self.on_unauthorized is not None:
+                    self.on_unauthorized()
+                if self.notice_page is not None and _opens_page(request):
+                    # 權杖失效：打開頁面時說明怎麼重新配對，不顯示錯誤的 JSON
+                    self._notice(request, "unauthorized", 401)
+                    return
             request.send_response(response.status, response.reason)
             for key, value in response.getheaders():
                 lower = key.lower()
@@ -344,6 +443,6 @@ class Gateway:
         for raw in values:
             for part in raw.split(";"):
                 name = part.split("=", 1)[0].strip()
-                if name and name != COOKIE:
+                if name and name not in (COOKIE, DESKTOP_COOKIE):
                     kept.append(part.strip())
         return "; ".join(kept)

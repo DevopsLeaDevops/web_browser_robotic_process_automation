@@ -122,6 +122,24 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       </div>
     </section>
 
+    <section class="panel" id="recorder-app">
+      <div class="panel-header"><h2>macOS：RPA 录制端 App</h2><span class="muted">M10.2：不需要 uv、git、Python；Apple 芯片</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>还没有正式发布前，从 PR 或 <code>main</code> 的「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>recorder-macos-14</code>，解压缩得到 <code>RPA-Recorder-版本-macos-arm64.dmg</code>。打开 DMG，把「RPA 录制端」拖进「应用程序」。</li>
+          <li>没有签章：第一次打开会被挡下。到「系统设置 › 隐私权与安全性」，在下方找到 RPA 录制端，选择允许打开并输入密码（熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>）。macOS 15 起会询问是否允许连到区网上的设备，请按「允许」。</li>
+          <li>窗口打开后，把设备页产生的<strong>录制端</strong>邀请贴在「邀请」栏（只贴代码时另外填管理 Portal 的网址），需要 Firefox 就勾选，按「配对」。第一次会下载 Chromium，窗口显示进度；连上后自动打开管理 Portal，页眉显示「通过录制端「名称」」。</li>
+        </ol>
+        <ul>
+          <li><strong>菜单「RPA 录制端」</strong>：「状态与设置」回到 App 自己的页面（服务器、版本、进行中的工作、设置、重新配对、结束），「管理 Portal」回到 Portal，「刷新」。⌘V 可以粘贴邀请。</li>
+          <li><strong>新窗口与下载。</strong>报告、截图、可执行文件案的链接在 App 内开新窗口；连到别的网站（例如角色的登录网址）时用默认浏览器。导出、下载的文件会询问存放位置（默认「下载项目」）。</li>
+          <li><strong>关掉窗口就结束。</strong>有录制、调试或人工登录在进行时先确认（⌘Q 也一样），结束会中断它们，管理 Portal 那边标成结束。再打开一次会叫出已经在运行的那份。</li>
+          <li><strong>数据位置</strong>：<code>~/Library/Application Support/rpa/recorder</code>（配对的服务器与设备 <code>pairing.json</code>、设置、日志 <code>logs/recorder.log</code>、录制与调试的暂存，用完删除）。<strong>权杖存在钥匙圈</strong>（「RPA Recorder」项目）；钥匙圈不能用时退回存在 <code>pairing.json</code>（只有你能读写），状态页的「权杖存放」会标出来。浏览器在 <code>~/Library/Caches/ms-playwright</code>，和开发环境共用。</li>
+          <li><strong>服务器在同一台 Mac</strong>：一样用 <code>rpa serve --worker-port 8081</code> 开对外端口，配对 <code>http://127.0.0.1:8081</code>。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="use">
       <div class="panel-header"><h2>5. 把运行交给 worker</h2></div>
       <div class="panel-body prose">

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:2fa055fd24d84190">
+<meta name="translation-source" content="sha256:76f81f6aaf94d10c">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -118,6 +118,24 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
           <li><strong>Losing contact.</strong> If the recorder stops or is disconnected for more than 30 seconds, its recordings, debugging and manual logins in progress end with the reason recorded; the same happens when the recorder restarts or is disabled, deleted or invited again on the Devices page.</li>
           <li><strong>Test site.</strong> As with <code>rpa worker</code>, the test site (127.0.0.1:8765) starts on the recorder computer by default so the example scenes can be recorded.</li>
           <li><strong>Working side by side.</strong> Pages on port 8080 of your computer still open browsers on your computer. Each computer can have one recording at a time; a scene has a single step-by-step debugging session, so starting it on another computer closes the one on the first.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="recorder-app">
+      <div class="panel-header"><h2>macOS: the RPA Recorder app</h2><span class="muted">M10.2: no uv, git or Python needed; Apple silicon</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>Until it is released, download <code>recorder-macos-14</code> from the <strong>Artifacts</strong> of a “Desktop build” run for a PR or <code>main</code> and unzip it to get <code>RPA-Recorder-version-macos-arm64.dmg</code>. Open the DMG and drag “RPA Recorder” into Applications.</li>
+          <li>It is not signed, so the first launch is blocked. Open “System Settings › Privacy &amp; Security”, find RPA Recorder near the bottom, allow it to open and enter your password (if you are comfortable with Terminal, <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code> also works). From macOS 15 you are asked whether it may connect to devices on your local network; choose “Allow”.</li>
+          <li>When the window opens, paste the <strong>recorder</strong> invitation from the Devices page into “Invitation” (enter the portal URL separately when pasting just the code), tick Firefox if you need it, and choose “Pair”. The first time it downloads Chromium and shows the progress; once connected it opens the portal, whose header shows “Via recorder “name””.</li>
+        </ol>
+        <ul>
+          <li><strong>The “RPA Recorder” menu</strong>: “Status and settings” goes back to the app's own page (server, version, work in progress, settings, pair again, quit), “Management portal” returns to the portal, and “Reload”. ⌘V pastes the invitation.</li>
+          <li><strong>New windows and downloads.</strong> Links to reports, screenshots and run files open in a new app window; links to other sites (such as a role's login page) open in the default browser. Exported and downloaded files ask where to save them (Downloads by default).</li>
+          <li><strong>Closing the window quits.</strong> If a recording, debugging or manual login is in progress you are asked first (⌘Q too); quitting interrupts it and the portal marks it as ended. Opening the app again brings the running copy to the front.</li>
+          <li><strong>Where data lives</strong>: <code>~/Library/Application Support/rpa/recorder</code> (the paired server and device in <code>pairing.json</code>, settings, the log <code>logs/recorder.log</code>, and the temporary files of recordings and debugging, deleted when done). <strong>The token is stored in the Keychain</strong> (the “RPA Recorder” item); if the Keychain is unavailable it falls back to <code>pairing.json</code> (readable only by you), as “Token stored in” on the status page shows. Browsers are in <code>~/Library/Caches/ms-playwright</code>, shared with the development environment.</li>
+          <li><strong>Server on the same Mac</strong>: open the external port with <code>rpa serve --worker-port 8081</code> as usual and pair with <code>http://127.0.0.1:8081</code>.</li>
         </ul>
       </div>
     </section>
