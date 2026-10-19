@@ -18,7 +18,8 @@ CI 的桌面端建置在 macOS 建好 RPA 錄製端、跑完自我測試之後�
    ``--no-window`` 少的只是 App 的視窗）：工作階段在錄製端、執行第一步通過、截圖傳回管理 Portal
    再經由閘道拿得到；結束後錄製端的暫存資料夾清空。
    調試中檢查程序：無頭時只有 headless shell（或帶 ``--headless``），有頭時有一般的 Chromium。
-7. 在資料夾寫 ``stop.request`` 請打包版結束（結束碼 0），網址檔刪掉。
+7. 在資料夾寫 ``stop.request`` 請打包版結束（結束碼 0），網址檔刪掉；等管理 Portal 判定離線
+   （30 秒沒消息），下一步看到的「上線」才是新啟動的那份。
 8. 不給邀請再啟動一次（用鑰匙圈裡存下的配對），上線後送 SIGTERM，結束碼 0；最後結束管理 Portal。
 
 印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，可以用
@@ -213,6 +214,8 @@ def run(app: Path, folder: Path) -> JsonObject:
         def online() -> JsonObject | None:
             if recorder is not None and recorder.poll() is not None:
                 raise StepFailedError(f"打包版結束了（結束碼 {recorder.returncode}）")
+            if not url_file.exists():  # 這一份的閘道還沒啟動
+                return None
             record = api.call("GET", f"/api/recorders/{DEVICE}")
             return record if record.get("status") == "online" else None
 
@@ -334,7 +337,14 @@ def run(app: Path, folder: Path) -> JsonObject:
             raise StepFailedError(f"打包版的結束碼是 {code}（應該是 0）")
         if url_file.exists():
             raise StepFailedError("結束後網址檔還在")
-        return "收到 stop.request 後正常結束，網址檔已刪除"
+
+        # 管理 Portal 要 30 秒沒消息才判定失聯：等它標成離線，下一步的「上線」才是新啟動的那份
+        def offline() -> JsonObject | None:
+            record = api.call("GET", f"/api/recorders/{DEVICE}")
+            return record if record.get("status") == "offline" else None
+
+        wait_until("管理 Portal 判定錄製端離線", offline, 120)
+        return "收到 stop.request 後正常結束，網址檔已刪除；Portal 判定離線"
 
     plan: list[tuple[str, Callable[[], str]]] = [
         ("portal", start_portal),
