@@ -9,8 +9,9 @@
   ``--no-testsite`` 關閉；8765 上已經是測試網站就直接沿用。
 - 啟動時檢查 Chromium、Firefox 有沒有下載：較早安裝的環境只有 Chromium，
   git pull 之後才執行 Firefox 場景會失敗，先提醒要執行的命令。
-- ``--worker-port``（M9a）：另外開一個埠給遠端 worker（預設聽 0.0.0.0，所有網路介面）。
-  那個埠只有 Worker API（/worker-api，要權杖），管理頁面仍然只在 ``--host`` 上。
+- ``--worker-port``（M9a）：另外開一個對外埠給裝置（預設聽 0.0.0.0，所有網路介面）。
+  那個埠有 Worker API、Client API 與配對（M10），錄製端也用它的權杖看管理頁面（M10.2）；
+  每個請求都要權杖或邀請。這台的管理頁面仍然只在 ``--host`` 上。
   ``--no-local-worker`` 讓這台電腦不執行，全部交給遠端 worker。
 """
 

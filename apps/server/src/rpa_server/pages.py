@@ -365,7 +365,13 @@ def page_router(services: Services) -> APIRouter:
     def recording(scene: str = "") -> HTMLResponse:
         """自主腳本錄製：在這台電腦錄製或貼上錄製稿，轉成場景草稿。"""
         recordings = services.recordings.list_recordings()
-        active = next((item for item in recordings if item.status == "recording"), None)
+        via = services.recorders.current()
+        here = via.id if via is not None else None
+        # 每台裝置同一時間各一段錄製：只看操作的這台的
+        active = next(
+            (item for item in recordings if item.status == "recording" and item.device_id == here),
+            None,
+        )
         domains = services.list_domains()
         return page(
             "recording.html",
@@ -376,7 +382,7 @@ def page_router(services: Services) -> APIRouter:
             scenes=services.list_scenes(),
             roles=services.roles.list_roles(),
             engines=ENGINES,
-            display=services.display,
+            display=services.display_here(),
             default_domain=domains[0].id if domains else "",
             default_url="",
             selected_scene=scene,
@@ -414,7 +420,7 @@ def page_router(services: Services) -> APIRouter:
             usage=usage,
             missing=missing,
             environ={name for name, _ in missing if name in os.environ},
-            display=services.display,
+            display=services.display_here(),
             busy=any(role.activity for role in records),
             engines=ENGINES,
             check_text=_check_text,
@@ -446,7 +452,7 @@ def page_router(services: Services) -> APIRouter:
             yaml=files.get("scenario.yaml", ""),
             defaults=defaults,
             needs=services.scene_needs(scenario),
-            display=services.display,
+            display=services.display_here(),
             engines=ENGINES,
             base_url=record.base_url or scenario.browser.base_url,
             idle_minutes=int(IDLE_SECONDS // 60),
