@@ -10,9 +10,11 @@ import threading
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import click
 import pytest
+import uvicorn
 from click.testing import CliRunner
 
 from rpa_cli.i18n import install_click_translations
@@ -174,3 +176,35 @@ def test_warning_says_which_browser_and_the_command() -> None:
     assert both is not None
     assert both.startswith("這台電腦還沒有下載 Chromium、Firefox，")
     assert "uv run playwright install chromium firefox" in both
+
+
+@pytest.mark.parametrize("local_worker", [True, False])
+def test_server_only_skips_browser_driver(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, local_worker: bool
+) -> None:
+    calls: list[bool] = []
+
+    def missing() -> list[str]:
+        calls.append(True)
+        return ["chromium"]
+
+    def no_server(self: uvicorn.Server, sockets: list[socket.socket] | None = None) -> None:
+        pass
+
+    monkeypatch.setattr("rpa_runner.installed.missing_browsers", missing)
+    monkeypatch.setattr(uvicorn.Server, "run", no_server)
+    result = CliRunner().invoke(
+        build_cli(),
+        [
+            "serve",
+            "--port",
+            "0",
+            "--data",
+            str(tmp_path),
+            "--no-testsite",
+            "--local-worker" if local_worker else "--no-local-worker",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert calls == ([True] if local_worker else [])
+    assert ("playwright install" in result.output) == local_worker

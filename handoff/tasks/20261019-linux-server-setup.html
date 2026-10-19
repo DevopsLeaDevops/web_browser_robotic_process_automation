@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Linux 伺服器安裝 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body><main id="main">
+<nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+<div class="heading"><div><h1>Linux 伺服器安裝</h1><p>支援以 yum 安裝套件、ID_LIKE 含 rhel／fedora／centos 的公司衍生發行版。</p></div></div>
+<div class="stack">
+<section class="panel" id="identity"><div class="panel-header"><h2>任務與責任</h2></div><div class="panel-body"><dl class="spec-list">
+<dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求拉取最新程式碼，新增公司 CentOS 衍生 Linux 伺服器的 setup。套件以 yum 安裝；發行版標記含 rhel、fedora、centos。驗收：可以安裝獨立伺服器環境、啟動管理與裝置 API、重跑保留設定及資料，提供 systemd 與操作文件。</dd>
+<dt>主責／審閱／接收方</dt><dd>ChatGPT／Codex；尚未獨立審閱，接收方未指定。</dd>
+<dt>範圍／不包含</dt><dd>scripts/setup-linux.sh、相關測試與 CI、Linux 伺服器操作文件；不修改資料庫結構，不代替公司主機的人工驗收。遠端 Worker 執行、錄製端互動；伺服器不安裝瀏覽器。</dd>
+<dt>修改檔案／整合者</dt><dd>Codex 整合 scripts、apps/cli 的伺服器瀏覽器檢查、tests/ci、tools/linux_server_smoke.py、setup-scripts.yml、README、setup 與 quickstart 三語文件、.gitignore、本任務及索引。PR #40／#41／#42 為其他進行中工作，不接管；未修改依賴鎖檔。</dd>
+<dt>分支／PR／起點</dt><dd>chore/linux-server-setup；PR 尚未建立；從最新 origin/main <code>0bc01276127e664e1089f2e2a3d48093f7f40444</code> 建立。已快轉更新本機 main。</dd>
+<dt>狀態／同步</dt><dd>實作中；基準 SHA 加目前工作區差異，僅本機可見。</dd>
+<dt>環境</dt><dd>本機 macOS arm64，uv 0.12.24。PATH 原本先找到 Homebrew uv 0.7.6，驗證明確使用 ~/.local/bin/uv。無 Docker／Podman；實際 RPM 環境交由 CI 容器驗證。使用者補充公司主機：x86_64、glibc 2.32、ID／名稱空白、ID_LIKE="rhel fedora centos "、VERSION_ID="3"；已納入辨識測試，不依版本號推定 CentOS 主版本。</dd>
+</dl></div></section>
+<section class="panel" id="progress"><div class="panel-header"><h2>進度與下一步</h2></div><div class="panel-body"><p>實作選擇：依 ID 與 ID_LIKE 判斷 RPM 家族，yum 優先、dnf 備援；設定 glibc 2.28 下限，不替換系統 Python 或 glibc。uv 依鎖檔只安裝 rpa-cli 及相依套件至 .venv-server；管理埠保持 loopback，裝置埠使用既有權杖驗證。已完成腳本、安裝分支測試、隔離資料的真實 HTTP 冒煙、多語文件及 Rocky 8 CI 工作。伺服器環境固定使用 uv 管理的 Python，設定與資料重跑保留。下一步推送功能分支、建立 PR 並核對最新 head 的 CI；公司主機與真實 systemd 服務啟停仍待人工驗收。</p></div></section>
+<section class="panel" id="validation"><div class="panel-header"><h2>驗證</h2></div><div class="panel-body"><p>版本：基準 <code>0bc0127</code> 加目前工作區差異。本地 macOS arm64；uv 0.12.24；開發環境 Python 3.13，獨立伺服器 Python 3.13.16。驗證如下：</p><ul class="points">
+<li><code>uv sync --locked</code>、<code>bash -n scripts/setup-linux.sh</code>、<code>--help</code>、<code>git diff --check</code>、工作流程 YAML 解析通過。</li>
+<li><code>uv run pytest -q tests/ci/test_linux_setup.py apps/cli/tests/test_serve.py tests/docs tests/i18n</code>：308 通過；含使用者提供的完整辨識特徵、舊 glibc 拒絕、yum 優先／dnf 備援、設定與資料保留、安裝失敗停止及啟動器特殊路徑。</li>
+<li><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run python tools/i18n.py check</code> 通過。</li>
+<li><code>uv run pyright --pythonplatform Linux</code>：0 錯誤、3 個既有 pystray 來源警告。本機預設 macOS 型別檢查另有未改動的 <code>recorder_gui.py</code> 缺 Foundation stub 錯誤；本次修改的 Python 檔另做限定範圍檢查。</li>
+<li><code>uv run pytest -m "not browser" -q</code>：1164 通過、2 個 Windows 平台測試略過、76 個瀏覽器測試未選取、1 失敗。失敗為未修改的 <code>test_frozen_commands_use_the_app_entry</code>：測試硬編碼 /Applications 的路徑，本機已安裝的 rpa-child 讓其退回 App 本身的斷言不成立。沒有把此全量檢查列為通過。</li>
+<li>以腳本的 <code>install_runtime</code> 在本機建立 <code>.venv-server</code>（29 個套件），<code>.venv-server/bin/python tools/linux_server_smoke.py</code> 通過：真實 HTTP、埠隔離、一次性裝置配對、重新啟動仍可讀取原裝置。此為 macOS 上的伺服器驗證，不代表 yum 安裝已驗收。</li>
+<li>CI 新增 Rocky Linux 8、glibc 2.28、一般帳號與 sudo：專案內及獨立腳本 clone、模擬公司空 ID 標記、真實 yum、重跑、HTTP 與 unit 語法。CI 結果待 PR 建立後記錄；容器未執行 systemd PID 1，公司 glibc 2.32 映像、aarch64、systemd 啟停／開機自啟動及兩台電腦連線均未人工驗收。</li>
+</ul></div></section>
+<section class="panel" id="receipt"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>未接收；尚無指定接收方。</p></div></section>
+<section class="panel" id="log"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-10-19 06:32 America/Los_Angeles（PDT，UTC−07:00）：Codex 核對乾淨工作區、fetch、最新主線與開啟 PR；建立獨立功能分支，開始實作。</li><li>2026-10-19 06:44 America/Los_Angeles（PDT，UTC−07:00）：接續本機同一任務草稿，fetch 並以 git pull --ff-only origin main 確認已是最新主線；完成腳本、文件與本地驗證，保留既有修改及上述平台缺口。尚未推送。</li></ul></div></section>
+</div></main></body></html>

@@ -243,9 +243,10 @@ def build_serve_command() -> click.Command:
             if testsite:
                 site, message = start_testsite()
                 click.echo(message, err=True)
-            warning = browser_warning(missing_browsers())
-            if warning is not None:
-                click.echo(warning, err=True)
+            if local_worker:
+                warning = browser_warning(missing_browsers())
+                if warning is not None:
+                    click.echo(warning, err=True)
             click.echo(
                 t(
                     "cli.serve.started",

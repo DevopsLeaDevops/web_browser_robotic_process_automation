@@ -79,6 +79,47 @@ uv run rpa --version</pre>
       </div>
     </section>
 
+    <section class="panel" id="linux-server">
+      <div class="panel-header"><h2>Linux server setup (yum/dnf)</h2></div>
+      <div class="panel-body">
+        <p>The headless server hosts the Portal, database and scheduler. Remote Workers run browsers; the Recorder handles recording, manual login and headed debugging. <code>setup-linux.sh</code> installs <code>.venv-server</code> without browser downloads, desktop apps, development tools or Git hooks. Existing CLI dependencies still include the Playwright Python package, but its browser driver is not started.</p>
+        <dl class="spec-list">
+          <dt>Distribution detection</dt><dd>Reads <code>ID</code> and <code>ID_LIKE</code> from <code>/etc/os-release</code>, accepting rhel, centos or fedora; prefers yum, then dnf. Blank names and <code>ID=""</code> work with <code>ID_LIKE="rhel fedora centos "</code>. A corporate <code>VERSION_ID="3"</code> is not interpreted as CentOS 3.</dd>
+          <dt>Runtime</dt><dd>x86_64 or aarch64 with glibc 2.28 or newer; check with <code>uname -m</code> and <code>getconf GNU_LIBC_VERSION</code>. x86_64 with glibc 2.32 meets these prerequisites; the actual corporate repositories and host still need acceptance testing. System glibc and Python are not replaced: uv downloads the Python specified by <code>.python-version</code> and installs from <code>uv.lock</code>.</dd>
+          <dt>System packages</dt><dd><code>git curl ca-certificates tar gzip libstdc++ libgcc</code>. Run as a regular user; yum/dnf and systemd operations use sudo. Use <code>--skip-system-packages</code> when an administrator has already installed them.</dd>
+          <dt>Data</dt><dd>Defaults to <code>~/.local/share/rpa-server</code>; set <code>RPA_DATA_DIR</code> before the first installation to change it. To continue an existing service, specify its original data directory or a new empty environment will be created.</dd>
+        </dl>
+<pre class="source"># Existing checkout: run from the repository root (use bash setup-linux.sh inside scripts)
+bash scripts/setup-linux.sh
+.venv-server/bin/rpa-server
+
+# Or install a service that starts at boot, without keeping a foreground process open
+bash scripts/setup-linux.sh --install-service
+sudo systemctl status rpa-server
+sudo journalctl -u rpa-server -f
+
+# No checkout yet: finish downloading before execution (requires curl and CA certificates)
+curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup-linux.sh -o /tmp/rpa-setup-linux.sh
+bash /tmp/rpa-setup-linux.sh --dir "$HOME/code/web_browser_robotic_process_automation"</pre>
+        <p>The first installation creates <code>.rpa-server.env</code> in the repository (Bash syntax, mode 600, Git ignored). The admin interface listens on <code>127.0.0.1:8080</code> and device APIs on <code>0.0.0.0:8081</code>, with <code>--no-local-worker --no-testsite</code>. Edit <code>RPA_DATA_DIR</code>, <code>RPA_PORT</code>, <code>RPA_WORKER_PORT</code> or <code>RPA_WORKER_HOST</code> in this file, then restart. Rerunning setup preserves it. The service and data belong to the user running the script; do not run the whole script with sudo.</p>
+        <p>Initial administration: run the SSH forwarding command below on your computer, open <code>http://127.0.0.1:8080</code>, and create invitations on the Devices page. Invitations must use the server IP or DNS reachable by the Worker/Recorder on port 8081, not the SSH tunnel's 127.0.0.1. Once paired, the Recorder accesses the Portal through its local gateway. See <a href="remote-worker.html">Remote Workers</a> and <a href="../design/desktop.html">Desktop distribution</a>.</p>
+<pre class="source">ssh -N -L 8080:127.0.0.1:8080 admin@SERVER
+
+# After editing configuration
+sudo systemctl restart rpa-server
+
+# Upgrade: stop the service and back up all data (rpa.db, scenes, roles, secrets.json)
+sudo systemctl stop rpa-server
+# Back up the entire RPA_DATA_DIR specified in .rpa-server.env here
+git pull --ff-only
+bash scripts/setup-linux.sh --install-service</pre>
+        <p>Setup starts the service only with <code>--install-service</code>; stop foreground processes with Ctrl+C. An active systemd service blocks setup; stop foreground processes before upgrading as well. Use the foreground command in containers without systemd; the generated unit is <code>.venv-server/rpa-server.service</code>. Reinstallation preserves data, but starting the server applies database migrations, so keep a full backup for rollback. The script does not pull or switch branches in existing checkouts or alter firewall rules; allow only the devices that need access to the device port.</p>
+        <p>Corporate networks must provide access to the code, uv installer, Python distributions and locked package sources. Set <code>HTTPS_PROXY</code> or <code>UV_PYTHON_INSTALL_MIRROR</code> as needed; use <code>UV_NATIVE_TLS=true</code> when the corporate CA is in the system trust store. Git and curl also need to trust that CA; do not disable TLS verification. An existing approved uv installation is reused; an outdated version produces an actionable error and should be upgraded through its original installation method.</p>
+        <p><code>--locked</code> preserves the lock file, including registry and download URLs. Setting <code>UV_INDEX_URL</code> alone does not guarantee that locked sources are redirected to an internal mirror and may make uv consider the lock file outdated. Provide an approved proxy to the locked sources, or have maintainers generate and review a lock file for the mirror. Do not delete the lock file or change versions ad hoc. This setup does not require browser download hosts.</p>
+        <p>Validation: CI uses Rocky Linux 8 (real yum, glibc 2.28, a regular user) for in-repository and standalone-clone installations, blank corporate distribution identifiers, configuration preservation, port isolation, device pairing and data persistence after restart. Containers only check systemd unit syntax; the corporate image, aarch64 and actual systemd boot behavior require host acceptance testing. Run <code>.venv-server/bin/python tools/linux_server_smoke.py</code> for an HTTP smoke test with isolated temporary data.</p>
+      </div>
+    </section>
+
     <section class="panel" id="faq">
       <div class="panel-header"><h2>FAQ</h2></div>
       <div class="panel-body">

@@ -16,6 +16,9 @@ on:
       - "apps/*/pyproject.toml"
       - "uv.lock"
       - ".python-version"
+      - "tools/linux_server_smoke.py"
+      - "tests/ci/test_linux_setup.py"
+      - "apps/cli/src/rpa_cli/serve.py"
   pull_request:
     paths:
       - "scripts/**"
@@ -25,6 +28,9 @@ on:
       - "apps/*/pyproject.toml"
       - "uv.lock"
       - ".python-version"
+      - "tools/linux_server_smoke.py"
+      - "tests/ci/test_linux_setup.py"
+      - "apps/cli/src/rpa_cli/serve.py"
   schedule:
     # America/Los_Angeles：週日 19:17 PDT（UTC−07:00）／18:17 PST（UTC−08:00）。避開整點。
     # 公開倉庫 60 天沒有任何活動時，GitHub 會自動停用排程。
@@ -54,6 +60,64 @@ defaults:
     shell: bash
 
 jobs:
+  linux-server:
+    name: Linux 伺服器（Rocky 8，${{ matrix.mode }}）
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [in-repo, from-scratch]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: 真實 yum 安裝、重跑、啟動與配對
+        env:
+          SETUP_MODE: ${{ matrix.mode }}
+        run: |
+          docker run --rm -i -v "$GITHUB_WORKSPACE:/source:ro" \
+            -e RPA_GIT_REF -e SETUP_MODE rockylinux:8 bash -s <<'BASH'
+          set -Eeuo pipefail
+          # Rocky 8 的 glibc 2.28 是腳本下限；以一般帳號驗證 sudo 路徑。
+          yum install -y sudo shadow-utils systemd
+          useradd --create-home --shell /bin/bash rpa-test
+          echo 'rpa-test ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/rpa-test
+          chmod 440 /etc/sudoers.d/rpa-test
+          if [ "$SETUP_MODE" = in-repo ]; then
+            cp -a /source /home/rpa-test/repo
+            chown -R rpa-test:rpa-test /home/rpa-test/repo
+            sudo -H -u rpa-test bash -c 'cd "$HOME/repo/scripts"; bash setup-linux.sh'
+          else
+            # 公司映像可能沒有 ID／名稱；VERSION_ID=3 不是 CentOS 3。
+            printf 'NAME=""\nVERSION=""\nID=""\nID_LIKE="rhel fedora centos "\nVERSION_ID="3"\nPRETTY_NAME=""\n' > /etc/os-release
+            cp /source/scripts/setup-linux.sh /home/rpa-test/setup-linux.sh
+            sudo -H -u rpa-test env RPA_GIT_REF="$RPA_GIT_REF" bash -c \
+              'cd "$HOME"; bash setup-linux.sh --dir "$HOME/repo"'
+          fi
+          sudo -H -u rpa-test bash -s <<'CHECK'
+          set -Eeuo pipefail
+          cd "$HOME/repo"
+          getconf GNU_LIBC_VERSION
+          .venv-server/bin/python --version
+          # 重跑不能改鎖檔、使用者設定或資料。
+          sha256sum uv.lock > /tmp/rpa-lock.sha
+          echo '# retain this setting' >> .rpa-server.env
+          cp .rpa-server.env /tmp/rpa-env.before
+          source .rpa-server.env
+          mkdir -p "$RPA_DATA_DIR"
+          echo keep > "$RPA_DATA_DIR/keep.txt"
+          bash scripts/setup-linux.sh
+          cmp .rpa-server.env /tmp/rpa-env.before
+          test "$(cat "$RPA_DATA_DIR/keep.txt")" = keep
+          sha256sum -c /tmp/rpa-lock.sha
+          .venv-server/bin/python -c 'import importlib.util; assert all(importlib.util.find_spec(name) is None for name in ("pytest", "ruff", "rpa_desktop"))'
+          .venv-server/bin/python tools/linux_server_smoke.py
+          CHECK
+          # 容器沒有 systemd PID 1，只驗證 unit；真實服務啟停另由公司主機驗收。
+          systemd-analyze verify /home/rpa-test/repo/.venv-server/rpa-server.service
+          BASH
+
   in-repo:
     name: 專案內執行（${{ matrix.os }}）
     runs-on: ${{ matrix.os }}
