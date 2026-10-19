@@ -152,6 +152,9 @@ if sys.platform == "darwin":
         bundle_identifier=NAMES["id"],
         version=VERSION,
         info_plist={
+            # PyInstaller 取 COLLECT 裡第一個執行檔當 CFBundleExecutable，而 COLLECT 依名稱排序：
+            # rpa-child 排在 rpa-recorder 前面，雙擊 App 會跑主控台的 rpa-child（印出版本就結束）
+            "CFBundleExecutable": NAMES["exe"],
             "CFBundleName": NAMES["bundle"],
             "CFBundleDisplayName": NAMES["display"],
             "CFBundleShortVersionString": VERSION,
