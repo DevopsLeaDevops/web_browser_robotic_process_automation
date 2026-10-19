@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261018-m10-2-macos-recorder；2026-10-18 16:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261018-m10-2-macos-recorder；2026-10-19 04:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 2026-10-18 08:52 America/Los_Angeles（PDT，UTC−07:00）問下一步；Claude 提出 M10.2 的計畫（三個 PR）與三個待決定事項，使用者在 08:59 回覆「ok, PR1 and PR2 start together」（見<a href="../decisions.html">決定</a>）。驗收沿用設計：在 Mac 上錄一段（瀏覽器開在 Mac）→ 草稿 → 逐步調試 → 人工登入角色 → 交給 Windows Worker 驗證 → 發布；沒配對的電腦打開 8081 看不到管理頁面。</dd>
         <dt>範圍／不包含</dt><dd><strong>PR 1 伺服器端＋命令列錄製端</strong>（<code>m10/recorder-server</code>）：裝置頁新增、邀請「錄製端」；帶錄製端權杖才能從對外埠看 Portal；Client API 的上線、指令通道、子程序輸出與檔案回傳；錄製、逐步調試、人工登入可以交給錄製端執行；頁首顯示透過哪台錄製端、從錄製端看時「本機」改叫「伺服器」；<code>rpa recorder --invite …</code>（本機閘道＋系統瀏覽器）。<strong>PR 2 錄製端 App</strong>（<code>m10/recorder-app</code>，疊在 PR 1 上）：pywebview（WKWebView）視窗只連本機閘道、配對與下載瀏覽器與離線的頁面、鑰匙圈、只執行一份、新視窗與下載。<strong>PR 3</strong>：DMG 進 Release、macOS 端到端 CI、文件、v0.3.0。不包含：Windows 版錄製端、錄製端兼當執行機、HTTPS、自動更新、Intel Mac。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude（使用者指派）。審閱與合併由使用者決定；合併前另由沒寫這段程式的 agent 審閱。</dd>
         <dt>修改檔案／整合者</dt><dd>PR 1：<code>apps/server</code>（遷移 0009、裝置與錄製端、Client API、middleware、三個互動服務、頁面與訊息）、<code>apps/worker</code>（錄製端的指令通道與本機閘道）、<code>apps/cli</code>（<code>rpa recorder</code>）、文件與交接。PR 2：<code>apps/desktop</code>、打包設定、<code>.github/workflows/desktop.yml</code>。共用檔案（訊息目錄、遷移編號、任務索引、<code>uv.lock</code>）由 Claude 整合；簡中與 <code>uv.lock</code> 由 bootstrap 產生。</dd>
-        <dt>狀態</dt><dd><strong>PR 1：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a> 可以審閱</strong>（CI 在 <span class="mono">2b4fd64</span> 全部通過，獨立審閱的問題已修正）。<strong>PR 2：實作完成、本機檢查通過，推送並開 PR（疊在 #36 上）</strong>；WKWebView 的視窗只能在 CI 的 macOS 測。計畫在 2026-10-18 08:59 America/Los_Angeles（PDT，UTC−07:00）由使用者核准，要求兩個一起開始。</dd>
+        <dt>狀態</dt><dd><strong>PR 1：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a> 可以審閱</strong>（CI 在 <span class="mono">2b4fd64</span> 全部通過，獨立審閱的問題已修正）。<strong>PR 2：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/37">#37</a> 可以審閱</strong>（疊在 #36 上；雙擊的修正 <span class="mono">4f42d13</span> 的桌面端建置通過；<span class="mono">26ddaf8</span> 的 Linux 伺服器修正與部署文件等 CI）。<strong>主體功能使用者在 2026-10-19 04:22 America/Los_Angeles（PDT，UTC−07:00） 驗收通過</strong>，細節慢慢驗收。PR 3 的計畫等使用者核准。</dd>
         <dt>分支／PR／base SHA</dt><dd>PR 1：<code>m10/recorder-server</code>，從 <code>origin/main</code> <span class="mono">d71f513</span>（#35）開出；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>。PR 2：<code>m10/recorder-app</code>，從 <span class="mono">2b4fd64</span> 開出、疊在 #36 上；#36 合併後把 base 改成 <code>main</code>。</dd>
         <dt>交接版本／同步狀態</dt><dd>PR 1 的提交推送到 <code>m10/recorder-server</code> 後以 GitHub 上的 PR 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器，Python 3.13、ruff、pyright；不能連 PyPI（<code>uv sync</code> 失敗），本機只跑不需要新依賴的測試；macOS 的視窗只能在 CI 的 macOS 執行環境測。GitHub 代理不允許推標籤（2026-10-18 09:00 推 <code>v0.2.0</code> 被拒，403），標籤請使用者推。</dd>
@@ -102,12 +102,15 @@
             <li>存取控制：Safari 打開 <code>http://127.0.0.1:8081/scenes</code> → 401（沒配對的電腦看不到管理頁面）。</li>
             <li>（選用）兩台 Mac：伺服器那台貼整行邀請（區網 IP）；macOS 15 會問「允許連到區網上的裝置」、伺服器那台的防火牆會問 Python 接受連入；瀏覽器開在錄製端那台。</li>
             <li>（選用）命令列：另新增 <code>mac-02</code>，<code>uv run rpa recorder --server http://127.0.0.1:8081 --invite （代碼）</code>，在 Safari 做一次步驟 5。</li>
-            <li>結果與問題（截圖、<code>~/Library/Application Support/rpa/recorder/logs/recorder.log</code>、<code>rpa serve</code> 的輸出）回填驗收紀錄。已知：錄製、調試、人工登入頁面的說明文字仍寫「執行 Portal 的電腦」，透過錄製端時不對（只是文字）；DMG 的版本還是 0.2.0（PR 3 改版本）。</li>
+            <li>結果與問題（截圖、<code>~/Library/Application Support/rpa/recorder/logs/recorder.log</code>、<code>rpa serve</code> 的輸出）回填驗收紀錄。已知：錄製、調試、人工登入頁面的說明文字仍寫「執行 Portal 的電腦」，透過錄製端時不對（<span class="mono">26ddaf8</span> 已修正）；DMG 的版本還是 0.2.0（PR 3 改版本）。</li>
           </ol>
         </li>
+        <li><strong>使用者驗收（2026-10-19 04:22 America/Los_Angeles（PDT，UTC−07:00））：</strong>「好的，主體功能我已經驗收過了。其他的慢慢驗收。」用 #37 的建置、同一台 Mac 當伺服器與錄製端。逐步的結果沒有回報，上面 15 個步驟哪些做過不知道。同一則訊息要求：說明下一步（PR 3？）、把伺服器、錄製端、運行端的操作方法補進文件。</li>
+        <li><strong>Linux 伺服器＋Mac 錄製端的修正（<span class="mono">26ddaf8</span>，2026-10-19 04:25～04:35 America/Los_Angeles（PDT，UTC−07:00））：</strong>為部署文件核對程式時發現：錄製頁、登入與憑證頁、逐步調試頁用伺服器自己有沒有畫面決定能不能錄製、人工登入、有頭調試，伺服器是沒有畫面的 Linux 時，透過 Mac 的錄製端也全部停用（使用者正要這樣測）。改成看操作的那台（<code>Services.display_here()</code>：透過錄製端時看錄製端回報的）；API 的 <code>display</code> 也一樣。錄製頁的「錄製中」只看操作的這台（每台各一段，伺服器端本來就是這樣檢查）。透過錄製端時說明文字改指錄製端，登入狀態與 Secrets 說成存在伺服器，頁面腳本的訊息也換（<code>js_messages</code> 改用 <code>page_t</code>）。新測試 <code>test_pages_follow_the_recorder_display</code>。</li>
+        <li><strong>部署與操作文件（2026-10-19 04:35～04:45 America/Los_Angeles（PDT，UTC−07:00））：</strong>新頁面 <code>docs/develop/operations.html</code>（繁中、英文，英文已 stamp，登記在 nav.js 的「開發」）：三種角色、常見部署方式（一台 Mac、Linux 伺服器＋Mac 錄製端＋Windows 運行端、Mac 伺服器＋Windows 運行端）、伺服器（安裝、啟動選項、兩個埠與防火牆、SSH 通道、systemd、更新、備份與搬家）、管理裝置、錄製端與運行端的日常操作、日誌位置、常見問題。安裝與第一次配對連到遠端 worker 指南，不重複。<code>rpa serve --worker-port</code> 的說明與啟動訊息原本寫「只有 Worker API 與配對」，改成 M10.2 之後的樣子。</li>
         <li><strong>實作選擇（Claude，使用者可以再改）：</strong>每台裝置同一時間各一段錄製；同一個場景的逐步調試只有一個，在另一台開始時關掉原本的；錄製端的權杖只能用邀請換。</li>
-        <li><strong>未完成／阻礙：</strong>PR 2 等 CI 與審閱；PR 3 未開始。v0.2.0：使用者在 2026-10-18 09:03 America/Los_Angeles（PDT，UTC−07:00）推了標籤，Claude 核對草稿（這個 session 不能發布），使用者在 17:12 發布（<a href="20261016-m10-1-windows-worker.html">M10.1 任務紀錄</a>）。</li>
-        <li><strong>下一個具體動作：</strong>使用者審 #36；Claude 推送 PR 2、看 macOS 的建置與視窗自我測試、請沒寫這段程式的 agent 審閱 PR 2。之後是 PR 3（DMG 進 Release、macOS 端到端、v0.3.0）。</li>
+        <li><strong>未完成／阻礙：</strong><span class="mono">26ddaf8</span> 之後的 CI；細節驗收；PR 3 等核准。v0.2.0：使用者在 2026-10-18 09:03 America/Los_Angeles（PDT，UTC−07:00）推了標籤，Claude 核對草稿（這個 session 不能發布），使用者在 17:12 發布（<a href="20261016-m10-1-windows-worker.html">M10.1 任務紀錄</a>）。</li>
+        <li><strong>下一個具體動作：</strong>Claude 看 CI、更新 #37 的說明；使用者核准 PR 3 的計畫、合併 #36（之後 #37 的 base 改成 <code>main</code> 再合併）。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無（本機的 <code>pyrightconfig.local.json</code> 用完即刪）。</li>
       </ul></div>
     </section>
@@ -139,6 +142,7 @@
         <li><span class="mono">2026-10-18 16:50～16:58 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 <span class="mono">2e891aa</span>（<code>[bootstrap]</code>），開 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/37">#37</a>（草稿，base <code>m10/recorder-server</code>）。bot 的 <span class="mono">41d935a</span> 更新 <code>uv.lock</code>（pywebview 在 macOS 多了 PyObjC 12.2.2）與簡中；<span class="mono">2e891aa</span> 的 CI 因為鎖檔還沒更新在安裝依賴時失敗（預期）。</li>
         <li><span class="mono">2026-10-18 20:25～20:35 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）使用者要人工驗證步驟；Claude 提供上面的步驟（#36＋#37 一起）。#37 的「一鍵安裝腳本」從零開始（windows-latest）在「下載後以 -File 執行」失敗一次，沒有可讀的輸出（Portal 的瀏覽器軌跡在 Artifacts，這個 session 下載不了），已重新執行失敗的工作確認是不是偶發。</li>
         <li><span class="mono">2026-10-19 04:04～04:20 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）人工驗證第 2 步：使用者回報從 #37 的建置裝好 App 後雙擊沒有反應，從終端機直接執行 <code>Contents/MacOS/rpa-recorder</code> 可以打開。原因：PyInstaller 的 BUNDLE 取 COLLECT 裡第一個執行檔當 <code>CFBundleExecutable</code>，COLLECT 又依名稱排序，<code>rpa-child</code> 排在 <code>rpa-recorder</code> 前面，雙擊時跑的是主控台的 <code>rpa-child</code>（印出版本就結束）；M10.0 起就是這樣，CI 的自我測試都直接執行裡面的檔案，沒有經過 LaunchServices 所以沒發現。修正：spec 的 Info.plist 明確寫 <code>CFBundleExecutable</code>；建置時檢查 Info.plist（執行檔與 <code>LSBackgroundOnly</code>）；CI 的視窗自我測試改用 <code>open -W -n</code> 開 App（和雙擊相同）。已經裝好的 App 可以先用 PlistBuddy 改 Info.plist 並重新 ad-hoc 簽章暫時解決。</li>
+        <li><span class="mono">2026-10-19 04:22～04:45 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）使用者回報主體功能驗收通過、其他慢慢驗收，問下一步是不是 PR 3，並要求補齊伺服器、錄製端、運行端的操作文件。Claude 修正 Linux 伺服器透過錄製端不能錄製的問題（<span class="mono">26ddaf8</span>）、寫部署與操作文件、更新驗收紀錄，提出 PR 3 的計畫等核准。</li>
       </ul></div>
     </section>
   </div>
