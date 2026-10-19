@@ -220,6 +220,63 @@ def test_portal_on_the_external_port_needs_a_recorder_token(client: Client, remo
     assert remote.get("/devices", headers=auth(device.token)).status_code == 401
 
 
+def test_pages_follow_the_recorder_display(client: Client, remote: Client) -> None:
+    """伺服器沒有畫面（Linux）時，透過有桌面的錄製端照樣可以錄製、人工登入、有頭調試。"""
+    body(client.post("/api/scenes/import"))
+    body(client.post("/api/domains", json={"id": "lab", "name": "實驗"}), 201)
+    device = paired(client, remote)
+    device.hello()
+    headers = auth(device.token)
+    # 伺服器這台（測試的設定沒有畫面）：不能錄製、不能人工登入
+    assert body(client.get("/api/recordings"))["display"] is False
+    assert "執行 Portal 的這台電腦沒有圖形介面" in client.get("/recording").text
+    assert 'data-display="false"' in client.get("/roles").text
+    # 透過錄製端：看錄製端回報的，用詞也指錄製端
+    assert body(remote.get("/api/recordings", headers=headers))["display"] is True
+    assert body(remote.get("/api/roles", headers=headers))["display"] is True
+    page = remote.get("/recording", headers=headers).text
+    assert 'data-display="true"' in page
+    assert "沒有圖形介面" not in page
+    assert 'data-for="record" disabled' not in page
+    assert "錄製端這台會開啟瀏覽器" in page
+    roles = remote.get("/roles", headers=headers).text
+    assert 'data-display="true"' in roles
+    assert "登入狀態傳回伺服器" in roles
+    assert "值只存在伺服器" in roles
+    started_text = "已開始錄製：請在錄製端這台操作瀏覽器"  # 頁面腳本的訊息也換掉（tojson 會跳脫）
+    assert started_text in page or json.dumps(started_text)[1:-1] in page
+    debug = remote.get("/scenes/ba-001/debug", headers=headers).text
+    assert "有頭模式會在錄製端這台打開瀏覽器視窗" in debug
+    assert 'name="headless" value="0" checked' in debug
+
+    # 錄製端這台在錄製：只有它的頁面顯示錄製中，伺服器這台的不受影響
+    started = body(
+        remote.post(
+            "/api/recordings",
+            json={
+                "target": {"sceneId": "rec-001", "new": True, "name": "錄製", "domainId": "lab"},
+                "url": "http://127.0.0.1:8765/",
+            },
+            headers=headers,
+        ),
+        202,
+    )
+    assert started["deviceId"] == "mac-01"
+    busy = remote.get("/recording", headers=headers).text
+    assert f'data-poll="{started["id"]}"' in busy
+    assert "開在錄製端這台" in busy
+    assert 'data-for="record" disabled' in busy
+    assert "data-poll=" not in client.get("/recording").text
+    # 錄製端回報沒有畫面：照樣說明，不能錄製
+    device.hello(display=False)
+    assert "這台錄製端沒有圖形介面" in remote.get("/roles", headers=headers).text
+    (start,) = [item for item in device.commands() if item["type"] == "start"]
+    assert start["module"] == "playwright"
+    device.output(str(start["process"]), [], exit_code=1)  # 關掉視窗前就結束：不留到測試收尾
+    recording = f"/api/recordings/{started['id']}"
+    wait_until(lambda: body(client.get(recording))["status"] != "recording")
+
+
 # ---------------------------------------------------------------- 指令通道
 
 

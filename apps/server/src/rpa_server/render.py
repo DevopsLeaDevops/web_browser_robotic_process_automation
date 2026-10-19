@@ -312,7 +312,7 @@ def js_messages() -> dict[str, str]:
         "js.worker_disabled",
         "js.worker_enabled",
     )
-    return {key.removeprefix("js."): t(key) for key in keys}
+    return {key.removeprefix("js."): page_t(key) for key in keys}  # 透過錄製端時換掉用詞
 
 
 def workflow_preview(workflow: Workflow) -> dict[str, object]:
