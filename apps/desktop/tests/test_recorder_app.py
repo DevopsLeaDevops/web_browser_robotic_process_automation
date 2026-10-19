@@ -17,6 +17,7 @@ from typing import cast, get_args
 import pytest
 
 from rpa_core.i18n import LOCALES
+from rpa_desktop import recorder_headless
 from rpa_desktop.build_info import BuildInfo
 from rpa_desktop.controller import Closable
 from rpa_desktop.credentials import Credentials, MemoryStore
@@ -31,6 +32,7 @@ from rpa_desktop.recorder_controller import (
 )
 from rpa_desktop.recorder_gui import recorder_dir
 from rpa_desktop.recorder_pages import DesktopPages, notice_page, offline_page
+from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.ui import PAGES, page_strings, render_page
 from rpa_worker.environment import WorkerInfo
 from rpa_worker.gateway import COOKIE, DESKTOP_COOKIE, DESKTOP_PREFIX, Gateway
@@ -513,3 +515,88 @@ def test_offline_page() -> None:
     assert "connection refused &lt;x&gt;" in html
     assert "location.reload()" in html
     assert "__gateway" not in html  # 不放帶著密語的網址
+
+
+# ---------------------------------------------------------------- 不開 App 視窗（--no-window）
+
+
+class NoWindow:
+    """在背景執行緒跑 ``recorder_headless.main``，回傳結束碼。"""
+
+    def __init__(self, home: Path, fakes: Fakes, store: MemoryStore, argv: Sequence[str]) -> None:
+        self.home = home
+        self.opened: list[str] = []
+        self.code: list[int] = []
+        self.thread = threading.Thread(
+            target=lambda: self.code.append(
+                recorder_headless.main(
+                    argv,
+                    environ={"RPA_RECORDER_HOME": str(home)},
+                    store=store,
+                    services=fakes.services(),
+                    open_browser=self.opened.append,
+                )
+            ),
+            daemon=True,
+        )
+        self.thread.start()
+
+    def finished(self, timeout: float = 30) -> int:
+        self.thread.join(timeout)
+        assert self.code, "--no-window 沒有結束"
+        return self.code[0]
+
+
+def test_no_window_pairs_and_stops_on_request(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    home, url_file = tmp_path / "home", tmp_path / "portal.txt"
+    argv = ["--invite", LINE, "--url-file", str(url_file), "--open", "--firefox"]
+    run = NoWindow(home, fakes, store, argv)
+    assert fakes.started.wait(10)
+    assert wait_for(lambda: bool(run.opened), 5)
+    url = url_file.read_text(encoding="utf-8").strip()
+    assert re.fullmatch(r"http://127\.0\.0\.1:\d+/__gateway/login\?key=[^&]+&next=/", url)
+    assert url_file.stat().st_mode & 0o077 == 0  # 網址帶著閘道的密語：只有本人能讀
+    assert run.opened == [url]  # --open：連上後用預設瀏覽器打開一次
+    assert fakes.downloaded == ["chromium"]
+    assert fakes.paired[0][1] == "recorder"
+    # 有頭模式照樣可以用：上線時回報能顯示視窗（沒有的只是 App 自己的視窗）
+    assert fakes.hosts[0].info["display"] is True
+    assert json.loads((home / "settings.json").read_text(encoding="utf-8"))["firefox"] is True
+    InstanceLock(home).request_stop()
+    assert run.finished() == 0
+    assert fakes.stopped_all >= 1  # 不等長輪詢：直接結束子程序
+    assert not url_file.exists()
+    assert fakes.site.closed
+
+
+@pytest.mark.parametrize(
+    ("setup", "argv", "code"),
+    [
+        ("none", [], 2),  # 沒有配對也沒有邀請
+        ("rejected", ["--invite", LINE], 1),
+        ("download", ["--invite", LINE], 3),
+    ],
+)
+def test_no_window_exit_codes(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore, setup: str, argv: list[str], code: int
+) -> None:
+    if setup == "rejected":
+        fakes.fatal = ("權杖已失效", 401)
+    if setup == "download":
+        fakes.download_codes = {"chromium": 1}
+    assert NoWindow(tmp_path / "home", fakes, store, argv).finished() == code
+    if setup == "rejected":
+        assert not store.items  # 被拒時清除配對
+
+
+def test_no_window_refuses_a_second_copy(tmp_path: Path, fakes: Fakes, store: MemoryStore) -> None:
+    home = tmp_path / "home"
+    held = InstanceLock(home)
+    assert held.acquire()
+    try:
+        assert NoWindow(home, fakes, store, ["--invite", LINE]).finished() == 4
+    finally:
+        held.release()
+    assert not fakes.paired

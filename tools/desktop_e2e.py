@@ -59,7 +59,7 @@ class StepFailedError(Exception):
     pass
 
 
-def _free_port() -> int:
+def free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("127.0.0.1", 0))
         return int(probe.getsockname()[1])
@@ -89,7 +89,7 @@ class Api:
         return cast("JsonObject", body) if isinstance(body, dict) else {}
 
 
-def _wait(what: str, check: Callable[[], JsonObject | None], timeout: float) -> JsonObject:
+def wait_until(what: str, check: Callable[[], JsonObject | None], timeout: float) -> JsonObject:
     deadline = time.monotonic() + timeout
     last: Exception | None = None
     while time.monotonic() < deadline:
@@ -103,14 +103,14 @@ def _wait(what: str, check: Callable[[], JsonObject | None], timeout: float) -> 
     raise StepFailedError(f"{what}：{timeout:.0f} 秒內沒有完成" + (f"（{last}）" if last else ""))
 
 
-def _tail(path: Path) -> str:
+def tail(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="replace")[-_TAIL:]
     except OSError:
         return ""
 
 
-def _stop(process: subprocess.Popen[bytes] | None, request: Path | None = None) -> None:
+def stop_process(process: subprocess.Popen[bytes] | None, request: Path | None = None) -> None:
     """結束程序。給了 ``request`` 時先寫入這個檔案請它自己結束（取消任務並回報），
     等不到才強制結束。"""
     if process is None or process.poll() is not None:
@@ -141,7 +141,7 @@ def _validate(api: Api, scene: str, inputs: JsonObject) -> JsonObject:
         run = api.call("GET", f"/api/runs/{run_id}")
         return run if run.get("finished") else None
 
-    run = _wait(f"{scene} 的執行 {run_id}", finished, 300)
+    run = wait_until(f"{scene} 的執行 {run_id}", finished, 300)
     if run.get("status") != "passed" or run.get("workerId") != DEVICE:
         raise StepFailedError(
             f"{scene}：狀態 {run.get('status')}、執行的裝置 {run.get('workerId')}、"
@@ -208,7 +208,7 @@ def _start_menu_shortcut() -> Path:
 
 def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
     steps: list[JsonObject] = []
-    portal_port, external_port = _free_port(), _free_port()
+    portal_port, external_port = free_port(), free_port()
     base = f"http://127.0.0.1:{portal_port}"
     portal_log, app_log = folder / "portal.log", folder / "worker.log"
     app_output = folder / "worker.out"  # 視窗程式沒有標準輸出；正常是空的
@@ -230,7 +230,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
                     "error": f"{type(error).__name__}: {error}",
                     "seconds": round(time.monotonic() - started, 1),
                     "output": "\n".join(
-                        f"--- {log.name} ---\n{_tail(log)}"
+                        f"--- {log.name} ---\n{tail(log)}"
                         for log in [portal_log, app_log, *setup_logs[first_log:]]
                         if log.exists()
                     ),
@@ -271,10 +271,10 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
         # 解除安裝程式會把自己複製到暫存資料夾再執行，原本的程序在刪檔案時就先結束了：
         # 等到日誌寫完（usPostUninstall 刪資料在刪完程式之後）
         def removed() -> JsonObject | None:
-            closed = "Log closed." in _tail(folder / log)
+            closed = "Log closed." in tail(folder / log)
             return {} if closed and not app.exists() and _uninstall_entry() is None else None
 
-        _wait("解除安裝完成", removed, 300)
+        wait_until("解除安裝完成", removed, 300)
         if _start_menu_shortcut().exists():
             raise StepFailedError(f"解除安裝後開始功能表捷徑還在：{_start_menu_shortcut()}")
 
@@ -360,7 +360,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
             "--no-testsite",
         ]  # fmt: skip
         portal = subprocess.Popen(command, cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
-        _wait("管理 Portal 啟動", lambda: api.call("GET", "/api/workers"), 120)
+        wait_until("管理 Portal 啟動", lambda: api.call("GET", "/api/workers"), 120)
         return base
 
     def invite() -> str:
@@ -390,7 +390,7 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
             record = api.call("GET", f"/api/workers/{DEVICE}")
             return record if record.get("status") == "online" else None
 
-        record = _wait("裝置上線", online, 300)
+        record = wait_until("裝置上線", online, 300)
         version = build_info()
         if record.get("version") != version.get("version"):
             raise StepFailedError(
@@ -436,8 +436,8 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
             if not step(name, action):
                 break
     finally:
-        _stop(worker, home / "stop.request")
-        _stop(portal)
+        stop_process(worker, home / "stop.request")
+        stop_process(portal)
         for handle in handles:
             handle.close()
     ok = len(steps) == len(plan) and all(item["ok"] for item in steps)

@@ -7,7 +7,8 @@
 - ``--self-test [--report 檔案]``：自我測試，見 :mod:`rpa_desktop.selftest`。
 - ``--worker …``：主控台版的 worker（:mod:`rpa_desktop.worker_app`），排查問題用，開發環境也能用。
 - ``--no-window …``：不開視窗的 worker（:mod:`rpa_desktop.headless`），自動化與 CI 用；
-  旗標在任何位置都算。
+  旗標在任何位置都算。打包的 RPA 錄製端（或加上 ``--recorder``）是不開 App 視窗的錄製端
+  （:mod:`rpa_desktop.recorder_headless`，有頭模式照樣可以用）。
 - ``--window …``：視窗版的 worker（:mod:`rpa_desktop.gui`），開發環境試視窗用。
 - ``--recorder …``：RPA 錄製端的視窗（:mod:`rpa_desktop.recorder_gui`，M10.2），開發環境試視窗用。
 - ``--forget-pairing``：清除這台電腦的配對（認證管理員裡的權杖與配對檔）後結束。解除安裝時
@@ -64,6 +65,7 @@ _USAGE = f"""usage:
   {{app}} --no-window [--invite INVITE] [--log FILE] ...
   {{app}} --window [--background] [--smoke-test --report FILE]
   {{app}} --recorder [--invite INVITE] [--smoke-test --report FILE]
+  {{app}} --recorder --no-window [--invite INVITE] [--url-file FILE] [--log FILE] ...
   {{app}} {FORGET_FLAG}
 """
 
@@ -126,6 +128,15 @@ def _frozen_app() -> str | None:
     return load().app
 
 
+def _bundle_app() -> str | None:
+    """打包的是哪一個 App，同資料夾的 rpa-child 也算（``--no-window`` 用）；開發環境是 None。"""
+    if not is_frozen():
+        return None
+    from rpa_desktop.build_info import load
+
+    return load().app
+
+
 def _missing_streams() -> None:
     """視窗程式（打包的 RPA Worker）沒有標準輸出與錯誤：接到 os.devnull，免得寫入時當掉。
 
@@ -158,6 +169,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args and args[0] == FORGET_FLAG:
         return forget_pairing()
     if NO_WINDOW_FLAG in args and (not args or args[0] not in (FROZEN_MODULE, FROZEN_SCRIPT)):
+        rest = [arg for arg in args if arg not in (NO_WINDOW_FLAG, RECORDER_FLAG)]
+        if RECORDER_FLAG in args or _bundle_app() == "recorder":
+            from rpa_desktop.recorder_headless import main as recorder_headless
+
+            return recorder_headless(rest)
         from rpa_desktop.headless import main as headless
 
         return headless([arg for arg in args if arg != NO_WINDOW_FLAG])
