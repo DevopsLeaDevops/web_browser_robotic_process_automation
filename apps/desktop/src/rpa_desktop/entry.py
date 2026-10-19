@@ -9,11 +9,12 @@
 - ``--no-window …``：不開視窗的 worker（:mod:`rpa_desktop.headless`），自動化與 CI 用；
   旗標在任何位置都算。
 - ``--window …``：視窗版的 worker（:mod:`rpa_desktop.gui`），開發環境試視窗用。
+- ``--recorder …``：RPA 錄製端的視窗（:mod:`rpa_desktop.recorder_gui`，M10.2），開發環境試視窗用。
 - ``--forget-pairing``：清除這台電腦的配對（認證管理員裡的權杖與配對檔）後結束。解除安裝時
   選擇「也刪除配對、設定與日誌」會先執行這個（安裝檔 apps/desktop/packaging/rpa_worker.iss）。
-- 其他：啟動 App。打包的 RPA Worker 開視窗版（M10.1；沒有參數或其他參數都交給它）；
-  錄製端還沒有視窗（M10.2），先印出建置資訊。同資料夾的 ``rpa-child`` 只跑子程序，
-  不會變成第二個 worker。
+- 其他：啟動 App。打包的 RPA Worker 開視窗版（M10.1）、打包的 RPA 錄製端開錄製端的視窗
+  （M10.2）；沒有參數或其他參數都交給它們。同資料夾的 ``rpa-child`` 只跑子程序，
+  不會變成第二個 App。
 
 打包的 RPA Worker 是視窗程式（沒有主控台）：``--version``、``--self-test`` 要讀輸出時用同資料夾的
 ``rpa-child``（主控台程式，同一份程式碼）。
@@ -39,6 +40,7 @@ if TYPE_CHECKING:  # 子程序也經過這裡：執行時只在需要時才載�
 __all__ = [
     "FORGET_FLAG",
     "NO_WINDOW_FLAG",
+    "RECORDER_FLAG",
     "WINDOW_FLAG",
     "WORKER_FLAG",
     "main",
@@ -49,6 +51,7 @@ __all__ = [
 WORKER_FLAG = "--worker"
 NO_WINDOW_FLAG = "--no-window"
 WINDOW_FLAG = "--window"
+RECORDER_FLAG = "--recorder"
 FORGET_FLAG = "--forget-pairing"
 _OWN_FLAGS = (FROZEN_MODULE, FROZEN_SCRIPT, "--self-test", "--version", FORGET_FLAG)
 
@@ -60,6 +63,7 @@ _USAGE = f"""usage:
   {{app}} --worker [--invite INVITE] [--server URL] ...
   {{app}} --no-window [--invite INVITE] [--log FILE] ...
   {{app}} --window [--background] [--smoke-test --report FILE]
+  {{app}} --recorder [--invite INVITE] [--smoke-test --report FILE]
   {{app}} {FORGET_FLAG}
 """
 
@@ -113,13 +117,13 @@ def _is_child() -> bool:
     return Path(sys.executable).stem.lower() == CHILD_EXECUTABLE
 
 
-def _worker_app() -> bool:
-    """打包的 RPA Worker（不是 rpa-child）：沒有參數就進入 worker 模式。"""
+def _frozen_app() -> str | None:
+    """打包的哪一個 App（``worker``、``recorder``）；開發環境或 rpa-child 是 None。"""
     if not is_frozen() or _is_child():
-        return False
+        return None
     from rpa_desktop.build_info import load
 
-    return load().app == "worker"
+    return load().app
 
 
 def _missing_streams() -> None:
@@ -161,10 +165,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         from rpa_desktop.gui import main as window
 
         return window(args[1:])
-    if (not args or args[0] not in _OWN_FLAGS) and _worker_app():
-        from rpa_desktop.gui import main as window
+    if args and args[0] == RECORDER_FLAG:
+        from rpa_desktop.recorder_gui import main as recorder
 
-        return window(args)
+        return recorder(args[1:])
+    if not args or args[0] not in _OWN_FLAGS:
+        app = _frozen_app()
+        if app == "worker":
+            from rpa_desktop.gui import main as window
+
+            return window(args)
+        if app == "recorder":
+            from rpa_desktop.recorder_gui import main as recorder
+
+            return recorder(args)
     if args and args[0] in (FROZEN_MODULE, FROZEN_SCRIPT):
         if len(args) < 2:
             return _usage()

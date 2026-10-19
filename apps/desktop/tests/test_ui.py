@@ -80,7 +80,8 @@ def test_page_script_parses() -> None:
     node = shutil.which("node")
     if node is None:
         pytest.skip("沒有 Node.js")
-    subprocess.run([node, "--check", str(UI / "worker.js")], check=True)
+    for script in ("worker.js", "recorder.js"):
+        subprocess.run([node, "--check", str(UI / script)], check=True)
 
 
 def test_icon_sizes_and_status_colors(tmp_path: Path) -> None:

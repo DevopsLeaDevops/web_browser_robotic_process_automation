@@ -4,6 +4,7 @@
 安裝檔和 App 用的名稱、路徑、旗標一致，以及安裝檔的訊息從訊息目錄正確產生。
 """
 
+import plistlib
 import re
 from pathlib import Path
 
@@ -133,3 +134,32 @@ def test_translations_are_pinned() -> None:
     for name, digest in build.TRANSLATIONS.items():
         assert name.endswith(".isl")
         assert re.fullmatch(r"[0-9a-f]{64}", digest)
+
+
+@pytest.mark.parametrize(
+    ("values", "problem"),
+    [
+        ({"CFBundleExecutable": "rpa-recorder"}, None),
+        ({"CFBundleExecutable": "rpa-child"}, "CFBundleExecutable"),  # 雙擊會跑主控台的 rpa-child
+        ({"CFBundleExecutable": "rpa-recorder", "LSBackgroundOnly": True}, "LSBackgroundOnly"),
+    ],
+)
+def test_bundle_check(tmp_path: Path, values: dict[str, object], problem: str | None) -> None:
+    """macOS 的 App：雙擊時要啟動 App 本身，而且要有 Dock 圖示與選單列。"""
+    bundle = tmp_path / "RPA Recorder.app"
+    (bundle / "Contents").mkdir(parents=True)
+    with (bundle / "Contents" / "Info.plist").open("wb") as handle:
+        plistlib.dump(values, handle)
+    if problem is None:
+        build.check_bundle(bundle, "recorder")
+    else:
+        with pytest.raises(RuntimeError, match=problem):
+            build.check_bundle(bundle, "recorder")
+
+
+def test_spec_names_the_bundle_executable() -> None:
+    spec = (ROOT / "apps" / "desktop" / "packaging" / "rpa_desktop.spec").read_text(
+        encoding="utf-8"
+    )
+    assert '"CFBundleExecutable": NAMES["exe"]' in spec
+    assert '"LSBackgroundOnly": False' in spec
