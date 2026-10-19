@@ -3,29 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>資料存放升級：領域資料夾與 git 同步（設計） · 瀏覽器 RPA</title>
+<title>M11 資料存放升級：領域資料夾與 git 同步 · 瀏覽器 RPA</title>
 <link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
 <link rel="stylesheet" href="../handoff.css">
 </head>
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>資料存放升級：領域資料夾與 git 同步（設計）</h1><p>2026-10-19 05:05 America/Los_Angeles（PDT，UTC−07:00）。<strong>設計討論中，還沒有寫程式。</strong>使用者要求「方法一起設計好之後再開始寫程式碼」；本頁的方案都是 <span class="kind rec">建議</span>，第 11 節的決定點等使用者回覆後才改成 <span class="kind user">已確認</span>。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。下一步是實作 PR 1。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-19 05:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
-        <dt>需求來源</dt><dd>使用者 2026-10-19 04:47 PDT（UTC−07:00）在 Claude 對話提出，整理見<a href="#goals">第 1 節</a>。</dd>
-        <dt>驗收條件</dt><dd>設計階段：使用者確認第 11 節的決定點。實作階段的驗收條件草案見<a href="#plan">第 13 節</a>，設計確認後再定稿。</dd>
-        <dt>範圍／不包含</dt><dd>範圍：資料夾格式、檔案與資料庫的分工、載入與熱載入、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移。不包含：多使用者權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
+        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源</dt><dd>使用者 2026-10-19 04:47 PDT（UTC−07:00）在 Claude 對話提出（<a href="#goals">第 1 節</a>）；06:05 PDT 回覆全部決定點（<a href="#decisions">第 13 節</a>）。</dd>
+        <dt>驗收條件</dt><dd>見<a href="#plan">第 15 節</a>的人工驗收（以測試倉庫走完分散式的錄製 → 驗證 → 發布 → 使用），以及各 PR 的自動測試。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：領域資料夾格式、檔案與資料庫的分工、載入與熱載入、驗證與發布紀錄、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移；執行紀錄回看的<strong>格式預留</strong>。不包含：執行紀錄的歸檔與跨伺服器回看的實作（D4，之後做）、使用者與權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
-        <dt>修改檔案／整合者</dt><dd>設計階段只有本頁與 <code>handoff/tasks/index.html</code> 的一行連結。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域頁面，與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
-        <dt>狀態</dt><dd>設計討論中（待使用者確認決定點）</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>design/data-storage</code>；base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）；PR：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（草稿，只有設計文件）。</dd>
+        <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
+        <dt>狀態</dt><dd>設計已確認；實作 PR 1 準備開工</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作分支開工時記在<a href="#log">追加紀錄</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁隨分支推送；沒有未提交的程式碼。</dd>
-        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 12 節</a>）。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
       </dl></div>
     </section>
 
@@ -38,6 +38,7 @@
         <li><strong>程式碼和資料分開</strong>；資料可以放在第三方 git 倉庫，按領域、按組合場景分別拉取資料夾，在「領域管理」設定（倉庫、目錄、使用者名稱、密碼）；拉取後熱載入、初始化場景與組合場景；手動「同步」把本機資料推送到 git。</li>
         <li><strong>常見用法</strong>：調試完一個資料夾就推送到遠端，<strong>遠端還沒有這個目錄也要能推送（自動新增）</strong>。</li>
         <li>另外要一份 MVP 存放方案：資料分別放在伺服器、錄製端、worker 的哪裡。</li>
+        <li>（06:05 PDT 補充）<strong>營運方式是分散式的多人協作</strong>：分散在各處錄製、多人驗證後發布、再分散在各處使用，所以發布狀態要記錄並同步；執行紀錄的回看是重要的後續設計，現在要預留方案。</li>
       </ol></div>
     </section>
 
@@ -47,11 +48,12 @@
         <thead><tr><th>資料</th><th>現在放在哪裡</th><th>和需求的差距</th></tr></thead>
         <tbody>
           <tr><td>場景版本</td><td><code>&lt;資料目錄&gt;/scenes/&lt;場景&gt;/&lt;版本&gt;/</code>（不可變；雜湊用於發布門檻）</td><td>所有領域混在一起；領域只是資料庫的欄位 <code>scenes.domain_id</code>，沒有自己的資料夾</td></tr>
+          <tr><td>驗證與發布</td><td>資料庫 <code>revisions.status</code>、<code>scenes.published_number</code>；門檻是「這台伺服器有一次通過的驗證執行，雜湊相同」</td><td>只在一台伺服器；別台看不到誰驗證過、發布了哪一版</td></tr>
           <tr><td>領域</td><td>資料庫 <code>domains</code>（代號、名稱、說明、排序）</td><td>沒有資料來源的設定</td></tr>
           <tr><td>角色定義</td><td>資料庫 <code>roles</code>（登入網址、判斷方式、自動登入步驟）；全域，不屬於領域</td><td>要跟著領域的資料夾走</td></tr>
-          <tr><td>組合場景</td><td>資料庫 <code>workflows.definition</code>（JSON）；代號是數字；不屬於領域；只有最新一份，<code>version</code> 只是存檔次數</td><td>要變成檔案；沒有版本目錄；不能跨伺服器搬</td></tr>
+          <tr><td>組合場景</td><td>資料庫 <code>workflows.definition</code>（JSON）；代號是數字；不屬於領域；只有最新一份，<code>version</code> 只是存檔次數；沒有發布</td><td>要變成檔案、有版本、可以發布</td></tr>
           <tr><td>組合場景的執行</td><td>資料庫 <code>workflow_runs</code>（含定義快照 JSON）；節點的執行是一般的 <code>runs</code></td><td>要變成檔案</td></tr>
-          <tr><td>場景執行</td><td>資料庫 <code>runs</code> ＋ <code>runs/&lt;執行編號&gt;/</code>（報告、截圖、Trace）</td><td>已經是檔案＋索引，維持</td></tr>
+          <tr><td>場景執行</td><td>資料庫 <code>runs</code> ＋ <code>runs/&lt;執行編號&gt;/</code>（<code>input.json</code>、<code>result.json</code>、報告、截圖、Trace、場景快照）</td><td>已經是檔案＋索引；伺服器、worker、領域等資訊只在資料庫</td></tr>
           <tr><td>登入狀態、Secrets 值</td><td><code>roles/&lt;角色&gt;/state.json</code>、<code>secrets.json</code>（0600）</td><td>維持，不能進 git</td></tr>
           <tr><td>範例</td><td>程式碼倉庫的 <code>scenarios/demo/</code>，第一次啟動時匯入資料庫與資料目錄</td><td>範例本身可以保留在程式碼倉庫當樣板</td></tr>
           <tr><td>worker、錄製端</td><td>已經沒有長期的場景資料：任務帶著版本檔案、入參、Secrets、登入狀態過去，結果上傳回伺服器（M9a、M10.2）</td><td>維持</td></tr>
@@ -63,9 +65,10 @@
       <div class="panel-header"><h2>3. 設計總覽</h2></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>領域資料夾（資料包）</strong>：一個領域一個資料夾，裡面放這個領域的全部定義——場景與版本、角色、組合場景。資料夾自己就能載入（不需要其他領域），也是 git 推送與拉取的單位。</li>
-          <li><strong>組合場景資料夾就是一個只放組合場景的領域</strong>：格式、設定、同步方式完全一樣，只是沒有 <code>scenes/</code>。跨領域時在資料夾的說明檔記下依賴哪些領域。（決定點 D1）</li>
-          <li><strong>檔案是定義，資料庫是索引與本機狀態</strong>：定義（會跟著 git 走的）都在資料夾；資料庫只放這台伺服器自己的狀態（驗證、發布、執行索引、裝置、同步狀態），以及可以從資料夾重建的索引。</li>
+          <li><strong>領域資料夾（資料包）</strong>：一個領域一個資料夾，裡面放這個領域的全部定義——場景與版本、角色、組合場景，以及驗證與發布紀錄。資料夾自己就能載入（不需要其他領域），也是 git 推送與拉取的單位。</li>
+          <li><strong>組合場景資料夾就是一個只放組合場景的領域</strong>：格式、設定、同步方式完全一樣，只是沒有 <code>scenes/</code>；跨領域時在說明檔記下依賴哪些領域（D1）。</li>
+          <li><strong>檔案是定義與共享的狀態，資料庫是索引與本機狀態</strong>：會跟著 git 走的（定義、驗證紀錄、發布）都在資料夾；資料庫放這台伺服器自己的狀態（執行索引、網址覆寫、同步狀態、裝置），以及可以從資料夾重建的索引。</li>
+          <li><strong>分散式協作</strong>：甲在自己的伺服器錄製、推送；乙拉取後驗證，驗證紀錄推送回去；丙依驗證紀錄發布、推送；丁拉取後執行已發布的版本。每台伺服器都是完整的 Portal，透過同一個 git 目錄交換資料（<a href="#publish">第 8 節</a>）。</li>
           <li><strong>只有伺服器碰 git</strong>：錄製端和 worker 維持無狀態，不複製倉庫、不拿 git 憑證。</li>
           <li><strong>兩層資料夾</strong>：正在使用的領域資料夾 <code>domains/&lt;領域&gt;/</code> 和同步用的 git 工作副本 <code>git/repos/&lt;領域&gt;/</code> 分開。拉取先在工作副本合併、校驗，通過才套用到正在使用的資料夾；推送時把正在使用的資料夾複製到工作副本的「目錄」再提交。失敗的 git 操作不會留下半套資料，沒設 git 的領域也能隨時接上遠端。</li>
         </ul>
@@ -74,33 +77,37 @@
                         ▲ 推送（手動「同步」）   │ 拉取（啟動時、手動）
                         │                       ▼
 管理 Portal（伺服器）  git/repos/&lt;領域&gt;/  ──校驗通過才套用──▶  domains/&lt;領域&gt;/  ──索引──▶  rpa.db
-                                                        │
+   （甲、乙、丙、丁各自一台）                              │
                                   任務帶著版本檔案過去 ▼            ▲ 結果、登入狀態、錄製稿上傳回來
                           Worker（Windows）、錄製端（macOS）：只有暫存，沒有資料包、沒有 git</pre>
       </div>
     </section>
 
     <section class="panel" id="format">
-      <div class="panel-header"><h2>4. 領域資料夾的格式</h2><span class="muted">場景與組合場景同一套規則：說明檔＋不可變的版本目錄＋版本說明檔</span></div>
+      <div class="panel-header"><h2>4. 領域資料夾的格式</h2><span class="muted">場景與組合場景同一套規則：說明檔＋不可變的版本目錄＋版本說明檔＋驗證紀錄</span></div>
       <div class="panel-body prose">
 <pre class="source">&lt;領域資料夾&gt;/                      ＝ git 倉庫裡設定的「目錄」，例如 testsite/
   pack.yaml                         領域說明檔（必須有）
   scenes/
     ba-001/
-      scene.yaml                    場景說明檔：代號、是否封存
+      scene.yaml                    場景說明檔：代號、是否封存、目前發布的版本
       revisions/
         1/scenario.yaml             版本內容，和現在的版本目錄完全一樣（雜湊不變）
-        1.yaml                      版本說明：雜湊、建立時間、說明
+        1.yaml                      版本說明：雜湊、建立時間、建立者、說明
         2/scenario.yaml、automation.py、assertion.py
         2.yaml
+      verifications/
+        2/&lt;執行編號&gt;.yaml            每次驗證執行一份（通過或失敗），只新增不修改
   roles/
     testsite-user.yaml              角色定義（不含登入狀態）
   composites/
     order-flow/
-      composite.yaml                組合場景說明檔：代號、名稱、說明、是否封存
+      composite.yaml                組合場景說明檔：代號、名稱、說明、是否封存、目前發布的版本
       revisions/
         1/workflow.json             rpa_core.workflow 的定義（格式不變）
-        1.yaml                      版本說明＋這個版本釘住的場景版本（requires）</pre>
+        1.yaml                      版本說明＋這個版本釘住的場景版本（requires）
+      verifications/
+        1/&lt;組合場景執行編號&gt;.yaml</pre>
         <h3>說明檔</h3>
 <pre class="source"># pack.yaml
 specVersion: 1                 # 資料夾格式的版本
@@ -116,27 +123,42 @@ name: 採購到驗收（跨領域）
 requires:
   - domain: testsite
     source: { repo: git@github.com:DevopsLeaDevops/web_browser_robotic_process_automation_site.git, directory: testsite }
-  - domain: scm_purchase       # source 是提示，用來預填「新增領域」；不含帳號密碼，可以省略</pre>
-<pre class="source"># scenes/ba-001/revisions/3.yaml（組合場景的 revisions/&lt;n&gt;.yaml 欄位相同，另多 requires）
-number: 3
+  - domain: scm_purchase       # source 是提示，用來預填「新增領域」；不含帳號密碼，可以省略
+
+# scenes/ba-001/scene.yaml
+id: ba-001
+archived: false
+published:                     # 沒有發布時是 null
+  revision: 2
+  verification: ba-001-20261019-131500-a1b2c3   # 依據的驗證紀錄
+  at: 2026-10-19T06:40:00-07:00
+  by: 丙                       # 操作者（M8 之前是伺服器設定的名稱）
+  server: { id: 7c1e…, name: bing-mac }</pre>
+<pre class="source"># scenes/ba-001/revisions/2.yaml（組合場景的 revisions/&lt;n&gt;.yaml 欄位相同，另多 requires）
+number: 2
 hash: 9f2c…                    # 版本內容的雜湊（和 result.json 的 scenarioHash 同演算法）
 createdAt: 2026-10-19T05:10:00-07:00
+by: 甲
+server: { id: 3a9d…, name: jia-mac }
 note: 從錄製建立
 
 # composites/order-flow/revisions/2.yaml
 number: 2
 hash: 41ab…
 createdAt: 2026-10-19T05:30:00-07:00
+by: 甲
+server: { id: 3a9d…, name: jia-mac }
 requires:                      # 存檔時由定義產生，載入時用來校驗
-  - { domain: testsite, scene: ba-001, revision: 3, hash: 9f2c… }
+  - { domain: testsite, scene: ba-001, revision: 2, hash: 9f2c… }
   - { domain: scm_purchase, scene: po-create, revision: 5, hash: 77d0… }</pre>
         <h3>規則</h3>
         <ul>
-          <li><strong>版本不可變</strong>：存檔永遠是新的 <code>revisions/&lt;n&gt;/</code>。版本說明檔放在版本目錄旁邊（<code>&lt;n&gt;.yaml</code>），不放進版本目錄，所以版本內容與雜湊和現在完全一樣，遷移後發布門檻與舊的執行紀錄仍然對得上；兩台伺服器各自新增不同場景的版本也不會改到同一個檔案。</li>
-          <li><strong>組合場景和場景一樣有版本</strong>：每次存檔一個新版本（現在的 <code>version</code> 就是存檔次數）。組合場景的代號改成和場景一樣的英數代號（決定點 D2）。</li>
-          <li><strong>代號全域唯一</strong>：場景、角色、組合場景的代號在所有已載入的領域之間不能重複（現在的資料庫已經是這樣；不改 DSL）。重複時後載入的那一個不載入，列在領域的「載入問題」裡（決定點 D8）。</li>
-          <li><strong>資料夾裡只有定義</strong>：不放登入狀態、Secrets 的值、執行紀錄、截圖、錄製稿。推送前另有檢查（<a href="#git">第 8 節</a>）。</li>
-          <li><strong>人可以直接讀</strong>：YAML／JSON、固定排序與縮排，在 GitHub 上看得懂、diff 乾淨。</li>
+          <li><strong>版本不可變</strong>：存檔永遠是新的 <code>revisions/&lt;n&gt;/</code>。版本說明檔放在版本目錄旁邊（<code>&lt;n&gt;.yaml</code>），不放進版本目錄，所以版本內容與雜湊和現在完全一樣，遷移後發布門檻與舊的執行紀錄仍然對得上。</li>
+          <li><strong>紀錄只新增</strong>：驗證紀錄一次執行一個檔案，檔名是執行編號；不同伺服器同時驗證不會改到同一個檔案，git 不會衝突。</li>
+          <li><strong>組合場景和場景一樣有版本、驗證、發布</strong>：每次存檔一個新版本（現在的 <code>version</code> 就是存檔次數）；代號改成和場景一樣的英數代號（D2）。</li>
+          <li><strong>代號全域唯一</strong>：場景、角色、組合場景的代號在所有已載入的領域之間不能重複（現在的資料庫已經是這樣；不改 DSL）。重複時後載入的那一個不載入，列在領域的「載入問題」裡（D8）。</li>
+          <li><strong>資料夾裡沒有機密與業務資料</strong>：不放登入狀態、Secrets 的值、執行的入參與出參值、截圖、錄製稿。推送前另有檢查（<a href="#git">第 10 節</a>）。</li>
+          <li><strong>人可以直接讀</strong>：YAML／JSON、固定排序與縮排，在 GitHub 上看得懂、diff 乾淨。時間一律帶 UTC 偏移。</li>
         </ul>
       </div>
     </section>
@@ -148,32 +170,36 @@ requires:                      # 存檔時由定義產生，載入時用來校�
         <tbody>
           <tr><td>領域名稱、說明、依賴</td><td><code>pack.yaml</code></td><td>是</td><td></td></tr>
           <tr><td>領域排序、資料來源設定（倉庫、分支、目錄、認證方式、使用者名稱、提交者）</td><td>資料庫</td><td>否</td><td>每台伺服器自己設定</td></tr>
-          <tr><td>git 密碼／存取權杖、SSH 私鑰</td><td><code>&lt;資料目錄&gt;/git/</code>（0600）</td><td>否</td><td>頁面與 API 不回傳；日誌遮罩</td></tr>
+          <tr><td>git 存取權杖、SSH 私鑰</td><td><code>&lt;資料目錄&gt;/git/</code>（0600）</td><td>否</td><td>頁面與 API 不回傳；日誌遮罩</td></tr>
           <tr><td>同步狀態（上次同步的提交、本機變更數、遠端新提交數、錯誤）</td><td>資料庫</td><td>否</td><td></td></tr>
+          <tr><td>伺服器代號與名稱、操作者名稱</td><td>資料庫的設定</td><td>否（但會寫進紀錄）</td><td>第一次啟動時產生代號；名稱預設是主機名稱，可以改</td></tr>
           <tr><td>場景版本內容</td><td><code>scenes/&lt;場景&gt;/revisions/&lt;n&gt;/</code></td><td>是</td><td>內容與雜湊和現在相同</td></tr>
           <tr><td>場景封存、版本說明與雜湊</td><td><code>scene.yaml</code>、<code>revisions/&lt;n&gt;.yaml</code></td><td>是</td><td></td></tr>
-          <tr><td>版本狀態（草稿、已驗證）、發布的版本</td><td>資料庫</td><td>否</td><td>每台伺服器各自驗證、發布（決定點 D3）</td></tr>
-          <tr><td>場景網址覆寫（<code>base_url</code>）</td><td>資料庫</td><td>否</td><td>和環境有關（決定點 D9）</td></tr>
+          <tr><td><strong>驗證紀錄</strong></td><td><code>verifications/&lt;n&gt;/&lt;執行編號&gt;.yaml</code></td><td><strong>是</strong></td><td>D3：誰、在哪台、用哪台 worker、結果、雜湊</td></tr>
+          <tr><td><strong>發布的版本</strong></td><td><code>scene.yaml</code>、<code>composite.yaml</code> 的 <code>published</code></td><td><strong>是</strong></td><td>D3：發布歷史就是這個檔案的 git 歷史</td></tr>
+          <tr><td>版本狀態（草稿、已驗證、已發布）</td><td>資料庫（索引）</td><td>否</td><td>依上面兩項計算，載入時重建</td></tr>
+          <tr><td>場景網址覆寫（<code>base_url</code>）</td><td>資料庫</td><td>否</td><td>和環境有關（D9）</td></tr>
           <tr><td>角色定義</td><td><code>roles/&lt;角色&gt;.yaml</code></td><td>是</td><td></td></tr>
           <tr><td>角色的登入檢查結果</td><td>資料庫</td><td>否</td><td></td></tr>
           <tr><td>登入狀態</td><td><code>&lt;資料目錄&gt;/roles/&lt;角色&gt;/state.json</code></td><td>否</td><td>不變；敏感</td></tr>
           <tr><td>Secrets 名稱／值</td><td>名稱寫在場景與角色裡；值在 <code>secrets.json</code></td><td>名稱是／值否</td><td>不變</td></tr>
           <tr><td>組合場景定義、名稱、說明</td><td><code>composites/&lt;代號&gt;/…</code></td><td>是</td><td>從資料庫搬出</td></tr>
-          <tr><td>組合場景的執行紀錄</td><td><code>&lt;資料目錄&gt;/workflow-runs/&lt;編號&gt;/run.json</code>＋資料庫索引</td><td>否</td><td>定義快照、各節點狀態、沿用的出參都在檔案；資料庫只留列表與篩選要用的欄位（決定點 D4）</td></tr>
-          <tr><td>場景執行（報告、截圖、Trace）</td><td><code>&lt;資料目錄&gt;/runs/&lt;編號&gt;/</code>＋資料庫索引</td><td>否</td><td>不變</td></tr>
+          <tr><td>組合場景的執行紀錄</td><td><code>&lt;資料目錄&gt;/workflow-runs/&lt;編號&gt;/run.json</code>＋資料庫索引</td><td>否</td><td>定義快照、各節點狀態、沿用的出參都在檔案；資料庫只留列表與篩選要用的欄位（D4）</td></tr>
+          <tr><td>場景執行（報告、截圖、Trace）</td><td><code>&lt;資料目錄&gt;/runs/&lt;編號&gt;/</code>＋資料庫索引</td><td>否</td><td>不變；另加 <code>run.json</code>（<a href="#review">第 9 節</a>）</td></tr>
           <tr><td>錄製稿、調試截圖</td><td><code>recordings/</code>、<code>debug/</code></td><td>否</td><td>不變；錄製產生的版本進領域資料夾</td></tr>
           <tr><td>worker、錄製端、邀請、設定</td><td>資料庫</td><td>否</td><td>不變</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>資料庫裡的場景、版本、角色、組合場景表變成<strong>索引</strong>：載入時依資料夾更新（新增、改內容、標為來源缺失），只在資料庫的欄位（狀態、發布、網址覆寫、排序）不會被覆蓋。執行紀錄引用的版本列不刪除，所以舊報告永遠找得到它跑的是哪一版。</p></div>
+      <div class="panel-body"><p>資料庫裡的場景、版本、角色、組合場景表變成<strong>索引</strong>：載入時依資料夾更新（新增、改內容、狀態、標為來源缺失），只在資料庫的欄位（網址覆寫、排序、同步狀態）不會被覆蓋。執行紀錄引用的版本列不刪除，所以舊報告永遠找得到它跑的是哪一版。</p></div>
     </section>
 
     <section class="panel" id="load">
       <div class="panel-header"><h2>6. 載入與熱載入</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>什麼時候載入</strong>：伺服器啟動時載入全部領域；拉取成功後、按「重新載入」時載入那一個領域；Portal 自己存檔時只更新改到的項目。不需要重新啟動。MVP 不監看資料夾變化，在資料夾外面手動改了檔案要按「重新載入」（決定點 D10）。</li>
-        <li><strong>怎麼載入</strong>：掃描資料夾 → 逐項校驗（DSL、組合場景定義、雜湊、代號重複）→ 一個交易更新索引 → 重新計算所有組合場景的依賴狀態。單一項目有問題只略過那一項並列出；<code>pack.yaml</code> 不見或代號和領域不同時，整個領域保持上一次的索引並顯示錯誤。</li>
-        <li><strong>版本內容和索引記的雜湊不同</strong>（有人改了已存在的版本）：那個版本退回草稿；如果它是已發布的版本，取消發布並提示。這是現有發布門檻「磁碟上的內容也還是同一個雜湊」的延伸。</li>
+        <li><strong>什麼時候載入</strong>：伺服器啟動時載入全部領域；拉取成功後、按「重新載入」時載入那一個領域；Portal 自己存檔、驗證、發布時只更新改到的項目。不需要重新啟動。MVP 不監看資料夾變化，在資料夾外面手動改了檔案要按「重新載入」（D10）。</li>
+        <li><strong>怎麼載入</strong>：掃描資料夾 → 逐項校驗（DSL、組合場景定義、雜湊、代號重複、驗證與發布紀錄）→ 一個交易更新索引 → 重新計算所有組合場景的依賴狀態。單一項目有問題只略過那一項並列出；<code>pack.yaml</code> 不見或代號和領域不同時，整個領域保持上一次的索引並顯示錯誤。</li>
+        <li><strong>版本內容和版本說明檔的雜湊不同</strong>（有人改了已存在的版本）：那個版本不能執行、不能發布，列為載入問題；它如果是已發布的版本，提示「發布的版本內容被改過」。</li>
+        <li><strong>發布紀錄不成立</strong>（發布的版本沒有雜湊相符的通過驗證紀錄）：這台伺服器不把它當成已發布，列為載入問題（<a href="#publish">第 8 節</a>）。</li>
         <li><strong>來源缺失</strong>：資料夾裡沒有了的場景或版本標為來源缺失：清單隱藏、不能執行，執行紀錄照樣保留。</li>
         <li><strong>正在執行的任務不受影響</strong>：遠端 worker 的任務在領取時就帶走版本檔案；本機執行也改成開始時把版本檔案複製到執行目錄（和遠端一致）。套用拉取結果時逐檔新增、修改、刪除，不整個資料夾換掉，Windows 上開著的檔案也不會擋住。</li>
         <li><strong>可以單獨載入</strong>：每個領域資料夾自給自足。新伺服器只設定 testsite 一個領域，拉取後就能錄製、調試、執行 testsite 的場景；另外提供 <code>rpa pack check &lt;資料夾&gt;</code>，不開 Portal 也能校驗一個資料夾（可以放在資料倉庫的 CI）。</li>
@@ -203,37 +229,91 @@ requires:                      # 存檔時由定義產生，載入時用來校�
       <div class="panel-body"><p>組合場景清單與畫布上方顯示「依賴完整／有提醒／不完整」，展開就是上表的清單與按鈕；領域管理頁顯示每個領域被哪些組合場景依賴。</p></div>
     </section>
 
-    <section class="panel" id="git">
-      <div class="panel-header"><h2>8. git 同步</h2></div>
+    <section class="panel" id="publish">
+      <div class="panel-header"><h2>8. 驗證與發布紀錄（D3，使用者 06:05 PDT：發布狀態要記錄）</h2></div>
       <div class="panel-body prose">
-        <h3>8.1 「領域管理」的資料來源設定</h3>
+        <p>使用者的營運方式是<strong>分散式的多人協作</strong>：分散在各處錄製，多人驗證後發布，再分散在各處使用。所以驗證與發布都寫進領域資料夾、跟著 git 同步；門檻的依據從「這台伺服器的驗證執行」改成「資料夾裡雜湊相符的通過驗證紀錄」，不管是哪一台驗證的。</p>
+<pre class="source"># scenes/ba-001/verifications/2/ba-001-20261019-131500-a1b2c3.yaml
+revision: 2
+hash: 9f2c…                    # 執行時實際載入的場景雜湊（result.json 的 scenarioHash）
+status: passed                 # passed、failed、timeout、cancelled、needs_login……
+startedAt: 2026-10-19T06:15:00-07:00
+finishedAt: 2026-10-19T06:15:42-07:00
+by: 乙
+server: { id: 5f3a…, name: yi-mac }
+worker: { id: win-01, os: windows }   # 本機執行時是 local
+engine: firefox
+headless: false
+run: { server: 5f3a…, id: ba-001-20261019-131500-a1b2c3 }   # 回看用（第 9 節）
+summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出參的值</pre>
+        <ol>
+          <li><strong>甲錄製</strong>：錄製或編輯存成新版本 → 寫 <code>revisions/&lt;n&gt;/</code> 與 <code>&lt;n&gt;.yaml</code>（建立者、伺服器）→ 推送。</li>
+          <li><strong>乙驗證</strong>：拉取 → 在自己的伺服器（任何 worker）執行「驗證」→ 結束時寫一份驗證紀錄（<strong>通過或失敗都寫</strong>，失敗也讓別人看得到）→ 推送。</li>
+          <li><strong>丙發布</strong>：拉取 → 頁面列出這個版本的全部驗證紀錄（誰、哪台、結果）→ 有雜湊相符的通過紀錄才能發布 → 寫 <code>scene.yaml</code> 的 <code>published</code>（依據的驗證紀錄、時間、操作者、伺服器）→ 推送。</li>
+          <li><strong>丁使用</strong>：拉取 → 執行已發布的版本（之後 M9 的排程也用它）。</li>
+        </ol>
+        <ul>
+          <li><strong>發布門檻（任何一台都一樣）</strong>：磁碟上的版本內容雜湊 ＝ 版本說明檔的雜湊 ＝ 某一份 <code>status: passed</code> 驗證紀錄的雜湊。拉取時重新檢查，不成立就不當成已發布。也可以在自己這台「再驗證一次」，多一份紀錄。</li>
+          <li><strong>取消發布</strong>：<code>published</code> 改成 null；歷史看 git。</li>
+          <li><strong>組合場景</strong>一樣：驗證是一次目的為「驗證」的組合場景執行，全部節點通過才算通過；紀錄另外列出每個節點跑的場景、版本、雜湊與節點的執行編號。發布門檻再加上「節點釘住的場景版本雜湊都還相符」。</li>
+          <li><strong>伺服器代號與操作者</strong>：每台伺服器第一次啟動時產生代號（UUID），名稱預設是主機名稱，可以在設定改；操作者名稱在 M8 有登入之前是伺服器設定的名稱。紀錄寫的是這兩個。</li>
+          <li><strong>衝突</strong>：驗證紀錄一個執行一個檔案，不會衝突；兩台同時發布同一個場景才會改到同一個 <code>scene.yaml</code>，照 D6 停下來選擇。</li>
+          <li><strong>可信度</strong>：M8 之前，紀錄的真實性靠倉庫的寫入權限與 git 的提交歷史（誰推送的）；M8 加上使用者與稽核後，紀錄的 <code>by</code> 改成登入的使用者，可以再加簽章。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="review">
+      <div class="panel-header"><h2>9. 執行紀錄的回看（D4：現在不進 git，預留方案）</h2></div>
+      <div class="panel-body prose">
+        <p>使用者 06:05 PDT：執行紀錄先照建議不進 git，但之後要做，因為要回看，而且回看是重要的後續設計。MVP 只做「讓紀錄可以搬、可以找得到」的部分，歸檔與跨伺服器回看之後再做。</p>
+        <h3>MVP 先做（成本低、之後不必改格式）</h3>
+        <ul>
+          <li><strong>執行目錄自己說明自己</strong>：每個場景執行目錄加一份 <code>run.json</code>（格式版本、伺服器、領域、場景、版本、雜湊、目的、執行位置、worker、瀏覽器、時間、狀態、檔案清單與每個檔案的 sha256 與大小）；組合場景的 <code>workflow-runs/&lt;編號&gt;/run.json</code> 同樣格式，另列節點的執行編號。不看資料庫也能知道這是什麼執行，搬到別處可以直接匯入。</li>
+          <li><strong>紀錄的位置全域可識別</strong>：用「伺服器代號＋執行編號」定位一次執行；驗證紀錄裡的 <code>run</code> 就是這個（之後歸檔時再填 <code>archive</code> 的位置）。</li>
+          <li><strong>入參、出參不進定義倉庫</strong>：驗證紀錄只有摘要，值留在執行目錄（可能是業務資料）。</li>
+        </ul>
+        <h3>之後做（預留方案）</h3>
+        <ul>
+          <li><strong>執行紀錄的存放處</strong>：在「領域管理」或系統設定加一個「執行紀錄存放處」，和定義的倉庫分開。建議用 S3 相容的物件儲存（M9 已規劃），路徑 <code>runs/&lt;伺服器代號&gt;/&lt;執行編號&gt;/</code>；只要輕量回看時也可以是另一個 git 倉庫，只放 <code>run.json</code>、報告與摘要，不放截圖與 Trace。</li>
+          <li><strong>歸檔</strong>：執行結束後依規則上傳（例如驗證執行一律上傳、一般執行依領域設定）；保留期限與清理；上傳前遮罩 Secrets（報告已經遮罩），截圖與 Trace 依 M8 的權限控管誰能看。</li>
+          <li><strong>回看</strong>：場景版本頁的「驗證與執行歷史」時間軸，列出所有伺服器的驗證紀錄；這台有的執行直接開報告，別台的從存放處取，都沒有時顯示「紀錄在 yi-mac，尚未歸檔」。組合場景的回看逐節點展開。</li>
+          <li><strong>匯入</strong>：從存放處或別台伺服器匯入執行紀錄成唯讀的索引（資料庫多記來源伺服器），不能重新執行別台的紀錄，只能用同樣的版本與入參另開一次。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="git">
+      <div class="panel-header"><h2>10. git 同步</h2></div>
+      <div class="panel-body prose">
+        <h3>10.1 「領域管理」的資料來源設定</h3>
         <ul>
           <li><strong>倉庫網址</strong>：HTTPS 或 SSH。<strong>分支</strong>：選填，預設是遠端的預設分支（空倉庫時用 <code>main</code>）。<strong>目錄</strong>：倉庫裡的路徑，例如 <code>testsite</code>；同一個倉庫可以放多個領域，各自一個目錄。</li>
-          <li><strong>認證方式</strong>（決定點 D5）：
+          <li><strong>認證方式</strong>（D5）：
             <ul>
               <li>HTTPS：使用者名稱＋存取權杖（GitHub 不接受帳號密碼做 git 操作，要用 fine-grained personal access token，只開這個倉庫的 Contents 讀寫）。</li>
               <li>SSH：部署金鑰。Portal 為這個領域產生一對金鑰並顯示公鑰，貼到倉庫的 Deploy keys 並勾選允許寫入；也可以貼上自己的私鑰。SSH 不使用使用者名稱與密碼。</li>
               <li>不需要：公開倉庫，只能拉取，不能推送。</li>
             </ul></li>
-          <li><strong>提交者</strong>：推送時 commit 的名稱與 Email（選填）。<strong>啟動時自動拉取</strong>：預設開；連不上時用本機上一次的資料照常啟動。</li>
+          <li><strong>提交者</strong>：推送時 commit 的名稱與 Email（選填，預設是操作者名稱）。<strong>啟動時自動拉取</strong>：預設開；連不上時用本機上一次的資料照常啟動。</li>
           <li>按鈕：<strong>測試連線</strong>（可以連線、認證、遠端分支與目錄在不在）、<strong>拉取並重新載入</strong>、<strong>同步推送</strong>、<strong>重新載入</strong>、<strong>中斷 git 連結</strong>（資料夾保留，變成本機領域）。</li>
           <li><strong>從 git 新增領域</strong>：先填倉庫與目錄、測試連線；目錄裡有 <code>pack.yaml</code> 就預填代號與名稱；目錄不存在就建立一個空的領域，第一次推送時建立目錄。</li>
         </ul>
-        <h3>8.2 同步狀態</h3>
-        <p>本機（沒有設定 git）／已同步／本機有 N 項變更未推送／遠端有 N 個新提交／遠端還沒有這個目錄（第一次推送時建立）／空倉庫（第一次推送時建立分支）／衝突／錯誤（連線、認證、找不到倉庫）。「本機變更」＝正在使用的資料夾和「上次同步的提交」裡那個目錄的差異，所以不需要每次存檔都 commit。</p>
-        <h3>8.3 拉取</h3>
+        <h3>10.2 同步狀態</h3>
+        <p>本機（沒有設定 git）／已同步／本機有 N 項變更未推送（版本、驗證紀錄、發布分開計數）／遠端有 N 個新提交／遠端還沒有這個目錄（第一次推送時建立）／空倉庫（第一次推送時建立分支）／衝突／錯誤（連線、認證、找不到倉庫）。「本機變更」＝正在使用的資料夾和「上次同步的提交」裡那個目錄的差異，所以不需要每次存檔都 commit。</p>
+        <h3>10.3 拉取</h3>
         <ol>
           <li>在工作副本 <code>git fetch</code>。遠端是空倉庫或沒有這個目錄：狀態顯示「第一次推送時建立」，本機資料照用，不算錯誤。</li>
           <li>本機沒有變更：工作副本切到遠端最新的提交。</li>
-          <li>本機有變更：在工作副本以「上次同步的提交」為基礎提交本機變更（不推送），再 rebase 到遠端最新的提交；有衝突就中止 rebase、什麼都不套用，顯示衝突的檔案與選項（8.5）。</li>
+          <li>本機有變更：在工作副本以「上次同步的提交」為基礎提交本機變更（不推送），再 rebase 到遠端最新的提交；有衝突就中止 rebase、什麼都不套用，顯示衝突的檔案與選項（10.5）。</li>
           <li>校驗工作副本裡的目錄（第 6 節的規則）；通過才逐檔套用到正在使用的資料夾，更新「上次同步的提交」，重新載入與校驗依賴。</li>
         </ol>
-        <h3>8.4 推送（含遠端目錄不存在、空倉庫）</h3>
+        <h3>10.4 推送（含遠端目錄不存在、空倉庫）</h3>
         <ol>
           <li><strong>推送前檢查</strong>：資料夾校驗沒有致命錯誤；只允許定義檔（yaml、json、py、md、txt）與大小上限；擋下 <code>state.json</code>、<code>secrets*.json</code>、<code>.env</code>、私鑰之類的檔名；<strong>檔案內容不能出現任何已保存的 Secrets 值</strong>；依賴的版本已經在遠端（第 7 節最後一列）。</li>
-          <li>顯示變更清單（新增的場景與版本、角色、組合場景）與預設的提交說明（例如「testsite：ba-001 第 3 版、ba-002 第 2 版」），可以修改。</li>
+          <li>顯示變更清單（新增的場景與版本、驗證紀錄、發布、角色、組合場景）與預設的提交說明（例如「testsite：ba-001 第 3 版、ba-002 驗證通過」），可以修改。</li>
           <li>工作副本以「上次同步的提交」為基礎，把正在使用的資料夾複製到「目錄」，<code>git add -A -- &lt;目錄&gt;</code> 後提交；只提交這個目錄，倉庫的其他目錄不動。</li>
-          <li><code>git fetch</code>；遠端有新提交就 rebase，衝突時中止（8.5）。</li>
+          <li><code>git fetch</code>；遠端有新提交就 rebase，衝突時中止（10.5）。</li>
           <li><code>git push</code>，<strong>永遠不強推</strong>：
             <ul>
               <li><strong>遠端沒有這個目錄</strong>：提交本身就新增了目錄，照常推送。這是「調試完推送到新目錄」的常見用法，不需要先到 GitHub 建目錄。</li>
@@ -242,26 +322,26 @@ requires:                      # 存檔時由定義產生，載入時用來校�
             </ul></li>
           <li>更新「上次同步的提交」。</li>
         </ol>
-        <h3>8.5 衝突時（決定點 D6）</h3>
-        <p>不自動合併同一個檔案、不強推。停下來給三個選擇：<strong>取消</strong>（什麼都不改，本機照用）／<strong>推送到新分支</strong> <code>rpa/&lt;領域&gt;-&lt;日期時間&gt;</code>（到 GitHub 開 PR 合併後再拉取）／<strong>以遠端為準</strong>（先把本機未推送的變更打包到 <code>backups/</code>，再套用遠端）。版本目錄不可變，衝突幾乎只會發生在兩台伺服器同時替同一個場景建立同號的版本；MVP 建議同一個領域同時只在一台伺服器上編輯。</p>
-        <h3>8.6 憑證與安全</h3>
+        <h3>10.5 衝突時（D6）</h3>
+        <p>不自動合併同一個檔案、不強推。停下來給三個選擇：<strong>取消</strong>（什麼都不改，本機照用）／<strong>推送到新分支</strong> <code>rpa/&lt;領域&gt;-&lt;日期時間&gt;</code>（到 GitHub 開 PR 合併後再拉取）／<strong>以遠端為準</strong>（先把本機未推送的變更打包到 <code>backups/</code>，再套用遠端）。版本目錄不可變、驗證紀錄一次一個檔案，衝突只會發生在兩台伺服器同時替同一個場景建立同號的版本，或同時發布同一個場景；建議同一個場景同時只在一台伺服器上編輯。</p>
+        <h3>10.6 憑證與安全</h3>
         <ul>
           <li>使用伺服器上的 <code>git</code> 命令（2.25 以上，用稀疏複製只取設定的目錄）；沒有安裝時 git 功能停用，本機領域照常使用。</li>
           <li>帳密只經由 <code>GIT_ASKPASS</code> 交給那一次 git 子程序；不寫進網址、<code>.git/config</code>、資料庫或日誌；停用系統的憑證快取；<code>GIT_TERMINAL_PROMPT=0</code>；SSH 用 Portal 自己的 <code>known_hosts</code>，第一次連線記下主機指紋並顯示。</li>
-          <li>每個領域同時只有一個 git 操作；操作期間 Portal 對這個領域的存檔排隊等待；每個操作有逾時。</li>
+          <li>每個領域同時只有一個 git 操作；操作期間 Portal 對這個領域的存檔、驗證紀錄、發布排隊等待；每個操作有逾時。</li>
           <li>提醒：公開倉庫的內容任何人都看得到。場景裡有內網網址、帳號名稱、預設值時，請用私有倉庫。</li>
         </ul>
       </div>
     </section>
 
     <section class="panel" id="mvp">
-      <div class="panel-header"><h2>9. MVP 存放方案：伺服器、錄製端、worker</h2></div>
+      <div class="panel-header"><h2>11. MVP 存放方案：伺服器、錄製端、worker</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th></th><th>伺服器（管理 Portal）</th><th>錄製端（macOS App）</th><th>Worker（Windows App、<code>rpa worker</code>）</th></tr></thead>
         <tbody>
           <tr><td>長期保存</td><td>全部資料：領域資料夾、資料庫、執行紀錄、登入狀態、Secrets、git 工作副本與憑證（下方目錄）</td><td>配對權杖（鑰匙圈「RPA Recorder」）、App 設定與日誌（<code>~/Library/Application Support/rpa/recorder</code>）、瀏覽器、Firefox 範本快取</td><td>配對權杖（認證管理員）、App 設定與日誌（<code>%LOCALAPPDATA%\rpa\worker</code>）、瀏覽器、Firefox 範本快取（<code>%LOCALAPPDATA%\rpa\cache</code>）</td></tr>
           <tr><td>暫存</td><td><code>uploads/</code>、<code>debug/</code></td><td>每個錄製、調試、人工登入一個暫存資料夾；檔案隨時同步回伺服器，結束就刪</td><td>每個任務一個執行目錄；上傳後刪除（<code>--keep-runs</code> 保留）</td></tr>
-          <tr><td>場景與組合場景</td><td>領域資料夾（唯一的一份）</td><td>沒有；子程序需要的檔案由伺服器隨指令送來</td><td>沒有；任務帶著版本檔案過來</td></tr>
+          <tr><td>場景與組合場景</td><td>領域資料夾（這台的一份；別台透過 git 各有一份）</td><td>沒有；子程序需要的檔案由伺服器隨指令送來</td><td>沒有；任務帶著版本檔案過來</td></tr>
           <tr><td>git</td><td>只有這裡做拉取與推送</td><td>不做</td><td>不做</td></tr>
           <tr><td>Secrets、登入狀態</td><td><code>secrets.json</code>、<code>roles/</code></td><td>只在執行中的子程序暫存裡；人工登入後傳回伺服器</td><td>只在執行中的任務裡；自動登入後的狀態傳回伺服器</td></tr>
         </tbody>
@@ -278,7 +358,7 @@ requires:                      # 存檔時由定義產生，載入時用來校�
     credentials.json            HTTPS 權杖（0600）
     keys/&lt;領域&gt;、&lt;領域&gt;.pub       SSH 部署金鑰（私鑰 0600）
     known_hosts
-  runs/&lt;執行編號&gt;/               場景執行（不變）
+  runs/&lt;執行編號&gt;/               場景執行（不變，另加 run.json）
   workflow-runs/&lt;編號&gt;/run.json  組合場景的執行紀錄（新）
   roles/&lt;角色&gt;/state.json        登入狀態（不變）
   secrets.json                  Secrets 的值（不變）
@@ -290,57 +370,70 @@ requires:                      # 存檔時由定義產生，載入時用來校�
     </section>
 
     <section class="panel" id="migration">
-      <div class="panel-header"><h2>10. 現有資料的遷移</h2></div>
+      <div class="panel-header"><h2>12. 現有資料的遷移（D7）</h2></div>
       <div class="panel-body"><ol class="steps">
         <li>升級後第一次啟動：資料庫遷移（0010，新增資料來源、同步狀態、來源缺失、組合場景代號等欄位）之後，自動做一次檔案遷移；先把 <code>rpa.db</code> 與 <code>scenes/</code> 備份到 <code>backups/&lt;時間&gt;-before-domains/</code>。可以中斷後重跑。</li>
-        <li>每個領域建立 <code>domains/&lt;領域&gt;/pack.yaml</code>；<code>scenes/&lt;場景&gt;/&lt;n&gt;/</code> 搬到 <code>domains/&lt;領域&gt;/scenes/&lt;場景&gt;/revisions/&lt;n&gt;/</code>，依資料庫補上 <code>scene.yaml</code> 與 <code>&lt;n&gt;.yaml</code>。內容不變，雜湊、發布狀態、執行紀錄都照舊。</li>
+        <li>產生伺服器代號；每個領域建立 <code>domains/&lt;領域&gt;/pack.yaml</code>；<code>scenes/&lt;場景&gt;/&lt;n&gt;/</code> 搬到 <code>domains/&lt;領域&gt;/scenes/&lt;場景&gt;/revisions/&lt;n&gt;/</code>，依資料庫補上 <code>scene.yaml</code> 與 <code>&lt;n&gt;.yaml</code>。內容不變，雜湊照舊。</li>
+        <li><strong>驗證與發布</strong>：資料庫裡目的為「驗證」的執行，依結果寫成驗證紀錄（伺服器是這台、操作者寫「遷移」）；已發布的版本寫進 <code>scene.yaml</code> 的 <code>published</code>，依據最近一次雜湊相符的通過驗證。找不到依據的已發布版本照樣保留並列為載入問題，請重新驗證。</li>
         <li>沒有領域的場景放進新的領域「未分類」（<code>unassigned</code>）。</li>
         <li>角色放進用到它的場景所在的領域；多個領域都用到時放進排序最前的那個，其他領域記為跨領域依賴；沒有場景用到的角色放進「未分類」。</li>
         <li>組合場景放進新的領域「組合場景」（<code>composites</code>）：代號 <code>wf-&lt;原數字&gt;</code>，現在的定義成為第 1 版（說明寫「從資料庫遷移，原第 N 次存檔」），產生 <code>requires</code>。之後可以在頁面改代號或搬到其他領域。</li>
-        <li>組合場景的執行紀錄寫成 <code>workflow-runs/&lt;編號&gt;/run.json</code>，資料庫留索引欄位。</li>
+        <li>組合場景的執行紀錄寫成 <code>workflow-runs/&lt;編號&gt;/run.json</code>，資料庫留索引欄位；已有的場景執行目錄補上 <code>run.json</code>。</li>
         <li>遷移完成後舊的 <code>scenes/</code> 移除（備份裡有）。全部遷移的領域一開始都是本機領域，之後再到領域管理設定 git。</li>
       </ol></div>
     </section>
 
     <section class="panel" id="decisions">
-      <div class="panel-header"><h2>11. 需要使用者決定</h2><span class="muted">全部是 <span class="kind pending">待決定</span>；括號裡是建議</span></div>
+      <div class="panel-header"><h2>13. 決定（使用者 2026-10-19 06:05 PDT 回覆）</h2></div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>#</th><th>問題</th><th>建議</th><th>另一個選擇與代價</th></tr></thead>
+        <thead><tr><th>#</th><th>問題</th><th>決定</th><th>說明</th></tr></thead>
         <tbody>
-          <tr><td>D1</td><td>組合場景的資料夾是不是「只放組合場景的領域」</td><td>是：同一套格式、同一個設定頁；領域資料夾裡也可以放只用本領域場景的組合場景</td><td>另設「組合場景集」：多一種設定與頁面，規則重複</td></tr>
-          <tr><td>D2</td><td>組合場景每次存檔是不是新版本；代號改成英數代號</td><td>是：和場景一致，之後發布、排程都用版本號</td><td>維持一份可變的定義：git 歷史就是版本，但節點與執行紀錄無法引用固定的版本</td></tr>
-          <tr><td>D3</td><td>發布狀態進不進 git</td><td>不進：每台伺服器各自驗證、發布（發布門檻依賴本機的驗證執行）</td><td>進 git：拉取到另一台就直接是已發布，但那台沒有驗證過</td></tr>
-          <tr><td>D4</td><td>執行紀錄（場景與組合場景）進不進 git</td><td>不進：存在伺服器資料目錄的檔案（截圖、輸出可能含業務資料，而且量大）</td><td>另外提供匯出摘要（之後再做）</td></tr>
-          <tr><td>D5</td><td>支援哪些認證</td><td>HTTPS＋存取權杖、SSH 部署金鑰（Portal 產生）、公開倉庫免認證（只拉取）</td><td>只做其中一種：實作少一點，但測試倉庫用的是 SSH 網址</td></tr>
-          <tr><td>D6</td><td>多台伺服器同時編輯同一個領域</td><td>MVP 建議一個領域同時一台編輯；衝突時三選一，不自動合併、不強推</td><td>自動把本機新版本改號後重推：方便，但本機的執行紀錄與組合場景引用的版本號會變</td></tr>
-          <tr><td>D7</td><td>現有資料怎麼遷移</td><td>啟動時自動遷移（先備份）；組合場景放「組合場景」領域，未分類場景放「未分類」領域</td><td>提供命令手動遷移：可控，但忘了跑就啟動不了</td></tr>
-          <tr><td>D8</td><td>代號是否維持全域唯一</td><td>是：不改 DSL、角色與組合場景的引用方式</td><td>改成「領域/代號」：可以同名，但 DSL、組合場景定義、API 都要改</td></tr>
-          <tr><td>D9</td><td>Secrets 與網址覆寫</td><td>值、網址覆寫、登入狀態只在伺服器；Secrets 名稱維持全域（建議用領域前綴命名，例如 <code>SCM_PASSWORD</code>）</td><td>Secrets 按領域分開：同名不衝突，但頁面與執行都要改</td></tr>
-          <tr><td>D10</td><td>外面改了資料夾要不要自動重新載入</td><td>MVP 不監看，按「重新載入」</td><td>監看資料夾：方便用編輯器改，但要處理改到一半的檔案</td></tr>
-          <tr><td>D11</td><td>里程碑編號與順序</td><td>新增「M11 資料存放升級」，在 M10.2 第 3 步（DMG、v0.3.0）之後或並行；M5 仍往後</td><td>插在 M10.2 之前：要和另一個 session 協調檔案範圍</td></tr>
+          <tr><td>D1</td><td>組合場景的資料夾是不是「只放組合場景的領域」</td><td><span class="kind user">已確認</span> 照建議</td><td>同一套格式、同一個設定頁；領域資料夾裡也可以放只用本領域場景的組合場景</td></tr>
+          <tr><td>D2</td><td>組合場景每次存檔是不是新版本；代號改成英數代號</td><td><span class="kind user">已確認</span> 照建議</td><td>和場景一致，之後驗證、發布、排程都用版本號</td></tr>
+          <tr><td>D3</td><td>發布狀態進不進 git</td><td><span class="kind user">已確認</span> <strong>要記錄</strong>（改變了建議）</td><td>原因：營運是分散式的多人協作——分散錄製、多人驗證後發布、分散使用。做法見<a href="#publish">第 8 節</a>：驗證紀錄與發布都進領域資料夾，門檻看雜湊相符的通過驗證紀錄</td></tr>
+          <tr><td>D4</td><td>執行紀錄進不進 git</td><td><span class="kind user">已確認</span> 照建議，<strong>但之後要做</strong></td><td>回看是重要的後續設計；現在預留，見<a href="#review">第 9 節</a></td></tr>
+          <tr><td>D5</td><td>支援哪些認證</td><td><span class="kind user">已確認</span> 照建議</td><td>HTTPS＋存取權杖、SSH 部署金鑰（Portal 產生）、公開倉庫免認證（只拉取）</td></tr>
+          <tr><td>D6</td><td>多台伺服器同時編輯同一個領域</td><td><span class="kind user">已確認</span> 照建議</td><td>衝突時三選一，不自動合併、不強推；驗證紀錄設計成不會衝突</td></tr>
+          <tr><td>D7</td><td>現有資料怎麼遷移</td><td><span class="kind user">已確認</span> 照建議</td><td>啟動時自動遷移（先備份）；組合場景放「組合場景」領域，未分類場景放「未分類」領域</td></tr>
+          <tr><td>D8</td><td>代號是否維持全域唯一</td><td><span class="kind user">已確認</span> 照建議</td><td>不改 DSL、角色與組合場景的引用方式</td></tr>
+          <tr><td>D9</td><td>Secrets 與網址覆寫</td><td><span class="kind user">已確認</span> 照建議</td><td>值、網址覆寫、登入狀態只在伺服器；Secrets 名稱維持全域（建議用領域前綴命名，例如 <code>SCM_PASSWORD</code>）</td></tr>
+          <tr><td>D10</td><td>外面改了資料夾要不要自動重新載入</td><td><span class="kind user">已確認</span> 照建議</td><td>MVP 不監看，按「重新載入」</td></tr>
+          <tr><td>D11</td><td>里程碑編號與順序</td><td><span class="kind user">已確認</span> 照建議</td><td>新增「M11 資料存放升級」，在 M10.2 第 3 步（DMG、v0.3.0）之後或並行；M5 仍往後</td></tr>
         </tbody>
       </table></div>
     </section>
 
     <section class="panel" id="testsite">
-      <div class="panel-header"><h2>12. 用測試倉庫驗證</h2></div>
+      <div class="panel-header"><h2>14. 用測試倉庫驗證</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>使用者提供的測試設定</strong>：倉庫 <code>git@github.com:DevopsLeaDevops/web_browser_robotic_process_automation_site.git</code>、目錄 <code>testsite</code>；使用者名稱與密碼在對話裡，<strong>這裡不記錄，也不會使用</strong>。</li>
         <li><strong>倉庫現況</strong>（2026-10-19 04:55 PDT，UTC−07:00，Claude 匿名讀取）：<strong>公開</strong>倉庫，<strong>還沒有任何提交</strong>。正好用來驗證「空倉庫＋目錄不存在」的第一次推送。</li>
         <li><strong>認證要調整</strong>：這是 SSH 網址，SSH 不用帳號密碼；GitHub 的 HTTPS 也不接受帳號密碼。二選一：SSH 網址＋Portal 產生的部署金鑰（勾選允許寫入），或改成 <code>https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation_site.git</code>＋使用者名稱＋只開這個倉庫的 fine-grained 權杖。密碼已經出現在對話裡，建議更改。</li>
-        <li><strong>自動測試</strong>：用本機的裸倉庫（<code>git init --bare</code>）覆蓋空倉庫、目錄不存在、快轉、rebase、衝突、推送前檢查；CI 不連外部倉庫。</li>
-        <li><strong>人工驗收草案</strong>：(1) 測試連線顯示「空倉庫，第一次推送時建立」；(2) 同步推送後 GitHub 上出現 <code>testsite/pack.yaml</code>、<code>scenes/ba-001/…</code>，沒有登入狀態與 Secrets；(3) 另一個全新的資料目錄只設定 testsite 並拉取，場景出現、可以執行 BA-001；(4) 改 BA-002 存成新版本、推送，第一台拉取後不必重啟就看到新版本；(5) 在同一個倉庫建第二個領域目錄與一個跨領域組合場景，新的資料目錄只拉組合場景時提示缺少的領域，補上後可以執行；(6) 兩邊替同一個場景建同號版本，第二個推送停下並給三個選擇，遠端沒有被覆蓋。</li>
+        <li><strong>自動測試</strong>：用本機的裸倉庫（<code>git init --bare</code>）覆蓋空倉庫、目錄不存在、快轉、rebase、衝突、推送前檢查，以及兩個資料目錄之間的錄製 → 驗證 → 發布 → 使用；CI 不連外部倉庫。</li>
       </ul></div>
     </section>
 
     <section class="panel" id="plan">
-      <div class="panel-header"><h2>13. 設計確認後的實作切分（草案）</h2></div>
-      <div class="panel-body"><ol class="steps">
-        <li><strong>PR 1 領域資料夾</strong>：格式與載入、索引、組合場景與其執行紀錄改成檔案、依賴校驗、遷移、<code>rpa pack check</code>。頁面行為不變，資料改放 <code>domains/</code>。</li>
-        <li><strong>PR 2 git 同步</strong>：資料來源設定、憑證、拉取與熱載入、推送（空倉庫、新目錄、第一次接上遠端）、衝突處理、推送前檢查、領域管理頁與組合場景的依賴提示。</li>
-        <li><strong>PR 3 收尾</strong>：ADR 0015、三語設計與操作文件、路線圖、用測試倉庫的人工驗收紀錄。</li>
-      </ol>
-      <p>每個 PR 都要有遷移測試（舊資料目錄 → 新格式、雜湊不變、發布門檻仍成立）與 Windows／macOS／Linux 的 CI。</p></div>
+      <div class="panel-header"><h2>15. 實作切分與驗收</h2></div>
+      <div class="panel-body prose">
+        <ol>
+          <li><strong>PR 1 領域資料夾（場景與角色）</strong>：<code>rpa_core</code> 的資料夾格式模型、載入與索引、驗證與發布紀錄、伺服器代號、執行目錄的 <code>run.json</code>、遷移（場景、角色、驗證、發布）、<code>rpa pack check</code>。頁面行為照舊，資料改放 <code>domains/</code>；版本頁多出「驗證紀錄」清單。</li>
+          <li><strong>PR 2 組合場景檔案化</strong>：組合場景的版本、驗證、發布；執行紀錄改成檔案；跨領域依賴校驗與頁面提示；遷移組合場景。</li>
+          <li><strong>PR 3 git 同步</strong>：資料來源設定、憑證、拉取與熱載入、推送（空倉庫、新目錄、第一次接上遠端）、衝突處理、推送前檢查、領域管理頁。</li>
+          <li><strong>PR 4 收尾</strong>：ADR 0015、路線圖 M11、用測試倉庫的人工驗收紀錄。</li>
+        </ol>
+        <p>每個 PR 同步更新受影響的三語文件；都要有遷移測試（舊資料目錄 → 新格式、雜湊不變、發布門檻仍成立）與 Windows／macOS／Linux 的 CI。</p>
+        <h3>人工驗收（PR 3 之後，用測試倉庫）</h3>
+        <ol>
+          <li>領域 testsite 設定 git，測試連線顯示「空倉庫，第一次推送時建立」。</li>
+          <li>同步推送後 GitHub 上出現 <code>testsite/pack.yaml</code>、<code>scenes/ba-001/…</code>，沒有登入狀態、Secrets、執行紀錄。</li>
+          <li>第二個全新的資料目錄（代表另一個人）只設定 testsite 並拉取：場景出現、可以驗證 BA-001；驗證紀錄推送回去。</li>
+          <li>第一個資料目錄拉取後看到第二台的驗證紀錄，依它發布 BA-001 並推送；第二台拉取後看到已發布，執行已發布的版本。</li>
+          <li>改 BA-002 存成新版本、推送，另一台拉取後不必重啟就看到新版本。</li>
+          <li>在同一個倉庫建第二個領域目錄與一個跨領域組合場景；新的資料目錄只拉組合場景時提示缺少的領域，補上後可以執行。</li>
+          <li>兩邊替同一個場景建同號版本，第二個推送停下並給三個選擇，遠端沒有被覆蓋。</li>
+        </ol>
+      </div>
     </section>
 
     <section class="panel" id="validation">
@@ -348,11 +441,11 @@ requires:                      # 存檔時由定義產生，載入時用來校�
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
-          <tr><td><code>7990b7c</code>／Claude 雲端環境</td><td>讀 <code>storage.py</code>、<code>models.py</code>、<code>services.py</code>、<code>workflows.py</code>、<code>dispatch.py</code>、<code>roles.py</code>、<code>secret_store.py</code>、<code>rpa_core/workflow.py</code>、<code>scenarios/demo/</code>，以及 #37 的錄製端 App</td><td>第 2 節的現況整理</td><td>沒有執行程式；設計階段沒有程式碼可測</td></tr>
+          <tr><td><code>7990b7c</code>／Claude 雲端環境</td><td>讀 <code>storage.py</code>、<code>models.py</code>、<code>services.py</code>、<code>workflows.py</code>、<code>dispatch.py</code>、<code>roles.py</code>、<code>secret_store.py</code>、<code>rpa_core/workflow.py</code>、<code>rpa_runner/run.py</code>、<code>scenarios/demo/</code>，以及 #37 的錄製端 App</td><td>第 2 節的現況整理</td><td>沒有執行程式；設計階段沒有程式碼可測</td></tr>
           <tr><td>測試倉庫</td><td>匿名 <code>git clone --depth 1</code></td><td>公開、空倉庫（沒有提交）</td><td>沒有推送權限，也沒有嘗試推送</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：不適用（只有交接文件）；人工驗收：未執行；審閱：使用者審閱中。</p></div>
+      <div class="panel-body"><p>CI：不適用（只有交接文件）；人工驗收：未執行；審閱：使用者 06:05 PDT 回覆了決定點，設計文件本身尚未審閱合併。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -364,6 +457,8 @@ requires:                      # 存檔時由定義產生，載入時用來校�
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-19 05:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>design/data-storage</code>，提出設計與決定點；尚未寫程式。提交 <code>6be8776</code>，開草稿 PR #40。</li>
+        <li>2026-10-19 06:05 America/Los_Angeles（PDT，UTC−07:00），使用者：D1、D2、D4～D11 照建議；D3 改成「發布狀態要記錄」（分散式多人協作）；D4 之後要做回看，現在預留方案。</li>
+        <li>2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00），Claude：依回覆改寫第 4、5、6、8、9、12、13、15 節（驗證與發布紀錄進領域資料夾、回看的預留方案、四個 PR 的切分與人工驗收）；里程碑定為 M11。</li>
       </ul></div>
     </section>
   </div>
