@@ -198,10 +198,11 @@ def test_ports_are_kept_apart(client: Client, remote: Client) -> None:
     token = register(client)
     # Worker API 不在管理頁面的埠
     assert client.post(f"{API}/hello", json=INFO, headers=auth(token)).status_code == 404
-    # 管理頁面與 /api 不在 Worker API 的埠
-    assert remote.get("/api/workers").status_code == 404
-    assert remote.get("/scenes").status_code == 404
-    assert remote.get("/static/portal.css").status_code == 404
+    # 管理頁面與 /api 不在 Worker API 的埠；M10.2 起只給錄製端的權杖（worker 的權杖也不行）
+    assert remote.get("/api/workers").status_code == 401
+    assert remote.get("/scenes").status_code == 401
+    assert remote.get("/static/portal.css").status_code == 401
+    assert remote.get("/scenes", headers=auth(token)).status_code == 401
 
 
 def test_worker_api_is_closed_without_a_worker_port(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:40df968ab5b78416">
+<meta name="translation-source" content="sha256:2fa055fd24d84190">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,7 +15,7 @@
   <div class="heading">
     <div>
       <h1>Remote workers</h1>
-      <p>Hand runs to another computer: the management portal, database and files stay on your computer, browser windows appear on the worker computer, and headed runs no longer take over your own machine. The example uses a Windows worker; the macOS and Linux commands are listed alongside. The design is in <a href="../adr/0012-remote-workers.html">ADR 0012</a>.</p>
+      <p>Hand runs to another computer: the management portal, database and files stay on your computer, browser windows appear on the worker computer, and headed runs no longer take over your own machine. The example uses a Windows worker; the macOS and Linux commands are listed alongside. To record, debug and log in manually on another computer, see <a href="#recorder">Recorders</a>. The design is in <a href="../adr/0012-remote-workers.html">ADR 0012</a> and <a href="../adr/0014-desktop-apps.html">ADR 0014</a>.</p>
     </div>
   </div>
 
@@ -29,7 +29,7 @@
           <p>Stop the running <code>rpa serve</code> with Ctrl+C, then start it again with <code>--worker-port</code>:</p>
 <pre class="source">uv run rpa serve --worker-port 8081</pre>
           <p>The start-up messages gain a line like <code>External port: http://192.168.1.10:8081</code> (the address is a guess at your LAN IP). The first time, macOS asks whether Python may accept incoming connections; choose “Allow”. The Windows firewall asks as well.</p>
-          <p>The portal pages stay on <code>http://127.0.0.1:8080</code> only; port 8081, the <strong>external port</strong>, serves just the Worker API and pairing, and every request needs a token or an invitation.</p>
+          <p>The portal pages are still on <code>http://127.0.0.1:8080</code>. On port 8081, the <strong>external port</strong>, every request needs a token or an invitation: the Worker API needs a worker token, and the portal pages are served only to a <a href="#recorder">recorder</a>'s token, so an unpaired computer opening it gets just a 401.</p>
         </div>
       </section>
       <section class="panel" id="register">
@@ -100,6 +100,28 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
       </div>
     </section>
 
+    <section class="panel" id="recorder">
+      <div class="panel-header"><h2>Recorders: the browser opens on another computer</h2><span class="muted">M10.2: recording, step-by-step debugging, manual login</span></div>
+      <div class="panel-body prose">
+        <p>A worker runs scenarios; a <strong>recorder</strong> lets you use the management portal from another computer (a Mac, for example): for pages opened through the recorder, the browsers for recording, step-by-step debugging and manual login open on <strong>that</strong> computer, and the recordings, screenshots and sign-in state go back to the portal. Scenes, data and run reports stay on your computer, and scenarios still run locally or on a worker.</p>
+        <ol>
+          <li>Open the external port on your computer as in step 1. This also applies when the server and the recorder are the same computer: pair with <code>http://127.0.0.1:8081</code>.</li>
+          <li>On the Devices page choose “Add device”, <strong>set the kind to “RPA Recorder”</strong>, use an ID such as <code>mac-01</code>, and choose “Create invitation”.</li>
+          <li>Install on the recorder computer as in step 3 (on macOS with the <a href="quickstart.html#unix">one-line script</a>), then pair and start it in the project folder:</li>
+        </ol>
+<pre class="source">uv run rpa recorder --invite 'rpa://pair?server=…&amp;app=recorder&amp;code=…'</pre>
+        <p>The default browser opens the management portal, and the header shows “Via recorder “name””. The token is saved in <code>recorder-data/pairing.json</code> (readable only by you; do not commit it to git), so <strong>after that just run <code>uv run rpa recorder</code></strong>. Press Ctrl+C to stop; recordings, debugging and manual logins in progress end.</p>
+        <ul>
+          <li><strong>Local gateway.</strong> <code>rpa recorder</code> opens a gateway on a random port of 127.0.0.1 that adds the token and forwards to the external port. The address in the start-up message works only on this computer and only until it stops (after closing the tab, open the same address again); the token never reaches the page, and other programs on the same computer cannot use the gateway. Use <code>--port</code> for a fixed port and <code>--no-open</code> to skip opening the browser.</li>
+          <li><strong>“Local” is shown as “Server”.</strong> On pages viewed through a recorder, the “local” run location means the server computer, so it is called “Server” to avoid confusing it with the recorder.</li>
+          <li><strong>Browsers.</strong> The recorder reports the browsers it has downloaded when it comes online; choosing one it lacks is explained right on the page. A computer without a graphical display can only debug headless.</li>
+          <li><strong>Losing contact.</strong> If the recorder stops or is disconnected for more than 30 seconds, its recordings, debugging and manual logins in progress end with the reason recorded; the same happens when the recorder restarts or is disabled, deleted or invited again on the Devices page.</li>
+          <li><strong>Test site.</strong> As with <code>rpa worker</code>, the test site (127.0.0.1:8765) starts on the recorder computer by default so the example scenes can be recorded.</li>
+          <li><strong>Working side by side.</strong> Pages on port 8080 of your computer still open browsers on your computer. Each computer can have one recording at a time; a scene has a single step-by-step debugging session, so starting it on another computer closes the one on the first.</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="use">
       <div class="panel-header"><h2>5. Hand runs to the worker</h2></div>
       <div class="panel-body prose">
@@ -109,7 +131,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
           <li><strong>Reports.</strong> When done, the worker sends the whole run directory (report, screenshots, trace, logs) back; run reports say “on win-01” and otherwise look the same as local runs.</li>
           <li><strong>Test site.</strong> <code>rpa worker</code> also starts its own test site (127.0.0.1:8765) on the worker computer, so the “Test site automation” examples still run; its data is separate from the test site on your computer. Any other URL written as 127.0.0.1 or localhost means the worker itself when run there.</li>
           <li><strong>Playground sequences</strong> run entirely on one worker: whichever worker claims the first node gets all later nodes.</li>
-          <li><strong>Login roles.</strong> Manual logins still happen on your computer (they need a person); the login state is sent to the worker for the run and deleted afterwards. A state refreshed by the worker's automatic login is sent back.</li>
+          <li><strong>Login roles.</strong> Manual logins happen on the computer you are working on (your computer, or the recorder when you work through a <a href="#recorder">recorder</a>), never on the worker; the login state is sent to the worker for the run and deleted afterwards. A state refreshed by the worker's automatic login is sent back.</li>
           <li><strong>Workers only.</strong> <code>rpa serve --worker-port 8081 --no-local-worker</code>: your computer runs nothing and every job goes to workers.</li>
         </ul>
       </div>

@@ -14,7 +14,7 @@ import socket
 import threading
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 import click
 
@@ -22,11 +22,15 @@ from rpa_cli.i18n import t
 from rpa_cli.serve import browser_warning, start_testsite
 from testsite.server import DEFAULT_PORT as TESTSITE_PORT
 
+if TYPE_CHECKING:
+    from rpa_worker.pairing import App
+
 __all__ = [
     "DEFAULT_WORK_DIR",
     "TOKEN_ENV",
     "build_worker_command",
     "describe_event",
+    "pair_with_invite",
     "resolve_credentials",
 ]
 
@@ -80,8 +84,13 @@ def _read_token(token_file: Path | None) -> str | None:
     return os.environ.get(TOKEN_ENV, "").strip() or None
 
 
-def _pair(invite_text: str, server: str | None, work: Path) -> tuple[str, str]:
-    """用邀請換權杖並存進工作資料夾；回傳 (伺服器網址, 權杖)。"""
+def pair_with_invite(
+    invite_text: str, server: str | None, work: Path, app: "App" = "worker"
+) -> tuple[str, str]:
+    """用邀請換權杖並存進工作資料夾；回傳 (伺服器網址, 權杖)。
+
+    ``rpa recorder`` 也用這個（``app="recorder"``）。
+    """
     from rpa_worker.pairing import PAIRING_FILE, InviteError, pair, parse_invite, save_pairing
     from rpa_worker.remote import ConnectionLostError, WorkerApiError
 
@@ -90,7 +99,7 @@ def _pair(invite_text: str, server: str | None, work: Path) -> tuple[str, str]:
     except InviteError as error:
         raise click.ClickException(t("cli.worker.invite_" + error.reason)) from None
     try:
-        result = pair(invite, "worker")
+        result = pair(invite, app)
     except WorkerApiError as error:
         raise click.ClickException(t("cli.worker.pair_rejected", message=error.message)) from None
     except ConnectionLostError as error:
@@ -110,7 +119,7 @@ def resolve_credentials(
     from rpa_worker.pairing import PAIRING_FILE, load_pairing, normalize_server
 
     if invite is not None:
-        return _pair(invite, server, work)
+        return pair_with_invite(invite, server, work)
     token = _read_token(token_file)
     saved = load_pairing(work / PAIRING_FILE)
     if saved is not None:

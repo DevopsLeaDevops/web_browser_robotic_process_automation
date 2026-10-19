@@ -19,8 +19,9 @@ from markupsafe import Markup, escape
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_core.workflow import Workflow
 from rpa_server import __version__
+from rpa_server.context import via_recorder
 from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, SceneRecord
-from rpa_server.i18n import t
+from rpa_server.i18n import page_t, t
 
 __all__ = [
     "NAV",
@@ -394,7 +395,8 @@ _env = Environment(
 )
 # jinja2 的型別把 globals 限定為內建函式的型別；這裡放的是本專案的函式與資料
 cast("dict[str, object]", _env.globals).update(
-    t=t,
+    t=page_t,
+    via_recorder=via_recorder,
     nav=NAV,
     badge_color=badge_color,
     iso=_iso,
@@ -423,7 +425,7 @@ def render(
     context 的 worker_names 是 worker 代號 → 名稱（執行報告顯示由哪台執行；M9a），沒給時只有本機。
     """
     group = _group_of(page)
-    context.setdefault("worker_names", {"local": t("worker.local")})
+    context.setdefault("worker_names", {"local": page_t("worker.local")})
     return _env.get_template(name).render(
         page=page,
         group=group,

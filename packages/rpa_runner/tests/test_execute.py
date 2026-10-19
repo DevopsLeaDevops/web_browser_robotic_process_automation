@@ -9,6 +9,7 @@ import pytest
 from rpa_core.dsl import validate_file
 from rpa_core.i18n import ENV_VAR, Locale, use_locale
 from rpa_runner import child
+from rpa_runner import run as run_module
 from rpa_runner.files import OUTPUT, REPORT, RESULT, read_json, read_json_or, write_json
 from rpa_runner.run import execute, new_run_id, scenario_digest, scenario_sources
 
@@ -181,3 +182,33 @@ def test_child_writes_its_log_in_the_given_language(
 
     assert code == child.EXIT_FAILED
     assert message in capsys.readouterr().err
+
+
+def test_leftover_temp_files_still_in_use_are_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows：剛被結束的子程序還占著暫存檔（WinError 32）時稍等重試，一直不行就留著。"""
+    leftover = tmp_path / ".steps.json.tmp"
+    leftover.write_text("{}", encoding="utf-8")
+    original = Path.unlink
+    calls: list[Path] = []
+
+    def busy_twice(self: Path, missing_ok: bool = False) -> None:
+        calls.append(self)
+        if len(calls) <= 2:
+            raise PermissionError(32, "being used by another process")
+        original(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", busy_twice)
+    run_module._remove_leftover(leftover, delay=0)  # pyright: ignore[reportPrivateUsage]
+    assert len(calls) == 3
+    assert not leftover.exists()
+
+    leftover.write_text("{}", encoding="utf-8")
+
+    def always_busy(self: Path, missing_ok: bool = False) -> None:
+        raise PermissionError(32, "being used by another process")
+
+    monkeypatch.setattr(Path, "unlink", always_busy)
+    run_module._remove_leftover(leftover, attempts=3, delay=0)  # pyright: ignore[reportPrivateUsage]
+    assert leftover.exists()  # 不拋出例外，暫存檔留著

@@ -15,7 +15,7 @@
   <div class="heading">
     <div>
       <h1>远程 worker</h1>
-      <p>把运行交给另一台电脑：管理 Portal、数据库与文件留在你的电脑，浏览器窗口出现在 worker 机器上，你的电脑不再被有头模式占住。以 Windows 当 worker 机器为例；macOS、Linux 的命令也列在旁边。设计见 <a href="../adr/0012-remote-workers.html">ADR 0012</a>。</p>
+      <p>把运行交给另一台电脑：管理 Portal、数据库与文件留在你的电脑，浏览器窗口出现在 worker 机器上，你的电脑不再被有头模式占住。以 Windows 当 worker 机器为例；macOS、Linux 的命令也列在旁边。要在另一台电脑录制、调试与人工登录，见<a href="#recorder">录制端</a>。设计见 <a href="../adr/0012-remote-workers.html">ADR 0012</a>、<a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
     </div>
   </div>
 
@@ -29,7 +29,7 @@
           <p>先用 Ctrl+C 停掉原本的 <code>rpa serve</code>，再加上 <code>--worker-port</code> 重新启动：</p>
 <pre class="source">uv run rpa serve --worker-port 8081</pre>
           <p>启动消息会多一行 <code>对外端口：http://192.168.1.10:8081</code>（地址是猜的区网 IP）。第一次启动时，macOS 会询问是否允许 Python 接受传入连接，请按「允许」；Windows 的防火墙也会询问。</p>
-          <p>管理页面仍然只在 <code>http://127.0.0.1:8080</code>；8081 这个<strong>对外端口</strong>只有 Worker API 与配对，每个请求都要权杖或邀请。</p>
+          <p>管理页面仍然在 <code>http://127.0.0.1:8080</code>；8081 这个<strong>对外端口</strong>上每个请求都要权杖或邀请：Worker API 要 worker 的权杖，管理页面只给<a href="#recorder">录制端</a>的权杖，没配对的电脑打开只会看到 401。</p>
         </div>
       </section>
       <section class="panel" id="register">
@@ -100,6 +100,28 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       </div>
     </section>
 
+    <section class="panel" id="recorder">
+      <div class="panel-header"><h2>录制端：浏览器开在另一台电脑</h2><span class="muted">M10.2：录制、逐步调试、人工登录</span></div>
+      <div class="panel-body prose">
+        <p>worker 负责运行场景；<strong>录制端</strong>让你在另一台电脑（例如 Mac）操作管理 Portal：通过录制端打开的页面，录制、逐步调试、人工登录的浏览器开在<strong>那台</strong>，录制稿、截图与登录状态传回管理 Portal。场景、数据与运行报告都还在你的电脑，运行场景照旧交给本机或 worker。</p>
+        <ol>
+          <li>你的电脑照第 1 步开放对外端口。服务器和录制端是同一台时也一样，配对 <code>http://127.0.0.1:8081</code>。</li>
+          <li>设备页按「添加设备」，<strong>种类选「RPA 录制端」</strong>，代号例如 <code>mac-01</code>，按「产生邀请」。</li>
+          <li>录制端那台照第 3 步安装（macOS 用<a href="quickstart.html#unix">一键脚本</a>），在项目文件夹配对并启动：</li>
+        </ol>
+<pre class="source">uv run rpa recorder --invite 'rpa://pair?server=…&amp;app=recorder&amp;code=…'</pre>
+        <p>默认浏览器会打开管理 Portal，页眉多一个「通过录制端「名称」」。权杖存在 <code>recorder-data/pairing.json</code>（只有你能读写，不要提交到 git），<strong>之后只要运行 <code>uv run rpa recorder</code></strong>；按 Ctrl+C 停止，进行中的录制、调试、人工登录会结束。</p>
+        <ul>
+          <li><strong>本机闸道。</strong><code>rpa recorder</code> 在 127.0.0.1 的随机端口开一个闸道，加上权杖后转给对外端口。启动消息印出的网址只在这台、这次启动有效（关掉分页后用同一个网址再打开）；权杖不进网页，同一台电脑上的其他程序也用不了闸道。固定端口号用 <code>--port</code>，不自动打开浏览器用 <code>--no-open</code>。</li>
+          <li><strong>「本机」显示成「服务器」。</strong>通过录制端看页面时，运行位置的「本机」指的是服务器那台，所以改称「服务器」，避免误会成录制端这台。</li>
+          <li><strong>浏览器。</strong>录制端上线时回报下载过的浏览器；选了这台没有的浏览器，页面直接说明。没有图形界面的电脑只能做无头模式的逐步调试。</li>
+          <li><strong>失联。</strong>录制端停掉或断线超过 30 秒，它进行中的录制、调试、人工登录会结束并记下原因；录制端重新启动、在设备页被禁用、删除或重新邀请时也一样。</li>
+          <li><strong>测试网站。</strong>和 <code>rpa worker</code> 一样，默认在录制端那台启动测试网站（127.0.0.1:8765），录制示例场景时连得到。</li>
+          <li><strong>同时使用。</strong>你的电脑 8080 的页面照旧在你的电脑开浏览器。每台电脑同一时间可以各有一段录制；同一个场景的逐步调试只有一个，在另一台开始时，原本那台的会关掉。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="use">
       <div class="panel-header"><h2>5. 把运行交给 worker</h2></div>
       <div class="panel-body prose">
@@ -109,7 +131,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <li><strong>报告。</strong>worker 运行完把整个运行目录（报告、截图、Trace、日志）传回来；运行报告标出「在 win-01 运行」，看起来和本机运行一样。</li>
           <li><strong>测试网站。</strong><code>rpa worker</code> 也在 worker 机器启动自己的测试网站（127.0.0.1:8765），所以「测试网站自动化」的示例照样能跑；它的数据和你电脑上的测试网站是分开的。其他写成 127.0.0.1 或 localhost 的网址，在 worker 上指的是 worker 自己。</li>
           <li><strong>试验场串行</strong>整个在同一台 worker：第一个节点由哪台领取，后面的节点就都给它。</li>
-          <li><strong>登录角色。</strong>人工登录仍在你的电脑（要人操作）；登录状态在运行时送到 worker，用完就删。worker 自动登录后的新状态会传回来。</li>
+          <li><strong>登录角色。</strong>人工登录在你操作的那台（你的电脑，或通过<a href="#recorder">录制端</a>时在录制端），不在 worker；登录状态在运行时送到 worker，用完就删。worker 自动登录后的新状态会传回来。</li>
           <li><strong>只让 worker 运行。</strong><code>rpa serve --worker-port 8081 --no-local-worker</code>：你的电脑完全不运行，全部交给 worker。</li>
         </ul>
       </div>

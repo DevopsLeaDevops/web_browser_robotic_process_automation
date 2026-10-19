@@ -215,6 +215,23 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
     process.wait(timeout=10)
 
 
+def _remove_leftover(path: Path, *, attempts: int = 30, delay: float = 0.1) -> None:
+    """刪掉子程序留下的暫存檔。
+
+    Windows 上 taskkill 回來時，程序樹裡剛被結束的程序可能還占著檔案（WinError 32），
+    稍等重試；一直刪不掉就留著（只是一個暫存檔，不影響結果）。
+    """
+    for attempt in range(attempts):
+        try:
+            path.unlink(missing_ok=True)
+        except PermissionError:
+            if attempt == attempts - 1:
+                return
+            time.sleep(delay)
+        else:
+            return
+
+
 def _check_cancelled(cancel: threading.Event | None) -> None:
     if cancel is not None and cancel.is_set():
         raise _StageFailedError("cancelled", t("run.cancelled"))
@@ -467,7 +484,7 @@ def execute(
     finally:
         (folder / CANDIDATE).unlink(missing_ok=True)
         for leftover in folder.glob(".*.tmp"):  # 子程序寫到一半被終止時留下的暫存檔
-            leftover.unlink(missing_ok=True)
+            _remove_leftover(leftover)
         if result.status != "passed":
             (folder / OUTPUT).unlink(missing_ok=True)
             result.output = None

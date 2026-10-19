@@ -169,8 +169,9 @@ def test_pairing_is_only_on_the_external_port(client: Client, remote: Client) ->
     register(client)
     code = invite(client).code
     assert pair(client, code).status_code == 404  # 管理頁面的埠沒有 Client API
-    assert remote.post("/api/workers/win-01/invite").status_code == 404
-    assert remote.get("/devices").status_code == 404
+    # M10.2：對外埠上的管理頁面只給錄製端的權杖（沒有權杖 401）
+    assert remote.post("/api/workers/win-01/invite").status_code == 401
+    assert remote.get("/devices").status_code == 401
     assert remote.post(PAIR, json={"code": code, "app": "phone"}).status_code == 422
     assert body(pair(remote, code))["device"] == "win-01"
 
@@ -202,6 +203,6 @@ def test_device_page_and_reported_version(client: Client, remote: Client) -> Non
     page = client.get("/devices").text
     assert "新增裝置" in page
     assert "App 0.1.0" in page
-    assert 'data-action="invite-worker" data-worker="win-01"' in page
+    assert 'data-action="invite-worker" data-kind="worker" data-worker="win-01"' in page
     assert 'data-action="rotate-worker"' not in page
     assert 'href="/devices"' in page

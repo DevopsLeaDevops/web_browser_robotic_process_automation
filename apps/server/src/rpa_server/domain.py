@@ -38,6 +38,8 @@ __all__ = [
     "Engine",
     "NodeStatus",
     "Purpose",
+    "RecorderRecord",
+    "RecorderStatus",
     "RecordingRecord",
     "RevisionRecord",
     "RevisionStatus",
@@ -101,6 +103,8 @@ TARGETS: Final[tuple[Target, ...]] = ("local", "remote", "any")
 LOCAL_WORKER: Final = "local"
 """本機 worker（管理 Portal 程序裡的執行緒）在 runs.worker_id 的代號。"""
 WorkerStatus = Literal["online", "busy", "offline", "disabled"]
+RecorderStatus = Literal["online", "busy", "offline", "disabled"]
+"""錄製端（M10.2）：busy 是有錄製、調試或人工登入的子程序在這台執行。"""
 DOMAIN_ID: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """領域代號的規則（與場景 id 相同）。"""
 
@@ -377,6 +381,8 @@ class RecordingRecord:
     mode: str = "new"
     """new（新場景）、continue（接在既有步驟後面）、replace（既有場景整份換成錄製的草稿）。"""
     base_revision: int | None = None
+    device_id: str | None = None
+    """在哪台錄製端錄製（M10.2）；在伺服器這台錄製或貼上的是 None。"""
 
     @property
     def finished(self) -> bool:
@@ -402,6 +408,7 @@ class RecordingRecord:
             "finished": self.finished,
             "mode": self.mode,
             "baseRevision": self.base_revision,
+            "deviceId": self.device_id,
         }
 
 
@@ -564,4 +571,47 @@ class WorkerRecord:
             "browsers": list(self.browsers),
             "display": self.display,
             "version": self.version,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class RecorderRecord:
+    """一台錄製端（M10.2）：錄製、逐步調試、人工登入的瀏覽器開在這台。"""
+
+    id: str
+    name: str
+    status: RecorderStatus
+    disabled: bool
+    created_at: datetime
+    last_seen_at: datetime | None
+    protocol: int | None
+    fingerprint: str | None
+    same_version: bool
+    """程式指紋和管理 Portal 相同（還沒上線過時視為相同）。"""
+    version: str | None
+    os: str | None
+    host: str | None
+    browsers: tuple[str, ...]
+    display: bool
+    active: int
+    """這台正在執行的互動子程序（錄製、調試、人工登入）數量。"""
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "kind": "recorder",
+            "status": self.status,
+            "disabled": self.disabled,
+            "createdAt": _iso(self.created_at),
+            "lastSeenAt": _iso(self.last_seen_at),
+            "protocol": self.protocol,
+            "fingerprint": self.fingerprint,
+            "sameVersion": self.same_version,
+            "version": self.version,
+            "os": self.os,
+            "host": self.host,
+            "browsers": list(self.browsers),
+            "display": self.display,
+            "active": self.active,
         }

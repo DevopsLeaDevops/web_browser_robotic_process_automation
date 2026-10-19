@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M10.2 macOS 錄製端 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M10.2 macOS 錄製端</h1><p>錄製、逐步調試、人工登入的瀏覽器開在操作的那台 Mac；設計見 <a href="../../docs/design/desktop.html#interactive">桌面端分發</a>與 <a href="../../docs/adr/0014-desktop-apps.html">ADR 0014</a>。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261018-m10-2-macos-recorder；2026-10-18 16:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 2026-10-18 08:52 America/Los_Angeles（PDT，UTC−07:00）問下一步；Claude 提出 M10.2 的計畫（三個 PR）與三個待決定事項，使用者在 08:59 回覆「ok, PR1 and PR2 start together」（見<a href="../decisions.html">決定</a>）。驗收沿用設計：在 Mac 上錄一段（瀏覽器開在 Mac）→ 草稿 → 逐步調試 → 人工登入角色 → 交給 Windows Worker 驗證 → 發布；沒配對的電腦打開 8081 看不到管理頁面。</dd>
+        <dt>範圍／不包含</dt><dd><strong>PR 1 伺服器端＋命令列錄製端</strong>（<code>m10/recorder-server</code>）：裝置頁新增、邀請「錄製端」；帶錄製端權杖才能從對外埠看 Portal；Client API 的上線、指令通道、子程序輸出與檔案回傳；錄製、逐步調試、人工登入可以交給錄製端執行；頁首顯示透過哪台錄製端、從錄製端看時「本機」改叫「伺服器」；<code>rpa recorder --invite …</code>（本機閘道＋系統瀏覽器）。<strong>PR 2 錄製端 App</strong>（<code>m10/recorder-app</code>，疊在 PR 1 上）：pywebview（WKWebView）視窗只連本機閘道、配對與下載瀏覽器與離線的頁面、鑰匙圈、只執行一份、新視窗與下載。<strong>PR 3</strong>：DMG 進 Release、macOS 端到端 CI、文件、v0.3.0。不包含：Windows 版錄製端、錄製端兼當執行機、HTTPS、自動更新、Intel Mac。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責 Claude（使用者指派）。審閱與合併由使用者決定；合併前另由沒寫這段程式的 agent 審閱。</dd>
+        <dt>修改檔案／整合者</dt><dd>PR 1：<code>apps/server</code>（遷移 0009、裝置與錄製端、Client API、middleware、三個互動服務、頁面與訊息）、<code>apps/worker</code>（錄製端的指令通道與本機閘道）、<code>apps/cli</code>（<code>rpa recorder</code>）、文件與交接。PR 2：<code>apps/desktop</code>、打包設定、<code>.github/workflows/desktop.yml</code>。共用檔案（訊息目錄、遷移編號、任務索引、<code>uv.lock</code>）由 Claude 整合；簡中與 <code>uv.lock</code> 由 bootstrap 產生。</dd>
+        <dt>狀態</dt><dd><strong>PR 1：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>（草稿），依審閱與第一次 CI 修正中</strong>（伺服器端的測試只能在 CI 跑）。<strong>PR 2：PR 1 推上去後接著做</strong>（介面已經定下來：<code>rpa_worker.recorder</code>、<code>rpa_worker.gateway</code>）。計畫在 2026-10-18 08:59 America/Los_Angeles（PDT，UTC−07:00）由使用者核准，要求兩個一起開始。</dd>
+        <dt>分支／PR／base SHA</dt><dd>PR 1：<code>m10/recorder-server</code>，從 <code>origin/main</code> <span class="mono">d71f513</span>（#35）開出；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>。PR 2：<code>m10/recorder-app</code>，疊在 PR 1 上；未建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>PR 1 的提交推送到 <code>m10/recorder-server</code> 後以 GitHub 上的 PR 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器，Python 3.13、ruff、pyright；不能連 PyPI（<code>uv sync</code> 失敗），本機只跑不需要新依賴的測試；macOS 的視窗只能在 CI 的 macOS 執行環境測。GitHub 代理不允許推標籤（2026-10-18 09:00 推 <code>v0.2.0</code> 被拒，403），標籤請使用者推。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>計畫（使用者核准，2026-10-18 08:59 America/Los_Angeles（PDT，UTC−07:00））：</strong>
+          <ul>
+            <li><strong>子程序交給哪台跑：</strong>三個服務（錄製、逐步調試、人工登入）啟動子程序的地方改成可以交給錄製端；伺服器送出「模組＋參數＋需要的檔案」，錄製端在自己的暫存資料夾重建檔案再執行。錄製稿轉 DSL、遮罩密碼、建草稿、存登入狀態全部仍在伺服器。</li>
+            <li><strong>檔案回傳：</strong>錄製端每送一行輸出之前，先把這段時間新增或改過的檔案傳回；結束時再同步一次並回報結束碼。</li>
+            <li><strong>失聯：</strong>超過 30 秒沒消息，伺服器把它的子程序視為結束（調試中斷、錄製失敗）。</li>
+            <li><strong>錄製端用獨立的資料表</strong>（遷移 0009），Worker 的領取邏輯不動；邀請沿用 <code>device_invites</code>。</li>
+            <li><strong>閘道：</strong>權杖只在錄製端的本機閘道，網頁拿不到；閘道每次啟動產生密語，同一台電腦上的其他程式用不了。</li>
+            <li><strong>測試網站：</strong>錄製端也在 127.0.0.1:8765 啟動測試網站。</li>
+            <li><strong>關掉視窗就結束 App</strong>（不做選單列圖示）；有錄製或調試在進行時先確認。</li>
+            <li><strong>端到端 CI 測逐步調試</strong>（無頭）；錄製與人工登入要人操作，靠人工驗收。</li>
+          </ul>
+        </li>
+        <li><strong>決定（2026-10-18 08:59 America/Los_Angeles（PDT，UTC−07:00））：</strong>使用者回覆「ok, PR1 and PR2 start together」，核准計畫並要 PR 1、PR 2 一起開始。三個待決定事項沒有逐一回答，<strong>照計畫裡的預設進行</strong>（使用者可以再改）：(1) 先用伺服器那台 Mac 配對 <code>127.0.0.1:8081</code> 測整條路，有第二台 Mac 時再測「瀏覽器開在別台」；(2) 只做 Apple 晶片、不簽章（第一次開啟要到「系統設定 › 隱私權與安全性」允許）；(3) 錄製端的權杖能看、改所有東西（和本機 8080 一樣），M8 才有使用者權限，信任的區網內接受。</li>
+        <li><strong>PR 1 的內容（實作完成，2026-10-18 10:00 America/Los_Angeles（PDT，UTC−07:00））：</strong>
+          <ul>
+            <li><strong>錄製端裝置：</strong>遷移 0009 新增 <code>recorders</code> 資料表與 <code>recordings.device_id</code>；裝置頁新增時可以選「RPA 錄製端」，有自己的清單（狀態：線上、忙碌、離線、停用）、停用、重新邀請、刪除；邀請沿用 <code>device_invites</code>（<code>app="recorder"</code>），邀請的命令是 <code>uv run rpa recorder --invite …</code>；API <code>/api/recorders</code>。</li>
+            <li><strong>對外埠的 Portal：</strong><code>PortGateMiddleware</code> 在對外埠上，Worker API 與配對以外的路徑只接受錄製端的權杖（worker 的權杖也是 401），認出後把裝置放進這個請求的 context（<code>rpa_server.context</code>）。頁首顯示「透過錄製端「名稱」」；執行位置的「本機」顯示成「伺服器」（<code>page_t</code> 換訊息鍵）。</li>
+            <li><strong>Client API：</strong><code>POST /hello</code>（開機代號換了就把舊的子程序視為結束）、<code>POST /control</code>（長輪詢 25 秒，以序號確認）、<code>PUT /processes/&lt;id&gt;/files</code>（zip）、<code>POST /processes/&lt;id&gt;/output</code>（幾行、結束碼、啟動失敗的原因）。</li>
+            <li><strong>子程序交給錄製端：</strong><code>RecorderHub.launcher(裝置)</code>（<code>rpa_server.devices</code>）傳回和 Popen 用法相同的 <code>RemoteProcess</code>；錄製、逐步調試、人工登入三個服務依請求來自哪台選 launcher，啟動前檢查那台在線、有畫面（有頭時）、有那個瀏覽器。參數裡的工作目錄換成 <code>{work}</code>，工作目錄外的輸入檔放進 <code>.inputs/</code>；只送服務明確指定的環境變數。失聯（30 秒）、重新啟動、停用、刪除、重新邀請、伺服器停止時子程序以結束碼 <code>-1001</code> 結束，原因寫進日誌，並送出結束指令。</li>
+            <li><strong>錄製端程式</strong>（<code>apps/worker</code>，App 與命令列共用）：<code>rpa_worker.recorder.RecorderHost</code>（上線、輪詢、在暫存資料夾執行子程序、每行輸出前先傳回改過的檔案、結束後刪掉暫存資料夾、404 時結束子程序、權杖被拒時停止）；<code>rpa_worker.gateway.Gateway</code>（127.0.0.1 的本機閘道：每次啟動的密語 Cookie、加上權杖轉送、改寫 Origin 與 Location、擋外來 Origin 與 DNS rebinding、<code>/__desktop/</code> 的本機頁面、離線頁、401 回呼）；<code>rpa_worker.interactive</code>（共用的常數、安全路徑、打包與解開檔案）。</li>
+            <li><strong>命令列：</strong><code>rpa recorder</code>（<code>--invite</code>、<code>--server</code>、<code>--name</code>、<code>--work-dir recorder-data</code>、<code>--port</code>、<code>--open/--no-open</code>、<code>--testsite/--no-testsite</code>）：權杖只能用邀請換（不收環境變數或權杖檔）；開閘道、用預設瀏覽器打開；Ctrl+C 停止。</li>
+            <li><strong>順帶修正：</strong>main 的「一鍵安裝腳本」在 Windows 失敗一次（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39142529148">run 39142529148</a>）：<code>rpa_runner.run</code> 取消後刪暫存檔時，剛被 taskkill 結束的程序還占著檔案（WinError 32），例外讓 <code>execute</code> 失敗。改成稍等重試，一直不行就留著；新增測試。和 M10.2 無關，放在獨立的提交。</li>
+            <li><strong>文件：</strong>遠端 worker 指南新增「錄製端」一節，對外埠與人工登入的說明改成 M10.2 之後的樣子；桌面端分發的「互動子程序」「RPA 錄製端」「Client API」改成實作的做法（繁中、英文，英文已 stamp）。</li>
+          </ul>
+        </li>
+        <li><strong>獨立審閱（2026-10-18 10:15～10:31 America/Los_Angeles（PDT，UTC−07:00），沒寫這段程式的 agent）與修正（16:08～16:20）：</strong>
+          <ul>
+            <li><strong>高：</strong>管理 Portal 重新啟動後，錄製端還用舊的指令序號，新的指令全被當成看過的（錄製一直停在「錄製中」）。修正：上線時回傳通道代號與目前的序號，代號換了就從 0 開始；序號比發過的還大時要求重新上線。</li>
+            <li><strong>中：</strong>錄製端那邊沒有、伺服器卻一直等的子程序（啟動失敗的回報沒送到、處理指令時出錯）。修正：每次輪詢附上正在執行的子程序，確認收到「啟動」卻不在裡面的視為結束（<code>error.recorder_process_gone</code>）。</li>
+            <li><strong>中：</strong>伺服器網址有大寫（Windows 的電腦名稱）或寫了預設埠號時，閘道換過的 Origin 和 Host 不一致，所有寫入都 403。修正：Host 和 Origin 用同一個寫法。</li>
+            <li><strong>中（加固）：</strong>錄製端只執行錄製、調試、人工登入的模組與 <code>playwright codegen</code>，不接受 <code>PYTHON*</code>、<code>NODE_*</code>、<code>DYLD_*</code>、<code>PATH</code> 等環境變數（區網的 HTTP 可能被竄改）。</li>
+            <li><strong>低：</strong>結束時一定刪暫存資料夾、啟動時清掉上次留下的；同步用的 zip 只有本人能讀寫；400／413／422 不再無限重試；只換 <code>RPA_STORAGE_STATE</code> 的路徑（Secrets 的值原樣送出），伺服器的環境一定不送；閘道不轉送 <code>/client-api/</code> 與 <code>/worker-api/</code>、<code>next</code> 擋 <code>/\</code>、非 ASCII 的密語回 403；命令列的 <code>playwright</code> 顯示成「錄製」；錄製端遇到預期外的回應不再讓執行緒結束；解開 zip 前先檢查完全部（含符號連結與檔案、資料夾同名）；移除沒用到的 <code>launcher_for</code>、<code>active</code>。</li>
+            <li>審閱確認沒問題的：8080 照舊；worker 權杖看不到 Portal、錄製端權杖不能用 Worker API；權杖不進網頁；ContextVar 帶進同步路由的執行緒池、背景執行緒看不到；邀請一次性；zip 的安全路徑與大小上限；<code>RemoteProcess</code> 和 Popen 的行為一致；檔案先於那一行輸出；遷移 0009。</li>
+          </ul>
+        </li>
+        <li><strong>第一次 CI（<span class="mono">1198f6d</span>，2026-10-18 10:02～10:11 America/Los_Angeles（PDT，UTC−07:00））：</strong>失敗。簡中還沒產生（bootstrap 之後補上）；pyright：<code>@contextmanager</code> 的回傳型別要用 <code>Generator</code>；英文頁的測試資料有中文名稱；測試的錄製端只有 Chromium、BA-001 用 Firefox；錄製端的協定版本訊息用了不存在的鍵（本機掃描時發現）。都已修正，並新增「這台沒有那個瀏覽器」的測試。</li>
+        <li><strong>第二次 CI（<span class="mono">ce0a41e</span>，2026-10-18 16:18～16:28 America/Los_Angeles（PDT，UTC−07:00））：</strong>伺服器端的測試（含 <code>test_recorder_api.py</code> 與真的 uvicorn＋閘道的 <code>test_recorder_flow.py</code>，Chromium、Firefox）全部通過；只剩簡中（bot 的 <span class="mono">f88f0a7</span> 已補上）與新測試裡兩個字典的 pyright 型別標註，修正後重跑。</li>
+        <li><strong>實作選擇（Claude，使用者可以再改）：</strong>每台裝置同一時間各一段錄製；同一個場景的逐步調試只有一個，在另一台開始時關掉原本的；錄製端的權杖只能用邀請換。</li>
+        <li><strong>未完成／阻礙：</strong>PR 1 推送修正後等 CI；PR 2、PR 3 未開始。v0.2.0：使用者在 2026-10-18 09:03 America/Los_Angeles（PDT，UTC−07:00）推了標籤，「發布」流程通過；Claude 核對草稿後發布被這個 session 擋下（403），請使用者按發布（<a href="20261016-m10-1-windows-worker.html">M10.1 任務紀錄</a>）。</li>
+        <li><strong>下一個具體動作：</strong>推送 PR 1 的修正、看 CI；通過後把 #36 改成可審閱；從 PR 1 開 <code>m10/recorder-app</code> 做 PR 2。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無（本機的 <code>pyrightconfig.local.json</code> 用完即刪）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>本機，Python 3.13，2026-10-18 09:50 America/Los_Angeles（PDT，UTC−07:00）</td><td><code>pytest apps/cli/tests apps/worker/tests packages/rpa_runner/tests packages/rpa_core/tests</code></td><td>521 通過、18 略過（本機沒有 Firefox）</td><td>伺服器端（<code>apps/server/tests</code>，需要 FastAPI 等新依賴）只在 CI 跑</td></tr>
+          <tr><td>本機</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；新模組與測試的 pyright（strict）</td><td>通過；pyright 只剩既有的 keyring 型別（9 個，CI 有 stub）</td><td>伺服器端的 pyright 在 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：第一次失敗（見上），修正後重跑；人工驗收：未執行；審閱：獨立審閱完成，發現的問題已修正（見上）。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><span class="mono">2026-10-18 08:52～08:59 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）使用者問下一步；Claude 讀錄製、調試、人工登入三個服務與 middleware 後提出 M10.2 計畫與三個待決定事項。使用者回覆「ok, PR1 and PR2 start together」。</li>
+        <li><span class="mono">2026-10-18 09:00～09:05 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）#35 已合併；推 <code>v0.2.0</code> 標籤被 GitHub 代理拒絕（403），請使用者推。從 <code>origin/main</code> <span class="mono">d71f513</span> 開 <code>m10/recorder-server</code>，建立本紀錄。</li>
+        <li><span class="mono">2026-10-18 09:05～09:55 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）寫 PR 1：伺服器端、錄製端程式、<code>rpa recorder</code>、測試與文件；本機檢查見上表。</li>
+        <li><span class="mono">2026-10-18 09:56 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）使用者已推 <code>v0.2.0</code> 標籤（09:03），「發布」流程（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39143285503">run 39143285503</a>）通過。核對草稿：三個檔案、<code>sha256sum -c</code> 通過、zip 裡的建置資訊是 0.2.0／d71f513。發布時 GitHub 回 403（這個 session 不能建立或修改 Release），沒有繞路，請使用者按發布。main 的「一鍵安裝腳本」Windows 失敗一次（WinError 32），修正放進 PR 1 的獨立提交。</li>
+        <li><span class="mono">2026-10-18 10:00～10:31 America/Los_Angeles（PDT，UTC−07:00）</span>（Claude）推送 <span class="mono">842e7c9</span>、<span class="mono">1198f6d</span>（<code>[bootstrap]</code>），開 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/36">#36</a>（草稿）；bot 產生簡中 <span class="mono">c275865</span>。第一次 CI 失敗（見進度）；請沒寫這段程式的 agent 審閱。</li>
+        <li><span class="mono">2026-10-18 16:08～16:20 America/Los_Angeles（PDT，UTC−07:00）</span>（使用者、Claude）使用者說「go on please」。Claude 修正審閱與 CI 的問題、補測試；v0.2.0 的草稿 Release 仍等使用者發布。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

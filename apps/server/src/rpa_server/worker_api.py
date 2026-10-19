@@ -20,7 +20,7 @@ from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_worker.protocol import API_PREFIX, CLAIM_WAIT_SECONDS, MAX_ARTIFACT_BYTES
 
-__all__ = ["worker_api_router"]
+__all__ = ["save_upload", "worker_api_router"]
 
 MAX_STATE_BYTES: Final = 5 * 1024 * 1024
 
@@ -50,7 +50,7 @@ def _too_large() -> ServiceError:
     return ServiceError(413, "upload_too_large", t("error.upload_too_large"))
 
 
-async def _save_body(request: Request, limit: int, folder: Path) -> Path:
+async def save_upload(request: Request, limit: int, folder: Path) -> Path:
     """把上傳內容一段一段寫到暫存檔（不整個放進記憶體），超過 limit 就拒絕。"""
     length = request.headers.get("content-length")
     if length is not None and length.isdigit() and int(length) > limit:
@@ -107,7 +107,7 @@ def worker_api_router(hub: WorkerHub) -> APIRouter:
     async def artifacts(
         worker: Annotated[str, Depends(current_worker)], run_id: str, request: Request
     ) -> Response:
-        path = await _save_body(request, MAX_ARTIFACT_BYTES, hub.storage.runs)
+        path = await save_upload(request, MAX_ARTIFACT_BYTES, hub.storage.runs)
         try:
             await anyio.to_thread.run_sync(hub.store_artifacts, worker, run_id, path)
         finally:

@@ -12,11 +12,13 @@ import pytest
 from rpa_core.dsl import Scenario, validate_file, validate_text
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, Locale, use_locale
 from rpa_core.workflow import Workflow, WorkflowProblem
+from rpa_server.context import Via, use_recorder
 from rpa_server.debugging import DebugSession
 from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
 from rpa_server.domain import (
     ENGINES,
     DomainRecord,
+    RecorderRecord,
     RecordingRecord,
     RevisionRecord,
     RoleRecord,
@@ -124,6 +126,23 @@ WORKER = WorkerRecord(
     version="0.1.0",
 )
 WORKER_NAMES = {"local": "本機", "win-01": "Windows <測試機>"}
+RECORDER = RecorderRecord(
+    id="mac-01",
+    name="Amy 的 Mac",
+    status="busy",
+    disabled=False,
+    created_at=MOMENT,
+    last_seen_at=MOMENT,
+    protocol=1,
+    fingerprint="0123456789abcdef",
+    same_version=True,
+    version="0.3.0",
+    os="macOS 15.4",
+    host="amy-mac",
+    browsers=("chromium",),
+    display=True,
+    active=1,
+)
 RESULT: dict[str, object] = {
     "engine": "chromium",
     "input": RUN.input,
@@ -679,6 +698,7 @@ def _pages() -> dict[str, str]:
                     same_version=True,
                 ),
             ],
+            recorders=[RECORDER, replace(RECORDER, id="mac-02", status="disabled", disabled=True)],
             default_target="any",
             targets=("local", "remote", "any"),
             local_worker=False,
@@ -691,6 +711,7 @@ def _pages() -> dict[str, str]:
             page="workers",
             title="遠端 Worker",
             workers=[],
+            recorders=[],
             default_target="local",
             targets=("local", "remote", "any"),
             local_worker=True,
@@ -930,6 +951,7 @@ def _english_domain_pages() -> dict[str, str]:
                     replace(WORKER, name="Windows PC", os="Windows", host="PC"),
                     replace(WORKER, id="mac", name="Mac", status="disabled", disabled=True),
                 ],
+                recorders=[replace(RECORDER, name="Amy Mac")],
                 default_target="remote",
                 targets=("local", "remote", "any"),
                 local_worker=False,
@@ -942,6 +964,7 @@ def _english_domain_pages() -> dict[str, str]:
                 page="workers",
                 title=t("nav.workers"),
                 workers=[],
+                recorders=[],
                 default_target="local",
                 targets=("local", "remote", "any"),
                 local_worker=True,
@@ -1230,20 +1253,46 @@ def test_remote_worker_pages() -> None:
     assert 'id="worker-win-01"' in workers
     assert 'data-api-url="http://192.168.1.10:8081"' in workers
     assert "和 Portal 的程式版本不同" in _text(workers)
-    assert 'data-action="enable-worker" data-worker="mac"' in workers
+    assert 'data-action="enable-worker" data-kind="worker" data-worker="mac"' in workers
     assert 'value="local" disabled' in workers  # --no-local-worker
     assert "rpa serve --worker-port 8081" in _text(pages["workers-empty"])
     produce = pages["workers"].split('id="sidenav"')[1].split("</nav>")[0]
     assert 'href="/devices"' in produce
     assert "裝置" in _text(produce)
     # M10.1：重新邀請取代重新產生權杖；停用的裝置與沒開對外埠時不能邀請
-    assert 'data-action="invite-worker" data-worker="win-01"' in workers
-    assert 'data-action="invite-worker" data-worker="mac"' not in workers
+    assert 'data-action="invite-worker" data-kind="worker" data-worker="win-01"' in workers
+    assert 'data-action="invite-worker" data-kind="worker" data-worker="mac"' not in workers
     assert "rotate-worker" not in workers
     assert "App 0.1.0" in _text(workers)
     assert 'id="worker-invite"' in workers
     assert 'data-action="new-worker" disabled' in pages["workers-empty"]
     assert 'data-action="new-worker" disabled' not in workers
+    # M10.2：錄製端的清單與種類
+    assert 'id="recorder-mac-01"' in workers
+    assert 'data-action="invite-worker" data-kind="recorder" data-worker="mac-01"' in workers
+    assert 'data-action="invite-worker" data-kind="recorder" data-worker="mac-02"' not in workers
+    assert 'data-action="enable-worker" data-kind="recorder" data-worker="mac-02"' in workers
+    text = _text(workers)
+    assert "Amy 的 Mac" in text
+    assert "使用中" in text
+    assert "1 個錄製、調試或人工登入進行中" in text
+    assert '<option value="recorder">RPA 錄製端</option>' in workers
+    assert 'data-app="recorder" hidden' in workers
+    assert "還沒有錄製端" in _text(pages["workers-empty"])
+
+
+def test_pages_through_a_recorder_say_server_for_local() -> None:
+    """M10.2：透過錄製端看頁面時，頁首標出哪台，「本機」改稱「伺服器」。"""
+    with use_locale("zh-Hant"):
+        plain = _pages()["run-form-remote"]
+        with use_recorder(Via("mac-01", "Amy <Mac>")):
+            pages = _pages()
+    assert 'id="via-recorder"' not in plain
+    form = pages["run-form-remote"]
+    assert 'id="via-recorder"' in form
+    assert "透過錄製端「Amy &lt;Mac&gt;」" in form
+    assert "伺服器（執行 Portal 的電腦）" in _text(form)
+    assert "本機（這台電腦）" not in _text(form)
 
 
 @pytest.mark.parametrize("mode", ["serial", "explicit", "binding"])

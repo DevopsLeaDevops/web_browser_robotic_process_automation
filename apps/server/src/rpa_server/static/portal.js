@@ -2,6 +2,7 @@
 // 管理 Portal 的頁面互動：呼叫 /api、輪詢執行狀態、對話框；M4 加上登入與憑證、錄製、逐步調試、入參出參表單；
 // M6 加上自由試驗場（DAG 畫布、組合場景管理與執行）；M9a 加上遠端 worker 頁與執行位置。
 // M10.1：遠端 worker 頁改為裝置頁，新增與重新邀請都產生邀請（一次性、24 小時內有效）。
+// M10.2：裝置頁也登記錄製端（/api/recorders），邀請的用法依裝置種類不同。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -2350,10 +2351,14 @@
   localizeTimes();
   // ---------------------------------------------------------------- 裝置（M9a 遠端 worker；M10.1 邀請）
 
+  // 裝置的種類：worker 或錄製端（M10.2），各自一組 API
+  const deviceApi = kind => kind === 'recorder' ? '/api/recorders' : '/api/workers';
+
   // 邀請只在這時候拿得到：一行邀請、分開的伺服器與代碼、命令列的用法
-  function showInvite(worker, invite) {
+  function showInvite(worker, invite, kind) {
     modal(fill(messages.worker_invite_title, {name: worker.name}), qs('#worker-invite').innerHTML, null);
     const dialog = qs('#dialog-content');
+    qsa('[data-app]', dialog).forEach(item => { item.hidden = item.dataset.app !== (kind || 'worker'); });
     qs('[name="invite"]', dialog).value = invite.line;
     qs('[name="server"]', dialog).value = invite.server;
     qs('[name="code"]', dialog).value = invite.code;
@@ -2361,7 +2366,8 @@
     expires.setAttribute('datetime', invite.expiresAt);
     expires.textContent = invite.expiresAt;
     localizeTimes();
-    qs('[data-command="cli"]', dialog).textContent = 'uv run rpa worker --invite "' + invite.line + '"';
+    const command = kind === 'recorder' ? 'uv run rpa recorder --invite "' : 'uv run rpa worker --invite "';
+    qs('[data-command="cli"]', dialog).textContent = command + invite.line + '"';
     const field = qs('[name="invite"]', dialog);
     field.focus();
     field.select();
@@ -2371,8 +2377,8 @@
     $('#dialog').addEventListener('close', () => location.reload(), {once: true});
   }
 
-  async function inviteWorker(workerId) {
-    return api('POST', '/api/workers/' + path(workerId) + '/invite');
+  async function inviteWorker(workerId, kind) {
+    return api('POST', deviceApi(kind) + '/' + path(workerId) + '/invite');
   }
 
   function bindWorkers() {
@@ -2382,21 +2388,22 @@
       modal(messages.worker_create_title, qs('#worker-form').innerHTML, {label: messages.worker_create_action, run: async () => {
         const dialog = qs('#dialog-content');
         const value = name => qs('[name="' + name + '"]', dialog).value.trim();
-        const result = await api('POST', '/api/workers', {id: value('id'), name: value('name') || null});
+        const kind = value('kind') || 'worker';
+        const result = await api('POST', deviceApi(kind), {id: value('id'), name: value('name') || null});
         if (!result.ok) return dialogError(dialog, result);
-        const invited = await inviteWorker(result.data.worker.id);
+        const invited = await inviteWorker((result.data.worker || result.data.recorder).id, kind);
         if (!invited.ok) {
           $('#dialog').close();
           toast(errorMessage(invited));
           return location.reload();
         }
-        showInvite(invited.data.worker, invited.data.invite);
+        showInvite(invited.data.worker || invited.data.recorder, invited.data.invite, kind);
       }});
       qs('[name="id"]', qs('#dialog-content')).focus();
     });
     const patch = async (button, disabled) => {
       busy(button, true);
-      const result = await api('PATCH', '/api/workers/' + path(button.dataset.worker), {disabled});
+      const result = await api('PATCH', deviceApi(button.dataset.kind) + '/' + path(button.dataset.worker), {disabled});
       if (!result.ok) {
         busy(button, false);
         return toast(errorMessage(result));
@@ -2409,19 +2416,19 @@
     qsa('[data-action="invite-worker"]').forEach(button => {
       button.addEventListener('click', () => {
         confirmDialog(fill(messages.worker_invite_again_title, {name: button.dataset.name}), messages.worker_invite_again_body, messages.worker_invite_again_action, async () => {
-          const result = await inviteWorker(button.dataset.worker);
+          const result = await inviteWorker(button.dataset.worker, button.dataset.kind);
           if (!result.ok) {
             $('#dialog').close();
             return toast(errorMessage(result));
           }
-          showInvite(result.data.worker, result.data.invite);
+          showInvite(result.data.worker || result.data.recorder, result.data.invite, button.dataset.kind);
         });
       });
     });
     qsa('[data-action="delete-worker"]').forEach(button => {
       button.addEventListener('click', () => {
         confirmDialog(fill(messages.worker_delete_title, {name: button.dataset.name}), messages.worker_delete_body, messages.worker_delete_action, async () => {
-          const result = await api('DELETE', '/api/workers/' + path(button.dataset.worker));
+          const result = await api('DELETE', deviceApi(button.dataset.kind) + '/' + path(button.dataset.worker));
           $('#dialog').close();
           if (!result.ok) return toast(errorMessage(result));
           location.reload();
@@ -2436,13 +2443,14 @@
     });
     // 狀態（上線、忙碌、離線）改變時重新載入；對話框開著時不打擾
     if (root.hasAttribute('data-poll')) {
-      const states = () => qsa('tr[data-worker]').map(row => row.dataset.state).join('|');
+      const states = () => qsa('tr[data-state]').map(row => row.dataset.state).join('|');
       const current = states();
       const timer = setInterval(async () => {
         if ($('#dialog').open) return;
-        const result = await api('GET', '/api/workers');
-        if (!result.ok) return;
-        const next = result.data.workers.map(worker => worker.status + ':' + (worker.currentRun || '')).join('|');
+        const [workers, recorders] = await Promise.all([api('GET', '/api/workers'), api('GET', '/api/recorders')]);
+        if (!workers.ok || !recorders.ok) return;
+        const next = workers.data.workers.map(worker => 'worker:' + worker.id + ':' + worker.status + ':' + (worker.currentRun || ''))
+          .concat(recorders.data.recorders.map(item => 'recorder:' + item.id + ':' + item.status + ':' + item.active)).join('|');
         if (next !== current) {
           clearInterval(timer);
           location.reload();

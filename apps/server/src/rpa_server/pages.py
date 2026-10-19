@@ -471,7 +471,7 @@ def page_router(services: Services) -> APIRouter:
 
     @router.get("/devices", include_in_schema=False)
     def devices_page() -> HTMLResponse:
-        """裝置：登記、邀請與配對、狀態，以及預設執行位置（M9a；M10.1 改為邀請）。"""
+        """裝置：登記、邀請與配對、狀態、預設執行位置（M9a；M10.1 邀請；M10.2 錄製端）。"""
         port = services.worker_port
         api_url = services.external_url()
         records = services.workers.list_workers()
@@ -480,6 +480,7 @@ def page_router(services: Services) -> APIRouter:
             page="workers",
             title=t("nav.workers"),
             workers=records,
+            recorders=services.recorders.list_recorders(),
             default_target=services.locations()["default"],
             targets=TARGETS,
             local_worker=services.local_worker,
