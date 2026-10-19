@@ -72,8 +72,13 @@ jobs:
       - name: setup.sh
         if: runner.os != 'Windows'
         run: ./scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
-      - name: setup.sh 再執行一次（應該很快且成功）
+      # 第一次執行已在這台機器跑完全部測試；第二次只確認重跑腳本後環境仍然可用：
+      # 不需瀏覽器的測試不跑，冒煙測試確認兩種瀏覽器能啟動、rpa run 能跑完範例場景。
+      # 偶發問題改由 nightly.yml 每晚把瀏覽器測試連跑三遍來抓。
+      - name: setup.sh 再執行一次（應該很快且成功；只跑冒煙測試）
         if: runner.os != 'Windows'
+        env:
+          PYTEST_ADDOPTS: --junitxml=pytest-report.xml -o junit_family=xunit1 -m smoke
         run: ./scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
 
       # shell: powershell 是 Windows 內建的 PowerShell 5.1，跟多數使用者的環境一致
@@ -82,9 +87,11 @@ jobs:
         shell: powershell
         run: powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
       # 第二次把輸出存檔，失敗時才能寫成註記（第一次維持使用者的執行方式）
-      - name: setup.ps1 再執行一次（應該很快且成功）
+      - name: setup.ps1 再執行一次（應該很快且成功；只跑冒煙測試）
         if: runner.os == 'Windows'
         shell: cmd
+        env:
+          PYTEST_ADDOPTS: --junitxml=pytest-report.xml -o junit_family=xunit1 -m smoke
         run: |
           powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 > "%RUNNER_TEMP%\%SETUP_LOG%" 2>&1
           set code=%ERRORLEVEL%
@@ -137,9 +144,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # 從零開始驗證的是下載腳本、clone 指定提交、裝 uv、Python 與瀏覽器這條路；
+  # 全部測試已在「專案內執行」的第一次跑過，這裡跑不需瀏覽器的測試加上冒煙測試。
+  # 瀏覽器照常下載，冒煙測試確認剛下載的兩種瀏覽器能啟動、rpa run 能跑完範例場景。
   from-scratch:
     name: 從零開始（${{ matrix.os }}）
     runs-on: ${{ matrix.os }}
+    env:
+      PYTEST_ADDOPTS: -m "not browser or smoke"
     strategy:
       fail-fast: false
       matrix:
