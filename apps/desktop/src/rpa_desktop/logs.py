@@ -1,8 +1,8 @@
 """RPA Worker App 的日誌（M10.1）：視窗程式沒有主控台，所有訊息寫到資料夾的 ``logs/``。
 
 - ``logs/worker.log``，滿 1 MB 換一個檔案，保留 5 份。
-- 寫入前遮掉邀請代碼與權杖（AGENTS.md：不把權杖寫進任何紀錄）。程式本身不記這些值，
-  這裡是第二道防線：例如錯誤訊息裡帶到整行邀請。
+- 寫入前遮掉邀請代碼、權杖與錄製端閘道的密語（AGENTS.md：不把權杖寫進任何紀錄）。
+  程式本身不記這些值，這裡是第二道防線：例如錯誤訊息裡帶到整行邀請。
 """
 
 import logging
@@ -20,6 +20,7 @@ _FORMAT: Final = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 _MASK: Final = "•••"
 _PATTERNS: Final = (
     re.compile(r"(?i)(code=)[A-Za-z0-9_-]{6,}"),
+    re.compile(r"(?i)(key=)[A-Za-z0-9_%-]{6,}"),  # 本機閘道的登入網址帶著密語（M10.2）
     re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{6,}"),
     re.compile(r'(?i)("?token"?\s*[:=]\s*"?)[A-Za-z0-9._~+/=-]{6,}'),
 )

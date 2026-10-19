@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from rpa_core.i18n import use_locale
-from rpa_desktop import entry, gui, headless, recorder_gui, worker_app
+from rpa_desktop import entry, gui, headless, recorder_gui, recorder_headless, worker_app
 from rpa_desktop.build_info import App, BuildInfo
 from rpa_desktop.credentials import Credentials, MemoryStore
 from rpa_desktop.single_instance import InstanceLock
@@ -277,6 +277,7 @@ def routed(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, list[str]]]:
     monkeypatch.setattr(gui, "main", recorder("window"))
     monkeypatch.setattr(headless, "main", recorder("no-window"))
     monkeypatch.setattr(recorder_gui, "main", recorder("recorder"))
+    monkeypatch.setattr(recorder_headless, "main", recorder("recorder-no-window"))
     return calls
 
 
@@ -330,6 +331,23 @@ def test_child_and_recorder_do_not_start_a_worker(
     assert entry.main(["--recorder", "--smoke-test"]) == 0  # 開發環境試視窗
     assert routed[-1] == ("recorder", ["--smoke-test"])
     capsys.readouterr()
+
+
+def test_recorder_without_the_window(
+    monkeypatch: pytest.MonkeyPatch, routed: list[tuple[str, list[str]]]
+) -> None:
+    """錄製端的 --no-window 是不開 App 視窗的錄製端，不是 worker（打包版的兩個執行檔都一樣）。"""
+    assert entry.main(["--recorder", "--no-window", "--invite", LINE]) == 0  # 開發環境
+    recorder = "/Applications/RPA Recorder.app/Contents/MacOS/"
+    _frozen(monkeypatch, recorder + "rpa-recorder", "recorder")
+    assert entry.main(["--no-window", "--url-file", "portal.txt"]) == 0
+    _frozen(monkeypatch, recorder + "rpa-child", "recorder")
+    assert entry.main(["--log", "r.log", "--no-window"]) == 0
+    assert routed == [
+        ("recorder-no-window", ["--invite", LINE]),
+        ("recorder-no-window", ["--url-file", "portal.txt"]),
+        ("recorder-no-window", ["--log", "r.log"]),
+    ]
 
 
 def test_worker_flags_work_in_development(routed: list[tuple[str, list[str]]]) -> None:

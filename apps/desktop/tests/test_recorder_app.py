@@ -7,7 +7,10 @@
 
 import http.client
 import json
+import os
 import re
+import signal
+import sys
 import threading
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -17,11 +20,13 @@ from typing import cast, get_args
 import pytest
 
 from rpa_core.i18n import LOCALES
+from rpa_desktop import recorder_headless
 from rpa_desktop.build_info import BuildInfo
 from rpa_desktop.controller import Closable
 from rpa_desktop.credentials import Credentials, MemoryStore
 from rpa_desktop.downloads import DownloadResult, Progress
 from rpa_desktop.i18n import t
+from rpa_desktop.logs import redact
 from rpa_desktop.recorder_controller import (
     Notify,
     Phase,
@@ -31,6 +36,7 @@ from rpa_desktop.recorder_controller import (
 )
 from rpa_desktop.recorder_gui import recorder_dir
 from rpa_desktop.recorder_pages import DesktopPages, notice_page, offline_page
+from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.ui import PAGES, page_strings, render_page
 from rpa_worker.environment import WorkerInfo
 from rpa_worker.gateway import COOKIE, DESKTOP_COOKIE, DESKTOP_PREFIX, Gateway
@@ -513,3 +519,157 @@ def test_offline_page() -> None:
     assert "connection refused &lt;x&gt;" in html
     assert "location.reload()" in html
     assert "__gateway" not in html  # 不放帶著密語的網址
+
+
+# ---------------------------------------------------------------- 不開 App 視窗（--no-window）
+
+
+class NoWindow:
+    """在背景執行緒跑 ``recorder_headless.main``，回傳結束碼。"""
+
+    def __init__(self, home: Path, fakes: Fakes, store: MemoryStore, argv: Sequence[str]) -> None:
+        self.home = home
+        self.opened: list[str] = []
+        self.code: list[int] = []
+        self.thread = threading.Thread(
+            target=lambda: self.code.append(
+                recorder_headless.main(
+                    argv,
+                    environ={"RPA_RECORDER_HOME": str(home)},
+                    store=store,
+                    services=fakes.services(),
+                    open_browser=self.opened.append,
+                )
+            ),
+            daemon=True,
+        )
+        self.thread.start()
+
+    def finished(self, timeout: float = 30) -> int:
+        self.thread.join(timeout)
+        assert self.code, "--no-window 沒有結束"
+        return self.code[0]
+
+    def __enter__(self) -> "NoWindow":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """測試失敗時也結束背景的那份，不讓它一直拿著鎖（Windows 上還有具名 mutex）。"""
+        if self.thread.is_alive():
+            InstanceLock(self.home).request_stop()
+            self.thread.join(30)
+
+
+def test_no_window_pairs_and_stops_on_request(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    home, url_file = tmp_path / "home", tmp_path / "portal.txt"
+    argv = ["--invite", LINE, "--url-file", str(url_file), "--open", "--firefox"]
+    with NoWindow(home, fakes, store, argv) as run:
+        assert fakes.started.wait(10)
+        assert wait_for(lambda: bool(run.opened), 5)
+        url = url_file.read_text(encoding="utf-8").strip()
+        assert re.fullmatch(r"http://127\.0\.0\.1:\d+/__gateway/login\?key=[^&]+&next=/", url)
+        if sys.platform != "win32":  # 網址帶著閘道的密語：只有本人能讀
+            assert url_file.stat().st_mode & 0o077 == 0
+        assert run.opened == [url]  # --open：連上後用預設瀏覽器打開一次
+        assert fakes.downloaded == ["chromium"]
+        assert fakes.paired[0][1] == "recorder"
+        # 有頭模式照樣可以用：上線時回報能顯示視窗（沒有的只是 App 自己的視窗）
+        assert fakes.hosts[0].info["display"] is True
+        assert json.loads((home / "settings.json").read_text(encoding="utf-8"))["firefox"] is True
+        InstanceLock(home).request_stop()
+        assert run.finished() == 0
+    assert fakes.stopped_all >= 1  # 不等長輪詢：直接結束子程序
+    assert not url_file.exists()
+    assert fakes.site.closed
+
+
+@pytest.mark.parametrize(
+    ("setup", "argv", "code"),
+    [
+        ("none", [], 2),  # 沒有配對也沒有邀請
+        ("rejected", ["--invite", LINE], 1),
+        ("download", ["--invite", LINE], 3),
+    ],
+)
+def test_no_window_exit_codes(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore, setup: str, argv: list[str], code: int
+) -> None:
+    if setup == "rejected":
+        fakes.fatal = ("權杖已失效", 401)
+    if setup == "download":
+        fakes.download_codes = {"chromium": 1}
+    with NoWindow(tmp_path / "home", fakes, store, argv) as run:
+        assert run.finished() == code
+    if setup == "rejected":
+        assert not store.items  # 被拒時清除配對
+
+
+def test_no_window_refuses_a_second_copy(tmp_path: Path, fakes: Fakes, store: MemoryStore) -> None:
+    home = tmp_path / "home"
+    held = InstanceLock(home)
+    assert held.acquire()
+    try:
+        with NoWindow(home, fakes, store, ["--invite", LINE]) as run:
+            assert run.finished() == 4
+    finally:
+        held.release()
+    assert not fakes.paired
+
+
+def test_no_window_show_request_opens_the_browser(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    """已經在執行時再雙擊 App：這一份沒有視窗可以叫出來，改用預設瀏覽器打開管理 Portal。"""
+    home = tmp_path / "home"
+    with NoWindow(home, fakes, store, ["--invite", LINE]) as run:
+        assert fakes.started.wait(10)
+        assert run.opened == []  # 沒有 --open：一開始不開
+        InstanceLock(home).request_show()
+        assert wait_for(lambda: len(run.opened) == 1, 5)
+        assert "/__gateway/login?key=" in run.opened[0]
+        InstanceLock(home).request_stop()
+        assert run.finished() == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM 只在 macOS、Linux")
+def test_no_window_ends_on_sigterm(tmp_path: Path, fakes: Fakes, store: MemoryStore) -> None:
+    """訊號只設旗標，收拾在主執行緒做；結束碼 0，之前的訊號處理還原。"""
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def send() -> None:
+        assert fakes.started.wait(10)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    sender = threading.Thread(target=send, daemon=True)
+    sender.start()
+    code = recorder_headless.main(
+        ["--invite", LINE],
+        environ={"RPA_RECORDER_HOME": str(tmp_path / "home")},
+        store=store,
+        services=fakes.services(),
+        open_browser=lambda url: None,
+    )
+    assert code == 0
+    assert fakes.stopped_all >= 1
+    assert signal.getsignal(signal.SIGTERM) is previous
+
+
+def test_no_window_arguments_and_notice() -> None:
+    args = recorder_headless._parse(["-psn_0_12345", "--open"])  # pyright: ignore[reportPrivateUsage]
+    assert args.open is True  # macOS 經由 LaunchServices 帶的參數略過
+    with pytest.raises(SystemExit) as raised:
+        recorder_headless._parse(["--bogus"])  # pyright: ignore[reportPrivateUsage]
+    assert raised.value.code == 2
+    # 沒有 App 的選單可以點：說明用 --invite 重新啟動
+    html = notice_page(lambda: "en", window=False)("unauthorized")
+    assert "--invite" in html
+    assert "Status and settings" not in html
+    assert "Status and settings" in notice_page(lambda: "en")("unauthorized")
+
+
+def test_logs_hide_the_gateway_secret() -> None:
+    line = "open http://127.0.0.1:5000/__gateway/login?key=AbC_123-xyz789&next=/"
+    assert "AbC_123-xyz789" not in redact(line)
+    assert "next=/" in redact(line)

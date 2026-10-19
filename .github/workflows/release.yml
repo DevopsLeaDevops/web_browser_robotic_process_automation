@@ -1,8 +1,10 @@
 # 發布（M10.1 PR 3）：推 v版本 標籤（例如 v0.2.0）時建立 GitHub 的草稿 Release。
 #   1. 確認標籤是 v主.次.修、和每個套件與 uv.lock 的版本一致（tools/release_version.py），
 #      而且標籤指向的提交已經在 main 上。
-#   2. 呼叫桌面端建置（desktop.yml）：建置、自我測試、Windows 上安裝 → 端到端 → 升級 → 解除安裝。
-#   3. 用它的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip、SHA256SUMS.txt。
+#   2. 呼叫桌面端建置（desktop.yml）：建置、自我測試、Windows 上安裝 → 端到端 → 升級 → 解除安裝，
+#      macOS 上錄製端的視窗自我測試與端到端（M10.2）。
+#   3. 用它的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip，RPA 錄製端的 DMG（M10.2），
+#      以及 SHA256SUMS.txt。
 # 草稿只有維護者看得到；確認內容後在 GitHub 上按「發布」才公開（docs/design/desktop.html#release）。
 # 已經有同一個標籤的草稿時（重新執行）換掉它的檔案；已經發布的不動，請改用新的版本。
 name: 發布
@@ -55,19 +57,24 @@ jobs:
         with:
           name: worker-windows-latest
           path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: recorder-macos-14
+          path: release
       - name: 檔案與 SHA-256
         working-directory: release
         run: |
           ls -l
-          # 安裝檔和 zip 各一個；名稱裡要有這次的版本
+          # Worker 的安裝檔與 zip、錄製端的 DMG 各一個；名稱裡要有這次的版本
           version="${TAG#v}"
-          for pattern in "RPA-Worker-Setup-$version-windows-x64.exe" "RPA-Worker-$version-windows-x64.zip"; do
+          for pattern in "RPA-Worker-Setup-$version-windows-x64.exe" "RPA-Worker-$version-windows-x64.zip" \
+            "RPA-Recorder-$version-macos-arm64.dmg"; do
             if [ ! -f "$pattern" ]; then
               echo "::error title=發布::產物裡沒有 $pattern"
               exit 1
             fi
           done
-          sha256sum -- *.exe *.zip > SHA256SUMS.txt
+          sha256sum -- *.exe *.zip *.dmg > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: 建立或更新草稿
         working-directory: release
@@ -82,11 +89,21 @@ jobs:
           - 還沒有程式碼簽章：Windows SmartScreen 可能提醒，選「其他資訊」→「仍要執行」。
             可以用 `SHA256SUMS.txt` 核對下載的檔案。
 
-          Installer for the current user (no administrator rights needed) and a portable zip.
-          Pair with an invitation from the admin Portal's Devices page. Not code-signed yet;
+          ## RPA 錄製端（macOS，Apple 晶片）
+
+          - **DMG** `RPA-Recorder-…-macos-arm64.dmg`：打開後把「RPA 錄製端」拖進「應用程式」。
+          - 透過它操作管理 Portal 時，錄製、逐步調試、人工登入的瀏覽器開在這台 Mac。
+          - 用管理 Portal「裝置」頁產生的**錄製端**邀請配對。
+          - 還沒有簽章與公證：第一次打開會被擋下，到「系統設定 › 隱私權與安全性」選擇允許打開。
+
+          RPA Worker: installer for the current user (no administrator rights needed) and a
+          portable zip. RPA Recorder: a DMG for Apple silicon Macs; recording, step-by-step
+          debugging and manual login through it open their browsers on that Mac. Pair either
+          with an invitation from the admin Portal's Devices page. Not code-signed or notarized
+          yet (on macOS allow it under System Settings › Privacy & Security on first launch);
           verify downloads with `SHA256SUMS.txt`.
           EOF
-          files=(*.exe *.zip SHA256SUMS.txt)
+          files=(*.exe *.zip *.dmg SHA256SUMS.txt)
           if draft="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
             if [ "$draft" != "true" ]; then
               echo "::error title=發布::$TAG 已經發布過了，不換它的檔案：請用新的版本"
@@ -96,6 +113,6 @@ jobs:
             echo "::notice title=發布::已更新 $TAG 的草稿"
           else
             gh release create "$TAG" "${files[@]}" --draft --verify-tag \
-              --title "RPA Worker $TAG" --notes-file "$notes" --generate-notes
+              --title "RPA $TAG" --notes-file "$notes" --generate-notes
             echo "::notice title=發布::已建立 $TAG 的草稿，確認後在 GitHub 上按「發布」"
           fi

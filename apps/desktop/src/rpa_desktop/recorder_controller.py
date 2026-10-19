@@ -171,6 +171,7 @@ class RecorderController:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._rejected = False
+        self._exit_code = 0
 
     # ------------------------------------------------------------ 訂閱與閘道
 
@@ -242,6 +243,12 @@ class RecorderController:
     @property
     def running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
+
+    @property
+    def exit_code(self) -> int:
+        """``--no-window`` 的結束碼（同 RPA Worker）：0 正常停止、1 被拒或出錯、2 沒有配對或
+        配對失敗、3 必要的瀏覽器下載失敗。"""
+        return self._exit_code
 
     def snapshot(self) -> dict[str, object]:
         """畫面要顯示的全部內容（JSON 可序列化），文字依目前語言。"""
@@ -392,24 +399,29 @@ class RecorderController:
     # ------------------------------------------------------------ 背景工作
 
     def _main(self, invite: str | None, server: str | None, stop: threading.Event) -> None:
+        self._exit_code = 0
         try:
             if invite is not None:
                 if not self._pair_now(invite, server):
+                    self._exit_code = 2
                     return
             else:
                 try:
                     pairing = self.credentials.load()
                 except TokenStoreError as error:
+                    self._exit_code = 1
                     params: dict[str, object] = {"error": error}
                     self._set("error", _Message("recorder.keyring_failed", params, "error"))
                     return
                 if pairing is None:
+                    self._exit_code = 2
                     self._set("unpaired")
                     return
                 self._use(pairing)
             self._work(stop)
         except Exception as error:
             logger.exception("RPA 錄製端停止了")
+            self._exit_code = 1
             self._set("error", _Message("recorder.crashed", {"error": error}, "error"))
 
     def _pair_now(self, text: str, server: str | None) -> bool:
@@ -478,6 +490,8 @@ class RecorderController:
         if not self._prepare_browsers(stop):
             if stop.is_set():
                 self._set("stopped")
+            else:
+                self._exit_code = 3
             return
         if stop.is_set():
             self._set("stopped")
@@ -518,6 +532,7 @@ class RecorderController:
         if fatal is None:
             self._set("stopped")
             return
+        self._exit_code = 1
         if self._rejected:
             self.credentials.clear()
             self._use(None)

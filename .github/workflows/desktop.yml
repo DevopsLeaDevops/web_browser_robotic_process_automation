@@ -13,6 +13,8 @@
 #   建置前跑錄製端 App、本機閘道與錄製端程式的單元測試；
 #   視窗自我測試（open RPA Recorder.app --args --smoke-test，和雙擊一樣經由 LaunchServices）：
 #   打開 WKWebView 視窗，確認 App 的頁面經由本機閘道載入；建置時也檢查 Info.plist 指的執行檔。
+#   端到端（tools/recorder_e2e.py）：從原始碼啟動管理 Portal、產生錄製端邀請，打包版以 --no-window
+#   配對（權杖存進鑰匙圈），經由本機閘道在錄製端逐步調試 BA-001，無頭與有頭各一次。
 # 兩個 App 都是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
 # 產物（DMG、zip、安裝檔）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
 # 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
@@ -30,6 +32,7 @@ on:
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
       - "tools/desktop_e2e.py"
+      - "tools/recorder_e2e.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/desktop.yml"
@@ -45,6 +48,7 @@ on:
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
       - "tools/desktop_e2e.py"
+      - "tools/recorder_e2e.py"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/desktop.yml"
@@ -181,6 +185,23 @@ jobs:
           else
             echo "::error title=錄製端視窗自我測試::沒有產生報告（雙擊 App 時沒有啟動 App 本身，或啟動後當掉），日誌：$(tail -n 20 "$log" 2>/dev/null | tr '\n' ' ')"
           fi
+      - name: 端到端：錄製端用邀請配對，經由本機閘道在錄製端逐步調試（無頭與有頭）
+        id: recorder-e2e
+        if: matrix.app == 'recorder'
+        env:
+          # 沿用自我測試下載的 Chromium
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
+        run: |
+          set +e
+          uv run python tools/recorder_e2e.py "${{ steps.build.outputs.executable }}" \
+            --report "${{ runner.temp }}/e2e.json" > "${{ runner.temp }}/e2e.log" 2>&1
+          code=$?
+          set -e
+          cat "${{ runner.temp }}/e2e.log"
+          exit "$code"
+      - name: 錄製端端到端的結果寫成 annotations
+        if: always() && matrix.app == 'recorder' && steps.recorder-e2e.outcome != 'skipped'
+        run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/e2e.json" "${{ runner.temp }}/e2e.log"
       - name: 端到端：安裝、用邀請配對並執行範例場景、升級、解除安裝
         id: e2e
         if: matrix.app == 'worker'
