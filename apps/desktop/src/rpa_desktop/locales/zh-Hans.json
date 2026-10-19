@@ -219,6 +219,8 @@
   "recorder.offline_reload": "刷新",
   "recorder.notice_unpaired": "这台 RPA 录制端还没有配对。用菜单「RPA 录制端 › 状态与设置」粘贴管理 Portal「设备」页产生的录制端邀请。",
   "recorder.notice_unauthorized": "管理 Portal 不再接受这台录制端的权杖（可能在「设备」页重新邀请、禁用或删除了这台）。用菜单「RPA 录制端 › 状态与设置」重新配对。",
+  "recorder.notice_unpaired_no_window": "这台 RPA 录制端还没有配对：用管理 Portal「设备」页产生的录制端邀请，以 --invite 重新启动。",
+  "recorder.notice_unauthorized_no_window": "管理 Portal 不再接受这台录制端的权杖（可能在「设备」页重新邀请、禁用或删除了这台）：产生新的录制端邀请，以 --invite 重新启动。",
   "recorder.already_running": "RPA 录制端已经在运行：叫出那一份的窗口。",
   "installer.Stopping": "正在请 RPA Worker 结束：运行中的任务会被取消并回报给管理 Portal……",
   "installer.StillRunning": "RPA Worker 还在运行，没办法继续。请从通知区的 RPA Worker 图标选「结束」，再运行一次。",
