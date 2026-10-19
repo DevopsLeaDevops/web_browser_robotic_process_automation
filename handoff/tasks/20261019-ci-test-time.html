@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261019-ci-test-time；2026-10-19 10:30 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261019-ci-test-time；2026-10-19 11:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求（2026-10-19 08:49～09:44 America/Los_Angeles（PDT，UTC−07:00））：分析為什麼每次執行都很久、提出提升策略，確認不會造成功能測試不全後按修正後的方案開分支；排隊太久，優先級提高。完成條件：PR 上 CI 的 pytest 明顯縮短、一鍵安裝腳本不再把全部測試跑三遍，同時每個測試仍在三個系統與兩個 Python 版本上定期執行。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>.github/workflows/ci.yml</code>、<code>setup-scripts.yml</code>、新增 <code>nightly.yml</code>；<code>pytest-xdist</code> 依賴與 <code>smoke</code> 標記；工程文檔。不包含：改測試本身的寫法（例如共用瀏覽器）、桌面端建置流程、安裝腳本的行為。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（Opus 5.5，claude.ai 雲端環境）；審閱：未指定；接收方：未指定，合併由使用者決定。</dd>
         <dt>修改檔案／整合者</dt><dd>上列 workflow、<code>pyproject.toml</code>、<code>uv.lock</code>（bootstrap 產生）、<code>tests/smoke/test_browser.py</code>、<code>packages/rpa_runner/tests/test_run.py</code>、<code>docs/</code> 三頁（繁中、英文；簡中由 bootstrap 產生）、本紀錄與任務索引。與開啟中的 PR 重疊：#44 也改 <code>setup-scripts.yml</code>（新增 Rocky 8 工作與觸發路徑，與本分支改的步驟不在同一段）；#42 也改 <code>uv.lock</code>。建議合併順序：本 PR 優先，之後 #42、#44 從 main 更新，<code>uv.lock</code> 衝突以重新 <code>uv lock</code> 解決，不手改鎖檔。</dd>
-        <dt>狀態</dt><dd>實作中：PR #45 已建立；Ubuntu、Windows 的結果符合預期；每晚完整測試的 Windows 環境已修正，等待重新執行；macOS 工作因 GitHub 的容量問題沒有分配到機器，尚未驗證。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #45 在 Ubuntu、Windows 上全部通過（CI、一鍵安裝腳本、每晚完整測試的三遍）。macOS 未驗證：多數工作因 GitHub 的容量問題沒有分配到機器；分配到的一個在未修改的第一次執行遇到既有的偶發問題（見觀察）。合併由使用者決定。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>chore/ci-test-time</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/45">PR #45</a>；base <code>2cf3c9f</code>（main，#43 合併後）。</dd>
         <dt>交接版本／同步狀態</dt><dd>已推送；第一版 head <code>89fe88c</code>（含 bootstrap 的提交），之後的提交見 PR。</dd>
         <dt>工作區／環境</dt><dd>claude.ai 雲端 Linux（x86_64，Python 3.13、uv 0.11.32）。這個環境連不上 PyPI（代理拒絕 pypi.org、files.pythonhosted.org），裝不了依賴；CI 日誌的下載網域也被拒絕。耗時資料取自 GitHub Actions API（runs、jobs、steps 的時間戳）。</dd>
@@ -46,6 +46,7 @@
         <li><strong>覆蓋範圍的交代：</strong>每個測試在 PR 上至少跑一次（Ubuntu、Python 3.13）；Windows、macOS 的全部測試從「只有改腳本或依賴與每週」變成每晚加上改腳本或依賴時；重複執行從一鍵安裝腳本裡的意外重複，變成每晚刻意的三遍。PR 上減少的是：Python 3.12 的瀏覽器測試、一鍵安裝腳本的第二、三遍。</li>
         <li><strong>下一個具體動作：</strong>推送帶 <code>[bootstrap]</code> 的提交，等機器人產生 <code>uv.lock</code> 與簡中後 <code>git pull --ff-only</code>，建立 PR；確認 CI、一鍵安裝腳本、每晚完整測試的結果與耗時，回填下方驗證表。平行化若出現新的失敗，先看是否為測試之間的依賴，再考慮降到 <code>-n 3</code>，不加自動重跑。</li>
         <li><strong>待使用者決定：</strong>macOS 容量不足期間，是否把 PR 上「一鍵安裝腳本」的 macOS 從兩個工作（專案內、從零開始）減為一個，另一個只在推到 main、每週與每晚執行。可以少佔一個 macOS 名額，代價是 PR 上不驗證 macOS 的從零安裝。</li>
+        <li><strong>發現的偶發問題（不在本任務範圍，建議另開任務）：</strong><code>apps/desktop/tests/test_worker_app.py::test_console_worker_stops_on_request_before_connecting</code> 在 macOS 一鍵安裝腳本的第一次執行（本 PR 沒有改的完整測試）失敗。<code>InstanceLock.watch</code>（<code>apps/desktop/src/rpa_desktop/single_instance.py</code>）先刪除 <code>stop.request</code> 再呼叫 <code>on_stop</code>（<code>stop.set</code>）；測試把「檔案不見了」當成「已經要求結束」，主執行緒若剛好在兩者之間檢查 <code>stop.is_set()</code>（<code>worker_app.py</code> 第 357 行），就會繼續連線。失敗時 <code>stop</code> 已經是 set，符合這個時序。對使用者的影響小（隨後就會結束），但測試會偶爾失敗。修法要考慮 <code>on_show</code> 不能因刪除失敗而重複觸發。</li>
         <li><strong>觀察（不在本任務範圍）：</strong><code>packages/rpa_runner/tests/test_debug.py</code> 與 <code>apps/desktop/tests/test_downloads.py</code> 在 Windows 上要求 UTF-8 模式：測試自己啟動、印中文的子程序沒有設定 <code>PYTHONIOENCODING</code>。產品啟動子程序時已設定（<code>rpa_runner/run.py</code>、<code>rpa_server/processes.py</code>），一鍵安裝腳本跑測試時也設定，所以不是產品問題；之後可讓這兩個測試自己設定。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
@@ -62,6 +63,9 @@
           <tr><td>89fe88c；CI <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39289577153">run 39289577153</a>，09:54 開始</td><td>靜態檢查；Python 3.13 全部（<code>-n 4</code>）；Python 3.12 不需瀏覽器</td><td>通過。3.13：工作 4.4 分（pytest 3.6 分），1239 個測試沒有失敗；3.12：1.0 分，1163 個；靜態檢查 0.6 分。對照 main <code>2cf3c9f</code> 的 run 39285596821：3.13 工作 9.4 分，同樣 1239 個</td><td>平行化只跑過一次，穩定性要多看幾次</td></tr>
           <tr><td>89fe88c；一鍵安裝腳本 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39289577182">run 39289577182</a>，09:54 開始</td><td>三個系統的專案內執行與從零開始</td><td>Ubuntu、Windows 通過：專案內 Ubuntu 9.9 分（第二次 0.2 分，之前 8.9 分）、Windows 14.9 分（第二次 0.3 分，之前 11.8 分）；從零開始 Windows 4.5 分（之前 14.8 分）、Ubuntu 2.2 分（之前 8.0 分）。macOS 兩個工作沒有分配到機器，15 分鐘後取消；10:11 重新執行，10:26 同樣取消</td><td>macOS 未驗證</td></tr>
           <tr><td>89fe88c；每晚完整測試 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39289577308">run 39289577308</a>，09:54 開始</td><td>Ubuntu 3.13（全部＋瀏覽器再兩遍）、Ubuntu 3.12（全部）、Windows 3.13、macOS 3.13</td><td>Ubuntu 3.13 通過：第 1 遍 1239 個（8.7 分），第 2、3 遍各 76 個（共 13.6 分），沒有失敗。Ubuntu 3.12 通過：1239 個（7.2 分）。Windows 失敗：<code>test_debug.py</code> 5 個測試×2 種瀏覽器（子程序沒有回覆）與 <code>test_downloads.py</code>（cp1252 的 UnicodeEncodeError），三遍都一樣，是穩定失敗；原因是工作沒有設定 setup.ps1 跑測試時用的 <code>PYTHONUTF8</code>、<code>PYTHONIOENCODING</code>，下一個提交修正。macOS 沒有分配到機器，取消</td><td>Windows 修正後待重新執行；macOS 未驗證</td></tr>
+          <tr><td>24cef13（含 e3a85a8 的 UTF-8 修正）；CI <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39294690524">run 39294690524</a>，10:30 開始</td><td>同上</td><td>通過（平行化第二次執行，仍然穩定）</td><td>—</td></tr>
+          <tr><td>24cef13；每晚完整測試 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39294690326">run 39294690326</a>，10:30 開始</td><td>同上</td><td>Ubuntu 3.13、Ubuntu 3.12 通過。Windows 3.13 通過：第 1 遍 1239 個（13.3 分），第 2、3 遍各 76 個（共 20.0 分），沒有失敗，修正有效。macOS 沒有分配到機器，取消</td><td>macOS 未驗證</td></tr>
+          <tr><td>24cef13；一鍵安裝腳本 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39294690399">run 39294690399</a>，10:30 開始</td><td>同上</td><td>Ubuntu、Windows 通過。macOS 專案內執行分配到機器，第一次執行（未修改的完整測試）在 <code>test_worker_app.py::test_console_worker_stops_on_request_before_connecting</code> 失敗（10:39），第二次執行因此沒有跑；macOS 從零開始沒有分配到機器，取消。沒有重跑來把這次失敗變成通過</td><td>macOS 上修改過的兩個步驟未驗證</td></tr>
           <tr><td>89fe88c；桌面端建置 run 39289577285</td><td>錄製端（macos-14）、Worker（Windows）</td><td>通過（3.6 分、4.0 分）</td><td>本 PR 沒有改這個流程</td></tr>
         </tbody>
       </table></div>
@@ -77,6 +81,7 @@
         <li>2026-10-19 09:49 America/Los_Angeles（PDT，UTC−07:00），Claude：建立紀錄；本地修改完成，尚未推送。</li>
         <li>2026-10-19 09:51 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 5 個提交（head <code>5329895</code>，含 <code>[bootstrap]</code>）；09:54 bootstrap 提交 <code>89fe88c</code>；建立 PR #45。</li>
         <li>2026-10-19 10:30 America/Los_Angeles（PDT，UTC−07:00），Claude：回填 CI、一鍵安裝腳本、每晚完整測試的結果；每晚完整測試的 Windows 工作改用 UTF-8（與 setup.ps1 相同），步驟名稱改用 <code>extra</code>（再跑幾遍）；記錄 macOS 容量問題與待決事項。</li>
+        <li>2026-10-19 11:05 America/Los_Angeles（PDT，UTC−07:00），Claude：回填 24cef13 的結果：Ubuntu、Windows 全部通過；記錄 macOS 上發現的既有偶發問題（stop.request 的時序）；狀態改為待審閱。</li>
       </ul></div>
     </section>
   </div>
