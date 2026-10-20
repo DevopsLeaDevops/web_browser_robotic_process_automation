@@ -30,7 +30,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Final, cast
+from typing import Final
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -178,7 +178,7 @@ class PackStore:
             value: Mapping[str, object] = row.value if row is not None else {}
             server_id = str(value.get("id") or "") or uuid.uuid4().hex
             name = str(value.get("name") or "") or _hostname()
-            stored = {"id": server_id, "name": name}
+            stored: dict[str, object] = {"id": server_id, "name": name}
             if row is None:
                 session.add(Setting(key=_SERVER_SETTING, value=stored))
             elif dict(row.value) != stored:
@@ -195,7 +195,7 @@ class PackStore:
         current = self.server()
         with self.lock, self.sessions() as session:
             row = session.get(Setting, _SERVER_SETTING)
-            stored = {"id": current.id, "name": name}
+            stored: dict[str, object] = {"id": current.id, "name": name}
             if row is None:
                 session.add(Setting(key=_SERVER_SETTING, value=stored))
             else:
@@ -877,5 +877,5 @@ class PackStore:
 def _status(value: str) -> VerificationStatus:
     """執行的狀態 → 驗證紀錄的結果（執行結束後只會是這幾種）。"""
     if value in ("passed", "failed", "timed_out", "cancelled", "needs_login"):
-        return cast("VerificationStatus", value)
+        return value
     return "failed"

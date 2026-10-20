@@ -346,8 +346,8 @@ def test_reload_picks_up_new_revisions_and_missing_scenes(
     scenes = cast("list[JsonObject]", body(client.get(f"/api/scenes?domain={lab}"))["scenes"])
     assert [scene["id"] for scene in scenes] == ["keep"]
     assert body(client.get("/api/scenes/gone"))["missing"] is True
-    run = client.post("/api/scenes/gone/runs", json={"purpose": "validation", "inputs": {}})
-    assert error_code(run) == "scene_missing"
+    run = client.post("/api/scenes/gone/revisions/1/validate", json={"inputs": {}})
+    assert (run.status_code, error_code(run)) == (409, "scene_missing")
 
 
 def test_changed_revision_cannot_run(client: Client, settings: Settings, lab: str) -> None:
