@@ -1,7 +1,8 @@
 """`rpa` 命令入口。
 
 子命令依里程碑加入：validate 與 schema（M1）、run（M2）、serve（M3）、record（M4）、
-worker（M9a，遠端 worker）、recorder（M10.2，錄製端）、generate（M5）。
+worker（M9a，遠端 worker）、recorder（M10.2，錄製端）、pack（M11，領域資料夾）、
+generate（M5）。
 
 說明文字要依語言顯示，所以命令在決定語言之後才由 build_cli() 建立，
 不在模組載入時就用裝飾器定義好。
@@ -16,6 +17,7 @@ import click
 import rpa_cli
 import rpa_core
 from rpa_cli.i18n import LANG_OPTION, install_click_translations, resolve_locale, t
+from rpa_cli.pack import build_pack_command
 from rpa_cli.record import build_record_command
 from rpa_cli.recorder import build_recorder_command
 from rpa_cli.run import build_run_command
@@ -74,6 +76,7 @@ def build_cli() -> click.Group:
     cli.add_command(build_record_command())
     cli.add_command(build_worker_command())
     cli.add_command(build_recorder_command())
+    cli.add_command(build_pack_command())
     return cli
 
 

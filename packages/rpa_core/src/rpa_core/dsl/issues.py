@@ -152,16 +152,25 @@ def issue_from_cross(issue: CrossIssue, data: object, source: SourceMap | None) 
 
 
 def issues_from_validation_error(
-    error: ValidationError, data: object, source: SourceMap | None
+    error: ValidationError,
+    data: object,
+    source: SourceMap | None,
+    root: type[BaseModel] = Scenario,
 ) -> list[Issue]:
-    """Pydantic 校驗錯誤 → 問題清單，依在檔案中的位置排序。"""
-    issues = [_from_details(details, data, source) for details in error.errors()]
+    """Pydantic 校驗錯誤 → 問題清單，依在檔案中的位置排序。
+
+    ``root`` 是被校驗的模型，用來找出欄位的別名與選項；預設是場景，領域資料夾的說明檔（M11）
+    傳入自己的模型。
+    """
+    issues = [_from_details(details, data, source, root) for details in error.errors()]
     unique = list(dict.fromkeys(issues))
     return sorted(unique, key=lambda i: (i.position or Position(0, 0), str(i.path)))
 
 
-def _from_details(details: ErrorDetails, data: object, source: SourceMap | None) -> Issue:
-    walk = _walk(details["loc"])
+def _from_details(
+    details: ErrorDetails, data: object, source: SourceMap | None, root: type[BaseModel]
+) -> Issue:
+    walk = _walk(details["loc"], root)
     error_type = details["type"]
     context: dict[str, object] = dict(details.get("ctx") or {})
     path = walk.path
@@ -332,8 +341,8 @@ def _union_member(annotation: object, tag: str) -> type[BaseModel] | None:
     return None
 
 
-def _walk(loc: Sequence[str | int]) -> _Walk:
-    annotation: object = Scenario
+def _walk(loc: Sequence[str | int], root: type[BaseModel] = Scenario) -> _Walk:
+    annotation: object = root
     parent: type[BaseModel] | None = None
     path: list[str | int] = []
     is_key = False
