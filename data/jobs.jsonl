@@ -275,3 +275,11 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 51.0, "job": "專案內執行（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "cancelled", "duration_s": 0, "job": "專案內執行（macos-latest）", "os": "macos", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "success", "duration_s": 6.0, "job": "執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "success", "duration_s": 70.0, "job": "Linux 伺服器（Rocky 8，in-repo）", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "success", "duration_s": 124.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "success", "duration_s": 170.0, "job": "Linux 伺服器（Rocky 8，from-scratch）", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "success", "duration_s": 51.0, "job": "專案內執行（ubuntu-latest）", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
+{"attempt": 2, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39428051091, "workflow": "一鍵安裝腳本"}
