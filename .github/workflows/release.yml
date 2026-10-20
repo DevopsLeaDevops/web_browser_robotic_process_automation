@@ -41,6 +41,10 @@ jobs:
     name: 建置與測試
     needs: check
     uses: ./.github/workflows/desktop.yml
+    # desktop.yml 的 changes 工作要讀取 Actions 的運行紀錄
+    permissions:
+      contents: read
+      actions: read
 
   release:
     name: 草稿 Release

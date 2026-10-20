@@ -29,6 +29,11 @@ on:
       - "apps/server/**"
       - "apps/cli/**"
       - "packages/**"
+      # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
+      - "!apps/server/tests/**"
+      - "!apps/cli/tests/**"
+      - "!apps/testsite/tests/**"
+      - "!packages/rpa_core/tests/**"
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
       - "tools/desktop_e2e.py"
@@ -45,6 +50,11 @@ on:
       - "apps/server/**"
       - "apps/cli/**"
       - "packages/**"
+      # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
+      - "!apps/server/tests/**"
+      - "!apps/cli/tests/**"
+      - "!apps/testsite/tests/**"
+      - "!packages/rpa_core/tests/**"
       - "scenarios/demo/**"
       - "tools/build_desktop.py"
       - "tools/desktop_e2e.py"
@@ -61,9 +71,27 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read # changes 查詢上一次運行的結果；release.yml 呼叫時也要給
 
 jobs:
+  # 只改文件且上一次推送已通過時略過建置、沿用結果（tools/ci_changes.py）；推版本標籤時一律建置
+  changes:
+    name: 執行範圍
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci_changes.py --workflow desktop.yml
+
   build:
+    needs: changes
+    if: needs.changes.outputs.mode != 'docs'
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false

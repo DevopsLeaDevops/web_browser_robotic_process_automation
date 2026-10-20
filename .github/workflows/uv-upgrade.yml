@@ -12,7 +12,9 @@ name: uv 依賴更新
 
 on:
   schedule:
-    - cron: "17 2 * * 1" # 每週一 02:17 UTC
+    # 每週日 22:17 UTC：America/Los_Angeles 週日 15:17 PDT（UTC−07:00）／14:17 PST（UTC−08:00），
+    # 新加坡週一 06:17。倉庫空閒的時段，不再和一鍵安裝腳本的排程同時啟動。
+    - cron: "17 22 * * 0"
   workflow_dispatch:
 
 permissions:
