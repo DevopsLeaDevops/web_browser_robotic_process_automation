@@ -16,6 +16,9 @@ pyright 要用 ``--outputjson``。self-test 是桌面 App 自我測試的報告�
 
 GitHub 每個步驟最多顯示 10 個錯誤 annotation，所以 pytest 一個失敗的測試一則、
 pyright 一個檔案一則，超過的部分合併成最後一則。
+
+JUnit 報告有耗時資料時，另外一則 notice 列出測試時間總和、最慢的檔案與最慢的測試，
+不下載日誌或報告也能看出時間花在哪裡。
 """
 
 import json
@@ -32,6 +35,9 @@ LIMIT: Final = 10
 
 DETAIL_CHARS: Final = 6000
 """每則 annotation 保留的錯誤內容長度（保留結尾：斷言與例外通常在最後）。"""
+
+SLOWEST: Final = 15
+"""耗時摘要列出幾個最慢的檔案與測試。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +113,33 @@ def from_junit(path: Path) -> list[Annotation]:
                 )
             )
     return limit(found, "pytest")
+
+
+def slowest(path: Path, count: int = SLOWEST) -> str | None:
+    """耗時摘要：測試時間總和、最慢的檔案與測試；報告沒有耗時資料時回傳 None。
+
+    平行執行（pytest -n）時總和大於實際經過的時間；用 --dist loadfile 時，
+    最慢的那個檔案就是整體時間的下限。
+    """
+    tests: list[tuple[float, str]] = []
+    files: dict[str, float] = {}
+    for case in ET.parse(path).getroot().iter("testcase"):
+        try:
+            seconds = float(case.get("time") or 0)
+        except ValueError:
+            continue
+        file = _relative(case.get("file") or (case.get("classname") or "?").replace(".", "/"))
+        tests.append((seconds, f"{file}::{case.get('name') or ''}"))
+        files[file] = files.get(file, 0.0) + seconds
+    total = sum(seconds for seconds, _ in tests)
+    if total <= 0:
+        return None
+    lines = [f"測試時間總和 {total:.0f} 秒（{len(tests)} 個）", "", "最慢的檔案："]
+    ranked = sorted(files.items(), key=lambda item: item[1], reverse=True)[:count]
+    lines += [f"{seconds:.1f}s  {file}" for file, seconds in ranked]
+    lines += ["", "最慢的測試："]
+    lines += [f"{seconds:.1f}s  {name}" for seconds, name in sorted(tests, reverse=True)[:count]]
+    return "\n".join(lines)
 
 
 def from_pyright(data: object) -> list[Annotation]:
@@ -213,6 +246,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not annotations:
             total = sum(1 for _ in ET.parse(path).getroot().iter("testcase"))
             print(f"::notice title=pytest::{path.name} 沒有失敗的測試（{total} 個）")
+        if summary := slowest(path):
+            title = _escape_property(f"pytest 耗時（{path.name}）")
+            print(f"::notice title={title}::{_escape_data(summary)}")
     else:
         emit(from_pyright(json.loads(path.read_text(encoding="utf-8"))))
     return 0
