@@ -6,3 +6,6 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 58.0, "job": "Linux 伺服器（Rocky 8，from-scratch）", "os": "linux", "queue_s": 1.0, "run_id": 39382097492, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 39382097492, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39382097492, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 4.0, "job": "執行範圍", "os": "linux", "queue_s": 1.0, "run_id": 39382097547, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 223.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 39382097547, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 235.0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 9.0, "run_id": 39382097547, "workflow": "桌面端建置"}
