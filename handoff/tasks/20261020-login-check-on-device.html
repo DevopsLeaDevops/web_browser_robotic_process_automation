@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261020-login-check-on-device；2026-10-20 05:37 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261020-login-check-on-device；2026-10-20 06:04 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>
           <p>使用者 2026-10-20 04:05 PDT 在 Claude 對話貼上「登入與憑證」頁的截圖（兩個測試網站角色都是「無法確認」），要求分析原因；04:47 PDT 同意 Claude 建議的三項修正並要求開工。分析結論：</p>
           <ul class="points">
@@ -35,7 +35,7 @@
         <dt>範圍／不包含</dt><dd>範圍：<code>rpa_runner.login</code>（capture 的確認、check 的 <code>--state</code>、錯誤說明）、<code>rpa_server.roles</code>（人工登入的事件、檢查的位置、本機有哪些瀏覽器）、角色頁的樣板與訊息、相關測試與文件（管理 Portal 設計、部署與操作）。不包含：交給 Worker 檢查（要擴充 Worker API，之後視需要另開）、Secrets 加密、HTTPS、多帳號等「登入與憑證」的其他方向（使用者尚未決定範圍）、範例角色網址自動改成伺服器位址（#47 決定不自動改）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/login.py</code> 與 locales、<code>apps/server/src/rpa_server/roles.py</code>、<code>services.py</code>、<code>pages.py</code>、<code>templates/roles.html</code>、server locales、測試（<code>packages/rpa_runner/tests/test_login.py</code>、<code>apps/server/tests/</code>）、<code>docs/design/portal.html</code>、<code>docs/develop/operations.html</code>（繁中、英文；簡中由 bootstrap 產生）、本頁與任務索引。<strong>和開著的 #48（M11 PR 1，另一個 Claude session）重疊</strong>：<code>roles.py</code>（#48 改登記、查詢；本任務改檢查與人工登入，不同段落）、<code>roles.html</code>（不同列）、三個 locales 檔、<code>docs/design/portal.html</code>。新訊息放在相關鍵的旁邊而不是檔尾，減少衝突；後合併的一方從最新 main 整合，整合者是後合併那個 PR 的主責。</dd>
-        <dt>狀態</dt><dd>待審閱：三項都已實作；PR #50 最新程式 head（6716c2d）的 CI 與桌面端建置全部通過。等使用者審閱、合併，以及在真的 Linux 伺服器＋更新後的錄製端人工驗收。</dd>
+        <dt>狀態</dt><dd>已合併待驗收：使用者 2026-10-20 05:40 America/Los_Angeles（PDT，UTC−07:00）把 #50（head a6baecc）squash 合併為 main 的 <code>53a0578</code>。人工驗收未執行。之後回報的「Firefox 有時停住」由 <a href="20261020-firefox-background-login.html">20261020-firefox-background-login</a> 處理。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>fix/login-check-on-device</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/50">PR #50</a>（base main）；base <code>a6164f7</code>（origin/main，#47）。</dd>
         <dt>交接版本／同步狀態</dt><dd>已推送。程式的最後一個提交是 bot 的簡中 6716c2d（之前 618c86e、ad1c740）；之後只有本頁的回填。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13.16、uv 0.11.32）。連不到 PyPI：系統 Python 已有 pydantic、jinja2、playwright 1.56（只有 Chromium 1194）、httpx2；fastapi 0.148.0、starlette 1.9.0、sqlalchemy 2.1.5、alembic 1.20.0、mako 1.4.3、annotated-doc 0.0.5 依 uv.lock 的版本從 GitHub 原始碼加進 venv，所以伺服器測試本地可以跑；Firefox 的測試本地會略過，靠 CI。</dd>
@@ -93,6 +93,7 @@
         <li>2026-10-20 04:58 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>fix/login-check-on-device</code>（base a6164f7）。開工前查 GitHub：開著的 PR 只有 #48（M11 PR 1，<code>m11/domain-packs</code>），重疊的檔案記在上方。</li>
         <li>2026-10-20 05:23 America/Los_Angeles（PDT，UTC−07:00），Claude：三項都已實作、本地檢查（見驗證）；提交伺服器、測試與文件（618c86e，含 <code>[bootstrap]</code>）並推送。</li>
         <li>2026-10-20 05:26～05:37 America/Los_Angeles（PDT，UTC−07:00），Claude：bootstrap 通過、bot 提交簡中 6716c2d；05:27 開 PR #50；CI 的 Worker 測試（Windows）第一次失敗在既有的 Firefox 測試，重跑通過（見驗證）；狀態改為待審閱。這期間開了 #49（M11 PR 2，<code>m11/composite-packs</code>，疊在 #48 上）：和本任務一樣改到伺服器的三個 locales、<code>pages.py</code>、<code>test_render.py</code>、<code>docs/design/portal.html</code>（含英文、簡中），沒有改 <code>roles.py</code>；後合併的一方整合。</li>
+        <li>2026-10-20 06:04 America/Los_Angeles（PDT，UTC−07:00），Claude：#50 已在 05:40 合併（merge SHA 53a0578，內容是 a6baecc）。05:57 推到本分支的 39d150e（Firefox 停住的修正）在合併之後，不會進 main；改由 <code>fix/firefox-background-login</code>（任務 20261020-firefox-background-login）重新提交。<code>fix/login-check-on-device</code> 之後可以刪除。</li>
       </ul></div>
     </section>
   </div>

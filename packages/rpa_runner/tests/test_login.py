@@ -223,11 +223,13 @@ def test_check_action(site: str, engine: str, tmp_path: Path) -> None:
     assert result.status == "passed", result.error
 
 
-def capture_process(settings: LoginSettings, state: Path) -> subprocess.Popen[str]:
+def capture_process(
+    settings: LoginSettings, state: Path, engine: str = "chromium"
+) -> subprocess.Popen[str]:
     env = {**os.environ, ENV_LOGIN: json.dumps(settings.to_json()), ENV_VAR: "zh-Hant"}
     command = [sys.executable, "-m", "rpa_runner.login", "capture", "--state", str(state)]
     return subprocess.Popen(
-        [*command, "--engine", "chromium", "--headless"],
+        [*command, "--engine", engine, "--headless"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
@@ -260,11 +262,10 @@ def test_capture_cancel(site: str, tmp_path: Path) -> None:
     assert not state.exists()
 
 
-def test_capture_waits_until_really_logged_in(site: str, tmp_path: Path) -> None:
+def test_capture_waits_until_really_logged_in(site: str, engine: str, tmp_path: Path) -> None:
     """還沒登入就按「完成登入」：在開視窗的這台確認，說明還沒登入，視窗不關、可以繼續登入。"""
-    require_engine("chromium")
     state = tmp_path / "candidate.json"
-    process = capture_process(role(site, tmp_path / "unused.json"), state)
+    process = capture_process(role(site, tmp_path / "unused.json"), state, engine)
     assert read_event(process)["event"] == "ready"
     send(process, "finish")
     assert read_event(process)["event"] == "checking"
@@ -280,8 +281,7 @@ def test_capture_waits_until_really_logged_in(site: str, tmp_path: Path) -> None
     assert process.wait(timeout=60) == 2
 
 
-def test_capture_saves_only_a_verified_state(site: str, tmp_path: Path) -> None:
-    require_engine("chromium")
+def test_capture_saves_only_a_verified_state(site: str, engine: str, tmp_path: Path) -> None:
     # 登入頁本身就看得到「帳號」欄位：確認一定通過
     settings = LoginSettings(
         role="testsite-user",
@@ -291,7 +291,7 @@ def test_capture_saves_only_a_verified_state(site: str, tmp_path: Path) -> None:
         login_url=f"{site}/login",
     )
     state = tmp_path / "candidate.json"
-    process = capture_process(settings, state)
+    process = capture_process(settings, state, engine)
     assert read_event(process)["event"] == "ready"
     send(process, "finish")
     assert read_event(process)["event"] == "checking"
