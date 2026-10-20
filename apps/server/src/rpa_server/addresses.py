@@ -69,7 +69,9 @@ def points_to_portal(url: str, portal: PortalAddress) -> bool:
     if not host or port is None:
         return False
     own_host, own_port = _host_port(portal.host, "http") if portal.host else ("", None)
-    ports = portal.ports | ({own_port} if own_port is not None else set())
+    ports = set(portal.ports)
+    if own_port is not None:
+        ports.add(own_port)
     if port not in ports:
         return False
     same_host = host == own_host or (host in LOOPBACK_HOSTS and own_host in LOOPBACK_HOSTS)
