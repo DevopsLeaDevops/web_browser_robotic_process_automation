@@ -75,6 +75,7 @@
         <li>2026-10-20 00:39 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>b741e3b</code>（本頁）、<code>845cff1</code>（實作，含 <code>[bootstrap]</code>）；00:41 bot 提交簡中 <code>53cbfda</code>；00:42 開 PR #47。另向使用者說明 <code>nohup … --host 0.0.0.0 --port 8080</code> 會把沒有登入保護的管理頁面開到公網，建議改回 127.0.0.1。</li>
         <li>2026-10-20 00:44～00:52 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>cea5396</code>（英文提示的測試改用 <code>?lang=en</code>）、<code>3ea4b0c</code>（pyright strict 的型別）；最新程式 head 的 CI 全部通過；回填本頁，狀態改為待審閱。</li>
         <li>2026-10-20 01:19～01:25 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者追加「Linux 伺服器的測試網站支援外部存取」。加上 <code>rpa serve --testsite-host</code>、測試網站的 host 參數、<code>RPA_TESTSITE_HOST</code>、測試與文件。本地：ruff、format、<code>bash -n</code>、<code>git diff --check</code> 通過；<code>tests/ci/test_linux_setup.py</code> 20 通過；<code>apps/cli/tests/test_serve.py -k testsite</code> 3 通過（同檔另 2 個因本機沒有 FastAPI 失敗，未改動時一樣）；<code>tests/docs tests/i18n apps/testsite/tests</code> 290 通過、2 個失敗都是簡中還沒由 bootstrap 產生（本機沒有 OpenCC）；改到的檔案 strict pyright 只剩 3 個因本機沒有 FastAPI 的錯誤（不在改動的行）。狀態改回實作中，等 CI。</li>
+        <li>2026-10-20 01:27～01:35 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>14ea2c4</code>、<code>c04e85a</code>（含 <code>[bootstrap]</code>）。bootstrap run 39393368795 全部通過（uv lock、產生簡中、ruff、pyright、<code>pytest -m "not browser"</code>），bot 提交簡中 <code>68ec38b</code>。<code>c04e85a</code> 的 CI 只有「簡中不是最新」與簡中頁的錨點兩個測試失敗（簡中由 <code>68ec38b</code> 補上）；以本頁的提交觸發最新 head 的 CI。</li>
       </ul></div>
     </section>
   </div>
