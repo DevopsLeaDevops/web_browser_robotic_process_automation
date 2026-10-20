@@ -299,6 +299,9 @@ class WorkflowRun(Base):
     """validation（驗證某個版本，結果寫進驗證紀錄）或 execution（執行發布的版本）；M11 PR 2。"""
     workflow_code: Mapped[str | None] = mapped_column(String(64))
     """組合場景的代號（執行當時的）；workflow_version 是跑的版本號碼。"""
+    workflow_hash: Mapped[str | None] = mapped_column(String(64))
+    """跑的版本的雜湊（definition 是解析過來源的快照，雜湊和版本不同）；驗證紀錄記它。
+    M11 PR 2 之前的執行（與它們的重跑）沒有，不寫驗證紀錄。"""
 
 
 class RemoteWorker(Base):

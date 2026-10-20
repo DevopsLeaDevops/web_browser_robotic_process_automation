@@ -76,7 +76,6 @@ from rpa_core.pack import (
     read_pack,
     read_scene,
     timestamp,
-    workflow_digest,
     workflow_text,
     write_model,
 )
@@ -1075,12 +1074,12 @@ class PackStore:
                 or domain_id is None
             ):
                 return
-            # 驗證紀錄記下實際跑的定義的雜湊：和版本不同時（例如重跑遷移前的執行）不算證明
-            workflow, _ = parse_workflow(row.definition)
-            if workflow is None:
+            # 驗證紀錄記下跑的版本的雜湊（開始執行時從版本取得）；遷移前的執行與它們的重跑沒有，
+            # 不寫驗證紀錄（它們跑的定義不一定是遷移後的版本）
+            if row.workflow_hash is None:
                 return
             with self.lock:
-                record = self.composite_verification(session, row, workflow_digest(workflow), nodes)
+                record = self.composite_verification(session, row, row.workflow_hash, nodes)
                 path = self.composite_verification_path(owner.code, revision.number, row.id)
                 write_model(path, record)
                 entry, _ = self.composite_entry(owner.code)
@@ -1175,7 +1174,7 @@ class PackStore:
             "composite": row.workflow_code,
             "name": row.workflow_name,
             "revision": row.workflow_version,
-            "hash": revision.content_hash if revision is not None else None,
+            "hash": row.workflow_hash,
             "purpose": row.purpose,
             "status": row.status,
             "failedNode": row.failed_node,

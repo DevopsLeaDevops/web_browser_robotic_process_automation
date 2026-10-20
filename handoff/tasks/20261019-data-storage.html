@@ -492,7 +492,7 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
             <li>存檔帶的 <code>baseVersion</code> 就是最新的版本號碼；只有定義改了才是新版本，改名稱與說明只改 <code>composite.yaml</code>（原本每次存檔都加一）。</li>
             <li>代號沒填就是 <code>wf-&lt;數字&gt;</code>（舊的組合場景遷移後也是 <code>wf-&lt;原編號&gt;</code>）；沒選領域就放「組合場景」領域（代號 <code>composites</code>，需要時建立）。有組合場景的領域不能刪。</li>
             <li>版本說明檔的 <code>requires</code> 必須是節點用到的場景版本的子集（多出來的是錯誤）；節點沒有釘住時 <code>rpa pack check</code> 只提醒，伺服器把它當成依賴錯誤（要重新存檔），不能執行與發布。</li>
-            <li>驗證紀錄記的雜湊是實際跑的定義的雜湊（不是版本的雜湊）：重跑遷移前的舊執行時，定義和版本不同就不會成為發布的證明。</li>
+            <li>組合場景的執行在開始時記下跑的版本的雜湊（<code>workflow_runs.workflow_hash</code>；<code>definition</code> 是解析過入參來源的快照，雜湊和版本不同），驗證紀錄記它；重跑沿用原本的。遷移前的執行沒有這個雜湊，它們與它們的重跑不寫驗證紀錄（跑的定義不一定是遷移後的版本）。</li>
             <li>「執行」只跑發布的版本、不寫驗證紀錄；「驗證」可以指定版本，預設最新。頁面目前只能驗證最新版本、發布任何驗證過的版本；封存只能在 <code>composite.yaml</code> 改（頁面留給之後）。</li>
             <li>「組合場景」領域不列在場景管理的左側選單（組合場景在「組合場景自動化」管理），領域管理頁照常列出。</li>
             <li>資料夾格式版本改成 3；格式 2 的資料夾有組合場景時先備份資料庫到 <code>backups/&lt;時間&gt;-before-composites/</code>（同一次啟動剛做過格式 2 的備份就不重複）。</li>

@@ -1,7 +1,7 @@
 """組合場景放進領域資料夾（M11 PR 2）：代號、版本、驗證與發布
 
 組合場景有英數代號（舊的組合場景是 wf-<原數字>）、所在領域、目前發布的版本、封存與來源缺失；
-每個版本一列（workflow_revisions，資料夾的索引）；組合場景的執行記下目的（驗證、執行）與代號。
+每個版本一列（workflow_revisions，資料夾的索引）；組合場景的執行記下目的（驗證、執行）、代號與版本的雜湊。
 檔案的部分（composites/<代號>/）在伺服器啟動時由 rpa_server.packs 寫入，不在遷移裡。
 
 Revision ID: 0011
@@ -69,10 +69,12 @@ def upgrade() -> None:
             sa.Column("purpose", sa.String(20), nullable=False, server_default="validation")
         )
         batch.add_column(sa.Column("workflow_code", sa.String(64), nullable=True))
+        batch.add_column(sa.Column("workflow_hash", sa.String(64), nullable=True))
 
 
 def downgrade() -> None:
     with op.batch_alter_table("workflow_runs") as batch:
+        batch.drop_column("workflow_hash")
         batch.drop_column("workflow_code")
         batch.drop_column("purpose")
     op.drop_index("ix_workflow_revisions_workflow_id", table_name="workflow_revisions")

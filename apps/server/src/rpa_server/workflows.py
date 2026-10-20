@@ -511,7 +511,7 @@ class WorkflowService:
                 number = row.published_number
             else:
                 number = revision or row.version
-            self._usable_revision(session, row, number)
+            source_hash = self._usable_revision(session, row, number).content_hash
             code, name = row.code, row.name
         workflow = self._revision_workflow(code, number)
         problems = self.check(workflow) + [
@@ -535,6 +535,7 @@ class WorkflowService:
             target=target,
             purpose=purpose,
             code=code,
+            source_hash=source_hash,
         )
 
     @staticmethod
@@ -592,7 +593,7 @@ class WorkflowService:
             workflow = Workflow.model_validate(row.definition)
             snapshot = (row.workflow_id, row.workflow_name, row.workflow_version)
             purpose = cast("Purpose", row.purpose)
-            code = row.workflow_code
+            code, source_hash = row.workflow_code, row.workflow_hash
             engine, headless = row.engine, row.headless
             target = cast("Target", row.target)
             reused: dict[str, str] = {}
@@ -620,6 +621,7 @@ class WorkflowService:
             worker_id=pinned,
             purpose=purpose,
             code=code,
+            source_hash=source_hash,
         )
 
     def _resume_point(
@@ -683,6 +685,7 @@ class WorkflowService:
         worker_id: str | None = None,
         purpose: Purpose = "validation",
         code: str | None = None,
+        source_hash: str | None = None,
     ) -> WorkflowRunRecord:
         workflow, problems = plan_workflow(
             workflow,
@@ -711,6 +714,7 @@ class WorkflowService:
                         worker_id=worker_id,
                         purpose=purpose,
                         workflow_code=code,
+                        workflow_hash=source_hash,
                     )
                 )
                 try:
