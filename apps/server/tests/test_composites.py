@@ -45,15 +45,14 @@ from rpa_worker import Worker
 JsonObject = dict[str, object]
 
 CHAIN: JsonObject = {
+    "version": 2,
+    "mode": "dag",
     "nodes": [
         {"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "組合"}}},
-        {
-            "id": "n2",
-            "sceneId": "ba-002",
-            "revision": 1,
-            "inputs": {"recordId": {"node": "n1", "output": "recordId"}},
-        },
-    ]
+        # 同名匹配：執行的快照會解析出來源，雜湊和版本不同（驗證紀錄仍要記版本的雜湊）
+        {"id": "n2", "sceneId": "ba-002", "revision": 1, "inputs": {"recordId": {"auto": True}}},
+    ],
+    "edges": [{"source": "n1", "target": "n2"}],
 }
 
 
