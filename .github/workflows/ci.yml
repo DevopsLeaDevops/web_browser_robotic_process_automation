@@ -163,10 +163,12 @@ jobs:
         run: uv sync --locked
       - name: 安裝瀏覽器（Chromium、Firefox）
         run: uv run playwright install chromium firefox
+      # 逐個測試分配（--dist load）：test_login.py 一個檔案就約 2 分鐘，按檔案分配時它是整體的下限。
+      # 這些測試都用各自的 tmp_path 與測試網站，彼此獨立。
       - name: pytest（Worker 的瀏覽器測試與冒煙測試）
         run: |
           set +e
-          uv run pytest -n 4 --dist loadfile --durations=30 -m "browser and (role_worker or smoke)" \
+          uv run pytest -n 4 --dist load --durations=30 -m "browser and (role_worker or smoke)" \
             --junitxml=pytest-report.xml -o junit_family=xunit1
           code=$?
           set -e
