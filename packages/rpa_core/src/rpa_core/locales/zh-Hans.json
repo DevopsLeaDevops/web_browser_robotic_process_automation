@@ -171,5 +171,19 @@
   "pack.role_check_invalid": "check（已登录时看得到的元素）不是正确的定位器：{detail}",
   "pack.role_steps_invalid": "autoLogin（自动登录步骤）有问题：{detail}",
   "pack.role_steps_not_list": "必须是步骤的清单",
-  "pack.sensitive_file": "{file} 看起来是登录状态、Secrets 或私钥，不能放在领域文件夹，请移除"
+  "pack.sensitive_file": "{file} 看起来是登录状态、Secrets 或私钥，不能放在领域文件夹，请移除",
+  "pack.composite_no_manifest": "组合场景 {composite} 缺少 composite.yaml，略过这个组合场景",
+  "pack.composite_id_mismatch": "composite.yaml 的 id 是 {id}，应该和文件夹名称 {expected} 相同；略过这个组合场景",
+  "pack.composite_no_revisions": "组合场景 {composite} 没有任何版本，略过这个组合场景",
+  "pack.composite_unreadable": "第 {number} 版的 workflow.json 不是正确的 JSON：{detail}；这个版本不能运行、不能发布",
+  "pack.composite_requires_mismatch": "第 {number} 版说明档的 requires 和定义里的节点不同；这个版本不能运行、不能发布",
+  "pack.requires_not_declared": "组合场景 {composite} 用到领域 {domain} 的场景，但 pack.yaml 的 requires 没有列出它",
+  "pack.requires_domain": "依赖的领域 {domain} 没有加载（需要 {scene} 第 {revision} 版）",
+  "pack.requires_scene": "领域 {domain} 里没有场景 {scene}（需要第 {revision} 版）",
+  "pack.requires_revision": "领域 {domain} 的场景 {scene} 没有第 {revision} 版",
+  "pack.requires_unusable": "领域 {domain} 的场景 {scene} 第 {revision} 版有问题，不能运行",
+  "pack.requires_hash": "领域 {domain} 的场景 {scene} 第 {revision} 版的内容和组合场景保存时不同",
+  "pack.composite_requires": "组合场景 {composite} 第 {number} 版：{problem}",
+  "pack.requires_not_checked": "依赖的领域 {domain} 没有一起检查；把它的文件夹也加进命令才会检查依赖",
+  "pack.composite_unpinned": "第 {number} 版的节点用到 {scene} 第 {revision} 版，但保存时找不到它，没有记在 requires；补上场景后重新保存才能运行"
 }
