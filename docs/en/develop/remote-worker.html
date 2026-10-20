@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:5fb1aecbfd4a0e98">
+<meta name="translation-source" content="sha256:d216d2d89dd3c211">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -114,7 +114,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
         <ul>
           <li><strong>Local gateway.</strong> <code>rpa recorder</code> opens a gateway on a random port of 127.0.0.1 that adds the token and forwards to the external port. The address in the start-up message works only on this computer and only until it stops (after closing the tab, open the same address again); the token never reaches the page, and other programs on the same computer cannot use the gateway. Use <code>--port</code> for a fixed port and <code>--no-open</code> to skip opening the browser.</li>
           <li><strong>“Local” is shown as “Server”.</strong> On pages viewed through a recorder, the “local” run location means the server computer, so it is called “Server” to avoid confusing it with the recorder.</li>
-          <li><strong>Browsers.</strong> The recorder reports the browsers it has downloaded when it comes online; choosing one it lacks is explained right on the page. A computer without a graphical display can only debug headless.</li>
+          <li><strong>Browsers.</strong> The recorder reports the browsers it has downloaded when it comes online; choosing one it lacks is explained right on the page. A computer without a graphical display cannot record, step-debug or log in manually (the buttons are grey).</li>
           <li><strong>Losing contact.</strong> If the recorder stops or is disconnected for more than 30 seconds, its recordings, debugging and manual logins in progress end with the reason recorded; the same happens when the recorder restarts or is disabled, deleted or invited again on the Devices page.</li>
           <li><strong>Test site.</strong> As with <code>rpa worker</code>, the test site (127.0.0.1:8765) starts on the recorder computer by default so the example scenes can be recorded.</li>
           <li><strong>Working side by side.</strong> Pages on port 8080 of your computer still open browsers on your computer. Each computer can have one recording at a time; a scene has a single step-by-step debugging session, so starting it on another computer closes the one on the first.</li>

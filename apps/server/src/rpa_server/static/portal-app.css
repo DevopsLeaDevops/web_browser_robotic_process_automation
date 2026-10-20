@@ -22,6 +22,10 @@ h2 a:hover{color:var(--blue-strong)}
 .icon{width:14px;height:14px;flex:none}
 .heading .actions .count{font-size:12px;margin-right:4px}
 .button.is-disabled{opacity:.45;pointer-events:none;cursor:default}
+.text-btn.is-disabled{opacity:.45;pointer-events:none;color:var(--muted)}
+/* 灰掉的入口外面包一層放 title：停用的元素收不到滑鼠事件，滑鼠移到外層才會出現提示（沒有畫面的伺服器） */
+.disabled-hint{display:inline-flex;cursor:not-allowed}
+.disabled-hint>:disabled,.disabled-hint>.is-disabled{pointer-events:none}
 .scene-card{display:flex;flex-direction:column;gap:10px}
 .scene-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .scene-card-head h2{margin:0;font-size:14px;line-height:1.45;font-weight:650;color:#315b89;min-width:0;overflow-wrap:anywhere}

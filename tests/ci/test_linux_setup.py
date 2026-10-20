@@ -180,6 +180,22 @@ def test_launchers_preserve_config_and_quote_paths(tmp_path: Path) -> None:
         "--no-testsite",
     ]
     assert marker.read_text() == "keep"
+    # 測試網站：預設空白（不啟動）；設成 0.0.0.0 時對其他電腦開放；舊的設定檔沒有這一行也照舊
+    env_file = repo / ".rpa-server.env"
+    settings = env_file.read_text()
+    assert "export RPA_TESTSITE_HOST=''\n" in settings
+    for line, expected in (
+        ("export RPA_TESTSITE_HOST=0.0.0.0\n", ["--testsite-host", "0.0.0.0"]),
+        ("", ["--no-testsite"]),
+    ):
+        env_file.write_text(settings.replace("export RPA_TESTSITE_HOST=''\n", line))
+        relaunch = subprocess.run(
+            [str(binaries / "rpa-server")], text=True, capture_output=True, timeout=10, check=False
+        )
+        assert relaunch.returncode == 0, relaunch.stderr
+        assert relaunch.stdout.splitlines()[-len(expected) :] == expected
+        assert "--no-local-worker" in relaunch.stdout.splitlines()
+    env_file.write_text(settings)
     unit = (repo / ".venv-server/rpa-server.service").read_text()
     assert 'repo space $$value %%n \\"quote\\"/.venv-server/bin/rpa-server"' in unit
     assert "UMask=0077" in unit

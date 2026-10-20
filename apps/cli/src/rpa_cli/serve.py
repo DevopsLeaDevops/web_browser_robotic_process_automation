@@ -6,7 +6,8 @@
   不再開第二個：兩個 Portal 共用同一個 SQLite 與 worker 會互相干擾（ADR 0008）。
 - 先自己綁定埠號再交給 uvicorn，失敗時顯示說明，而不是 uvicorn 的原始錯誤。
 - 預設一起在 127.0.0.1:8765 啟動本機測試網站（「測試網站自動化」的案例對它執行），
-  ``--no-testsite`` 關閉；8765 上已經是測試網站就直接沿用。
+  ``--no-testsite`` 關閉；8765 上已經是測試網站就直接沿用。``--testsite-host 0.0.0.0`` 讓錄製端、
+  Worker 等其他電腦也連到這個測試網站（資料與登入共用；沒有任何保護，只在信任的網路使用）。
 - 啟動時檢查 Chromium、Firefox 有沒有下載：較早安裝的環境只有 Chromium，
   git pull 之後才執行 Firefox 場景會失敗，先提醒要執行的命令。
 - ``--worker-port``（M9a）：另外開一個對外埠給裝置（預設聽 0.0.0.0，所有網路介面）。
@@ -31,6 +32,7 @@ import click
 from rpa_cli.i18n import t
 from testsite.server import ADDRESS_IN_USE, start_in_background
 from testsite.server import DEFAULT_PORT as TESTSITE_PORT
+from testsite.server import LOOPBACK as TESTSITE_HOST
 
 __all__ = [
     "DEFAULT_PORT",
@@ -104,15 +106,30 @@ def _is_portal(host: str, port: int) -> bool:
     return isinstance(info, dict) and cast("dict[str, object]", info).get("title") == PORTAL_TITLE
 
 
-def start_testsite(port: int = TESTSITE_PORT) -> tuple[ThreadingHTTPServer | None, str]:
-    """在背景執行緒啟動本機測試網站，回傳 (伺服器，沒有啟動時為 None；要顯示的訊息)。"""
-    url = f"http://127.0.0.1:{port}/"
-    server, state, detail = start_in_background(port)
+def start_testsite(
+    port: int = TESTSITE_PORT, host: str = TESTSITE_HOST
+) -> tuple[ThreadingHTTPServer | None, str]:
+    """在背景執行緒啟動測試網站，回傳 (伺服器，沒有啟動時為 None；要顯示的訊息)。
+
+    host 不是本機位址（例如 0.0.0.0）時，其他電腦（錄製端、Worker）也連得到：訊息顯示對外的網址
+    （綁定所有介面時猜區網位址）並提醒測試網站沒有任何保護。
+    """
+    exposed = not _is_loopback(host)
+    if exposed:
+        from rpa_worker.environment import external_url
+
+        url = external_url(host, port) + "/"
+    else:
+        url = f"http://127.0.0.1:{port}/"
+    server, state, detail = start_in_background(port, host)
     if state == "failed":
         return None, t("cli.serve.testsite_failed", url=url, error=detail)
     if state == "busy":
         return None, t("cli.serve.testsite_busy", port=port)
-    return server, t(f"cli.serve.testsite_{state}", url=url)
+    message = t(f"cli.serve.testsite_{state}", url=url)
+    if exposed and state == "started":
+        message += "\n" + t("cli.serve.testsite_exposed", url=url)
+    return server, message
 
 
 def browser_warning(missing: Sequence[str]) -> str | None:
@@ -189,6 +206,12 @@ def build_serve_command() -> click.Command:
         help=t("cli.serve.testsite_help", port=TESTSITE_PORT),
     )
     @click.option(
+        "--testsite-host",
+        default=TESTSITE_HOST,
+        show_default=True,
+        help=t("cli.serve.testsite_host_help", port=TESTSITE_PORT),
+    )
+    @click.option(
         "--worker-port",
         type=click.IntRange(1, 65535),
         default=None,
@@ -210,6 +233,7 @@ def build_serve_command() -> click.Command:
         port: int | None,
         data_dir: Path | None,
         testsite: bool,
+        testsite_host: str,
         worker_port: int | None,
         worker_host: str,
         local_worker: bool,
@@ -234,6 +258,7 @@ def build_serve_command() -> click.Command:
                 worker_port=worker_port,
                 worker_host=worker_host,
                 local_worker=local_worker,
+                portal_port=chosen,
             )
             if skipped is not None:
                 click.echo(t("cli.serve.port_switched", busy=skipped, port=chosen), err=True)
@@ -241,7 +266,7 @@ def build_serve_command() -> click.Command:
                 click.echo(t("cli.serve.exposed", host=host), err=True)
             app = create_app(settings)
             if testsite:
-                site, message = start_testsite()
+                site, message = start_testsite(host=testsite_host)
                 click.echo(message, err=True)
             if local_worker:
                 warning = browser_warning(missing_browsers())

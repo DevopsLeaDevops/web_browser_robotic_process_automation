@@ -245,9 +245,12 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     expect(card).to_contain_text("查詢不存在的紀錄")
     expect(card.locator('[data-status="none"]')).to_be_visible()
 
-    # 卡片的「調試」打開逐步調試頁；從那裡驗證最新版本，結果與截圖回到卡片上
-    card.locator('[data-action="debug"]').click()
-    page.wait_for_url(f"{portal}/scenes/ba-003/debug")
+    # 這個 Portal 沒有畫面（測試的設定）：卡片的「調試」是灰的，滑鼠移上去提示改用錄製端
+    expect(card.locator('[data-action="debug"]')).to_have_count(0)
+    expect(card.locator(".disabled-hint")).to_have_attribute("title", re.compile("RPA 錄製端"))
+    # 逐步調試頁照樣打得開；從那裡驗證最新版本，結果與截圖回到卡片上
+    page.goto(f"{portal}/scenes/ba-003/debug")
+    expect(page.locator('#debug-start button[type="submit"]')).to_be_disabled()
     page.locator('[data-action="validate"]').click()
     start_run(page, {"recordId": "DEMO-NOTFOUND"}, engine, site)
     wait_for_run(page)

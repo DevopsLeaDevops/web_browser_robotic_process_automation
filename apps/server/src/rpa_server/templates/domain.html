@@ -39,7 +39,7 @@
       {% if last %}<a href="/runs/{{ last.id }}" class="status-link">{{ m.run_badge(last.status) }}</a>{% else %}{{ m.badge("none", t("card.status_none")) }}{% endif %}
       <span class="grow"></span>
       {% if scene.kind == "dsl" %}
-      <a class="button" href="/scenes/{{ scene.id }}/debug" title="{{ t('card.step_debug_title') }}" data-action="debug">{{ t("card.debug") }}</a>
+      {% if here_display %}<a class="button" href="/scenes/{{ scene.id }}/debug" title="{{ t('card.step_debug_title') }}" data-action="debug">{{ t("card.debug") }}</a>{% else %}{{ m.no_display(t("card.debug")) }}{% endif %}
       {% else %}
       <a class="button" href="/scenes/{{ scene.id }}/run?purpose=validation" title="{{ t('card.debug_title', number=scene.latest_number) }}" data-action="debug">{{ t("card.debug") }}</a>
       {% endif %}

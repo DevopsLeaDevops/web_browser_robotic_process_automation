@@ -19,7 +19,7 @@
   {% if not session or not session.active %}
   {% if session and session.status == "failed" %}<div class="notice danger" role="alert">{{ session.message }}</div>{% endif %}
   <form class="stack" id="debug-start">
-    <div class="notice">{{ t("debug.start_notice") }}</div>
+    {% if display %}<div class="notice">{{ t("debug.start_notice") }}</div>{% else %}<div class="notice warn">{{ t("debug.no_display") }}</div>{% endif %}
     <section class="panel" id="problems" hidden>
       <div class="panel-header"><h2>{{ t("run_form.problems") }}</h2></div>
       <ul class="panel-body checklist" id="problem-list"></ul>
@@ -55,7 +55,7 @@
           <label class="field">{{ t("run_form.base_url") }}
             <input type="url" name="baseUrl" value="{{ base_url or '' }}" placeholder="https://">
           </label>
-          <div><button class="button primary" type="submit">{{ t("debug.start") }}</button></div>
+          <div>{% if display %}<button class="button primary" type="submit">{{ t("debug.start") }}</button>{% else %}<span class="disabled-hint" title="{{ t('display.use_recorder') }}"><button class="button primary" type="submit" disabled>{{ t("debug.start") }}</button></span>{% endif %}</div>
         </div>
       </section>
     </div>

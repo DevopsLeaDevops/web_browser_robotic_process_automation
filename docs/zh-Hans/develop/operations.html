@@ -48,7 +48,7 @@
           <dt>Mac 服务器 ＋ Windows 运行端</dt>
           <dd>在 Mac 的 8080 操作，录制在 Mac；运行交给 Windows，Mac 不再被有头模式的窗口占住。</dd>
         </dl>
-        <p>服务器没有桌面时，从 8080（例如 SSH 通道）打开的页面不能录制、不能人工登录，逐步调试只有无头模式：浏览器会开在服务器上。要在 Mac 录制，一定要通过录制端打开管理 Portal。</p>
+        <p>服务器没有桌面时，从 8080（例如 SSH 通道）打开的页面不能录制、不能逐步调试、不能人工登录：这些按钮是灰的，鼠标移上去会提示改用录制端。要在 Mac 录制、调试或人工登录，一定要通过录制端打开管理 Portal；「粘贴录制稿」与其他管理工作照常可用。</p>
       </div>
     </section>
 
@@ -75,6 +75,7 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # 数据放在项目以
             <tr><td><code>--data 文件夹</code></td><td>数据放哪里，默认项目里的 <code>data</code>（也可以用环境变量 <code>RPA_DATA_DIR</code>）。见<a href="../design/portal.html#data-folder">管理 Portal › 文件夹</a>。</td></tr>
             <tr><td><code>--port</code>、<code>--host</code></td><td>管理页面的端口与地址，默认 <code>127.0.0.1:8080</code>。<strong>不要改成 0.0.0.0</strong>：管理页面没有登录保护。</td></tr>
             <tr><td><code>--no-testsite</code></td><td>不在 127.0.0.1:8765 启动测试网站。</td></tr>
+            <tr><td><code>--testsite-host 0.0.0.0</code></td><td>测试网站对其他电脑开放（默认只有本机 127.0.0.1）。见下方<a href="#shared-testsite">共用服务器的测试网站</a>。</td></tr>
             <tr><td><code>RPA_LANG</code></td><td>环境变量：服务器创建的消息用哪种语言（<code>zh-Hant</code>、<code>zh-Hans</code>、<code>en</code>）。</td></tr>
           </tbody>
         </table>
@@ -86,6 +87,15 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # 数据放在项目以
           <li><strong>8081，对外端口。</strong>每个请求都要权杖或一次性的邀请：运行端用 Worker API，录制端用 Client API，并用录制端的权杖打开管理页面。没配对的电脑打开只会看到 401。防火墙只开这个端口，而且只开给区网（或 VPN），例如 Ubuntu：<code>sudo ufw allow from 192.168.1.0/24 to any port 8081 proto tcp</code>。</li>
           <li><strong>是 HTTP，不加密。</strong>Secrets 与登录状态会经过网络，只在信任的区网或 VPN 使用。服务器在云端或不同网段时，可以用 SSH 通道把对外端口带到设备那台：<code>ssh -N -L 8081:127.0.0.1:8081 用户@服务器</code>，设备配对时服务器填 <code>http://127.0.0.1:8081</code>。</li>
         </ul>
+
+        <h3 id="shared-testsite">共用服务器的测试网站</h3>
+        <p>默认每台电脑各自在 127.0.0.1:8765 跑一份测试网站，数据与登录不互通：在 Mac 建的记录，Windows 查不到。要让录制端与 Worker 都用服务器上的同一份：</p>
+        <ol>
+          <li>服务器加 <code>--testsite-host 0.0.0.0</code> 启动。用 Linux 安装脚本时，在 <code>.rpa-server.env</code> 设 <code>export RPA_TESTSITE_HOST=0.0.0.0</code> 再重新启动（较早创建的设置档没有这一行，自己加上）。启动消息会印出「测试网站：http://区网 IP:8765/」，地址是猜的。</li>
+          <li>防火墙开 8765，<strong>只开给录制端与 Worker 那几台</strong>：测试网站没有任何保护，连得到的人都能创建记录、用示范账号登录。例如 RHEL 系：<code>sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.1.0/24 port port=8765 protocol=tcp accept'</code>，再 <code>sudo firewall-cmd --reload</code>。</li>
+          <li>录制的起始网址填 <code>http://服务器:8765/</code>。示例场景要用它时，在 BA-001～BA-005 的场景页把「默认网址」改成 <code>http://服务器:8765</code>；「登录与凭证」把两个测试网站角色的登录网址、检查网址改成 <code>http://服务器:8765/login</code>、<code>http://服务器:8765/account</code>。</li>
+        </ol>
+        <p>改好之后，BA-001 建的记录在任何一台用 BA-002 都查得到，角色的登录状态也对每一台有效。</p>
 
         <h3 id="open-portal">从别台电脑打开管理 Portal</h3>
         <ul>
@@ -150,7 +160,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
           <p>第一次安装与配对见<a href="remote-worker.html#recorder-app">macOS：RPA 录制端 App</a>（命令行见<a href="remote-worker.html#recorder">录制端</a>）。</p>
           <ol>
             <li><strong>打开。</strong>双击「RPA 录制端」；连上后窗口就是管理 Portal，页眉显示「通过录制端「名称」」。命令行：项目文件夹运行 <code>uv run rpa recorder</code>，会在默认浏览器打开。</li>
-            <li><strong>录制。</strong>「场景生产 › 自主脚本录制」选新场景或既有场景、起始网址、浏览器与角色，按「开始录制」。浏览器与 Playwright Inspector 开在 Mac；操作完关掉浏览器窗口，草稿自动产生。</li>
+            <li><strong>录制。</strong>「场景生产 › 自主脚本录制」选新场景或既有场景、起始网址、浏览器与角色，按「开始录制」。浏览器与 Playwright Inspector 开在 Mac；操作完关掉浏览器窗口，草稿自动产生。起始网址填要自动化的网站（例如 Mac 自己的测试网站 <code>http://127.0.0.1:8765/</code> 或业务系统），不是服务器的 8080、8081：那是管理 Portal 自己，填了会被挡下。</li>
             <li><strong>逐步调试。</strong>场景页按「逐步调试」，有头模式的窗口开在 Mac，每一步的截图也显示在页面上。</li>
             <li><strong>人工登录。</strong>「场景管理 › 登录与凭证」按角色的「登录」，在 Mac 开的窗口里登录，按「完成登录」或关掉窗口；登录状态存回服务器。</li>
             <li><strong>运行。</strong>验证与运行的「运行位置」里，「服务器」是服务器自己，「远程 worker」是运行端。录制端不运行场景。</li>
@@ -200,7 +210,8 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
           <thead><tr><th>状况</th><th>处理</th></tr></thead>
           <tbody>
             <tr><td>设备连不上服务器</td><td>服务器有没有加 <code>--worker-port</code>、IP 与端口号对不对、服务器的防火墙有没有开 8081。检查方法见<a href="remote-worker.html#faq">远程 worker › 常见问题</a>。邀请里的地址是猜的，服务器有多张网卡时常猜错：服务器网址和代码分开填。</td></tr>
-            <tr><td>录制、人工登录的按钮是灰的，写着没有图形界面</td><td>页面是从服务器的 8080（例如 SSH 通道）打开的，而服务器没有桌面：改从录制端打开。通过录制端也这样时，是录制端那台没有桌面。</td></tr>
+            <tr><td>录制、逐步调试、人工登录的按钮是灰的，鼠标移上去提示改用录制端</td><td>页面是从服务器的 8080（例如 SSH 通道）打开的，而服务器没有桌面：改从录制端打开。通过录制端也这样时，是录制端那台没有桌面。</td></tr>
+            <tr><td>开始录制时说起始网址是管理 Portal 自己的地址</td><td>起始网址填成了服务器的 8080 或 8081。录制开的是全新的浏览器，没有录制端的权杖，打开这两个端口只会得到 401（<code>recorder_unauthorized</code>）。改填要自动化的网站。</td></tr>
             <tr><td>「开始录制」是灰的，上方写著录制中</td><td>这台已经有一段录制在进行：先把那个浏览器窗口关掉，或按「取消录制」。</td></tr>
             <tr><td>录制端说管理 Portal 不再接受这台的权杖</td><td>设备页重新邀请过、禁用或删除了这台。在设备页产生新的录制端邀请（被禁用时先按「激活」），到「状态与设置」粘贴重新配对。</td></tr>
             <tr><td>版本不同的提醒</td><td>只是程序版本不同时仍可使用，但建议更新到同一个版本；协定版本不同时连不上，一定要更新。见<a href="#upgrade">更新版本</a>。</td></tr>

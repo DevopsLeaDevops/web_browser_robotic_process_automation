@@ -277,6 +277,25 @@ def test_pages_follow_the_recorder_display(client: Client, remote: Client) -> No
     wait_until(lambda: body(client.get(recording))["status"] != "recording")
 
 
+def test_the_server_address_is_not_a_start_url(client: Client, remote: Client) -> None:
+    """2026-10-19 的人工驗收：起始網址填了伺服器的對外埠，錄製的瀏覽器只得到 401。"""
+    body(client.post("/api/domains", json={"id": "lab", "name": "實驗"}), 201)
+    device = paired(client, remote)
+    device.hello()
+    headers = auth(device.token)
+    target = {"sceneId": "rec-001", "new": True, "name": "錄製", "domainId": "lab"}
+    # 透過錄製端時，閘道轉送的 Host 是錄製端連的伺服器網址（這裡是 testserver:8081）
+    for url in (f"http://testserver:{WORKER_PORT}/", f"http://TESTSERVER:{WORKER_PORT}/scenes"):
+        refused = remote.post(
+            "/api/recordings", json={"target": target, "url": url}, headers=headers
+        )
+        problem = error(refused, 422)
+        assert problem["code"] == "recording_url_portal"
+        assert "錄製開的瀏覽器沒有權杖" in str(problem["message"])
+    assert body(client.get("/api/recordings"))["recordings"] == []
+    assert [item for item in device.commands() if item["type"] == "start"] == []
+
+
 # ---------------------------------------------------------------- 指令通道
 
 

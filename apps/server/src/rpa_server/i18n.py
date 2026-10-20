@@ -24,6 +24,8 @@ VIA_RECORDER_KEYS: Final = {
     "recording.record_hint": "recording.record_hint_via_recorder",
     "recording.no_display": "recording.no_display_via_recorder",
     "debug.window_hint": "debug.window_hint_via_recorder",
+    "debug.no_display": "debug.no_display_via_recorder",
+    "display.use_recorder": "display.use_recorder_via_recorder",
     "js.recording_started": "js.recording_started_via_recorder",
     # 登入狀態與 Secrets 存在伺服器，不是操作的這台
     "secrets.hint": "secrets.hint_via_recorder",

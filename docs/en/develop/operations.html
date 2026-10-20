@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:3350f85036a0f3bb">
+<meta name="translation-source" content="sha256:ef001dfab670602d">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -48,7 +48,7 @@
           <dt>Mac server + Windows worker</dt>
           <dd>Work on port 8080 of the Mac and record there; runs go to Windows, so headed windows no longer take over the Mac.</dd>
         </dl>
-        <p>When the server has no desktop, pages opened from port 8080 (through an SSH tunnel, say) cannot record or log in manually, and step-by-step debugging is headless only: the browser would open on the server. To record on the Mac, always open the portal through the recorder.</p>
+        <p>When the server has no desktop, pages opened from port 8080 (through an SSH tunnel, say) cannot record, step-debug or log in manually: those buttons are grey, and hovering over them suggests the recorder. To record, debug or log in on the Mac, always open the portal through the recorder; pasting a recording and all other management work still work.</p>
       </div>
     </section>
 
@@ -75,6 +75,7 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # keep the data outside
             <tr><td><code>--data folder</code></td><td>Where the data lives, <code>data</code> in the project by default (or the <code>RPA_DATA_DIR</code> environment variable). See <a href="../design/portal.html#data-folder">Management portal › Data folder</a>.</td></tr>
             <tr><td><code>--port</code>, <code>--host</code></td><td>The port and address of the management pages, <code>127.0.0.1:8080</code> by default. <strong>Do not change it to 0.0.0.0</strong>: the management pages have no login.</td></tr>
             <tr><td><code>--no-testsite</code></td><td>Does not start the test site on 127.0.0.1:8765.</td></tr>
+            <tr><td><code>--testsite-host 0.0.0.0</code></td><td>Opens the test site to other computers (by default only 127.0.0.1). See <a href="#shared-testsite">Sharing the server’s test site</a> below.</td></tr>
             <tr><td><code>RPA_LANG</code></td><td>Environment variable: the language of messages the server creates (<code>zh-Hant</code>, <code>zh-Hans</code>, <code>en</code>).</td></tr>
           </tbody>
         </table>
@@ -86,6 +87,15 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # keep the data outside
           <li><strong>8081, the external port.</strong> Every request needs a token or a one-time invitation: workers use the Worker API, recorders use the Client API and open the management pages with the recorder's token. Unpaired computers only get 401. Open only this port in the firewall, and only to the LAN (or VPN), for example on Ubuntu: <code>sudo ufw allow from 192.168.1.0/24 to any port 8081 proto tcp</code>.</li>
           <li><strong>It is plain HTTP.</strong> Secrets and sign-in state cross the network, so use it only on a trusted LAN or VPN. When the server is in the cloud or on another network, an SSH tunnel can bring the external port to the device: <code>ssh -N -L 8081:127.0.0.1:8081 user@server</code>, then use <code>http://127.0.0.1:8081</code> as the server when pairing.</li>
         </ul>
+
+        <h3 id="shared-testsite">Sharing the server’s test site</h3>
+        <p>By default every computer runs its own test site on 127.0.0.1:8765, and records and logins are not shared: a record created on the Mac cannot be found on Windows. To let the recorder and the worker use the single copy on the server:</p>
+        <ol>
+          <li>Start the server with <code>--testsite-host 0.0.0.0</code>. With the Linux installer, set <code>export RPA_TESTSITE_HOST=0.0.0.0</code> in <code>.rpa-server.env</code> and restart (settings files created earlier lack this line; add it yourself). The startup message prints “Test site: http://LAN-IP:8765/”; the address is a guess.</li>
+          <li>Open port 8765 in the firewall <strong>only to the recorder and worker computers</strong>: the test site has no protection, so anyone who can reach it can create records and log in with the demo accounts. For example on RHEL-family systems: <code>sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.1.0/24 port port=8765 protocol=tcp accept'</code>, then <code>sudo firewall-cmd --reload</code>.</li>
+          <li>Use <code>http://server:8765/</code> as the recording start URL. To run the example scenes against it, set the “Default URL” on the scene pages of BA-001 to BA-005 to <code>http://server:8765</code>, and under “Login and credentials” change the login and check URLs of the two test-site roles to <code>http://server:8765/login</code> and <code>http://server:8765/account</code>.</li>
+        </ol>
+        <p>After that, a record created by BA-001 can be found by BA-002 on any computer, and role sign-in state works on every one of them.</p>
 
         <h3 id="open-portal">Opening the portal from another computer</h3>
         <ul>
@@ -150,7 +160,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
           <p>First-time installation and pairing: <a href="remote-worker.html#recorder-app">macOS: the RPA Recorder app</a> (command line: <a href="remote-worker.html#recorder">Recorders</a>).</p>
           <ol>
             <li><strong>Open.</strong> Double-click “RPA Recorder”; once connected the window is the management portal and the header shows “Via recorder “name””. On the command line, run <code>uv run rpa recorder</code> in the project folder; it opens in the default browser.</li>
-            <li><strong>Record.</strong> In “Production › Recording”, choose a new or existing scene, the start URL, the browser and the role, then “Start recording”. The browser and the Playwright Inspector open on the Mac; close the browser window when you are done and the draft is created.</li>
+            <li><strong>Record.</strong> In “Production › Recording”, choose a new or existing scene, the start URL, the browser and the role, then “Start recording”. The browser and the Playwright Inspector open on the Mac; close the browser window when you are done and the draft is created. The start URL is the website to automate (for example the Mac’s own test site <code>http://127.0.0.1:8765/</code> or your business system), not the server’s 8080 or 8081: those are the portal itself and are refused.</li>
             <li><strong>Debug step by step.</strong> On the scene page choose “Step debugging”; the headed window opens on the Mac, and a screenshot after every step also appears on the page.</li>
             <li><strong>Log in manually.</strong> In “Scenarios › Logins &amp; secrets” choose the role's “Log in”, log in in the window that opens on the Mac, then press “Finish login” or close the window; the sign-in state is saved on the server.</li>
             <li><strong>Run.</strong> In the “place to run” of validate and run forms, “Server” is the server itself and “Remote worker” is a worker. Recorders do not run scenarios.</li>
@@ -200,7 +210,8 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
           <thead><tr><th>Symptom</th><th>What to do</th></tr></thead>
           <tbody>
             <tr><td>A device cannot reach the server</td><td>Check that the server has <code>--worker-port</code>, that the IP and port are right, and that the server's firewall allows 8081. How to test is in <a href="remote-worker.html#faq">Remote workers › Troubleshooting</a>. The address in the invitation is a guess and is often wrong on servers with several network cards: enter the server URL and the code separately.</td></tr>
-            <tr><td>The recording and manual-login buttons are grey and say there is no display</td><td>The page was opened from port 8080 of a server without a desktop (through an SSH tunnel, say): open it through the recorder instead. If it happens through the recorder, the recorder computer has no desktop.</td></tr>
+            <tr><td>The recording, step-debugging and manual-login buttons are grey, and hovering suggests the recorder</td><td>The page was opened from port 8080 of a server without a desktop (through an SSH tunnel, say): open it through the recorder instead. If it happens through the recorder, the recorder computer has no desktop.</td></tr>
+            <tr><td>Starting a recording says the start URL is the management portal itself</td><td>The start URL is the server’s 8080 or 8081. The recording opens a fresh browser without the recorder’s token, so those ports only answer 401 (<code>recorder_unauthorized</code>). Enter the website to automate instead.</td></tr>
             <tr><td>“Start recording” is grey and a recording is shown above it</td><td>This computer already has a recording in progress: close that browser window first, or choose “Cancel recording”.</td></tr>
             <tr><td>The recorder says the portal no longer accepts its token</td><td>This device was invited again, disabled or deleted on the Devices page. Create a new recorder invitation there (choose “Enable” first if it was disabled) and paste it under “Status and settings” to pair again.</td></tr>
             <tr><td>A version-mismatch warning</td><td>A different program version still works, but updating to the same version is safer; a different protocol version cannot connect and must be updated. See <a href="#upgrade">Updating</a>.</td></tr>

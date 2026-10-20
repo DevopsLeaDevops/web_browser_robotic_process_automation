@@ -36,6 +36,7 @@ from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_runner.contract import check_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id, scenario_sources
+from rpa_server.addresses import PortalAddress
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
 from rpa_server.devices import RecorderHub
@@ -292,6 +293,7 @@ class Services:
         local_worker: bool = True,
         worker_port: int | None = None,
         worker_host: str = "0.0.0.0",
+        portal_port: int | None = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -303,6 +305,8 @@ class Services:
         self.worker_port = worker_port
         """對外埠（Worker API、Client API）；None 代表沒有開放（頁面提示怎麼開啟）。"""
         self.worker_host = worker_host
+        self.portal_port = portal_port
+        """管理頁面聽的埠（rpa serve 填入；測試是 None）：錄製的起始網址不能指向 Portal 自己。"""
         self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
         self.recorders = RecorderHub(sessions, locale=locale)
         """錄製端的登記、上線，以及交給它執行的互動子程序（M10.2）。"""
@@ -984,6 +988,14 @@ class Services:
         """
         via = self.recorders.current()
         return self.recorders.display(via) if via is not None else self.display
+
+    def portal_address(self, host: str | None, received_port: int | None) -> PortalAddress:
+        """操作者連到管理 Portal 的位址（請求的 Host 與收到請求的埠）：錄製的起始網址不能是它。"""
+        return PortalAddress.of(
+            host,
+            (self.portal_port, self.worker_port, received_port),
+            on_server=self.recorders.current() is None,
+        )
 
     def can_display(self, target: Target) -> bool:
         """執行的地方能不能顯示瀏覽器視窗：本機看這台電腦，遠端看有沒有能顯示的 worker。"""

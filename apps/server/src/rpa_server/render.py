@@ -423,9 +423,11 @@ def render(
     """渲染一頁：page 是選單中目前的頁面，title 是頁面標題，domains 是場景管理的二級選單。
 
     context 的 worker_names 是 worker 代號 → 名稱（執行報告顯示由哪台執行；M9a），沒給時只有本機。
+    here_display 是操作的那台能不能開瀏覽器視窗，沒給時當成可以。
     """
     group = _group_of(page)
     context.setdefault("worker_names", {"local": page_t("worker.local")})
+    context.setdefault("here_display", True)
     return _env.get_template(name).render(
         page=page,
         group=group,

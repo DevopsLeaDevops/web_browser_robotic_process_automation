@@ -51,6 +51,8 @@
   "cli.serve.testsite_running": "测试网站已经在 {url} 运行，直接沿用。",
   "cli.serve.testsite_busy": "端口号 {port} 被其他程序占用，没有启动测试网站，「测试网站自动化」的案例会连不上。关掉占用的程序后重新启动，或加 --no-testsite 不启动测试网站。",
   "cli.serve.testsite_failed": "无法启动测试网站（{url}）：{error}",
+  "cli.serve.testsite_host_help": "测试网站监听的地址。默认只有这台电脑；设成 0.0.0.0 时，录制端、Worker 等其他电脑也用 http://这台的地址:{port}/ 连到同一个测试网站（数据与登录共用）。测试网站没有任何保护，只在信任的网络使用。",
+  "cli.serve.testsite_exposed": "注意：测试网站对其他电脑开放（{url}，地址是猜的），没有任何保护：连得到的人都能创建记录、用示范账号登录。请用防火墙只开放给录制端、Worker 那几台。示例场景要用它时，把场景的「默认网址」与两个测试网站角色的登录网址、检查网址改成这个地址。",
   "cli.serve.browsers_missing": "这台电脑还没有下载 {browsers}，用到的场景会运行失败。在项目文件夹运行 {command} 下载即可，不用重新启动 Portal。",
   "cli.record.help": "在这台电脑录制浏览器操作（Playwright codegen）：浏览器窗口与 Playwright Inspector 会开在这台电脑上，操作完关掉窗口即结束。录制稿存成遮罩过密码的 Python（--out），加 --scenario 同时转成场景 DSL 草稿：输入的值变成入参、密码字段改成 Secret，转不了的行以注释保留。草稿要先验证才能发布。",
   "cli.record.short_help": "录制操作并转成场景草稿。",

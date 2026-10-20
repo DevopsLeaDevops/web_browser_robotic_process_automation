@@ -634,7 +634,10 @@ def test_scene_and_card_pages_link_to_debugging(client: Client) -> None:
     client.post("/api/domains", json={"id": "lab", "name": "實驗"})
     client.patch("/api/scenes/ba-001", json={"domainId": "lab"})
     scene = client.get("/scenes/ba-001").text
-    assert 'href="/scenes/ba-001/debug"' in scene
+    # 測試的伺服器沒有畫面：「逐步調試」是灰的、不是連結，滑鼠移上去提示改用錄製端
+    # （有畫面時是連結，見 test_no_display.py）
+    assert 'href="/scenes/ba-001/debug"' not in scene
+    assert 'class="disabled-hint" title="這台伺服器沒有畫面' in scene
     assert 'id="contract-inputs"' in scene
     assert 'id="contract-outputs"' in scene
     assert '<option value="{{ facts.record.recordId }}">' in scene  # 出參取值可以選頁面事實

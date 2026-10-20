@@ -130,8 +130,13 @@ def page_router(services: Services) -> APIRouter:
     router = APIRouter()
 
     def page(name: str, *, page: str, title: str, **context: object) -> HTMLResponse:
-        """渲染一頁；每一頁都帶著領域清單（場景管理的二級選單）。"""
+        """渲染一頁；每一頁都帶著領域清單（場景管理的二級選單）。
+
+        here_display：操作的那台能不能開瀏覽器視窗（錄製、逐步調試、人工登入）；不能時這些入口變灰，
+        滑鼠移上去提示改用錄製端。
+        """
         context.setdefault("worker_names", services.workers.names())
+        context.setdefault("here_display", services.display_here())
         return _html(
             render(name, page=page, title=title, domains=services.list_domains(), **context)
         )

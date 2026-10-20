@@ -1,17 +1,20 @@
-"""手動啟動測試網站：uv run python -m testsite --port 8765"""
+"""手動啟動測試網站：uv run python -m testsite --port 8765 [--host 0.0.0.0]"""
 
 import argparse
 import sys
 
-from testsite.server import DEFAULT_PORT, create_server
+from testsite.server import DEFAULT_PORT, LOOPBACK, create_server
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="本機測試網站（只綁定 127.0.0.1）")
+    parser = argparse.ArgumentParser(description="本機測試網站（預設只綁定 127.0.0.1）")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    port = parser.parse_args().port
-    server = create_server(port)
-    sys.stderr.write(f"測試網站：http://127.0.0.1:{server.server_port}/（Ctrl+C 結束）\n")
+    parser.add_argument(
+        "--host", default=LOOPBACK, help="監聽的位址；0.0.0.0 讓其他電腦也連得到（沒有任何保護）"
+    )
+    args = parser.parse_args()
+    server = create_server(args.port, args.host)
+    sys.stderr.write(f"測試網站：http://{args.host}:{server.server_port}/（Ctrl+C 結束）\n")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

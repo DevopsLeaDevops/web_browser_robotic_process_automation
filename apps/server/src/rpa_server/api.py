@@ -17,9 +17,9 @@ M10.2：錄製端的登記與邀請（/api/recorders）。錄製端自己用的 
 透過錄製端呼叫這裡時，錄製、調試、人工登入的瀏覽器開在那台（rpa_server.devices）。
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -586,10 +586,19 @@ def api_router(services: Services) -> APIRouter:
         }
 
     @router.post("/recordings", status_code=202)
-    def start_recording(body: RecordingStart) -> dict[str, object]:
-        """在操作的那台開瀏覽器錄製（透過錄製端時在錄製端）；關掉視窗後轉換成草稿。"""
+    def start_recording(body: RecordingStart, request: Request) -> dict[str, object]:
+        """在操作的那台開瀏覽器錄製（透過錄製端時在錄製端）；關掉視窗後轉換成草稿。
+
+        起始網址指向 Portal 自己時回 422 ``recording_url_portal``（依請求的 Host 與埠判斷）。
+        """
+        server = cast("tuple[str, int | None] | None", request.scope.get("server"))
+        received = server[1] if server is not None else None
         record = recordings.start(
-            body.target.target(), url=body.url, engine=body.engine, role_id=body.role_id
+            body.target.target(),
+            url=body.url,
+            engine=body.engine,
+            role_id=body.role_id,
+            portal=services.portal_address(request.headers.get("host"), received),
         )
         return record.to_json()
 

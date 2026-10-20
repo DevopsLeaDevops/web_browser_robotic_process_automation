@@ -62,6 +62,8 @@ class Settings:
     """對外埠綁定的位址；裝置邀請用它決定伺服器網址（M10.1）。"""
     local_worker: bool = True
     """要不要在這台電腦執行（本機 worker）；False 時只有遠端 worker 執行。"""
+    portal_port: int | None = None
+    """管理頁面實際聽的埠（``rpa serve`` 填入）；用來擋下把 Portal 自己當成錄製的起始網址。"""
 
     @property
     def uses_sqlite(self) -> bool:

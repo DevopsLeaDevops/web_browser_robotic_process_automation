@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:0e3267fcd2d8bca3">
+<meta name="translation-source" content="sha256:4b29b337c8cea7e7">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -101,7 +101,7 @@ sudo journalctl -u rpa-server -f
 # No checkout yet: finish downloading before execution (requires curl and CA certificates)
 curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup-linux.sh -o /tmp/rpa-setup-linux.sh
 bash /tmp/rpa-setup-linux.sh --dir "$HOME/code/web_browser_robotic_process_automation"</pre>
-        <p>The first installation creates <code>.rpa-server.env</code> in the repository (Bash syntax, mode 600, Git ignored). The admin interface listens on <code>127.0.0.1:8080</code> and device APIs on <code>0.0.0.0:8081</code>, with <code>--no-local-worker --no-testsite</code>. Edit <code>RPA_DATA_DIR</code>, <code>RPA_PORT</code>, <code>RPA_WORKER_PORT</code> or <code>RPA_WORKER_HOST</code> in this file, then restart. Rerunning setup preserves it. The service and data belong to the user running the script; do not run the whole script with sudo.</p>
+        <p>The first installation creates <code>.rpa-server.env</code> in the repository (Bash syntax, mode 600, Git ignored). The admin interface listens on <code>127.0.0.1:8080</code> and device APIs on <code>0.0.0.0:8081</code>, with <code>--no-local-worker</code> and, by default, no test site. Edit <code>RPA_DATA_DIR</code>, <code>RPA_PORT</code>, <code>RPA_WORKER_PORT</code>, <code>RPA_WORKER_HOST</code> or <code>RPA_TESTSITE_HOST</code> in this file, then restart. Setting <code>RPA_TESTSITE_HOST</code> to <code>0.0.0.0</code> starts the test site on 8765 and lets recorders and workers reach it (see <a href="operations.html#shared-testsite">Sharing the server’s test site</a>; settings files created earlier lack this line, so add it yourself). Rerunning setup preserves it. The service and data belong to the user running the script; do not run the whole script with sudo.</p>
         <p>Initial administration: run the SSH forwarding command below on your computer, open <code>http://127.0.0.1:8080</code>, and create invitations on the Devices page. Invitations must use the server IP or DNS reachable by the Worker/Recorder on port 8081, not the SSH tunnel's 127.0.0.1. Once paired, the Recorder accesses the Portal through its local gateway. See <a href="remote-worker.html">Remote Workers</a> and <a href="../design/desktop.html">Desktop distribution</a>.</p>
 <pre class="source">ssh -N -L 8080:127.0.0.1:8080 admin@SERVER
 
