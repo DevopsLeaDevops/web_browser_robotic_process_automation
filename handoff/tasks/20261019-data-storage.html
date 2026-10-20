@@ -10,21 +10,21 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。下一步是實作 PR 1。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 04:20 America/Los_Angeles（PDT，UTC−07:00）。<strong>實作 PR 1 進行中</strong>（<code>m11/domain-packs</code>，見<a href="#log">追加紀錄</a>）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-20 04:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源</dt><dd>使用者 2026-10-19 04:47 PDT（UTC−07:00）在 Claude 對話提出（<a href="#goals">第 1 節</a>）；06:05 PDT 回覆全部決定點（<a href="#decisions">第 13 節</a>）。</dd>
         <dt>驗收條件</dt><dd>見<a href="#plan">第 15 節</a>的人工驗收（以測試倉庫走完分散式的錄製 → 驗證 → 發布 → 使用），以及各 PR 的自動測試。</dd>
         <dt>範圍／不包含</dt><dd>範圍：領域資料夾格式、檔案與資料庫的分工、載入與熱載入、驗證與發布紀錄、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移；執行紀錄回看的<strong>格式預留</strong>。不包含：執行紀錄的歸檔與跨伺服器回看的實作（D4，之後做）、使用者與權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
-        <dt>狀態</dt><dd>設計已確認；實作 PR 1 準備開工</dd>
-        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作分支開工時記在<a href="#log">追加紀錄</a>。</dd>
-        <dt>交接版本／同步狀態</dt><dd>本頁隨分支推送；沒有未提交的程式碼。</dd>
+        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）進行中</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）；PR 開了再補上編號。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本頁隨 <code>m11/domain-packs</code> 推送；以追加紀錄最後一筆的提交為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
       </dl></div>
     </section>
@@ -459,6 +459,8 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
         <li>2026-10-19 05:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>design/data-storage</code>，提出設計與決定點；尚未寫程式。提交 <code>6be8776</code>，開草稿 PR #40。</li>
         <li>2026-10-19 06:05 America/Los_Angeles（PDT，UTC−07:00），使用者：D1、D2、D4～D11 照建議；D3 改成「發布狀態要記錄」（分散式多人協作）；D4 之後要做回看，現在預留方案。</li>
         <li>2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00），Claude：依回覆改寫第 4、5、6、8、9、12、13、15 節（驗證與發布紀錄進領域資料夾、回看的預留方案、四個 PR 的切分與人工驗收）；里程碑定為 M11。</li>
+        <li>2026-10-19 17:57 America/Los_Angeles（PDT，UTC−07:00；GitHub 記錄 2026-10-20 00:57 UTC），使用者：合併 #40（main 上的提交 <code>a779e2a</code>）。</li>
+        <li>2026-10-20 04:20 America/Los_Angeles（PDT，UTC−07:00），Claude（新的 session，接續本任務）：核對進度——main <code>a6164f7</code> 沒有任何 M11 程式碼（最新遷移仍是 0009），遠端沒有 M11 實作分支或開著的 PR；#39 已合併，第 2 節擔心的 <code>services.py</code> 重疊不存在。從 <code>a6164f7</code> 開 <code>m11/domain-packs</code> 做 PR 1。環境：Claude 雲端環境仍連不到 PyPI；<code>rpa_core</code>、<code>rpa_cli</code> 用 uv 快取裡的 pytest、ruff、pyright 在本地檢查，伺服器的測試靠 bootstrap 與 CI。</li>
       </ul></div>
     </section>
   </div>
