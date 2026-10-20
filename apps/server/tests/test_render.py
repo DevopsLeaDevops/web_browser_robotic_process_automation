@@ -17,6 +17,8 @@ from rpa_server.debugging import DebugSession
 from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
 from rpa_server.domain import (
     ENGINES,
+    CompositeRevisionRecord,
+    DependencyItem,
     DomainRecord,
     RecorderRecord,
     RecordingRecord,
@@ -422,6 +424,9 @@ def _source(kind: str, **fields: object) -> dict[str, object]:
 
 def _m6_pages(*, english: bool = False) -> dict[str, str]:
     """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）。"""
+    domains = (
+        [replace(DOMAIN, name="Lab"), replace(OTHER_DOMAIN, name="Other")] if english else DOMAINS
+    )
     name = "Create then look up" if english else "建立後查詢"
     run = (
         replace(RUN, scene_name="Scene", input={"title": "x"}, output={"recordId": "DEMO-1"})
@@ -489,7 +494,45 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
     problem = WorkflowProblem(
         "workflow.input_missing", "Node n2: no source" if english else "缺少來源", "n2", "recordId"
     )
-    record = WorkflowRecord(1, name, None, CHAIN, 2, MOMENT, MOMENT, (problem,), passed)
+    record = WorkflowRecord(
+        1,
+        name,
+        None,
+        CHAIN,
+        2,
+        MOMENT,
+        MOMENT,
+        (problem,),
+        passed,
+        code="wf-1",
+        domain_id="composites",
+        published_number=1,
+        dependency="warnings",
+    )
+    revisions = [
+        CompositeRevisionRecord(2, "b" * 64, "draft", True, None, None, MOMENT, None, False),
+        CompositeRevisionRecord(1, "a" * 64, "passed", True, None, "v1", MOMENT, MOMENT, True),
+    ]
+    dependencies = [
+        DependencyItem(
+            "warning",
+            "role_login",
+            "Role buyer needs login" if english else "角色 buyer 需要登入",
+            2,
+            "ba",
+            "ba-001",
+            "login",
+        ),
+        DependencyItem(
+            "error",
+            "domain_missing",
+            "Domain hr is missing" if english else "沒有領域 hr",
+            2,
+            "hr",
+            "hr-001",
+            "add_domain",
+        ),
+    ]
     data = {
         "id": 1,
         "name": name,
@@ -510,15 +553,16 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             domains=(),
             **common,
             title=t("nav.composites"),
-            workflows=[record],
+            workflows=[record, replace(record, id=2, domain_id=None, published_number=None)],
             data=data,
             runs=[passed],
             has_published=True,
+            domain_names={"composites": "Composites"},
         ),
         "playground": render(
             "playground.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=t("nav.playground"),
             workflows=[
                 record,
@@ -531,7 +575,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "playground-empty": render(
             "playground.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=t("nav.playground"),
             workflows=[],
             runs=[],
@@ -541,17 +585,20 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow": render(
             "workflow.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=name,
             workflow=record,
             data=data,
             runs=[passed],
+            revisions=revisions,
+            verifications=VERIFICATIONS,
+            dependencies=dependencies,
             **common,
         ),
         "workflow-run": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=passed.id,
             run=passed,
             workflow_exists=True,
@@ -561,7 +608,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-run-login": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=login.id,
             run=login,
             workflow_exists=False,
@@ -571,7 +618,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-running": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=running.id,
             run=running,
             workflow_exists=True,
@@ -581,7 +628,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-blocked": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=blocked.id,
             run=blocked,
             workflow_exists=True,

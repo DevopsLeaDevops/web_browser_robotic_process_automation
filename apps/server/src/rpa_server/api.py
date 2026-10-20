@@ -201,6 +201,10 @@ class WorkflowCreate(_Body):
     description: str | None = Field(default=None, max_length=2000)
     definition: dict[str, object] | None = None
     """序列的定義（匯出的 JSON）；沒帶就是空的序列。"""
+    code: str | None = Field(default=None, max_length=64)
+    """英數代號（M11 PR 2）；沒帶時自動取 wf-<數字>。"""
+    domain_id: str | None = Field(default=None, max_length=64)
+    """放在哪個領域資料夾；沒帶時放「組合場景」領域。"""
 
 
 class WorkflowUpdate(_Body):
@@ -219,6 +223,9 @@ class WorkflowRunCreate(_Body):
     headless: bool | None = None
     idempotency_key: str | None = Field(default=None, max_length=100)
     target: Target | None = None
+    purpose: Literal["validation", "execution"] = "validation"
+    """validation：驗證某個版本（預設最新）；execution：執行發布的版本（M11 PR 2）。"""
+    revision: int | None = Field(default=None, ge=1)
 
 
 class WorkerCreate(_Body):
@@ -704,7 +711,14 @@ def api_router(services: Services) -> APIRouter:
     @router.post("/workflows", status_code=201)
     def create_workflow(body: WorkflowCreate) -> dict[str, object]:
         """新增序列；帶 definition 就是匯入。"""
-        return workflows.create_workflow(body.name, body.description, body.definition).to_json()
+        record = workflows.create_workflow(
+            body.name,
+            body.description,
+            body.definition,
+            code=body.code,
+            domain_id=body.domain_id,
+        )
+        return record.to_json()
 
     @router.get("/workflows/library")
     def workflow_library() -> dict[str, object]:
@@ -721,7 +735,18 @@ def api_router(services: Services) -> APIRouter:
     def get_workflow(workflow_id: int) -> dict[str, object]:
         record = workflows.get_workflow(workflow_id)
         runs = workflows.list_runs(workflow_id=workflow_id, limit=10)
-        return {**record.to_json(), "runs": [run.to_json() for run in runs]}
+        return {
+            **record.to_json(),
+            "runs": [run.to_json() for run in runs],
+            "revisions": [item.to_json() for item in workflows.revisions(workflow_id)],
+            "verifications": [item.to_json() for item in workflows.verifications(workflow_id)],
+            "dependencies": [item.to_json() for item in workflows.dependencies(workflow_id)],
+        }
+
+    @router.post("/workflows/{workflow_id}/revisions/{number}/publish")
+    def publish_workflow(workflow_id: int, number: int) -> dict[str, object]:
+        """發布組合場景的版本（M11 PR 2）；不符合發布門檻或依賴不完整時 409。"""
+        return workflows.publish(workflow_id, number).to_json()
 
     @router.put("/workflows/{workflow_id}")
     def update_workflow(workflow_id: int, body: WorkflowUpdate) -> dict[str, object]:
@@ -748,6 +773,8 @@ def api_router(services: Services) -> APIRouter:
             headless=body.headless,
             idempotency_key=body.idempotency_key,
             target=body.target,
+            purpose=body.purpose,
+            revision=body.revision,
         )
         return record.to_json()
 

@@ -9,10 +9,18 @@
       scenes/<場景>/revisions/<n>.yaml              版本說明：雜湊、建立時間、建立者、伺服器、說明
       scenes/<場景>/verifications/<n>/<執行編號>.yaml 驗證紀錄：一次驗證一份，只新增不修改
       roles/<角色>.yaml                             登入角色的定義（不含登入狀態）
+      composites/<組合場景>/composite.yaml          組合場景說明檔：名稱、說明、封存、目前發布的版本
+      composites/<組合場景>/revisions/<n>/workflow.json   組合場景的定義（rpa_core.workflow）
+      composites/<組合場景>/revisions/<n>.yaml      版本說明，另外記下釘住的場景版本（requires）
+      composites/<組合場景>/verifications/<n>/<執行編號>.yaml  驗證紀錄，另外列出每個節點
 
 - 版本不可變：版本說明檔放在版本目錄旁邊，所以版本內容與雜湊和管理 Portal 以前的版本目錄完全一樣。
 - 發布門檻（任何一台伺服器都一樣）：磁碟上的版本內容雜湊 ＝ 版本說明檔的雜湊 ＝ 某一份
-  ``status: passed`` 驗證紀錄的雜湊。不成立時這個版本不算已發布。
+  ``status: passed`` 驗證紀錄的雜湊。不成立時這個版本不算已發布。組合場景的通過紀錄還要每個節點
+  跑的場景版本與雜湊都和版本說明檔的 requires 相同（M11 PR 2）。
+- 組合場景和場景同一套規則；只放組合場景的資料夾就是一個沒有 scenes/ 的領域（D1）。跨領域的
+  依賴（requires 指到的場景版本在不在、雜湊對不對）要看得到其他領域才能檢查：
+  :func:`requirement_problems`。
 - 資料夾裡沒有登入狀態、Secrets 的值、執行的入參與出參、截圖與錄製稿。
 
 讀取時單一項目有問題只略過那一項，問題列在 :attr:`Pack.issues`；``pack.yaml`` 不見或不能讀時
@@ -20,6 +28,8 @@
 資料夾與 ``rpa pack check`` 都用它。設計見 handoff/tasks/20261019-data-storage.html 第 4、8 節。
 """
 
+import hashlib
+import json
 import os
 import re
 import tempfile
@@ -43,8 +53,11 @@ from rpa_core.dsl.sources import scenario_digest, scenario_sources
 from rpa_core.dsl.validation import validate_data, validate_file
 from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.dsl.yaml_writer import block, key
+from rpa_core.workflow import Workflow, parse_workflow
 
 __all__ = [
+    "COMPOSITES_DIR",
+    "COMPOSITE_FILE",
     "PACK_FILE",
     "REVISIONS_DIR",
     "ROLES_DIR",
@@ -53,12 +66,20 @@ __all__ = [
     "SCENE_FILE",
     "SPEC_VERSION",
     "VERIFICATIONS_DIR",
+    "WORKFLOW_FILE",
+    "CompositeEntry",
+    "CompositeManifest",
+    "CompositeRevisionInfo",
+    "CompositeVerification",
+    "NodeStatus",
+    "NodeVerification",
     "Pack",
     "PackIssue",
     "PackManifest",
     "PackRequirement",
     "PackSource",
     "PublishedRef",
+    "RequirementProblem",
     "RevisionEntry",
     "RevisionInfo",
     "RoleDefinition",
@@ -66,20 +87,27 @@ __all__ = [
     "RunRef",
     "SceneEntry",
     "SceneManifest",
+    "SceneRequirement",
     "ServerRef",
     "Verification",
     "VerificationEntry",
     "VerificationStatus",
     "VerificationSummary",
     "WorkerRef",
+    "check_requirements",
+    "composite_digest",
     "dump_model",
     "is_sensitive",
     "parse_timestamp",
+    "read_composite",
     "read_model",
     "read_pack",
     "read_scene",
+    "requirement_problems",
     "role_problems",
     "timestamp",
+    "workflow_digest",
+    "workflow_text",
     "write_model",
 ]
 
@@ -93,6 +121,9 @@ SCENES_DIR: Final = "scenes"
 ROLES_DIR: Final = "roles"
 REVISIONS_DIR: Final = "revisions"
 VERIFICATIONS_DIR: Final = "verifications"
+COMPOSITES_DIR: Final = "composites"
+COMPOSITE_FILE: Final = "composite.yaml"
+WORKFLOW_FILE: Final = "workflow.json"
 
 _NAME: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """場景、角色、領域代號的規則（與 DSL 的 id 相同）。"""
@@ -257,6 +288,53 @@ class Verification(_PackModel):
     summary: VerificationSummary | None = None
 
 
+class SceneRequirement(_PackModel):
+    """組合場景的版本釘住的場景版本：存檔時由定義產生，載入與執行前用來校驗依賴。"""
+
+    domain: Slug
+    scene: Slug
+    revision: RevisionNumber
+    hash: Digest
+
+
+class CompositeManifest(_PackModel):
+    """composites/<組合場景>/composite.yaml：組合場景說明檔。名稱與說明不分版本。"""
+
+    id: Slug
+    name: NonEmptyStr
+    description: str | None = None
+    archived: bool = False
+    published: PublishedRef | None = None
+
+
+class CompositeRevisionInfo(RevisionInfo):
+    """composites/<組合場景>/revisions/<n>.yaml：版本說明，另外記下釘住的場景版本。"""
+
+    requires: list[SceneRequirement] = Field(default_factory=list[SceneRequirement])
+
+
+NodeStatus = Literal[
+    "passed", "failed", "timed_out", "cancelled", "needs_login", "skipped", "reused", "pending"
+]
+
+
+class NodeVerification(_PackModel):
+    """組合場景驗證紀錄裡的一個節點：跑的場景版本、執行時的雜湊、結果與節點的執行編號。"""
+
+    node: Slug
+    scene: Slug
+    revision: RevisionNumber
+    hash: Digest | None = None
+    status: NodeStatus
+    run: str | None = None
+
+
+class CompositeVerification(Verification):
+    """組合場景的驗證紀錄：全部節點通過才算通過。"""
+
+    nodes: list[NodeVerification] = Field(default_factory=list[NodeVerification])
+
+
 class RoleDefinition(_PackModel):
     """roles/<角色>.yaml：登入角色怎麼登入、怎麼判斷已登入（欄位和範例的 roles.json 相同）。"""
 
@@ -303,9 +381,18 @@ class VerificationEntry:
     """檔名（執行編號）。"""
     record: Verification
 
-    def proves(self, digest: str) -> bool:
-        """是不是一份雜湊相符的通過紀錄（發布的依據）。"""
-        return self.record.status == "passed" and self.record.hash == digest
+    def proves(self, digest: str, requires: Sequence[SceneRequirement] | None = None) -> bool:
+        """是不是一份雜湊相符的通過紀錄（發布的依據）。
+
+        組合場景（requires 不是 None）另外要每個節點跑的場景版本與雜湊都在 requires 裡。
+        """
+        if self.record.status != "passed" or self.record.hash != digest:
+            return False
+        if requires is None:
+            return True
+        pinned = {(item.scene, item.revision, item.hash) for item in requires}
+        nodes = self.record.nodes if isinstance(self.record, CompositeVerification) else []
+        return all((node.scene, node.revision, node.hash) in pinned for node in nodes)
 
 
 @dataclass(slots=True)
@@ -314,6 +401,8 @@ class RevisionEntry:
     folder: Path
     info: RevisionInfo | None = None
     scenario: Scenario | None = None
+    workflow: Workflow | None = None
+    """組合場景的版本：載入的定義（場景的版本是 None）。"""
     digest: str | None = None
     """從磁碟重新計算的雜湊；場景沒有通過校驗時是 None。"""
     problem: str | None = None
@@ -322,7 +411,13 @@ class RevisionEntry:
 
     @property
     def usable(self) -> bool:
-        return self.problem is None and self.info is not None and self.scenario is not None
+        loaded = self.scenario is not None or self.workflow is not None
+        return self.problem is None and self.info is not None and loaded
+
+    @property
+    def requires(self) -> list[SceneRequirement] | None:
+        """組合場景的版本釘住的場景版本；場景的版本是 None。"""
+        return self.info.requires if isinstance(self.info, CompositeRevisionInfo) else None
 
     @property
     def kind(self) -> Literal["dsl", "script"]:
@@ -333,7 +428,7 @@ class RevisionEntry:
         if not self.usable or self.info is None:
             return []
         digest = self.info.hash
-        return [entry for entry in self.history() if entry.proves(digest)]
+        return [entry for entry in self.history() if entry.proves(digest, self.requires)]
 
     def history(self) -> list[VerificationEntry]:
         """全部驗證紀錄，最新的在前（依結束時間，相同時依執行編號）。"""
@@ -350,7 +445,8 @@ class RevisionEntry:
         if not history:
             return "draft"
         digest = self.info.hash if self.info is not None else None
-        return "passed" if digest is not None and history[0].proves(digest) else "failed"
+        passed = digest is not None and history[0].proves(digest, self.requires)
+        return "passed" if passed else "failed"
 
 
 @dataclass(slots=True)
@@ -365,6 +461,26 @@ class SceneEntry:
     @property
     def latest(self) -> int:
         """最大的版本號碼（包含有問題的版本，新版本一律接在它後面）。"""
+        return max(self.revisions, default=0)
+
+    def latest_usable(self) -> RevisionEntry | None:
+        usable = [entry for entry in self.revisions.values() if entry.usable]
+        return max(usable, key=lambda entry: entry.number) if usable else None
+
+
+@dataclass(slots=True)
+class CompositeEntry:
+    """一個組合場景資料夾（composites/<組合場景>/）。"""
+
+    id: str
+    folder: Path
+    manifest: CompositeManifest
+    revisions: dict[int, RevisionEntry] = field(default_factory=dict[int, RevisionEntry])
+    published: int | None = None
+    """符合發布門檻的發布版本；composite.yaml 寫了但不成立時是 None。"""
+
+    @property
+    def latest(self) -> int:
         return max(self.revisions, default=0)
 
     def latest_usable(self) -> RevisionEntry | None:
@@ -387,6 +503,7 @@ class Pack:
     manifest: PackManifest | None = None
     scenes: dict[str, SceneEntry] = field(default_factory=dict[str, SceneEntry])
     roles: dict[str, RoleEntry] = field(default_factory=dict[str, RoleEntry])
+    composites: dict[str, CompositeEntry] = field(default_factory=dict[str, CompositeEntry])
     issues: list[PackIssue] = field(default_factory=list[PackIssue])
 
     @property
@@ -532,6 +649,17 @@ def read_pack(folder: Path, *, expected_id: str | None = None) -> Pack:
         role = _read_role(reader, role_path)
         if role is not None:
             pack.roles[role.id] = role
+    for composite_folder in _children(folder / COMPOSITES_DIR):
+        if not composite_folder.is_dir():
+            continue
+        if not _NAME.fullmatch(composite_folder.name):
+            reader.add(composite_folder, "bad_name", severity="warning", name=composite_folder.name)
+            continue
+        composite = _read_composite(reader, composite_folder)
+        if composite is not None:
+            pack.composites[composite.id] = composite
+    if pack.manifest is not None:
+        _check_declared(reader, pack)
     for path in _all_files(folder):
         if is_sensitive(path.name):
             reader.add(path, "sensitive_file", file=reader.relative(path))
@@ -552,6 +680,12 @@ def read_scene(folder: Path) -> tuple[SceneEntry | None, list[PackIssue]]:
     """
     reader = _Reader(folder.parent.parent)
     return _read_scene(reader, folder), reader.issues
+
+
+def read_composite(folder: Path) -> tuple[CompositeEntry | None, list[PackIssue]]:
+    """只讀取一個組合場景資料夾（composites/<組合場景>/）；問題的路徑相對於領域資料夾。"""
+    reader = _Reader(folder.parent.parent)
+    return _read_composite(reader, folder), reader.issues
 
 
 def _all_files(folder: Path) -> Iterator[Path]:
@@ -646,7 +780,11 @@ def _read_revision(reader: _Reader, scene_id: str, number: int, folder: Path) ->
     return revision
 
 
-def _read_verifications(reader: _Reader, scene: SceneEntry) -> None:
+def _read_verifications(
+    reader: _Reader,
+    scene: "SceneEntry | CompositeEntry",
+    model: type[Verification] = Verification,
+) -> None:
     for folder in _children(scene.folder / VERIFICATIONS_DIR):
         if not folder.is_dir() or not _NUMBER.fullmatch(folder.name):
             reader.add(folder, "verification_bad_folder", severity="warning", name=folder.name)
@@ -659,7 +797,7 @@ def _read_verifications(reader: _Reader, scene: SceneEntry) -> None:
         for path in _children(folder):
             if path.suffix != ".yaml" or not path.is_file():
                 continue
-            record = reader.model(path, Verification)
+            record = reader.model(path, model)
             if record is None:
                 continue
             if record.revision != number:
@@ -668,7 +806,9 @@ def _read_verifications(reader: _Reader, scene: SceneEntry) -> None:
             revision.verifications.append(VerificationEntry(path.stem, record))
 
 
-def _check_published(reader: _Reader, scene: SceneEntry, manifest_path: Path) -> None:
+def _check_published(
+    reader: _Reader, scene: "SceneEntry | CompositeEntry", manifest_path: Path
+) -> None:
     published = scene.manifest.published
     if published is None:
         return
@@ -698,6 +838,215 @@ def _check_published(reader: _Reader, scene: SceneEntry, manifest_path: Path) ->
             number=number,
         )
     scene.published = number
+
+
+# ---------------------------------------------------------------- 組合場景
+
+
+def workflow_text(workflow: Workflow) -> str:
+    """workflow.json 的內容：固定的縮排與欄位順序，同一份定義永遠是同一段文字（雜湊不變）。"""
+    return json.dumps(workflow.to_json(), ensure_ascii=False, indent=2) + "\n"
+
+
+def composite_digest(path: Path) -> str:
+    """組合場景版本的雜湊：和場景同一個演算法，組成檔案只有 workflow.json。"""
+    return _workflow_digest(path.read_bytes())
+
+
+def workflow_digest(workflow: Workflow) -> str:
+    """把定義寫成 workflow.json 之後的雜湊（和 :func:`composite_digest` 相同）。"""
+    return _workflow_digest(workflow_text(workflow).encode())
+
+
+def _workflow_digest(content: bytes) -> str:
+    digest = hashlib.sha256()
+    digest.update(WORKFLOW_FILE.encode() + b"\0" + content + b"\0")
+    return digest.hexdigest()
+
+
+def _read_composite(reader: _Reader, folder: Path) -> CompositeEntry | None:
+    manifest_path = folder / COMPOSITE_FILE
+    if not manifest_path.is_file():
+        reader.add(manifest_path, "composite_no_manifest", composite=folder.name)
+        return None
+    manifest = reader.model(manifest_path, CompositeManifest)
+    if manifest is None:
+        return None
+    if manifest.id != folder.name:
+        reader.add(manifest_path, "composite_id_mismatch", id=manifest.id, expected=folder.name)
+        return None
+    composite = CompositeEntry(manifest.id, folder, manifest)
+    revisions = folder / REVISIONS_DIR
+    for entry in _children(revisions):
+        if entry.is_dir():
+            if not _NUMBER.fullmatch(entry.name):
+                reader.add(entry, "revision_bad_name", severity="warning", name=entry.name)
+                continue
+            number = int(entry.name)
+            composite.revisions[number] = _read_composite_revision(reader, number, entry)
+        elif entry.suffix == ".yaml" and not (revisions / entry.stem).is_dir():
+            reader.add(entry, "revision_orphan_info", severity="warning", file=entry.name)
+    if not composite.revisions:
+        reader.add(folder, "composite_no_revisions", composite=composite.id)
+        return None
+    _read_verifications(reader, composite, CompositeVerification)
+    _check_published(reader, composite, manifest_path)
+    return composite
+
+
+def _read_composite_revision(reader: _Reader, number: int, folder: Path) -> RevisionEntry:
+    revision = RevisionEntry(number, folder)
+    info_path = folder.with_name(f"{number}.yaml")
+    if not info_path.is_file():
+        reader.add(info_path, "revision_no_info", number=number, file=info_path.name)
+        revision.problem = "pack.revision_no_info"
+    else:
+        info = reader.model(info_path, CompositeRevisionInfo)
+        if info is None:
+            revision.problem = "pack.revision_info_invalid"
+        elif info.number != number:
+            reader.add(info_path, "revision_number_mismatch", value=info.number, number=number)
+            revision.problem = "pack.revision_number_mismatch"
+        else:
+            revision.info = info
+    path = folder / WORKFLOW_FILE
+    try:
+        data: object = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        reader.add(path, "composite_unreadable", number=number, detail=error)
+        revision.problem = revision.problem or "pack.revision_invalid"
+        return revision
+    workflow, problems = parse_workflow(data)
+    if workflow is None:
+        reader.add(path, "revision_invalid", number=number, count=max(1, len(problems)))
+        for problem in problems:
+            reader.issues.append(PackIssue(reader.relative(path), problem.code, problem.message))
+        revision.problem = revision.problem or "pack.revision_invalid"
+        return revision
+    revision.workflow = workflow
+    revision.digest = composite_digest(path)
+    for extra in sorted(folder.rglob("*")):
+        relative = extra.relative_to(folder).as_posix()
+        if extra.is_file() and relative != WORKFLOW_FILE and not extra.name.startswith("."):
+            reader.add(
+                extra, "revision_extra_file", severity="warning", number=number, file=relative
+            )
+    info = revision.info
+    if info is not None and info.hash != revision.digest:
+        reader.add(info_path, "revision_hash_mismatch", number=number)
+        revision.problem = revision.problem or "pack.revision_hash_mismatch"
+    elif isinstance(info, CompositeRevisionInfo):
+        nodes = {(node.scene_id, node.revision) for node in workflow.nodes}
+        pinned = {(item.scene, item.revision) for item in info.requires}
+        if not pinned <= nodes:
+            reader.add(info_path, "composite_requires_mismatch", number=number)
+            revision.problem = revision.problem or "pack.composite_requires_mismatch"
+        for scene, scene_revision in sorted(nodes - pinned):
+            # 存檔時找不到這個場景版本（編輯到一半也可以存）：依賴檢查會擋下執行
+            reader.add(
+                info_path,
+                "composite_unpinned",
+                severity="warning",
+                number=number,
+                scene=scene,
+                revision=scene_revision,
+            )
+    return revision
+
+
+def _check_declared(reader: _Reader, pack: Pack) -> None:
+    """組合場景依賴的其他領域要列在 pack.yaml 的 requires（提醒；Portal 存檔時會自動更新）。"""
+    manifest = pack.manifest
+    if manifest is None:
+        return
+    declared = {item.domain for item in manifest.requires} | {manifest.id}
+    used: dict[str, str] = {}
+    for composite in pack.composites.values():
+        for revision in composite.revisions.values():
+            for item in revision.requires or []:
+                used.setdefault(item.domain, composite.id)
+    for domain, composite in sorted(used.items()):
+        if domain not in declared:
+            reader.add(
+                PACK_FILE,
+                "requires_not_declared",
+                severity="warning",
+                domain=domain,
+                composite=composite,
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class RequirementProblem:
+    """組合場景依賴的一個場景版本有問題（跨領域的檢查）。"""
+
+    code: str
+    """``pack.requires_domain``（沒有這個領域）、``pack.requires_scene``、``pack.requires_revision``、
+    ``pack.requires_unusable``（版本有問題）、``pack.requires_hash``（雜湊和存檔時不同）。"""
+    requirement: SceneRequirement
+    message: str
+
+
+def check_requirements(packs: Sequence[Pack]) -> None:
+    """一起讀取的領域資料夾之間，檢查組合場景的依賴（最新可用的版本與發布的版本）。
+
+    問題加進組合場景所在的領域；依賴的領域沒有一起讀取時只提醒一次，不算錯誤。
+    """
+    known = {pack.manifest.id: pack for pack in packs if pack.manifest is not None}
+    for pack in packs:
+        skipped: set[str] = set()
+        for composite in pack.composites.values():
+            latest = composite.latest_usable()
+            numbers = {latest.number if latest is not None else None, composite.published}
+            for number in sorted(item for item in numbers if item is not None):
+                revision = composite.revisions[number]
+                where = f"{COMPOSITES_DIR}/{composite.id}/{REVISIONS_DIR}/{number}.yaml"
+                for problem in requirement_problems(revision.requires or [], known):
+                    if problem.requirement.domain not in known:
+                        skipped.add(problem.requirement.domain)
+                        continue
+                    message = catalog(
+                        "pack.composite_requires",
+                        composite=composite.id,
+                        number=number,
+                        problem=problem.message,
+                    )
+                    pack.issues.append(PackIssue(where, problem.code, message))
+        for domain in sorted(skipped):
+            message = catalog("pack.requires_not_checked", domain=domain)
+            pack.issues.append(
+                PackIssue(PACK_FILE, "pack.requires_not_checked", message, severity="warning")
+            )
+
+
+def requirement_problems(
+    requires: Sequence[SceneRequirement], packs: Mapping[str, Pack]
+) -> list[RequirementProblem]:
+    """依賴的場景版本在其他領域資料夾裡在不在、雜湊對不對。packs 是「領域代號 → 讀取結果」。"""
+    problems: list[RequirementProblem] = []
+    for item in requires:
+        params: dict[str, object] = {
+            "domain": item.domain,
+            "scene": item.scene,
+            "revision": item.revision,
+        }
+        pack = packs.get(item.domain)
+        scene = pack.scenes.get(item.scene) if pack is not None else None
+        revision = scene.revisions.get(item.revision) if scene is not None else None
+        if pack is None:
+            code = "requires_domain"
+        elif scene is None:
+            code = "requires_scene"
+        elif revision is None:
+            code = "requires_revision"
+        elif not revision.usable or revision.info is None:
+            code = "requires_unusable"
+        elif revision.info.hash != item.hash:
+            code = "requires_hash"
+        else:
+            continue
+        problems.append(RequirementProblem(f"pack.{code}", item, catalog(f"pack.{code}", **params)))
+    return problems
 
 
 def _read_role(reader: _Reader, path: Path) -> RoleEntry | None:
@@ -785,7 +1134,9 @@ def _prune(value: object, keep: frozenset[str] = frozenset()) -> object:
 
 _KEEP_NULL: Final[Mapping[type[BaseModel], frozenset[str]]] = {
     SceneManifest: frozenset({"published"}),
+    CompositeManifest: frozenset({"published"}),
     Verification: frozenset({"hash"}),
+    CompositeVerification: frozenset({"hash"}),
 }
 """沒有值也要寫出來的欄位：scene.yaml 沒有發布時寫 published: null。"""
 

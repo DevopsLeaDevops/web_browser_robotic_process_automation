@@ -39,6 +39,7 @@ __all__ = [
     "Scene",
     "Setting",
     "Workflow",
+    "WorkflowRevision",
     "WorkflowRun",
 ]
 
@@ -217,9 +218,11 @@ class Recording(Base):
 
 
 class Workflow(Base):
-    """自由試驗場的一個序列（M6）：已發布場景的固定版本，上游出參綁定到下游入參。
+    """組合場景（M6）：已發布場景的固定版本，上游出參綁定到下游入參。
 
-    定義是 rpa_core.workflow 的 JSON；每次存檔 version 加一，存檔要帶目前的 version。
+    M11 PR 2 起定義在領域資料夾的 composites/<code>/，每次改定義都是新版本（version 是最新的
+    版本號碼，存檔要帶它）；這裡是索引，definition 是最新版本的定義（編輯頁用）。
+    id 只在這台伺服器有意義（網址用）；跨伺服器認得的是 code。
     """
 
     __tablename__ = "workflows"
@@ -231,6 +234,32 @@ class Workflow(Base):
     version: Mapped[int] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    """英數代號（D2），也是資料夾的名稱；舊的組合場景是 wf-<id>。"""
+    domain_id: Mapped[str | None] = mapped_column(ForeignKey("domains.id"), index=True)
+    published_number: Mapped[int | None] = mapped_column()
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """來源缺失：領域資料夾裡已經沒有這個組合場景。"""
+
+
+class WorkflowRevision(Base):
+    """組合場景的一個版本（M11 PR 2）：資料夾的索引；status 是最近一次驗證紀錄的結果。"""
+
+    __tablename__ = "workflow_revisions"
+    __table_args__ = (UniqueConstraint("workflow_id", "number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workflow_id: Mapped[int] = mapped_column(ForeignKey("workflows.id"), index=True)
+    number: Mapped[int] = mapped_column()
+    content_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20))
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    problem: Mapped[str | None] = mapped_column(String(60))
+    missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    published_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
 
 class WorkflowRun(Base):
@@ -264,6 +293,15 @@ class WorkflowRun(Base):
     """執行位置（M9a），每個節點都一樣。"""
     worker_id: Mapped[str | None] = mapped_column(String(64))
     """第一個節點由哪台 worker 領取，後面的節點就固定給它（測試網站的資料、登入狀態一致）。"""
+    purpose: Mapped[str] = mapped_column(
+        String(20), default="validation", server_default="validation"
+    )
+    """validation（驗證某個版本，結果寫進驗證紀錄）或 execution（執行發布的版本）；M11 PR 2。"""
+    workflow_code: Mapped[str | None] = mapped_column(String(64))
+    """組合場景的代號（執行當時的）；workflow_version 是跑的版本號碼。"""
+    workflow_hash: Mapped[str | None] = mapped_column(String(64))
+    """跑的版本的雜湊（definition 是解析過來源的快照，雜湊和版本不同）；驗證紀錄記它。
+    M11 PR 2 之前的執行（與它們的重跑）沒有，不寫驗證紀錄。"""
 
 
 class RemoteWorker(Base):

@@ -37,6 +37,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import validate_file
 from rpa_core.pack import (
+    COMPOSITE_FILE,
+    COMPOSITES_DIR,
     PACK_FILE,
     REVISIONS_DIR,
     ROLES_DIR,
@@ -44,6 +46,13 @@ from rpa_core.pack import (
     SCENES_DIR,
     SPEC_VERSION,
     VERIFICATIONS_DIR,
+    WORKFLOW_FILE,
+    CompositeEntry,
+    CompositeManifest,
+    CompositeRevisionInfo,
+    CompositeVerification,
+    NodeStatus,
+    NodeVerification,
     PackIssue,
     PackManifest,
     PackRequirement,
@@ -54,24 +63,42 @@ from rpa_core.pack import (
     RunRef,
     SceneEntry,
     SceneManifest,
+    SceneRequirement,
     ServerRef,
     Verification,
     VerificationStatus,
     VerificationSummary,
     WorkerRef,
+    composite_digest,
     parse_timestamp,
+    read_composite,
     read_model,
     read_pack,
     read_scene,
     timestamp,
+    workflow_text,
     write_model,
 )
+from rpa_core.workflow import Workflow, parse_workflow
+from rpa_server.config import COMPOSITES_DOMAIN
 from rpa_server.domain import FINISHED, LOCAL_WORKER, now
 from rpa_server.i18n import t
-from rpa_server.models import Domain, RemoteWorker, Revision, Role, Run, Scene, Setting
+from rpa_server.models import (
+    Domain,
+    RemoteWorker,
+    Revision,
+    Role,
+    Run,
+    Scene,
+    Setting,
+    WorkflowRevision,
+)
+from rpa_server.models import Workflow as WorkflowRow
+from rpa_server.models import WorkflowRun as WorkflowRunRow
 from rpa_server.storage import SCENARIO_FILE, Storage
 
 __all__ = [
+    "COMPOSITES_DOMAIN",
     "LAYOUT_VERSION",
     "RUN_MANIFEST",
     "UNASSIGNED_DOMAIN",
@@ -86,8 +113,9 @@ UNASSIGNED_DOMAIN: Final = "unassigned"
 RUN_MANIFEST: Final = "run.json"
 """執行目錄的說明檔。"""
 RUN_MANIFEST_VERSION: Final = 1
-LAYOUT_VERSION: Final = 2
-"""資料目錄的格式：1 是 M11 之前（scenes/），2 是領域資料夾（domains/）。"""
+LAYOUT_VERSION: Final = 3
+"""資料目錄的格式：1 是 M11 之前（scenes/），2 是領域資料夾（domains/），3 是組合場景也在
+領域資料夾裡（composites/，M11 PR 2）。"""
 _SERVER_SETTING: Final = "server"
 _LAYOUT_SETTING: Final = "storage_layout"
 _ROLE_FILE_SUFFIX: Final = ".yaml"
@@ -492,6 +520,7 @@ class PackStore:
                 domain.description = manifest.description
                 scenes = self._apply_scenes(session, domain_id, pack.scenes.values(), issues)
                 roles = self._apply_roles(session, domain_id, pack.roles.values(), issues)
+                self._apply_composites(session, domain_id, pack.composites.values(), issues)
                 domain.problems = [issue.to_json() for issue in issues]
                 domain.loaded_at = now()
                 session.commit()
@@ -671,30 +700,56 @@ class PackStore:
 
     # ------------------------------------------------------------ 遷移（D7）
 
-    def migrate_legacy(self, *, unassigned_name: str, unassigned_description: str) -> bool:
-        """M11 之前的資料目錄 → 領域資料夾；已經遷移過或是新的資料目錄時什麼都不做。
+    def migrate_legacy(
+        self,
+        *,
+        unassigned_name: str,
+        unassigned_description: str,
+        composites_name: str = "",
+        composites_description: str | None = None,
+    ) -> bool:
+        """舊的資料目錄 → 領域資料夾；已經遷移過或是新的資料目錄時什麼都不做。
 
-        先把 rpa.db 與 scenes/ 備份到 backups/<時間>-before-domains/。每一步都可以重跑：
-        中斷後下次啟動接著做，最後才記下「已經遷移」。回傳這次有沒有遷移。
+        格式 1 → 2：M11 之前的場景、版本、角色（先把 rpa.db 與 scenes/ 備份到
+        backups/<時間>-before-domains/）。格式 2 → 3：資料庫裡的組合場景搬進「組合場景」領域
+        （先備份 rpa.db 到 backups/<時間>-before-composites/）。每一步都可以重跑：中斷後下次啟動
+        接著做，最後才記下格式的版本。回傳這次有沒有搬資料。
         """
         with self.lock:
             with self.sessions() as session:
                 layout = session.get(Setting, _LAYOUT_SETTING)
                 state: dict[str, object] = dict(layout.value) if layout is not None else {}
-                if state.get("version") == LAYOUT_VERSION:
-                    return False
                 has_data = bool(
                     session.scalar(select(func.count()).select_from(Scene))
                     or session.scalar(select(func.count()).select_from(Role))
                 )
-            if has_data or self.storage.legacy_scenes.exists():
-                if not state.get("backup"):
-                    state["backup"] = self._backup()
+                has_workflows = bool(session.scalar(select(func.count()).select_from(WorkflowRow)))
+            version = state.get("version")
+            current = version if isinstance(version, int) else 1
+            if current >= LAYOUT_VERSION:
+                return False
+            migrated = False
+            backed_up = False  # 這次啟動做過的備份已經包含組合場景
+            if current < 2:
+                if has_data or self.storage.legacy_scenes.exists():
+                    if not state.get("backup"):
+                        state["backup"] = self._backup("before-domains")
+                        backed_up = True
+                        self._save_layout(state)
+                    self._migrate(unassigned_name, unassigned_description)
+                    migrated = has_data
+                state["version"] = 2
+                self._save_layout(state)
+            if has_workflows:
+                # 同一次啟動剛做過格式 2 的備份就不再備份（那份已經有組合場景）
+                if not backed_up and not state.get("backup_composites"):
+                    state["backup_composites"] = self._backup("before-composites")
                     self._save_layout(state)
-                self._migrate(unassigned_name, unassigned_description)
+                self._migrate_composites(composites_name, composites_description)
+                migrated = True
             state["version"] = LAYOUT_VERSION
             self._save_layout(state)
-            return has_data
+            return migrated
 
     def _save_layout(self, state: Mapping[str, object]) -> None:
         with self.sessions() as session:
@@ -705,9 +760,9 @@ class PackStore:
                 row.value = dict(state)
             session.commit()
 
-    def _backup(self) -> str:
+    def _backup(self, suffix: str) -> str:
         """備份資料庫（SQLite 才有檔案）與舊的版本目錄，回傳備份資料夾的名稱。"""
-        name = f"{now().astimezone():%Y%m%d-%H%M%S}-before-domains"
+        name = f"{now().astimezone():%Y%m%d-%H%M%S}-{suffix}"
         target = self.storage.backups / name
         target.mkdir(parents=True, exist_ok=True)
         with self.sessions() as session:
@@ -872,6 +927,468 @@ class PackStore:
             .order_by(Run.finished_at.desc(), Run.id.desc())
             .limit(1)
         )
+
+    # ------------------------------------------------------------ 組合場景（M11 PR 2）
+
+    def composite_manifest(self, code: str) -> CompositeManifest | None:
+        path = self.storage.composite_dir(code) / COMPOSITE_FILE
+        return read_model(path, CompositeManifest)[0] if path.is_file() else None
+
+    def write_composite(self, manifest: CompositeManifest) -> None:
+        with self.lock:
+            write_model(self.storage.composite_dir(manifest.id) / COMPOSITE_FILE, manifest)
+
+    def composite_entry(self, code: str) -> tuple[CompositeEntry | None, list[PackIssue]]:
+        """讀取一個組合場景資料夾（版本、驗證紀錄、發布門檻）。"""
+        folder = self.storage.composite_dir(code)
+        if not folder.is_dir():
+            return None, []
+        return read_composite(folder)
+
+    def requirements(self, session: Session, workflow: Workflow) -> list[SceneRequirement]:
+        """定義釘住的場景版本（領域、場景、版本、雜湊）；找不到的場景版本不列（存檔時提醒）。"""
+        found: dict[tuple[str, int], SceneRequirement] = {}
+        for node in workflow.nodes:
+            key = (node.scene_id, node.revision)
+            if key in found:
+                continue
+            scene = session.get(Scene, node.scene_id)
+            revision = session.scalars(
+                select(Revision).where(
+                    Revision.scene_id == node.scene_id, Revision.number == node.revision
+                )
+            ).first()
+            if (
+                scene is None
+                or scene.domain_id is None
+                or revision is None
+                or revision.missing
+                or len(revision.content_hash) != 64
+            ):
+                continue
+            found[key] = SceneRequirement(
+                domain=scene.domain_id,
+                scene=node.scene_id,
+                revision=node.revision,
+                hash=revision.content_hash,
+            )
+        return list(found.values())
+
+    def write_composite_revision(
+        self,
+        code: str,
+        number: int,
+        text: str,
+        *,
+        note: str | None,
+        created_at: datetime,
+        requires: list[SceneRequirement],
+    ) -> str:
+        """寫入組合場景的新版本（workflow.json 先寫暫存目錄再改名）與版本說明檔，回傳雜湊。"""
+        with self.lock:
+            folder = self.storage.composite_dir(code) / REVISIONS_DIR / str(number)
+            if folder.exists():
+                raise FileExistsError(folder)
+            folder.parent.mkdir(parents=True, exist_ok=True)
+            staging = folder.with_name(f".{number}-{uuid.uuid4().hex[:8]}")
+            staging.mkdir()
+            path = staging / WORKFLOW_FILE
+            with path.open("w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+            path.chmod(0o444)
+            staging.rename(folder)
+            digest = composite_digest(folder / WORKFLOW_FILE)
+            info = CompositeRevisionInfo(
+                number=number,
+                hash=digest,
+                created_at=timestamp(created_at),
+                by=self.operator(),
+                server=self.server(),
+                note=note,
+                requires=requires,
+            )
+            write_model(folder.with_name(f"{number}.yaml"), info)
+            return digest
+
+    def discard_composite_revision(self, code: str, number: int, *, new: bool) -> None:
+        """存檔失敗時移除這次寫的版本（新的組合場景連同資料夾）。"""
+        with self.lock:
+            folder = self.storage.composite_dir(code)
+            if new:
+                _remove_tree(folder)
+                self.storage.forget_composite(code)
+                return
+            _remove_tree(folder / REVISIONS_DIR / str(number))
+            (folder / REVISIONS_DIR / f"{number}.yaml").unlink(missing_ok=True)
+
+    def remove_composite(self, code: str) -> None:
+        with self.lock:
+            _remove_tree(self.storage.composite_dir(code))
+            self.storage.forget_composite(code)
+
+    def declare_requirements(self, domain_id: str, requires: Iterable[SceneRequirement]) -> None:
+        """pack.yaml 的 requires 加上組合場景用到的其他領域（D1）。"""
+        for domain in sorted({item.domain for item in requires} - {domain_id}):
+            self.add_requirement(domain_id, domain)
+
+    def composite_verification_path(self, code: str, number: int, run_id: str) -> Path:
+        folder = self.storage.composite_dir(code) / VERIFICATIONS_DIR / str(number)
+        return folder / f"{run_id}.yaml"
+
+    # ------------------------------------------------------------ 組合場景的執行紀錄
+
+    def record_workflow_run(self, run_id: str) -> None:
+        """組合場景的執行開始或結束：寫 workflow-runs/<編號>/run.json；驗證結束時另外寫驗證紀錄。
+
+        寫不進去只記日誌，不影響執行。
+        """
+        try:
+            self._record_workflow_run(run_id)
+        except Exception:
+            logger.exception("無法寫入組合場景執行 %s 的紀錄", run_id)
+
+    def _record_workflow_run(self, run_id: str) -> None:
+        with self.sessions() as session:
+            row = session.get(WorkflowRunRow, run_id)
+            if row is None:
+                return
+            owner = session.get(WorkflowRow, row.workflow_id) if row.workflow_id else None
+            revision = (
+                session.scalars(
+                    select(WorkflowRevision).where(
+                        WorkflowRevision.workflow_id == owner.id,
+                        WorkflowRevision.number == row.workflow_version,
+                    )
+                ).first()
+                if owner is not None
+                else None
+            )
+            nodes = self._node_records(session, row)
+            domain_id = owner.domain_id if owner is not None else None
+            self.write_workflow_run_manifest(row, domain_id, revision, nodes)
+            if (
+                row.status == "running"
+                or row.purpose != "validation"
+                or owner is None
+                or revision is None
+                or domain_id is None
+            ):
+                return
+            # 驗證紀錄記下跑的版本的雜湊（開始執行時從版本取得）；遷移前的執行與它們的重跑沒有，
+            # 不寫驗證紀錄（它們跑的定義不一定是遷移後的版本）
+            if row.workflow_hash is None:
+                return
+            with self.lock:
+                record = self.composite_verification(session, row, row.workflow_hash, nodes)
+                path = self.composite_verification_path(owner.code, revision.number, row.id)
+                write_model(path, record)
+                entry, _ = self.composite_entry(owner.code)
+                current = entry.revisions.get(revision.number) if entry is not None else None
+                if current is not None:
+                    revision.status = current.status
+                    revision.verified = bool(current.proofs())
+                    session.commit()
+
+    @staticmethod
+    def _node_records(session: Session, row: WorkflowRunRow) -> list[NodeVerification]:
+        """組合場景執行裡每個節點：跑的場景版本、雜湊、狀態、節點的執行編號。"""
+        workflow, _ = parse_workflow(row.definition)
+        if workflow is None:
+            return []
+        latest: dict[str, Run] = {}
+        for run in session.scalars(
+            select(Run).where(Run.workflow_run_id == row.id).order_by(Run.created_at, Run.id)
+        ):
+            if run.node_id is not None:
+                latest[run.node_id] = run
+        reused = {str(key): str(value) for key, value in dict(row.reused).items()}
+        records: list[NodeVerification] = []
+        for node in workflow.execution_nodes():
+            run: Run | None
+            if node.id in reused:
+                run = session.get(Run, reused[node.id])
+                status = "reused"
+            else:
+                run = latest.get(node.id)
+                if run is not None:
+                    status = run.status if run.status in FINISHED else "pending"
+                else:
+                    status = "pending" if row.status == "running" else "skipped"
+            digest = run.scenario_hash if run is not None else None
+            records.append(
+                NodeVerification(
+                    node=node.id,
+                    scene=node.scene_id,
+                    revision=node.revision,
+                    hash=digest if digest is not None and len(digest) == 64 else None,
+                    status=_node_status(status),
+                    run=run.id if run is not None else None,
+                )
+            )
+        return records
+
+    def composite_verification(
+        self, session: Session, row: WorkflowRunRow, digest: str, nodes: list[NodeVerification]
+    ) -> CompositeVerification:
+        """組合場景一次驗證執行的紀錄：全部節點通過才算通過。"""
+        server = self.server()
+        worker = row.worker_id or LOCAL_WORKER
+        if worker == LOCAL_WORKER:
+            system = platform.system().lower() or None
+        else:
+            device = session.get(RemoteWorker, worker)
+            value = device.info.get("os") if device is not None else None
+            system = str(value) if value else None
+        return CompositeVerification(
+            revision=row.workflow_version,
+            hash=digest,
+            status=_status(row.status),
+            started_at=timestamp(row.created_at),
+            finished_at=timestamp(row.finished_at or now()),
+            by=self.operator(),
+            server=server,
+            worker=WorkerRef(id=worker, os=system),
+            engine=row.engine,
+            headless=row.headless,
+            run=RunRef(server=server.id, id=row.id),
+            nodes=nodes,
+        )
+
+    def write_workflow_run_manifest(
+        self,
+        row: WorkflowRunRow,
+        domain_id: str | None,
+        revision: WorkflowRevision | None,
+        nodes: list[NodeVerification],
+    ) -> None:
+        """workflow-runs/<編號>/run.json：定義快照、各節點狀態、沿用的節點（D4 回看的預留）。"""
+        folder = self.storage.workflow_runs / row.id
+        folder.mkdir(parents=True, exist_ok=True)
+        server = self.server()
+        data: dict[str, object] = {
+            "specVersion": RUN_MANIFEST_VERSION,
+            "kind": "composite",
+            "id": row.id,
+            "server": {"id": server.id, "name": server.name},
+            "domain": domain_id,
+            "composite": row.workflow_code,
+            "name": row.workflow_name,
+            "revision": row.workflow_version,
+            "hash": row.workflow_hash,
+            "purpose": row.purpose,
+            "status": row.status,
+            "failedNode": row.failed_node,
+            "error": row.error,
+            "resumedFrom": row.resumed_from,
+            "target": row.target,
+            "worker": row.worker_id,
+            "engine": row.engine,
+            "headless": row.headless,
+            "createdAt": timestamp(row.created_at),
+            "finishedAt": timestamp(row.finished_at) if row.finished_at else None,
+            "nodes": [node.model_dump(mode="json", by_alias=True) for node in nodes],
+            "reused": dict(row.reused),
+            "definition": dict(row.definition),
+        }
+        _write_json(folder / RUN_MANIFEST, data)
+
+    # ------------------------------------------------------------ 載入組合場景
+
+    def _apply_composites(
+        self,
+        session: Session,
+        domain_id: str,
+        entries: Iterable[CompositeEntry],
+        issues: list[PackIssue],
+    ) -> int:
+        indexed = {
+            row.code: row
+            for row in session.scalars(
+                select(WorkflowRow).where(WorkflowRow.domain_id == domain_id)
+            )
+        }
+        seen: set[str] = set()
+        moment = now()
+        for entry in entries:
+            row = session.scalars(select(WorkflowRow).where(WorkflowRow.code == entry.id)).first()
+            if row is not None and row.domain_id not in (domain_id, None) and not row.missing:
+                where = f"{COMPOSITES_DIR}/{entry.id}"
+                issues.append(
+                    _issue(where, "duplicate_composite", id=entry.id, domain=row.domain_id)
+                )
+                continue
+            seen.add(entry.id)
+            latest = entry.latest_usable()
+            if latest is not None and latest.workflow is not None:
+                definition = latest.workflow.to_json()
+            elif row is not None:
+                definition = dict(row.definition)
+            else:
+                definition = Workflow(version=2, mode="dag").to_json()
+            manifest = entry.manifest
+            values: dict[str, object] = {
+                "name": manifest.name[:200],
+                "description": manifest.description,
+                "domain_id": domain_id,
+                "version": entry.latest,
+                "published_number": entry.published,
+                "archived": manifest.archived,
+                "missing": False,
+                "definition": definition,
+            }
+            if row is None:
+                created = [
+                    _moment(revision.info.created_at, moment)
+                    for revision in entry.revisions.values()
+                    if revision.info is not None
+                ]
+                row = WorkflowRow(
+                    code=entry.id,
+                    created_at=min(created, default=moment),
+                    updated_at=moment,
+                    **values,
+                )
+                session.add(row)
+                session.flush()
+            else:
+                changed = False
+                for key, value in values.items():
+                    if getattr(row, key) != value:
+                        setattr(row, key, value)
+                        changed = True
+                if changed:
+                    row.updated_at = moment
+            self._apply_composite_revisions(session, row, entry, moment)
+            self.storage.place_composite(entry.id, domain_id)
+        for code, row in indexed.items():
+            if code not in seen and not row.missing:
+                row.missing = True
+                self.storage.forget_composite(code, domain_id)
+        return len(seen)
+
+    @staticmethod
+    def _apply_composite_revisions(
+        session: Session, row: WorkflowRow, entry: CompositeEntry, moment: datetime
+    ) -> None:
+        rows = {
+            item.number: item
+            for item in session.scalars(
+                select(WorkflowRevision).where(WorkflowRevision.workflow_id == row.id)
+            )
+        }
+        validating = set(
+            session.scalars(
+                select(WorkflowRunRow.workflow_version).where(
+                    WorkflowRunRow.workflow_id == row.id,
+                    WorkflowRunRow.purpose == "validation",
+                    WorkflowRunRow.status == "running",
+                )
+            )
+        )
+        published = entry.manifest.published
+        for number, revision in entry.revisions.items():
+            info = revision.info
+            note = info.note if info is not None else None
+            values: dict[str, object] = {
+                "content_hash": info.hash if info is not None else (revision.digest or ""),
+                "status": "validating" if number in validating else revision.status,
+                "verified": bool(revision.proofs()),
+                "problem": revision.problem,
+                "missing": False,
+                "note": note[:500] if note else None,
+            }
+            item = rows.get(number)
+            if item is None:
+                created = _moment(info.created_at if info is not None else None, moment)
+                item = WorkflowRevision(
+                    workflow_id=row.id, number=number, created_at=created, **values
+                )
+                session.add(item)
+            else:
+                for key, value in values.items():
+                    if getattr(item, key) != value:
+                        setattr(item, key, value)
+            if published is not None and number == entry.published:
+                item.published_at = _moment(published.at, moment)
+        for number, item in rows.items():
+            if number not in entry.revisions:
+                item.missing = True
+                item.verified = False
+
+    # ------------------------------------------------------------ 遷移組合場景（格式 2 → 3）
+
+    def _migrate_composites(self, name: str, description: str | None) -> None:
+        """資料庫裡的組合場景 → 「組合場景」領域：代號 wf-<原數字>，現在的定義成為第 1 版。"""
+        server = self.server()
+        with self.sessions() as session:
+            rows = list(session.scalars(select(WorkflowRow).order_by(WorkflowRow.id)))
+            if session.get(Domain, COMPOSITES_DOMAIN) is None:
+                last = session.scalar(select(func.max(Domain.position)))
+                session.add(
+                    Domain(
+                        id=COMPOSITES_DOMAIN,
+                        name=name or COMPOSITES_DOMAIN,
+                        description=description,
+                        position=(last if last is not None else -1) + 1,
+                        created_at=now(),
+                    )
+                )
+                session.flush()
+            for domain in session.scalars(select(Domain)):
+                if not (self.pack_dir(domain.id) / PACK_FILE).is_file():
+                    self.write_pack(domain.id, domain.name, domain.description)
+            for row in rows:
+                domain_id = row.domain_id or COMPOSITES_DOMAIN
+                row.domain_id = domain_id
+                self.storage.place_composite(row.code, domain_id)
+                folder = self.storage.composite_dir(row.code)
+                if not (folder / COMPOSITE_FILE).exists():
+                    self.write_composite(
+                        CompositeManifest(
+                            id=row.code,
+                            name=row.name.strip()[:200] or row.code,
+                            description=row.description,
+                            archived=False,
+                        )
+                    )
+                workflow, _ = parse_workflow(row.definition)
+                requires = self.requirements(session, workflow) if workflow is not None else []
+                if not (folder / REVISIONS_DIR / "1").exists():
+                    text = (
+                        workflow_text(workflow)
+                        if workflow is not None
+                        else json.dumps(row.definition, ensure_ascii=False, indent=2) + "\n"
+                    )
+                    self.write_composite_revision(
+                        row.code,
+                        1,
+                        text,
+                        note=t("packs.composite_migrated", version=row.version),
+                        created_at=row.updated_at,
+                        requires=requires,
+                    )
+                self.declare_requirements(domain_id, requires)
+                row.version = 1
+            session.commit()
+            for run in session.scalars(select(WorkflowRunRow)):
+                if (self.storage.workflow_runs / run.id / RUN_MANIFEST).exists():
+                    continue
+                owner = session.get(WorkflowRow, run.workflow_id) if run.workflow_id else None
+                run.workflow_code = run.workflow_code or (owner.code if owner else None)
+                self.write_workflow_run_manifest(
+                    run,
+                    owner.domain_id if owner is not None else None,
+                    None,
+                    self._node_records(session, run),
+                )
+            session.commit()
+        logger.warning("%s", t("packs.composites_migrated", count=len(rows), server=server.name))
+
+
+def _node_status(value: str) -> NodeStatus:
+    if value in ("passed", "failed", "timed_out", "cancelled", "needs_login", "skipped", "reused"):
+        return value
+    return "pending"
 
 
 def _status(value: str) -> VerificationStatus:

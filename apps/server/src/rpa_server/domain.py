@@ -34,6 +34,9 @@ __all__ = [
     "ROLE_STATUSES",
     "RUN_STATUSES",
     "TARGETS",
+    "CompositeRevisionRecord",
+    "DependencyItem",
+    "DependencyStatus",
     "DomainRecord",
     "Engine",
     "NodeStatus",
@@ -491,14 +494,31 @@ class WorkflowRecord:
     problems: tuple[WorkflowProblem, ...] = ()
     """執行前的檢查發現的問題；有問題時不能執行。"""
     last_run: "WorkflowRunRecord | None" = None
+    code: str = ""
+    """英數代號（M11 PR 2）；version 是最新的版本號碼。"""
+    domain_id: str | None = None
+    published_number: int | None = None
+    archived: bool = False
+    dependency: "DependencyStatus" = "complete"
+    """依賴是否完整（最新版本與發布的版本）：complete、warnings、incomplete。"""
+
+    @property
+    def published(self) -> bool:
+        return self.published_number is not None
 
     def to_json(self) -> dict[str, object]:
         return {
             "id": self.id,
+            "code": self.code,
+            "domainId": self.domain_id,
             "name": self.name,
             "description": self.description,
             "definition": self.workflow.to_json(),
             "version": self.version,
+            "latestRevision": self.version,
+            "publishedRevision": self.published_number,
+            "archived": self.archived,
+            "dependency": self.dependency,
             "createdAt": _iso(self.created_at),
             "updatedAt": _iso(self.updated_at),
             "problems": [problem.to_json() for problem in self.problems],
@@ -558,6 +578,9 @@ class WorkflowRunRecord:
     target: Target = "local"
     worker_id: str | None = None
     """第一個節點由哪台 worker 領取，後面的節點都給它（M9a）。"""
+    purpose: str = "validation"
+    """validation（驗證某個版本）或 execution（執行發布的版本）；M11 PR 2。"""
+    workflow_code: str | None = None
 
     @property
     def finished(self) -> bool:
@@ -592,6 +615,65 @@ class WorkflowRunRecord:
             "nodes": [node.to_json() for node in self.nodes],
             "target": self.target,
             "workerId": self.worker_id,
+            "purpose": self.purpose,
+            "workflowCode": self.workflow_code,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CompositeRevisionRecord:
+    """組合場景的一個版本（M11 PR 2）。"""
+
+    number: int
+    content_hash: str
+    status: RevisionStatus
+    verified: bool
+    problem: str | None
+    note: str | None
+    created_at: datetime
+    published_at: datetime | None
+    published: bool
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "number": self.number,
+            "contentHash": self.content_hash,
+            "status": self.status,
+            "verified": self.verified,
+            "problem": self.problem,
+            "note": self.note,
+            "createdAt": _iso(self.created_at),
+            "publishedAt": _iso(self.published_at),
+            "published": self.published,
+        }
+
+
+DependencyStatus = Literal["complete", "warnings", "incomplete"]
+"""組合場景的依賴：完整、有提醒（可以執行）、不完整（不能執行）。"""
+
+
+@dataclass(frozen=True, slots=True)
+class DependencyItem:
+    """組合場景依賴的一個問題（任務紀錄第 7 節）：哪個版本、哪個領域與場景、怎麼補全。"""
+
+    level: Literal["error", "warning"]
+    code: str
+    message: str
+    revision: int
+    domain: str | None = None
+    scene: str | None = None
+    action: str | None = None
+    """補全的方式：add_domain、reload_domain、login、secrets、resave。"""
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "level": self.level,
+            "code": self.code,
+            "message": self.message,
+            "revision": self.revision,
+            "domain": self.domain,
+            "scene": self.scene,
+            "action": self.action,
         }
 
 

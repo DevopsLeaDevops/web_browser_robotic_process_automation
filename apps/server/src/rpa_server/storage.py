@@ -36,7 +36,7 @@ from typing import Final
 
 from rpa_core.dsl import Issue, Scenario, validate_file
 from rpa_core.dsl.sources import scenario_digest, scenario_sources
-from rpa_core.pack import REVISIONS_DIR, SCENES_DIR
+from rpa_core.pack import COMPOSITES_DIR, REVISIONS_DIR, SCENES_DIR
 from rpa_server.i18n import t
 
 __all__ = [
@@ -97,7 +97,10 @@ class Storage:
         self.recordings = root / "recordings"
         self.debug = root / "debug"
         self.secrets = root / "secrets.json"
+        self.workflow_runs = root / "workflow-runs"
+        """組合場景的執行紀錄（M11 PR 2）：workflow-runs/<編號>/run.json。"""
         self._places: dict[str, str] = {}
+        self._composites: dict[str, str] = {}
         self._places_lock = threading.Lock()
 
     def ensure(self) -> None:
@@ -139,6 +142,34 @@ class Storage:
         """場景的資料夾 domains/<領域>/scenes/<場景>/。"""
         domain_id = self.scene_domain(scene_id) or _NOWHERE
         return self.domains / domain_id / SCENES_DIR / scene_id
+
+    def place_composite(self, code: str, domain_id: str) -> None:
+        """登記組合場景在哪個領域資料夾（M11 PR 2）。"""
+        with self._places_lock:
+            self._composites[code] = domain_id
+
+    def forget_composite(self, code: str, domain_id: str | None = None) -> None:
+        with self._places_lock:
+            if domain_id is None or self._composites.get(code) == domain_id:
+                self._composites.pop(code, None)
+
+    def composite_domain(self, code: str) -> str | None:
+        """組合場景在哪個領域資料夾；沒有登記時到磁碟上找一次。"""
+        with self._places_lock:
+            found = self._composites.get(code)
+        if found is not None:
+            return found
+        for candidate in sorted(self.domains.glob(f"*/{COMPOSITES_DIR}/{code}")):
+            if candidate.is_dir() and not candidate.parts[-3].startswith("."):
+                domain_id = candidate.parts[-3]
+                self.place_composite(code, domain_id)
+                return domain_id
+        return None
+
+    def composite_dir(self, code: str) -> Path:
+        """組合場景的資料夾 domains/<領域>/composites/<代號>/。"""
+        domain_id = self.composite_domain(code) or _NOWHERE
+        return self.domains / domain_id / COMPOSITES_DIR / code
 
     # ------------------------------------------------------------ 角色、錄製、調試
 

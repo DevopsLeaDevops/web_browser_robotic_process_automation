@@ -24,11 +24,21 @@ from pathlib import Path
 from rpa_core.i18n import DEFAULT_LOCALE, Locale, parse_locale
 from rpa_worker.environment import has_display as worker_has_display
 
-__all__ = ["DEFAULT_EXAMPLES", "EXAMPLES_DOMAIN", "Settings", "has_display", "sqlite_url"]
+__all__ = [
+    "COMPOSITES_DOMAIN",
+    "DEFAULT_EXAMPLES",
+    "EXAMPLES_DOMAIN",
+    "Settings",
+    "has_display",
+    "sqlite_url",
+]
 
 DEFAULT_EXAMPLES = Path("scenarios") / "demo"
 EXAMPLES_DOMAIN = "testsite"
 """範例場景所屬的領域代號：「測試網站自動化」，案例都對本機測試網站執行。"""
+COMPOSITES_DOMAIN = "composites"
+"""「組合場景」領域：只放組合場景的領域；遷移的與沒指定領域的新組合場景放這裡（M11 D1、D7）。
+左側選單不列它，組合場景在「組合場景自動化」管理。"""
 
 
 def sqlite_url(path: Path) -> str:
