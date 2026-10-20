@@ -186,6 +186,19 @@
         location.reload();
       });
     }
+    // 重新載入領域資料夾（M11）：在資料夾外面改了檔案之後
+    const reloadButton = qs('[data-action="reload-domain"]');
+    if (reloadButton) {
+      reloadButton.addEventListener('click', async () => {
+        busy(reloadButton, true);
+        const result = await api('POST', '/api/domains/' + path(reloadButton.dataset.domain) + '/reload');
+        if (!result.ok) {
+          busy(reloadButton, false);
+          return toast(errorMessage(result));
+        }
+        location.reload();
+      });
+    }
     const newButton = qs('[data-action="new-scene"]');
     if (newButton) {
       newButton.addEventListener('click', () => {
@@ -548,6 +561,7 @@
       check: value('check').trim(),
       engine: value('engine'),
       autoLogin: value('autoLogin'),
+      domainId: value('domainId'),
     };
   }
 

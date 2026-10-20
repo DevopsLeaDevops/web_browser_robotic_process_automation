@@ -75,7 +75,9 @@ __all__ = [
     "dump_model",
     "is_sensitive",
     "parse_timestamp",
+    "read_model",
     "read_pack",
+    "read_scene",
     "role_problems",
     "timestamp",
     "write_model",
@@ -535,6 +537,21 @@ def read_pack(folder: Path, *, expected_id: str | None = None) -> Pack:
             reader.add(path, "sensitive_file", file=reader.relative(path))
     pack.issues = reader.issues
     return pack
+
+
+def read_model[M: BaseModel](path: Path, model: type[M]) -> tuple[M | None, list[PackIssue]]:
+    """讀取並校驗一個說明檔或紀錄；有問題時回傳 (None, 問題)。問題的路徑是檔名。"""
+    reader = _Reader(path.parent)
+    return reader.model(path, model), reader.issues
+
+
+def read_scene(folder: Path) -> tuple[SceneEntry | None, list[PackIssue]]:
+    """只讀取一個場景資料夾（scenes/<場景>/）：版本、驗證紀錄、發布門檻。
+
+    問題的路徑相對於它所在的領域資料夾。
+    """
+    reader = _Reader(folder.parent.parent)
+    return _read_scene(reader, folder), reader.issues
 
 
 def _all_files(folder: Path) -> Iterator[Path]:

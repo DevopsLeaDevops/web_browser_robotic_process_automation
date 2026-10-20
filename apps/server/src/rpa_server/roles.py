@@ -7,6 +7,8 @@
 - **自動登入**（選用）：角色附一段 DSL 步驟，帳密用 ``{{ secrets.名稱 }}``；
   執行前發現沒登入時先自動登入。
 - 執行的結果也會更新角色的狀態：需要登入的執行把角色標成需要登入，通過登入檢查的標成已登入。
+- 角色的定義放在領域資料夾的 ``roles/<角色>.yaml``（M11），跟著領域同步；資料庫是它的索引，
+  登入檢查的結果只在資料庫。
 """
 
 import contextlib
@@ -37,13 +39,14 @@ from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_server.domain import DOMAIN_ID, RoleRecord, RoleStatus, now
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
-from rpa_server.models import Role
+from rpa_server.models import Domain, Role
 from rpa_server.processes import ChildProcess, Launch, Lines, child_env, launch, send, stop
 from rpa_server.secret_store import SECRET_NAME, SecretInfo, SecretStore
 from rpa_server.storage import Storage
 
 if TYPE_CHECKING:
     from rpa_server.devices import RecorderHub
+    from rpa_server.packs import PackStore
 
 __all__ = ["CHECK_SECONDS", "LOGIN_SECONDS", "RoleService", "parse_locator"]
 
@@ -193,6 +196,8 @@ class RoleService:
         scene_roles: Callable[[], Mapping[str, str]] = dict,
         launcher: Launch | None = None,
         hosts: "RecorderHub | None" = None,
+        packs: "PackStore | None" = None,
+        default_domain: Callable[[], str] | None = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -205,6 +210,10 @@ class RoleService:
         """在這台啟動人工登入子程序的方式；測試換成不開瀏覽器視窗的假程式。"""
         self.hosts = hosts
         """錄製端（M10.2）：請求透過錄製端時，登入的瀏覽器視窗開在那台。"""
+        self.packs = packs
+        """角色定義寫進領域資料夾（M11）；None 時只用資料庫（單元測試）。"""
+        self.default_domain = default_domain
+        """沒指定領域時放在哪個領域（「未分類」，需要時建立）。"""
         self._lock = threading.Lock()
         self._logins: dict[str, _LoginSession] = {}
         self._checking: set[str] = set()
@@ -214,7 +223,7 @@ class RoleService:
     @staticmethod
     def _get(session: Session, role_id: str) -> Role:
         role = session.get(Role, role_id)
-        if role is None:
+        if role is None or role.missing:
             raise _error(404, "role_not_found", t("error.role_not_found", id=role_id))
         return role
 
@@ -273,13 +282,14 @@ class RoleService:
             activity=activity,
             session=login.to_json() if login is not None else None,
             created_at=role.created_at,
+            domain_id=role.domain_id,
         )
 
     def list_roles(self) -> list[RoleRecord]:
         used = self.scene_roles()
         activities = self._activities()
         with self.sessions() as session:
-            roles = session.scalars(select(Role).order_by(Role.id))
+            roles = session.scalars(select(Role).where(Role.missing.is_(False)).order_by(Role.id))
             return [self._record(role, used, activities) for role in roles]
 
     def get_role(self, role_id: str) -> RoleRecord:
@@ -290,13 +300,14 @@ class RoleService:
 
     def exists(self, role_id: str) -> bool:
         with self.sessions() as session:
-            return session.get(Role, role_id) is not None
+            role = session.get(Role, role_id)
+            return role is not None and not role.missing
 
     def login_settings(self, role_id: str) -> LoginSettings | None:
         """執行與調試用的登入設定；角色沒有登記時回傳 None。"""
         with self.sessions() as session:
             role = session.get(Role, role_id)
-            if role is None:
+            if role is None or role.missing:
                 return None
             steps, names = parse_steps(role.auto_login)
             return LoginSettings(
@@ -313,28 +324,65 @@ class RoleService:
     # ------------------------------------------------------------ 登記
 
     def create_role(self, role_id: str, values: Mapping[str, object]) -> RoleRecord:
+        """登記角色；``domainId`` 是定義放在哪個領域資料夾，沒有時放「未分類」。"""
         role_id = role_id.strip()
         if not DOMAIN_ID.fullmatch(role_id):
             raise _error(422, "role_id_invalid", t("error.role_id_invalid", id=role_id))
         fields = self._fields(values, creating=True)
-        with self.sessions() as session:
-            if session.get(Role, role_id) is not None:
+        domain_id = self._domain_id(values)
+        with self._pack_lock(), self.sessions() as session:
+            self._check_domain(session, domain_id)
+            role = session.get(Role, role_id)
+            if role is not None and not role.missing:
                 raise _error(409, "role_exists", t("error.role_exists", id=role_id))
             moment = now()
-            role = Role(id=role_id, status="none", created_at=moment, updated_at=moment, **fields)
-            session.add(role)
+            if role is None:
+                role = Role(id=role_id, status="none", created_at=moment, updated_at=moment)
+                session.add(role)
+            for name, value in {**fields, "domain_id": domain_id, "missing": False}.items():
+                setattr(role, name, value)
+            role.updated_at = moment
+            session.flush()
+            if self.packs is not None:
+                self.packs.write_role(role)
             session.commit()
         return self.get_role(role_id)
 
     def update_role(self, role_id: str, values: Mapping[str, object]) -> RoleRecord:
+        """修改角色；``domainId`` 有指定時把定義搬到那個領域資料夾。"""
         fields = self._fields(values, creating=False)
-        with self.sessions() as session:
+        with self._pack_lock(), self.sessions() as session:
             role = self._get(session, role_id)
+            previous = role.domain_id
+            if values.get("domainId"):
+                fields["domain_id"] = self._check_domain(session, str(values["domainId"]))
             for name, value in fields.items():
                 setattr(role, name, value)
             role.updated_at = now()
+            if self.packs is not None:
+                if previous != role.domain_id:
+                    self.packs.remove_role(previous, role_id)
+                self.packs.write_role(role)
             session.commit()
         return self.get_role(role_id)
+
+    def _domain_id(self, values: Mapping[str, object]) -> str | None:
+        domain_id = str(values.get("domainId") or "").strip()
+        if domain_id:
+            return domain_id
+        return self.default_domain() if self.default_domain is not None else None
+
+    @staticmethod
+    def _check_domain(session: Session, domain_id: str | None) -> str | None:
+        if domain_id is not None and session.get(Domain, domain_id) is None:
+            raise _error(404, "domain_not_found", t("error.domain_not_found", id=domain_id))
+        return domain_id
+
+    def _pack_lock(self) -> contextlib.AbstractContextManager[object]:
+        """寫入領域資料夾時持有它的鎖（和存檔、載入同一把）。"""
+        if self.packs is None:
+            return contextlib.nullcontext()
+        return self.packs.lock
 
     def _fields(self, values: Mapping[str, object], *, creating: bool) -> dict[str, object]:
         """API 的欄位 → 資料庫欄位；建立時名稱、登入網址、判斷方式都要有。"""
@@ -372,13 +420,15 @@ class RoleService:
     def delete_role(self, role_id: str) -> None:
         """刪除角色與它的登入狀態；還有場景用到時不能刪。"""
         used = sorted(scene for scene, role in self.scene_roles().items() if role == role_id)
-        with self.sessions() as session:
+        with self._pack_lock(), self.sessions() as session:
             role = self._get(session, role_id)
             if used:
                 raise _error(
                     409, "role_in_use", t("error.role_in_use", id=role_id, scenes=", ".join(used))
                 )
             self.cancel_login(role_id, missing_ok=True)
+            if self.packs is not None:
+                self.packs.remove_role(role.domain_id, role_id)
             session.delete(role)
             session.commit()
         shutil.rmtree(self.storage.roles / role_id, ignore_errors=True)
@@ -393,8 +443,10 @@ class RoleService:
         self.storage.role_state(role_id).unlink(missing_ok=True)
         return self.get_role(role_id)
 
-    def import_examples(self, path: Path, wanted: Sequence[str]) -> list[str]:
-        """從範例的 roles.json 建立場景用到、還沒登記的角色。"""
+    def import_examples(
+        self, path: Path, wanted: Sequence[str], *, domain_id: str | None = None
+    ) -> list[str]:
+        """從範例的 roles.json 建立場景用到、還沒登記的角色（放在 domain_id 這個領域）。"""
         data = read_json_or(path, {})
         roles = cast("dict[str, object]", data).get("roles") if isinstance(data, dict) else None
         created: list[str] = []
@@ -406,7 +458,7 @@ class RoleService:
             if role_id not in wanted or self.exists(role_id):
                 continue
             try:
-                self.create_role(role_id, values)
+                self.create_role(role_id, {**values, "domainId": domain_id})
             except Exception:  # 範例檔有誤時略過，不影響匯入場景
                 continue
             created.append(role_id)

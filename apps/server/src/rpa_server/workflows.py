@@ -115,11 +115,11 @@ class WorkflowService:
                 Revision.scene_id == node.scene_id, Revision.number == node.revision
             )
         ).first()
-        if scene is None:
+        if scene is None or scene.missing:
             code = "scene_missing"
         elif scene.archived:
             code = "scene_archived"
-        elif revision is None:
+        elif revision is None or revision.missing or revision.problem is not None:
             code = "revision_missing"
         elif revision.published_at is None:
             code = "revision_unpublished"
@@ -144,7 +144,7 @@ class WorkflowService:
             published = list(
                 session.scalars(
                     select(Revision)
-                    .where(Revision.published_at.is_not(None))
+                    .where(Revision.published_at.is_not(None), Revision.missing.is_(False))
                     .order_by(Revision.scene_id, Revision.number.desc())
                 )
             )
@@ -158,6 +158,8 @@ class WorkflowService:
         entries: dict[str, dict[str, object]] = {}
         for revision in published:
             scene = scenes[revision.scene_id]
+            if scene.missing:  # 領域資料夾裡已經沒有這個場景（M11）
+                continue
             entry = entries.setdefault(
                 scene.id,
                 {

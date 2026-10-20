@@ -3,8 +3,9 @@
 每個方法自己開一個資料庫交易，回傳 domain.py 的唯讀紀錄；錯誤以 :class:`ServiceError` 表示，
 API 轉成 JSON、頁面轉成錯誤頁。
 
-發布門檻：版本的最近一次驗證通過，而且有一次「通過的驗證執行」的場景雜湊等於版本的雜湊，
-磁碟上的內容也還是同一個雜湊。改內容就是新版本，要重新驗證。
+M11 起場景、版本、角色的定義在領域資料夾（packs.py），資料庫是它的索引：存檔、發布、封存、
+搬領域都先寫資料夾再更新資料庫。發布門檻：磁碟上的內容雜湊 ＝ 版本說明檔的雜湊 ＝ 領域資料夾裡
+某一份通過的驗證紀錄的雜湊（不管是哪一台伺服器驗證的）。改內容就是新版本，要重新驗證。
 
 M4 的登入角色與 Secrets（roles.py）、錄製（recordings.py）、調試工作階段（debugging.py）
 各自一個模組，由這裡建立：``services.roles``、``services.recordings``、``services.debug``；
@@ -32,10 +33,12 @@ from rpa_core.dsl.editing import (
     replace_contract,
     replace_section,
 )
+from rpa_core.dsl.sources import scenario_sources
 from rpa_core.i18n import DEFAULT_LOCALE, Locale
+from rpa_core.pack import PublishedRef, SceneManifest, parse_timestamp, timestamp
 from rpa_runner.contract import check_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
-from rpa_runner.run import new_run_id, scenario_sources
+from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
@@ -55,13 +58,15 @@ from rpa_server.domain import (
     SceneCard,
     SceneRecord,
     Target,
+    VerificationRecord,
     issue_json,
     now,
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import follow_locale, t
 from rpa_server.jobs import RunQueue
-from rpa_server.models import Domain, Revision, Run, Scene
+from rpa_server.models import Domain, Revision, Role, Run, Scene
+from rpa_server.packs import UNASSIGNED_DOMAIN, LoadReport, PackStore
 from rpa_server.recordings import RecordingService
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
@@ -222,6 +227,7 @@ def scene_record(scene: Scene, latest: Revision | None) -> SceneRecord:
         archived=scene.archived,
         created_at=scene.created_at,
         updated_at=scene.updated_at,
+        missing=scene.missing,
     )
 
 
@@ -236,6 +242,8 @@ def revision_record(revision: Revision, scene: Scene) -> RevisionRecord:
         created_at=revision.created_at,
         published_at=revision.published_at,
         published=scene.published_number == revision.number,
+        verified=revision.verified,
+        problem=revision.problem,
     )
 
 
@@ -308,6 +316,8 @@ class Services:
         self.portal_port = portal_port
         """管理頁面聽的埠（rpa serve 填入；測試是 None）：錄製的起始網址不能指向 Portal 自己。"""
         self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
+        self.packs = PackStore(sessions, storage)
+        """領域資料夾：伺服器代號、寫入、載入、驗證紀錄、遷移（M11）。"""
         self.recorders = RecorderHub(sessions, locale=locale)
         """錄製端的登記、上線，以及交給它執行的互動子程序（M10.2）。"""
         self.roles = RoleService(
@@ -318,6 +328,8 @@ class Services:
             locale=locale,
             scene_roles=self.scene_roles,
             hosts=self.recorders,
+            packs=self.packs,
+            default_domain=self.unassigned_domain,
         )
         self.recordings = RecordingService(
             sessions,
@@ -342,6 +354,69 @@ class Services:
         self.on_cancel: Callable[[str], object] = lambda run_id: None
         """要求取消執行中的任務。"""
 
+    # ------------------------------------------------------------ 領域資料夾（M11）
+
+    def startup(self) -> list[LoadReport]:
+        """伺服器啟動時：產生伺服器代號、遷移 M11 之前的資料（先備份）、載入全部領域資料夾。"""
+        self.packs.server()
+        self.packs.migrate_legacy(
+            unassigned_name=t("domain.unassigned_name"),
+            unassigned_description=t("domain.unassigned_description"),
+        )
+        reports = self.packs.load_all()
+        self._scene_cache.clear()
+        return reports
+
+    def reload_domain(self, domain_id: str) -> LoadReport:
+        """重新載入一個領域資料夾（在資料夾外面改了檔案之後，D10）。"""
+        self.get_domain(domain_id)
+        report = self.packs.load_domain(domain_id)
+        self._scene_cache.clear()
+        return report
+
+    def server_info(self) -> dict[str, str]:
+        server = self.packs.server()
+        return {"id": server.id, "name": server.name}
+
+    def rename_server(self, name: str) -> dict[str, str]:
+        try:
+            server = self.packs.rename_server(name)
+        except ValueError:
+            raise _invalid("server_name_missing", t("error.server_name_missing")) from None
+        return {"id": server.id, "name": server.name}
+
+    def unassigned_domain(self) -> str:
+        """「未分類」領域；還沒有時建立（沒指定領域的場景與角色放這裡）。"""
+        with self.packs.lock, self.sessions() as session:
+            if session.get(Domain, UNASSIGNED_DOMAIN) is None:
+                self._new_domain(
+                    session,
+                    UNASSIGNED_DOMAIN,
+                    t("domain.unassigned_name"),
+                    t("domain.unassigned_description"),
+                )
+                session.commit()
+        return UNASSIGNED_DOMAIN
+
+    def _new_domain(
+        self, session: Session, domain_id: str, name: str, description: str | None
+    ) -> Domain:
+        """新增領域：資料庫一列，加上領域資料夾的 pack.yaml（呼叫的人提交交易）。"""
+        last = session.scalar(select(func.max(Domain.position)))
+        domain = Domain(
+            id=domain_id,
+            name=name,
+            description=description,
+            position=(last if last is not None else -1) + 1,
+            created_at=now(),
+            problems=[],
+            loaded_at=now(),
+        )
+        session.add(domain)
+        session.flush()
+        self.packs.write_pack(domain_id, name, description)
+        return domain
+
     # ------------------------------------------------------------ 領域
 
     @staticmethod
@@ -356,12 +431,25 @@ class Services:
         count = session.scalar(
             select(func.count())
             .select_from(Scene)
-            .where(Scene.domain_id == domain.id, Scene.archived.is_(False))
+            .where(
+                Scene.domain_id == domain.id,
+                Scene.archived.is_(False),
+                Scene.missing.is_(False),
+            )
+        )
+        roles = session.scalar(
+            select(func.count())
+            .select_from(Role)
+            .where(Role.domain_id == domain.id, Role.missing.is_(False))
         )
         name, description = domain.name, domain.description
-        if domain.id == EXAMPLES_DOMAIN:  # 系統建立的範例領域：沒改過名稱與說明就跟著介面語言
+        # 系統建立的領域：沒改過名稱與說明就跟著介面語言
+        if domain.id == EXAMPLES_DOMAIN:
             name = follow_locale(name, "domain.testsite_name") or name
             description = follow_locale(description, "domain.testsite_description")
+        elif domain.id == UNASSIGNED_DOMAIN:
+            name = follow_locale(name, "domain.unassigned_name") or name
+            description = follow_locale(description, "domain.unassigned_description")
         return DomainRecord(
             id=domain.id,
             name=name,
@@ -369,6 +457,9 @@ class Services:
             position=domain.position,
             scene_count=count or 0,
             created_at=domain.created_at,
+            problems=tuple(domain.problems or ()),
+            loaded_at=domain.loaded_at,
+            role_count=roles or 0,
         )
 
     def list_domains(self) -> list[DomainRecord]:
@@ -389,26 +480,19 @@ class Services:
             raise _invalid("domain_id_invalid", t("error.domain_id_invalid", id=domain_id))
         if not name:
             raise _invalid("domain_name_missing", t("error.domain_name_missing"))
-        with self.sessions() as session:
-            if session.get(Domain, domain_id) is not None:
+        with self.packs.lock, self.sessions() as session:
+            # 資料夾已經有同代號的領域（例如從別處放進來、還沒載入）也算已經用過
+            if session.get(Domain, domain_id) is not None or self.packs.manifest(domain_id):
                 raise _conflict("domain_exists", t("error.domain_exists", id=domain_id))
-            last = session.scalar(select(func.max(Domain.position)))
-            domain = Domain(
-                id=domain_id,
-                name=name,
-                description=(description or "").strip() or None,
-                position=(last if last is not None else -1) + 1,
-                created_at=now(),
-            )
-            session.add(domain)
+            domain = self._new_domain(session, domain_id, name, (description or "").strip() or None)
             session.commit()
             return self._domain_record(session, domain)
 
     def update_domain(
         self, domain_id: str, *, name: str | None = None, description: str | None = None
     ) -> DomainRecord:
-        """改名稱或說明；代號不能改（網址與場景都用它）。"""
-        with self.sessions() as session:
+        """改名稱或說明（寫進 pack.yaml）；代號不能改（網址、場景與資料夾都用它）。"""
+        with self.packs.lock, self.sessions() as session:
             domain = self._domain(session, domain_id)
             if name is not None:
                 if not name.strip():
@@ -416,44 +500,66 @@ class Services:
                 domain.name = name.strip()
             if description is not None:
                 domain.description = description.strip() or None
+            self.packs.write_pack(domain_id, domain.name, domain.description)
             session.commit()
             return self._domain_record(session, domain)
 
     def delete_domain(self, domain_id: str) -> None:
-        """只能刪除沒有場景（包含封存的）的領域。"""
-        with self.sessions() as session:
+        """只能刪除沒有場景（包含封存的）與角色的領域；領域資料夾一起刪除。"""
+        with self.packs.lock, self.sessions() as session:
             domain = self._domain(session, domain_id)
             used = session.scalar(
-                select(func.count()).select_from(Scene).where(Scene.domain_id == domain_id)
+                select(func.count())
+                .select_from(Scene)
+                .where(Scene.domain_id == domain_id, Scene.missing.is_(False))
             )
             if used:
                 raise _conflict(
                     "domain_not_empty", t("error.domain_not_empty", id=domain_id, count=used)
                 )
+            roles = session.scalar(
+                select(func.count())
+                .select_from(Role)
+                .where(Role.domain_id == domain_id, Role.missing.is_(False))
+            )
+            if roles:
+                raise _conflict(
+                    "domain_has_roles", t("error.domain_has_roles", id=domain_id, count=roles)
+                )
+            # 來源缺失的場景與角色只剩執行紀錄引用，不再屬於任何領域
+            for scene in session.scalars(select(Scene).where(Scene.domain_id == domain_id)):
+                scene.domain_id = None
+            for role in session.scalars(select(Role).where(Role.domain_id == domain_id)):
+                role.domain_id = None
+            session.flush()
             session.delete(domain)
             session.commit()
+            self.packs.remove_pack(domain_id)
 
     def seed_examples_domain(self) -> ImportReport | None:
         """還沒有任何領域時：建立「測試網站自動化」，把已經存在的範例場景放進去，再匯入其餘範例。"""
-        with self.sessions() as session:
-            if session.scalar(select(func.count()).select_from(Domain)):
+        with self.packs.lock, self.sessions() as session:
+            existing = session.scalars(select(Domain.id)).all()
+            if any(domain_id != UNASSIGNED_DOMAIN for domain_id in existing):
                 return None
-            session.add(
-                Domain(
-                    id=EXAMPLES_DOMAIN,
-                    name=t("domain.testsite_name"),
-                    description=t("domain.testsite_description"),
-                    position=0,
-                    created_at=now(),
-                )
+            self._new_domain(
+                session,
+                EXAMPLES_DOMAIN,
+                t("domain.testsite_name"),
+                t("domain.testsite_description"),
             )
             session.commit()
             example_ids = [scenario_id for scenario_id, _ in self._examples()]
-            for scene in session.scalars(
-                select(Scene).where(Scene.domain_id.is_(None), Scene.id.in_(example_ids))
-            ):
-                scene.domain_id = EXAMPLES_DOMAIN
-            session.commit()
+            adopt = list(
+                session.scalars(
+                    select(Scene.id).where(
+                        or_(Scene.domain_id.is_(None), Scene.domain_id == UNASSIGNED_DOMAIN),
+                        Scene.id.in_(example_ids),
+                    )
+                )
+            )
+        for scene_id in adopt:  # 之前沒有領域時匯入的範例，放進「測試網站自動化」
+            self.update_scene(scene_id, domain_id=EXAMPLES_DOMAIN)
         if self.examples_dir is None or not self.examples_dir.is_dir():
             return ImportReport()
         return self.import_examples(EXAMPLES_DOMAIN)
@@ -535,7 +641,7 @@ class Services:
         domain: str | None = None,
         include_archived: bool = False,
     ) -> list[SceneRecord]:
-        statement = select(Scene).order_by(Scene.id)
+        statement = select(Scene).where(Scene.missing.is_(False)).order_by(Scene.id)
         if domain is not None:
             statement = statement.where(Scene.domain_id == domain)
         if not include_archived:
@@ -625,10 +731,48 @@ class Services:
             scene = self._scene(session, scene_id)
             revisions = session.scalars(
                 select(Revision)
-                .where(Revision.scene_id == scene_id)
+                .where(Revision.scene_id == scene_id, Revision.missing.is_(False))
                 .order_by(Revision.number.desc())
             )
             return [revision_record(revision, scene) for revision in revisions]
+
+    def verifications(self, scene_id: str) -> list[VerificationRecord]:
+        """場景的驗證紀錄（領域資料夾裡的，不管是哪一台伺服器驗證的），最新的在前。"""
+        self.get_scene(scene_id)
+        entry, _ = self.packs.scene_entry(scene_id)
+        if entry is None:
+            return []
+        records: list[tuple[str, VerificationRecord]] = []
+        with self.sessions() as session:
+            for number, revision in entry.revisions.items():
+                digest = revision.info.hash if revision.info is not None else None
+                for item in revision.verifications:
+                    record = item.record
+                    finished = parse_timestamp(record.finished_at)
+                    here = (
+                        record.server.id == self.packs.server().id
+                        and session.get(Run, item.id) is not None
+                    )
+                    records.append(
+                        (
+                            f"{finished.timestamp():020.3f}{item.id}",
+                            VerificationRecord(
+                                id=item.id,
+                                revision=number,
+                                status=record.status,
+                                matches=digest is not None and record.hash == digest,
+                                finished_at=finished,
+                                by=record.by,
+                                server_id=record.server.id,
+                                server_name=record.server.name,
+                                worker=record.worker.id,
+                                engine=record.engine,
+                                headless=record.headless,
+                                here=here,
+                            ),
+                        )
+                    )
+        return [record for _, record in sorted(records, key=lambda item: item[0], reverse=True)]
 
     def get_revision(self, scene_id: str, number: int | None = None) -> RevisionRecord:
         """某個版本；number 為 None 時是最新版本。"""
@@ -693,10 +837,14 @@ class Services:
                 issues=[issue_json(issue) for issue in checked.issues],
             )
         scenario = checked.scenario
-        with self.sessions() as session:
-            if domain_id is not None:
-                self._domain(session, domain_id)
+        if domain_id is None:
+            domain_id = self.unassigned_domain()  # 每個場景都在某個領域資料夾裡（M11）
+        with self.packs.lock, self.sessions() as session:
+            self._domain(session, domain_id)
             if session.get(Scene, scene_id) is not None:
+                raise _conflict("scene_exists", t("error.scene_exists", id=scene_id))
+            if self.storage.scene_domain(scene_id) is not None:
+                # 資料夾裡已經有同代號的場景（例如另一個領域的資料夾載入時略過的）
                 raise _conflict("scene_exists", t("error.scene_exists", id=scene_id))
             moment = now()
             scene = Scene(
@@ -709,6 +857,7 @@ class Services:
                 archived=False,
                 created_at=moment,
                 updated_at=moment,
+                missing=False,
             )
             revision = Revision(
                 scene_id=scene_id,
@@ -718,8 +867,13 @@ class Services:
                 status="draft",
                 note=note,
                 created_at=moment,
+                missing=False,
+                verified=False,
             )
-            self._write_revision(session, scene_id, 1, checked.files, [scene, revision])
+            self.storage.place_scene(scene_id, domain_id)
+            self._write_revision(
+                session, scene_id, 1, checked.files, [scene, revision], new_scene=True
+            )
             return scene_record(scene, revision)
 
     def _write_revision(
@@ -729,11 +883,15 @@ class Services:
         number: int,
         files: Mapping[str, str],
         rows: Sequence[Scene | Revision],
+        *,
+        new_scene: bool = False,
     ) -> None:
-        """寫入資料庫列與版本檔案，一起提交；任何一步失敗都不留下半個版本。
+        """寫入資料庫列與領域資料夾裡的版本，一起提交；任何一步失敗都不留下半個版本。
 
         先 flush 資料庫列：(場景, 版本號碼) 有唯一約束，flush 成功代表這個號碼只屬於本交易，
         這時版本目錄如果已經存在，只可能是之前中斷留下的殘留，可以安全移除。
+        版本目錄旁邊寫版本說明檔（雜湊、時間、操作者、伺服器）；新場景另外寫 scene.yaml。
+        呼叫的人要持有 ``packs.lock``，並先用 storage.place_scene 登記場景的領域。
         """
         try:
             for row in rows:  # 依外鍵順序寫入：場景、再版本
@@ -741,16 +899,24 @@ class Services:
                 session.flush()
         except IntegrityError:
             session.rollback()
+            if new_scene:
+                self.storage.forget_scene(scene_id)
             raise _conflict(
                 "revision_conflict", t("error.revision_conflict", id=scene_id)
             ) from None
+        revision = next(row for row in rows if isinstance(row, Revision))
         self.storage.discard(scene_id, number)
         try:
             self.storage.save(scene_id, number, files)
+            self.packs.write_revision_info(
+                scene_id, number, revision.content_hash, revision.note, revision.created_at
+            )
+            if new_scene:
+                self.packs.write_scene(SceneManifest(id=scene_id))
             session.commit()
         except BaseException:
             session.rollback()
-            self.storage.discard(scene_id, number)
+            self.packs.discard_revision(scene_id, number, new_scene=new_scene)
             raise
 
     def update_scene(
@@ -763,17 +929,24 @@ class Services:
         domain_id: str | None = None,
         clear_domain: bool = False,
     ) -> SceneRecord:
-        with self.sessions() as session:
+        if clear_domain:
+            domain_id = self.unassigned_domain()  # 「沒有領域」就是「未分類」（M11）
+        with self.packs.lock, self.sessions() as session:
             scene = self._scene(session, scene_id)
-            if clear_domain:
-                scene.domain_id = None
-            elif domain_id is not None:
-                scene.domain_id = self._domain(session, domain_id).id
+            if domain_id is not None and domain_id != scene.domain_id:
+                target = self._domain(session, domain_id).id
+                try:
+                    self.packs.move_scene(scene_id, target)
+                except FileExistsError:
+                    raise _conflict("scene_exists", t("error.scene_exists", id=scene_id)) from None
+                scene.domain_id = target
             if clear_base_url:
                 scene.base_url = None
             elif base_url is not None:
                 scene.base_url = _check_base_url(base_url)
-            if archived is not None:
+            if archived is not None and archived != scene.archived:
+                manifest = self.packs.scene_manifest(scene_id)
+                self.packs.write_scene(manifest.model_copy(update={"archived": archived}))
                 scene.archived = archived
             scene.updated_at = now()
             session.commit()
@@ -788,7 +961,7 @@ class Services:
         note: str | None = None,
     ) -> RevisionRecord:
         """以最新版本為基礎存成新版本；base 不是最新版本時回 409（別人已經存過）。"""
-        with self.sessions() as session:
+        with self.packs.lock, self.sessions() as session:
             scene = self._scene(session, scene_id)
             if scene.archived:
                 raise _conflict("scene_archived", t("error.scene_archived", id=scene_id))
@@ -816,6 +989,8 @@ class Services:
                 status="draft",
                 note=(note or "").strip()[:500] or None,
                 created_at=moment,
+                missing=False,
+                verified=False,
             )
             scene.latest_number = number
             scene.name = scenario.name
@@ -872,7 +1047,9 @@ class Services:
             }
         )
         if wanted:
-            report.roles.extend(self.roles.import_examples(folder / ROLES_FILE, wanted))
+            report.roles.extend(
+                self.roles.import_examples(folder / ROLES_FILE, wanted, domain_id=domain_id)
+            )
         return report
 
     # ------------------------------------------------------------ 執行
@@ -910,6 +1087,8 @@ class Services:
                 if existing is not None:
                     return run_record(existing)
             scene = self._scene(session, scene_id)
+            if scene.missing:
+                raise _conflict("scene_missing", t("error.scene_missing", id=scene_id))
             if scene.archived:
                 raise _conflict("scene_archived", t("error.scene_archived", id=scene_id))
             if purpose == "execution":
@@ -917,6 +1096,7 @@ class Services:
                     raise _conflict("not_published", t("error.not_published", id=scene_id))
                 number = scene.published_number
             revision = self._revision(session, scene_id, number or scene.latest_number)
+            self._check_usable(revision)
             if purpose == "workflow" and revision.published_at is None:
                 raise _conflict(
                     "revision_unpublished",
@@ -1070,36 +1250,53 @@ class Services:
         return headless
 
     def publish(self, scene_id: str, number: int) -> SceneRecord:
-        """發布版本：最近一次驗證通過，而且通過的驗證執行跑的就是這份內容。"""
-        with self.sessions() as session:
+        """發布版本（M11 的門檻，第 8 節）：磁碟上的內容雜湊 ＝ 版本說明檔的雜湊 ＝ 領域資料夾裡
+        某一份通過的驗證紀錄的雜湊，不管是哪一台伺服器驗證的。寫進 scene.yaml 的 published。
+        """
+        with self.packs.lock, self.sessions() as session:
             scene = self._scene(session, scene_id)
             revision = self._revision(session, scene_id, number)
-            if revision.status != "passed":
-                raise _conflict(
-                    "not_validated", t("error.not_validated", id=scene_id, number=number)
-                )
-            proof = session.scalars(
-                select(Run).where(
-                    Run.revision_id == revision.id,
-                    Run.purpose == "validation",
-                    Run.status == "passed",
-                    Run.scenario_hash == revision.content_hash,
-                )
-            ).first()
-            if proof is None:
-                raise _conflict(
-                    "not_validated", t("error.not_validated", id=scene_id, number=number)
-                )
             if self.storage.digest(scene_id, number) != revision.content_hash:
                 raise _conflict(
                     "content_changed", t("error.content_changed", id=scene_id, number=number)
                 )
+            self._check_usable(revision)
+            entry, _ = self.packs.scene_entry(scene_id)
+            target = entry.revisions.get(number) if entry is not None else None
+            proofs = target.proofs() if target is not None else []
+            if entry is None or not proofs:
+                raise _conflict(
+                    "not_validated", t("error.not_validated", id=scene_id, number=number)
+                )
             moment = now()
+            published = PublishedRef(
+                revision=number,
+                verification=proofs[0].id,
+                at=timestamp(moment),
+                by=self.packs.operator(),
+                server=self.packs.server(),
+            )
+            self.packs.write_scene(entry.manifest.model_copy(update={"published": published}))
             scene.published_number = number
             scene.updated_at = moment
             revision.published_at = moment
+            revision.verified = True
             session.commit()
             return scene_record(scene, self._latest(session, scene))
+
+    @staticmethod
+    def _check_usable(revision: Revision) -> None:
+        """版本的來源缺失或有問題（例如內容和版本說明檔的雜湊不同）時，不能執行、不能發布。"""
+        if revision.missing or revision.problem is not None:
+            raise _conflict(
+                "revision_unusable",
+                t(
+                    "error.revision_unusable",
+                    id=revision.scene_id,
+                    number=revision.number,
+                    problem=revision.problem or "missing",
+                ),
+            )
 
     def list_runs(
         self,
@@ -1189,7 +1386,10 @@ class Services:
         return record
 
     def run_finished(self, run_id: str) -> None:
-        """一次執行結束了（worker 執行完、排隊中被取消）：屬於試驗場序列時，接著排下一個節點。"""
+        """一次執行結束了（worker 執行完、排隊中被取消）：寫執行目錄的 run.json，驗證執行另外寫
+        領域資料夾的驗證紀錄（M11）；屬於試驗場序列時，接著排下一個節點。
+        """
+        self.packs.record_run(run_id)
         self.workflows.node_finished(run_id)
 
     @staticmethod

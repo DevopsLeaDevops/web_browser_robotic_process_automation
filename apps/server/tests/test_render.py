@@ -25,6 +25,7 @@ from rpa_server.domain import (
     RunRecord,
     SceneCard,
     SceneRecord,
+    VerificationRecord,
     WorkerRecord,
     WorkflowNodeState,
     WorkflowRecord,
@@ -71,8 +72,42 @@ SCENE = SceneRecord(
     updated_at=MOMENT,
 )
 REVISIONS = [
-    RevisionRecord("ba-001", 2, "b" * 64, "dsl", "passed", "改步驟", MOMENT, None, False),
-    RevisionRecord("ba-001", 1, "a" * 64, "dsl", "passed", None, MOMENT, MOMENT, True),
+    RevisionRecord(
+        "ba-001", 2, "b" * 64, "dsl", "passed", "改步驟", MOMENT, None, False, verified=True
+    ),
+    RevisionRecord(
+        "ba-001", 1, "a" * 64, "dsl", "passed", None, MOMENT, MOMENT, True, verified=True
+    ),
+]
+VERIFICATIONS = [
+    VerificationRecord(
+        id="ba-001-20261010-083000-abcdef",
+        revision=2,
+        status="passed",
+        matches=True,
+        finished_at=MOMENT,
+        by="jia-mac",
+        server_id="3a9d",
+        server_name="jia-mac",
+        worker="local",
+        engine="chromium",
+        headless=True,
+        here=True,
+    ),
+    VerificationRecord(
+        id="ba-001-20261009-010000-123456",
+        revision=1,
+        status="failed",
+        matches=True,
+        finished_at=MOMENT,
+        by="yi-mac",
+        server_id="5f3a",
+        server_name="yi-mac",
+        worker="win-01",
+        engine=None,
+        headless=False,
+        here=False,
+    ),
 ]
 RUN = RunRecord(
     id="ba-001-20261010-083000-abcdef",
@@ -307,6 +342,7 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
             check_text=_check_text,
             role_values=_role_values,
             auto_example="- { id: open, action: goto, url: https://example.com }",
+            domain_names={},
         ),
         "recording": render(
             "recording.html",
@@ -592,6 +628,7 @@ def _pages() -> dict[str, str]:
             domain=DOMAIN,
             scene=SCENE,
             revisions=REVISIONS,
+            verifications=VERIFICATIONS,
             scenario=scenario,
             default_base_url=scenario.browser.base_url,
             runs=[RUN],
@@ -855,6 +892,46 @@ def test_scene_card_follows_the_design() -> None:
     assert "2 個場景" in _text(html)
 
 
+def test_scene_page_lists_validation_records_from_every_server() -> None:
+    with use_locale("zh-Hant"):
+        html = _pages()["scene"]
+    panel = html.split('id="verifications"')[1].split("</section>")[0]
+    text = _text(panel)
+    assert "驗證紀錄" in text
+    # 這台的紀錄連到報告；別台的只顯示執行編號與在哪一台
+    assert 'href="/runs/ba-001-20261010-083000-abcdef"' in panel
+    assert 'href="/runs/ba-001-20261009-010000-123456"' not in panel
+    assert "報告在 yi-mac" in text
+    assert "win-01 · —" in text
+    # 有雜湊相符的通過紀錄才顯示「發布」
+    assert 'data-action="publish" data-scene="ba-001" data-revision="2"' in html
+
+
+def test_domain_page_shows_load_problems_and_reload() -> None:
+    problem = {
+        "path": "scenes/ba-002/scene.yaml",
+        "line": 2,
+        "code": "pack.scene_id_mismatch",
+        "message": "scene.yaml 的 id 是 x",
+        "severity": "error",
+    }
+    with use_locale("zh-Hant"):
+        html = render(
+            "domain.html",
+            page="domain:testsite",
+            title=DOMAIN.name,
+            domains=DOMAINS,
+            domain=replace(DOMAIN, problems=(problem,), loaded_at=MOMENT),
+            cards=[],
+            can_import=False,
+        )
+    assert 'data-action="reload-domain" data-domain="testsite"' in html
+    details = html.split('id="domain-problems"')[1].split("</details>")[0]
+    assert " open>" in details
+    assert "scenes/ba-002/scene.yaml:2" in details
+    assert "1 個問題" in _text(details)
+
+
 # ---------------------------------------------------------------- 多語言
 
 
@@ -921,6 +998,7 @@ def _english_domain_pages() -> dict[str, str]:
                 domain=domain,
                 scene=scene,
                 revisions=[replace(revision, note=None) for revision in REVISIONS],
+                verifications=VERIFICATIONS,
                 scenario=scenario,
                 default_base_url=scenario.browser.base_url,
                 runs=[run],

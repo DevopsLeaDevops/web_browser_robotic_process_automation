@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from rpa_core.dsl import validate_file
-from rpa_runner.run import scenario_digest
+from rpa_core.dsl.sources import scenario_digest
 from rpa_server.storage import SCENARIO_FILE, Storage, StorageConflictError, new_scene_template
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -16,6 +16,8 @@ DEMO = ROOT / "scenarios" / "demo"
 def storage(tmp_path: Path) -> Storage:
     storage = Storage(tmp_path / "data")
     storage.ensure()
+    for scene_id in ("ba-001-script", "demo-x"):
+        storage.place_scene(scene_id, "testsite")
     return storage
 
 
@@ -106,6 +108,24 @@ def test_revisions_are_never_overwritten(storage: Storage) -> None:
 
     assert storage.load("demo-x", 1) == {SCENARIO_FILE: text}
     assert not [p for p in storage.revision_dir("demo-x", 1).parent.iterdir() if p.name != "1"]
+
+
+def test_revisions_live_in_the_domain_folder(storage: Storage) -> None:
+    storage.save("demo-x", 1, {SCENARIO_FILE: new_scene_template("demo-x", "甲", None)})
+
+    folder = storage.root / "domains" / "testsite" / "scenes" / "demo-x" / "revisions" / "1"
+    assert storage.revision_dir("demo-x", 1) == folder
+    assert (folder / SCENARIO_FILE).is_file()
+    # 重新啟動後（還沒登記）也找得到：到磁碟上找一次
+    fresh = Storage(storage.root)
+    assert fresh.scene_domain("demo-x") == "testsite"
+    assert fresh.scenario_path("demo-x", 1) == folder / SCENARIO_FILE
+
+
+def test_unplaced_scene_cannot_be_saved(storage: Storage) -> None:
+    with pytest.raises(LookupError):
+        storage.save("nowhere", 1, {SCENARIO_FILE: new_scene_template("nowhere", "甲", None)})
+    assert not storage.revision_dir("nowhere", 1).exists()
 
 
 def test_line_endings_are_kept(storage: Storage) -> None:

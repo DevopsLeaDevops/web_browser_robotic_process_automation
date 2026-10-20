@@ -412,8 +412,11 @@ def test_scenes_belong_to_domains(client: Client) -> None:
     scenes = cast("list[JsonObject]", body(client.get("/api/scenes?domain=google"))["scenes"])
     assert [scene["id"] for scene in scenes] == ["g-001"]
     moved = body(client.patch("/api/scenes/g-001", json={"domainId": "microsoft"}))
-    cleared = body(client.patch("/api/scenes/loose", json={"domainId": None}))
-    assert (moved["domainId"], cleared["domainId"]) == ("microsoft", None)
+    cleared = body(client.patch("/api/scenes/g-001", json={"domainId": None}))
+    # 每個場景都在某個領域資料夾裡（M11）：沒指定、清掉領域的都放「未分類」
+    assert (moved["domainId"], cleared["domainId"]) == ("microsoft", "unassigned")
+    assert body(client.get("/api/scenes/loose"))["domainId"] == "unassigned"
+    client.patch("/api/scenes/g-001", json={"domainId": "microsoft"})
     domain = body(client.get("/api/domains/microsoft"))
     assert domain["sceneCount"] == 1
     cards = cast("list[JsonObject]", domain["scenes"])
@@ -441,7 +444,7 @@ def test_seed_creates_testsite_domain_once(app: FastAPI, client: Client) -> None
         "ba-004",
         "ba-005",
     ]
-    assert body(client.get("/api/scenes/mine"))["domainId"] is None
+    assert body(client.get("/api/scenes/mine"))["domainId"] == "unassigned"
     assert services(app).seed_examples_domain() is None
 
 
