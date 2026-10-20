@@ -985,10 +985,12 @@ class WorkflowService:
         return self._dependencies(row)
 
     def _dependencies(self, row: WorkflowRow) -> list[DependencyItem]:
-        numbers = sorted({row.version, *([row.published_number] if row.published_number else [])})
+        numbers: set[int] = {row.version}
+        if row.published_number is not None:
+            numbers.add(row.published_number)
         items: list[DependencyItem] = []
         seen: set[tuple[str, str, str | None]] = set()
-        for number in numbers:
+        for number in sorted(numbers):
             for item in self._requirement_items_for(row.code, number):
                 key = (item.code, item.message, item.scene)
                 if key not in seen:

@@ -1340,8 +1340,9 @@ class PackStore:
                 if not (self.pack_dir(domain.id) / PACK_FILE).is_file():
                     self.write_pack(domain.id, domain.name, domain.description)
             for row in rows:
-                row.domain_id = row.domain_id or COMPOSITES_DOMAIN
-                self.storage.place_composite(row.code, row.domain_id)
+                domain_id = row.domain_id or COMPOSITES_DOMAIN
+                row.domain_id = domain_id
+                self.storage.place_composite(row.code, domain_id)
                 folder = self.storage.composite_dir(row.code)
                 if not (folder / COMPOSITE_FILE).exists():
                     self.write_composite(
@@ -1368,7 +1369,7 @@ class PackStore:
                         created_at=row.updated_at,
                         requires=requires,
                     )
-                self.declare_requirements(row.domain_id, requires)
+                self.declare_requirements(domain_id, requires)
                 row.version = 1
             session.commit()
             for run in session.scalars(select(WorkflowRunRow)):

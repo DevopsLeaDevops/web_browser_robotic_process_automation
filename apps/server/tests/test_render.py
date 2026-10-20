@@ -508,7 +508,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
     )
     revisions = [
         CompositeRevisionRecord(2, "b" * 64, "draft", True, None, None, MOMENT, None, False),
-        CompositeRevisionRecord(1, "a" * 64, "validated", True, None, "v1", MOMENT, MOMENT, True),
+        CompositeRevisionRecord(1, "a" * 64, "passed", True, None, "v1", MOMENT, MOMENT, True),
     ]
     dependencies = [
         DependencyItem(
