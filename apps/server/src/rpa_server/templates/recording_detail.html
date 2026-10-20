@@ -7,7 +7,7 @@
 {% if item.status == "done" %}
 <a class="button" href="/scenes/{{ item.scene_id }}/edit?revision={{ item.revision_number }}">{{ t("scene.edit") }}</a>
 <a class="button" href="/scenes/{{ item.scene_id }}/run?purpose=validation&amp;revision={{ item.revision_number }}">{{ t("scene.validate_latest", number=item.revision_number) }}</a>
-<a class="button primary" href="/scenes/{{ item.scene_id }}/debug?revision={{ item.revision_number }}">{{ t("scene.debug") }}</a>
+{% if here_display %}<a class="button primary" href="/scenes/{{ item.scene_id }}/debug?revision={{ item.revision_number }}">{{ t("scene.debug") }}</a>{% else %}{{ m.no_display(t("scene.debug"), "button primary") }}{% endif %}
 {% endif %}
 {% endblock %}
 {% block content %}

@@ -34,6 +34,7 @@ from rpa_core.recording import Conversion, ConversionError, convert_recording, m
 from rpa_runner.commands import module_command, playwright_command
 from rpa_runner.contract import check_inputs
 from rpa_runner.record import EXIT_REPLAY_FAILED
+from rpa_server.addresses import PortalAddress, points_to_portal
 from rpa_server.domain import DOMAIN_ID, RecordingRecord, now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
@@ -237,10 +238,12 @@ class RecordingService:
         url: str | None,
         engine: str = "chromium",
         role_id: str | None = None,
+        portal: PortalAddress | None = None,
     ) -> RecordingRecord:
         """在操作的這台電腦開瀏覽器錄製；使用者關掉視窗時轉換成草稿。
 
-        請求透過錄製端時在那台錄製（M10.2），否則在伺服器這台。
+        請求透過錄製端時在那台錄製（M10.2），否則在伺服器這台。``portal`` 是操作者連到
+        管理 Portal 的位址：起始網址指向 Portal 自己時擋下（錄製的瀏覽器沒有權杖，只會得到 401）。
         """
         if engine not in ENGINES:
             raise invalid("engine_invalid", t("error.role_engine_invalid", engine=engine))
@@ -261,6 +264,8 @@ class RecordingService:
             replay = self._replay(checked.scene_id)
         elif start_url is None:
             raise invalid("recording_url_invalid", t("error.recording_url_invalid", value=""))
+        elif portal is not None and points_to_portal(start_url, portal):
+            raise invalid("recording_url_portal", t("error.recording_url_portal", value=start_url))
         with self._lock:
             if any(
                 process.poll() is None and self._devices.get(key) == device

@@ -9,6 +9,10 @@
 {% if items %}<span class="rule-list">{% for item in items %}<code>{{ item }}</code>{% endfor %}</span>{% else %}—{% endif %}
 {% endmacro %}
 
+{# 操作的那台不能開瀏覽器視窗（沒有畫面的伺服器）時，錄製、逐步調試、人工登入的入口：灰掉，
+   滑鼠移上去說明改用錄製端。title 放在外層，因為停用的元素收不到滑鼠事件，提示不會出現。 #}
+{% macro no_display(label, cls="button") %}<span class="disabled-hint" title="{{ t('display.use_recorder') }}"><span class="{{ cls }} is-disabled" aria-disabled="true">{{ label }}</span></span>{% endmacro %}
+
 {% macro arrow() %}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>{% endmacro %}
 
 {% macro scene_crumb(scene, domain) %}{% if domain %}<a href="/domains/{{ domain.id }}">{{ domain.name }}</a>{% else %}<a href="/domains">{{ t("nav.domains") }}</a>{% endif %} › <a href="/scenes/{{ scene.id }}">{{ scene.id }}</a>{% endmacro %}

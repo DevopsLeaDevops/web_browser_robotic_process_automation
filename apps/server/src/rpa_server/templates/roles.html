@@ -41,7 +41,8 @@
         </td>
         <td>{% for scene in role.used_by %}<a href="/scenes/{{ scene }}">{{ scene }}</a>{% if not loop.last %}{{ t("js.list_separator") }}{% endif %}{% else %}—{% endfor %}</td>
         <td class="role-actions">
-          <button class="text-btn" data-action="login" data-role="{{ role.id }}"{% if not display or role.activity %} disabled{% endif %} title="{{ t('roles.login_title') }}">{{ t("roles.login") }}</button>
+          {% if display %}<button class="text-btn" data-action="login" data-role="{{ role.id }}"{% if role.activity %} disabled{% endif %} title="{{ t('roles.login_title') }}">{{ t("roles.login") }}</button>
+          {% else %}<span class="disabled-hint" title="{{ t('display.use_recorder') }}"><button class="text-btn" data-action="login" data-role="{{ role.id }}" disabled>{{ t("roles.login") }}</button></span>{% endif %}
           <button class="text-btn" data-action="check-role" data-role="{{ role.id }}"{% if role.activity %} disabled{% endif %} title="{{ t('roles.check_title') }}">{{ t("roles.check") }}</button>
           <button class="text-btn" data-action="edit-role" data-role="{{ role.id }}" data-values="{{ role_values(role) | tojson | forceescape }}">{{ t("roles.edit") }}</button>
           {% if role.has_state %}<button class="text-btn" data-action="clear-role" data-role="{{ role.id }}" data-name="{{ role.name }}">{{ t("roles.clear") }}</button>{% endif %}

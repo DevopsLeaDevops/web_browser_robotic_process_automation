@@ -5,7 +5,7 @@
 {% block actions %}
 <a class="button" href="/scenes/{{ scene.id }}/edit">{{ t("scene.edit") }}</a>
 <a class="button" href="/recording?scene={{ scene.id }}">{{ t("scene.record") }}</a>
-{% if scene.kind == "dsl" %}<a class="button" href="/scenes/{{ scene.id }}/debug">{{ t("scene.debug") }}</a>{% endif %}
+{% if scene.kind == "dsl" %}{% if here_display %}<a class="button" href="/scenes/{{ scene.id }}/debug">{{ t("scene.debug") }}</a>{% else %}{{ m.no_display(t("scene.debug")) }}{% endif %}{% endif %}
 <a class="button" data-latest-validation href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("scene.validate_latest", number=scene.latest_number) }}</a>
 {% if scene.published %}
 <a class="button primary" href="/scenes/{{ scene.id }}/run?purpose=execution">{{ m.arrow() }} {{ t("card.run") }}</a>

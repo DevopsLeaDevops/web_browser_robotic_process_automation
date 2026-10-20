@@ -61,7 +61,8 @@
         <label class="field" data-for="paste" hidden>{{ t("recording.source") }}<textarea name="source" class="code-editor" rows="14" spellcheck="false" placeholder="page.goto(&quot;https://…&quot;)"></textarea></label>
         <ul class="checklist form-issues" hidden></ul>
         <div class="actions">
-          <button class="button primary" type="submit" data-for="record"{% if not display or active %} disabled{% endif %}>{{ t("recording.start") }}</button>
+          {% if display %}<button class="button primary" type="submit" data-for="record"{% if active %} disabled{% endif %}>{{ t("recording.start") }}</button>
+          {% else %}<span class="disabled-hint" data-for="record" title="{{ t('display.use_recorder') }}"><button class="button primary" type="submit" data-for="record" disabled>{{ t("recording.start") }}</button></span>{% endif %}
           <button class="button primary" type="submit" data-for="paste" hidden>{{ t("recording.convert") }}</button>
         </div>
         <p class="hint">{{ t("recording.cli_hint") }} <code>uv run rpa record https://… --out recording.py</code></p>
@@ -78,7 +79,7 @@
           <td>{% if item.status == "done" %}<a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a> v{{ item.revision_number }}{% else %}{{ item.scene_id }}{% endif %} <span class="muted">{{ item.scene_name }}</span>
             <span class="cell-sub">{{ m.time(item.created_at) }} · {{ t("recording.source_" + item.source) }} · {{ t("recording.kind_" + item.mode) }}</span></td>
           <td>{{ m.recording_badge(item.status) }}{% if item.warnings %}<span class="cell-sub">{{ t("recording.warning_count", count=item.warnings | length) }}</span>{% endif %}</td>
-          <td class="nowrap"><a class="text-btn" href="/recordings/{{ item.id }}">{{ t("runs.view") }}</a>{% if item.status == "done" %} <a class="text-btn" href="/scenes/{{ item.scene_id }}/debug?revision={{ item.revision_number }}">{{ t("scene.debug") }}</a>{% endif %}</td>
+          <td class="nowrap"><a class="text-btn" href="/recordings/{{ item.id }}">{{ t("runs.view") }}</a>{% if item.status == "done" %} {% if display %}<a class="text-btn" href="/scenes/{{ item.scene_id }}/debug?revision={{ item.revision_number }}">{{ t("scene.debug") }}</a>{% else %}{{ m.no_display(t("scene.debug"), "text-btn") }}{% endif %}{% endif %}</td>
         </tr>
         {% endfor %}
         </tbody>

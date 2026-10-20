@@ -234,6 +234,7 @@ def build_serve_command() -> click.Command:
                 worker_port=worker_port,
                 worker_host=worker_host,
                 local_worker=local_worker,
+                portal_port=chosen,
             )
             if skipped is not None:
                 click.echo(t("cli.serve.port_switched", busy=skipped, port=chosen), err=True)
