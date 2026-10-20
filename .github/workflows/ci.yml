@@ -4,8 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
-  # uv-upgrade.yml 推送依賴更新後手動觸發（GITHUB_TOKEN 的推送不會觸發 CI）
+  # 手動觸發：Actions → CI → Run workflow，選分支與範圍。
+  # uv-upgrade.yml 推送依賴更新後也用這個觸發（GITHUB_TOKEN 的推送不會觸發 CI）。
   workflow_dispatch:
+    inputs:
+      scope:
+        description: "範圍：role＝依角色（同 PR）；full＝Linux 跑全部測試（Windows 照樣跑 Worker 測試）"
+        type: choice
+        options: [role, full]
+        default: role
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -13,8 +20,26 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read # changes 查詢上一次運行的結果
 
 jobs:
+  # 這次要跑哪些工作（tools/ci_changes.py，規則見 docs/develop/ci.html）：
+  # mode＝full／normal／docs（只改文件且上一次推送已通過，沿用結果）；worker＝要不要跑 Windows 的 Worker 測試
+  changes:
+    name: 執行範圍
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+      worker: ${{ steps.decide.outputs.worker }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci_changes.py --workflow ci.yml --scope "${{ inputs.scope || 'role' }}"
+
   check:
     name: 靜態檢查
     runs-on: ubuntu-latest
@@ -39,44 +64,68 @@ jobs:
           [ "$code" -eq 0 ] || uv run pyright
           exit "$code"
 
-  # 測試範圍（handoff/tasks/20261019-ci-test-time.html）：
-  # - Python 3.13（產品實際使用的版本，.python-version）每次都跑全部測試。
-  # - Python 3.12 在 PR 上只跑不需瀏覽器的測試；推到 main 與手動觸發時跑全部。
-  #   瀏覽器測試的行為不隨 Python 小版本改變，PR 上重複跑一份只多佔排隊時間。
-  # - 每晚的 nightly.yml 在三個系統上跑全部測試，瀏覽器測試連跑三遍抓偶發問題。
+  # 測試範圍依生產環境的角色分配（tools/ci_roles.py、docs/develop/ci.html）：
+  # Linux 只跑網站，macOS 只跑錄製端，Windows 只跑 Worker。
+  # - Python 3.13（產品實際使用的版本）：全部不需瀏覽器的測試，加上網站與錄製端（逐步調試的協定）
+  #   的瀏覽器測試與冒煙測試，只用 Chromium。手動觸發選 full 時跑全部。
+  # - Python 3.12：PR 上只跑不需瀏覽器的測試；推到 main 與手動觸發時跑全部（維持原狀）。
+  # - 只改文件且上一次推送已通過時（mode＝docs），兩者都只跑不需瀏覽器的測試。
+  # - Worker 的瀏覽器測試在下面的 worker-windows；其他組合（Firefox、其他系統）在每晚完整測試。
   test:
     name: 測試（Python ${{ matrix.python }}）
+    needs: changes
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python: ["3.12", "3.13"]
     env:
-      BROWSER_TESTS: ${{ (matrix.python == '3.13' || github.event_name != 'pull_request') && '1' || '0' }}
+      MODE: ${{ needs.changes.outputs.mode }}
+      PYTHON: ${{ matrix.python }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: ${{ matrix.python }}
+      - name: 測試範圍
+        id: scope
+        run: |
+          linux='not browser or ((smoke or role_server or role_recorder) and not firefox)'
+          if [ "$MODE" = docs ]; then
+            marks='not browser'; why='只改了文件，沿用上一次的瀏覽器測試結果'
+          elif [ "$PYTHON" = 3.13 ] && [ "$MODE" = full ]; then
+            marks=''; why='完整範圍'
+          elif [ "$PYTHON" = 3.13 ]; then
+            marks="$linux"; why='Linux 是網站：網站與錄製端協定的瀏覽器測試，只用 Chromium'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            marks='not browser'; why='Python 3.12 在 PR 上只跑不需瀏覽器的測試'
+          else
+            marks=''; why='Python 3.12 推到 main 或手動觸發：全部'
+          fi
+          echo "marks=$marks" >> "$GITHUB_OUTPUT"
+          echo "::notice title=測試範圍（Python $PYTHON）::${why}；-m ${marks:-（全部）}"
       - name: 安裝依賴
         run: uv sync --locked
-      - name: 安裝瀏覽器（Chromium、Firefox）
-        if: env.BROWSER_TESTS == '1'
-        run: uv run playwright install --with-deps chromium firefox
+      - name: 安裝瀏覽器
+        if: steps.scope.outputs.marks != 'not browser'
+        run: |
+          if [ -z "${{ steps.scope.outputs.marks }}" ]; then
+            uv run playwright install --with-deps chromium firefox
+          else
+            uv run playwright install --with-deps chromium
+          fi
       - name: pytest
         env:
           # CI 中缺少瀏覽器時直接失敗，而不是略過；只跑不需瀏覽器的測試時，
           # 漏標 browser 的測試也會因此失敗，而不是悄悄略過
           RPA_REQUIRE_BROWSER: "1"
+          MARKS: ${{ steps.scope.outputs.marks }}
         # 4 個程序平行（ubuntu-latest 有 4 核）；同一個檔案的測試留在同一個程序，
         # 檔案層級的 fixture（例如測試網站）只啟動一次。--durations 列出最慢的 30 個。
         # 失敗的測試同時轉成 annotations（tools/ci_annotations.py）
         run: |
           args=(-n 4 --dist loadfile --durations=30 --junitxml=pytest-report.xml -o junit_family=xunit1)
-          if [ "$BROWSER_TESTS" != 1 ]; then
-            echo "::notice title=測試範圍::Python ${{ matrix.python }} 在 PR 上只跑不需瀏覽器的測試；瀏覽器測試在 Python 3.13 執行"
-            args+=(-m "not browser")
-          fi
+          [ -z "$MARKS" ] || args+=(-m "$MARKS")
           set +e
           uv run pytest "${args[@]}"
           code=$?
@@ -88,6 +137,48 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: pytest-report-${{ matrix.python }}
+          path: pytest-report.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Windows 是 Worker：執行場景、登入、Firefox 設定檔範本、領取任務的瀏覽器測試，兩種瀏覽器都跑。
+  # 只有整個 PR（或這次推送到 main）改到 Worker 的路徑時執行（tools/ci_changes.py 的 WORKER）。
+  worker-windows:
+    name: Worker 測試（Windows）
+    needs: changes
+    if: needs.changes.outputs.mode != 'docs' && needs.changes.outputs.worker == 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      # 跟一鍵安裝腳本（setup.ps1）跑測試時一樣用 UTF-8；Windows 預設的 cp1252 會讓印中文的子程序失敗
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      RPA_REQUIRE_BROWSER: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - name: 安裝依賴
+        run: uv sync --locked
+      - name: 安裝瀏覽器（Chromium、Firefox）
+        run: uv run playwright install chromium firefox
+      # 逐個測試分配（--dist load）：test_login.py 一個檔案就約 2 分鐘，按檔案分配時它是整體的下限。
+      # 這些測試都用各自的 tmp_path 與測試網站，彼此獨立。
+      - name: pytest（Worker 的瀏覽器測試與冒煙測試）
+        run: |
+          set +e
+          uv run pytest -n 4 --dist load --durations=30 -m "browser and (role_worker or smoke)" \
+            --junitxml=pytest-report.xml -o junit_family=xunit1
+          code=$?
+          set -e
+          uv run python tools/ci_annotations.py junit pytest-report.xml
+          exit "$code"
+      - name: 保留測試報告（各測試的耗時）
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-report-windows
           path: pytest-report.xml
           if-no-files-found: ignore
           retention-days: 14

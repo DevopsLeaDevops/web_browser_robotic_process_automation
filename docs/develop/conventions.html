@@ -71,6 +71,7 @@ docs(adr): 新增 0008 Secrets 加密方式</pre>
             <li>每個套件在自己的 <code>tests/</code> 下測試；跨套件的測試放在根目錄 <code>tests/</code>。</li>
             <li>需要真實瀏覽器的測試加上 <code>@pytest.mark.browser</code>。剛裝好的環境一定要能通過的少數測試再加上 <code>@pytest.mark.smoke</code>：一鍵安裝的重複執行與從零開始只跑冒煙測試和不需瀏覽器的測試。</li>
             <li>測試要能平行執行（CI 用 <code>pytest -n 4</code>）：檔案放在 <code>tmp_path</code>，伺服器用隨機埠號（埠號 0），不寫入倉庫目錄，不依賴其他測試先跑。</li>
+            <li>新增瀏覽器測試的檔案時，在 <code>tools/ci_roles.py</code> 登記它屬於網站、Worker 或錄製端；CI 依角色決定在哪個系統跑，見 <a href="ci.html">CI 與流水線</a>。</li>
             <li>測試不依賴外部網站；需要網頁時用測試網站（M2 起）。</li>
             <li>修 bug 先寫一個重現問題的測試。</li>
             <li>文檔頁面由 <code>tests/docs</code> 檢查結構與連結；三種語言是否同步由 <code>tests/i18n</code> 檢查。</li>

@@ -1,0 +1,105 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/ci.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CI 与流水线 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="ci" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>CI 与流水线</h1>
+      <p>GitHub Actions 什么时候跑、跑哪些测试、大约多久；怎么手动触发，以及到哪里看历次的运行耗时。平常的 PR 只在每个系统上测它在生产环境的角色，其他组合交给每天凌晨的完整测试。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="roles">
+      <div class="panel-header"><h2>依角色分配测试</h2></div>
+      <div class="panel-body prose">
+        <p>短期的主要运行路径（2026-10-19 确认，见<a href="operations.html">部署与操作</a>）：<strong>Linux 只跑网站，macOS 只跑录制端，Windows 只跑 Worker</strong>。三条路径都用 Python 3.13；一键安装脚本装的是开发环境，不在主要路径上。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>系统</th><th>生产角色</th><th>PR 与合并到 main 时跑什么</th><th>只在完整测试跑</th></tr></thead>
+          <tbody>
+            <tr><td>Linux</td><td>网站（管理 Portal）</td><td>静态检查；全部不需浏览器的测试；网站、录制端协定的浏览器测试与冒烟测试，只用 Chromium（CI，4 个进程平行）</td><td>Firefox 的组合；Worker 的浏览器测试</td></tr>
+            <tr><td>Windows</td><td>Worker</td><td>Worker 的浏览器测试（运行、登录、Firefox 模板、领取任务）与冒烟测试，两种浏览器；Worker App 的打包、安装与端到端</td><td>网站、录制端的浏览器测试</td></tr>
+            <tr><td>macOS</td><td>录制端</td><td>录制端 App 的打包与端到端（配对、本机闸道、逐步调试）</td><td>全部 pytest</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <p>测试依文件路径自动加上 <code>role_server</code>、<code>role_worker</code>、<code>role_recorder</code>，用 Firefox 的参数组合加上 <code>firefox</code>（<code>tools/ci_roles.py</code>、根目录的 <code>conftest.py</code>）。添加浏览器测试的文件时，在 <code>tools/ci_roles.py</code> 的 <code>ROLES</code> 登记它属于哪个角色；没有角色的浏览器测试会让 <code>tests/ci/test_ci_roles.py</code> 失败。Python 3.12 维持原状：PR 上只跑不需浏览器的测试，合并到 main 时跑全部。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="triggers">
+      <div class="panel-header"><h2>触发节点与时间</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>节点</th><th>跑哪些流程</th><th>大约多久</th></tr></thead>
+          <tbody>
+            <tr><td>往 PR 推送、合并到 main</td><td>CI（Linux）每次都跑；整个 PR 改到 Worker 的路径时加跑 Windows 的 Worker 测试；改到 <code>apps/</code>、<code>packages/</code> 时加跑桌面端建置；改到脚本或依赖时加跑一键安装脚本（只验证脚本与冒烟测试）</td><td>约 4 分（桌面端建置是下限）；不触发桌面端建置时约 2.5 分</td></tr>
+            <tr><td>只改 <code>handoff/</code>、<code>docs/</code> 的推送</td><td>见<a href="#docs-only">下一节</a></td><td>约 1 分</td></tr>
+            <tr><td>推版本标签 <code>v*</code></td><td>发布：确认版本、建两个桌面 App、草稿 Release</td><td>约 4 分</td></tr>
+            <tr><td>每天 20:17 UTC</td><td>每晚完整测试：三个系统、两种浏览器、Python 3.12 与 3.13 的全部测试，浏览器测试连跑三遍</td><td>约 30 分</td></tr>
+            <tr><td>每天 20:47 UTC</td><td>一键安装脚本的完整范围：项目内运行跑全部测试，加上从零开始</td><td>约 15 分</td></tr>
+            <tr><td>每周日 22:17 UTC</td><td>Python 依赖更新：有更新时开 PR 并触发 CI</td><td>不到 1 分；CI 另计</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <p>调度放在仓库最空闲的时段：20:17 UTC 是 America/Los_Angeles 13:17 PDT（UTC−07:00）／12:17 PST（UTC−08:00），新加坡 04:17。调度失败时自动开（或更新）一个 <code>ci-schedule</code> 标签的 issue。PR 上的路径条件看的是整个 PR 的改动；同一个分支推了新版本，旧的运行会被取消。依赖更新的 PR 由 GitHub Actions 开，只自动触发 CI，其他流程要等有人往那个分支推送。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="docs-only">
+      <div class="panel-header"><h2>只改文档的推送</h2></div>
+      <div class="panel-body prose">
+        <p>每个流程的第一个工作「运行范围」（<code>tools/ci_changes.py</code>）比较这次推送和上一次推送：只改了 <code>handoff/</code>、<code>docs/</code> 或 <code>*.md</code>，而且上一次推送在同一个流程的运行已经通过时，程序与上一次相同，重的工作改为略过、沿用那次的结果，注记里写明是哪一次。CI 仍跑静态检查与不需浏览器的测试（含文档与翻译的检查）。上一次的运行失败、取消或还没跑完时照常运行。协作规则见共用协作流程的第 5 节。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="manual">
+      <div class="panel-header"><h2>手动触发</h2></div>
+      <div class="panel-body prose">
+        <p>在 GitHub 的 Actions 页面选流程，按「Run workflow」，选分支与选项。也可以用 <code>gh</code>：</p>
+      </div>
+      <pre class="source"># 大全量：三个系统的全部测试，浏览器测试再跑两遍（约 30 分）
+gh workflow run nightly.yml --ref 分支名称
+# 只跑 Windows，不重跑
+gh workflow run nightly.yml --ref 分支名称 -f systems=windows -f extra=0
+# CI：role＝同 PR；full＝Linux 跑全部测试
+gh workflow run ci.yml --ref 分支名称 -f scope=full
+# 一键安装脚本：full（默认）＝全部测试加从零开始；role＝同 PR
+gh workflow run setup-scripts.yml --ref 分支名称
+# 桌面端建置
+gh workflow run desktop.yml --ref 分支名称</pre>
+      <div class="panel-body prose">
+        <p>本机照角色跑：<code>uv run pytest -m "browser and (role_worker or smoke)"</code>（Worker）、<code>uv run pytest -m "not browser or ((smoke or role_server or role_recorder) and not firefox)"</code>（同 CI 的 Linux）。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="metrics">
+      <div class="panel-header"><h2>运行耗时记录</h2></div>
+      <div class="panel-body prose">
+        <p>每次 CI、桌面端建置、一键安装脚本、每晚完整测试、发布结束后，「运行耗时记录」流程（<code>tools/ci_metrics.py</code>）把结果追加到仓库的 <code>ci-metrics</code> 分支，不碰 main，也不触发其他流程。在 GitHub 切到 <code>ci-metrics</code> 分支就看得到总览 <code>README.md</code>：各流程近 7 天与前 7 天的比较、每天各系统的机器时间、最慢的测试文件、最近的运行。</p>
+        <dl class="spec-list">
+          <dt><code>data/runs.jsonl</code></dt><dd>每次运行（重跑各一行）：触发方式、分支、结果、耗时（含排队）、最长排队、各系统的机器时间</dd>
+          <dt><code>data/jobs.jsonl</code></dt><dd>每个工作的排队与运行时间</dd>
+          <dt><code>data/test-files.jsonl</code></dt><dd>CI 与每晚完整测试的 JUnit 报告里，每个测试文件的时间</dd>
+        </dl>
+        <p>补记历史：手动触发「运行耗时记录」，<code>since</code> 填 UTC 日期，例如 <code>2026-10-09</code>；已经记过的不会重复。每次测试的 annotations 也有一则「pytest 耗时」，列出最慢的文件与测试。</p>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

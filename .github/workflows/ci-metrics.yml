@@ -1,0 +1,93 @@
+# 運行耗時紀錄：每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，把耗時、排隊、
+# 各工作與各測試檔案的時間追加到 ci-metrics 分支（tools/ci_metrics.py），並重新產生那裡的 README.md。
+#
+# - 資料在獨立的 ci-metrics 分支，不碰 main；GITHUB_TOKEN 的推送不會觸發任何流程（包括 bootstrap）。
+# - workflow_run 與手動觸發只對 main 上的這個檔案生效（GitHub 的限制）；合併後手動觸發一次
+#   補記歷史。修改本流程或 tools/ci_metrics.py 的 PR 會試跑：補記最近兩天、總覽寫到運行摘要，不寫入分支。
+# - 手動觸發填 since（UTC 日期）會補記那天之後的運行；已經記過的不會重複。
+# - 所有寫入依序執行（concurrency 不取消），不會互相覆蓋。
+name: 運行耗時紀錄
+
+on:
+  workflow_run:
+    # 和 tools/ci_metrics.py 的 TRACKED 一致
+    workflows: [CI, 桌面端建置, 一鍵安裝腳本, 每晚完整測試, 發布]
+    types: [completed]
+  pull_request:
+    paths:
+      - ".github/workflows/ci-metrics.yml"
+      - "tools/ci_metrics.py"
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "補記這個日期（UTC，YYYY-MM-DD）之後的運行；空白＝只重新產生總覽"
+        type: string
+        default: ""
+
+concurrency:
+  group: ci-metrics
+  cancel-in-progress: false
+
+permissions:
+  contents: write # 推送到 ci-metrics 分支
+  actions: read # 讀運行、工作與測試報告
+
+jobs:
+  record:
+    name: 記錄
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 取出 ci-metrics 分支
+        run: |
+          if git fetch --depth=1 origin ci-metrics; then
+            git worktree add --detach metrics FETCH_HEAD
+          else
+            # 第一次：建立沒有歷史的分支
+            git worktree add --detach metrics
+            git -C metrics switch --orphan ci-metrics-new
+          fi
+      - name: 記錄這次運行
+        if: github.event_name == 'workflow_run'
+        run: python3 tools/ci_metrics.py record --event "$GITHUB_EVENT_PATH" --data metrics/data
+      - name: 補記歷史
+        if: (github.event_name == 'workflow_dispatch' && inputs.since != '') || github.event_name == 'pull_request'
+        env:
+          SINCE: ${{ inputs.since }}
+        run: |
+          # PR 試跑只補記最近兩天，少用 API 額度（GITHUB_TOKEN 每小時 1,000 次）
+          [ "$GITHUB_EVENT_NAME" = pull_request ] && SINCE="$(date -u -d '2 days ago' +%F)"
+          python3 tools/ci_metrics.py backfill --since "$SINCE" --data metrics/data
+      - name: 產生總覽並推送
+        env:
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          SINCE: ${{ inputs.since }}
+        run: |
+          python3 tools/ci_metrics.py report --data metrics/data --out metrics/README.md
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            cat metrics/README.md >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=運行耗時紀錄（試跑）::總覽在這次運行的摘要頁；PR 不寫入 ci-metrics 分支"
+            exit 0
+          fi
+          cd metrics
+          git add -A
+          if git diff --cached --quiet; then
+            echo "沒有變更"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            message="chore(metrics): 記錄 ${RUN_NAME} #${RUN_ID}"
+          elif [ -n "$SINCE" ]; then
+            message="chore(metrics): 補記 ${SINCE} 之後的運行"
+          else
+            message="chore(metrics): 重新產生總覽"
+          fi
+          git commit -q -m "$message"
+          git push origin HEAD:refs/heads/ci-metrics
+          echo "::notice title=運行耗時紀錄::${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/ci-metrics"

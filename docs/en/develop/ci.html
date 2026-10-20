@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:960210578e7da413">
+<title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="ci" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>CI &amp; pipelines</h1>
+      <p>When GitHub Actions runs, which tests it runs and roughly how long it takes; how to trigger runs by hand, and where to look up the duration of past runs. Regular PRs only test each system in its production role; every other combination is left to the full run early every morning.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <section class="panel" id="roles">
+      <div class="panel-header"><h2>Tests assigned by role</h2></div>
+      <div class="panel-body prose">
+        <p>The main runtime paths for now (confirmed 2026-10-19, see <a href="operations.html">Deployment &amp; operations</a>): <strong>Linux only runs the website, macOS only runs the recorder, Windows only runs the worker</strong>. All three use Python 3.13; the one-command setup scripts install a development environment and are not on a main path.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>System</th><th>Production role</th><th>Runs on PRs and merges to main</th><th>Only in the full run</th></tr></thead>
+          <tbody>
+            <tr><td>Linux</td><td>Website (management portal)</td><td>Static checks; every test that needs no browser; browser and smoke tests of the website and the recorder protocol, Chromium only (CI, 4 parallel processes)</td><td>Firefox combinations; worker browser tests</td></tr>
+            <tr><td>Windows</td><td>Worker</td><td>Worker browser tests (runs, sign-in, Firefox templates, claiming jobs) and smoke tests in both browsers; packaging, installing and end-to-end tests of the worker app</td><td>Website and recorder browser tests</td></tr>
+            <tr><td>macOS</td><td>Recorder</td><td>Packaging and end-to-end tests of the recorder app (pairing, local gateway, step debugging)</td><td>All of pytest</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <p>Tests are marked <code>role_server</code>, <code>role_worker</code> or <code>role_recorder</code> automatically from their file path, and parameter sets that use Firefox are marked <code>firefox</code> (<code>tools/ci_roles.py</code>, the root <code>conftest.py</code>). When you add a file with browser tests, register its role in <code>ROLES</code> in <code>tools/ci_roles.py</code>; a browser test without a role makes <code>tests/ci/test_ci_roles.py</code> fail. Python 3.12 stays as before: only tests that need no browser on PRs, everything on merges to main.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="triggers">
+      <div class="panel-header"><h2>Triggers and durations</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Trigger</th><th>Workflows</th><th>Roughly</th></tr></thead>
+          <tbody>
+            <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the Windows worker tests when the PR touches worker paths; the desktop builds when it touches <code>apps/</code> or <code>packages/</code>; the setup scripts when it touches scripts or dependencies (the scripts and smoke tests only)</td><td>About 4 min (the desktop builds are the floor); about 2.5 min when the desktop builds do not run</td></tr>
+            <tr><td>Pushes that only change <code>handoff/</code> or <code>docs/</code></td><td>See <a href="#docs-only">the next section</a></td><td>About 1 min</td></tr>
+            <tr><td>Version tag <code>v*</code></td><td>Release: check the version, build both desktop apps, draft release</td><td>About 4 min</td></tr>
+            <tr><td>Daily 20:17 UTC</td><td>Nightly full tests: all tests on three systems, both browsers, Python 3.12 and 3.13, with the browser tests run three times</td><td>About 30 min</td></tr>
+            <tr><td>Daily 20:47 UTC</td><td>Full setup-script run: all tests in the in-repo run, plus from scratch</td><td>About 15 min</td></tr>
+            <tr><td>Sundays 22:17 UTC</td><td>Python dependency update: opens a PR and triggers CI when there are updates</td><td>Under 1 min, plus CI</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <p>The schedules sit in the quietest hours of the repository: 20:17 UTC is 13:17 PDT (UTC−07:00) / 12:17 PST (UTC−08:00) in America/Los_Angeles, 04:17 in Singapore. A failed scheduled run opens (or updates) an issue labeled <code>ci-schedule</code>. Path filters on PRs look at the whole PR; a new push to the same branch cancels the older run. Dependency-update PRs are opened by GitHub Actions and only trigger CI automatically; the other workflows run once someone pushes to that branch.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="docs-only">
+      <div class="panel-header"><h2>Pushes that only change docs</h2></div>
+      <div class="panel-body prose">
+        <p>The first job of every workflow, “執行範圍” (scope, <code>tools/ci_changes.py</code>), compares this push with the previous one. When only <code>handoff/</code>, <code>docs/</code> or <code>*.md</code> changed and the previous push already passed in the same workflow, the code is identical: the heavy jobs are skipped and reuse that result, and an annotation says which run. CI still runs the static checks and the tests that need no browser (including the docs and translation checks). If the previous run failed, was cancelled or has not finished, everything runs as usual. The collaboration rule is in section 5 of the shared collaboration workflow.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="manual">
+      <div class="panel-header"><h2>Manual runs</h2></div>
+      <div class="panel-body prose">
+        <p>On GitHub's Actions page pick a workflow, press "Run workflow" and choose the branch and options. Or use <code>gh</code>:</p>
+      </div>
+      <pre class="source"># Full run: all tests on three systems, browser tests twice more (about 30 min)
+gh workflow run nightly.yml --ref branch-name
+# Windows only, no repeats
+gh workflow run nightly.yml --ref branch-name -f systems=windows -f extra=0
+# CI: role = same as PRs; full = all tests on Linux
+gh workflow run ci.yml --ref branch-name -f scope=full
+# Setup scripts: full (default) = all tests plus from scratch; role = same as PRs
+gh workflow run setup-scripts.yml --ref branch-name
+# Desktop builds
+gh workflow run desktop.yml --ref branch-name</pre>
+      <div class="panel-body prose">
+        <p>Run a role locally: <code>uv run pytest -m "browser and (role_worker or smoke)"</code> (worker), <code>uv run pytest -m "not browser or ((smoke or role_server or role_recorder) and not firefox)"</code> (same as CI on Linux).</p>
+      </div>
+    </section>
+
+    <section class="panel" id="metrics">
+      <div class="panel-header"><h2>Run duration records</h2></div>
+      <div class="panel-body prose">
+        <p>After every CI, desktop build, setup-script, nightly and release run, the "Run duration records" workflow (<code>tools/ci_metrics.py</code>) appends the results to the repository's <code>ci-metrics</code> branch. It does not touch main or trigger other workflows. Switch to the <code>ci-metrics</code> branch on GitHub to see the overview in <code>README.md</code>: each workflow over the last 7 days compared with the 7 before, daily runner time per system, the slowest test files and the latest runs.</p>
+        <dl class="spec-list">
+          <dt><code>data/runs.jsonl</code></dt><dd>One line per run (and per re-run): trigger, branch, result, duration including queueing, longest queue, runner time per system</dd>
+          <dt><code>data/jobs.jsonl</code></dt><dd>Queue and run time of each job</dd>
+          <dt><code>data/test-files.jsonl</code></dt><dd>Time of each test file in the JUnit reports of CI and the nightly run</dd>
+        </dl>
+        <p>To add history, run "Run duration records" by hand with <code>since</code> set to a UTC date such as <code>2026-10-09</code>; runs already recorded are not added twice. Each test run's annotations also include a “pytest 耗時” (pytest timing) note with the slowest files and tests.</p>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

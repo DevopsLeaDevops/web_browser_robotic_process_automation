@@ -7,21 +7,36 @@
 #   （例如 run 38840392412 的契約草稿 inert、拖放位置）。PR 上改成只跑一遍之後，
 #   重複執行搬到這裡，刻意連跑三遍；不靠自動重跑把失敗變成通過。
 # - Python 3.12（最低支援版本）在 PR 上只跑不需瀏覽器的測試，這裡補跑全部。
+# - PR 上的測試依生產角色分配（Linux 網站、Windows Worker、macOS 錄製端，docs/develop/ci.html），
+#   其他組合（Firefox 的網站流程、Linux 上的 Worker 測試等）都在這裡跑：這是定時的「大全量」。
+#
+# 手動觸發（Actions → 每晚完整測試 → Run workflow）可以選系統與重跑次數，隨時跑一次大全量。
+# 排程失敗時自動開（或更新）一個 ci-schedule 標籤的 issue。
 #
 # 逐一執行（不加 -n），跟使用者電腦上的執行方式一致，也不額外增加機器負載造成的逾時。
 name: 每晚完整測試
 
 on:
   schedule:
-    # America/Los_Angeles：每天 00:17 PDT（UTC−07:00）；冬令時為前一天 23:17 PST（UTC−08:00）。
-    # 避開整點，也避開平常 PR 最多的時段，少佔 macOS 的並行名額（每個帳號最多 5 個）。
+    # 每天 20:17 UTC：America/Los_Angeles 13:17 PDT（UTC−07:00）／12:17 PST（UTC−08:00），新加坡 04:17。
+    # 倉庫最空閒的時段（2026-10-12～19 的 19～22 UTC 沒有任何運行），不和 PR 搶 macOS 的
+    # 並行名額（每個帳號最多 5 個）。之前的 07:17 UTC（新加坡 15:17）是最忙的時段之一。
     # 公開倉庫 60 天沒有任何活動時，GitHub 會自動停用排程。
-    - cron: "17 7 * * *"
+    - cron: "17 20 * * *"
   # 修改本流程的 PR 先實際跑一次；排程流程要先進 main 才能手動觸發
   pull_request:
     paths:
       - ".github/workflows/nightly.yml"
   workflow_dispatch:
+    inputs:
+      systems:
+        description: "要跑的系統，逗號分隔：ubuntu,macos,windows（空白＝全部）"
+        type: string
+        default: ""
+      extra:
+        description: "第 1 遍全部測試之後，瀏覽器測試再跑幾遍（Ubuntu 的 Python 3.12 不重跑）"
+        type: number
+        default: 2
 
 concurrency:
   group: nightly-${{ github.ref }}
@@ -29,25 +44,43 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read # plan 查詢上一次運行的結果
 
 defaults:
   run:
     shell: bash
 
 jobs:
+  # 矩陣與執行範圍（tools/ci_changes.py --nightly）：手動觸發時依選項篩選；
+  # 修改本流程的 PR 之後只改文件、上一次已通過時略過
+  plan:
+    name: 執行範圍
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+      matrix: ${{ steps.decide.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/ci_changes.py --workflow nightly.yml --scope full --nightly \
+            --systems "${{ inputs.systems }}" --extra "${{ inputs.extra }}"
+
   full:
     name: 完整測試（${{ matrix.os }}，Python ${{ matrix.python }}）
+    needs: plan
+    if: needs.plan.outputs.mode != 'docs' && needs.plan.outputs.matrix != '[]'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # extra：第 1 遍全部測試之後，瀏覽器測試再跑幾遍
-          - { os: ubuntu-latest, python: "3.13", extra: 2 }
-          - { os: macos-latest, python: "3.13", extra: 2 }
-          - { os: windows-latest, python: "3.13", extra: 2 }
-          - { os: ubuntu-latest, python: "3.12", extra: 0 }
+        # extra：第 1 遍全部測試之後，瀏覽器測試再跑幾遍
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
       # 缺少瀏覽器時直接失敗，而不是略過
       RPA_REQUIRE_BROWSER: "1"
@@ -111,3 +144,30 @@ jobs:
           path: ${{ env.REPORTS }}
           if-no-files-found: ignore
           retention-days: 14
+
+  # 排程的完整測試失敗時開（或更新）一個 issue，不必去翻 Actions 頁面才知道
+  report-failure:
+    name: 失敗時開 issue
+    needs: [full]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: ${{ github.workflow }}（排程）失敗
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - run: |
+          gh label create ci-schedule --color B60205 --description "排程的完整測試失敗" --force > /dev/null
+          when="$(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M')"
+          zone="$(TZ=America/Los_Angeles date '+%Z，UTC%:z' | sed 's/-/−/')"
+          body="排程執行失敗：${RUN_URL}（${when} America/Los_Angeles（${zone}））。失敗的測試與原因在該次運行的 annotations。"
+          number="$(gh issue list --label ci-schedule --state open --json number,title \
+            --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$TITLE" --label ci-schedule --body "$body"
+          fi

@@ -192,6 +192,11 @@ window.DOCS_NAV = {
           "name": {"zh-Hant": "部署與操作", "zh-Hans": "部署与操作", "en": "Deployment & operations"}
         },
         {
+          "id": "ci",
+          "href": "develop/ci.html",
+          "name": {"zh-Hant": "CI 與流水線", "zh-Hans": "CI 与流水线", "en": "CI & pipelines"}
+        },
+        {
           "id": "conventions",
           "href": "develop/conventions.html",
           "name": {"zh-Hant": "開發規範", "zh-Hans": "开发规范", "en": "Conventions"}

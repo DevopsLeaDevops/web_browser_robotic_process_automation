@@ -1,8 +1,11 @@
 # 在乾淨的 macOS、Ubuntu、Windows 機器上實際跑一鍵安裝腳本，確認文檔裡的命令真的能用。
-# 觸發時機：
-# - 腳本、依賴或 Python 版本變動時（包括 Dependabot 的升級 PR）
-# - 每週一次：抓出外部變化，例如 uv 安裝腳本改版、GitHub 更換 *-latest 的系統、瀏覽器下載方式改變
-# - 在 Actions 頁面手動觸發
+# 觸發時機與範圍（docs/develop/ci.html）：
+# - 腳本、依賴或 Python 版本變動時（包括 Dependabot 的升級 PR）：驗證腳本本身。
+#   Rocky 8 伺服器照常；三個系統的專案內執行兩次都只跑冒煙測試；不跑從零開始。
+#   這些腳本裝的是開發環境，生產的主要路徑是 setup-linux.sh 與桌面 App。
+# - 每天一次（排程）與手動觸發（預設 full）：完整範圍，第一次執行跑全部測試，加上從零開始；
+#   也抓外部變化，例如 uv 安裝腳本改版、GitHub 更換 *-latest 的系統、瀏覽器下載方式改變。
+# - 只改文件且上一次推送已通過時（tools/ci_changes.py 的 docs），全部略過、沿用結果。
 name: 一鍵安裝腳本
 
 on:
@@ -32,10 +35,17 @@ on:
       - "tests/ci/test_linux_setup.py"
       - "apps/cli/src/rpa_cli/serve.py"
   schedule:
-    # America/Los_Angeles：週日 19:17 PDT（UTC−07:00）／18:17 PST（UTC−08:00）。避開整點。
+    # 每天 20:47 UTC：America/Los_Angeles 13:47 PDT（UTC−07:00）／12:47 PST（UTC−08:00），
+    # 新加坡 04:47。倉庫最空閒的時段（過去一週 19～22 UTC 沒有任何運行），排在每晚完整測試之後。
     # 公開倉庫 60 天沒有任何活動時，GitHub 會自動停用排程。
-    - cron: "17 2 * * 1"
+    - cron: "47 20 * * *"
   workflow_dispatch:
+    inputs:
+      scope:
+        description: "範圍：full＝完整（全部測試、從零開始）；role＝同 PR（只跑冒煙測試）"
+        type: choice
+        options: [full, role]
+        default: full
 
 concurrency:
   group: setup-scripts-${{ github.ref }}
@@ -43,6 +53,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read # changes 查詢上一次運行的結果
 
 env:
   # 失敗時把輸出最後幾行寫成註記，在 PR 的 Checks 頁面就能看到原因
@@ -60,8 +71,24 @@ defaults:
     shell: bash
 
 jobs:
+  changes:
+    name: 執行範圍
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci_changes.py --workflow setup-scripts.yml --scope "${{ inputs.scope || 'full' }}"
+
   linux-server:
     name: Linux 伺服器（Rocky 8，${{ matrix.mode }}）
+    needs: changes
+    if: needs.changes.outputs.mode != 'docs'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -120,10 +147,13 @@ jobs:
 
   in-repo:
     name: 專案內執行（${{ matrix.os }}）
+    needs: changes
+    if: needs.changes.outputs.mode != 'docs'
     runs-on: ${{ matrix.os }}
     env:
-      # 腳本裡的 pytest 也寫一份 JUnit 報告；失敗時轉成註記，看得到是哪個測試、為什麼失敗
-      PYTEST_ADDOPTS: --junitxml=pytest-report.xml -o junit_family=xunit1
+      # 腳本裡的 pytest 也寫一份 JUnit 報告；失敗時轉成註記，看得到是哪個測試、為什麼失敗。
+      # 完整範圍（排程、手動）第一次執行跑全部測試；PR 與合併到 main 只跑冒煙測試。
+      PYTEST_ADDOPTS: --junitxml=pytest-report.xml -o junit_family=xunit1 ${{ needs.changes.outputs.mode != 'full' && '-m smoke' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -136,9 +166,8 @@ jobs:
       - name: setup.sh
         if: runner.os != 'Windows'
         run: ./scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
-      # 第一次執行已在這台機器跑完全部測試；第二次只確認重跑腳本後環境仍然可用：
-      # 不需瀏覽器的測試不跑，冒煙測試確認兩種瀏覽器能啟動、rpa run 能跑完範例場景。
-      # 偶發問題改由 nightly.yml 每晚把瀏覽器測試連跑三遍來抓。
+      # 第二次只確認重跑腳本後環境仍然可用：冒煙測試確認兩種瀏覽器能啟動、rpa run 能跑完範例場景。
+      # 偶發問題由 nightly.yml 每晚把瀏覽器測試連跑三遍來抓。
       - name: setup.sh 再執行一次（應該很快且成功；只跑冒煙測試）
         if: runner.os != 'Windows'
         env:
@@ -208,11 +237,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # 從零開始驗證的是下載腳本、clone 指定提交、裝 uv、Python 與瀏覽器這條路；
-  # 全部測試已在「專案內執行」的第一次跑過，這裡跑不需瀏覽器的測試加上冒煙測試。
-  # 瀏覽器照常下載，冒煙測試確認剛下載的兩種瀏覽器能啟動、rpa run 能跑完範例場景。
+  # 從零開始驗證的是下載腳本、clone 指定提交、裝 uv、Python 與瀏覽器這條路（新同事的第一條命令）；
+  # 只在完整範圍（排程、手動）執行。全部測試已在「專案內執行」的第一次跑過，這裡跑不需瀏覽器的
+  # 測試加上冒煙測試；瀏覽器照常下載，冒煙測試確認剛下載的兩種瀏覽器能啟動、rpa run 能跑完範例場景。
   from-scratch:
     name: 從零開始（${{ matrix.os }}）
+    needs: changes
+    if: needs.changes.outputs.mode == 'full'
     runs-on: ${{ matrix.os }}
     env:
       PYTEST_ADDOPTS: -m "not browser or smoke"
@@ -253,3 +284,30 @@ jobs:
           msg="${msg//$'\r'/}"
           msg="${msg//$'\n'/'%0A'}"
           echo "::error title=setup.sh 最後 30 行輸出::${msg}"
+
+  # 排程的完整測試失敗時開（或更新）一個 issue，不必去翻 Actions 頁面才知道
+  report-failure:
+    name: 失敗時開 issue
+    needs: [linux-server, in-repo, from-scratch]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: ${{ github.workflow }}（排程）失敗
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - run: |
+          gh label create ci-schedule --color B60205 --description "排程的完整測試失敗" --force > /dev/null
+          when="$(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M')"
+          zone="$(TZ=America/Los_Angeles date '+%Z，UTC%:z' | sed 's/-/−/')"
+          body="排程執行失敗：${RUN_URL}（${when} America/Los_Angeles（${zone}））。失敗的測試與原因在該次運行的 annotations。"
+          number="$(gh issue list --label ci-schedule --state open --json number,title \
+            --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$TITLE" --label ci-schedule --body "$body"
+          fi

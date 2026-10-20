@@ -95,6 +95,50 @@ def test_passing_report_is_a_notice(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert capsys.readouterr().out == "::notice title=pytest::report.xml 沒有失敗的測試（1 個）\n"
 
 
+TIMED = """\
+<testsuites><testsuite>
+  <testcase classname="t.test_a" name="test_1" file="t/test_a.py" time="1.0"/>
+  <testcase classname="t.test_a" name="test_2" file="t/test_a.py" time="3.0"/>
+  <testcase classname="t.test_b" name="test_3" time="2.0"/>
+</testsuite></testsuites>
+"""
+
+
+def test_slowest_files_and_tests(tmp_path: Path) -> None:
+    report = tmp_path / "report.xml"
+    report.write_text(TIMED, encoding="utf-8")
+
+    summary = tool.slowest(report, count=2)
+
+    assert summary is not None
+    assert summary.splitlines() == [
+        "測試時間總和 6 秒（3 個）",
+        "",
+        "最慢的檔案：",
+        "4.0s  t/test_a.py",
+        "2.0s  t/test_b",  # 沒有 file 屬性時用 classname
+        "",
+        "最慢的測試：",
+        "3.0s  t/test_a.py::test_2",
+        "2.0s  t/test_b::test_3",
+    ]
+
+
+def test_timing_summary_is_a_separate_notice(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    report = tmp_path / "report.xml"
+    report.write_text(TIMED, encoding="utf-8")
+
+    assert tool.main(["junit", str(report)]) == 0
+
+    passing, timing = capsys.readouterr().out.splitlines()
+    assert passing == "::notice title=pytest::report.xml 沒有失敗的測試（3 個）"
+    title, summary = timing.split("::", 2)[1:]
+    assert title == "notice title=pytest 耗時（report.xml）"
+    assert summary.startswith("測試時間總和 6 秒（3 個）%0A%0A最慢的檔案：%0A")
+
+
 def test_self_test_failures_one_per_step(tmp_path: Path) -> None:
     report = tmp_path / "self-test.json"
     report.write_text(

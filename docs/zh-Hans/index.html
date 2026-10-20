@@ -72,7 +72,7 @@
             <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 与 Jinja 页面、SQLite、版本与发布门槛、运行队列、登录角色与 Secrets、录制、逐步调试、自由试验场、远程 worker 的登记与分派</dd>
             <dt>rpa-cli</dt><dd><code>rpa serve</code> 启动管理 Portal（<code>--worker-port</code> 开放给远程 worker）；<code>rpa worker</code> 在另一台电脑当远程 worker；<code>rpa run</code> 运行场景；<code>rpa record</code> 录制并转成场景草稿；<code>rpa validate</code> 校验场景并指出行号、步骤与字段，<code>rpa schema</code> 输出 DSL 或单一场景入参、出参的 JSON Schema；<code>--lang</code> 切换繁中、简中、英文</dd>
             <dt>工具链</dt><dd>uv（依赖以 <code>uv.lock</code> 锁定）、ruff、pyright（strict）、pytest、pre-commit</dd>
-            <dt>CI</dt><dd>静态检查；Python 3.13 跑全部测试（含 Chromium、Firefox 的真实浏览器测试，4 个进程平行），Python 3.12 在 PR 上只跑不需浏览器的测试、推到 main 时跑全部；一键安装脚本在改动脚本或依赖时与每周在 macOS、Ubuntu、Windows 实际运行；每晚在三个系统上跑全部测试，浏览器测试连跑三遍</dd>
+            <dt>CI</dt><dd>PR 与合并时依生产角色分配测试：Linux 测网站、Windows 测 Worker、macOS 测录制端 App；每天凌晨在三个系统跑全部测试，浏览器测试连跑三遍。触发节点、时间、手动触发与耗时记录见 <a href="develop/ci.html">CI 与流水线</a></dd>
             <dt>文档</dt><dd>本站，繁中、简中、英文三种语言，含链接与翻译同步的自动检查</dd>
           </dl>
         </div>

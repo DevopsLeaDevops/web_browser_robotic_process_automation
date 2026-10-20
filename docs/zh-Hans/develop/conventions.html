@@ -72,6 +72,7 @@ docs(adr): 添加 0008 Secrets 加密方式</pre>
             <li>每个包在自己的 <code>tests/</code> 下测试；跨包的测试放在根目录 <code>tests/</code>。</li>
             <li>需要真实浏览器的测试加上 <code>@pytest.mark.browser</code>。刚装好的环境一定要能通过的少数测试再加上 <code>@pytest.mark.smoke</code>：一键安装的重复运行与从零开始只跑冒烟测试和不需浏览器的测试。</li>
             <li>测试要能平行运行（CI 用 <code>pytest -n 4</code>）：文件放在 <code>tmp_path</code>，服务器用随机端口号（端口号 0），不写入仓库目录，不依赖其他测试先跑。</li>
+            <li>添加浏览器测试的文件时，在 <code>tools/ci_roles.py</code> 登记它属于网站、Worker 或录制端；CI 依角色决定在哪个系统跑，见 <a href="ci.html">CI 与流水线</a>。</li>
             <li>测试不依赖外部网站；需要网页时用测试网站（M2 起）。</li>
             <li>修 bug 先写一个重现问题的测试。</li>
             <li>文档页面由 <code>tests/docs</code> 检查结构与链接；三种语言是否同步由 <code>tests/i18n</code> 检查。</li>
