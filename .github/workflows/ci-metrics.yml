@@ -2,7 +2,8 @@
 # 各工作與各測試檔案的時間追加到 ci-metrics 分支（tools/ci_metrics.py），並重新產生那裡的 README.md。
 #
 # - 資料在獨立的 ci-metrics 分支，不碰 main；GITHUB_TOKEN 的推送不會觸發任何流程（包括 bootstrap）。
-# - workflow_run 只對 main 上的這個檔案生效；合併前可以在功能分支上手動觸發（補記歷史）。
+# - workflow_run 與手動觸發只對 main 上的這個檔案生效（GitHub 的限制）；合併後手動觸發一次
+#   補記歷史。修改本流程或 tools/ci_metrics.py 的 PR 會試跑：補記最近兩天、總覽寫到運行摘要，不寫入分支。
 # - 手動觸發填 since（UTC 日期）會補記那天之後的運行；已經記過的不會重複。
 # - 所有寫入依序執行（concurrency 不取消），不會互相覆蓋。
 name: 運行耗時紀錄
@@ -12,6 +13,10 @@ on:
     # 和 tools/ci_metrics.py 的 TRACKED 一致
     workflows: [CI, 桌面端建置, 一鍵安裝腳本, 每晚完整測試, 發布]
     types: [completed]
+  pull_request:
+    paths:
+      - ".github/workflows/ci-metrics.yml"
+      - "tools/ci_metrics.py"
   workflow_dispatch:
     inputs:
       since:
@@ -49,10 +54,13 @@ jobs:
         if: github.event_name == 'workflow_run'
         run: python3 tools/ci_metrics.py record --event "$GITHUB_EVENT_PATH" --data metrics/data
       - name: 補記歷史
-        if: github.event_name == 'workflow_dispatch' && inputs.since != ''
+        if: (github.event_name == 'workflow_dispatch' && inputs.since != '') || github.event_name == 'pull_request'
         env:
           SINCE: ${{ inputs.since }}
-        run: python3 tools/ci_metrics.py backfill --since "$SINCE" --data metrics/data
+        run: |
+          # PR 試跑只補記最近兩天，少用 API 額度（GITHUB_TOKEN 每小時 1,000 次）
+          [ "$GITHUB_EVENT_NAME" = pull_request ] && SINCE="$(date -u -d '2 days ago' +%F)"
+          python3 tools/ci_metrics.py backfill --since "$SINCE" --data metrics/data
       - name: 產生總覽並推送
         env:
           RUN_NAME: ${{ github.event.workflow_run.name }}
@@ -60,6 +68,11 @@ jobs:
           SINCE: ${{ inputs.since }}
         run: |
           python3 tools/ci_metrics.py report --data metrics/data --out metrics/README.md
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            cat metrics/README.md >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=運行耗時紀錄（試跑）::總覽在這次運行的摘要頁；PR 不寫入 ci-metrics 分支"
+            exit 0
+          fi
           cd metrics
           git add -A
           if git diff --cached --quiet; then
