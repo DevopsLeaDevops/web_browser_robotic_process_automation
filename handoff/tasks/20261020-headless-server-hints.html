@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd><code>20261020-headless-server-hints</code>；2026-10-20 00:33 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd><code>20261020-headless-server-hints</code>；2026-10-20 00:52 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-19 23:52 PDT（UTC−07:00）在 Claude 對話提出，2026-10-20 00:29 PDT 同意 Claude 的建議並要求開工：
           <ol class="steps">
             <li>伺服器沒有畫面時（直接打開伺服器的管理 Portal），逐步調試變灰，滑鼠移上去提示改用錄製端；「自主腳本錄製」的開始錄製一樣。</li>
@@ -25,9 +25,9 @@
         <dt>範圍／不包含</dt><dd>範圍：管理 Portal 的頁面、樣式、三語訊息、錄製 API 的網址檢查、相關文件。不包含：錄製端執行場景（使用者 2026-10-20 00:29 PDT 決定不做，見決定）；逐步調試 API 本身仍接受無頭模式（測試與自動化在用，只改頁面）；人工登入後「確認已登入」在伺服器執行的問題（推測，尚未實測，另開任務）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/server</code> 的 templates（domain、scene、recording、recording_detail、debug、roles）、<code>static/portal-app.css</code>、<code>pages.py</code>、<code>render.py</code>、<code>i18n.py</code>、<code>recordings.py</code>、<code>api.py</code>、<code>services.py</code>、<code>app.py</code>、<code>config.py</code>、locales；<code>apps/cli</code> 的 <code>serve.py</code>；測試；<code>docs/develop/operations.html</code>（繁中、英文；簡中由 bootstrap 產生）；本頁與任務索引。沒有其他進行中的 PR（2026-10-20 00:31 PDT 查 GitHub）。</dd>
-        <dt>狀態</dt><dd>實作中</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>fix/headless-server-hints</code>；PR 尚未建立；base <code>9dc68be</code>（origin/main，#46）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>本地修改，尚未推送。</dd>
+        <dt>狀態</dt><dd>待審閱：實作完成，最新程式 head 的 CI 全部通過；等使用者審閱、合併與人工驗收。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/headless-server-hints</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/47">PR #47</a>（base main）；base <code>9dc68be</code>（origin/main，#46）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送。程式的最後一個提交 <code>3ea4b0c</code>；之後只有本頁的回填。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、git 2.43）。連不到 PyPI：伺服器（FastAPI、SQLAlchemy）的測試只能在 CI 跑；本機只能跑不需要這些套件的檢查。</dd>
       </dl></div>
     </section>
@@ -44,7 +44,8 @@
             <li>（實作選擇）逐步調試只改頁面，API 仍接受無頭模式。</li>
           </ul></li>
         <li><strong>另外提醒使用者（不在這個任務）：</strong>使用者用 <code>nohup … rpa serve --host 0.0.0.0 --port 8080</code> 啟動，管理頁面沒有登入保護，伺服器是公網 IP；已建議改回 <code>--host 127.0.0.1</code>（或直接用 <code>.venv-server/bin/rpa-server</code>／systemd），從 Mac 用錄製端或 SSH 通道操作，並把 8081 的防火牆限制在自己的 IP。</li>
-        <li><strong>下一個具體動作：</strong>完成實作與本機檢查，推送分支並開 PR，看最新 head 的 CI。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱並合併 #47；合併後在 Linux 伺服器 <code>git pull</code>、重新啟動，照下方「人工驗收」做一次。</li>
+        <li><strong>人工驗收（未執行）：</strong>(1) 用 SSH 通道從 8080 打開伺服器的 Portal：場景卡片與場景頁的「逐步調試」、錄製清單與錄製詳情的「調試」、調試頁的「開始調試」、「開始錄製」、角色的「登入」都是灰的，滑鼠移上去有提示；「貼上錄製稿」可以用。(2) 透過 Mac 的錄製端打開：都照常可用。(3) 錄製的起始網址填 <code>http://伺服器:8081/</code>：「開始錄製」顯示「是管理 Portal 自己的位址」；改填 <code>http://127.0.0.1:8765/</code> 可以錄製。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -52,9 +53,14 @@
       <div class="panel-header"><h2>驗證與審閱</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
-        <tbody><tr><td>—</td><td>—</td><td>未執行</td><td>—</td></tr></tbody>
+        <tbody>
+          <tr><td>基準 <code>9dc68be</code>＋本地差異／Claude 雲端環境（Linux、Python 3.13、ruff 0.16.9、pyright 1.1.414）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>、<code>git diff --check</code>；<code>pytest --noconftest apps/server/tests/test_addresses.py</code>；<code>tools/i18n.py stamp</code> 兩個英文頁</td><td>通過；16 個測試通過</td><td>連不到 PyPI，沒有 FastAPI、SQLAlchemy：伺服器的其他測試與全專案 pyright 本地沒跑</td></tr>
+          <tr><td><code>845cff1</code>／bootstrap（run 39388141072）</td><td>uv lock、產生簡中、ruff、pyright、<code>pytest -m "not browser"</code></td><td>簡中由 bot 提交（<code>53cbfda</code>）；檢查失敗，原因由 PR 的 CI 找到：pyright strict 的 <code>addresses.py:72</code>（集合的型別不完整）</td><td>bootstrap 的日誌下載被拒（403），以 CI 的 annotations 為準</td></tr>
+          <tr><td><code>cea5396</code>／PR #47 的 CI（run 39388406958）</td><td>靜態檢查</td><td>失敗：同上的 pyright 錯誤；<code>3ea4b0c</code> 修正</td><td>—</td></tr>
+          <tr><td><code>3ea4b0c</code>／PR #47（2026-10-20 00:45～00:49 PDT）</td><td>CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39388669893">39388669893</a>：靜態檢查、測試（Python 3.12、3.13，含瀏覽器測試，1275 個）、Worker 測試（Windows）；一鍵安裝腳本 run 39388669978（ubuntu、macOS、Windows、Rocky 8 兩種）；桌面端建置 run 39388669854（RPA Worker、RPA 錄製端）</td><td>全部通過（「從零開始」與「失敗時開 issue」依設定略過）</td><td>真實的 Linux 伺服器＋ Mac 錄製端沒有人工驗收</td></tr>
+        </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：<code>3ea4b0c</code> 全部通過；人工驗收：未執行；審閱：未審閱（等使用者）。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -64,6 +70,8 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-20 00:33 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>fix/headless-server-hints</code>（base <code>9dc68be</code>），開始實作。</li>
+        <li>2026-10-20 00:39 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>b741e3b</code>（本頁）、<code>845cff1</code>（實作，含 <code>[bootstrap]</code>）；00:41 bot 提交簡中 <code>53cbfda</code>；00:42 開 PR #47。另向使用者說明 <code>nohup … --host 0.0.0.0 --port 8080</code> 會把沒有登入保護的管理頁面開到公網，建議改回 127.0.0.1。</li>
+        <li>2026-10-20 00:44～00:52 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>cea5396</code>（英文提示的測試改用 <code>?lang=en</code>）、<code>3ea4b0c</code>（pyright strict 的型別）；最新程式 head 的 CI 全部通過；回填本頁，狀態改為待審閱。</li>
       </ul></div>
     </section>
   </div>
