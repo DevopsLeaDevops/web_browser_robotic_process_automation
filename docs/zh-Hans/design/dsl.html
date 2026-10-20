@@ -285,6 +285,7 @@ scenarios/login.yaml:31:15: 步骤 5（read） › value：facts.total 要等后
           <dt>参数</dt><dd>文件或文件夹，可以多个；文件夹会找出底下所有 .yaml 与 .yml（略过隐藏文件夹）。脚本场景会检查脚本文件是否存在。</dd>
           <dt><code>--format json</code></dt><dd>每个问题含 line、column、step、stepId、field、path、code、message，给程序与 AI 自动修正（M5）使用。</dd>
           <dt>退出码</dt><dd>0 全部通过；1 有文件未通过，或文件夹里没有 YAML；2 参数错误。</dd>
+          <dt><code>rpa pack check</code></dt><dd>校验领域文件夹（M11）：说明档的格式、版本内容与版本说明档的哈希、验证记录、发布门槛、角色定义，以及不能放进文件夹的登录状态、Secrets 与私钥；规则和管理 Portal 加载时相同。<code>--id</code> 要求 <code>pack.yaml</code> 的代号；<code>--format json</code> 给程序使用。有错误时退出码 1（警告不算），可以放在数据仓库的 CI。</dd>
           <dt><code>rpa schema</code></dt><dd>输出 DSL 的 JSON Schema。仓库中的 <code>schema/scenario.v1.json</code> 由它产生；场景文件第一行加上 <code># yaml-language-server: $schema=…</code>，VS Code 的 YAML 插件就能自动补全与实时检查。指定场景文件时输出该场景的入参或出参 Schema。</dd>
           <dt>Python</dt><dd><code>rpa_core.dsl.validate_file()</code>、<code>validate_text()</code>、<code>validate_data()</code> 回传场景模型与所有问题；<code>inputs_json_schema()</code>、<code>outputs_json_schema()</code> 产生单一场景的契约。管理界面与 API 也用同一套。</dd>
         </dl>
