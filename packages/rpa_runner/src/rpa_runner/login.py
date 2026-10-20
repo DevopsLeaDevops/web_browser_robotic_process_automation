@@ -6,27 +6,38 @@
 - 選用的自動登入步驟（DSL 步驟，帳密用 ``{{ secrets.名稱 }}``）：沒登入時先自動登入一次。
 - 登入狀態檔：只有本人能讀寫（M8 加密）；不放進執行目錄，不出現在報告與日誌。
 
-兩種子程序（由 run.py 與管理 Portal 啟動）::
+兩種子程序（由 run.py 與管理 Portal 啟動；管理 Portal 也會交給錄製端那台執行）::
 
-    python -m rpa_runner.login check --out 目錄 --deadline 秒數 [--engine 瀏覽器]
+    python -m rpa_runner.login check --out 目錄 --deadline 秒數 [--engine 瀏覽器] [--state 狀態檔]
     python -m rpa_runner.login capture --state 新狀態檔 [--engine 瀏覽器]
 
 設定以 JSON 放在環境變數 ``RPA_LOGIN``，Secrets 也從環境變數讀取。
 
 - ``check``：無頭模式檢查；沒登入而且有自動登入步驟時先自動登入。結果寫在 ``login.json``，
   沒登入時另存截圖 ``login.png``。退出碼 0 已登入、4 需要登入、3 總期限已到、1 其他錯誤。
-  檢查通過後把最新的狀態寫回狀態檔（網站換發 cookie 時跟著更新）。
+  檢查通過後把最新的狀態寫回狀態檔（網站換發 cookie 時跟著更新）。``--state`` 指定要用的
+  狀態檔（管理 Portal 給的是複本），沒給時用設定裡的。
 - ``capture``（人工登入）：在這台電腦開瀏覽器視窗到登入網址，由使用者自己登入（可以處理 SSO、
-  驗證碼、二次驗證）。標準輸入收到 ``finish`` 或使用者關掉視窗時，把登入狀態存到 ``--state``；
-  收到 ``cancel`` 時不存。進度以一行一個 JSON 印在標準輸出：ready、saved、cancelled、error。
+  驗證碼、二次驗證）。標準輸入收到 ``finish`` 或使用者關掉視窗時，**在這台**用剛取得的登入狀態
+  開一個新的無頭瀏覽器確認（和 ``check`` 同樣的判斷），確認通過才存到 ``--state``；所以管理
+  Portal 那台不需要瀏覽器。還沒登入時：視窗還開著就繼續等（使用者登入後再按一次「完成登入」），
+  視窗已經關了就結束（退出碼 4）。收到 ``cancel`` 時不存。進度以一行一個 JSON 印在標準輸出：
+  ready、checking、not_logged_in（url、message、closed）、saved（verified）、cancelled、error。
+
+錯誤訊息換成看得懂的說明（:func:`describe_error`）：瀏覽器還沒下載時說要執行的命令；連不到
+127.0.0.1、localhost 時說明那是開瀏覽器的這台電腦自己。
 """
 
 import argparse
 import contextlib
+import dataclasses
+import ipaddress
 import json
 import os
 import queue
+import re
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -35,7 +46,7 @@ from pathlib import Path
 from typing import Final, cast
 from urllib.parse import urlsplit
 
-from playwright.sync_api import BrowserContext, Page, sync_playwright
+from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
@@ -45,6 +56,7 @@ from rpa_runner.browser import Deadline, DeadlineExceeded, plan_records, resolve
 from rpa_runner.contexts import Engine, open_context
 from rpa_runner.files import LOGIN, LOGIN_SCREENSHOT, write_json
 from rpa_runner.i18n import t
+from rpa_runner.installed import missing_browser_hint
 from rpa_runner.secrets import mask
 
 __all__ = [
@@ -53,9 +65,11 @@ __all__ = [
     "EXIT_CANCELLED",
     "EXIT_NEEDS_LOGIN",
     "LoginSettings",
+    "describe_error",
     "is_logged_in",
     "main",
     "save_state",
+    "write_state",
 ]
 
 ENV_LOGIN: Final = "RPA_LOGIN"
@@ -68,6 +82,16 @@ CHECK_TIMEOUT_MS: Final = 10_000
 """等「已登入時看得到的元素」出現的時間。"""
 _PUMP_MS: Final = 300
 _POLL_MS: Final = 500
+_VERIFY_SECONDS: Final = 60.0
+"""人工登入後確認登入狀態最多花多久（開無頭瀏覽器、打開確認網址、等元素）。"""
+_REFUSED: Final = re.compile(
+    r"NS_ERROR_CONNECTION_REFUSED|ERR_CONNECTION_REFUSED|Could not connect to server"
+    r"|Connection refused",
+    re.IGNORECASE,
+)
+"""連線被拒絕：Firefox、Chromium、WebKit 的寫法。"""
+_NAVIGATING: Final = re.compile(r'navigating to "(?P<url>[^"]+)"')
+"""Playwright 錯誤的呼叫紀錄裡，正在打開的網址。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,11 +171,13 @@ class _Check:
     steps: list[dict[str, object]] = field(default_factory=list[dict[str, object]])
 
 
-def save_state(context: BrowserContext, path: Path) -> None:
-    """把目前的登入狀態寫到 path：先寫暫存檔再改名；只有本人能讀寫。"""
+def write_state(data: object, path: Path) -> None:
+    """把登入狀態（storageState）寫到 path：先寫暫存檔再改名；只有本人能讀寫。
+
+    暫存檔名帶程序代號：同一個角色的檢查與執行同時寫入時，不會寫進同一個暫存檔。
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    data = context.storage_state()
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
     descriptor = os.open(temporary, flags, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
@@ -159,6 +185,11 @@ def save_state(context: BrowserContext, path: Path) -> None:
     if os.name != "nt":
         temporary.chmod(0o600)
     temporary.replace(path)
+
+
+def save_state(context: BrowserContext, path: Path) -> None:
+    """把 context 目前的登入狀態寫到 path（見 :func:`write_state`）。"""
+    write_state(context.storage_state(), path)
 
 
 def _login_path(settings: LoginSettings) -> str | None:
@@ -192,6 +223,43 @@ def is_logged_in(page: Page, settings: LoginSettings, timeout_ms: int) -> bool:
             return False
         if time.monotonic() >= end:
             return False
+
+
+def _is_loopback(host: str) -> bool:
+    """host 是不是「這台電腦自己」（127.0.0.1、::1、localhost、0.0.0.0）。"""
+    name = host.strip("[]").lower()
+    if name == "localhost" or name.endswith(".localhost"):
+        return True
+    try:
+        address = ipaddress.ip_address(name)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_unspecified
+
+
+def describe_error(
+    error: BaseException, secrets: Mapping[str, str] | None = None, *, url: str | None = None
+) -> str:
+    """登入檢查與人工登入的錯誤 → 給人看的一行說明（Secrets 的值遮罩）。
+
+    - 瀏覽器還沒下載：要執行的命令（:func:`rpa_runner.installed.missing_browser_hint`）。
+    - 連線被拒絕：網址是 127.0.0.1、localhost 時說明那是開瀏覽器的這台電腦自己；其他網址只說
+      連不到。``url`` 是正在打開的網址，沒給時從 Playwright 的呼叫紀錄找。
+    - 其他：錯誤的第一行。
+    """
+    text = mask(f"{type(error).__name__}: {error}", secrets or {})
+    hint = missing_browser_hint(text)
+    if hint is not None:
+        return hint
+    if _REFUSED.search(text):
+        found = _NAVIGATING.search(text)
+        target = url or (found["url"] if found is not None else None)
+        if target:
+            host = urlsplit(target).hostname or ""
+            if _is_loopback(host):
+                return t("login.local_refused", url=target, host=host)
+            return t("login.refused", url=target)
+    return text.splitlines()[0]
 
 
 def _auto_login(
@@ -257,7 +325,7 @@ def check(args: argparse.Namespace, settings: LoginSettings, secrets: Mapping[st
                 page.screenshot(path=out / LOGIN_SCREENSHOT, timeout=deadline.budget(5_000))
         except BaseException as error:
             timed_out = isinstance(error, DeadlineExceeded) or deadline.remaining_ms() <= 0
-            result.error = mask(f"{type(error).__name__}: {error}".splitlines()[0], secrets)
+            result.error = describe_error(error, secrets)
             result.url = page.url if page is not None else None
             code = _EXIT_DEADLINE if timed_out else _EXIT_FAILED
             sys.stderr.write(mask(f"{type(error).__name__}: {error}", secrets) + "\n")
@@ -292,14 +360,51 @@ def _read_commands(commands: "queue.Queue[str]") -> None:
     commands.put("cancel")
 
 
+def _verify(
+    playwright: Playwright, engine: Engine, settings: LoginSettings, state: object
+) -> _Check:
+    """用剛取得的登入狀態開一個新的無頭 context，照執行前的登入檢查判斷是否已登入。
+
+    登入狀態先寫到只有本人能讀的暫存檔（Firefox 的預熱設定檔要從檔案載入），用完就刪。
+    沒有設定確認網址或已登入元素時沒有東西可以確認，當作已登入。
+    """
+    if settings.check_url is None or settings.check is None:
+        return _Check(logged_in=True)
+    descriptor, name = tempfile.mkstemp(prefix="rpa-login-", suffix=".json")
+    path = Path(name)
+    page: Page | None = None
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(state, handle, ensure_ascii=False)
+        with contextlib.ExitStack() as stack:
+            context = open_context(
+                playwright,
+                engine,
+                headed=False,
+                timeout_ms=int(_VERIFY_SECONDS * 1000),
+                budget_seconds=_VERIFY_SECONDS,
+                stack=stack,
+                storage_state=path,
+            )
+            page = context.pages[0] if context.pages else context.new_page()
+            logged_in = is_logged_in(page, settings, 30_000)
+            return _Check(logged_in=logged_in, url=page.url)
+    except Exception as error:  # 確認不了就是沒有確認通過；原因交給管理 Portal 顯示
+        url = page.url if page is not None else None
+        return _Check(logged_in=False, url=url, error=describe_error(error, url=settings.check_url))
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def capture(args: argparse.Namespace, settings: LoginSettings) -> int:
     commands: queue.Queue[str] = queue.Queue()
     threading.Thread(target=_read_commands, args=(commands,), daemon=True).start()
+    engine = cast("Engine", args.engine)
     with sync_playwright() as playwright, contextlib.ExitStack() as stack:
         try:
             context = open_context(
                 playwright,
-                cast("Engine", args.engine),
+                engine,
                 headed=not args.headless,
                 timeout_ms=60_000,
                 budget_seconds=60,
@@ -311,7 +416,7 @@ def capture(args: argparse.Namespace, settings: LoginSettings) -> int:
             if settings.login_url:
                 page.goto(settings.login_url, wait_until="domcontentloaded", timeout=60_000)
         except BaseException as error:
-            _emit("error", message=f"{type(error).__name__}: {error}".splitlines()[0])
+            _emit("error", message=describe_error(error, url=settings.login_url))
             return _EXIT_FAILED
         _emit("ready")
         while True:
@@ -323,20 +428,30 @@ def capture(args: argparse.Namespace, settings: LoginSettings) -> int:
                 _emit("cancelled")
                 return EXIT_CANCELLED
             pages = context.pages
-            if command == "finish" or not pages:
-                break
+            if command != "finish" and pages:
+                try:
+                    # 讓 Playwright 處理瀏覽器的事件（例如使用者關掉分頁），同時等下一個命令
+                    pages[0].wait_for_timeout(_PUMP_MS)
+                except PlaywrightError:
+                    time.sleep(0.05)  # 分頁剛好被關掉；下一輪再看還有沒有分頁
+                continue
+            # 按了「完成登入」或關掉了視窗：在這台確認登入狀態，通過才存
+            closed = not pages
             try:
-                # 讓 Playwright 處理瀏覽器的事件（例如使用者關掉分頁），同時等下一個命令
-                pages[0].wait_for_timeout(_PUMP_MS)
+                state = context.storage_state()
             except PlaywrightError:
-                time.sleep(0.05)  # 分頁剛好被關掉；下一輪再看還有沒有分頁
-        try:
-            save_state(context, Path(args.state))
-        except PlaywrightError:
-            _emit("error", message=t("login.browser_closed"))
-            return _EXIT_FAILED
-        _emit("saved")
-        return 0
+                _emit("error", message=t("login.browser_closed"))
+                return _EXIT_FAILED
+            _emit("checking")
+            verdict = _verify(playwright, engine, settings, state)
+            if verdict.logged_in:
+                write_state(state, Path(args.state))
+                _emit("saved", verified=True)
+                return 0
+            _emit("not_logged_in", url=verdict.url, message=verdict.error, closed=closed)
+            if closed:
+                return EXIT_NEEDS_LOGIN
+            # 視窗還開著：使用者繼續登入，之後再按一次「完成登入」
 
 
 # ---------------------------------------------------------------- 入口
@@ -354,6 +469,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     checking.add_argument("--out", required=True)
     checking.add_argument("--deadline", required=True, help="總期限剩下的秒數")
     checking.add_argument("--engine", choices=["chromium", "firefox", "webkit"], default="chromium")
+    checking.add_argument("--state", help="要檢查的登入狀態檔（取代設定裡的；通過後寫回這裡）")
     capturing = commands.add_parser("capture")
     capturing.add_argument("--state", required=True, help="人工登入後的狀態存到這裡")
     # 只給自動測試用：沒有圖形介面的環境也能測試命令與結束的流程
@@ -364,6 +480,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     settings = LoginSettings.from_json(cast("dict[str, object]", json.loads(os.environ[ENV_LOGIN])))
     if args.command == "check":
+        if args.state:
+            settings = dataclasses.replace(settings, state=Path(args.state))
         return check(args, settings, _secrets(settings))
     return capture(args, settings)
 

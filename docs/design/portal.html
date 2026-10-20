@@ -99,8 +99,9 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>場景只寫角色。</strong>需要登入的場景寫 <code>login: { role: 角色代號 }</code>（<a href="dsl.html#scenario">DSL</a>）。怎麼登入、怎麼判斷已登入，在「場景管理 › 登入與憑證」登記：登入網址、確認網址、已登入時看得到的元素（DSL 定位器），以及選用的自動登入步驟。</li>
-          <li><strong>人工登入為主。</strong>按「登入」會在執行 Portal 的這台電腦開瀏覽器視窗到登入網址，由使用者自己登入，所以 SSO、驗證碼、手機或 App 二次驗證都能處理。完成後按「完成登入」或直接關掉視窗；Portal 先用無頭瀏覽器確認真的登入了，才取代原本的登入狀態。這台電腦沒有圖形介面時不能人工登入。</li>
+          <li><strong>人工登入為主。</strong>按「登入」會在操作的那台電腦開瀏覽器視窗到登入網址（直接打開管理 Portal 時是執行 Portal 的這台，透過錄製端時是錄製端那台），由使用者自己登入，所以 SSO、驗證碼、手機或 App 二次驗證都能處理。完成後按「完成登入」或直接關掉視窗；<strong>開視窗的那台</strong>先用剛取得的登入狀態開一個無頭瀏覽器打開確認網址，看得到已登入時的元素，才把登入狀態傳回伺服器、取代原本的，所以伺服器不需要瀏覽器。還沒登入就按「完成登入」時，頁面說明確認網址停在哪裡，視窗不關，登入後再按一次；關掉視窗時還沒登入就結束，原本的登入狀態不變。操作的那台沒有圖形介面時不能人工登入。舊版的錄製端不會自己確認，改由伺服器確認（伺服器沒有瀏覽器時會說明要更新錄製端）。</li>
           <li><strong>自動登入（選用）。</strong>只適合單純帳號密碼的系統：角色附一段 DSL 步驟，密碼用 <code>{{ secrets.名稱 }}</code>。執行前發現沒登入時先自動登入一次。</li>
+          <li><strong>檢查。</strong>角色的「檢查」用無頭瀏覽器確認登入狀態是否仍然有效（有自動登入步驟時，沒登入就自動登入）。伺服器有下載角色用的瀏覽器時在伺服器檢查；沒有時（例如 Linux 安裝腳本裝的伺服器），透過錄製端打開管理 Portal 就在錄製端檢查，直接打開時按鈕是灰的。檢查用登入狀態的複本，通過後才取代原本的；檢查期間人工登入或執行更新了登入狀態時，保留較新的那份。不先檢查也可以：每次執行都會先在執行的那台檢查。</li>
           <li><strong>需要登入（needs_login）。</strong>每次執行先在「登入檢查」階段打開確認網址：看得到元素就繼續；沒有（例如被轉到登入頁）而且不能自動登入時，停在「需要登入」，不執行任何步驟，並留下登入檢查的截圖。執行頁有「登入角色」與「重新執行」：登入後用同樣的入參再跑一次。</li>
           <li><strong>角色互不干擾。</strong>登入狀態（Playwright storageState）每個角色一份，存在資料目錄的 <code>roles/&lt;角色&gt;/state.json</code>，只有本人能讀寫；每次執行開新的瀏覽器 context，只載入場景指定的那個角色。登入狀態不會複製進執行目錄，也不經由網頁或 API 提供。執行的結果也會更新角色的狀態（已登入、需要登入）。</li>
           <li><strong>Secrets。</strong>同一頁可以設定 Secrets 的值：存在資料目錄的 <code>secrets.json</code>（只有本人能讀寫，M8 改為加密），頁面與 API 只顯示名稱與更新時間，永遠不回傳值。執行時把場景與角色用到的值交給執行引擎；沒有設定的再從同名的環境變數找。頁面也列出場景用到、但還沒設定的 Secrets。</li>
@@ -261,7 +262,7 @@
             <tr><td><code>GET</code>、<code>PUT /api/scenes/{id}/sections/{段}</code>；<code>POST …/preview</code></td><td>場景檔的一段（<code>steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code>）：讀取、只換掉這一段存成新版本（<code>baseRevision</code>、<code>text</code>、<code>note</code>）、換掉後校驗但不存檔（入參、出參回傳表格用的資料）；問題帶段落裡的行號 <code>sectionLine</code></td></tr>
             <tr><td><code>GET</code>、<code>POST /api/roles</code>；<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/roles/{角色}</code></td><td>登入角色：<code>name</code>、<code>loginUrl</code>、<code>checkUrl</code>、<code>check</code>（定位器）、<code>engine</code>、<code>autoLogin</code>；還有場景用到時不能刪除</td></tr>
             <tr><td><code>POST /api/roles/{角色}/login</code>、<code>…/login/finish</code>、<code>…/login/cancel</code></td><td>人工登入：開瀏覽器視窗、完成、取消；進度看角色的 <code>activity</code> 與 <code>session</code></td></tr>
-            <tr><td><code>POST /api/roles/{角色}/check</code>、<code>DELETE /api/roles/{角色}/state</code></td><td>在背景檢查是否已登入（必要時自動登入）；登出</td></tr>
+            <tr><td><code>POST /api/roles/{角色}/check</code>、<code>DELETE /api/roles/{角色}/state</code></td><td>在背景檢查是否已登入（必要時自動登入），在伺服器或發出請求的錄製端檢查；兩邊都沒有角色用的瀏覽器時回 422 <code>role_check_unavailable</code>。登出</td></tr>
             <tr><td><code>GET /api/secrets</code>、<code>PUT</code>、<code>DELETE /api/secrets/{名稱}</code></td><td>Secrets：只回傳名稱與更新時間；<code>PUT</code> 的內容是 <code>value</code></td></tr>
             <tr><td><code>GET</code>、<code>POST /api/recordings</code>、<code>POST /api/recordings/import</code></td><td>錄製清單；在這台電腦錄製（202）；貼上錄製稿直接轉換（201）。都要 <code>target</code>（新場景，或既有場景加 <code>mode</code>：<code>continue</code> 接著現有步驟、<code>replace</code> 整份換掉）、<code>url</code>、<code>engine</code>、選用的 <code>roleId</code></td></tr>
             <tr><td><code>GET /api/recordings/{錄製編號}</code>、<code>…/cancel</code></td><td>錄製狀態、轉不了的行與檔案；取消錄製</td></tr>

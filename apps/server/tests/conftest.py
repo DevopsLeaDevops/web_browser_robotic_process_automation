@@ -26,6 +26,17 @@ def _zh_hant() -> Iterator[None]:
         yield
 
 
+@pytest.fixture(autouse=True)
+def _browsers_downloaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """登入檢查在哪台跑，要看伺服器這台下載了哪些瀏覽器：測試一律當作都有，結果不隨環境而變；
+    要測沒有的情況時，測試自己換掉 ``services.roles.local_engines``。"""
+    try:
+        from rpa_server import roles
+    except ImportError:  # 沒有 SQLAlchemy 的環境：只跑樣板與檔案儲存的測試
+        return
+    monkeypatch.setattr(roles, "_LOCAL_BROWSERS", lambda: frozenset(roles.ENGINES))
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     data = tmp_path / "data"

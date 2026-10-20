@@ -196,3 +196,61 @@ def test_debug_session_runs_on_the_recorder(
     while recorder.host.active() or any(folder.exists() for folder in folders):
         assert time.monotonic() < deadline, "錄製端的子程序或暫存資料夾還在"
         time.sleep(0.2)
+
+
+@pytest.fixture
+def no_server_browsers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """伺服器沒有下載瀏覽器（例如 Linux 安裝腳本裝的伺服器）；要在建立 Portal 之前換掉。"""
+    from rpa_server import roles
+
+    monkeypatch.setattr(roles, "_LOCAL_BROWSERS", lambda: frozenset[str]())
+
+
+def test_role_check_runs_on_the_recorder(
+    no_server_browsers: None, portal: Portal, site: str, engine: str, recorder: Recorder
+) -> None:
+    """伺服器沒有瀏覽器：透過錄製端按「檢查」，在錄製端（無頭）自動登入，登入狀態傳回伺服器。"""
+    steps = "\n".join(
+        [
+            f"- {{ id: open, action: goto, url: '{site}/login' }}",
+            "- { id: user, action: fill, target: { label: 帳號 }, value: manager }",
+            "- { id: pw, action: fill, target: { label: 密碼 },"
+            " value: '{{ secrets.TESTSITE_MANAGER_PASSWORD }}' }",
+            "- { id: go, action: click, target: { role: button, name: 登入 } }",
+            "- { id: wait, action: waitFor, url: /account }",
+        ]
+    )
+    role = {
+        "id": "auto-manager",
+        "name": "自動登入的主管",
+        "loginUrl": f"{site}/login",
+        "checkUrl": f"{site}/account",
+        "check": "{ testId: current-user }",
+        "engine": engine,
+        "autoLogin": steps,
+    }
+    with Client(base_url=portal.url, timeout=30) as local:
+        body(local.post("/api/roles", json=role), 201)
+        secret = {"value": "manager-pass"}
+        body(local.put("/api/secrets/TESTSITE_MANAGER_PASSWORD", json=secret))
+        deadline = time.monotonic() + 30
+        while body(local.get("/api/recorders/mac-01"))["status"] != "online":
+            assert time.monotonic() < deadline, "錄製端沒有上線"
+            time.sleep(0.2)
+        # 直接打開管理頁面（不是透過錄製端）：伺服器沒有瀏覽器，不能檢查
+        refused = local.post("/api/roles/auto-manager/check")
+        assert refused.status_code == 422, refused.text
+        assert "role_check_unavailable" in refused.text
+
+    gateway = recorder.gateway
+    with Client(base_url=gateway.origin, timeout=120, follow_redirects=True) as browser:
+        assert browser.get(gateway.login_url("/roles")).status_code == 200
+        started = browser.post("/api/roles/auto-manager/check", headers={"Origin": gateway.origin})
+        assert body(started, 202)["activity"] == "checking"
+        deadline = time.monotonic() + 120
+        while (checked := body(browser.get("/api/roles/auto-manager")))["activity"]:
+            assert time.monotonic() < deadline, f"檢查沒有結束：{checked}"
+            time.sleep(0.2)
+    assert checked["status"] == "logged_in", checked["message"]
+    assert checked["message"]  # 在錄製端自動登入過
+    assert checked["stateSavedAt"] is not None  # 登入狀態傳回伺服器

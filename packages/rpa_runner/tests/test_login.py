@@ -5,15 +5,17 @@
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
-from rpa_core.i18n import use_locale
+from rpa_core.i18n import ENV_VAR, use_locale
 from rpa_runner.files import LOGIN, LOGIN_SCREENSHOT
 from rpa_runner.login import ENV_LOGIN, LoginSettings
 from rpa_runner.run import RunResult, execute
@@ -222,7 +224,7 @@ def test_check_action(site: str, engine: str, tmp_path: Path) -> None:
 
 
 def capture_process(settings: LoginSettings, state: Path) -> subprocess.Popen[str]:
-    env = {**os.environ, ENV_LOGIN: json.dumps(settings.to_json())}
+    env = {**os.environ, ENV_LOGIN: json.dumps(settings.to_json()), ENV_VAR: "zh-Hant"}
     command = [sys.executable, "-m", "rpa_runner.login", "capture", "--state", str(state)]
     return subprocess.Popen(
         [*command, "--engine", "chromium", "--headless"],
@@ -234,21 +236,116 @@ def capture_process(settings: LoginSettings, state: Path) -> subprocess.Popen[st
     )
 
 
-@pytest.mark.parametrize("command", ["finish", "cancel"])
-def test_capture_commands(site: str, tmp_path: Path, command: str) -> None:
+def read_event(process: subprocess.Popen[str]) -> dict[str, object]:
+    assert process.stdout is not None
+    line = process.stdout.readline()
+    assert line, f"子程序沒有輸出就結束了（結束碼 {process.poll()}）"
+    return cast("dict[str, object]", json.loads(line))
+
+
+def send(process: subprocess.Popen[str], command: str) -> None:
+    assert process.stdin is not None
+    process.stdin.write(command + "\n")
+    process.stdin.flush()
+
+
+def test_capture_cancel(site: str, tmp_path: Path) -> None:
     require_engine("chromium")
     state = tmp_path / "candidate.json"
     process = capture_process(role(site, tmp_path / "unused.json"), state)
-    assert process.stdin is not None
-    assert process.stdout is not None
-    assert json.loads(process.stdout.readline())["event"] == "ready"
-    process.stdin.write(command + "\n")
-    process.stdin.flush()
-    event = json.loads(process.stdout.readline())["event"]
-    assert process.wait(timeout=60) == (0 if command == "finish" else 2)
-    if command == "finish":
-        assert event == "saved"
-        assert "cookies" in json.loads(state.read_text(encoding="utf-8"))
-    else:
-        assert event == "cancelled"
-        assert not state.exists()
+    assert read_event(process)["event"] == "ready"
+    send(process, "cancel")
+    assert read_event(process)["event"] == "cancelled"
+    assert process.wait(timeout=60) == 2
+    assert not state.exists()
+
+
+def test_capture_waits_until_really_logged_in(site: str, tmp_path: Path) -> None:
+    """還沒登入就按「完成登入」：在開視窗的這台確認，說明還沒登入，視窗不關、可以繼續登入。"""
+    require_engine("chromium")
+    state = tmp_path / "candidate.json"
+    process = capture_process(role(site, tmp_path / "unused.json"), state)
+    assert read_event(process)["event"] == "ready"
+    send(process, "finish")
+    assert read_event(process)["event"] == "checking"
+    event = read_event(process)
+    assert event["event"] == "not_logged_in"
+    assert event["closed"] is False
+    assert event["message"] is None  # 打得開確認網址，只是沒登入
+    assert "/login" in str(event["url"])  # 確認網址把人轉到登入頁
+    assert process.poll() is None
+    assert not state.exists()
+    send(process, "cancel")
+    assert read_event(process)["event"] == "cancelled"
+    assert process.wait(timeout=60) == 2
+
+
+def test_capture_saves_only_a_verified_state(site: str, tmp_path: Path) -> None:
+    require_engine("chromium")
+    # 登入頁本身就看得到「帳號」欄位：確認一定通過
+    settings = LoginSettings(
+        role="testsite-user",
+        state=tmp_path / "unused.json",
+        check_url=f"{site}/login",
+        check={"label": "帳號"},
+        login_url=f"{site}/login",
+    )
+    state = tmp_path / "candidate.json"
+    process = capture_process(settings, state)
+    assert read_event(process)["event"] == "ready"
+    send(process, "finish")
+    assert read_event(process)["event"] == "checking"
+    assert read_event(process) == {"event": "saved", "verified": True}
+    assert process.wait(timeout=60) == 0
+    assert "cookies" in json.loads(state.read_text(encoding="utf-8"))
+    if os.name != "nt":
+        assert state.stat().st_mode & 0o777 == 0o600
+    assert not (tmp_path / "unused.json").exists()
+
+
+def free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+def test_capture_explains_a_local_address_with_no_site(tmp_path: Path) -> None:
+    """登入網址是 127.0.0.1、這台卻沒有網站：說明 127.0.0.1 是開瀏覽器的這台電腦自己。"""
+    require_engine("chromium")
+    url = f"http://127.0.0.1:{free_port()}"
+    settings = LoginSettings(
+        role="testsite-user",
+        state=tmp_path / "unused.json",
+        check_url=f"{url}/account",
+        check={"testId": "current-user"},
+        login_url=f"{url}/login",
+    )
+    process = capture_process(settings, tmp_path / "candidate.json")
+    event = read_event(process)
+    assert event["event"] == "error"
+    message = str(event["message"])
+    assert f"{url}/login" in message
+    assert "開瀏覽器的這台電腦自己" in message
+    assert process.wait(timeout=60) == 1
+
+
+def test_check_uses_the_given_state_file(site: str, tmp_path: Path) -> None:
+    """``check --state``：用給的狀態檔（管理 Portal 給複本），通過後寫回它，不碰設定裡的。"""
+    require_engine("chromium")
+    original = tmp_path / "roles" / "state.json"
+    out = tmp_path / "check"
+    copy = out / "state.json"
+    env = {
+        **os.environ,
+        ENV_LOGIN: json.dumps(role(site, original, "user").to_json()),
+        ENV_VAR: "zh-Hant",
+        "DEMO_PASSWORD": "user-pass",
+    }
+    command = [sys.executable, "-m", "rpa_runner.login", "check", "--out", str(out)]
+    command += ["--deadline", "60", "--engine", "chromium", "--state", str(copy)]
+    completed = subprocess.run(command, env=env, timeout=120, check=False)
+    assert completed.returncode == 0
+    details = json.loads((out / LOGIN).read_text(encoding="utf-8"))
+    assert (details["status"], details["refreshed"]) == ("passed", True)
+    assert "cookies" in json.loads(copy.read_text(encoding="utf-8"))
+    assert not original.exists()

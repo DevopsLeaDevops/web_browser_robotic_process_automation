@@ -13,6 +13,7 @@ from rpa_core.dsl.editing import contract_section, section_text
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
+from rpa_runner.installed import DISPLAY_NAMES
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
 from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord
@@ -429,6 +430,12 @@ def page_router(services: Services) -> APIRouter:
             missing=missing,
             environ={name for name, _ in missing if name in os.environ},
             display=services.display_here(),
+            # 「檢查」沒有地方可以跑（伺服器沒有這個瀏覽器、也不是透過錄製端）：按鈕變灰的說明
+            check_unavailable={
+                engine: t("roles.check_unavailable", browser=DISPLAY_NAMES.get(engine, engine))
+                for engine in ENGINES
+                if not services.roles.can_check(engine)
+            },
             busy=any(role.activity for role in records),
             engines=ENGINES,
             check_text=_check_text,
