@@ -85,7 +85,7 @@ quote-style = "double"
 
 # ---------------------------------------------------------------- pyright
 [tool.pyright]
-include = ["packages", "apps", "tests", "tools"]
+include = ["packages", "apps", "tests", "tools", "conftest.py"]
 exclude = ["**/.venv", "docs"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
@@ -103,4 +103,9 @@ markers = [
   "browser: 需要真實瀏覽器（Playwright + Chromium）的測試",
   # 一鍵安裝的重複執行與從零開始只跑冒煙測試加上不需瀏覽器的測試：-m "not browser or smoke"
   "smoke: 冒煙測試：剛裝好的環境能啟動瀏覽器、執行範例場景",
+  # 以下由根目錄的 conftest.py 依路徑自動加上（tools/ci_roles.py），不必手寫
+  "role_server: 網站（管理 Portal）的測試；CI 在 Linux 上跑",
+  "role_worker: Worker（執行場景）的測試；CI 在 Windows 上跑瀏覽器的部分",
+  "role_recorder: 錄製端（錄製、逐步調試、本機閘道）的測試",
+  "firefox: 用 Firefox 執行場景的參數組合",
 ]
