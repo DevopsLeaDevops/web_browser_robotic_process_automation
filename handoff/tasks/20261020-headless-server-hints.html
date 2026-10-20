@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>沒有畫面的伺服器：調試與錄製變灰、提示用錄製端 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>沒有畫面的伺服器：調試與錄製變灰、提示用錄製端</h1><p>Linux 伺服器（沒有桌面）＋ Mac 錄製端＋ Windows Worker 的人工驗收中，使用者回報的兩個問題：直接打開伺服器的管理 Portal 時，調試與錄製看起來能用；錄製的起始網址填了伺服器的對外埠，錄製的瀏覽器得到 401。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd><code>20261020-headless-server-hints</code>；2026-10-20 00:33 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-19 23:52 PDT（UTC−07:00）在 Claude 對話提出，2026-10-20 00:29 PDT 同意 Claude 的建議並要求開工：
+          <ol class="steps">
+            <li>伺服器沒有畫面時（直接打開伺服器的管理 Portal），逐步調試變灰，滑鼠移上去提示改用錄製端；「自主腳本錄製」的開始錄製一樣。</li>
+            <li>錄製的起始網址指向管理 Portal 自己（管理頁面或對外埠）時直接擋下，說明要填被測試的網站。</li>
+          </ol>
+          驗收：在沒有畫面的伺服器上直接打開 Portal，場景卡片、場景頁、錄製清單、錄製詳情、調試頁的調試入口與「開始錄製」、角色的「登入」都是灰的，滑鼠移上去有說明；透過有畫面的錄製端打開時照常可用；起始網址填 <code>http://伺服器:8081/</code> 時「開始錄製」回錯誤並說明。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：管理 Portal 的頁面、樣式、三語訊息、錄製 API 的網址檢查、相關文件。不包含：錄製端執行場景（使用者 2026-10-20 00:29 PDT 決定不做，見決定）；逐步調試 API 本身仍接受無頭模式（測試與自動化在用，只改頁面）；人工登入後「確認已登入」在伺服器執行的問題（推測，尚未實測，另開任務）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/server</code> 的 templates（domain、scene、recording、recording_detail、debug、roles）、<code>static/portal-app.css</code>、<code>pages.py</code>、<code>render.py</code>、<code>i18n.py</code>、<code>recordings.py</code>、<code>api.py</code>、<code>services.py</code>、<code>app.py</code>、<code>config.py</code>、locales；<code>apps/cli</code> 的 <code>serve.py</code>；測試；<code>docs/develop/operations.html</code>（繁中、英文；簡中由 bootstrap 產生）；本頁與任務索引。沒有其他進行中的 PR（2026-10-20 00:31 PDT 查 GitHub）。</dd>
+        <dt>狀態</dt><dd>實作中</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/headless-server-hints</code>；PR 尚未建立；base <code>9dc68be</code>（origin/main，#46）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本地修改，尚未推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、git 2.43）。連不到 PyPI：伺服器（FastAPI、SQLAlchemy）的測試只能在 CI 跑；本機只能跑不需要這些套件的檢查。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>現況（main <code>9dc68be</code>）：</strong>沒有畫面時「開始錄製」已停用，但只有頁面上方的說明、沒有滑鼠提示；逐步調試仍可用無頭模式開始，而 <code>setup-linux.sh</code> 裝的伺服器沒有下載瀏覽器，無頭調試其實也跑不起來；場景卡片與場景頁的「調試」照常是連結。</li>
+        <li><strong>401 的原因（已向使用者說明）：</strong>錄製的起始網址填了 <code>http://215.192.222.14:8081/</code>（伺服器的對外埠）。錄製開的是全新的瀏覽器，沒有錄製端的權杖，對外埠回 <code>recorder_unauthorized</code>。起始網址要填被測試的網站，例如錄製端自己的測試網站 <code>http://127.0.0.1:8765/</code>。</li>
+        <li><strong>決定：</strong>
+          <ul>
+            <li>（使用者 2026-10-20 00:29 PDT，已確認）照 Claude 的建議改上面兩項。</li>
+            <li>（使用者 2026-10-20 00:29 PDT，已確認）錄製端不執行場景：錄製端只負責錄製、逐步調試、人工登入，執行仍交給伺服器或 Worker（維持 ADR 0014 的分工）。</li>
+            <li>（實作選擇）「自主腳本錄製」這一頁照樣能進入，因為「貼上錄製稿」不需要畫面；只有「開始錄製」變灰。</li>
+            <li>（實作選擇）逐步調試只改頁面，API 仍接受無頭模式。</li>
+          </ul></li>
+        <li><strong>另外提醒使用者（不在這個任務）：</strong>使用者用 <code>nohup … rpa serve --host 0.0.0.0 --port 8080</code> 啟動，管理頁面沒有登入保護，伺服器是公網 IP；已建議改回 <code>--host 127.0.0.1</code>（或直接用 <code>.venv-server/bin/rpa-server</code>／systemd），從 Mac 用錄製端或 SSH 通道操作，並把 8081 的防火牆限制在自己的 IP。</li>
+        <li><strong>下一個具體動作：</strong>完成實作與本機檢查，推送分支並開 PR，看最新 head 的 CI。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>—</td><td>—</td><td>未執行</td><td>—</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-20 00:33 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>fix/headless-server-hints</code>（base <code>9dc68be</code>），開始實作。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
