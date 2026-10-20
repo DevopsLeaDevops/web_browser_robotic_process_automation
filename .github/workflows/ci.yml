@@ -119,11 +119,10 @@ jobs:
           # CI 中缺少瀏覽器時直接失敗，而不是略過；只跑不需瀏覽器的測試時，
           # 漏標 browser 的測試也會因此失敗，而不是悄悄略過
           RPA_REQUIRE_BROWSER: "1"
+          MARKS: ${{ steps.scope.outputs.marks }}
         # 4 個程序平行（ubuntu-latest 有 4 核）；同一個檔案的測試留在同一個程序，
         # 檔案層級的 fixture（例如測試網站）只啟動一次。--durations 列出最慢的 30 個。
         # 失敗的測試同時轉成 annotations（tools/ci_annotations.py）
-        env:
-          MARKS: ${{ steps.scope.outputs.marks }}
         run: |
           args=(-n 4 --dist loadfile --durations=30 --junitxml=pytest-report.xml -o junit_family=xunit1)
           [ -z "$MARKS" ] || args+=(-m "$MARKS")
