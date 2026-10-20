@@ -36,6 +36,20 @@ uv run rpa serve --data data-m4      # 另用一份全新的資料夾（例如�
 
 完整說明見 `docs/develop/setup.html`；在 Mac 上從零開始的逐步說明見 `docs/develop/macos.html`。
 
+Linux 伺服器（RHEL／CentOS 衍生版、yum／dnf，無桌面）使用獨立腳本：
+
+```bash
+bash scripts/setup-linux.sh                    # 安裝 .venv-server
+.venv-server/bin/rpa-server                    # 前景啟動
+# 或安裝並啟動 systemd 服務（一般帳號執行，必要步驟會呼叫 sudo）
+bash scripts/setup-linux.sh --install-service
+```
+
+支援 `ID` 空白、`ID_LIKE="rhel fedora centos "`、`VERSION_ID="3"` 的公司系統；
+x86_64／aarch64、glibc 2.28 以上（提供的 x86_64、glibc 2.32 符合檢查）。
+伺服器負責管理與調度，瀏覽器執行交給遠端 Worker／錄製端；不下載瀏覽器或安裝桌面 App。
+設定、SSH 轉發、配對、升級與公司網路見 [Linux 伺服器安裝](docs/develop/setup.html#linux-server)。
+
 ## 目前進度
 
 > 交接材料（2026-10-13）：[`handoff/index.html`](handoff/index.html)；專案脈絡與對話備忘：[`handoff/history.html`](handoff/history.html)。

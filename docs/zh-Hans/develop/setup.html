@@ -79,6 +79,47 @@ uv run rpa --version</pre>
       </div>
     </section>
 
+    <section class="panel" id="linux-server">
+      <div class="panel-header"><h2>Linux 服务器安装（yum／dnf）</h2></div>
+      <div class="panel-body">
+        <p>无桌面服务器负责 Portal、数据库与调度；远程 Worker 运行浏览器，录制端提供录制、人工登录与有头调试。使用 <code>setup-linux.sh</code> 安装 <code>.venv-server</code>，不下载浏览器、不安装桌面 App、开发工具或 Git hooks。CLI 既有相依仍包含 Playwright 的 Python 包，但不启动其浏览器 driver。</p>
+        <dl class="spec-list">
+          <dt>系统辨识</dt><dd>读取 <code>/etc/os-release</code> 的 <code>ID</code> 与 <code>ID_LIKE</code>，接受 rhel、centos、fedora；先用 yum，再用 dnf。公司系统即使 <code>ID=""</code>、名称空白，只要 <code>ID_LIKE="rhel fedora centos "</code> 仍可辨识；不把 <code>VERSION_ID="3"</code> 当作 CentOS 3。</dd>
+          <dt>运行环境</dt><dd>x86_64 或 aarch64、glibc 2.28 以上；用 <code>uname -m</code> 和 <code>getconf GNU_LIBC_VERSION</code> 检查。x86_64、glibc 2.32 符合这些前置检查，实际公司包库与主机仍需验收。不替换系统 glibc 或 Python；uv 下载 <code>.python-version</code> 指定的 Python，依 <code>uv.lock</code> 安装。</dd>
+          <dt>系统包</dt><dd><code>git curl ca-certificates tar gzip libstdc++ libgcc</code>。一般账号运行；yum／dnf 与 systemd 操作使用 sudo。管理员已备妥包时可加 <code>--skip-system-packages</code>。</dd>
+          <dt>数据</dt><dd>默认 <code>~/.local/share/rpa-server</code>；首次可用 <code>RPA_DATA_DIR</code> 改位置。若接续既有服务，必须指定原数据目录，否则会创建新的空白环境。</dd>
+        </dl>
+<pre class="source"># 已经 clone：在项目根目录（在 scripts 目录时改成 bash setup-linux.sh）
+bash scripts/setup-linux.sh
+.venv-server/bin/rpa-server
+
+# 或安装为开机自启动服务，不需要在终端保持前景进程
+bash scripts/setup-linux.sh --install-service
+sudo systemctl status rpa-server
+sudo journalctl -u rpa-server -f
+
+# 尚无代码：完整下载成功后再运行（需要先有 curl 与 CA 凭证）
+curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup-linux.sh -o /tmp/rpa-setup-linux.sh
+bash /tmp/rpa-setup-linux.sh --dir "$HOME/code/web_browser_robotic_process_automation"</pre>
+        <p>第一次产生项目内的 <code>.rpa-server.env</code>（Bash 语法、权限 600、已加入 Git ignore）。默认管理页面只听 <code>127.0.0.1:8080</code>，设备 API 听 <code>0.0.0.0:8081</code>；以 <code>--no-local-worker --no-testsite</code> 启动。可修改文件中的 <code>RPA_DATA_DIR</code>、<code>RPA_PORT</code>、<code>RPA_WORKER_PORT</code>、<code>RPA_WORKER_HOST</code>，再重启服务；重跑 setup 会保留设置。服务与数据都归运行脚本的账号，不要整份脚本改用 sudo。</p>
+        <p>首次管理：在自己的电脑运行下面的 SSH 转发，再开 <code>http://127.0.0.1:8080</code>，从「设备」创建邀请。Worker／录制端的邀请地址要是它们可连到的服务器 IP 或 DNS、端口 8081；不要填 SSH 转发的 127.0.0.1。配对后录制端可经其本机闸道使用管理页面。见<a href="remote-worker.html">远程 Worker</a>与<a href="../design/desktop.html">桌面端分发</a>。</p>
+<pre class="source">ssh -N -L 8080:127.0.0.1:8080 admin@SERVER
+
+# 修改设置后
+sudo systemctl restart rpa-server
+
+# 升级：先停服务并备份完整数据目录（含 rpa.db、scenes、roles、secrets.json）
+sudo systemctl stop rpa-server
+# 在此备份 .rpa-server.env 中 RPA_DATA_DIR 指向的完整目录
+git pull --ff-only
+bash scripts/setup-linux.sh --install-service</pre>
+        <p>脚本只在 <code>--install-service</code> 时启动服务；前景进程请用 Ctrl+C 停止。systemd 服务运行中会拒绝更新环境，前景进程也应先停止。容器没有 systemd 时使用前景命令；产生的 unit 在 <code>.venv-server/rpa-server.service</code>。重装不删数据，但启动服务会应用数据库迁移，回退前需准备整份备份。脚本不会自动 pull 既有 checkout、切换既有分支或改防火墙；只让需要连接的设备访问设备端口。</p>
+        <p>公司网络：需要可读取代码、uv 安装档、Python 发行档及锁文件列出的包来源。可设置 <code>HTTPS_PROXY</code>、<code>UV_PYTHON_INSTALL_MIRROR</code>；公司 CA 已加入系统信任时可用 <code>UV_NATIVE_TLS=true</code>。Git、curl 也必须信任该 CA，不要关闭 TLS 验证。已有合规安装的 uv 可直接重用；版本太旧时脚本会指出最低版本，由原安装方式升级。</p>
+        <p><code>--locked</code> 会保留锁文件：它包含包 registry 与下载 URL，单设 <code>UV_INDEX_URL</code> 不保证能把已锁定的来源改成内部镜像，还可能使 uv 判定锁文件过期。无法访问时请提供通往已锁定来源的核准代理，或由维护者产生并审阅对应镜像的锁文件；不要删锁文件或临时改版本。此 setup 不需要 Playwright 浏览器下载站。</p>
+        <p>验证：CI 在 Rocky Linux 8（真实 yum、glibc 2.28、一般账号）验证项目内安装、独立脚本 clone、空 ID 的公司标记、重跑保留设置、管理端口与设备端口隔离、设备配对及重启后数据保留。容器只检查 systemd unit 语法；公司映像、aarch64 和真实 systemd 开机自启动仍需主机验收。可用 <code>.venv-server/bin/python tools/linux_server_smoke.py</code> 做隔离数据的 HTTP 冒烟测试。</p>
+      </div>
+    </section>
+
     <section class="panel" id="faq">
       <div class="panel-header"><h2>常见问题</h2></div>
       <div class="panel-body">
