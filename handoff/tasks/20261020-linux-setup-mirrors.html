@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Linux 伺服器安裝選最快的套件來源 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>Linux 伺服器安裝選最快的套件來源</h1><p><code>scripts/setup-linux.sh</code> 的 <code>uv sync</code> 在使用者的 Linux 伺服器很慢；支援選不同的 PyPI 來源，預設測速後用最快的。接在 <a href="20261019-linux-server-setup.html">20261019-linux-server-setup</a>（#44，ChatGPT／Codex）之後的修改。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261020-linux-setup-mirrors；2026-10-20 07:52 America/Los_Angeles（PDT，UTC−07:00）接續整合，見追加紀錄</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-20 05:43 PDT 在 Claude 對話提出：「uv sync，在我的 Linux 伺服器比較慢，可以支持選擇不同的源，使用最快的源嗎」（同一則訊息的另一個問題是任務 20261020-firefox-background-login）。驗收：在 Linux 伺服器重跑 <code>bash scripts/setup-linux.sh</code>，看到每個來源的測速結果、用最快的來源安裝完成，<code>uv.lock</code> 沒有變動；<code>--mirror</code> 可以指定來源；鏡像失敗時改用 PyPI。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>scripts/setup-linux.sh</code>（<code>--mirror</code>、<code>RPA_PYPI_MIRROR</code>、測速、暫時替換鎖檔網址、失敗改用 PyPI）、<code>tests/ci/test_linux_setup.py</code>、<code>docs/develop/setup.html</code> 的 Linux 伺服器安裝與常見問題（繁中、英文；簡中由 bootstrap 產生）。不包含：開發環境的 <code>setup.sh</code>／<code>setup.ps1</code>、uv 本身與 Python 發行檔的下載來源（仍可用 <code>UV_PYTHON_INSTALL_MIRROR</code>、<code>HTTPS_PROXY</code>）、瀏覽器下載。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。原腳本的主責是 ChatGPT／Codex（#44 已合併）；這是另開分支的後續修改。</dd>
+        <dt>修改檔案／整合者</dt><dd>上列檔案、本頁與任務索引。和開著的 #48、#49（M11）沒有重疊的檔案；任務索引和 <code>fix/firefox-background-login</code>（#51）都加一行，後合併的一方保留兩邊的連結。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #52。CI 全部通過；「一鍵安裝腳本」的 Rocky 8 真實安裝（專案內、從零開始）、Ubuntu、Windows 都通過，只有 macOS 的開發環境 job 兩次都因 GitHub 沒有可用的 macOS runner 而取消（不是這次改動造成；這個 job 跑的是沒有改動的 <code>setup.sh</code>）。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/linux-setup-mirrors</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/52">PR #52</a>（base main）；base <code>53a0578</code>（origin/main，#50）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送。程式的最後一個提交是 bot 的簡中 0cd7497（之前 8d3e7e1）；之後只有本頁的回填。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、bash 5、uv 0.11.32、Python 3.13.16），<code>/home/claude/rpa-mirrors</code> 的 worktree。連不到 PyPI 與任何鏡像，真實的測速與下載只能在 CI 與使用者的伺服器驗證。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>為什麼不能只設 <code>UV_INDEX_URL</code>（查證）：</strong><code>uv.lock</code> 記著每個套件的 registry（<code>https://pypi.org/simple</code>，78 個）與每個檔案的下載網址（<code>files.pythonhosted.org</code>，754 個）。本地用 uv 0.11.32 驗證：原本的鎖檔加上 <code>--default-index</code> 指向鏡像時，<code>uv lock --locked</code> 要重新解析（線上會報鎖檔過期）；把鎖檔裡的這兩種網址換成鏡像、<code>--default-index</code> 用同一個網址（不能多一個結尾斜線）時，<code>--locked</code> 檢查通過，而且 <code>uv sync</code> 從換過的網址下載（指到 127.0.0.1:9 時錯誤訊息顯示的就是那個網址）。其他專案也遇到同樣的問題（例如 bytedance/deer-flow #7003）。</li>
+        <li><strong>做法（實作選擇）：</strong>
+          <ul class="points">
+            <li><code>--mirror auto</code>（預設）：PyPI、清華、中科大、阿里雲、騰訊雲、華為雲同時下載鎖檔裡的一個 500 KB～4 MB 的純 Python wheel（目前是 pygments），sha256 和鎖檔相符的才算，選最快的並列出每個來源的速度；都不行時用 PyPI。最多約 20 秒（連線逾時 5 秒、整體 20 秒）。</li>
+            <li>可指定 <code>--mirror pypi|tuna|ustc|aliyun|tencent|huawei|&lt;simple 網址&gt;</code> 或 <code>RPA_PYPI_MIRROR</code>；都沒有、但有 <code>UV_DEFAULT_INDEX</code>／<code>UV_INDEX_URL</code> 時用它（不測速）。自訂網址的檔案位置取 simple 的上一層（bandersnatch、Nexus、Artifactory 的慣例）。內建鏡像的檔案路徑沒辦法在這個環境實際確認：路徑不對的鏡像在測速時因為下載失敗或雜湊不符而不會被選上。</li>
+            <li>用鏡像時只在這次 <code>uv sync</code> 期間把 <code>uv.lock</code> 的索引與檔案網址換成鏡像的（版本、檔案、sha256 不變，uv 照樣驗證雜湊），結束、失敗或中斷（EXIT trap）都還原；鏡像安裝失敗時還原後改用 PyPI 再試一次。uv 的呼叫一律清掉 <code>UV_INDEX_URL</code> 等變數，避免和鎖檔不一致。</li>
+            <li>文件改寫了 #44 的「由維護者產生並審閱對應鏡像的鎖檔」：現在不用另外的鎖檔，暫時換網址就能用鏡像；也說明公司只允許核准來源時用 <code>--mirror pypi</code> 或公司鏡像，不要用 <code>auto</code>。</li>
+          </ul>
+        </li>
+        <li><strong>已完成：</strong>上述實作；測試：測速選最快而且內容正確的（最快但內容不符的不用）、沒有測速檔時用 PyPI、鏡像安裝時鎖檔只在安裝期間換網址而且只換網址、鏡像失敗改用 PyPI（ERR trap 不誤報）、<code>UV_INDEX_URL</code> 當成公司鏡像且不測速、不認得的來源與不安全的網址會停止、中斷時鎖檔還原、<code>--mirror</code> 缺值時停止。</li>
+        <li><strong>未完成／阻礙：</strong>審閱、合併；使用者在自己的伺服器驗收；macOS 的一鍵安裝 job 等 GitHub 有 runner 時再重跑。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱並合併 #52；之後在伺服器 <code>git pull</code>、重跑 <code>bash scripts/setup-linux.sh</code>（服務在跑時先 <code>sudo systemctl stop rpa-server</code>），看測速結果與安裝時間，<code>git status</code> 確認 <code>uv.lock</code> 沒有變動。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>基準 53a0578＋本地差異／Claude 雲端環境</td><td><code>bash -n scripts/setup-linux.sh</code>；<code>ruff check</code>；<code>pytest tests/ci tests/docs</code></td><td>通過；<code>tests/ci/test_linux_setup.py</code> 32 通過；<code>tests/docs</code> 只有簡中頁缺新錨點 <code>#linux-mirror</code> 一項失敗（簡中由 bootstrap 產生）</td><td>shellcheck（環境沒有）</td></tr>
+          <tr><td>同上</td><td>在這個環境實際跑 <code>choose_mirror</code>（真的 curl，連不到任何來源）</td><td>0.4 秒內列出六個來源都無法使用，改用 PyPI，沒有誤報 ERR</td><td>真實網路下的測速與下載</td></tr>
+          <tr><td>同上</td><td>uv 0.11.32：換過網址的鎖檔＋同一個 <code>--default-index</code> 跑 <code>uv lock --locked --offline</code>、<code>uv sync --locked</code>（檔案網址指到 127.0.0.1:9）</td><td>鎖檔檢查通過；下載去的是換過的網址</td><td>—</td></tr>
+          <tr><td>8d3e7e1／bootstrap run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39427562483">39427562483</a></td><td>uv lock、產生簡中、ruff、pyright、<code>pytest -m "not browser"</code></td><td>通過；bot 提交簡中 0cd7497</td><td>—</td></tr>
+          <tr><td>0cd7497／PR #52 的 CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39428051105">39428051105</a>（2026-10-20 06:09～06:12 PDT）</td><td>靜態檢查、測試（Python 3.12、3.13）；Worker 測試（Windows）依改動範圍略過</td><td>全部通過</td><td>—</td></tr>
+          <tr><td>0cd7497／一鍵安裝腳本 run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39428051091">39428051091</a>（2026-10-20 06:09～06:40 PDT，重跑一次）</td><td>Rocky 8 的真實 yum 安裝（專案內、從零開始；在 GitHub 的網路上跑測速，重跑後 <code>sha256sum -c</code> 確認 <code>uv.lock</code> 沒變）、Ubuntu、Windows 的專案內執行</td><td>都通過。macOS 的專案內執行兩次都是「The job was not acquired by Runner of type hosted even after multiple attempts」（GitHub 的 macOS runner 容量不足），所以整個 run 標成失敗</td><td>macOS 的 job；GitHub 網路以外（例如中國大陸）的測速結果</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：程式通過；macOS 的一鍵安裝 job 沒有 runner、未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-20 07:52 America/Los_Angeles（PDT，UTC−07:00），Codex 依使用者「請幫忙處理 PR52 的衝突」接手整合。核對 PR head <code>583aca6985a612be94540f8d734c66cf9ac79fc6</code>，合入 main <code>acf3f93c77a26957e5d7097fb64d705d647fa039</code>（已含 #48、#49、#51）。只處理任務索引衝突與本頁交接紀錄；原有安裝功能保持不變。合併 PR 仍由使用者決定。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-20 05:43～06:06 America/Los_Angeles（PDT，UTC−07:00），Claude：查證 uv 鎖檔與鏡像的關係、實作、測試與文件；從 origin/main 53a0578 開 <code>fix/linux-setup-mirrors</code>（worktree），建立本頁。</li>
+        <li>2026-10-20 06:06～06:42 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 8d3e7e1（含 <code>[bootstrap]</code>），bot 提交簡中 0cd7497；06:09 開 PR #52；CI 通過；一鍵安裝腳本的 Linux 伺服器 job 通過，macOS 的 job 兩次都拿不到 GitHub runner 而取消；狀態改為待審閱。</li>
+        <li>2026-10-20 07:52 America/Los_Angeles（PDT，UTC−07:00）起，Codex：接續使用者的衝突處理要求，以普通 merge 合入上述 main，唯一衝突 <code>handoff/tasks/index.html</code> 保留 Linux 鏡像與 Firefox 背景登入兩條連結；不重寫原分支歷史。普通 Git HTTPS 連線逾時，改用 GitHub API 同步與推送；匯入 main 的 Git 物件時驗證原始簽章內容的 SHA 完全相符。驗證版本為上述兩個 parent 加本次索引與紀錄差異，環境 macOS arm64、Python 3.13.16、uv 0.12.24：<code>uv sync --locked</code>、<code>bash -n scripts/setup-linux.sh</code>、<code>python tools/i18n.py check</code> 通過；<code>pytest -q tests/ci/test_linux_setup.py tests/docs tests/i18n</code> 320 通過。實際 Linux 安裝與公司網路測速未在本機執行；推送後另確認新 head 的 CI，先前的 macOS runner 取消不算通過。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

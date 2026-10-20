@@ -114,7 +114,8 @@ git pull --ff-only
 bash scripts/setup-linux.sh --install-service</pre>
         <p>腳本只在 <code>--install-service</code> 時啟動服務；前景程序請用 Ctrl+C 停止。systemd 服務執行中會拒絕更新環境，前景程序也應先停止。容器沒有 systemd 時使用前景命令；產生的 unit 在 <code>.venv-server/rpa-server.service</code>。重裝不刪資料，但啟動服務會套用資料庫遷移，回退前需準備整份備份。腳本不會自動 pull 既有 checkout、切換既有分支或改防火牆；只讓需要連線的裝置存取裝置埠。</p>
         <p>公司網路：需要可讀取程式碼、uv 安裝檔、Python 發行檔及鎖檔列出的套件來源。可設定 <code>HTTPS_PROXY</code>、<code>UV_PYTHON_INSTALL_MIRROR</code>；公司 CA 已加入系統信任時可用 <code>UV_NATIVE_TLS=true</code>。Git、curl 也必須信任該 CA，不要關閉 TLS 驗證。已有合規安裝的 uv 可直接重用；版本太舊時腳本會指出最低版本，由原安裝方式升級。</p>
-        <p><code>--locked</code> 會保留鎖檔：它包含套件 registry 與下載 URL，單設 <code>UV_INDEX_URL</code> 不保證能把已鎖定的來源改成內部鏡像，還可能使 uv 判定鎖檔過期。無法存取時請提供通往已鎖定來源的核准代理，或由維護者產生並審閱對應鏡像的鎖檔；不要刪鎖檔或臨時改版本。此 setup 不需要 Playwright 瀏覽器下載站。</p>
+        <p id="linux-mirror"><strong>套件來源。</strong>Python 套件依 <code>uv.lock</code> 安裝，預設先測速再選來源（<code>--mirror auto</code>）：PyPI 與清華（tuna）、中科大（ustc）、阿里雲（aliyun）、騰訊雲（tencent）、華為雲（huawei）的鏡像同時下載鎖檔裡的同一個檔案，只考慮 sha256 和鎖檔相符的來源，選最快的那個並列出每個來源的速度；都不行時用 PyPI。可以直接指定：<code>bash scripts/setup-linux.sh --mirror tuna</code>、<code>--mirror pypi</code>，或公司鏡像的 simple 網址，例如 <code>--mirror https://nexus.example.com/repository/pypi/simple</code>（也可以設定 <code>RPA_PYPI_MIRROR</code>；沒有指定、但有設定 <code>UV_INDEX_URL</code> 或 <code>UV_DEFAULT_INDEX</code> 時就用它，不測速）。</p>
+        <p>為什麼要這樣做：<code>uv sync --locked</code> 照鎖檔記的網址下載（<code>files.pythonhosted.org</code>），單設 <code>UV_INDEX_URL</code> 不會改變下載的位置，還會讓 uv 判定鎖檔過期而停止。所以用鏡像時，腳本只在這次安裝期間把 <code>uv.lock</code> 裡的索引與檔案網址換成鏡像的（版本、檔案與 sha256 都不變，uv 下載後照樣驗證雜湊），裝完、失敗或中斷都還原；鏡像裝到一半失敗時自動改用 PyPI 再試一次。公司只允許核准的來源時，用 <code>--mirror pypi</code>（搭配 <code>HTTPS_PROXY</code>）或公司鏡像的網址，不要用 <code>auto</code>。不要刪鎖檔或臨時改版本。此 setup 不需要 Playwright 瀏覽器下載站。</p>
         <p>驗證：CI 在 Rocky Linux 8（真實 yum、glibc 2.28、一般帳號）驗證專案內安裝、獨立腳本 clone、空 ID 的公司標記、重跑保留設定、管理埠與裝置埠隔離、裝置配對及重啟後資料保留。容器只檢查 systemd unit 語法；公司映像、aarch64 和真實 systemd 開機自啟動仍需主機驗收。可用 <code>.venv-server/bin/python tools/linux_server_smoke.py</code> 做隔離資料的 HTTP 冒煙測試。</p>
       </div>
     </section>
@@ -124,7 +125,7 @@ bash scripts/setup-linux.sh --install-service</pre>
       <div class="panel-body">
         <dl class="spec-list">
           <dt>CI 說 uv.lock 需要更新</dt><dd>改了 <code>pyproject.toml</code> 的依賴卻沒有更新鎖檔。執行 <code>uv lock</code>，把 <code>uv.lock</code> 一起提交。</dd>
-          <dt>內網連不到 PyPI</dt><dd>設定環境變數 <code>UV_INDEX_URL</code> 指向公司的套件鏡像。</dd>
+          <dt>內網連不到 PyPI</dt><dd>設定環境變數 <code>UV_INDEX_URL</code> 指向公司的套件鏡像。Linux 伺服器的安裝腳本用 <code>--mirror</code> 指定公司鏡像的 simple 網址，見<a href="#linux-mirror">套件來源</a>。</dd>
           <dt>瀏覽器下載失敗</dt><dd>設定 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 指向內部鏡像；瀏覽器冒煙測試在本機沒有瀏覽器時會自動略過。</dd>
           <dt>測試說簡中不是最新</dt><dd>改了繁中文檔或訊息目錄後，執行 <code>uv run python tools/i18n.py sync</code> 並提交產生的檔案。</dd>
           <dt>測試說英文翻譯需要更新</dt><dd>依繁中的修改更新 <code>docs/en/</code> 的同一頁，再執行測試訊息裡的 <code>stamp</code> 命令。</dd>

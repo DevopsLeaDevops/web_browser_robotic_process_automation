@@ -9,6 +9,12 @@ INSTALL_SERVICE=0
 REPO_DIR=""
 UV=""
 PACKAGE_MANAGER=""
+MIRROR="${RPA_PYPI_MIRROR:-}"
+MIRROR_NAME=""
+MIRROR_SIMPLE=""
+MIRROR_FILES=""
+LOCK_BACKUP=""
+PYPI_FILES="https://files.pythonhosted.org/"
 
 die() { printf '\n錯誤：%s\n' "$*" >&2; exit 1; }
 info() { printf '\n%s\n' "$*"; }
@@ -25,6 +31,9 @@ usage() {
   --dir <路徑>             尚無程式碼時的 clone 位置（或設定 RPA_DIR）
   --skip-system-packages    系統套件已由管理員安裝，略過 yum／dnf
   --install-service         安裝並啟動 systemd 的 rpa-server.service
+  --mirror <來源>           Python 套件從哪裡下載（也可設定 RPA_PYPI_MIRROR）：auto（預設，
+                            測速後選內容正確而且最快的）、pypi、tuna、ustc、aliyun、tencent、
+                            huawei，或公司鏡像的 simple 網址
   -h, --help                顯示說明
 
 一般帳號執行即可；安裝系統套件與 systemd 服務時會呼叫 sudo。
@@ -33,8 +42,9 @@ RPA_PORT（8080）、RPA_WORKER_PORT（8081）、RPA_WORKER_HOST（0.0.0.0）、
 RPA_TESTSITE_HOST（預設空白＝不啟動測試網站；0.0.0.0＝在 8765 對其他電腦開放）。
 後續修改專案內 .rpa-server.env；重跑安裝會保留該設定與資料。
 管理頁面只監聽 127.0.0.1；裝置使用有權杖驗證的 Worker／Client API。
-內網可設定 HTTPS_PROXY、UV_PYTHON_INSTALL_MIRROR、UV_NATIVE_TLS；
-套件鏡像與鎖檔的限制見 docs/develop/setup.html#linux-server。
+內網可設定 HTTPS_PROXY、UV_PYTHON_INSTALL_MIRROR、UV_NATIVE_TLS；有設定 UV_INDEX_URL 或
+UV_DEFAULT_INDEX、沒有指定 --mirror 時就用它當套件來源。用鏡像時版本與 sha256 照 uv.lock，
+見 docs/develop/setup.html#linux-server。
 EOF
 }
 
@@ -47,6 +57,10 @@ parse_args() {
       --dir=*) TARGET_DIR="${1#--dir=}"; [ -n "$TARGET_DIR" ] || die '--dir 不能為空。'; shift ;;
       --skip-system-packages) SKIP_SYSTEM_PACKAGES=1; shift ;;
       --install-service) INSTALL_SERVICE=1; shift ;;
+      --mirror)
+        [ $# -ge 2 ] && [ -n "$2" ] && [[ "$2" != --* ]] || die '--mirror 後面需要來源名稱或網址。'
+        MIRROR="$2"; shift 2 ;;
+      --mirror=*) MIRROR="${1#--mirror=}"; [ -n "$MIRROR" ] || die '--mirror 不能為空。'; shift ;;
       -h|--help) usage; exit 0 ;;
       *) die "不認得的選項：$1（見 --help）" ;;
     esac
@@ -147,6 +161,149 @@ find_uv() {
   done
 }
 
+# ---------------------------------------------------------------- 套件來源
+# uv sync --locked 照 uv.lock 下載：鎖檔記著 PyPI 的索引與每個檔案的網址（files.pythonhosted.org）。
+# 單設 UV_INDEX_URL 會讓 uv 判定鎖檔過期；所以用鏡像時把這次安裝用的 uv.lock 暫時換成鏡像的網址
+# （版本、檔案與 sha256 都不變，uv 下載後照樣驗證雜湊），裝完就還原。
+
+# 內建的來源：名稱、simple 索引、檔案網址的開頭（取代 https://files.pythonhosted.org/）
+mirror_presets() {
+  printf '%s\n' \
+    'pypi https://pypi.org/simple https://files.pythonhosted.org/' \
+    'tuna https://pypi.tuna.tsinghua.edu.cn/simple https://pypi.tuna.tsinghua.edu.cn/' \
+    'ustc https://mirrors.ustc.edu.cn/pypi/simple https://mirrors.ustc.edu.cn/pypi/' \
+    'aliyun https://mirrors.aliyun.com/pypi/simple https://mirrors.aliyun.com/pypi/' \
+    'tencent https://mirrors.cloud.tencent.com/pypi/simple https://mirrors.cloud.tencent.com/pypi/' \
+    'huawei https://repo.huaweicloud.com/repository/pypi/simple https://repo.huaweicloud.com/repository/pypi/'
+}
+
+# 來源名稱或 simple 網址 → 「名稱 索引 檔案開頭」一行
+mirror_spec() {
+  local value="$1" line url
+  line="$(mirror_presets | awk -v name="$value" '$1 == name')"
+  if [ -n "$line" ]; then printf '%s\n' "$line"; return; fi
+  case "$value" in
+    http://*|https://*) ;;
+    *) die "不認得的套件來源：${value}（可用 auto、pypi、tuna、ustc、aliyun、tencent、huawei 或 simple 網址）" ;;
+  esac
+  case "$value" in
+    *[[:space:]\#\&\|\\]*) die "套件來源網址不能有空白、#、&、| 或 \\：${value}" ;;
+  esac
+  url="${value%/}"
+  # 一般的鏡像（bandersnatch、Nexus、Artifactory）把檔案放在 simple 上一層的 packages/
+  if [ "${url%/simple}" != "$url" ]; then
+    printf 'custom %s %s/\n' "$url" "${url%/simple}"
+  else
+    printf 'custom %s %s/\n' "$url" "$url"
+  fi
+}
+
+# uv.lock 裡用來測速的檔案：一個 500 KB～4 MB 的純 Python wheel →「網址 sha256」
+probe_file() {
+  [ -f uv.lock ] || return 0
+  awk -F'"' '/url = "https:\/\/files\.pythonhosted\.org\/.*-py3-none-any\.whl", hash = "sha256:/ {
+    url = $2; hash = $4; sub(/^sha256:/, "", hash)
+    size = $5; sub(/.*size = /, "", size); sub(/[^0-9].*/, "", size)
+    if (size + 0 >= 500000 && size + 0 <= 4000000) { print url, hash; exit }
+  }' uv.lock
+}
+
+# 從一個來源下載測速檔，雜湊相符才寫下「速度（位元組／秒） 名稱」；失敗不寫，結果一律成功
+probe_mirror() {
+  local name="$1" files="$2" url="$3" hash="$4" out="$5" speed got
+  speed="$(curl -fsSL --connect-timeout 5 --max-time 20 -o "$out/$name.whl" -w '%{speed_download}' \
+    "${files}${url#"$PYPI_FILES"}" 2>/dev/null)" || return 0
+  speed="${speed%%.*}"
+  case "$speed" in ''|*[!0-9]*) return 0 ;; esac
+  got="$(sha256sum "$out/$name.whl" 2>/dev/null | awk '{print $1}')"
+  [ "$got" = "$hash" ] || return 0
+  printf '%s %s\n' "$speed" "$name" > "$out/$name.ok"
+}
+
+# 每個內建來源同時下載同一個檔案，選雜湊相符而且最快的；都不行時用 PyPI
+auto_mirror() {
+  local probe url hash out name simple files speed best=""
+  probe="$(probe_file)"
+  if [ -z "$probe" ] || ! command -v curl >/dev/null 2>&1 || ! command -v sha256sum >/dev/null 2>&1; then
+    info '無法測速（找不到測速檔、curl 或 sha256sum），使用 PyPI。' >&2
+    mirror_presets | awk '$1 == "pypi"'
+    return
+  fi
+  url="${probe%% *}"
+  hash="${probe##* }"
+  out="$(mktemp -d)"
+  info "測試套件來源的速度（同時下載 ${url##*/} 並核對 sha256，最多約 20 秒）：" >&2
+  while read -r name simple files; do
+    probe_mirror "$name" "$files" "$url" "$hash" "$out" &
+  done < <(mirror_presets)
+  wait
+  while read -r name simple files; do
+    if [ -f "$out/$name.ok" ]; then
+      read -r speed _ < "$out/$name.ok"
+      printf '  %-8s %8s KB/s\n' "$name" "$(( speed / 1024 ))" >&2
+      if [ -z "$best" ] || [ "$speed" -gt "${best%% *}" ]; then best="$speed $name"; fi
+    else
+      printf '  %-8s 無法使用（連不上、逾時或內容不符）\n' "$name" >&2
+    fi
+  done < <(mirror_presets)
+  rm -rf "$out"
+  if [ -z "$best" ]; then
+    info '沒有測速成功的來源，照舊使用 PyPI（公司網路可用 --mirror 指定核准的鏡像）。' >&2
+    best="0 pypi"
+  fi
+  mirror_presets | awk -v name="${best#* }" '$1 == name'
+}
+
+# 決定套件來源：--mirror 或 RPA_PYPI_MIRROR；沒有時看 UV_DEFAULT_INDEX、UV_INDEX_URL；都沒有就 auto
+choose_mirror() {
+  local value="${MIRROR:-${UV_DEFAULT_INDEX:-${UV_INDEX_URL:-auto}}}" line
+  if [ "$value" = auto ]; then line="$(auto_mirror)"; else line="$(mirror_spec "$value")"; fi
+  read -r MIRROR_NAME MIRROR_SIMPLE MIRROR_FILES <<< "$line"
+  info "套件來源：${MIRROR_NAME}（${MIRROR_SIMPLE}）。之後可用 --mirror ${MIRROR_NAME} 略過測速。"
+}
+
+sed_escape() { printf '%s' "$1" | sed -e 's/[\\&#]/\\&/g'; }
+
+# 這次安裝用的 uv.lock 換成鏡像的網址；原檔先備份，結束時（含失敗、中斷）還原
+use_mirror_lock() {
+  LOCK_BACKUP="$(mktemp)"
+  cp uv.lock "$LOCK_BACKUP"
+  trap restore_lock EXIT
+  sed -e "s#https://pypi\.org/simple#$(sed_escape "$MIRROR_SIMPLE")#g" \
+    -e "s#https://files\.pythonhosted\.org/#$(sed_escape "$MIRROR_FILES")#g" "$LOCK_BACKUP" > uv.lock
+}
+
+restore_lock() {
+  if [ -n "$LOCK_BACKUP" ] && [ -f "$LOCK_BACKUP" ]; then
+    cat "$LOCK_BACKUP" > uv.lock
+    rm -f "$LOCK_BACKUP"
+  fi
+  LOCK_BACKUP=""
+}
+
+# 照 uv.lock 安裝 .venv-server；用鏡像失敗時還原鎖檔、改用 PyPI 再試一次
+sync_runtime() {
+  local options=(--package rpa-cli --no-default-groups --managed-python)
+  choose_mirror
+  if [ "$MIRROR_NAME" != pypi ]; then
+    use_mirror_lock
+    if (
+      unset UV_INDEX_URL UV_DEFAULT_INDEX UV_INDEX UV_EXTRA_INDEX_URL
+      UV_PROJECT_ENVIRONMENT="$REPO_DIR/.venv-server" "$UV" sync --locked \
+        --default-index "$MIRROR_SIMPLE" "${options[@]}"
+    ); then
+      restore_lock
+      return 0
+    fi
+    restore_lock
+    info "從 ${MIRROR_NAME} 安裝失敗，改用 PyPI 再試一次。"
+  fi
+  (
+    unset UV_INDEX_URL UV_DEFAULT_INDEX UV_INDEX UV_EXTRA_INDEX_URL
+    UV_PROJECT_ENVIRONMENT="$REPO_DIR/.venv-server" "$UV" sync --locked "${options[@]}"
+  )
+}
+
 install_runtime() {
   local need version installer
   find_uv
@@ -168,7 +325,7 @@ install_runtime() {
   version="$("$UV" --version | awk '{print $2}')"
   version_ge "$version" "${need:-0.11}" || die "uv ${version} 太舊，請依原安裝方式升級至 ${need:-0.11} 以上。"
   info "使用 uv ${version} 安裝獨立的 .venv-server；保留開發用的 .venv。"
-  UV_PROJECT_ENVIRONMENT="$REPO_DIR/.venv-server" "$UV" sync --locked --package rpa-cli --no-default-groups --managed-python
+  sync_runtime
   "$REPO_DIR/.venv-server/bin/rpa" --version
   "$REPO_DIR/.venv-server/bin/python" -c 'import sqlite3; from rpa_server.app import create_app; from rpa_server.config import Settings'
 }
