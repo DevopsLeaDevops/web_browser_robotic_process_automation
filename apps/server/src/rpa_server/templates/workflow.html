@@ -4,6 +4,8 @@
 {% block heading %}
 <div class="workflow-toolbar">
   <h1 id="title" title="{{ workflow.name }}">{{ workflow.name }}</h1>
+  <span class="tag" title="{{ t('composite.code') }}">{{ workflow.code }}</span>
+  <span class="cell-sub" id="workflow-revision">{{ t("composite.latest", number=workflow.version) }} · {% if workflow.published %}{{ t("composite.published_revision", number=workflow.published_number) }}{% else %}{{ t("composite.not_published") }}{% endif %}</span>
   <span id="workflow-save-state" class="cell-sub" role="status">{{ t("wfjs.saved") }}</span>
   <div id="page-actions" class="actions">
     <button class="button" data-action="workflow-rename">{{ t("workflow.rename") }}</button>
@@ -54,6 +56,50 @@
       <div class="parameter-head"><div id="parameter-source"></div><div></div><div class="input-columns"><span id="parameter-target"></span><span>{{ t("workflow.source_column") }}</span><span>{{ t("workflow.value_column") }}</span></div></div>
       <div class="parameter-grid" id="parameter-grid"><div id="node-outputs"></div><div></div><div id="node-inputs"></div><svg id="parameter-wires" aria-hidden="true"></svg></div>
     </div>
+  </section>
+  <section class="panel" id="composite-dependencies">
+    <div class="panel-header"><h2>{{ t("composite.dependencies") }}</h2>{% if workflow.dependency == "incomplete" %}{{ m.badge("failed", t("composite.dependency_incomplete")) }}{% elif workflow.dependency == "warnings" %}{{ m.badge("needs_login", t("composite.dependency_warnings")) }}{% else %}{{ m.badge("passed", t("composite.dependency_complete")) }}{% endif %}<span class="muted">{{ t("composite.dependencies_hint") }}</span></div>
+    {% if dependencies %}
+    <ul class="panel-body checklist">{% for item in dependencies %}<li data-dependency="{{ item.code }}"{% if item.level == "error" %} class="text-danger"{% endif %}>v{{ item.revision }}：{{ item.message }}{% if item.action == "add_domain" %} <a class="text-btn" href="/domains">{{ t("composite.action_add_domain") }}</a>{% elif item.action == "reload_domain" and item.domain %} <a class="text-btn" href="/domains/{{ item.domain }}">{{ t("composite.action_reload_domain") }}</a>{% elif item.action == "login" %} <a class="text-btn" href="/roles">{{ t("composite.action_login") }}</a>{% elif item.action == "secrets" %} <a class="text-btn" href="/roles#secrets">{{ t("composite.action_secrets") }}</a>{% endif %}</li>{% endfor %}</ul>
+    {% else %}<div class="empty">{{ t("composite.no_dependencies") }}</div>{% endif %}
+  </section>
+  <section class="panel" id="composite-revisions">
+    <div class="panel-header"><h2>{{ t("composite.revisions") }} <span class="count">{{ revisions | length }}</span></h2><span class="muted">{{ t("composite.revisions_hint") }}</span></div>
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("scene.col_version") }}</th><th>{{ t("scene.col_created") }}</th><th>{{ t("scene.col_status") }}</th><th>{{ t("scene.col_hash") }}</th><th>{{ t("scene.col_note") }}</th><th>{{ t("scene.col_actions") }}</th></tr></thead>
+      <tbody>
+      {% for revision in revisions %}
+        <tr data-revision="{{ revision.number }}">
+          <td><strong>v{{ revision.number }}</strong>{% if revision.number == workflow.version %} <span class="tag">{{ t("scene.latest") }}</span>{% endif %}</td>
+          <td>{{ m.time(revision.created_at) }}</td>
+          <td>{{ m.revision_badge(revision) }}{% if revision.problem %} <span class="cell-sub text-danger">{{ t("scene.revision_problem") }}</span>{% endif %}</td>
+          <td><code class="mono" title="{{ revision.content_hash }}">{{ revision.content_hash[:12] }}</code></td>
+          <td>{{ revision.note or "—" }}</td>
+          <td>{% if revision.verified and not revision.problem and not revision.published %}<button class="text-btn" data-action="publish-composite" data-workflow="{{ workflow.id }}" data-revision="{{ revision.number }}">{{ t("composite.publish") }}</button>{% elif revision.published %}{{ t("composite.published") }}{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  <section class="panel" id="composite-verifications">
+    <div class="panel-header"><h2>{{ t("composite.verifications") }} <span class="count">{{ verifications | length }}</span></h2><span class="muted">{{ t("composite.verifications_hint") }}</span></div>
+    {% if verifications %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("scene.col_version") }}</th><th>{{ t("scene.col_result") }}</th><th>{{ t("scene.col_finished") }}</th><th>{{ t("scene.col_operator") }}</th><th>{{ t("scene.col_where") }}</th><th>{{ t("scene.col_run") }}</th></tr></thead>
+      <tbody>
+      {% for record in verifications %}
+        <tr data-verification="{{ record.id }}">
+          <td><strong>v{{ record.revision }}</strong></td>
+          <td>{{ m.run_badge(record.status) }}{% if record.status == "passed" and not record.matches %} <span class="cell-sub text-danger">{{ t("scene.hash_mismatch") }}</span>{% endif %}</td>
+          <td>{{ m.time(record.finished_at) }}</td>
+          <td>{{ record.by }}</td>
+          <td>{{ record.server_name }}<span class="cell-sub">{{ t("scene.verification_worker", worker=record.worker, engine=record.engine or "—") }}</span></td>
+          <td>{% if record.here %}<a href="/playground/runs/{{ record.id }}">{{ record.id }}</a>{% else %}<span class="mono">{{ record.id }}</span><span class="cell-sub">{{ t("scene.verification_elsewhere", server=record.server_name) }}</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("composite.no_verifications") }}</div>{% endif %}
   </section>
   <details class="panel workflow-history"><summary>{{ t("workflow.runs") }} <span class="count">{{ runs | length }}</span></summary>
     <div class="visually-hidden"><h2>{{ t("workflow.runs") }} <span class="count">{{ runs | length }}</span></h2></div>

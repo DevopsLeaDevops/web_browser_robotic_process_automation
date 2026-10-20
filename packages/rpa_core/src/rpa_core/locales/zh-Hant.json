@@ -184,5 +184,6 @@
   "pack.requires_unusable": "領域 {domain} 的場景 {scene} 第 {revision} 版有問題，不能執行",
   "pack.requires_hash": "領域 {domain} 的場景 {scene} 第 {revision} 版的內容和組合場景存檔時不同",
   "pack.composite_requires": "組合場景 {composite} 第 {number} 版：{problem}",
-  "pack.requires_not_checked": "依賴的領域 {domain} 沒有一起檢查；把它的資料夾也加進命令才會檢查依賴"
+  "pack.requires_not_checked": "依賴的領域 {domain} 沒有一起檢查；把它的資料夾也加進命令才會檢查依賴",
+  "pack.composite_unpinned": "第 {number} 版的節點用到 {scene} 第 {revision} 版，但存檔時找不到它，沒有記在 requires；補上場景後重新存檔才能執行"
 }

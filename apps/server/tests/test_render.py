@@ -17,6 +17,8 @@ from rpa_server.debugging import DebugSession
 from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
 from rpa_server.domain import (
     ENGINES,
+    CompositeRevisionRecord,
+    DependencyItem,
     DomainRecord,
     RecorderRecord,
     RecordingRecord,
@@ -489,7 +491,45 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
     problem = WorkflowProblem(
         "workflow.input_missing", "Node n2: no source" if english else "缺少來源", "n2", "recordId"
     )
-    record = WorkflowRecord(1, name, None, CHAIN, 2, MOMENT, MOMENT, (problem,), passed)
+    record = WorkflowRecord(
+        1,
+        name,
+        None,
+        CHAIN,
+        2,
+        MOMENT,
+        MOMENT,
+        (problem,),
+        passed,
+        code="wf-1",
+        domain_id="composites",
+        published_number=1,
+        dependency="warnings",
+    )
+    revisions = [
+        CompositeRevisionRecord(2, "b" * 64, "draft", True, None, None, MOMENT, None, False),
+        CompositeRevisionRecord(1, "a" * 64, "validated", True, None, "v1", MOMENT, MOMENT, True),
+    ]
+    dependencies = [
+        DependencyItem(
+            "warning",
+            "role_login",
+            "Role buyer needs login" if english else "角色 buyer 需要登入",
+            2,
+            "ba",
+            "ba-001",
+            "login",
+        ),
+        DependencyItem(
+            "error",
+            "domain_missing",
+            "Domain hr is missing" if english else "沒有領域 hr",
+            2,
+            "hr",
+            "hr-001",
+            "add_domain",
+        ),
+    ]
     data = {
         "id": 1,
         "name": name,
@@ -510,10 +550,11 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             domains=(),
             **common,
             title=t("nav.composites"),
-            workflows=[record],
+            workflows=[record, replace(record, id=2, domain_id=None, published_number=None)],
             data=data,
             runs=[passed],
             has_published=True,
+            domain_names={"composites": "Composites"},
         ),
         "playground": render(
             "playground.html",
@@ -546,6 +587,9 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             workflow=record,
             data=data,
             runs=[passed],
+            revisions=revisions,
+            verifications=VERIFICATIONS,
+            dependencies=dependencies,
             **common,
         ),
         "workflow-run": render(

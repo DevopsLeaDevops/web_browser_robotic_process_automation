@@ -478,10 +478,16 @@ def test_changed_composite_and_requires_mismatch(tmp_path: Path) -> None:
 
     assert pack.composites["order-flow"].revisions[1].problem == "pack.revision_hash_mismatch"
     info = folder / "composites" / "order-flow" / "revisions" / "1.yaml"
-    model = CompositeRevisionInfo.model_validate(
-        {**_yaml(info), "hash": composite_digest(path), "requires": []}
-    )
-    write_model(info, model)
+    fixed = CompositeRevisionInfo.model_validate({**_yaml(info), "hash": composite_digest(path)})
+    write_model(info, fixed)  # requires 還是 ba-001，但節點改用 n2 → 沒有變；只是雜湊更新
+    assert read_pack(folder).composites["order-flow"].revisions[1].usable
+    unpinned = CompositeRevisionInfo.model_validate({**_yaml(info), "requires": []})
+    write_model(info, unpinned)
+    pack = read_pack(folder)
+    assert pack.composites["order-flow"].revisions[1].usable
+    assert [issue.code for issue in pack.issues] == ["pack.composite_unpinned"]
+    extra = SceneRequirement(domain="testsite", scene="ba-009", revision=1, hash="2" * 64)
+    write_model(info, fixed.model_copy(update={"requires": [*fixed.requires, extra]}))
     revision = read_pack(folder).composites["order-flow"].revisions[1]
     assert revision.problem == "pack.composite_requires_mismatch"
 

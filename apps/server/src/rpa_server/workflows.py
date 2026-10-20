@@ -12,19 +12,38 @@
   不重複前面的操作（例如建立紀錄），適合登入之後接著跑。
 - 單機、組合場景執行：節點的執行一個一個排進同一個佇列，與其他執行依建立時間先後執行。
 
+M11 PR 2：組合場景放在領域資料夾的 composites/<代號>/（:mod:`rpa_server.packs`）。
+
+- **版本**：每次改定義都是新版本（version 是最新的版本號碼）；名稱與說明不分版本。
+- **驗證與執行**：驗證跑某個版本（預設最新），結束時寫驗證紀錄；執行只跑發布的版本。
+- **發布**：有雜湊相符的通過驗證紀錄（每個節點跑的場景版本也相符），而且釘住的場景版本現在
+  都還在、雜湊相同。
+- **依賴**：最新與發布的版本釘住的場景版本、場景用到的角色與 Secrets；不完整時不能執行。
+
 所有改變組合場景執行狀態的操作都在同一把鎖裡（worker 的回報與頁面的取消可能同時發生）。
 """
 
 import logging
+import os
+import re
 import threading
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Final, cast
+from datetime import datetime
+from typing import TYPE_CHECKING, Final, Literal, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
+from rpa_core.pack import (
+    CompositeManifest,
+    PublishedRef,
+    SceneRequirement,
+    parse_timestamp,
+    timestamp,
+    workflow_text,
+)
 from rpa_core.workflow import (
     Workflow,
     WorkflowNode,
@@ -38,10 +57,15 @@ from rpa_core.workflow import (
 from rpa_runner.run import new_run_id
 from rpa_server.domain import (
     FINISHED,
+    CompositeRevisionRecord,
+    DependencyItem,
+    DependencyStatus,
     Engine,
     NodeStatus,
+    RevisionStatus,
     RunRecord,
     Target,
+    VerificationRecord,
     WorkflowNodeState,
     WorkflowRecord,
     WorkflowRunRecord,
@@ -50,7 +74,7 @@ from rpa_server.domain import (
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
-from rpa_server.models import Revision, Run, Scene
+from rpa_server.models import Domain, Revision, Role, Run, Scene, WorkflowRevision
 from rpa_server.models import Workflow as WorkflowRow
 from rpa_server.models import WorkflowRun as WorkflowRunRow
 
@@ -65,6 +89,9 @@ RUN_LIST_LIMIT: Final = 50
 """組合場景執行清單最多顯示的筆數。"""
 
 _NAME_LIMIT: Final = 200
+_CODE: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
+"""組合場景代號的規則（和場景 id 相同）。"""
+Purpose = Literal["validation", "execution"]
 
 
 def _run_record(run: Run) -> RunRecord:
@@ -216,11 +243,22 @@ class WorkflowService:
             updated_at=row.updated_at,
             problems=tuple(problems),
             last_run=last,
+            code=row.code,
+            domain_id=row.domain_id,
+            published_number=row.published_number,
+            archived=row.archived,
+            dependency=_dependency_status(self._dependencies(row)),
         )
 
     def list_workflows(self) -> list[WorkflowRecord]:
         with self.sessions() as session:
-            rows = list(session.scalars(select(WorkflowRow).order_by(WorkflowRow.id)))
+            rows = list(
+                session.scalars(
+                    select(WorkflowRow)
+                    .where(WorkflowRow.missing.is_(False))
+                    .order_by(WorkflowRow.id)
+                )
+            )
         return [self._record(row) for row in rows]
 
     def get_workflow(self, workflow_id: int) -> WorkflowRecord:
@@ -246,28 +284,110 @@ class WorkflowService:
         return workflow
 
     def create_workflow(
-        self, name: str, description: str | None = None, definition: object = None
+        self,
+        name: str,
+        description: str | None = None,
+        definition: object = None,
+        *,
+        code: str | None = None,
+        domain_id: str | None = None,
     ) -> WorkflowRecord:
-        """新增組合場景；可以直接帶定義（匯入匯出的 JSON）。"""
+        """新增組合場景；可以直接帶定義（匯入匯出的 JSON）。定義就是第 1 版。
+
+        code 沒給時自動取 wf-<數字>；domain_id 沒給時放「組合場景」領域（需要時建立）。
+        """
         workflow = (
             self._definition(definition)
             if definition is not None
             else Workflow(version=2, mode="dag")
         )
-        with self.sessions() as session:
+        name = self._name(name)
+        description = (description or "").strip() or None
+        code = (code or "").strip() or None
+        if code is not None and not _CODE.fullmatch(code):
+            raise invalid("workflow_code_invalid", t("error.workflow_code_invalid", code=code))
+        domain_id = domain_id or self.services.composites_domain()
+        packs = self.services.packs
+        with packs.lock, self.sessions() as session:
+            if session.get(Domain, domain_id) is None:
+                raise not_found("domain_not_found", t("error.domain_not_found", id=domain_id))
+            code = code or self._next_code(session)
+            if self._code_taken(session, code):
+                raise conflict("workflow_code_exists", t("error.workflow_code_exists", code=code))
             moment = now()
             row = WorkflowRow(
-                name=self._name(name),
-                description=(description or "").strip() or None,
+                name=name,
+                description=description,
                 definition=workflow.to_json(),
                 version=1,
                 created_at=moment,
                 updated_at=moment,
+                code=code,
+                domain_id=domain_id,
+                archived=False,
+                missing=False,
             )
             session.add(row)
-            session.commit()
+            session.flush()
+            self.services.storage.place_composite(code, domain_id)
+            try:
+                packs.write_composite(
+                    CompositeManifest(id=code, name=name, description=description)
+                )
+                self._write_revision(session, row, 1, workflow, t("workflow.note_created"), moment)
+                session.commit()
+            except BaseException:
+                session.rollback()
+                packs.discard_composite_revision(code, 1, new=True)
+                raise
             session.refresh(row)
         return self._record(row)
+
+    def _next_code(self, session: Session) -> str:
+        """新組合場景的代號：wf-<數字>，從目前最大的 id 往後找沒用過的。"""
+        number = (session.scalar(select(func.max(WorkflowRow.id))) or 0) + 1
+        while self._code_taken(session, f"wf-{number}"):
+            number += 1
+        return f"wf-{number}"
+
+    def _code_taken(self, session: Session, code: str) -> bool:
+        exists = session.scalars(select(WorkflowRow.id).where(WorkflowRow.code == code)).first()
+        return exists is not None or self.services.storage.composite_domain(code) is not None
+
+    def _write_revision(
+        self,
+        session: Session,
+        row: WorkflowRow,
+        number: int,
+        workflow: Workflow,
+        note: str | None,
+        moment: datetime,
+    ) -> None:
+        """寫入組合場景的版本：workflow.json、版本說明檔（釘住的場景版本）、資料庫的一列。"""
+        packs = self.services.packs
+        requires = packs.requirements(session, workflow)
+        digest = packs.write_composite_revision(
+            row.code,
+            number,
+            workflow_text(workflow),
+            note=note,
+            created_at=moment,
+            requires=requires,
+        )
+        session.add(
+            WorkflowRevision(
+                workflow_id=row.id,
+                number=number,
+                content_hash=digest,
+                status="draft",
+                verified=False,
+                missing=False,
+                note=note,
+                created_at=moment,
+            )
+        )
+        if row.domain_id is not None:
+            packs.declare_requirements(row.domain_id, requires)
 
     def update_workflow(
         self,
@@ -278,9 +398,13 @@ class WorkflowService:
         description: str | None = None,
         definition: object = None,
     ) -> WorkflowRecord:
-        """存檔：base_version 不是目前的版本時回 409（別的分頁已經存過）。"""
+        """存檔：base_version 不是目前的版本時回 409（別的分頁已經存過）。
+
+        定義和最新版本不同時存成新的版本（version 加一）；名稱與說明寫進 composite.yaml，不分版本。
+        """
         workflow = self._definition(definition) if definition is not None else None
-        with self.sessions() as session:
+        packs = self.services.packs
+        with packs.lock, self.sessions() as session:
             row = self._row(session, workflow_id)
             if base_version != row.version:
                 raise conflict(
@@ -288,15 +412,42 @@ class WorkflowService:
                     t("error.stale_workflow", base=base_version, latest=row.version),
                     latest=row.version,
                 )
-            if name is not None:
-                row.name = self._name(name)
-            if description is not None:
-                row.description = description.strip() or None
-            if workflow is not None:
+            moment = now()
+            if name is not None or description is not None:
+                if name is not None:
+                    row.name = self._name(name)
+                if description is not None:
+                    row.description = description.strip() or None
+                manifest = packs.composite_manifest(row.code) or CompositeManifest(
+                    id=row.code, name=row.name
+                )
+                packs.write_composite(
+                    manifest.model_copy(update={"name": row.name, "description": row.description})
+                )
+            number: int | None = None
+            if workflow is not None and workflow.to_json() != row.definition:
+                number = row.version + 1
+                try:
+                    self._write_revision(
+                        session, row, number, workflow, t("workflow.note_saved"), moment
+                    )
+                except FileExistsError:
+                    session.rollback()
+                    raise conflict(
+                        "stale_workflow",
+                        t("error.stale_workflow", base=base_version, latest=number),
+                        latest=number,
+                    ) from None
                 row.definition = workflow.to_json()
-            row.version += 1
-            row.updated_at = now()
-            session.commit()
+                row.version = number
+            row.updated_at = moment
+            try:
+                session.commit()
+            except BaseException:
+                session.rollback()
+                if number is not None:
+                    packs.discard_composite_revision(row.code, number, new=False)
+                raise
             session.refresh(row)
         return self._record(row)
 
@@ -314,8 +465,16 @@ class WorkflowService:
             )
             if running:
                 raise conflict("workflow_running", t("error.workflow_running", id=workflow_id))
+            for revision in session.scalars(
+                select(WorkflowRevision).where(WorkflowRevision.workflow_id == workflow_id)
+            ):
+                session.delete(revision)
+            session.flush()
             session.delete(row)
             session.commit()
+            code = row.code
+        # 資料夾一起刪除（推送之後別人拉取也會刪除；歷史在 git 裡）
+        self.services.packs.remove_composite(code)
 
     # ------------------------------------------------------------ 執行
 
@@ -327,31 +486,96 @@ class WorkflowService:
         headless: bool | None = None,
         idempotency_key: str | None = None,
         target: Target | None = None,
+        purpose: Purpose = "validation",
+        revision: int | None = None,
     ) -> WorkflowRunRecord:
         """執行組合場景：先檢查，沒有問題才建立組合場景的執行並排入第一個節點。
 
-        target 是執行位置（M9a）：每個節點都一樣，而且第一個節點由哪台 worker 領取，後面就都給它。
+        purpose 是 validation（驗證某個版本，預設最新；結束時寫驗證紀錄）或 execution
+        （執行發布的版本）。target 是執行位置（M9a）：每個節點都一樣，而且第一個節點由哪台
+        worker 領取，後面就都給它。
         """
         key = (idempotency_key or "").strip() or None
         existing = self._by_key(key)
         if existing is not None:
             return existing
-        record = self.get_workflow(workflow_id)
-        self._ensure_runnable(record.workflow, list(record.problems))
+        with self.sessions() as session:
+            row = self._row(session, workflow_id)
+            if row.archived:
+                raise conflict("workflow_archived", t("error.workflow_archived", id=row.code))
+            if purpose == "execution":
+                if row.published_number is None:
+                    raise conflict(
+                        "workflow_unpublished", t("error.workflow_unpublished", id=row.code)
+                    )
+                number = row.published_number
+            else:
+                number = revision or row.version
+            self._usable_revision(session, row, number)
+            code, name = row.code, row.name
+        workflow = self._revision_workflow(code, number)
+        problems = self.check(workflow) + [
+            WorkflowProblem(item.code, item.message)
+            for item in self._requirement_items_for(code, number)
+            if item.level == "error"
+        ]
+        self._ensure_runnable(workflow, problems)
         target = self.services.resolve_target(target)
         headless = self.services.resolve_headless(headless, target)
         return self._launch(
-            workflow_id=record.id,
-            name=record.name,
-            version=record.version,
-            workflow=record.workflow,
+            workflow_id=workflow_id,
+            name=name,
+            version=number,
+            workflow=workflow,
             engine=engine,
             headless=headless,
             key=key,
             reused={},
             start_index=0,
             target=target,
+            purpose=purpose,
+            code=code,
         )
+
+    @staticmethod
+    def _usable_revision(session: Session, row: WorkflowRow, number: int) -> WorkflowRevision:
+        item = session.scalars(
+            select(WorkflowRevision).where(
+                WorkflowRevision.workflow_id == row.id, WorkflowRevision.number == number
+            )
+        ).first()
+        if item is None or item.missing:
+            raise not_found(
+                "workflow_revision_not_found",
+                t("error.workflow_revision_not_found", id=row.code, number=number),
+            )
+        if item.problem is not None:
+            raise conflict(
+                "workflow_revision_unusable",
+                t(
+                    "error.workflow_revision_unusable",
+                    id=row.code,
+                    number=number,
+                    problem=item.problem,
+                ),
+            )
+        return item
+
+    def _revision_workflow(self, code: str, number: int) -> Workflow:
+        """某個版本的定義（讀領域資料夾裡的 workflow.json）。"""
+        entry, _ = self.services.packs.composite_entry(code)
+        revision = entry.revisions.get(number) if entry is not None else None
+        if revision is None or revision.workflow is None:
+            raise conflict(
+                "workflow_revision_unusable",
+                t(
+                    "error.workflow_revision_unusable",
+                    id=code,
+                    number=number,
+                    problem=revision.problem if revision is not None else "missing",
+                ),
+            )
+        return revision.workflow
 
     def rerun(
         self, run_id: str, *, resume: bool = False, idempotency_key: str | None = None
@@ -367,6 +591,8 @@ class WorkflowService:
                 raise conflict("workflow_run_active", t("error.workflow_run_active", id=run_id))
             workflow = Workflow.model_validate(row.definition)
             snapshot = (row.workflow_id, row.workflow_name, row.workflow_version)
+            purpose = cast("Purpose", row.purpose)
+            code = row.workflow_code
             engine, headless = row.engine, row.headless
             target = cast("Target", row.target)
             reused: dict[str, str] = {}
@@ -392,6 +618,8 @@ class WorkflowService:
             resumed_from=run_id if resume else None,
             target=target,
             worker_id=pinned,
+            purpose=purpose,
+            code=code,
         )
 
     def _resume_point(
@@ -453,6 +681,8 @@ class WorkflowService:
         resumed_from: str | None = None,
         target: Target = "local",
         worker_id: str | None = None,
+        purpose: Purpose = "validation",
+        code: str | None = None,
     ) -> WorkflowRunRecord:
         workflow, problems = plan_workflow(
             workflow,
@@ -460,7 +690,7 @@ class WorkflowService:
         )
         self._ensure_runnable(workflow, problems)
         with self._lock:
-            run_id = new_run_id(f"wf{workflow_id}" if workflow_id is not None else "wf")
+            run_id = new_run_id(code or (f"wf{workflow_id}" if workflow_id is not None else "wf"))
             with self.sessions() as session:
                 session.add(
                     WorkflowRunRow(
@@ -479,6 +709,8 @@ class WorkflowService:
                         created_at=now(),
                         target=target,
                         worker_id=worker_id,
+                        purpose=purpose,
+                        workflow_code=code,
                     )
                 )
                 try:
@@ -490,6 +722,7 @@ class WorkflowService:
                         raise
                     return existing
             self._start_node(run_id, start_index)
+        self.services.packs.record_workflow_run(run_id)  # run.json（M11 PR 2）
         return self.get_run(run_id)
 
     def _start_node(self, run_id: str, index: int) -> None:
@@ -546,6 +779,8 @@ class WorkflowService:
             row.error = error
             row.finished_at = now()
             session.commit()
+        # run.json；驗證另外寫進領域資料夾的驗證紀錄（M11 PR 2）
+        self.services.packs.record_workflow_run(run_id)
 
     def node_finished(self, run_id: str) -> None:
         """一個節點的執行結束：通過就排下一個節點，沒有通過就停在這個節點。
@@ -633,6 +868,223 @@ class WorkflowService:
                 self._finish(workflow_run, "failed", None, t("run.interrupted"))
         return len(pending)
 
+    # ------------------------------------------------------------ 版本、發布、依賴（M11 PR 2）
+
+    def revisions(self, workflow_id: int) -> list[CompositeRevisionRecord]:
+        with self.sessions() as session:
+            row = self._row(session, workflow_id)
+            items = session.scalars(
+                select(WorkflowRevision)
+                .where(WorkflowRevision.workflow_id == row.id, WorkflowRevision.missing.is_(False))
+                .order_by(WorkflowRevision.number.desc())
+            )
+            return [
+                CompositeRevisionRecord(
+                    number=item.number,
+                    content_hash=item.content_hash,
+                    status=cast("RevisionStatus", item.status),
+                    verified=item.verified,
+                    problem=item.problem,
+                    note=item.note,
+                    created_at=item.created_at,
+                    published_at=item.published_at,
+                    published=row.published_number == item.number,
+                )
+                for item in items
+            ]
+
+    def verifications(self, workflow_id: int) -> list[VerificationRecord]:
+        """組合場景的驗證紀錄（領域資料夾裡的，不管是哪一台伺服器驗證的），最新的在前。"""
+        with self.sessions() as session:
+            code = self._row(session, workflow_id).code
+        entry, _ = self.services.packs.composite_entry(code)
+        if entry is None:
+            return []
+        server = self.services.packs.server().id
+        found: list[VerificationRecord] = []
+        with self.sessions() as session:
+            for number, revision in entry.revisions.items():
+                digest = revision.info.hash if revision.info is not None else None
+                for item in revision.verifications:
+                    record = item.record
+                    here = (
+                        record.server.id == server
+                        and session.get(WorkflowRunRow, item.id) is not None
+                    )
+                    # 雜湊相符：定義的雜湊一樣，而且節點跑的場景版本都是釘住的那些
+                    matches = record.hash == digest
+                    if matches and digest is not None and record.status == "passed":
+                        matches = item.proves(digest, revision.requires)
+                    found.append(
+                        VerificationRecord(
+                            id=item.id,
+                            revision=number,
+                            status=record.status,
+                            matches=matches,
+                            finished_at=parse_timestamp(record.finished_at),
+                            by=record.by,
+                            server_id=record.server.id,
+                            server_name=record.server.name,
+                            worker=record.worker.id,
+                            engine=record.engine,
+                            headless=record.headless,
+                            here=here,
+                        )
+                    )
+        return sorted(found, key=lambda item: (item.finished_at, item.id), reverse=True)
+
+    def publish(self, workflow_id: int, number: int) -> WorkflowRecord:
+        """發布組合場景的版本：有雜湊相符的通過驗證紀錄（節點跑的場景版本也相符），
+        釘住的場景版本現在都還在、雜湊相同。寫進 composite.yaml 的 published。
+        """
+        packs = self.services.packs
+        with packs.lock, self.sessions() as session:
+            row = self._row(session, workflow_id)
+            item = self._usable_revision(session, row, number)
+            entry, _ = packs.composite_entry(row.code)
+            revision = entry.revisions.get(number) if entry is not None else None
+            proofs = revision.proofs() if revision is not None else []
+            if entry is None or revision is None or not proofs:
+                raise conflict(
+                    "workflow_not_validated",
+                    t("error.workflow_not_validated", id=row.code, number=number),
+                )
+            errors = [
+                problem
+                for problem in self._requirement_items(
+                    session, number, revision.requires or [], revision.workflow
+                )
+                if problem.level == "error"
+            ]
+            if errors:
+                raise conflict(
+                    "workflow_dependencies",
+                    t("error.workflow_dependencies", id=row.code, count=len(errors)),
+                    problems=[problem.to_json() for problem in errors],
+                )
+            moment = now()
+            published = PublishedRef(
+                revision=number,
+                verification=proofs[0].id,
+                at=timestamp(moment),
+                by=packs.operator(),
+                server=packs.server(),
+            )
+            packs.write_composite(entry.manifest.model_copy(update={"published": published}))
+            row.published_number = number
+            row.updated_at = moment
+            item.published_at = moment
+            item.verified = True
+            session.commit()
+        return self.get_workflow(workflow_id)
+
+    def dependencies(self, workflow_id: int) -> list[DependencyItem]:
+        """依賴的問題（最新版本與發布的版本）：任務紀錄第 7 節的清單與補全方式。"""
+        with self.sessions() as session:
+            row = self._row(session, workflow_id)
+        return self._dependencies(row)
+
+    def _dependencies(self, row: WorkflowRow) -> list[DependencyItem]:
+        numbers = sorted({row.version, *([row.published_number] if row.published_number else [])})
+        items: list[DependencyItem] = []
+        seen: set[tuple[str, str, str | None]] = set()
+        for number in numbers:
+            for item in self._requirement_items_for(row.code, number):
+                key = (item.code, item.message, item.scene)
+                if key not in seen:
+                    seen.add(key)
+                    items.append(item)
+        return items
+
+    def _requirement_items_for(self, code: str, number: int) -> list[DependencyItem]:
+        entry, _ = self.services.packs.composite_entry(code)
+        revision = entry.revisions.get(number) if entry is not None else None
+        if revision is None or revision.workflow is None:
+            return []
+        with self.sessions() as session:
+            return self._requirement_items(
+                session, number, revision.requires or [], revision.workflow
+            )
+
+    def _requirement_items(
+        self,
+        session: Session,
+        number: int,
+        requires: Sequence[SceneRequirement],
+        workflow: Workflow | None,
+    ) -> list[DependencyItem]:
+        """一個版本的依賴：釘住的場景版本在不在、雜湊對不對；場景用到的角色與 Secrets。"""
+        if workflow is None:
+            return []
+        pinned = {(item.scene, item.revision): item for item in requires}
+        items: list[DependencyItem] = []
+        checked: set[tuple[str, int]] = set()
+
+        def add(
+            level: Literal["error", "warning"], code: str, action: str | None, **params: object
+        ) -> None:
+            items.append(
+                DependencyItem(
+                    level=level,
+                    code=f"dependency.{code}",
+                    message=t(f"dependency.{code}", **params),
+                    revision=number,
+                    domain=cast("str | None", params.get("domain")),
+                    scene=cast("str | None", params.get("scene")),
+                    action=action,
+                )
+            )
+
+        for node in workflow.nodes:
+            key = (node.scene_id, node.revision)
+            if key in checked:
+                continue
+            checked.add(key)
+            params: dict[str, object] = {"scene": node.scene_id, "revision": node.revision}
+            pin = pinned.get(key)
+            if pin is None:
+                add("error", "unpinned", "resave", **params)
+                continue
+            params["domain"] = pin.domain
+            if session.get(Domain, pin.domain) is None:
+                add("error", "domain_missing", "add_domain", **params)
+                continue
+            scene = session.get(Scene, pin.scene)
+            if scene is None or scene.missing or scene.domain_id != pin.domain:
+                add("error", "scene_missing", "reload_domain", **params)
+                continue
+            revision = session.scalars(
+                select(Revision).where(
+                    Revision.scene_id == pin.scene, Revision.number == pin.revision
+                )
+            ).first()
+            if revision is None or revision.missing:
+                add("error", "revision_missing", "reload_domain", **params)
+                continue
+            if revision.problem is not None:
+                add("error", "revision_unusable", "reload_domain", **params)
+                continue
+            if revision.content_hash != pin.hash:
+                add("error", "hash_mismatch", "resave", **params)
+                continue
+            scenario = self._scenario(pin.scene, pin.revision)
+            if scenario is None:
+                continue
+            if scenario.login is not None:
+                role = session.get(Role, scenario.login.role)
+                params["role"] = scenario.login.role
+                if role is None or role.missing:
+                    add("error", "role_missing", "reload_domain", **params)
+                elif role.status != "logged_in" and not role.auto_login:
+                    add("warning", "role_login", "login", **params)
+            stored = {info.name for info in self.services.roles.list_secrets()}
+            missing = [
+                name for name in scenario.secrets if name not in stored and name not in os.environ
+            ]
+            if missing:
+                add("warning", "secrets_missing", "secrets", names=", ".join(missing), **params)
+        return items
+
     # ------------------------------------------------------------ 查詢
 
     @staticmethod
@@ -692,6 +1144,8 @@ class WorkflowService:
             created_at=row.created_at,
             finished_at=row.finished_at,
             nodes=tuple(nodes),
+            purpose=row.purpose,
+            workflow_code=row.workflow_code,
         )
 
     def _node_state(
@@ -763,3 +1217,9 @@ def _specs(scenario: Scenario, key: str) -> list[list[object]]:
         [name, spec.model_dump(mode="json", by_alias=True, exclude_none=True)]
         for name, spec in specs.items()
     ]
+
+
+def _dependency_status(items: Sequence[DependencyItem]) -> DependencyStatus:
+    if any(item.level == "error" for item in items):
+        return "incomplete"
+    return "warnings" if items else "complete"

@@ -66,7 +66,8 @@ from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import follow_locale, t
 from rpa_server.jobs import RunQueue
 from rpa_server.models import Domain, Revision, Role, Run, Scene
-from rpa_server.packs import UNASSIGNED_DOMAIN, LoadReport, PackStore
+from rpa_server.models import Workflow as WorkflowRow
+from rpa_server.packs import COMPOSITES_DOMAIN, UNASSIGNED_DOMAIN, LoadReport, PackStore
 from rpa_server.recordings import RecordingService
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
@@ -362,6 +363,8 @@ class Services:
         self.packs.migrate_legacy(
             unassigned_name=t("domain.unassigned_name"),
             unassigned_description=t("domain.unassigned_description"),
+            composites_name=t("domain.composites_name"),
+            composites_description=t("domain.composites_description"),
         )
         reports = self.packs.load_all()
         self._scene_cache.clear()
@@ -397,6 +400,19 @@ class Services:
                 )
                 session.commit()
         return UNASSIGNED_DOMAIN
+
+    def composites_domain(self) -> str:
+        """「組合場景」領域；還沒有時建立（沒指定領域的新組合場景放這裡，M11 PR 2）。"""
+        with self.packs.lock, self.sessions() as session:
+            if session.get(Domain, COMPOSITES_DOMAIN) is None:
+                self._new_domain(
+                    session,
+                    COMPOSITES_DOMAIN,
+                    t("domain.composites_name"),
+                    t("domain.composites_description"),
+                )
+                session.commit()
+        return COMPOSITES_DOMAIN
 
     def _new_domain(
         self, session: Session, domain_id: str, name: str, description: str | None
@@ -450,6 +466,9 @@ class Services:
         elif domain.id == UNASSIGNED_DOMAIN:
             name = follow_locale(name, "domain.unassigned_name") or name
             description = follow_locale(description, "domain.unassigned_description")
+        elif domain.id == COMPOSITES_DOMAIN:
+            name = follow_locale(name, "domain.composites_name") or name
+            description = follow_locale(description, "domain.composites_description")
         return DomainRecord(
             id=domain.id,
             name=name,
@@ -526,11 +545,25 @@ class Services:
                 raise _conflict(
                     "domain_has_roles", t("error.domain_has_roles", id=domain_id, count=roles)
                 )
-            # 來源缺失的場景與角色只剩執行紀錄引用，不再屬於任何領域
+            composites = session.scalar(
+                select(func.count())
+                .select_from(WorkflowRow)
+                .where(WorkflowRow.domain_id == domain_id, WorkflowRow.missing.is_(False))
+            )
+            if composites:
+                raise _conflict(
+                    "domain_has_composites",
+                    t("error.domain_has_composites", id=domain_id, count=composites),
+                )
+            # 來源缺失的場景、角色、組合場景只剩執行紀錄引用，不再屬於任何領域
             for scene in session.scalars(select(Scene).where(Scene.domain_id == domain_id)):
                 scene.domain_id = None
             for role in session.scalars(select(Role).where(Role.domain_id == domain_id)):
                 role.domain_id = None
+            for workflow in session.scalars(
+                select(WorkflowRow).where(WorkflowRow.domain_id == domain_id)
+            ):
+                workflow.domain_id = None
             session.flush()
             session.delete(domain)
             session.commit()

@@ -184,5 +184,6 @@
   "pack.requires_unusable": "Revision {revision} of scenario {scene} in domain {domain} has problems and cannot run",
   "pack.requires_hash": "Revision {revision} of scenario {scene} in domain {domain} differs from when the composite scenario was saved",
   "pack.composite_requires": "Composite scenario {composite} revision {number}: {problem}",
-  "pack.requires_not_checked": "The required domain {domain} was not checked; add its folder to the command to check the dependencies"
+  "pack.requires_not_checked": "The required domain {domain} was not checked; add its folder to the command to check the dependencies",
+  "pack.composite_unpinned": "A node of revision {number} uses {scene} revision {revision}, which could not be found when it was saved, so it is not in requires; save again after adding the scenario to run it"
 }

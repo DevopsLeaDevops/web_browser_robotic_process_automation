@@ -523,6 +523,7 @@ def page_router(services: Services) -> APIRouter:
             runs=workflows.list_runs(limit=_RECENT_RUNS * 2),
             has_published=bool(workflows.library()),
             messages=workflow_messages(),
+            domain_names={domain.id: domain.name for domain in services.list_domains()},
         )
 
     @router.get("/playground", include_in_schema=False)
@@ -544,9 +545,12 @@ def page_router(services: Services) -> APIRouter:
         record = workflows.get_workflow(workflow_id)
         data = {
             "id": record.id,
+            "code": record.code,
             "name": record.name,
             "description": record.description or "",
             "version": record.version,
+            "latestRevision": record.version,
+            "publishedRevision": record.published_number,
             "definition": record.workflow.to_json(),
             "problems": [problem.to_json() for problem in record.problems],
             "library": workflows.library(),
@@ -561,6 +565,9 @@ def page_router(services: Services) -> APIRouter:
             data=data,
             messages=workflow_messages(),
             runs=workflows.list_runs(workflow_id=workflow_id, limit=_RECENT_RUNS),
+            revisions=workflows.revisions(workflow_id),
+            verifications=workflows.verifications(workflow_id),
+            dependencies=workflows.dependencies(workflow_id),
         )
 
     @router.get("/playground/runs/{run_id}", include_in_schema=False)

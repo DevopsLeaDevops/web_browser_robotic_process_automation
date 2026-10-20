@@ -9,7 +9,7 @@
   {% for item in workflows %}
     {% set preview = workflow_preview(item.workflow) %}
     <article class="panel panel-body scene-card composite-card" data-workflow="{{ item.id }}">
-      <div class="scene-card-head"><h2><a href="/playground/{{ item.id }}">{{ item.name }}</a></h2><span class="chip">DAG</span></div>
+      <div class="scene-card-head"><h2><a href="/playground/{{ item.id }}">{{ item.name }}</a></h2><span class="chip" title="{{ t('composite.code') }}">{{ item.code }}</span></div>
       <div class="scene-card-body">
         <a class="shot dag-thumbnail" href="/playground/{{ item.id }}" title="{{ t('composites.preview', name=item.name) }}">
         {% if preview.nodes %}
@@ -20,7 +20,7 @@
           </svg>
         {% else %}<span>{{ t("playground.no_nodes") }}</span>{% endif %}
         </a>
-        <div class="composite-summary"><p class="clamp">{{ item.description or t("composites.no_description") }}</p><span class="cell-sub">{{ t("composites.node_count", count=item.workflow.nodes | length) }}</span></div>
+        <div class="composite-summary"><p class="clamp">{{ item.description or t("composites.no_description") }}</p><span class="cell-sub">{{ t("composites.node_count", count=item.workflow.nodes | length) }} · {{ t("composite.latest", number=item.version) }} · {% if item.published %}{{ t("composite.published_revision", number=item.published_number) }}{% else %}{{ t("composite.not_published") }}{% endif %}</span>{% if item.domain_id %}<span class="cell-sub">{{ t("composite.domain") }}：<a href="/domains/{{ item.domain_id }}">{{ domain_names.get(item.domain_id, item.domain_id) }}</a></span>{% endif %}</div>
       </div>
       <nav class="card-links even scene-card-links" aria-label="{{ item.name }}">
         <a href="/playground/{{ item.id }}">{{ t("composites.edit") }}</a>
@@ -28,7 +28,7 @@
         <button class="text-btn" data-action="delete-workflow" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ t("playground.delete") }}</button>
       </nav>
       <div class="scene-card-foot">
-        {% if item.problems %}<a href="/playground/{{ item.id }}#workflow-problems" class="status-link" title="{{ item.problems[0].message }}">{{ m.badge("failed", t("playground.problems", count=item.problems | length)) }}</a>{% elif item.last_run %}<a href="/playground/runs/{{ item.last_run.id }}" class="status-link">{{ m.run_badge(item.last_run.status) }}</a>{% else %}{{ m.badge("passed", t("composites.ready")) }}{% endif %}
+        {% if item.dependency == "incomplete" %}<a href="/playground/{{ item.id }}#composite-dependencies" class="status-link">{{ m.badge("failed", t("composite.dependency_incomplete")) }}</a>{% elif item.problems %}<a href="/playground/{{ item.id }}#workflow-problems" class="status-link" title="{{ item.problems[0].message }}">{{ m.badge("failed", t("playground.problems", count=item.problems | length)) }}</a>{% elif item.dependency == "warnings" %}<a href="/playground/{{ item.id }}#composite-dependencies" class="status-link">{{ m.badge("needs_login", t("composite.dependency_warnings")) }}</a>{% elif item.last_run %}<a href="/playground/runs/{{ item.last_run.id }}" class="status-link">{{ m.run_badge(item.last_run.status) }}</a>{% else %}{{ m.badge("passed", t("composites.ready")) }}{% endif %}
         <span class="grow"></span>
         <button class="button primary" data-action="run-composite" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ m.arrow() }} {{ t("workflow.run") }}</button>
       </div>

@@ -1,6 +1,12 @@
 {% import "_macros.html" as m %}
 <template id="workflow-run-form">
   <div class="notice">{{ t("workflow.run_notice") }}</div>
+  <fieldset class="choice" data-purpose>
+    <legend>{{ t("workflow.run_purpose") }}</legend>
+    <label><input type="radio" name="purpose" value="validation" checked> {{ t("workflow.purpose_validation") }}</label>
+    <label><input type="radio" name="purpose" value="execution"> {{ t("workflow.purpose_execution") }}</label>
+    <span class="cell-sub" data-purpose-hint data-unpublished="{{ t('workflow.purpose_unpublished') }}"></span>
+  </fieldset>
   <label>{{ t("run_form.engine") }}
     <select name="engine">
       <option value="">{{ t("workflow.engine_scene") }}</option>

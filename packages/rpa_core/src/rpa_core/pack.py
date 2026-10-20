@@ -71,6 +71,7 @@ __all__ = [
     "CompositeManifest",
     "CompositeRevisionInfo",
     "CompositeVerification",
+    "NodeStatus",
     "NodeVerification",
     "Pack",
     "PackIssue",
@@ -105,6 +106,7 @@ __all__ = [
     "requirement_problems",
     "role_problems",
     "timestamp",
+    "workflow_digest",
     "workflow_text",
     "write_model",
 ]
@@ -848,8 +850,17 @@ def workflow_text(workflow: Workflow) -> str:
 
 def composite_digest(path: Path) -> str:
     """組合場景版本的雜湊：和場景同一個演算法，組成檔案只有 workflow.json。"""
+    return _workflow_digest(path.read_bytes())
+
+
+def workflow_digest(workflow: Workflow) -> str:
+    """把定義寫成 workflow.json 之後的雜湊（和 :func:`composite_digest` 相同）。"""
+    return _workflow_digest(workflow_text(workflow).encode())
+
+
+def _workflow_digest(content: bytes) -> str:
     digest = hashlib.sha256()
-    digest.update(path.name.encode() + b"\0" + path.read_bytes() + b"\0")
+    digest.update(WORKFLOW_FILE.encode() + b"\0" + content + b"\0")
     return digest.hexdigest()
 
 
@@ -927,9 +938,19 @@ def _read_composite_revision(reader: _Reader, number: int, folder: Path) -> Revi
     elif isinstance(info, CompositeRevisionInfo):
         nodes = {(node.scene_id, node.revision) for node in workflow.nodes}
         pinned = {(item.scene, item.revision) for item in info.requires}
-        if nodes != pinned:
+        if not pinned <= nodes:
             reader.add(info_path, "composite_requires_mismatch", number=number)
             revision.problem = revision.problem or "pack.composite_requires_mismatch"
+        for scene, scene_revision in sorted(nodes - pinned):
+            # 存檔時找不到這個場景版本（編輯到一半也可以存）：依賴檢查會擋下執行
+            reader.add(
+                info_path,
+                "composite_unpinned",
+                severity="warning",
+                number=number,
+                scene=scene,
+                revision=scene_revision,
+            )
     return revision
 
 
