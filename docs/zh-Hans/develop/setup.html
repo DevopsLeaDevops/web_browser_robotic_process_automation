@@ -115,7 +115,8 @@ git pull --ff-only
 bash scripts/setup-linux.sh --install-service</pre>
         <p>脚本只在 <code>--install-service</code> 时启动服务；前景进程请用 Ctrl+C 停止。systemd 服务运行中会拒绝更新环境，前景进程也应先停止。容器没有 systemd 时使用前景命令；产生的 unit 在 <code>.venv-server/rpa-server.service</code>。重装不删数据，但启动服务会应用数据库迁移，回退前需准备整份备份。脚本不会自动 pull 既有 checkout、切换既有分支或改防火墙；只让需要连接的设备访问设备端口。</p>
         <p>公司网络：需要可读取代码、uv 安装档、Python 发行档及锁文件列出的包来源。可设置 <code>HTTPS_PROXY</code>、<code>UV_PYTHON_INSTALL_MIRROR</code>；公司 CA 已加入系统信任时可用 <code>UV_NATIVE_TLS=true</code>。Git、curl 也必须信任该 CA，不要关闭 TLS 验证。已有合规安装的 uv 可直接重用；版本太旧时脚本会指出最低版本，由原安装方式升级。</p>
-        <p><code>--locked</code> 会保留锁文件：它包含包 registry 与下载 URL，单设 <code>UV_INDEX_URL</code> 不保证能把已锁定的来源改成内部镜像，还可能使 uv 判定锁文件过期。无法访问时请提供通往已锁定来源的核准代理，或由维护者产生并审阅对应镜像的锁文件；不要删锁文件或临时改版本。此 setup 不需要 Playwright 浏览器下载站。</p>
+        <p id="linux-mirror"><strong>包来源。</strong>Python 包依 <code>uv.lock</code> 安装，默认先测速再选来源（<code>--mirror auto</code>）：PyPI 与清华（tuna）、中科大（ustc）、阿里云（aliyun）、腾讯云（tencent）、华为云（huawei）的镜像同时下载锁文件里的同一个文件，只考虑 sha256 和锁文件相符的来源，选最快的那个并列出每个来源的速度；都不行时用 PyPI。可以直接指定：<code>bash scripts/setup-linux.sh --mirror tuna</code>、<code>--mirror pypi</code>，或公司镜像的 simple 网址，例如 <code>--mirror https://nexus.example.com/repository/pypi/simple</code>（也可以设置 <code>RPA_PYPI_MIRROR</code>；没有指定、但有设置 <code>UV_INDEX_URL</code> 或 <code>UV_DEFAULT_INDEX</code> 时就用它，不测速）。</p>
+        <p>为什么要这样做：<code>uv sync --locked</code> 照锁文件记的网址下载（<code>files.pythonhosted.org</code>），单设 <code>UV_INDEX_URL</code> 不会改变下载的位置，还会让 uv 判定锁文件过期而停止。所以用镜像时，脚本只在这次安装期间把 <code>uv.lock</code> 里的索引与文件网址换成镜像的（版本、文件与 sha256 都不变，uv 下载后照样验证哈希），装完、失败或中断都还原；镜像装到一半失败时自动改用 PyPI 再试一次。公司只允许核准的来源时，用 <code>--mirror pypi</code>（搭配 <code>HTTPS_PROXY</code>）或公司镜像的网址，不要用 <code>auto</code>。不要删锁文件或临时改版本。此 setup 不需要 Playwright 浏览器下载站。</p>
         <p>验证：CI 在 Rocky Linux 8（真实 yum、glibc 2.28、一般账号）验证项目内安装、独立脚本 clone、空 ID 的公司标记、重跑保留设置、管理端口与设备端口隔离、设备配对及重启后数据保留。容器只检查 systemd unit 语法；公司映像、aarch64 和真实 systemd 开机自启动仍需主机验收。可用 <code>.venv-server/bin/python tools/linux_server_smoke.py</code> 做隔离数据的 HTTP 冒烟测试。</p>
       </div>
     </section>
@@ -125,7 +126,7 @@ bash scripts/setup-linux.sh --install-service</pre>
       <div class="panel-body">
         <dl class="spec-list">
           <dt>CI 说 uv.lock 需要更新</dt><dd>改了 <code>pyproject.toml</code> 的依赖却没有更新锁文件。运行 <code>uv lock</code>，把 <code>uv.lock</code> 一起提交。</dd>
-          <dt>内网连不到 PyPI</dt><dd>设置环境变量 <code>UV_INDEX_URL</code> 指向公司的包镜像。</dd>
+          <dt>内网连不到 PyPI</dt><dd>设置环境变量 <code>UV_INDEX_URL</code> 指向公司的包镜像。Linux 服务器的安装脚本用 <code>--mirror</code> 指定公司镜像的 simple 网址，见<a href="#linux-mirror">包来源</a>。</dd>
           <dt>浏览器下载失败</dt><dd>设置 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 指向内部镜像；浏览器冒烟测试在本机没有浏览器时会自动略过。</dd>
           <dt>测试说简中不是最新</dt><dd>改了繁中文档或消息目录后，运行 <code>uv run python tools/i18n.py sync</code> 并提交产生的文件。</dd>
           <dt>测试说英文翻译需要更新</dt><dd>依繁中的修改更新 <code>docs/en/</code> 的同一页，再运行测试消息里的 <code>stamp</code> 命令。</dd>
