@@ -411,6 +411,9 @@ def capture(args: argparse.Namespace, settings: LoginSettings) -> int:
                 stack=stack,
                 # 一般的 context：使用者關掉視窗後瀏覽器還在，才拿得到登入狀態
                 persistent=False,
+                # 視窗用自己的大小，不模擬固定大小：有頭的 Firefox 調整視窗後要等尺寸完全相符，
+                # 視窗在背景時可能一直等不到
+                no_viewport=True,
             )
             page = context.pages[0] if context.pages else context.new_page()
             if settings.login_url:
