@@ -6,9 +6,18 @@
 <span class="muted count">{{ t("domain.count", count=cards | length) }}</span>
 {% if can_import %}<button class="button" data-action="import" data-domain="{{ domain.id }}">{{ t("scenes.import") }}</button>{% endif %}
 <button class="button" data-action="new-scene" data-domain="{{ domain.id }}">{{ t("scenes.new") }}</button>
+<button class="button" data-action="reload-domain" data-domain="{{ domain.id }}" title="{{ t('domain.reload_title') }}">{{ t("domain.reload") }}</button>
 <a class="button" href="/domains">{{ t("domain.manage") }} {{ m.arrow() }}</a>
 {% endblock %}
 {% block content %}
+{% if domain.problems %}
+<details class="notice{% if domain.errors %} warn{% endif %} domain-problems" id="domain-problems"{% if domain.errors %} open{% endif %}>
+  <summary>{{ t("domain.problems", count=domain.problems | length) }}{% if domain.loaded_at %} · {{ t("domain.loaded_at") }} {{ m.time(domain.loaded_at) }}{% endif %}</summary>
+  <ul class="checklist">
+    {% for item in domain.problems %}<li><code>{{ item.path or "." }}{% if item.line %}:{{ item.line }}{% endif %}</code> {{ item.message }}{% if item.severity == "warning" %} <span class="cell-sub">{{ t("domain.problem_warning") }}</span>{% endif %}</li>{% endfor %}
+  </ul>
+</details>
+{% endif %}
 {% if cards %}
 <div class="card-grid scene-grid" id="cards">
   {% for card in cards %}

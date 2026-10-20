@@ -117,6 +117,7 @@ def _role_values(role: RoleRecord) -> dict[str, object]:
         "check": _check_text(role),
         "engine": role.engine,
         "autoLogin": role.auto_login or "",
+        "domainId": role.domain_id or "",
     }
 
 
@@ -203,6 +204,7 @@ def page_router(services: Services) -> APIRouter:
             scene=record,
             domain=domain_of(record.domain_id),
             revisions=services.revisions(scene_id),
+            verifications=services.verifications(scene_id),
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
@@ -326,7 +328,8 @@ def page_router(services: Services) -> APIRouter:
         can_publish = (
             record.purpose == "validation"
             and record.status == "passed"
-            and revision.status == "passed"
+            and revision.verified
+            and revision.problem is None
             and not revision.published
             and record.scenario_hash == revision.content_hash
         )
@@ -438,6 +441,7 @@ def page_router(services: Services) -> APIRouter:
             check_text=_check_text,
             role_values=_role_values,
             auto_example=_AUTO_LOGIN_EXAMPLE,
+            domain_names={domain.id: domain.name for domain in services.list_domains()},
         )
 
     # ------------------------------------------------------------ 調試工作階段

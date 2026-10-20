@@ -141,6 +141,8 @@ class RoleBody(_Body):
     check: str | dict[str, object] | None = None
     engine: str | None = Field(default=None, max_length=20)
     auto_login: str | None = Field(default=None, max_length=20_000)
+    domain_id: str | None = Field(default=None, max_length=64)
+    """定義放在哪個領域資料夾（M11）；建立時沒有就放「未分類」。"""
 
 
 class SecretValue(_Body):
@@ -233,6 +235,10 @@ class TargetSetting(_Body):
     target: Target
 
 
+class ServerSetting(_Body):
+    name: str = Field(max_length=100)
+
+
 class WorkflowRerun(_Body):
     resume: bool = False
     """True：從停下的節點繼續，沿用前面節點的出參；False：從頭再執行一次。"""
@@ -274,6 +280,12 @@ def api_router(services: Services) -> APIRouter:
         services.delete_domain(domain_id)
         return {"deleted": domain_id}
 
+    @router.post("/domains/{domain_id}/reload")
+    def reload_domain(domain_id: str) -> dict[str, object]:
+        """重新載入領域資料夾（M11）：在資料夾外面改了檔案之後。"""
+        report = services.reload_domain(domain_id)
+        return {**report.to_json(), "domain": services.get_domain(domain_id).to_json()}
+
     # ------------------------------------------------------------ 場景
 
     @router.get("/scenes")
@@ -307,6 +319,12 @@ def api_router(services: Services) -> APIRouter:
             "revisions": [revision.to_json() for revision in revisions],
             "needs": needs,
         }
+
+    @router.get("/scenes/{scene_id}/verifications")
+    def list_verifications(scene_id: str) -> dict[str, object]:
+        """領域資料夾裡的驗證紀錄（M11），不管是哪一台伺服器驗證的；最新的在前。"""
+        records = services.verifications(scene_id)
+        return {"verifications": [record.to_json() for record in records]}
 
     @router.patch("/scenes/{scene_id}")
     def update_scene(scene_id: str, body: SceneUpdate) -> dict[str, object]:
@@ -814,6 +832,15 @@ def api_router(services: Services) -> APIRouter:
     def set_default_target(body: TargetSetting) -> dict[str, object]:
         hub.set_default_target(body.target)
         return worker_list()
+
+    @router.get("/settings/server")
+    def get_server() -> dict[str, object]:
+        """這台伺服器的代號與名稱（M11）：寫進版本、驗證、發布的紀錄。"""
+        return dict(services.server_info())
+
+    @router.put("/settings/server")
+    def rename_server(body: ServerSetting) -> dict[str, object]:
+        return dict(services.rename_server(body.name))
 
     @router.get("/workflow-runs")
     def list_workflow_runs(

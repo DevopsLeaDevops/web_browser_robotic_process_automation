@@ -10,21 +10,21 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。下一步是實作 PR 1。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 04:50 America/Los_Angeles（PDT，UTC−07:00）。<strong>實作 PR 1 完成、CI 全綠，待使用者審閱合併</strong>（<code>m11/domain-packs</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，見<a href="#log">追加紀錄</a>）。下一步是 PR 2（組合場景檔案化）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-20 04:50 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源</dt><dd>使用者 2026-10-19 04:47 PDT（UTC−07:00）在 Claude 對話提出（<a href="#goals">第 1 節</a>）；06:05 PDT 回覆全部決定點（<a href="#decisions">第 13 節</a>）。</dd>
         <dt>驗收條件</dt><dd>見<a href="#plan">第 15 節</a>的人工驗收（以測試倉庫走完分散式的錄製 → 驗證 → 發布 → 使用），以及各 PR 的自動測試。</dd>
         <dt>範圍／不包含</dt><dd>範圍：領域資料夾格式、檔案與資料庫的分工、載入與熱載入、驗證與發布紀錄、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移；執行紀錄回看的<strong>格式預留</strong>。不包含：執行紀錄的歸檔與跨伺服器回看的實作（D4，之後做）、使用者與權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
-        <dt>狀態</dt><dd>設計已確認；實作 PR 1 準備開工</dd>
-        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作分支開工時記在<a href="#log">追加紀錄</a>。</dd>
-        <dt>交接版本／同步狀態</dt><dd>本頁隨分支推送；沒有未提交的程式碼。</dd>
+        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2～4 未開始</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本頁隨 <code>m11/domain-packs</code> 推送；以追加紀錄最後一筆的提交為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
       </dl></div>
     </section>
@@ -433,6 +433,18 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
           <li>在同一個倉庫建第二個領域目錄與一個跨領域組合場景；新的資料目錄只拉組合場景時提示缺少的領域，補上後可以執行。</li>
           <li>兩邊替同一個場景建同號版本，第二個推送停下並給三個選擇，遠端沒有被覆蓋。</li>
         </ol>
+        <h3 id="pr1-check">PR 1 的人工驗證（伺服器、錄製端、Worker）</h3>
+        <p>2026-10-20 04:57 America/Los_Angeles（PDT，UTC−07:00）依使用者要求整理，尚未執行。三台都切到 <code>m11/domain-packs</code> 並 <code>uv sync --locked</code>。升級會把資料搬進 <code>domains/</code>，舊版本讀不懂新格式：先用資料夾的複本驗證（<code>cp -a ~/rpa-data ~/rpa-data-m11</code>，下面都用 <code>--data ~/rpa-data-m11</code>）。退回舊版：停掉、刪 <code>domains/</code>、把 <code>backups/&lt;時間&gt;-before-domains/</code> 的 <code>rpa.db</code>、<code>scenes/</code> 放回去、切回 main。</p>
+        <ol>
+          <li><strong>伺服器・遷移</strong>：<code>uv run rpa serve --worker-port 8081 --data ~/rpa-data-m11</code>；日誌寫出備份位置；<code>backups/&lt;時間&gt;-before-domains/</code> 有 <code>rpa.db</code> 與 <code>scenes/</code>；舊的 <code>scenes/</code> 不見，出現 <code>domains/&lt;領域&gt;/</code>。</li>
+          <li><strong>伺服器・校驗</strong>：<code>uv run rpa pack check ~/rpa-data-m11/domains/*</code> 每個領域都沒有錯誤；頁面的領域、場景、版本號、已發布版本和升級前一樣；沒有領域的場景在「未分類」；角色旁邊顯示所在領域；領域頁沒有載入問題。</li>
+          <li><strong>伺服器・紀錄</strong>：存新版本 → 多 <code>revisions/&lt;n&gt;.yaml</code>；驗證 → 場景頁「驗證紀錄」多一筆、<code>verifications/&lt;n&gt;/&lt;執行編號&gt;.yaml</code>、<code>runs/&lt;執行編號&gt;/run.json</code>；發布 → <code>scene.yaml</code> 的 <code>published</code>。</li>
+          <li><strong>伺服器・兩台之間發布</strong>：A 驗證通過但不發布；全新資料夾 B 第一次啟動前把 A 的 <code>domains/testsite</code> 複製進 <code>~/rpa-data-b/domains/</code>，<code>uv run rpa serve --data ~/rpa-data-b --port 8090</code>；B 看得到 A 的驗證紀錄並可依它發布（git 同步是 PR 3，先手動複製）。</li>
+          <li><strong>伺服器・保護</strong>：手動改一個已存在版本的 <code>scenario.yaml</code>，領域頁「重新載入」→ 顯示雜湊不同，那個版本不能執行、不能發布；改回再重新載入就恢復。</li>
+          <li><strong>伺服器・名稱</strong>：<code>curl http://127.0.0.1:8080/api/settings/server</code>；<code>curl -X PUT -H 'Content-Type: application/json' -d '{"name":"linux-01"}' http://127.0.0.1:8080/api/settings/server</code>；之後紀錄的 <code>by</code>、<code>server.name</code> 都是新名稱。</li>
+          <li><strong>錄製端（Mac）</strong>：不必重新配對；錄製新場景（選或不選領域）→ 伺服器的 <code>domains/&lt;領域或 unassigned&gt;/scenes/&lt;代號&gt;/revisions/1/</code> 與 <code>1.yaml</code>；接著錄製 → 多一個版本；逐步調試、人工登入照常，登入狀態在伺服器 <code>roles/&lt;角色&gt;/state.json</code>，不在領域資料夾；Mac 的 <code>~/Library/Application Support/rpa/recorder</code> 沒有 <code>domains/</code>。</li>
+          <li><strong>Worker（Windows）</strong>：不必重新配對；驗證選「遠端 worker」→ 驗證紀錄顯示這台的代號與瀏覽器（YAML 的 <code>worker.id</code>、<code>worker.os: windows</code>）；伺服器的 <code>run.json</code> 的 <code>worker</code> 是它、<code>files</code> 含上傳的報告與截圖；依這份紀錄發布，再遠端執行已發布版本；執行中關掉 Worker → 「worker 失聯」，<code>run.json</code> 照樣寫；<code>%LOCALAPPDATA%\rpa\worker</code> 只有暫存。</li>
+        </ol>
       </div>
     </section>
 
@@ -443,9 +455,12 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
         <tbody>
           <tr><td><code>7990b7c</code>／Claude 雲端環境</td><td>讀 <code>storage.py</code>、<code>models.py</code>、<code>services.py</code>、<code>workflows.py</code>、<code>dispatch.py</code>、<code>roles.py</code>、<code>secret_store.py</code>、<code>rpa_core/workflow.py</code>、<code>rpa_runner/run.py</code>、<code>scenarios/demo/</code>，以及 #37 的錄製端 App</td><td>第 2 節的現況整理</td><td>沒有執行程式；設計階段沒有程式碼可測</td></tr>
           <tr><td>測試倉庫</td><td>匿名 <code>git clone --depth 1</code></td><td>公開、空倉庫（沒有提交）</td><td>沒有推送權限，也沒有嘗試推送</td></tr>
+          <tr><td>PR 1：<code>b624acb</code>＋文件 <code>a55c01e</code>＋本地未提交的修正／Claude 雲端環境（Python 3.13.16，git 2.43；連不到 PyPI，用 uv 快取裡的 pytest 9.1.1、ruff 0.16.9、pyright 1.1.414）</td><td><code>pytest packages/rpa_core</code>、<code>apps/cli/tests/test_pack_cli.py</code>、<code>apps/server/tests/test_storage.py</code>、<code>tests/docs</code>；<code>ruff check .</code>、<code>ruff format --check .</code>；pyright strict（只含 <code>rpa_core</code>、<code>rpa_cli</code> 的新檔案）</td><td>266、4、14、262 個測試通過；ruff 全倉庫通過；pyright 在範圍內沒有新錯誤</td><td>伺服器的測試與型別檢查要 FastAPI、SQLAlchemy，只能在 CI；本地 pyright 缺 PyYAML 的型別資料，<code>yaml_loader.py</code> 的既有錯誤是環境問題</td></tr>
+          <tr><td>PR 1：<code>a55c01e</code>／GitHub Actions（#48 第一次 CI）</td><td>CI 的靜態檢查、Linux 測試（Python 3.12、3.13，含網站的瀏覽器測試）、Windows Worker、桌面 App；結果從 check run 的 annotations 讀取（這個環境連不到 Actions 的日誌下載網址）</td><td>1311 個測試中只有 2 個失敗：<code>test_packs.py::test_reload_picks_up_new_revisions_and_missing_scenes</code>（測試呼叫錯了 API）與簡中文件還沒產生（bootstrap 之後補上）；pyright 在 <code>packs.py</code> 有 3 個錯誤（設定值的型別、不必要的 cast）。Windows Worker、錄製端 App、Worker App 通過</td><td>修正已在下一個提交；以最新 head 的 CI 為準</td></tr>
+          <tr><td>PR 1：<code>7ff5f2f</code>／GitHub Actions（#48）</td><td>同上：靜態檢查（ruff、pyright strict、i18n）、Linux 測試 Python 3.12 與 3.13（依生產角色，含網站的瀏覽器測試）、Windows Worker 測試、RPA Worker 與錄製端 App 的建置</td><td>全部通過（2026-10-20 04:47 PDT 完成）</td><td>macOS 錄製端與 Windows 上的網站瀏覽器測試由每天的完整測試承擔（見 CI 與流水線）；人工驗收未執行</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：不適用（只有交接文件）；人工驗收：未執行；審閱：使用者 06:05 PDT 回覆了決定點，設計文件本身尚未審閱合併。</p></div>
+      <div class="panel-body"><p>設計（#40）：CI 不適用（只有交接文件），使用者 06:05 PDT 回覆了決定點，2026-10-19 17:57 PDT 合併。PR 1：自動測試見上表，以 #48 最新 head 的 CI 為準；人工驗收：未執行（第 15 節，PR 3 之後）；審閱：未審閱。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -459,6 +474,19 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
         <li>2026-10-19 05:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>design/data-storage</code>，提出設計與決定點；尚未寫程式。提交 <code>6be8776</code>，開草稿 PR #40。</li>
         <li>2026-10-19 06:05 America/Los_Angeles（PDT，UTC−07:00），使用者：D1、D2、D4～D11 照建議；D3 改成「發布狀態要記錄」（分散式多人協作）；D4 之後要做回看，現在預留方案。</li>
         <li>2026-10-19 06:15 America/Los_Angeles（PDT，UTC−07:00），Claude：依回覆改寫第 4、5、6、8、9、12、13、15 節（驗證與發布紀錄進領域資料夾、回看的預留方案、四個 PR 的切分與人工驗收）；里程碑定為 M11。</li>
+        <li>2026-10-19 17:57 America/Los_Angeles（PDT，UTC−07:00；GitHub 記錄 2026-10-20 00:57 UTC），使用者：合併 #40（main 上的提交 <code>a779e2a</code>）。</li>
+        <li>2026-10-20 04:20 America/Los_Angeles（PDT，UTC−07:00），Claude（新的 session，接續本任務）：核對進度——main <code>a6164f7</code> 沒有任何 M11 程式碼（最新遷移仍是 0009），遠端沒有 M11 實作分支或開著的 PR；#39 已合併，第 2 節擔心的 <code>services.py</code> 重疊不存在。從 <code>a6164f7</code> 開 <code>m11/domain-packs</code> 做 PR 1。環境：Claude 雲端環境仍連不到 PyPI；<code>rpa_core</code>、<code>rpa_cli</code> 用 uv 快取裡的 pytest、ruff、pyright 在本地檢查，伺服器的測試靠 bootstrap 與 CI。</li>
+        <li>2026-10-20 04:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR 1 推送並開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>（04:38 PDT 建立）。內容：<code>rpa_core.pack</code>（說明檔模型、讀取校驗、固定格式寫入；雜湊演算法搬到 <code>rpa_core.dsl.sources</code>，runner 照舊匯出）、<code>rpa pack check</code>、伺服器的 <code>packs.py</code>（伺服器代號、寫入、載入成索引、驗證紀錄、<code>run.json</code>、遷移）、遷移 0010、場景頁的驗證紀錄、領域頁的載入問題與重新載入、角色選領域、三語文件。實作時的選擇（和設計不同或設計沒寫的）：
+          <ul>
+            <li>遷移 0010 只加 PR 1 用到的欄位（領域的載入問題與時間；場景、版本、角色的來源缺失；版本的問題與「有通過的驗證紀錄」；角色的領域）；資料來源、同步狀態留給 PR 3 另一個遷移（第 12 節原本寫一次加）。</li>
+            <li>每個場景都要在某個領域資料夾：建立時沒指定、清掉領域的都放「未分類」（<code>unassigned</code>），API 的 <code>domainId</code> 不再是 <code>null</code>；「還沒有任何領域」才匯入範例的判斷改成「只有未分類時」，並把未分類裡的範例搬進「測試網站自動化」，維持原本的行為。</li>
+            <li>發布門檻照第 8 節：任何一份雜湊相符的通過紀錄即可；最近一次失敗不擋發布（狀態仍顯示失敗）。版本頁的「發布」按鈕改看「有通過的驗證紀錄」。</li>
+            <li>排隊中就被取消、沒有真正開始的驗證不寫紀錄；<code>run.json</code> 每個結束的執行都寫。</li>
+            <li>新角色在表單選放在哪個領域（預設第一個領域；API 沒給時放未分類）；改領域時搬檔案。</li>
+            <li>伺服器名稱在 PR 1 只有 API（<code>GET/PUT /api/settings/server</code>），頁面留給 PR 3 的領域管理頁。</li>
+          </ul>
+          第一次 CI 的結果見<a href="#validation">驗證與審閱</a>；修正（<code>packs.py</code> 的型別、一個測試）在下一個提交。</li>
+        <li>2026-10-20 04:50 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>7ff5f2f</code> 的 CI 全部通過（04:47 PDT 完成）；#48 改成可以審閱。交接狀態：PR 1 的程式碼都在 <code>m11/domain-packs</code>，沒有未推送的修改；下一個動作是使用者審閱、合併 #48，之後從新的 main 開 PR 2（組合場景檔案化，第 15 節）。</li>
       </ul></div>
     </section>
   </div>

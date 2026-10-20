@@ -22,7 +22,7 @@
       {% for role in roles %}
       {% set session = role.session %}
       <tr id="role-{{ role.id }}" data-role="{{ role.id }}" data-state="{{ role.activity or '' }}:{{ session.status if session else '' }}:{{ role.status }}">
-        <td><strong>{{ role.name }}</strong> <span class="tag">{{ role.id }}</span>
+        <td><strong>{{ role.name }}</strong> <span class="tag">{{ role.id }}</span>{% if role.domain_id %} <a class="chip" href="/domains/{{ role.domain_id }}" title="{{ t('roles.domain_title') }}">{{ domain_names.get(role.domain_id, role.domain_id) }}</a>{% endif %}
           {% if role.description %}<span class="cell-sub">{{ role.description }}</span>{% endif %}
           <span class="cell-sub">{{ t("roles.engine", engine=role.engine) }} · {{ t("roles.auto_yes") if role.auto_login else t("roles.auto_no") }}</span></td>
         <td><a href="{{ role.login_url }}" target="_blank" rel="noopener">{{ role.login_url }}</a>
@@ -95,6 +95,7 @@
   <label>{{ t("roles.form_login_url") }}<input name="loginUrl" type="url" required placeholder="https://"></label>
   <label>{{ t("roles.form_check_url") }}<input name="checkUrl" type="url" placeholder="{{ t('roles.form_check_url_placeholder') }}"></label>
   <label>{{ t("roles.form_check") }}<input name="check" required class="mono" placeholder="{ testId: current-user }"><span class="cell-sub">{{ t("roles.form_check_hint") }}</span></label>
+  <label>{{ t("roles.form_domain") }}<select name="domainId">{% for item in domains %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select><span class="cell-sub">{{ t("roles.form_domain_hint") }}</span></label>
   <label>{{ t("roles.form_engine") }}<select name="engine">{% for engine in engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}</select></label>
   <label>{{ t("roles.form_auto") }}<textarea name="autoLogin" rows="7" class="code-editor" spellcheck="false" placeholder="{{ auto_example }}"></textarea><span class="cell-sub">{{ t("roles.form_auto_hint") }}</span></label>
   <ul class="checklist form-issues"></ul>
