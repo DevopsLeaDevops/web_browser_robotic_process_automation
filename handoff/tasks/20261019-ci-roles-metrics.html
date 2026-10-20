@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261019-ci-roles-metrics；2026-10-19 20:14 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261019-ci-roles-metrics；2026-10-19 21:34 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於本次對話（2026-10-19 17:59～19:59 America/Los_Angeles（PDT，UTC−07:00））：短期主要運行路徑是 Linux 只跑網站、Mac 只跑錄製、Windows 只跑 Worker；「大全量」可以定時執行，其他觸發節點要提效；支援手動觸發；運行時間統計記錄在 GitHub 倉庫方便復盤。確認三件事：(1) 覆蓋範圍的取捨可以接受；(2) 只改 handoff／docs 的推送跳過重的流程、修改「CI 綁定最終 PR head」可以；(3) Python 3.12 維持現狀。完成條件：PR 上依角色執行且時間縮短、只改文件的推送約 1 分鐘、完整測試每天排程且可手動觸發、ci-metrics 分支有歷次耗時。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>.github/workflows/</code> 的 ci、setup-scripts、desktop、nightly、release（權限）、uv-upgrade（排程時間）與新增的 ci-metrics；<code>tools/ci_roles.py</code>、<code>tools/ci_changes.py</code>、<code>tools/ci_metrics.py</code>、<code>tools/ci_annotations.py</code>（耗時摘要）、根目錄 <code>conftest.py</code>、<code>pyproject.toml</code>（標記、pyright 範圍）與對應測試；文檔 <code>docs/develop/ci.html</code>（新）、總覽、開發規範；<code>handoff/collaboration.html</code> 第 5 節的規則。不包含：修改測試本身、兩個偶發失敗的修正（見下方）、Python 3.12 的支援範圍。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（Opus 5.5，claude.ai 雲端環境）；審閱：未指定；合併由使用者決定。</dd>
         <dt>修改檔案／整合者</dt><dd>如上。開工時沒有開啟中的 PR，不與其他任務重疊。</dd>
-        <dt>狀態</dt><dd>實作中：本地完成，準備推送並由 bootstrap 產生簡中。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>chore/ci-roles-and-metrics</code>；PR 尚未建立；base <code>060b67d</code>（main，#44 合併後）。包含先前在 <code>chore/ci-test-durations</code> 驗證過的耗時摘要提交（cherry-pick）；那個分支沒有 PR，之後可刪除。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #46 的 CI、一鍵安裝腳本、桌面端建置、運行耗時紀錄（試跑）通過；每晚完整測試的全套在三個系統通過，Windows 第 2 遍有一個既有的偶發失敗（見下）。合併由使用者決定；合併後要手動觸發一次補記歷史。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/ci-roles-and-metrics</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/46">PR #46</a>；base <code>060b67d</code>（main，#44 合併後）。包含先前在 <code>chore/ci-test-durations</code> 驗證過的耗時摘要提交（cherry-pick）；那個分支沒有 PR，之後可刪除。</dd>
         <dt>工作區／環境</dt><dd>claude.ai 雲端 Linux。PyPI、npm 連不上，裝不了專案依賴；本機有 uv tool 裝的 ruff 0.16.8、pytest 9.1.1、pyright 1.1.414，可檢查不依賴專案套件的 <code>tools/ci_*.py</code> 與其測試。</dd>
       </dl></div>
     </section>
@@ -42,8 +42,8 @@
         </li>
         <li><strong>決定：</strong>已確認（使用者，2026-10-19 19:59 America/Los_Angeles（PDT，UTC−07:00））：上述三件事。實作選擇：錄製端 App 的視窗經由本機閘道顯示 Portal 的頁面，所以網站的改動仍觸發桌面端建置（只排除測試目錄）；逐步調試的協定測試在 Linux 用 Chromium 跑，Mac 上的真實路徑由錄製端 App 的端到端覆蓋；CI 的 full 在 Windows 仍只跑 Worker 測試，完整的三系統組合在每晚完整測試；只改文件的判斷只比較這次與上一次推送，上一次沒有通過就照常執行。</li>
         <li><strong>已知限制：</strong>PR 上只改文件沿用結果時，比較的是 PR 分支的兩個提交，不是和 main 合併後的結果；main 在期間有程式變更的話，合併到 main 時的 CI 會照常執行。</li>
-        <li><strong>相關但不在範圍：</strong>每晚測試抓到的兩個偶發失敗仍未修正：Windows 的 <code>apps/worker/tests/test_gateway.py::test_channels_of_the_app_are_not_forwarded</code>（WinError 10053）、macOS 的 <code>apps/desktop/tests/test_worker_app.py::test_console_worker_stops_on_request_before_connecting</code>（stop.request 的時序，見 <a href="20261019-ci-test-time.html#progress">上一個任務</a>）。macOS 上 <code>test_debug.py::test_steps_one_at_a_time[chromium]</code> 曾跑 38 秒（其他系統幾秒），只觀察到一次。</li>
-        <li><strong>下一個具體動作：</strong>推送（含 <code>[bootstrap]</code>）、建立 PR；確認 PR 上各工作的範圍與耗時、Windows 的 Worker 測試平行執行是否穩定；在分支上手動觸發「運行耗時紀錄」補記 2026-10-09 之後的歷史；推一個只改本紀錄的提交，確認只改文件時沿用結果。</li>
+        <li><strong>相關但不在範圍：</strong>每晚測試抓到的兩個偶發失敗仍未修正：Windows 的 <code>apps/worker/tests/test_gateway.py::test_channels_of_the_app_are_not_forwarded</code>（WinError 10053）、macOS 的 <code>apps/desktop/tests/test_worker_app.py::test_console_worker_stops_on_request_before_connecting</code>（stop.request 的時序，見 <a href="20261019-ci-test-time.html#progress">上一個任務</a>）。macOS 上 <code>test_debug.py::test_steps_one_at_a_time[chromium]</code> 曾跑 38 秒（其他系統幾秒），只觀察到一次。本 PR 的每晚完整測試又抓到一個：Windows 的 <code>packages/rpa_runner/tests/test_run.py::test_python_script_scenario[firefox]</code> 在第 2 遍失敗（子程序結束碼 1），第 1、3 遍通過（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39363773653">run 39363773653</a>）。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併。合併後在 Actions 手動觸發「運行耗時紀錄」，<code>since</code> 填 <code>2026-10-09</code>，建立 <code>ci-metrics</code> 分支並補記歷史（本機用同一工具試跑過：378 次運行、1,440 個工作）。另開任務修三個偶發失敗。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -54,10 +54,19 @@
         <tbody>
           <tr><td>060b67d＋工作區差異；雲端 Linux</td><td><code>ruff format --check</code>、<code>ruff check</code>（0.16.8）；<code>pytest tests/ci/test_ci_roles.py tests/ci/test_ci_changes.py tests/ci/test_ci_metrics.py tests/ci/test_ci_annotations.py</code>；<code>pyright</code>（strict，改到的 tools、conftest 與上述測試）</td><td>通過：46 個測試；pyright 0 錯誤</td><td>依賴專案套件的測試與檢查要等 CI</td></tr>
           <tr><td>同上</td><td><code>python3 tools/ci_changes.py</code> 以真實的事件內容與 GitHub API 試跑：PR #45 只改紀錄的推送（24cef13→68bfeec）、程式的推送（89fe88c→24cef13）、#40 合併到 main（e8c1e89→a779e2a）</td><td>CI：docs、normal、docs；一鍵安裝腳本與每晚：24cef13 那次沒有通過，照常執行（normal）</td><td>workflow 裡的實際執行要等 PR</td></tr>
+          <tr><td>e60ebbd；bootstrap run 39363327412</td><td>簡中、ruff、格式、pyright、<code>pytest -m "not browser"</code></td><td>通過；提交 <code>d874f81</code>（簡中 3 個檔案）</td><td>—</td></tr>
+          <tr><td>e60ebbd</td><td>GitHub 讀取 ci.yml</td><td>失敗（run 39363326262）：pytest 步驟有兩個 <code>env:</code>，GitHub 拒絕整個檔案，PR 一開始沒有 CI。<code>044051f</code> 修正；之後本機用拒絕重複鍵的 YAML 解析檢查全部 workflow</td><td>—</td></tr>
+          <tr><td>bb1e078；CI <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39363773718">run 39363773718</a></td><td>執行範圍 normal（整個 PR 碰到 Worker 路徑）</td><td>通過。Linux 3.13：2.2 分、1,254 個測試、測試時間合計 291 秒（之前 556 秒、工作約 4.5 分）；Windows Worker：3.2 分、34 個；3.12：1.0 分</td><td>—</td></tr>
+          <tr><td>a28832a；CI <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39366895394">run 39366895394</a></td><td>Windows 改 <code>--dist load</code></td><td>通過。Windows Worker 2.2 分（之前 3.2 分）；Linux 3.13 1.6 分；3.12 0.9 分；整個 CI 約 2.5 分</td><td>—</td></tr>
+          <tr><td>bb1e078、a28832a；一鍵安裝腳本 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39363773717">run 39363773717</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39366895390">39366895390</a></td><td>PR 範圍：Rocky 8、三個系統專案內只跑冒煙測試、不跑從零開始</td><td>通過；整個流程約 4 分（之前約 16 分）：Windows 2.0～2.1 分、macOS 2.1～2.4 分、Ubuntu 0.9～1.0 分、Rocky 8 各約 1 分</td><td>完整範圍（排程 20:47 UTC）要合併後才會第一次執行</td></tr>
+          <tr><td>bb1e078、a28832a；桌面端建置</td><td>錄製端（macOS）、Worker（Windows）</td><td>通過；3.3～3.9 分</td><td>—</td></tr>
+          <tr><td>bb1e078；每晚完整測試 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39363773653">run 39363773653</a></td><td>動態矩陣（plan）；四個工作</td><td>全套 1,304 個在 Ubuntu 3.13、3.12、macOS、Windows 都通過；第 2、3 遍除了 Windows 第 2 遍的 <code>test_python_script_scenario[firefox]</code>（偶發，見上）都通過；macOS 31 分、Windows 33 分、Ubuntu 23 分</td><td>排程與失敗時開 issue 要合併後才會執行</td></tr>
+          <tr><td>a28832a；每晚完整測試 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39366895408">run 39366895408</a></td><td>同上</td><td>四個工作全部通過，三遍都沒有失敗</td><td>—</td></tr>
+          <tr><td>bb1e078；運行耗時紀錄（PR 試跑）</td><td>補記最近兩天、產生總覽到運行摘要</td><td>通過（3.2 分）。本機用同一工具補記 2026-10-09 之後：378 次運行、1,440 個工作，總覽正常；測試報告這裡下載不了，在 Actions 裡可以</td><td>寫入 ci-metrics 分支要合併後手動觸發</td></tr>
           <tr><td>同上</td><td><code>pytest tests/docs</code></td><td>258 通過；1 失敗是簡中還沒產生 <code>docs/zh-Hans/develop/ci.html</code>（bootstrap 產生）</td><td><code>tests/i18n</code> 需要 opencc，等 bootstrap 與 CI</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：不適用；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：見上表；只改文件的推送見追加紀錄；人工驗收：不適用；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -67,6 +76,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-19 20:14 America/Los_Angeles（PDT，UTC−07:00），Claude：建立紀錄；本地修改完成，尚未推送。</li>
+        <li>2026-10-19 21:34 America/Los_Angeles（PDT，UTC−07:00），Claude：推送並建立 PR #46；修正 ci.yml 的重複 env（044051f）；運行耗時紀錄加上 PR 試跑（bb1e078）；Windows 改 <code>--dist load</code>（a28832a）；回填實測結果。本提交只改文件，用來驗證只改文件時各流程沿用 a28832a 的結果。</li>
       </ul></div>
     </section>
   </div>
