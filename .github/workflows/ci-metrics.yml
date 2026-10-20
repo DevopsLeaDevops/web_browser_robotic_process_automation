@@ -1,0 +1,80 @@
+# 運行耗時紀錄：每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，把耗時、排隊、
+# 各工作與各測試檔案的時間追加到 ci-metrics 分支（tools/ci_metrics.py），並重新產生那裡的 README.md。
+#
+# - 資料在獨立的 ci-metrics 分支，不碰 main；GITHUB_TOKEN 的推送不會觸發任何流程（包括 bootstrap）。
+# - workflow_run 只對 main 上的這個檔案生效；合併前可以在功能分支上手動觸發（補記歷史）。
+# - 手動觸發填 since（UTC 日期）會補記那天之後的運行；已經記過的不會重複。
+# - 所有寫入依序執行（concurrency 不取消），不會互相覆蓋。
+name: 運行耗時紀錄
+
+on:
+  workflow_run:
+    # 和 tools/ci_metrics.py 的 TRACKED 一致
+    workflows: [CI, 桌面端建置, 一鍵安裝腳本, 每晚完整測試, 發布]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "補記這個日期（UTC，YYYY-MM-DD）之後的運行；空白＝只重新產生總覽"
+        type: string
+        default: ""
+
+concurrency:
+  group: ci-metrics
+  cancel-in-progress: false
+
+permissions:
+  contents: write # 推送到 ci-metrics 分支
+  actions: read # 讀運行、工作與測試報告
+
+jobs:
+  record:
+    name: 記錄
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 取出 ci-metrics 分支
+        run: |
+          if git fetch --depth=1 origin ci-metrics; then
+            git worktree add --detach metrics FETCH_HEAD
+          else
+            # 第一次：建立沒有歷史的分支
+            git worktree add --detach metrics
+            git -C metrics switch --orphan ci-metrics-new
+          fi
+      - name: 記錄這次運行
+        if: github.event_name == 'workflow_run'
+        run: python3 tools/ci_metrics.py record --event "$GITHUB_EVENT_PATH" --data metrics/data
+      - name: 補記歷史
+        if: github.event_name == 'workflow_dispatch' && inputs.since != ''
+        env:
+          SINCE: ${{ inputs.since }}
+        run: python3 tools/ci_metrics.py backfill --since "$SINCE" --data metrics/data
+      - name: 產生總覽並推送
+        env:
+          RUN_NAME: ${{ github.event.workflow_run.name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          SINCE: ${{ inputs.since }}
+        run: |
+          python3 tools/ci_metrics.py report --data metrics/data --out metrics/README.md
+          cd metrics
+          git add -A
+          if git diff --cached --quiet; then
+            echo "沒有變更"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            message="chore(metrics): 記錄 ${RUN_NAME} #${RUN_ID}"
+          elif [ -n "$SINCE" ]; then
+            message="chore(metrics): 補記 ${SINCE} 之後的運行"
+          else
+            message="chore(metrics): 重新產生總覽"
+          fi
+          git commit -q -m "$message"
+          git push origin HEAD:refs/heads/ci-metrics
+          echo "::notice title=運行耗時紀錄::${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/ci-metrics"
