@@ -73,10 +73,32 @@ def create_db_engine(url: str) -> Engine:
 
 
 def upgrade(engine: Engine) -> None:
-    """把資料庫遷移到最新版本（rpa_server/migrations）。"""
+    """把資料庫遷移到最新版本（rpa_server/migrations）。
+
+    SQLite 的 batch 遷移會重建資料表（建新表、搬資料、刪舊表）。開著外鍵檢查時，刪除被其他表
+    參照、而且有資料的舊表會失敗（全新的資料庫沒有資料，所以只有升級舊資料時才會遇到）。
+    遷移期間關閉外鍵檢查，完成後用 ``PRAGMA foreign_key_check`` 確認沒有斷掉的參照，再打開。
+    """
+    sqlite = engine.dialect.name == "sqlite"
     with as_file(files("rpa_server").joinpath("migrations")) as location:
         config = Config()
         config.set_main_option("script_location", str(location))
-        with engine.begin() as connection:
-            config.attributes["connection"] = connection
-            command.upgrade(config, "head")
+        with engine.connect() as connection:
+            if sqlite:
+                # 在交易裡改 foreign_keys 不會生效：先在交易外面關掉
+                connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+                connection.commit()
+            try:
+                with connection.begin():
+                    config.attributes["connection"] = connection
+                    command.upgrade(config, "head")
+                    if sqlite:
+                        broken = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+                        if broken:
+                            raise RuntimeError(
+                                f"遷移後有 {len(broken)} 筆外鍵參照不存在：{broken[:5]}"
+                            )
+            finally:
+                if sqlite:
+                    connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+                    connection.commit()
