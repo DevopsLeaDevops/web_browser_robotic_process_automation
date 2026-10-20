@@ -117,6 +117,7 @@ def _role_values(role: RoleRecord) -> dict[str, object]:
         "check": _check_text(role),
         "engine": role.engine,
         "autoLogin": role.auto_login or "",
+        "domainId": role.domain_id or "",
     }
 
 
@@ -203,6 +204,7 @@ def page_router(services: Services) -> APIRouter:
             scene=record,
             domain=domain_of(record.domain_id),
             revisions=services.revisions(scene_id),
+            verifications=services.verifications(scene_id),
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
@@ -326,7 +328,8 @@ def page_router(services: Services) -> APIRouter:
         can_publish = (
             record.purpose == "validation"
             and record.status == "passed"
-            and revision.status == "passed"
+            and revision.verified
+            and revision.problem is None
             and not revision.published
             and record.scenario_hash == revision.content_hash
         )
@@ -438,6 +441,7 @@ def page_router(services: Services) -> APIRouter:
             check_text=_check_text,
             role_values=_role_values,
             auto_example=_AUTO_LOGIN_EXAMPLE,
+            domain_names={domain.id: domain.name for domain in services.list_domains()},
         )
 
     # ------------------------------------------------------------ 調試工作階段
@@ -519,6 +523,7 @@ def page_router(services: Services) -> APIRouter:
             runs=workflows.list_runs(limit=_RECENT_RUNS * 2),
             has_published=bool(workflows.library()),
             messages=workflow_messages(),
+            domain_names={domain.id: domain.name for domain in services.list_domains()},
         )
 
     @router.get("/playground", include_in_schema=False)
@@ -540,9 +545,12 @@ def page_router(services: Services) -> APIRouter:
         record = workflows.get_workflow(workflow_id)
         data = {
             "id": record.id,
+            "code": record.code,
             "name": record.name,
             "description": record.description or "",
             "version": record.version,
+            "latestRevision": record.version,
+            "publishedRevision": record.published_number,
             "definition": record.workflow.to_json(),
             "problems": [problem.to_json() for problem in record.problems],
             "library": workflows.library(),
@@ -557,6 +565,9 @@ def page_router(services: Services) -> APIRouter:
             data=data,
             messages=workflow_messages(),
             runs=workflows.list_runs(workflow_id=workflow_id, limit=_RECENT_RUNS),
+            revisions=workflows.revisions(workflow_id),
+            verifications=workflows.verifications(workflow_id),
+            dependencies=workflows.dependencies(workflow_id),
         )
 
     @router.get("/playground/runs/{run_id}", include_in_schema=False)

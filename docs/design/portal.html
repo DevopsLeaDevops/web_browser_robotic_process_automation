@@ -31,6 +31,7 @@
           <li><strong>每次用同一個。</strong>要看到同一份內容，每次啟動都要指定同一個資料夾；不加 <code>--data</code> 就回到 <code>data</code>。</li>
           <li><strong>全新的資料夾。</strong>第一次啟動（還沒有任何領域）時，自動建立「測試網站自動化」，放進 <code>scenarios/demo</code> 的範例與登入角色。適合驗收新版本，又不動到平常用的資料。</li>
           <li><strong>舊的資料夾。</strong>新版本第一次打開時自動升級資料庫，原有的場景與紀錄都保留；新版本新增的範例要到「測試網站自動化」按「匯入範例」。</li>
+          <li><strong>領域資料夾（M11）。</strong>場景、版本、角色與驗證、發布紀錄放在 <code>domains/&lt;領域&gt;/</code>，一個領域一個資料夾，可以單獨校驗（<code>rpa pack check</code>）。M11 之前的資料夾第一次打開時自動把舊的 <code>scenes/</code> 搬進去，搬之前先把資料庫與 <code>scenes/</code> 備份到 <code>backups/&lt;時間&gt;-before-domains/</code>；沒有領域的場景與沒有場景用到的角色放進「未分類」。資料庫裡的組合場景（M11 PR 2）搬進「組合場景」領域，代號是 <code>wf-&lt;原編號&gt;</code>、現在的定義成為第 1 版；搬之前先把資料庫備份到 <code>backups/&lt;時間&gt;-before-composites/</code>。</li>
           <li><strong>從頭開始與備份。</strong>先停止管理 Portal（終端機按 Ctrl+C）：刪掉資料夾就是從頭開始，複製整個資料夾就是備份。</li>
           <li><strong>不要提交或分享。</strong>裡面有登入狀態與 Secrets 的值（只有本人能讀寫）。Git 已經忽略專案裡的 <code>data/</code> 與 <code>data-*/</code>；用其他名稱或放在別處時請自己留意。</li>
         </ul>
@@ -69,8 +70,9 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>版本不可變。</strong>每次存檔都是新版本（v1、v2…），內容寫進資料目錄後設成唯讀。存檔要帶「從哪一版開始改」，不是最新版就回 409，避免覆蓋別人的修改。</li>
-          <li><strong>狀態。</strong>草稿 → 驗證中 → 驗證通過／驗證失敗；狀態是最近一次驗證的結果。發布後場景指向該版本，舊的發布版本留在歷史中。</li>
-          <li><strong>驗證的就是發布的。</strong>版本記錄內容雜湊，演算法與 rpa-runner 寫在 <code>result.json</code> 的 <code>scenarioHash</code> 相同。發布時要同時符合：最近一次驗證通過、有一次通過的驗證執行跑的雜湊等於版本雜湊、磁碟上的內容重新計算後也還是同一個雜湊。</li>
+          <li><strong>狀態。</strong>草稿 → 驗證中 → 驗證通過／驗證失敗；狀態是最近一次驗證紀錄的結果。發布後場景指向該版本，舊的發布版本留在歷史中。</li>
+          <li><strong>驗證的就是發布的。</strong>版本記錄內容雜湊，演算法與 rpa-runner 寫在 <code>result.json</code> 的 <code>scenarioHash</code> 相同。發布時要同時符合：磁碟上的內容重新計算後是同一個雜湊、版本說明檔記的也是它，而且領域資料夾裡有一份雜湊相符的通過驗證紀錄。</li>
+          <li><strong>紀錄跟著領域資料夾（M11）。</strong>每次驗證寫一份驗證紀錄（通過、失敗都寫：誰、哪台伺服器、哪台 worker、結果、雜湊），發布寫進 <code>scene.yaml</code>。紀錄跟著領域資料夾同步，任何一台伺服器的通過紀錄都能當發布的依據；場景頁列出全部驗證紀錄。</li>
           <li><strong>改內容就重新驗證。</strong>新版本一律從草稿開始，舊版本的驗證結果不能拿來發布新內容。</li>
         </ul>
       </div>
@@ -160,6 +162,9 @@
         <li><strong>參數連線。</strong>拖動出參圓點到入參，或依次用滑鼠／鍵盤選取兩端，建立顯式綁定；型別不符不修改原值。四種模式以按鈕同列呈現，仍可用出參選單精確選擇。唯一同名匹配與顯式來源畫出對應連線；歧義、預設值及人工值不畫假連線。契約按鈕原地顯示該固定版本的唯讀原文；編輯場景明示另開分頁，並提示驗證、發布後回畫布選新版本。</li>
         <li><strong>執行與返回。</strong>從畫布啟動後原地顯示快照版本、進度與各節點狀態，點節點可看本次入參、成功出參或錯誤；可原地取消。完整報告與節點報告由使用者主動打開，回畫布恢復選取節點、上游與縮放／捲動位置。卡片快捷執行仍直接進入報告。編輯畫布不改變已開始執行的快照。</li>
         <li><strong>直接依賴與清理。</strong>顯式連線及出參引用都形成依賴。移除連線清理對應的出參引用並重新檢查來源；移除節點同時清理它的連線與下游引用。重設入參會恢復同名匹配。循環、自我依賴、重複邊或不存在的端點不可執行。</li>
+        <li><strong>代號、領域與版本（M11 PR 2）。</strong>組合場景有英數代號（沒填就是 <code>wf-&lt;數字&gt;</code>，所有領域不能重複），放在某個領域資料夾的 <code>composites/&lt;代號&gt;/</code>，沒選領域就放「組合場景」領域。改定義的每次存檔都是新版本（<code>revisions/&lt;版本&gt;/workflow.json</code>，唯讀），版本說明檔釘住每個節點用到的場景版本（領域、場景、版本、雜湊）；改名稱與說明只改 <code>composite.yaml</code>，不分版本。用到其他領域時寫進 <code>pack.yaml</code> 的 <code>requires</code>。</li>
+        <li><strong>驗證、發布與執行（M11 PR 2）。</strong>執行時選目的：「驗證」跑某個版本（預設最新），結束時寫驗證紀錄（每個節點的場景、版本、雜湊、狀態與執行編號）；「執行」只跑發布的版本，不寫驗證紀錄。發布要有雜湊相符的通過驗證紀錄，而且每個節點跑的都是釘住的場景版本、那些場景版本現在還在且雜湊相同；發布寫進 <code>composite.yaml</code>。每次執行在 <code>workflow-runs/&lt;執行編號&gt;/run.json</code> 記下定義快照、版本、目的與每個節點的狀態。</li>
+        <li><strong>依賴檢查（M11 PR 2）。</strong>組合場景頁列出最新版本與發布版本的依賴問題並給補全方式：沒有那個領域（新增領域）、場景或版本不在、版本不能執行（重新載入領域）、雜湊不符或沒釘住（重新存檔）是錯誤，不能執行與發布；角色沒登入、缺少 Secrets 是提醒。卡片顯示「依賴不完整」或「依賴有提醒」。有組合場景的領域不能刪除。<code>rpa pack check</code> 一次給多個資料夾時也檢查它們之間的依賴。</li>
         <li><strong>保存與預檢。</strong>草稿可帶待修正的問題保存；保存攜帶 <code>baseVersion</code>，版本衝突回 409，頁面保留草稿供匯出。執行前檢查全圖、已發布固定版本、欄位、型別、必填值及固定值規則；有問題時第一個節點也不排入佇列。問題清單與執行阻擋對話框顯示節點、場景、入參及具體原因，點選可定位到畫布節點或入參欄位；欄位同步標紅。「執行前檢查」可手動檢查，卡片執行也重新取得最新問題。新增場景時不自動建立與前一節點的連線。</li>
         <li><strong>分叉與匯合。</strong>拓撲排序保證所有上游都通過才執行下游；就緒節點以定義中的順序穩定選取，逐個排入既有佇列。每個節點有自己的真實執行、入參、成功出參與報告。下游執行前再檢查實際值，不符合規則就停止，不回退到預設值。</li>
         <li><strong>快照與恢復。</strong>開始時固定編排、場景版本及同名匹配的具體來源，後續編輯不影響已開始的執行。失敗、逾時、取消、需要登入或 worker 失聯皆停止全圖；續跑沿用拓撲順序中已通過的結果，不重複已成功的外部操作。所有節點沿用同一台 worker；取消不回滾外部動作。</li>
@@ -239,7 +244,8 @@
           <thead><tr><th>介面</th><th>用途</th></tr></thead>
           <tbody>
             <tr><td><code>GET</code>、<code>POST /api/domains</code></td><td>領域清單；新增領域（<code>id</code>、<code>name</code>、<code>description</code>）</td></tr>
-            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代號}</code></td><td>領域與它的場景卡片（最近一次執行、截圖）；改名稱與說明；刪除沒有場景的領域</td></tr>
+            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代號}</code></td><td>領域與它的場景卡片（最近一次執行、截圖）、載入問題；改名稱與說明（寫進 <code>pack.yaml</code>）；刪除沒有場景與角色的領域（連同領域資料夾）</td></tr>
+            <tr><td><code>POST /api/domains/{代號}/reload</code></td><td>重新載入領域資料夾（在資料夾外面改了檔案之後）；回傳載入問題</td></tr>
             <tr><td><code>GET /api/scenes</code>、<code>POST /api/scenes</code></td><td>場景清單（<code>q</code>、<code>category</code>、<code>domain</code>）；建立場景（可帶 <code>domainId</code>）</td></tr>
             <tr><td><code>POST /api/scenes/import</code></td><td>匯入範例資料夾的場景，已存在的略過；可帶 <code>domainId</code>，預設放進測試網站自動化</td></tr>
             <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>場景與版本清單；修改所屬領域、預設網址、封存</td></tr>
@@ -247,6 +253,7 @@
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校驗問題（含行號）</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>驗證；202 回執行</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>發布；不符合發布門檻時 409</td></tr>
+            <tr><td><code>GET /api/scenes/{id}/verifications</code></td><td>驗證紀錄（領域資料夾裡的，不管是哪一台伺服器），最新的在前</td></tr>
             <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不寫時執行的地方有圖形介面就用有頭模式）、<code>target</code>（執行位置，不寫用預設）、<code>idempotencyKey</code>；驗證也接受同樣的欄位</td></tr>
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
@@ -264,17 +271,19 @@
             <tr><td><code>GET /api/recordings/{錄製編號}</code>、<code>…/cancel</code></td><td>錄製狀態、轉不了的行與檔案；取消錄製</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>開始逐步調試（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已經有工作階段時回傳它</td></tr>
             <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作階段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>調試狀態與結束；執行一步（有副作用而且執行過時 409 <code>confirm_required</code>，帶 <code>force</code> 再送）、執行到第 n 步、測試定位器、截圖、從頭開始、換到新版本</td></tr>
-            <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>序列清單（含問題與最近一次執行）；新增序列（<code>name</code>、<code>description</code>、選用的 <code>definition</code>，帶了就是匯入）</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>序列清單（含問題、依賴狀態與最近一次執行）；新增序列（<code>name</code>、<code>description</code>、選用的 <code>definition</code>，帶了就是匯入；選用的 <code>code</code> 與 <code>domainId</code>）</td></tr>
             <tr><td><code>GET /api/workflows/library</code></td><td>場景庫：發布過的場景版本，以及它們的入參、出參與登入角色</td></tr>
             <tr><td><code>POST /api/workflows/check</code></td><td>檢查一份定義（不存檔），回傳 <code>problems</code></td></tr>
-            <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{序列}</code></td><td>序列與最近的執行；存檔（<code>baseVersion</code>、<code>name</code>、<code>description</code>、<code>definition</code>；不是目前的存檔次數就 409）；刪除（執行中不能刪）</td></tr>
-            <tr><td><code>POST /api/workflows/{序列}/runs</code></td><td>執行序列（<code>engine</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>）；有問題時 422 並列出 <code>problems</code>；202 回序列的執行</td></tr>
+            <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{序列}</code></td><td>序列與最近的執行、版本、驗證紀錄、依賴問題；存檔（<code>baseVersion</code> 是最新的版本號碼、<code>name</code>、<code>description</code>、<code>definition</code>；不是最新版本就 409，定義改了才是新版本）；刪除（執行中不能刪，連同資料夾）</td></tr>
+            <tr><td><code>POST /api/workflows/{序列}/revisions/{n}/publish</code></td><td>發布組合場景的版本（M11 PR 2）；沒有雜湊相符的通過驗證紀錄 409 <code>workflow_not_validated</code>，依賴不完整 409 <code>workflow_dependencies</code></td></tr>
+            <tr><td><code>POST /api/workflows/{序列}/runs</code></td><td>執行序列（<code>engine</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>；<code>purpose</code> 是 <code>validation</code> 或 <code>execution</code>，驗證時可帶 <code>revision</code>；還沒發布就執行 409 <code>workflow_unpublished</code>）；有問題（含依賴錯誤）時 422 並列出 <code>problems</code>；202 回序列的執行</td></tr>
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{序列執行}</code></td><td>序列執行清單（可用 <code>workflow</code> 篩選）；單次的狀態與每個節點（狀態、入參的來源、那次執行）</td></tr>
             <tr><td><code>POST /api/workflow-runs/{序列執行}/cancel</code>、<code>…/rerun</code></td><td>取消；再執行一次（<code>resume: true</code> 從停下的節點繼續，否則從頭）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/workers</code></td><td>遠端 worker 清單（含預設執行位置、本機執不執行、Portal 的程式指紋）；登記（<code>id</code>、<code>name</code>），回應的 <code>token</code> 只有這一次拿得到</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代號}</code>；<code>POST …/token</code></td><td>狀態（含 App 版本）；改名稱、停用（<code>disabled</code>）；刪除（執行中 409）；重新產生權杖（命令列與腳本用）</td></tr>
             <tr><td><code>POST /api/workers/{代號}/invite</code></td><td>產生邀請（M10.1）：舊權杖與之前的邀請立刻失效；回應的 <code>invite</code>（<code>line</code>、<code>server</code>、<code>code</code>、<code>app</code>、<code>expiresAt</code>）只有這一次拿得到；沒開對外埠時 409 <code>invite_needs_port</code>，停用中 409 <code>worker_disabled</code></td></tr>
             <tr><td><code>PUT /api/settings/default-target</code></td><td>預設執行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
+            <tr><td><code>GET</code>、<code>PUT /api/settings/server</code></td><td>這台伺服器的代號與名稱（<code>name</code>）；寫進版本、驗證、發布的紀錄</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>只在對外埠、不需要權杖（M10.1）：<code>code</code>、<code>app</code> 換權杖，回應裝置代號、名稱、<code>token</code> 與伺服器的協定、指紋、版本；代碼不對或已用過 401 <code>invite_invalid</code>、過期 401 <code>invite_expired</code>、App 種類不對 409 <code>invite_wrong_app</code>（代碼保留）、裝置停用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
             <tr><td><code>/worker-api/v1/…</code></td><td>只在對外埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
@@ -290,26 +299,29 @@
           <p>預設是專案裡的 <code>data/</code>；用 <code>--data</code> 指定時是那個資料夾（見<a href="#data-folder">資料夾</a>）。裡面有：</p>
           <dl class="spec-list">
             <dt><code>rpa.db</code></dt><dd>SQLite 資料庫（各表見下方）</dd>
-            <dt><code>scenes/<wbr>&lt;場景 id&gt;/<wbr>&lt;版本&gt;/</code></dt><dd>scenario.yaml（腳本場景另有兩支腳本）</dd>
-            <dt><code>runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>M2 的執行目錄（input.json、report.html…）</dd>
+            <dt><code>domains/<wbr>&lt;領域&gt;/</code></dt><dd>領域資料夾（M11）：<code>pack.yaml</code>；<code>scenes/&lt;場景&gt;/</code> 裡的 <code>scene.yaml</code>、<code>revisions/&lt;版本&gt;/</code>（scenario.yaml，腳本場景另有兩支腳本）與版本說明檔 <code>revisions/&lt;版本&gt;.yaml</code>、驗證紀錄 <code>verifications/&lt;版本&gt;/</code>；角色定義 <code>roles/&lt;角色&gt;.yaml</code>；組合場景 <code>composites/&lt;代號&gt;/</code>（<code>composite.yaml</code>、<code>revisions/&lt;版本&gt;/workflow.json</code> 與版本說明檔、驗證紀錄）。格式見 <code>rpa_core.pack</code></dd>
+            <dt><code>runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>M2 的執行目錄（input.json、report.html…）；<code>run.json</code> 記下伺服器、領域、場景、版本、雜湊、時間與每個檔案的 sha256</dd>
+            <dt><code>workflow-runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>組合場景的執行（M11 PR 2）：<code>run.json</code> 記下定義快照、版本、目的、每個節點的狀態與執行編號</dd>
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登入狀態（只有本人能讀寫）</dd>
             <dt><code>recordings/<wbr>&lt;錄製編號&gt;/</code></dt><dd>遮罩過的原始錄製稿與轉換結果</dd>
             <dt><code>debug/<wbr>&lt;工作階段&gt;/</code></dt><dd>調試的截圖（工作階段結束就刪除）</dd>
             <dt><code>secrets.json</code></dt><dd>Secrets 的值（只有本人能讀寫）</dd>
+            <dt><code>backups/</code></dt><dd>升級到領域資料夾之前的資料庫與 <code>scenes/</code>；組合場景搬進資料夾之前的資料庫</dd>
           </dl>
           <p class="muted">資料庫的表：</p>
           <dl class="spec-list">
-            <dt>domains</dt><dd>代號、名稱、說明、排列順序</dd>
-            <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存</dd>
-            <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間</dd>
+            <dt>domains</dt><dd>代號、名稱、說明、排列順序；最近一次載入領域資料夾的時間與載入問題</dd>
+            <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存、來源缺失</dd>
+            <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間；來源缺失、不能執行的問題、有沒有雜湊相符的通過驗證紀錄</dd>
             <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間；試驗場節點的序列執行與節點代號；執行位置、指定的 worker、實際執行的 worker 與租約</dd>
-            <dt>roles</dt><dd>代號、名稱、登入網址、確認網址與判斷元素、瀏覽器、自動登入步驟、最近的狀態與檢查時間</dd>
+            <dt>roles</dt><dd>代號、名稱、登入網址、確認網址與判斷元素、瀏覽器、自動登入步驟、最近的狀態與檢查時間；所在領域、來源缺失</dd>
             <dt>recordings</dt><dd>錄製編號、目標場景與版本、方式（新場景、接著現有步驟、整份換掉）與接續的版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
-            <dt>workflows</dt><dd>試驗場的序列：名稱、說明、定義（JSON）、存檔次數</dd>
-            <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間；執行位置與固定的 worker</dd>
+            <dt>workflows</dt><dd>組合場景：代號、所在領域、名稱、說明、最新版本的定義（JSON）與版本號碼、發布的版本、封存、來源缺失</dd>
+            <dt>workflow_revisions</dt><dd>組合場景的版本（資料夾的索引）：版本號碼、雜湊、狀態、有沒有雜湊相符的通過驗證紀錄、不能執行的問題、說明、發布時間</dd>
+            <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、代號、版本與目的、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間；執行位置與固定的 worker</dd>
             <dt>workers</dt><dd>遠端 worker：代號、名稱、權杖的雜湊、停用、上線時回報的資訊（M10.1 加上 App 版本）、目前的執行、最後回報時間</dd>
             <dt>device_invites</dt><dd>裝置邀請（M10.1）：代碼的雜湊、App 種類、裝置代號、產生時間、期限、使用時間</dd>
-            <dt>settings</dt><dd>設定（預設執行位置）</dd>
+            <dt>settings</dt><dd>設定（預設執行位置、伺服器代號與名稱、資料夾的格式）</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
         </div>

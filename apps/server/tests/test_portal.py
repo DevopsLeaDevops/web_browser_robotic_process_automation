@@ -500,9 +500,12 @@ def test_playground_chains_published_scenarios(
     first.click()
     page.locator('input[data-value="title"]').fill("保留未儲存草稿")
     latest = api.get(f"{portal}/api/workflows/{workflow_id}").json()
+    # 另一分頁改了定義（M11 PR 2 起改名不分版本，不會衝突）
+    other = latest["definition"]
+    other["nodes"][1]["position"] = {"x": 7, "y": 7}
     assert api.put(
         f"{portal}/api/workflows/{workflow_id}",
-        data={"baseVersion": latest["version"], "name": "另一分頁"},
+        data={"baseVersion": latest["version"], "name": "另一分頁", "definition": other},
     ).ok
     save_button.click()
     expect(page.locator("#toast")).to_contain_text("已經在別的地方被修改")

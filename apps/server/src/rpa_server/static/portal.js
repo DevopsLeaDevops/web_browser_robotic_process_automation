@@ -186,6 +186,19 @@
         location.reload();
       });
     }
+    // 重新載入領域資料夾（M11）：在資料夾外面改了檔案之後
+    const reloadButton = qs('[data-action="reload-domain"]');
+    if (reloadButton) {
+      reloadButton.addEventListener('click', async () => {
+        busy(reloadButton, true);
+        const result = await api('POST', '/api/domains/' + path(reloadButton.dataset.domain) + '/reload');
+        if (!result.ok) {
+          busy(reloadButton, false);
+          return toast(errorMessage(result));
+        }
+        location.reload();
+      });
+    }
     const newButton = qs('[data-action="new-scene"]');
     if (newButton) {
       newButton.addEventListener('click', () => {
@@ -548,6 +561,7 @@
       check: value('check').trim(),
       engine: value('engine'),
       autoLogin: value('autoLogin'),
+      domainId: value('domainId'),
     };
   }
 
@@ -1402,8 +1416,10 @@
       const engine = qs('[name="engine"]', dialog).value || null;
       const headless = (qs('[name="headless"]:checked', dialog) || {value: '1'}).value === '1';
       const target = chosenTarget(dialog);
+      // 驗證最新版本，或執行發布的版本（M11 PR 2）
+      const purpose = (qs('[name="purpose"]:checked', dialog) || {value: 'validation'}).value;
       busy($('#dialog-action'), true);
-      const result = await api('POST', '/api/workflows/' + path(workflow.id) + '/runs', {engine, headless, target, idempotencyKey: key});
+      const result = await api('POST', '/api/workflows/' + path(workflow.id) + '/runs', {engine, headless, target, purpose, idempotencyKey: key});
       busy($('#dialog-action'), false);
       if (!result.ok) {
         qs('.form-error', dialog).textContent = errorMessage(result);
@@ -1419,7 +1435,34 @@
       if (onStarted) { $('#dialog').close(); onStarted(result.data); }
       else location.href = '/playground/runs/' + path(result.data.id);
     }});
-    bindTargetChoice(qs('#dialog-content'));
+    const dialog = qs('#dialog-content');
+    bindTargetChoice(dialog);
+    const execution = qs('[name="purpose"][value="execution"]', dialog);
+    if (execution) {
+      if (workflow.publishedRevision) execution.checked = true;
+      else {
+        execution.disabled = true;
+        const hint = qs('[data-purpose-hint]', dialog);
+        hint.textContent = hint.dataset.unpublished;
+      }
+    }
+  }
+
+  // 發布組合場景的版本（M11 PR 2）：和場景相同的確認對話框，發布後重新載入頁面
+  function bindCompositePublish() {
+    qsa('[data-action="publish-composite"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const number = button.dataset.revision;
+        confirmDialog(messages.publish_title + ' v' + number, messages.publish_body, messages.publish_action, async () => {
+          const url = '/api/workflows/' + path(button.dataset.workflow) + '/revisions/' + path(number) + '/publish';
+          const result = await api('POST', url);
+          $('#dialog').close();
+          if (!result.ok) return toast([errorMessage(result), ...problemLines(result)].join('\n'));
+          flash(messages.published);
+          location.reload();
+        });
+      });
+    });
   }
 
   function bindPlayground() {
@@ -1428,7 +1471,7 @@
     qs('[data-action="create-workflow"]').addEventListener('click', () => {
       const dialog = workflowDialog(text.create_title, null, text.create_action, async () => {
         const value = name => qs('[name="' + name + '"]', dialog).value.trim();
-        const result = await api('POST', '/api/workflows', {name: value('name'), description: value('description') || null});
+        const result = await api('POST', '/api/workflows', {name: value('name'), description: value('description') || null, code: value('code') || null, domainId: value('domainId') || null});
         if (!result.ok) {
           qs('.form-error', dialog).textContent = errorMessage(result);
           return;
@@ -2216,7 +2259,7 @@
     qs('[data-action="workflow-run"]').addEventListener('click', async () => {
       if ((dirty || legacy) && !(await save())) return;
       if (dirty) return toast(text.unsaved);
-      const workflow = {id: data.id, name: data.name, definition, problems};
+      const workflow = {id: data.id, name: data.name, definition, problems, publishedRevision: data.publishedRevision};
       if (problems.length) return showWorkflowIssues(workflow, focusProblem);
       openWorkflowRun(workflow, focusProblem, items => { problems = items; render({settings: false}); }, showLiveRun);
     });
@@ -2463,6 +2506,7 @@
   bindFilters();
   bindPublish();
   bindScenes();
+  bindCompositePublish();
   bindDomains();
   bindSceneSettings();
   bindEditor();

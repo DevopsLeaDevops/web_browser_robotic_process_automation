@@ -3,13 +3,26 @@ M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs；
 M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與由哪台 worker 執行；
 M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄製的 device_id。
 
-版本內容（場景檔與腳本）不放資料庫，放在資料目錄（storage.py）；資料庫只記雜湊與狀態。
+M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資料夾（rpa_server.packs）；這幾張表是
+資料夾的**索引**，載入時依資料夾重建。只在資料庫的欄位（網址覆寫、排序、登入檢查的結果）
+不會被覆蓋；資料夾裡已經沒有的標為來源缺失（missing），執行紀錄引用的列不刪除。
+版本內容（場景檔與腳本）不放資料庫；資料庫只記雜湊與狀態。
 改了模型就要新增遷移（rpa_server/migrations/versions），測試會比對兩者是否一致。
 """
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Float, ForeignKey, MetaData, String, Text, UniqueConstraint, true
+from sqlalchemy import (
+    Boolean,
+    Float,
+    ForeignKey,
+    MetaData,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+    true,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from rpa_server.db import NAMING_CONVENTION, JsonType, UtcDateTime
@@ -26,6 +39,7 @@ __all__ = [
     "Scene",
     "Setting",
     "Workflow",
+    "WorkflowRevision",
     "WorkflowRun",
 ]
 
@@ -44,6 +58,10 @@ class Domain(Base):
     description: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    problems: Mapped[list[dict[str, object]] | None] = mapped_column(JsonType)
+    """最近一次載入領域資料夾發現的問題（M11，rpa_core.pack.PackIssue 的 JSON）。"""
+    loaded_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    """最近一次載入領域資料夾的時間（M11）。"""
 
 
 class Scene(Base):
@@ -62,10 +80,12 @@ class Scene(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """來源缺失（M11）：領域資料夾裡已經沒有這個場景；清單隱藏、不能執行，執行紀錄照樣保留。"""
 
 
 class Revision(Base):
-    """版本：內容不可變；status 是最近一次驗證的結果。"""
+    """版本：內容不可變；status 是最近一次驗證的結果（M11 起依資料夾的驗證紀錄計算）。"""
 
     __tablename__ = "revisions"
     __table_args__ = (UniqueConstraint("scene_id", "number"),)
@@ -79,6 +99,12 @@ class Revision(Base):
     note: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     published_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """來源缺失（M11）：資料夾裡已經沒有這個版本。"""
+    problem: Mapped[str | None] = mapped_column(String(60))
+    """讓這個版本不能執行、不能發布的問題代碼（M11，例如內容和版本說明檔的雜湊不同）。"""
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """有雜湊相符的通過驗證紀錄（M11，發布門檻；不管是哪一台伺服器驗證的）。"""
 
 
 class Run(Base):
@@ -150,6 +176,10 @@ class Role(Base):
     checked_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    domain_id: Mapped[str | None] = mapped_column(ForeignKey("domains.id"), index=True)
+    """定義放在哪個領域資料夾的 roles/（M11）。"""
+    missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """來源缺失（M11）：領域資料夾裡已經沒有這個角色。"""
 
 
 class Recording(Base):
@@ -188,9 +218,11 @@ class Recording(Base):
 
 
 class Workflow(Base):
-    """自由試驗場的一個序列（M6）：已發布場景的固定版本，上游出參綁定到下游入參。
+    """組合場景（M6）：已發布場景的固定版本，上游出參綁定到下游入參。
 
-    定義是 rpa_core.workflow 的 JSON；每次存檔 version 加一，存檔要帶目前的 version。
+    M11 PR 2 起定義在領域資料夾的 composites/<code>/，每次改定義都是新版本（version 是最新的
+    版本號碼，存檔要帶它）；這裡是索引，definition 是最新版本的定義（編輯頁用）。
+    id 只在這台伺服器有意義（網址用）；跨伺服器認得的是 code。
     """
 
     __tablename__ = "workflows"
@@ -202,6 +234,32 @@ class Workflow(Base):
     version: Mapped[int] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    """英數代號（D2），也是資料夾的名稱；舊的組合場景是 wf-<id>。"""
+    domain_id: Mapped[str | None] = mapped_column(ForeignKey("domains.id"), index=True)
+    published_number: Mapped[int | None] = mapped_column()
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """來源缺失：領域資料夾裡已經沒有這個組合場景。"""
+
+
+class WorkflowRevision(Base):
+    """組合場景的一個版本（M11 PR 2）：資料夾的索引；status 是最近一次驗證紀錄的結果。"""
+
+    __tablename__ = "workflow_revisions"
+    __table_args__ = (UniqueConstraint("workflow_id", "number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workflow_id: Mapped[int] = mapped_column(ForeignKey("workflows.id"), index=True)
+    number: Mapped[int] = mapped_column()
+    content_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20))
+    verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    problem: Mapped[str | None] = mapped_column(String(60))
+    missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    published_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
 
 class WorkflowRun(Base):
@@ -235,6 +293,15 @@ class WorkflowRun(Base):
     """執行位置（M9a），每個節點都一樣。"""
     worker_id: Mapped[str | None] = mapped_column(String(64))
     """第一個節點由哪台 worker 領取，後面的節點就固定給它（測試網站的資料、登入狀態一致）。"""
+    purpose: Mapped[str] = mapped_column(
+        String(20), default="validation", server_default="validation"
+    )
+    """validation（驗證某個版本，結果寫進驗證紀錄）或 execution（執行發布的版本）；M11 PR 2。"""
+    workflow_code: Mapped[str | None] = mapped_column(String(64))
+    """組合場景的代號（執行當時的）；workflow_version 是跑的版本號碼。"""
+    workflow_hash: Mapped[str | None] = mapped_column(String(64))
+    """跑的版本的雜湊（definition 是解析過來源的快照，雜湊和版本不同）；驗證紀錄記它。
+    M11 PR 2 之前的執行（與它們的重跑）沒有，不寫驗證紀錄。"""
 
 
 class RemoteWorker(Base):

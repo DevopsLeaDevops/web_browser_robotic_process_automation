@@ -12,7 +12,6 @@
 """
 
 import contextlib
-import hashlib
 import json
 import os
 import shutil
@@ -28,6 +27,7 @@ from pathlib import Path
 from typing import Final, Literal, cast
 
 from rpa_core.dsl import Issue, Scenario, validate_file
+from rpa_core.dsl.sources import scenario_digest, scenario_sources
 from rpa_core.i18n import ENV_VAR, get_locale
 from rpa_runner.browser import Deadline
 from rpa_runner.commands import module_command, no_window_flags, script_command
@@ -64,6 +64,7 @@ from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_runner.report import render_report
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
 
+# scenario_digest、scenario_sources 在 rpa-core（領域資料夾的校驗也要用，M11），這裡照舊匯出
 __all__ = [
     "DEFAULT_DEADLINE_MS",
     "RunResult",
@@ -301,25 +302,6 @@ def _run_process(
 
 
 # ---------------------------------------------------------------- 執行
-
-
-def scenario_sources(path: Path, scenario: Scenario) -> list[str]:
-    """場景由哪些檔案組成（相對於場景檔所在的資料夾）：場景檔，加上腳本場景的兩支腳本。"""
-    sources = [path.name]
-    if scenario.script is not None:
-        sources += [scenario.script.automation, scenario.script.assertion]
-    return sources
-
-
-def scenario_digest(path: Path, scenario: Scenario) -> str:
-    """場景內容的雜湊（sha256），每次執行都記在 result.json 的 scenarioHash。
-
-    管理介面的發布門檻用它確認「通過驗證的就是要發布的版本」。
-    """
-    digest = hashlib.sha256()
-    for relative in scenario_sources(path, scenario):
-        digest.update(relative.encode() + b"\0" + (path.parent / relative).read_bytes() + b"\0")
-    return digest.hexdigest()
 
 
 def new_run_id(scenario_id: str, now: datetime | None = None) -> str:

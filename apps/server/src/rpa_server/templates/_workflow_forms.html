@@ -1,5 +1,7 @@
 <template id="workflow-form">
   <label>{{ t("playground.form_name") }}<input name="name" required maxlength="200" placeholder="{{ t('playground.form_name_placeholder') }}" autocomplete="off"></label>
+  <label>{{ t("playground.form_code") }}<input name="code" pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="{{ t('playground.form_code_placeholder') }}" autocomplete="off"></label>
+  <label>{{ t("playground.form_domain") }}<select name="domainId"><option value="">{{ t("playground.form_domain_default") }}</option>{% for item in domains %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select><span class="cell-sub">{{ t("playground.form_domain_hint") }}</span></label>
   <label>{{ t("playground.form_description") }}<textarea name="description" rows="3" maxlength="2000"></textarea></label>
   <p class="form-error" role="alert"></p>
 </template>

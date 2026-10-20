@@ -1,7 +1,8 @@
 """組裝管理 Portal：資料庫、服務層、背景 worker、API 與頁面。
 
 ``create_app(settings)`` 回傳 FastAPI 應用；``rpa serve`` 用 uvicorn 啟動它。
-啟動時：遷移資料庫 → 把上次中斷的執行標為失敗 → 啟動 worker；關閉時先停 worker。
+啟動時：遷移資料庫 → 載入領域資料夾（M11；第一次啟動時先把舊的 scenes/ 搬進領域資料夾）→
+把上次中斷的執行標為失敗 → 啟動 worker；關閉時先停 worker。
 
 M9a：同一個應用也提供 Worker API（/worker-api/v1），只在 ``settings.worker_port`` 的埠上；
 遠端 worker 的租約由背景執行緒檢查。``settings.local_worker`` 為 False 時這台電腦不執行。
@@ -77,6 +78,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     services.on_queued = queued
     services.on_cancel = worker.cancel  # 遠端 worker 在下一次心跳得知要取消
+    with use_locale(settings.locale):
+        # 領域資料夾（M11）：伺服器代號、舊資料遷移（先備份）、載入全部領域
+        for report in services.startup():
+            errors = [issue for issue in report.issues if issue.severity == "error"]
+            if errors or not report.applied:
+                logger.warning(
+                    "%s", t("server.pack_problems", domain=report.domain_id, count=len(errors))
+                )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:

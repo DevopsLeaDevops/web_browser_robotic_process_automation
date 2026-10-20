@@ -210,7 +210,7 @@ def test_save_check_and_version_conflict(app: FastAPI, client: Client) -> None:
     renamed = body(
         client.put(f"/api/workflows/{workflow}", json={"baseVersion": 2, "name": "改名"})
     )
-    assert (renamed["name"], renamed["version"]) == ("改名", 3)
+    assert (renamed["name"], renamed["version"]) == ("改名", 2)  # 改名不分版本（M11 PR 2）
     assert renamed["definition"] == {"version": 1, "mode": "serial", "onFailure": "stop", **CHAIN}
 
     assert [

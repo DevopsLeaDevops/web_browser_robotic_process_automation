@@ -17,6 +17,8 @@ from rpa_server.debugging import DebugSession
 from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
 from rpa_server.domain import (
     ENGINES,
+    CompositeRevisionRecord,
+    DependencyItem,
     DomainRecord,
     RecorderRecord,
     RecordingRecord,
@@ -25,6 +27,7 @@ from rpa_server.domain import (
     RunRecord,
     SceneCard,
     SceneRecord,
+    VerificationRecord,
     WorkerRecord,
     WorkflowNodeState,
     WorkflowRecord,
@@ -71,8 +74,42 @@ SCENE = SceneRecord(
     updated_at=MOMENT,
 )
 REVISIONS = [
-    RevisionRecord("ba-001", 2, "b" * 64, "dsl", "passed", "改步驟", MOMENT, None, False),
-    RevisionRecord("ba-001", 1, "a" * 64, "dsl", "passed", None, MOMENT, MOMENT, True),
+    RevisionRecord(
+        "ba-001", 2, "b" * 64, "dsl", "passed", "改步驟", MOMENT, None, False, verified=True
+    ),
+    RevisionRecord(
+        "ba-001", 1, "a" * 64, "dsl", "passed", None, MOMENT, MOMENT, True, verified=True
+    ),
+]
+VERIFICATIONS = [
+    VerificationRecord(
+        id="ba-001-20261010-083000-abcdef",
+        revision=2,
+        status="passed",
+        matches=True,
+        finished_at=MOMENT,
+        by="jia-mac",
+        server_id="3a9d",
+        server_name="jia-mac",
+        worker="local",
+        engine="chromium",
+        headless=True,
+        here=True,
+    ),
+    VerificationRecord(
+        id="ba-001-20261009-010000-123456",
+        revision=1,
+        status="failed",
+        matches=True,
+        finished_at=MOMENT,
+        by="yi-mac",
+        server_id="5f3a",
+        server_name="yi-mac",
+        worker="win-01",
+        engine=None,
+        headless=False,
+        here=False,
+    ),
 ]
 RUN = RunRecord(
     id="ba-001-20261010-083000-abcdef",
@@ -311,6 +348,7 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
             check_text=_check_text,
             role_values=_role_values,
             auto_example="- { id: open, action: goto, url: https://example.com }",
+            domain_names={},
         ),
         "recording": render(
             "recording.html",
@@ -386,6 +424,9 @@ def _source(kind: str, **fields: object) -> dict[str, object]:
 
 def _m6_pages(*, english: bool = False) -> dict[str, str]:
     """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）。"""
+    domains = (
+        [replace(DOMAIN, name="Lab"), replace(OTHER_DOMAIN, name="Other")] if english else DOMAINS
+    )
     name = "Create then look up" if english else "建立後查詢"
     run = (
         replace(RUN, scene_name="Scene", input={"title": "x"}, output={"recordId": "DEMO-1"})
@@ -453,7 +494,45 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
     problem = WorkflowProblem(
         "workflow.input_missing", "Node n2: no source" if english else "缺少來源", "n2", "recordId"
     )
-    record = WorkflowRecord(1, name, None, CHAIN, 2, MOMENT, MOMENT, (problem,), passed)
+    record = WorkflowRecord(
+        1,
+        name,
+        None,
+        CHAIN,
+        2,
+        MOMENT,
+        MOMENT,
+        (problem,),
+        passed,
+        code="wf-1",
+        domain_id="composites",
+        published_number=1,
+        dependency="warnings",
+    )
+    revisions = [
+        CompositeRevisionRecord(2, "b" * 64, "draft", True, None, None, MOMENT, None, False),
+        CompositeRevisionRecord(1, "a" * 64, "passed", True, None, "v1", MOMENT, MOMENT, True),
+    ]
+    dependencies = [
+        DependencyItem(
+            "warning",
+            "role_login",
+            "Role buyer needs login" if english else "角色 buyer 需要登入",
+            2,
+            "ba",
+            "ba-001",
+            "login",
+        ),
+        DependencyItem(
+            "error",
+            "domain_missing",
+            "Domain hr is missing" if english else "沒有領域 hr",
+            2,
+            "hr",
+            "hr-001",
+            "add_domain",
+        ),
+    ]
     data = {
         "id": 1,
         "name": name,
@@ -474,15 +553,16 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             domains=(),
             **common,
             title=t("nav.composites"),
-            workflows=[record],
+            workflows=[record, replace(record, id=2, domain_id=None, published_number=None)],
             data=data,
             runs=[passed],
             has_published=True,
+            domain_names={"composites": "Composites"},
         ),
         "playground": render(
             "playground.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=t("nav.playground"),
             workflows=[
                 record,
@@ -495,7 +575,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "playground-empty": render(
             "playground.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=t("nav.playground"),
             workflows=[],
             runs=[],
@@ -505,17 +585,20 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow": render(
             "workflow.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=name,
             workflow=record,
             data=data,
             runs=[passed],
+            revisions=revisions,
+            verifications=VERIFICATIONS,
+            dependencies=dependencies,
             **common,
         ),
         "workflow-run": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=passed.id,
             run=passed,
             workflow_exists=True,
@@ -525,7 +608,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-run-login": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=login.id,
             run=login,
             workflow_exists=False,
@@ -535,7 +618,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-running": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=running.id,
             run=running,
             workflow_exists=True,
@@ -545,7 +628,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-blocked": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=blocked.id,
             run=blocked,
             workflow_exists=True,
@@ -596,6 +679,7 @@ def _pages() -> dict[str, str]:
             domain=DOMAIN,
             scene=SCENE,
             revisions=REVISIONS,
+            verifications=VERIFICATIONS,
             scenario=scenario,
             default_base_url=scenario.browser.base_url,
             runs=[RUN],
@@ -859,6 +943,46 @@ def test_scene_card_follows_the_design() -> None:
     assert "2 個場景" in _text(html)
 
 
+def test_scene_page_lists_validation_records_from_every_server() -> None:
+    with use_locale("zh-Hant"):
+        html = _pages()["scene"]
+    panel = html.split('id="verifications"')[1].split("</section>")[0]
+    text = _text(panel)
+    assert "驗證紀錄" in text
+    # 這台的紀錄連到報告；別台的只顯示執行編號與在哪一台
+    assert 'href="/runs/ba-001-20261010-083000-abcdef"' in panel
+    assert 'href="/runs/ba-001-20261009-010000-123456"' not in panel
+    assert "報告在 yi-mac" in text
+    assert "win-01 · —" in text
+    # 有雜湊相符的通過紀錄才顯示「發布」
+    assert 'data-action="publish" data-scene="ba-001" data-revision="2"' in html
+
+
+def test_domain_page_shows_load_problems_and_reload() -> None:
+    problem = {
+        "path": "scenes/ba-002/scene.yaml",
+        "line": 2,
+        "code": "pack.scene_id_mismatch",
+        "message": "scene.yaml 的 id 是 x",
+        "severity": "error",
+    }
+    with use_locale("zh-Hant"):
+        html = render(
+            "domain.html",
+            page="domain:testsite",
+            title=DOMAIN.name,
+            domains=DOMAINS,
+            domain=replace(DOMAIN, problems=(problem,), loaded_at=MOMENT),
+            cards=[],
+            can_import=False,
+        )
+    assert 'data-action="reload-domain" data-domain="testsite"' in html
+    details = html.split('id="domain-problems"')[1].split("</details>")[0]
+    assert " open>" in details
+    assert "scenes/ba-002/scene.yaml:2" in details
+    assert "1 個問題" in _text(details)
+
+
 # ---------------------------------------------------------------- 多語言
 
 
@@ -925,6 +1049,7 @@ def _english_domain_pages() -> dict[str, str]:
                 domain=domain,
                 scene=scene,
                 revisions=[replace(revision, note=None) for revision in REVISIONS],
+                verifications=VERIFICATIONS,
                 scenario=scenario,
                 default_base_url=scenario.browser.base_url,
                 runs=[run],

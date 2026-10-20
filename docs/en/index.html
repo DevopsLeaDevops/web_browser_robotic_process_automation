@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:deba1f7720fd7609">
+<meta name="translation-source" content="sha256:24f356cf9fc67b9c">
 <title>Home · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -70,7 +70,7 @@
             <dt>rpa-runner</dt><dd>Execution engine: input validation, login checks, running the steps in Chromium or Firefox, independent assertions, output publishing, run reports; subprocesses for manual login and step debugging</dd>
             <dt>rpa-worker</dt><dd>Background worker: claims jobs, runs them in a subprocess, cancels them; no database dependency. It can also run on another computer as a remote worker, claiming jobs through the portal's Worker API (M9a)</dd>
             <dt>rpa-server</dt><dd>Management portal: FastAPI API and Jinja pages, SQLite, revisions and the publishing gate, the run queue, login roles and secrets, recording, step debugging, the playground, remote worker registration and dispatch</dd>
-            <dt>rpa-cli</dt><dd><code>rpa serve</code> starts the management portal (<code>--worker-port</code> opens it to remote workers); <code>rpa worker</code> turns another computer into a remote worker; <code>rpa run</code> runs a scenario; <code>rpa record</code> records actions and turns them into a scenario draft; <code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
+            <dt>rpa-cli</dt><dd><code>rpa serve</code> starts the management portal (<code>--worker-port</code> opens it to remote workers); <code>rpa worker</code> turns another computer into a remote worker; <code>rpa run</code> runs a scenario; <code>rpa record</code> records actions and turns them into a scenario draft; <code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa pack check</code> checks domain folders, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
             <dt>Toolchain</dt><dd>uv (dependencies locked in <code>uv.lock</code>), ruff, pyright (strict), pytest, pre-commit</dd>
             <dt>CI</dt><dd>PRs and merges test each system in its production role: the website on Linux, the worker on Windows, the recorder app on macOS; early every morning all tests run on the three systems, with the browser tests repeated three times. Triggers, durations, manual runs and duration records are in <a href="develop/ci.html">CI &amp; pipelines</a></dd>
             <dt>Docs</dt><dd>This site, in Traditional Chinese, Simplified Chinese and English, with automatic checks for links and translation sync</dd>

@@ -1,19 +1,25 @@
-"""資料目錄裡的檔案：場景版本與執行目錄。
+"""資料目錄裡的檔案：領域資料夾裡的場景版本，以及執行目錄。
 
 ::
 
     <資料目錄>/
       rpa.db                    SQLite（預設）
-      scenes/<場景 id>/<版本>/   scenario.yaml；腳本場景另有兩支腳本
-      runs/<執行編號>/           rpa-runner 的執行目錄（input.json、report.html…）
+      domains/<領域>/            領域資料夾（M11；格式見 rpa_core.pack，載入見 packs.py）
+        scenes/<場景 id>/revisions/<版本>/   scenario.yaml；腳本場景另有兩支腳本
+      runs/<執行編號>/           rpa-runner 的執行目錄（input.json、report.html…、run.json）
       roles/<角色>/state.json    角色的登入狀態（只有本人能讀寫，不經由網頁提供）
       recordings/<錄製編號>/     遮罩過的原始錄製稿 raw.py 與轉換結果 scenario.yaml
       debug/<工作階段>/          調試工作階段的入參、場景快照與截圖（工作階段結束就刪除）
       secrets.json              Secrets 的值（只有本人能讀寫）
+      backups/                  遷移前的備份（M11）
 
 版本一旦寫入就不再修改；改內容就是新版本。版本內容的雜湊與 rpa-runner 記在 result.json 的
-scenarioHash 用同一個演算法（:func:`rpa_runner.run.scenario_digest`），發布門檻靠它確認
+scenarioHash 用同一個演算法（:func:`rpa_core.dsl.sources.scenario_digest`），發布門檻靠它確認
 「通過驗證的就是要發布的版本」。
+
+場景在哪個領域資料夾由 :meth:`Storage.place_scene` 登記（載入資料夾、新增場景、搬到其他領域時），
+所以只知道場景 id 的地方（佇列、遠端分派）照樣用 :meth:`Storage.revision_dir` 找到版本目錄。
+M11 之前的版本目錄在 ``scenes/<場景>/<版本>/``，第一次啟動時搬進領域資料夾（packs.py）。
 """
 
 import json
@@ -21,6 +27,7 @@ import os
 import re
 import shutil
 import tempfile
+import threading
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -28,7 +35,8 @@ from pathlib import Path
 from typing import Final
 
 from rpa_core.dsl import Issue, Scenario, validate_file
-from rpa_runner.run import scenario_digest, scenario_sources
+from rpa_core.dsl.sources import scenario_digest, scenario_sources
+from rpa_core.pack import COMPOSITES_DIR, REVISIONS_DIR, SCENES_DIR
 from rpa_server.i18n import t
 
 __all__ = [
@@ -51,6 +59,10 @@ _MAX_BYTES: Final = 1_000_000
 
 class StorageConflictError(Exception):
     """要寫入的版本目錄已經存在。"""
+
+
+_NOWHERE: Final = ".missing"
+"""還沒登記在任何領域的場景：版本目錄指到不存在的地方（讀不到，也不會寫進去）。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,18 +88,88 @@ class Storage:
         # 絕對路徑：交給子程序的路徑（錄製稿、登入狀態）不受子程序的工作目錄影響
         root = root.absolute()
         self.root = root
-        self.scenes = root / "scenes"
+        self.domains = root / "domains"
+        self.legacy_scenes = root / "scenes"
+        """M11 之前的版本目錄；遷移完成後移除。"""
+        self.backups = root / "backups"
         self.runs = root / "runs"
         self.roles = root / "roles"
         self.recordings = root / "recordings"
         self.debug = root / "debug"
         self.secrets = root / "secrets.json"
+        self.workflow_runs = root / "workflow-runs"
+        """組合場景的執行紀錄（M11 PR 2）：workflow-runs/<編號>/run.json。"""
+        self._places: dict[str, str] = {}
+        self._composites: dict[str, str] = {}
+        self._places_lock = threading.Lock()
 
     def ensure(self) -> None:
-        for folder in (self.scenes, self.runs, self.roles, self.recordings, self.debug):
+        for folder in (self.domains, self.runs, self.roles, self.recordings, self.debug):
             folder.mkdir(parents=True, exist_ok=True)
         if os.name != "nt":
             self.roles.chmod(0o700)
+
+    # ------------------------------------------------------------ 領域資料夾
+
+    def domain_dir(self, domain_id: str) -> Path:
+        return self.domains / domain_id
+
+    def place_scene(self, scene_id: str, domain_id: str) -> None:
+        """登記場景在哪個領域資料夾。"""
+        with self._places_lock:
+            self._places[scene_id] = domain_id
+
+    def forget_scene(self, scene_id: str, domain_id: str | None = None) -> None:
+        """取消登記（domain_id 有指定時，只在還登記在那個領域時取消）。"""
+        with self._places_lock:
+            if domain_id is None or self._places.get(scene_id) == domain_id:
+                self._places.pop(scene_id, None)
+
+    def scene_domain(self, scene_id: str) -> str | None:
+        """場景在哪個領域資料夾；沒有登記時到磁碟上找一次。"""
+        with self._places_lock:
+            found = self._places.get(scene_id)
+        if found is not None:
+            return found
+        for candidate in sorted(self.domains.glob(f"*/{SCENES_DIR}/{scene_id}")):
+            if candidate.is_dir() and not candidate.parts[-3].startswith("."):
+                domain_id = candidate.parts[-3]
+                self.place_scene(scene_id, domain_id)
+                return domain_id
+        return None
+
+    def scene_dir(self, scene_id: str) -> Path:
+        """場景的資料夾 domains/<領域>/scenes/<場景>/。"""
+        domain_id = self.scene_domain(scene_id) or _NOWHERE
+        return self.domains / domain_id / SCENES_DIR / scene_id
+
+    def place_composite(self, code: str, domain_id: str) -> None:
+        """登記組合場景在哪個領域資料夾（M11 PR 2）。"""
+        with self._places_lock:
+            self._composites[code] = domain_id
+
+    def forget_composite(self, code: str, domain_id: str | None = None) -> None:
+        with self._places_lock:
+            if domain_id is None or self._composites.get(code) == domain_id:
+                self._composites.pop(code, None)
+
+    def composite_domain(self, code: str) -> str | None:
+        """組合場景在哪個領域資料夾；沒有登記時到磁碟上找一次。"""
+        with self._places_lock:
+            found = self._composites.get(code)
+        if found is not None:
+            return found
+        for candidate in sorted(self.domains.glob(f"*/{COMPOSITES_DIR}/{code}")):
+            if candidate.is_dir() and not candidate.parts[-3].startswith("."):
+                domain_id = candidate.parts[-3]
+                self.place_composite(code, domain_id)
+                return domain_id
+        return None
+
+    def composite_dir(self, code: str) -> Path:
+        """組合場景的資料夾 domains/<領域>/composites/<代號>/。"""
+        domain_id = self.composite_domain(code) or _NOWHERE
+        return self.domains / domain_id / COMPOSITES_DIR / code
 
     # ------------------------------------------------------------ 角色、錄製、調試
 
@@ -118,7 +200,7 @@ class Storage:
     # ------------------------------------------------------------ 版本
 
     def revision_dir(self, scene_id: str, number: int) -> Path:
-        return self.scenes / scene_id / str(number)
+        return self.scene_dir(scene_id) / REVISIONS_DIR / str(number)
 
     def scenario_path(self, scene_id: str, number: int) -> Path:
         return self.revision_dir(scene_id, number) / SCENARIO_FILE
@@ -165,7 +247,12 @@ class Storage:
         return problems
 
     def save(self, scene_id: str, number: int, files: Mapping[str, str]) -> Path:
-        """寫入新版本（先寫暫存目錄再改名，不會留下寫到一半的版本）。"""
+        """寫入新版本（先寫暫存目錄再改名，不會留下寫到一半的版本）。
+
+        場景要先用 :meth:`place_scene` 登記在某個領域資料夾。
+        """
+        if self.scene_domain(scene_id) is None:
+            raise LookupError(f"scene {scene_id} is not placed in any domain")
         target = self.revision_dir(scene_id, number)
         target.parent.mkdir(parents=True, exist_ok=True)
         staging = target.with_name(f".{number}-{uuid.uuid4().hex[:8]}")

@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261020-linux-setup-mirrors；2026-10-20 06:42 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261020-linux-setup-mirrors；2026-10-20 07:52 America/Los_Angeles（PDT，UTC−07:00）接續整合，見追加紀錄</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-20 05:43 PDT 在 Claude 對話提出：「uv sync，在我的 Linux 伺服器比較慢，可以支持選擇不同的源，使用最快的源嗎」（同一則訊息的另一個問題是任務 20261020-firefox-background-login）。驗收：在 Linux 伺服器重跑 <code>bash scripts/setup-linux.sh</code>，看到每個來源的測速結果、用最快的來源安裝完成，<code>uv.lock</code> 沒有變動；<code>--mirror</code> 可以指定來源；鏡像失敗時改用 PyPI。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>scripts/setup-linux.sh</code>（<code>--mirror</code>、<code>RPA_PYPI_MIRROR</code>、測速、暫時替換鎖檔網址、失敗改用 PyPI）、<code>tests/ci/test_linux_setup.py</code>、<code>docs/develop/setup.html</code> 的 Linux 伺服器安裝與常見問題（繁中、英文；簡中由 bootstrap 產生）。不包含：開發環境的 <code>setup.sh</code>／<code>setup.ps1</code>、uv 本身與 Python 發行檔的下載來源（仍可用 <code>UV_PYTHON_INSTALL_MIRROR</code>、<code>HTTPS_PROXY</code>）、瀏覽器下載。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。原腳本的主責是 ChatGPT／Codex（#44 已合併）；這是另開分支的後續修改。</dd>
@@ -61,13 +61,14 @@
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
-      <div class="panel-body"><p>未接收。</p></div>
+      <div class="panel-body"><p>2026-10-20 07:52 America/Los_Angeles（PDT，UTC−07:00），Codex 依使用者「請幫忙處理 PR52 的衝突」接手整合。核對 PR head <code>583aca6985a612be94540f8d734c66cf9ac79fc6</code>，合入 main <code>acf3f93c77a26957e5d7097fb64d705d647fa039</code>（已含 #48、#49、#51）。只處理任務索引衝突與本頁交接紀錄；原有安裝功能保持不變。合併 PR 仍由使用者決定。</p></div>
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-20 05:43～06:06 America/Los_Angeles（PDT，UTC−07:00），Claude：查證 uv 鎖檔與鏡像的關係、實作、測試與文件；從 origin/main 53a0578 開 <code>fix/linux-setup-mirrors</code>（worktree），建立本頁。</li>
         <li>2026-10-20 06:06～06:42 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 8d3e7e1（含 <code>[bootstrap]</code>），bot 提交簡中 0cd7497；06:09 開 PR #52；CI 通過；一鍵安裝腳本的 Linux 伺服器 job 通過，macOS 的 job 兩次都拿不到 GitHub runner 而取消；狀態改為待審閱。</li>
+        <li>2026-10-20 07:52 America/Los_Angeles（PDT，UTC−07:00）起，Codex：接續使用者的衝突處理要求，以普通 merge 合入上述 main，唯一衝突 <code>handoff/tasks/index.html</code> 保留 Linux 鏡像與 Firefox 背景登入兩條連結；不重寫原分支歷史。普通 Git HTTPS 連線逾時，改用 GitHub API 同步與推送；匯入 main 的 Git 物件時驗證原始簽章內容的 SHA 完全相符。驗證版本為上述兩個 parent 加本次索引與紀錄差異，環境 macOS arm64、Python 3.13.16、uv 0.12.24：<code>uv sync --locked</code>、<code>bash -n scripts/setup-linux.sh</code>、<code>python tools/i18n.py check</code> 通過；<code>pytest -q tests/ci/test_linux_setup.py tests/docs tests/i18n</code> 320 通過。實際 Linux 安裝與公司網路測速未在本機執行；推送後另確認新 head 的 CI，先前的 macOS runner 取消不算通過。</li>
       </ul></div>
     </section>
   </div>
