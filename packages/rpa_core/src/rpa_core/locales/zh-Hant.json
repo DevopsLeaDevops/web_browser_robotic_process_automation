@@ -171,5 +171,18 @@
   "pack.role_check_invalid": "check（已登入時看得到的元素）不是正確的定位器：{detail}",
   "pack.role_steps_invalid": "autoLogin（自動登入步驟）有問題：{detail}",
   "pack.role_steps_not_list": "必須是步驟的清單",
-  "pack.sensitive_file": "{file} 看起來是登入狀態、Secrets 或私鑰，不能放在領域資料夾，請移除"
+  "pack.sensitive_file": "{file} 看起來是登入狀態、Secrets 或私鑰，不能放在領域資料夾，請移除",
+  "pack.composite_no_manifest": "組合場景 {composite} 缺少 composite.yaml，略過這個組合場景",
+  "pack.composite_id_mismatch": "composite.yaml 的 id 是 {id}，應該和資料夾名稱 {expected} 相同；略過這個組合場景",
+  "pack.composite_no_revisions": "組合場景 {composite} 沒有任何版本，略過這個組合場景",
+  "pack.composite_unreadable": "第 {number} 版的 workflow.json 不是正確的 JSON：{detail}；這個版本不能執行、不能發布",
+  "pack.composite_requires_mismatch": "第 {number} 版說明檔的 requires 和定義裡的節點不同；這個版本不能執行、不能發布",
+  "pack.requires_not_declared": "組合場景 {composite} 用到領域 {domain} 的場景，但 pack.yaml 的 requires 沒有列出它",
+  "pack.requires_domain": "依賴的領域 {domain} 沒有載入（需要 {scene} 第 {revision} 版）",
+  "pack.requires_scene": "領域 {domain} 裡沒有場景 {scene}（需要第 {revision} 版）",
+  "pack.requires_revision": "領域 {domain} 的場景 {scene} 沒有第 {revision} 版",
+  "pack.requires_unusable": "領域 {domain} 的場景 {scene} 第 {revision} 版有問題，不能執行",
+  "pack.requires_hash": "領域 {domain} 的場景 {scene} 第 {revision} 版的內容和組合場景存檔時不同",
+  "pack.composite_requires": "組合場景 {composite} 第 {number} 版：{problem}",
+  "pack.requires_not_checked": "依賴的領域 {domain} 沒有一起檢查；把它的資料夾也加進命令才會檢查依賴"
 }

@@ -2,7 +2,8 @@
 
 和管理 Portal 載入資料夾用同一套規則（:func:`rpa_core.pack.read_pack`）：說明檔的格式、
 版本內容和版本說明檔的雜湊、驗證紀錄、發布門檻、角色定義，以及不能放進資料夾的機密檔案。
-可以放在資料倉庫的 CI，推送前先擋下壞掉的資料夾。輸出格式和 ``rpa validate`` 一樣是
+可以放在資料倉庫的 CI，推送前先擋下壞掉的資料夾。一次給多個資料夾時，也檢查它們之間
+組合場景的依賴（M11 PR 2）。輸出格式和 ``rpa validate`` 一樣是
 ``檔案:行:列: 訊息``；``--format json`` 給程式使用。
 """
 
@@ -15,7 +16,7 @@ import click
 
 from rpa_cli.i18n import t
 from rpa_cli.validate import EXIT_INVALID, display_path
-from rpa_core.pack import Pack, PackIssue, read_pack
+from rpa_core.pack import Pack, PackIssue, check_requirements, read_pack
 
 __all__ = ["build_pack_command"]
 
@@ -46,6 +47,7 @@ def _report_text(packs: Sequence[Pack]) -> None:
                 folder=display_path(pack.folder),
                 id=pack.manifest.id if pack.manifest is not None else "?",
                 scenes=len(pack.scenes),
+                composites=len(pack.composites),
                 roles=len(pack.roles),
                 errors=errors,
                 warnings=warnings,
@@ -76,6 +78,10 @@ def _report_json(packs: Sequence[Pack]) -> None:
                 for scene in pack.scenes.values()
             },
             "roles": sorted(pack.roles),
+            "composites": {
+                composite.id: {"latest": composite.latest, "published": composite.published}
+                for composite in pack.composites.values()
+            },
             "issues": [issue.to_json() for issue in pack.issues],
         }
         for pack in packs
@@ -128,6 +134,7 @@ def build_pack_command() -> click.Group:
         folders: tuple[Path, ...], expected_id: str | None, output_format: OutputFormat
     ) -> None:
         packs = [read_pack(folder, expected_id=expected_id) for folder in folders]
+        check_requirements(packs)  # 一起檢查的資料夾之間，組合場景的依賴
         if output_format == "json":
             _report_json(packs)
         else:

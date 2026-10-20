@@ -3,28 +3,39 @@
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from rpa_core.dsl import validate_file
 from rpa_core.dsl.sources import scenario_digest
+from rpa_core.dsl.yaml_loader import load_yaml
 from rpa_core.i18n import use_locale
 from rpa_core.pack import (
     PACK_FILE,
+    CompositeManifest,
+    CompositeRevisionInfo,
+    CompositeVerification,
     PackManifest,
     PublishedRef,
     RevisionInfo,
     RoleDefinition,
     RunRef,
     SceneManifest,
+    SceneRequirement,
     ServerRef,
     Verification,
     WorkerRef,
+    check_requirements,
+    composite_digest,
     dump_model,
     is_sensitive,
     read_pack,
+    requirement_problems,
+    workflow_text,
     write_model,
 )
+from rpa_core.workflow import Workflow
 
 ROOT = Path(__file__).resolve().parents[3]
 DEMO = ROOT / "scenarios" / "demo"
@@ -356,3 +367,167 @@ def test_timestamps_need_an_offset(tmp_path: Path) -> None:
 
     assert issue.code == "format.timestamp"
     assert "UTC" in issue.message
+
+
+# ---------------------------------------------------------------- 組合場景（M11 PR 2）
+
+
+def make_composite(
+    tmp_path: Path, scene_hash: str, *, domain: str = "testsite", code: str = "order-flow"
+) -> tuple[Path, str]:
+    """只放組合場景的領域 e2e：一個節點用 testsite 的 ba-001 第 1 版。回傳 (資料夾, 雜湊)。"""
+    folder = tmp_path / "e2e"
+    write_model(
+        folder / PACK_FILE,
+        PackManifest.model_validate(
+            {"specVersion": 1, "id": "e2e", "name": "跨領域", "requires": [{"domain": domain}]}
+        ),
+    )
+    base = folder / "composites" / code
+    write_model(base / "composite.yaml", CompositeManifest(id=code, name="下單流程"))
+    workflow = Workflow.model_validate(
+        {"version": 2, "mode": "dag", "nodes": [{"id": "n1", "sceneId": "ba-001", "revision": 1}]}
+    )
+    path = base / "revisions" / "1" / "workflow.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(workflow_text(workflow), encoding="utf-8")
+    digest = composite_digest(path)
+    info = CompositeRevisionInfo(
+        number=1,
+        hash=digest,
+        created_at=AT,
+        by="甲",
+        server=SERVER,
+        requires=[SceneRequirement(domain=domain, scene="ba-001", revision=1, hash=scene_hash)],
+    )
+    write_model(base / "revisions" / "1.yaml", info)
+    return folder, digest
+
+
+def verify_composite(
+    folder: Path, digest: str, scene_hash: str, *, code: str = "order-flow"
+) -> str:
+    run_id = f"{code}-20261019-131500-a1b2c3"
+    record = CompositeVerification.model_validate(
+        {
+            "revision": 1,
+            "hash": digest,
+            "status": "passed",
+            "finishedAt": "2026-10-19T06:15:00-07:00",
+            "by": "乙",
+            "server": {"id": "5f3a", "name": "yi-mac"},
+            "worker": {"id": "local"},
+            "run": {"server": "5f3a", "id": run_id},
+            "nodes": [
+                {
+                    "node": "n1",
+                    "scene": "ba-001",
+                    "revision": 1,
+                    "hash": scene_hash,
+                    "status": "passed",
+                    "run": "ba-001-20261019-131501-000001",
+                }
+            ],
+        }
+    )
+    write_model(folder / "composites" / code / "verifications" / "1" / f"{run_id}.yaml", record)
+    return run_id
+
+
+def test_composite_revisions_verifications_and_publish(tmp_path: Path) -> None:
+    scene_hash = read_hash(make_pack(tmp_path))
+    folder, digest = make_composite(tmp_path, scene_hash)
+    proof = verify_composite(folder, digest, scene_hash)
+    published = PublishedRef(revision=1, verification=proof, at=AT, by="丙", server=SERVER)
+    write_model(
+        folder / "composites" / "order-flow" / "composite.yaml",
+        CompositeManifest(id="order-flow", name="下單流程", published=published),
+    )
+
+    pack = read_pack(folder, expected_id="e2e")
+
+    assert pack.ok, pack.issues
+    composite = pack.composites["order-flow"]
+    assert (composite.latest, composite.published) == (1, 1)
+    revision = composite.revisions[1]
+    assert revision.workflow is not None
+    assert revision.status == "passed"
+    assert [entry.id for entry in revision.proofs()] == [proof]
+    text = (folder / "composites" / "order-flow" / "composite.yaml").read_text("utf-8")
+    assert text.startswith("id: order-flow\nname: 下單流程\narchived: false\npublished:\n")
+
+
+def test_composite_proof_needs_the_pinned_scene_hashes(tmp_path: Path) -> None:
+    scene_hash = read_hash(make_pack(tmp_path))
+    folder, digest = make_composite(tmp_path, scene_hash)
+    verify_composite(folder, digest, "0" * 64)  # 節點跑的場景內容和存檔時不同
+
+    revision = read_pack(folder).composites["order-flow"].revisions[1]
+
+    assert revision.status == "failed"
+    assert revision.proofs() == []
+
+
+def test_changed_composite_and_requires_mismatch(tmp_path: Path) -> None:
+    scene_hash = read_hash(make_pack(tmp_path))
+    folder, _ = make_composite(tmp_path, scene_hash)
+    path = folder / "composites" / "order-flow" / "revisions" / "1" / "workflow.json"
+    path.write_text(path.read_text(encoding="utf-8").replace('"n1"', '"n2"'), encoding="utf-8")
+
+    pack = read_pack(folder)
+
+    assert pack.composites["order-flow"].revisions[1].problem == "pack.revision_hash_mismatch"
+    info = folder / "composites" / "order-flow" / "revisions" / "1.yaml"
+    model = CompositeRevisionInfo.model_validate(
+        {**_yaml(info), "hash": composite_digest(path), "requires": []}
+    )
+    write_model(info, model)
+    revision = read_pack(folder).composites["order-flow"].revisions[1]
+    assert revision.problem == "pack.composite_requires_mismatch"
+
+
+def _yaml(path: Path) -> dict[str, object]:
+    data, _ = load_yaml(path.read_text(encoding="utf-8"))
+    assert isinstance(data, dict)
+    return cast("dict[str, object]", data)
+
+
+def test_requirements_across_folders(tmp_path: Path) -> None:
+    testsite = make_pack(tmp_path)
+    scene_hash = read_hash(testsite)
+    folder, _ = make_composite(tmp_path, scene_hash)
+
+    alone = read_pack(folder)
+    check_requirements([alone])
+    assert [issue.code for issue in alone.issues] == ["pack.requires_not_checked"]
+    assert alone.ok  # 只是提醒
+
+    both = [read_pack(folder), read_pack(testsite)]
+    check_requirements(both)
+    assert both[0].ok, both[0].issues
+
+    changed = testsite / "scenes" / "ba-001" / "revisions" / "1.yaml"
+    info = RevisionInfo.model_validate({**_yaml(changed), "hash": "1" * 64})
+    write_model(changed, info)
+    broken = [read_pack(folder), read_pack(testsite)]
+    check_requirements(broken)
+    issue = next(item for item in broken[0].issues if item.code.startswith("pack.requires_"))
+    assert issue.code == "pack.requires_unusable"
+    assert issue.path == "composites/order-flow/revisions/1.yaml"
+    assert issue.message.startswith("組合場景 order-flow 第 1 版：")
+    problems = requirement_problems(
+        [SceneRequirement(domain="testsite", scene="ba-009", revision=1, hash="2" * 64)],
+        {"testsite": broken[1]},
+    )
+    assert [problem.code for problem in problems] == ["pack.requires_scene"]
+
+
+def test_undeclared_domain_is_a_warning(tmp_path: Path) -> None:
+    scene_hash = read_hash(make_pack(tmp_path))
+    folder, _ = make_composite(tmp_path, scene_hash, domain="scm_purchase")
+    write_model(folder / PACK_FILE, PackManifest(spec_version=1, id="e2e", name="跨領域"))
+
+    pack = read_pack(folder)
+
+    assert [issue.code for issue in pack.issues] == ["pack.requires_not_declared"]
+    assert pack.ok

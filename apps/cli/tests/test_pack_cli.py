@@ -52,7 +52,8 @@ def test_valid_folder(folder: Path) -> None:
     result = invoke(["check", "testsite"])
 
     assert result.exit_code == 0, result.output
-    assert result.output == "testsite（testsite）：1 個場景、0 個角色，沒有錯誤（0 個警告）。\n"
+    expected = "testsite（testsite）：1 個場景、0 個組合場景、0 個角色，沒有錯誤（0 個警告）。"
+    assert result.output == expected + "\n"
 
 
 def test_errors_and_warnings_with_positions(folder: Path) -> None:
@@ -73,7 +74,7 @@ def test_errors_and_warnings_with_positions(folder: Path) -> None:
         line.startswith("testsite/scenes/ba-001/revisions/1/notes.txt: 警告：") for line in lines
     )
     assert any("雜湊不同" in line for line in lines)
-    assert lines[-1] == "testsite（?）：1 個場景、0 個角色，2 個錯誤、1 個警告。"
+    assert lines[-1] == "testsite（?）：1 個場景、0 個組合場景、0 個角色，2 個錯誤、1 個警告。"
 
 
 def test_json_report(folder: Path) -> None:

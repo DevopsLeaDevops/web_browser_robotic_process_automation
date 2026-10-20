@@ -171,5 +171,18 @@
   "pack.role_check_invalid": "check (the element visible when logged in) is not a valid locator: {detail}",
   "pack.role_steps_invalid": "autoLogin (automatic login steps) has problems: {detail}",
   "pack.role_steps_not_list": "must be a list of steps",
-  "pack.sensitive_file": "{file} looks like a login state, Secrets or a private key and must not be in a domain folder; please remove it"
+  "pack.sensitive_file": "{file} looks like a login state, Secrets or a private key and must not be in a domain folder; please remove it",
+  "pack.composite_no_manifest": "Composite scenario {composite} has no composite.yaml; skipping it",
+  "pack.composite_id_mismatch": "The id in composite.yaml is {id}; it must match the folder name {expected}. Skipping this composite scenario",
+  "pack.composite_no_revisions": "Composite scenario {composite} has no revisions; skipping it",
+  "pack.composite_unreadable": "workflow.json of revision {number} is not valid JSON: {detail}; this revision cannot be run or published",
+  "pack.composite_requires_mismatch": "The requires list in the file of revision {number} does not match the nodes of its definition; this revision cannot be run or published",
+  "pack.requires_not_declared": "Composite scenario {composite} uses scenarios from domain {domain}, but requires in pack.yaml does not list it",
+  "pack.requires_domain": "The required domain {domain} is not loaded (needs {scene} revision {revision})",
+  "pack.requires_scene": "Domain {domain} has no scenario {scene} (revision {revision} is needed)",
+  "pack.requires_revision": "Scenario {scene} in domain {domain} has no revision {revision}",
+  "pack.requires_unusable": "Revision {revision} of scenario {scene} in domain {domain} has problems and cannot run",
+  "pack.requires_hash": "Revision {revision} of scenario {scene} in domain {domain} differs from when the composite scenario was saved",
+  "pack.composite_requires": "Composite scenario {composite} revision {number}: {problem}",
+  "pack.requires_not_checked": "The required domain {domain} was not checked; add its folder to the command to check the dependencies"
 }
