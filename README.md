@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-20 09:16 America/Los_Angeles（PDT，UTC−07:00）。共 82 次運行。
+更新：2026-10-20 09:17 America/Los_Angeles（PDT，UTC−07:00）。共 83 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -10,7 +10,7 @@
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
 | CI | 38（0） | 25（0） | 2.8 分（0.0 分） | 4.9 分（0.0 分） | 0.0 分（0.0 分） | 161／65／0 分（0／0／0 分） |
-| 桌面端建置 | 30（0） | 23（0） | 3.8 分（0.0 分） | 4.2 分（0.0 分） | 0.1 分（0.0 分） | 2／79／76 分（0／0／0 分） |
+| 桌面端建置 | 31（0） | 24（0） | 3.8 分（0.0 分） | 4.2 分（0.0 分） | 0.1 分（0.0 分） | 3／81／80 分（0／0／0 分） |
 | 一鍵安裝腳本 | 14（0） | 7（0） | 3.0 分（0.0 分） | 15.2 分（0.0 分） | 0.1 分（0.0 分） | 53／25／17 分（0／0／0 分） |
 | 每晚完整測試 | 0（0） | 0（0） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0／0／0 分（0／0／0 分） |
 | 發布 | 0（0） | 0（0） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0／0／0 分（0／0／0 分） |
@@ -19,7 +19,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-20 | 79 | 207 | 161 | 86 | 454 |
+| 2026-10-20 | 80 | 207 | 163 | 90 | 460 |
 | 2026-10-19 | 3 | 10 | 8 | 6 | 25 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
@@ -76,6 +76,7 @@
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 10-20 09:14 | CI | PR | fix/sqlite-migration-fk | success | 2.2 分 | 0.0 分 | [#39455614661](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39455614661/attempts/1) |
+| 10-20 09:14 | 桌面端建置 | PR | fix/sqlite-migration-fk | success | 3.7 分 | 0.1 分 | [#39455614641](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39455614641/attempts/1) |
 | 10-20 09:10 | CI | PR | m11/git-sync | failure | 2.6 分 | 0.0 分 | [#39455076333](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39455076333/attempts/1) |
 | 10-20 09:10 | 桌面端建置 | PR | m11/git-sync | failure | 4.5 分 | 0.1 分 | [#39455076337](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39455076337/attempts/1) |
 | 10-20 09:09 | CI | PR | fix/sqlite-migration-fk | failure | 2.4 分 | 0.1 分 | [#39454917465](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39454917465/attempts/1) |
@@ -114,5 +115,4 @@
 | 10-20 05:37 | CI | PR | fix/login-check-on-device | success | 1.1 分 | 0.0 分 | [#39423708791](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39423708791/attempts/1) |
 | 10-20 05:33 | CI | PR | m11/composite-packs | failure | 3.4 分 | 0.0 分 | [#39423242212](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39423242212/attempts/1) |
 | 10-20 05:33 | 桌面端建置 | PR | m11/composite-packs | success | 4.1 分 | 0.1 分 | [#39423242172](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39423242172/attempts/1) |
-| 10-20 05:33 | CI | PR | fix/login-check-on-device | success | 2.7 分 | 0.0 分 | [#39422382519 第 2 次](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39422382519/attempts/2) |
 
