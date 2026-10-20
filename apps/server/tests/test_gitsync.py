@@ -219,7 +219,9 @@ def test_records_and_revisions_travel_between_servers(
         assert latest_revision(other, "needs-secret") == 2
 
         # 第二台驗證（缺少 Secret：停在入參階段，也會寫驗證紀錄）並推送紀錄
-        run = body(other.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}))
+        run = body(
+            other.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}), 202
+        )
         cast("Worker", other_app.state.worker).run_once()
         status = body(other.get("/api/domains/lab/sync"))
         assert status["state"] == "ahead"
