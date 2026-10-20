@@ -123,6 +123,166 @@ def test_manual_login_needs_a_display(client: Client) -> None:
     assert error(client.post("/api/roles/erp-clerk/login/finish"))["code"] == "login_not_active"
 
 
+SCRIPTED_CAPTURE = dedent(
+    """\
+    import json
+    import os
+    import sys
+    from pathlib import Path
+
+    state = Path(sys.argv[sys.argv.index("--state") + 1])
+    reactions = json.loads(os.environ["FAKE_REACTIONS"])
+    url = "http://127.0.0.1:9/login?next=/home"
+
+    def emit(event, **details):
+        print(json.dumps({"event": event, **details}), flush=True)
+
+    emit("ready")
+    for line in sys.stdin:
+        if line.strip() == "cancel":
+            emit("cancelled")
+            sys.exit(2)
+        if line.strip() != "finish":
+            continue
+        reaction = reactions.pop(0)
+        if reaction == "legacy":  # 舊版：不確認、直接存
+            state.write_text(os.environ["FAKE_STATE"], encoding="utf-8")
+            emit("saved")
+            sys.exit(0)
+        emit("checking")
+        if reaction == "saved":
+            state.write_text(os.environ["FAKE_STATE"], encoding="utf-8")
+            emit("saved", verified=True)
+            sys.exit(0)
+        if reaction == "refused":
+            emit("not_logged_in", url=None, message="打不開 http://127.0.0.1:9/home", closed=False)
+            continue
+        emit("not_logged_in", url=url, message=None, closed=reaction == "closed")
+        if reaction == "closed":
+            sys.exit(4)
+    """
+)
+FAKE_STATE = '{"cookies": [{"name": "s", "value": "v", "domain": "x", "path": "/"}], "origins": []}'
+
+
+def scripted_capture(tmp: Path, *reactions: str) -> Callable[..., subprocess.Popen[str]]:
+    """假的人工登入子程序：每次「完成登入」依序照 reactions 回應（不開瀏覽器）。
+
+    not_yet：還沒登入、視窗開著；refused：確認網址打不開；closed：關了視窗還沒登入；
+    saved：確認通過後存檔；legacy：舊版，不確認就存檔。
+    """
+    script = tmp / "scripted_capture.py"
+    script.write_text(SCRIPTED_CAPTURE, encoding="utf-8")
+
+    def launcher(
+        command: list[str], *, env: dict[str, str], **options: object
+    ) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            [sys.executable, str(script), *command[3:]],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            env={**env, "FAKE_REACTIONS": json.dumps(reactions), "FAKE_STATE": FAKE_STATE},
+        )
+
+    return launcher
+
+
+def login_state(client: Client, ready: Callable[[JsonObject], bool]) -> JsonObject:
+    deadline = time.monotonic() + 30
+    while True:
+        role = body(client.get("/api/roles/erp-clerk"), 200)
+        if ready(role):
+            return role
+        assert time.monotonic() < deadline, role
+        time.sleep(0.05)
+
+
+def session_of(role: JsonObject) -> JsonObject:
+    return cast("JsonObject", role["session"])
+
+
+def start_scripted_login(app: FastAPI, client: Client, tmp: Path, *reactions: str) -> None:
+    body(client.post("/api/roles", json=ROLE), 201)
+    roles = services(app).roles
+    roles.display = True
+    roles.local_engines = lambda: ()  # 伺服器沒有下載瀏覽器：確認一定要在開視窗的那台
+    roles.launcher = scripted_capture(tmp, *reactions)
+    body(client.post("/api/roles/erp-clerk/login"), 202)
+    login_state(client, lambda role: session_of(role)["status"] == "waiting")
+
+
+def test_manual_login_is_confirmed_where_the_window_opens(
+    app: FastAPI, client: Client, tmp_path: Path
+) -> None:
+    """開視窗的那台確認過才存；還沒登入就按「完成登入」時說明、視窗不關，可以繼續登入。"""
+    start_scripted_login(app, client, tmp_path, "not_yet", "refused", "saved")
+    state = services(app).storage.role_state("erp-clerk")
+
+    body(client.post("/api/roles/erp-clerk/login/finish"), 202)
+    role = login_state(client, lambda role: bool(session_of(role)["message"]))
+    assert role["activity"] == "login"
+    assert session_of(role)["status"] == "waiting"
+    assert "還沒登入" in str(session_of(role)["message"])
+    assert "http://127.0.0.1:9/login?next=/home" in str(session_of(role)["message"])
+    assert not state.exists()
+    page = client.get("/roles").text
+    assert "還沒登入：確認網址停在" in page
+    assert 'data-action="finish-login" data-role="erp-clerk"' in page
+
+    body(client.post("/api/roles/erp-clerk/login/finish"), 202)
+    role = login_state(client, lambda role: "打不開" in str(session_of(role)["message"]))
+    assert "還不能確認是否已登入" in str(session_of(role)["message"])
+
+    body(client.post("/api/roles/erp-clerk/login/finish"), 202)
+    role = login_state(client, lambda role: not role["activity"])
+    assert role["status"] == "logged_in"
+    assert session_of(role)["status"] == "done"
+    assert state.read_text(encoding="utf-8") == FAKE_STATE
+    if os.name != "nt":
+        assert state.stat().st_mode & 0o777 == 0o600
+    assert not (state.parent / "candidate.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("reaction", "expected"),
+    [
+        ("closed", "關掉視窗時還沒登入"),
+        ("legacy", "這台錄製端的版本較舊"),  # 舊版不確認，伺服器又沒有瀏覽器可以代為確認
+    ],
+)
+def test_manual_login_that_cannot_be_confirmed_keeps_the_old_state(
+    app: FastAPI, client: Client, tmp_path: Path, reaction: str, expected: str
+) -> None:
+    start_scripted_login(app, client, tmp_path, reaction)
+    state = services(app).storage.role_state("erp-clerk")
+    state.write_text('{"cookies": [], "origins": []}', encoding="utf-8")
+    body(client.post("/api/roles/erp-clerk/login/finish"), 202)
+    role = login_state(client, lambda role: not role["activity"])
+    assert session_of(role)["status"] == "failed"
+    assert expected in str(session_of(role)["message"])
+    assert state.read_text(encoding="utf-8") == '{"cookies": [], "origins": []}'
+    assert not (state.parent / "candidate.json").exists()
+
+
+def test_check_needs_a_browser_here_or_a_recorder(app: FastAPI, client: Client) -> None:
+    """伺服器沒有下載角色用的瀏覽器、也不是透過錄製端：「檢查」變灰並說明，角色的狀態不變。"""
+    body(client.post("/api/roles", json={**ROLE, "engine": "firefox"}), 201)
+    services(app).roles.local_engines = lambda: ("chromium",)
+    refused = client.post("/api/roles/erp-clerk/check")
+    assert refused.status_code == 422
+    problem = error(refused)
+    assert problem["code"] == "role_check_unavailable"
+    assert "伺服器沒有下載 Firefox" in str(problem["message"])
+    role = body(client.get("/api/roles/erp-clerk"))
+    assert (role["status"], role["activity"], role["message"]) == ("none", None, None)
+    page = client.get("/roles").text
+    assert 'title="伺服器沒有下載 Firefox：透過 RPA 錄製端打開管理 Portal 時在錄製端檢查' in page
+    assert 'data-action="check-role" data-role="erp-clerk" disabled>' in page
+    english = client.get("/roles?lang=en").text
+    assert 'title="The server has not downloaded Firefox: open the Portal through' in english
+
+
 def test_role_status_is_never_stale_when_a_check_ends(app: FastAPI, client: Client) -> None:
     """背景檢查剛好在讀取時結束：不能讀到舊的狀態卻同時顯示「沒有在檢查」。
 

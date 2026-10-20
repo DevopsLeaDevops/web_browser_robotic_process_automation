@@ -2,8 +2,12 @@
 
 - 角色只描述「怎麼登入、怎麼判斷已登入」；登入狀態（storageState）每個角色一份，存在資料目錄，
   只有本人能讀寫，不經由網頁或 API 提供。
-- **人工登入**：在這台電腦開瀏覽器視窗到登入網址，使用者自己登入（SSO、驗證碼、二次驗證都可以），
-  按「完成登入」或關掉視窗後，先用無頭瀏覽器確認真的登入了，才取代原本的登入狀態。
+- **人工登入**：在操作的那台（這台或錄製端）開瀏覽器視窗到登入網址，使用者自己登入（SSO、驗證碼、
+  二次驗證都可以），按「完成登入」或關掉視窗後，**開視窗的那台**先用無頭瀏覽器確認真的登入了，
+  才把登入狀態傳回來取代原本的；所以這台不需要瀏覽器。還沒登入時視窗不關，可以繼續登入。
+  不會自己確認的舊版錄製端，改由這台確認（這台要有瀏覽器）。
+- **檢查**：這台有下載角色用的瀏覽器時在這台；沒有時，透過錄製端操作就交給錄製端（無頭）；
+  都不行時說明，不改角色的狀態。檢查用登入狀態的複本，通過後才取代原本的。
 - **自動登入**（選用）：角色附一段 DSL 步驟，帳密用 ``{{ secrets.名稱 }}``；
   執行前發現沒登入時先自動登入。
 - 執行的結果也會更新角色的狀態：需要登入的執行把角色標成需要登入，通過登入檢查的標成已登入。
@@ -18,7 +22,7 @@ import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,6 +37,7 @@ from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.commands import module_command
 from rpa_runner.files import LOGIN, read_json_or
+from rpa_runner.installed import DISPLAY_NAMES, missing_browsers
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_server.domain import DOMAIN_ID, RoleRecord, RoleStatus, now
 from rpa_server.errors import ServiceError
@@ -56,6 +61,71 @@ _SECRET_REFERENCE: Final = re.compile(
     r"secrets\s*(?:\.\s*([A-Z][A-Z0-9_]*)|\[\s*['\"]([A-Z][A-Z0-9_]*)['\"]\s*\])"
 )
 _ACTIVE: Final = frozenset({"starting", "waiting", "checking"})
+BROWSERS_TTL: Final = 300.0
+"""這台下載了哪些瀏覽器：判斷的結果快取這麼久（秒）。"""
+STATE_COPY: Final = "state.json"
+"""登入檢查用的登入狀態複本，放在檢查的資料夾裡；檢查通過後才取代角色的狀態。"""
+
+
+class LocalBrowsers:
+    """這台下載了哪些瀏覽器（依 Playwright 預期的執行檔位置判斷，不啟動瀏覽器）。
+
+    要啟動 Playwright 的 driver（約一秒），所以結果快取 :data:`BROWSERS_TTL` 秒，整個程序共用一份。
+    判斷不了時當作都有：照舊在這台試，失敗時錯誤會說要下載哪個瀏覽器。
+    """
+
+    def __init__(self, ttl: float = BROWSERS_TTL) -> None:
+        self.ttl = ttl
+        self._lock = threading.Lock()
+        self._checked = float("-inf")
+        self._engines: frozenset[str] = frozenset(ENGINES)
+
+    def __call__(self) -> frozenset[str]:
+        with self._lock:
+            if time.monotonic() - self._checked >= self.ttl:
+                missing = set(missing_browsers(ENGINES))
+                self._engines = frozenset(engine for engine in ENGINES if engine not in missing)
+                self._checked = time.monotonic()
+            return self._engines
+
+
+_LOCAL_BROWSERS: Final = LocalBrowsers()
+
+
+def _mtime(path: Path) -> int | None:
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return None
+
+
+def _check_state_data(data: bytes) -> None:
+    """登入狀態檔的內容要是 Playwright storageState 的 JSON 物件（cookies、origins 是清單）。"""
+    state: object = json.loads(data.decode("utf-8"))
+    if not isinstance(state, dict):
+        raise ValueError("storage state must be an object")
+    values = cast("dict[str, object]", state)
+    if not all(isinstance(values.get(key, []), list) for key in ("cookies", "origins")):
+        raise ValueError("cookies and origins must be lists")
+
+
+def _outdated(log: Path) -> bool:
+    """錄製端的程式比較舊、不認得 ``check --state``（argparse 的錯誤）。"""
+    try:
+        text = log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return "unrecognized arguments" in text and "--state" in text
+
+
+def _login_problem(event: Mapping[str, object], *, final: bool) -> str:
+    """人工登入確認沒通過（``not_logged_in``）的說明；final 是子程序因此結束時用的。"""
+    detail = event.get("message")
+    if detail:
+        key = "role.login_unverified" if final else "role.login_check_failed"
+        return t(key, detail=str(detail))
+    key = "role.login_closed_not_logged_in" if final else "role.login_not_yet"
+    return t(key, url=str(event.get("url") or ""))
 
 
 def _error(status: int, code: str, message: str, **details: object) -> ServiceError:
@@ -208,6 +278,8 @@ class RoleService:
         self._lock = threading.Lock()
         self._logins: dict[str, _LoginSession] = {}
         self._checking: set[str] = set()
+        self.local_engines: Callable[[], Collection[str]] = _LOCAL_BROWSERS
+        """這台下載了哪些瀏覽器（決定登入檢查在哪台跑）；測試換成固定的清單。"""
 
     # ------------------------------------------------------------ 查詢
 
@@ -420,12 +492,7 @@ class RoleService:
         內容必須是 Playwright storageState 的 JSON 物件（cookies、origins 是清單），
         否則拋出 ValueError。
         """
-        state: object = json.loads(data.decode("utf-8"))
-        if not isinstance(state, dict):
-            raise ValueError("storage state must be an object")
-        values = cast("dict[str, object]", state)
-        if not all(isinstance(values.get(key, []), list) for key in ("cookies", "origins")):
-            raise ValueError("cookies and origins must be lists")
+        _check_state_data(data)
         with self.sessions() as session:
             if session.get(Role, role_id) is None:
                 raise ValueError(f"unknown role: {role_id}")
@@ -453,20 +520,63 @@ class RoleService:
 
     # ------------------------------------------------------------ 檢查
 
+    def check_launcher(self, engine: str) -> Launch:
+        """登入檢查在哪台跑：這台有下載這個瀏覽器時在這台；沒有時，請求透過錄製端就交給錄製端
+        （無頭，不必能顯示視窗）；都不行時拋出說明。"""
+        if engine in self.local_engines():
+            return launch
+        via = self.hosts.current() if self.hosts is not None else None
+        if via is not None and self.hosts is not None:
+            self.hosts.check(via, engine=engine, headed=False)
+            return self.hosts.launcher(via)
+        raise _error(
+            422,
+            "role_check_unavailable",
+            t("error.role_check_unavailable", browser=DISPLAY_NAMES.get(engine, engine)),
+        )
+
+    def can_check(self, engine: str) -> bool:
+        """頁面用：「檢查」能不能按（這台有瀏覽器，或請求透過錄製端）。"""
+        if engine in self.local_engines():
+            return True
+        return self.hosts is not None and self.hosts.current() is not None
+
     def _check_process(
-        self, settings: LoginSettings, engine: str, out: Path
+        self,
+        settings: LoginSettings,
+        engine: str,
+        out: Path,
+        *,
+        state: Path,
+        launcher: Launch = launch,
     ) -> tuple[int, dict[str, object]]:
-        """執行一次登入檢查子程序，回傳 (結束碼, login.json)。"""
+        """執行一次登入檢查子程序（這台或錄製端），回傳 (結束碼, login.json)。
+
+        檢查的是 ``state`` 的複本 ``out/state.json``：子程序通過後把最新的狀態寫回複本，
+        由呼叫端決定要不要取代角色的狀態。交給錄製端時，這個資料夾就是它的工作資料夾，
+        複本跟著送過去、寫回後傳回來。
+        """
         names = settings.secrets
         values = self.secrets.values()
         env = child_env(
             self.locale,
             {
                 ENV_LOGIN: json.dumps(settings.to_json(), ensure_ascii=False),
-                **{name: values[name] for name in names if name in values},
+                # 錄製端只拿得到這裡另外給的變數：沒保存的 Secret 也從這台的同名環境變數帶過去
+                **{
+                    name: values[name] if name in values else os.environ[name]
+                    for name in names
+                    if name in values or name in os.environ
+                },
             },
         )
         out.mkdir(parents=True, exist_ok=True)
+        copy = out / STATE_COPY
+        with contextlib.suppress(OSError):
+            data = state.read_bytes()
+            descriptor = os.open(copy, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(data)
         command = module_command(
             "rpa_runner.login",
             [
@@ -477,43 +587,63 @@ class RoleService:
                 str(CHECK_SECONDS),
                 "--engine",
                 engine,
+                "--state",
+                str(copy),
             ],
         )
-        with (out / "login.log").open("wb") as log:
-            try:
-                completed = subprocess.run(
-                    command,
-                    env=env,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    timeout=CHECK_SECONDS + 30,
-                    check=False,
-                )
-                code = completed.returncode
-            except subprocess.TimeoutExpired:
-                code = 3
+        process = launcher(command, env=env, log=out / "login.log", cwd=out, pipes=False)
+        try:
+            code = process.wait(timeout=CHECK_SECONDS + 30)
+        except subprocess.TimeoutExpired:
+            stop(process)
+            code = 3
         details = read_json_or(out / LOGIN, {})
         return code, cast("dict[str, object]", details) if isinstance(details, dict) else {}
 
-    def _outcome(self, code: int, details: Mapping[str, object]) -> tuple[RoleStatus, str | None]:
+    def _outcome(
+        self, code: int, details: Mapping[str, object], out: Path | None = None
+    ) -> tuple[RoleStatus, str | None]:
         if code == 0:
             return "logged_in", t("role.auto_logged_in") if details.get("refreshed") else None
         if code == EXIT_NEEDS_LOGIN:
             return "needs_login", t("role.not_logged_in", url=details.get("url") or "")
+        if not details and out is not None and _outdated(out / "login.log"):
+            return "unknown", t("role.check_device_outdated")
         error = str(details.get("error") or t("role.check_crashed", code=code))
         return "unknown", error
 
+    def _adopt(self, role_id: str, copy: Path, before: int | None) -> None:
+        """檢查通過後，用檢查寫回的複本（可能自動登入過、換發了 cookie）取代角色的登入狀態。
+
+        這段期間角色的狀態被別人更新過（人工登入、執行時的自動登入）就不取代，免得舊的蓋掉新的；
+        複本的內容不對也不取代。
+        """
+        state = self.storage.role_state(role_id)
+        try:
+            _check_state_data(copy.read_bytes())
+        except (OSError, ValueError):
+            return
+        if _mtime(state) != before:
+            return
+        if os.name != "nt":
+            copy.chmod(0o600)
+        copy.replace(state)
+
     def check(self, role_id: str) -> RoleRecord:
-        """在背景檢查是否已登入（必要時自動登入）；馬上回傳，進度看 activity。"""
+        """在背景檢查是否已登入（必要時自動登入）；馬上回傳，進度看 activity。
+
+        在哪台跑見 :meth:`check_launcher`；沒有地方可以跑時拋出說明，角色的狀態不變。
+        """
         settings = self.login_settings(role_id)
         if settings is None:
             raise _error(404, "role_not_found", t("error.role_not_found", id=role_id))
+        engine = self.get_role(role_id).engine
+        launcher = self.check_launcher(engine)
         with self._lock:
             login = self._logins.get(role_id)
             if role_id in self._checking or (login is not None and login.active):
                 raise _error(409, "role_busy", t("error.role_busy", id=role_id))
             self._checking.add(role_id)
-        engine = self.get_role(role_id).engine
         values = self.secrets.values()
         missing = [n for n in settings.secrets if n not in values and n not in os.environ]
         if missing:
@@ -525,8 +655,15 @@ class RoleService:
                 with use_locale(self.locale):
                     out = self.storage.roles / role_id / "check"
                     shutil.rmtree(out, ignore_errors=True)
-                    code, details = self._check_process(settings, engine, out)
-                    status, message = self._outcome(code, details)
+                    state = self.storage.role_state(role_id)
+                    before = _mtime(state)
+                    code, details = self._check_process(
+                        settings, engine, out, state=state, launcher=launcher
+                    )
+                    status, message = self._outcome(code, details, out)
+                    if status == "logged_in":
+                        self._adopt(role_id, out / STATE_COPY, before)
+                    (out / STATE_COPY).unlink(missing_ok=True)
                     if missing and status == "needs_login":
                         message = t("role.secret_missing", names=", ".join(missing))
                     self._save_status(role_id, status, message)
@@ -615,11 +752,18 @@ class RoleService:
         return self.get_role(role_id)
 
     def _follow(self, login: _LoginSession, settings: LoginSettings, engine: str) -> None:
-        """讀人工登入子程序的進度；存好登入狀態後確認真的登入了，才取代原本的狀態。"""
+        """讀人工登入子程序的進度，登入成功才取代原本的登入狀態。
+
+        開視窗的那台確認過（``saved`` 附 ``verified``）就直接取代；還沒登入（``not_logged_in``）
+        時把說明顯示在頁面、繼續等使用者登入。舊版的子程序不會自己確認：這台有瀏覽器時照舊在
+        這台確認，沒有就說明要更新錄製端。
+        """
         with use_locale(self.locale):
             lines = Lines(login.process)
             deadline = time.monotonic() + LOGIN_SECONDS
-            saved = False
+            saved = verified = False
+            problem: str | None = None
+            """最近一次確認沒通過的原因；子程序因此結束（使用者關了視窗）時當作失敗的說明。"""
             while True:
                 try:
                     line = lines.get(timeout=max(0.1, deadline - time.monotonic()))
@@ -630,13 +774,19 @@ class RoleService:
                     return
                 if line is None:
                     break
-                with contextlib.suppress(ValueError):
+                with contextlib.suppress(ValueError, AttributeError):
                     event = cast("dict[str, object]", json.loads(line))
                     kind = event.get("event")
                     if kind == "ready":
                         self._set(login, "waiting")
+                    elif kind == "checking":
+                        self._set(login, "checking")
+                    elif kind == "not_logged_in":
+                        problem = _login_problem(event, final=True)
+                        self._set(login, "waiting", _login_problem(event, final=False))
                     elif kind == "saved":
                         saved = True
+                        verified = event.get("verified") is True
                     elif kind == "cancelled":
                         self._finish(login, "cancelled", None)
                     elif kind == "error":
@@ -644,29 +794,55 @@ class RoleService:
             login.process.wait()
             if not saved:
                 if login.active:
-                    self._finish(
-                        login, "failed", t("role.login_ended", code=login.process.returncode)
-                    )
+                    message = problem or t("role.login_ended", code=login.process.returncode)
+                    self._finish(login, "failed", message)
+                login.candidate.unlink(missing_ok=True)
+                return
+            if verified:
+                if self._replace_state(login.role_id, login.candidate):
+                    self._save_status(login.role_id, "logged_in", None)
+                    self._finish(login, "done", t("role.login_done"))
+                else:
+                    self._finish(login, "failed", t("role.login_not_confirmed"))
                 login.candidate.unlink(missing_ok=True)
                 return
             self._set(login, "checking")
-            candidate = dataclasses.replace(settings, state=login.candidate)
+            if engine not in self.local_engines():
+                login.candidate.unlink(missing_ok=True)
+                browser = DISPLAY_NAMES.get(engine, engine)
+                self._finish(login, "failed", t("role.login_device_outdated", browser=browser))
+                return
             out = self.storage.roles / login.role_id / "check"
             shutil.rmtree(out, ignore_errors=True)
-            code, details = self._check_process(candidate, engine, out)
-            status, message = self._outcome(code, details)
-            if status == "logged_in":
-                state = self.storage.role_state(login.role_id)
-                login.candidate.replace(state)
+            code, details = self._check_process(settings, engine, out, state=login.candidate)
+            status, message = self._outcome(code, details, out)
+            copy = out / STATE_COPY
+            source = copy if copy.is_file() else login.candidate
+            if status == "logged_in" and self._replace_state(login.role_id, source):
                 self._save_status(login.role_id, "logged_in", None)
                 self._finish(login, "done", t("role.login_done"))
             else:
-                login.candidate.unlink(missing_ok=True)
                 self._finish(login, "failed", message or t("role.login_not_confirmed"))
+            login.candidate.unlink(missing_ok=True)
+            copy.unlink(missing_ok=True)
 
-    def _set(self, login: _LoginSession, status: str) -> None:
+    def _replace_state(self, role_id: str, source: Path) -> bool:
+        """確認過的登入狀態取代角色原本的（只有本人能讀寫）；檔案不在或內容不對時回傳 False。"""
+        try:
+            _check_state_data(source.read_bytes())
+            if os.name != "nt":
+                source.chmod(0o600)
+            source.replace(self.storage.role_state(role_id))
+        except (OSError, ValueError):
+            return False
+        return True
+
+    def _set(self, login: _LoginSession, status: str, message: str | None = None) -> None:
         with self._lock:
+            if not login.active:
+                return
             login.status = status
+            login.message = message
 
     def _finish(self, login: _LoginSession, status: str, message: str | None) -> None:
         with self._lock:

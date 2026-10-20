@@ -98,8 +98,9 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>场景只写角色。</strong>需要登录的场景写 <code>login: { role: 角色代号 }</code>（<a href="dsl.html#scenario">DSL</a>）。怎么登录、怎么判断已登录，在「场景管理 › 登录与凭证」登记：登录网址、确认网址、已登录时看得到的元素（DSL 定位器），以及选用的自动登录步骤。</li>
-          <li><strong>人工登录为主。</strong>按「登录」会在运行 Portal 的这台电脑开浏览器窗口到登录网址，由用户自己登录，所以 SSO、验证码、手机或 App 二次验证都能处理。完成后按「完成登录」或直接关掉窗口；Portal 先用无头浏览器确认真的登录了，才取代原本的登录状态。这台电脑没有图形界面时不能人工登录。</li>
+          <li><strong>人工登录为主。</strong>按「登录」会在操作的那台电脑开浏览器窗口到登录网址（直接打开管理 Portal 时是运行 Portal 的这台，通过录制端时是录制端那台），由用户自己登录，所以 SSO、验证码、手机或 App 二次验证都能处理。完成后按「完成登录」或直接关掉窗口；<strong>开窗口的那台</strong>先用刚取得的登录状态开一个无头浏览器打开确认网址，看得到已登录时的元素，才把登录状态传回服务器、取代原本的，所以服务器不需要浏览器。还没登录就按「完成登录」时，页面说明确认网址停在哪里，窗口不关，登录后再按一次；关掉窗口时还没登录就结束，原本的登录状态不变。操作的那台没有图形界面时不能人工登录。旧版的录制端不会自己确认，改由服务器确认（服务器没有浏览器时会说明要更新录制端）。</li>
           <li><strong>自动登录（选用）。</strong>只适合单纯账号密码的系统：角色附一段 DSL 步骤，密码用 <code>{{ secrets.名称 }}</code>。运行前发现没登录时先自动登录一次。</li>
+          <li><strong>检查。</strong>角色的「检查」用无头浏览器确认登录状态是否仍然有效（有自动登录步骤时，没登录就自动登录）。服务器有下载角色用的浏览器时在服务器检查；没有时（例如 Linux 安装脚本装的服务器），通过录制端打开管理 Portal 就在录制端检查，直接打开时按钮是灰的。检查用登录状态的复本，通过后才取代原本的；检查期间人工登录或运行更新了登录状态时，保留较新的那份。不先检查也可以：每次运行都会先在运行的那台检查。</li>
           <li><strong>需要登录（needs_login）。</strong>每次运行先在「登录检查」阶段打开确认网址：看得到元素就继续；没有（例如被转到登录页）而且不能自动登录时，停在「需要登录」，不运行任何步骤，并留下登录检查的截图。运行页有「登录角色」与「重新运行」：登录后用同样的入参再跑一次。</li>
           <li><strong>角色互不干扰。</strong>登录状态（Playwright storageState）每个角色一份，存在数据目录的 <code>roles/&lt;角色&gt;/state.json</code>，只有本人能读写；每次运行开新的浏览器 context，只加载场景指定的那个角色。登录状态不会拷贝进运行目录，也不经由网页或 API 提供。运行的结果也会更新角色的状态（已登录、需要登录）。</li>
           <li><strong>Secrets。</strong>同一页可以设置 Secrets 的值：存在数据目录的 <code>secrets.json</code>（只有本人能读写，M8 改为加密），页面与 API 只显示名称与更新时间，永远不回传值。运行时把场景与角色用到的值交给运行引擎；没有设置的再从同名的环境变量找。页面也列出场景用到、但还没设置的 Secrets。</li>
@@ -258,7 +259,7 @@
             <tr><td><code>GET</code>、<code>PUT /api/scenes/{id}/sections/{段}</code>；<code>POST …/preview</code></td><td>场景文件的一段（<code>steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code>）：读取、只换掉这一段存成新版本（<code>baseRevision</code>、<code>text</code>、<code>note</code>）、换掉后校验但不保存（入参、出参回传表格用的数据）；问题带段落里的行号 <code>sectionLine</code></td></tr>
             <tr><td><code>GET</code>、<code>POST /api/roles</code>；<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/roles/{角色}</code></td><td>登录角色：<code>name</code>、<code>loginUrl</code>、<code>checkUrl</code>、<code>check</code>（定位器）、<code>engine</code>、<code>autoLogin</code>；还有场景用到时不能删除</td></tr>
             <tr><td><code>POST /api/roles/{角色}/login</code>、<code>…/login/finish</code>、<code>…/login/cancel</code></td><td>人工登录：开浏览器窗口、完成、取消；进度看角色的 <code>activity</code> 与 <code>session</code></td></tr>
-            <tr><td><code>POST /api/roles/{角色}/check</code>、<code>DELETE /api/roles/{角色}/state</code></td><td>在背景检查是否已登录（必要时自动登录）；注销</td></tr>
+            <tr><td><code>POST /api/roles/{角色}/check</code>、<code>DELETE /api/roles/{角色}/state</code></td><td>在背景检查是否已登录（必要时自动登录），在服务器或发出请求的录制端检查；两边都没有角色用的浏览器时回 422 <code>role_check_unavailable</code>。注销</td></tr>
             <tr><td><code>GET /api/secrets</code>、<code>PUT</code>、<code>DELETE /api/secrets/{名称}</code></td><td>Secrets：只回传名称与更新时间；<code>PUT</code> 的内容是 <code>value</code></td></tr>
             <tr><td><code>GET</code>、<code>POST /api/recordings</code>、<code>POST /api/recordings/import</code></td><td>录制清单；在这台电脑录制（202）；粘贴录制稿直接转换（201）。都要 <code>target</code>（新场景，或既有场景加 <code>mode</code>：<code>continue</code> 接着现有步骤、<code>replace</code> 整份换掉）、<code>url</code>、<code>engine</code>、选用的 <code>roleId</code></td></tr>
             <tr><td><code>GET /api/recordings/{录制编号}</code>、<code>…/cancel</code></td><td>录制状态、转不了的行与文件；取消录制</td></tr>

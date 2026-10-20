@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:ef001dfab670602d">
+<meta name="translation-source" content="sha256:675e8a53586ffdfa">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -96,6 +96,7 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # keep the data outside
           <li>Use <code>http://server:8765/</code> as the recording start URL. To run the example scenes against it, set the “Default URL” on the scene pages of BA-001 to BA-005 to <code>http://server:8765</code>, and under “Login and credentials” change the login and check URLs of the two test-site roles to <code>http://server:8765/login</code> and <code>http://server:8765/account</code>.</li>
         </ol>
         <p>After that, a record created by BA-001 can be found by BA-002 on any computer, and role sign-in state works on every one of them.</p>
+        <p>While a role still uses 127.0.0.1, a manual login through the recorder opens a window on the Mac that connects to the Mac itself: if the Mac is not running a test site you see “Could not open …: 127.0.0.1 is the computer running this browser itself”; if it runs its own test site you can log in, but that login is only valid for the Mac’s test site, so runs on the server or the worker still stop at “Login required”.</p>
 
         <h3 id="open-portal">Opening the portal from another computer</h3>
         <ul>
@@ -162,7 +163,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
             <li><strong>Open.</strong> Double-click “RPA Recorder”; once connected the window is the management portal and the header shows “Via recorder “name””. On the command line, run <code>uv run rpa recorder</code> in the project folder; it opens in the default browser.</li>
             <li><strong>Record.</strong> In “Production › Recording”, choose a new or existing scene, the start URL, the browser and the role, then “Start recording”. The browser and the Playwright Inspector open on the Mac; close the browser window when you are done and the draft is created. The start URL is the website to automate (for example the Mac’s own test site <code>http://127.0.0.1:8765/</code> or your business system), not the server’s 8080 or 8081: those are the portal itself and are refused.</li>
             <li><strong>Debug step by step.</strong> On the scene page choose “Step debugging”; the headed window opens on the Mac, and a screenshot after every step also appears on the page.</li>
-            <li><strong>Log in manually.</strong> In “Scenarios › Logins &amp; secrets” choose the role's “Log in”, log in in the window that opens on the Mac, then press “Finish login” or close the window; the sign-in state is saved on the server.</li>
+            <li><strong>Log in manually.</strong> In “Scenarios › Logins &amp; secrets” choose the role's “Log in”, log in in the window that opens on the Mac, then press “Finish login” or close the window. The Mac first confirms that you really are logged in and only then sends the sign-in state to the server, so the server needs no browser; if you press “Finish login” too early the page says so and the window stays open, so log in and press it again. When the server has not downloaded a browser, the role’s “Check” also runs on the Mac (headless).</li>
             <li><strong>Run.</strong> In the “place to run” of validate and run forms, “Server” is the server itself and “Remote worker” is a worker. Recorders do not run scenarios.</li>
             <li><strong>Quit.</strong> Close the app window or press ⌘Q; you are asked first if a recording, debugging or manual login is in progress. On the command line press Ctrl+C.</li>
           </ol>

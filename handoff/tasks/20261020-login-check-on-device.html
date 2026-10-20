@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>人工登入在開視窗的那台確認、檢查交給有瀏覽器的電腦 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>人工登入在開視窗的那台確認、「檢查」交給有瀏覽器的電腦、看得懂的登入錯誤</h1><p>Linux 伺服器（沒有桌面、沒有下載瀏覽器）＋ Mac 錄製端＋ Windows Worker 驗收「登入與憑證」時，角色一直是「無法確認」。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261020-login-check-on-device；2026-10-20 05:37 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>
+          <p>使用者 2026-10-20 04:05 PDT 在 Claude 對話貼上「登入與憑證」頁的截圖（兩個測試網站角色都是「無法確認」），要求分析原因；04:47 PDT 同意 Claude 建議的三項修正並要求開工。分析結論：</p>
+          <ul class="points">
+            <li>灰字 <code>BrowserType.launch: Executable doesn't exist at /home/admin/.cache/ms-playwright/firefox-1555/…</code>：「檢查」與「完成登入」後的確認一律在伺服器開無頭瀏覽器（<code>RoleService.check</code>、<code>_follow</code> → <code>_check_process</code>），而 <code>setup-linux.sh</code> 裝的伺服器不下載瀏覽器。</li>
+            <li>紅字 <code>NS_ERROR_CONNECTION_REFUSED</code>：人工登入的 Firefox 開在 Mac 錄製端，角色網址是 <code>http://127.0.0.1:8765/login</code>，Mac 自己的 8765 沒有網站。就算有，測試網站的登入存在各自程序的記憶體，其他電腦用不了（設定方式見部署與操作的「共用伺服器的測試網站」）。</li>
+            <li>網址改對之後，「完成登入」仍會交給伺服器確認而失敗，登入狀態不會存下來（#47 任務卡預告過、尚未實測的問題，本次證實）。</li>
+          </ul>
+          <p>驗收條件：</p>
+          <ol class="steps">
+            <li>人工登入時，開視窗的那台（伺服器或錄製端）在按「完成登入」或關掉視窗後自己確認登入狀態；確認通過才把登入狀態傳回伺服器並取代原本的狀態，伺服器不需要瀏覽器。</li>
+            <li>按「完成登入」但還沒登入時，視窗不關，頁面說明還沒登入，使用者繼續登入後可以再按一次。關掉視窗時還沒登入就結束並說明。</li>
+            <li>「檢查」：伺服器有下載角色用的瀏覽器時照舊在伺服器檢查；沒有時，透過錄製端打開就在錄製端檢查（無頭）；兩者都沒有時按鈕變灰、API 回錯誤，說明改用錄製端或直接執行場景（執行時會在執行的那台檢查）。</li>
+            <li>登入檢查與人工登入的錯誤看得懂：瀏覽器沒下載時說要執行的命令；連不到 127.0.0.1、localhost 時說明那是開瀏覽器的那台電腦自己，要改成網站所在電腦的位址。</li>
+            <li>舊版錄製端（不會自己確認）照樣能用：伺服器有瀏覽器時由伺服器確認；沒有時失敗並說明要更新錄製端。</li>
+          </ol>
+        </dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>rpa_runner.login</code>（capture 的確認、check 的 <code>--state</code>、錯誤說明）、<code>rpa_server.roles</code>（人工登入的事件、檢查的位置、本機有哪些瀏覽器）、角色頁的樣板與訊息、相關測試與文件（管理 Portal 設計、部署與操作）。不包含：交給 Worker 檢查（要擴充 Worker API，之後視需要另開）、Secrets 加密、HTTPS、多帳號等「登入與憑證」的其他方向（使用者尚未決定範圍）、範例角色網址自動改成伺服器位址（#47 決定不自動改）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/login.py</code> 與 locales、<code>apps/server/src/rpa_server/roles.py</code>、<code>services.py</code>、<code>pages.py</code>、<code>templates/roles.html</code>、server locales、測試（<code>packages/rpa_runner/tests/test_login.py</code>、<code>apps/server/tests/</code>）、<code>docs/design/portal.html</code>、<code>docs/develop/operations.html</code>（繁中、英文；簡中由 bootstrap 產生）、本頁與任務索引。<strong>和開著的 #48（M11 PR 1，另一個 Claude session）重疊</strong>：<code>roles.py</code>（#48 改登記、查詢；本任務改檢查與人工登入，不同段落）、<code>roles.html</code>（不同列）、三個 locales 檔、<code>docs/design/portal.html</code>。新訊息放在相關鍵的旁邊而不是檔尾，減少衝突；後合併的一方從最新 main 整合，整合者是後合併那個 PR 的主責。</dd>
+        <dt>狀態</dt><dd>待審閱：三項都已實作；PR #50 最新程式 head（6716c2d）的 CI 與桌面端建置全部通過。等使用者審閱、合併，以及在真的 Linux 伺服器＋更新後的錄製端人工驗收。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/login-check-on-device</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/50">PR #50</a>（base main）；base <code>a6164f7</code>（origin/main，#47）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送。程式的最後一個提交是 bot 的簡中 6716c2d（之前 618c86e、ad1c740）；之後只有本頁的回填。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13.16、uv 0.11.32）。連不到 PyPI：系統 Python 已有 pydantic、jinja2、playwright 1.56（只有 Chromium 1194）、httpx2；fastapi 0.148.0、starlette 1.9.0、sqlalchemy 2.1.5、alembic 1.20.0、mako 1.4.3、annotated-doc 0.0.5 依 uv.lock 的版本從 GitHub 原始碼加進 venv，所以伺服器測試本地可以跑；Firefox 的測試本地會略過，靠 CI。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>
+          <ul class="points">
+            <li><code>rpa_runner.login</code>（ad1c740）：<code>capture</code> 在按「完成登入」或關掉視窗後用剛取得的狀態開新的無頭 context 確認，通過才存（<code>saved</code> 附 <code>verified</code>）；還沒登入時事件 <code>checking</code>、<code>not_logged_in</code>（url、message、closed），視窗開著就繼續等，關了就結束（退出碼 4）。<code>check --state</code>。<code>describe_error</code>：瀏覽器沒下載、連線被拒絕（127.0.0.1、localhost、::1、0.0.0.0 說明是那台自己）。寫狀態檔的暫存檔名帶程序代號。</li>
+            <li><code>RoleService</code>：<code>check_launcher</code>／<code>can_check</code>（伺服器有這個瀏覽器 → 伺服器；否則透過錄製端 → 錄製端無頭；都沒有 → 422 <code>role_check_unavailable</code>）；檢查用複本 <code>check/state.json</code>，通過且原本的狀態沒被更新過才取代（<code>_adopt</code>）；<code>_follow</code> 處理新事件，<code>verified</code> 時不在伺服器確認，舊版子程序沒確認時伺服器有瀏覽器才確認、沒有就說明要更新錄製端；舊版錄製端不認得 <code>--state</code> 時說明。<code>LocalBrowsers</code> 快取伺服器有哪些瀏覽器 5 分鐘。</li>
+            <li>角色頁：「檢查」不能用時變灰並說明；「登入中」的提示下顯示還沒登入的原因。三語訊息（簡中由 bootstrap 產生）。</li>
+            <li>文件：管理 Portal 設計（人工登入、檢查、API 表）、部署與操作（共用測試網站時 127.0.0.1 的情況、錄製端人工登入），繁中與英文。</li>
+            <li>測試：<code>test_login.py</code>（capture 的取消、還沒登入時繼續等、確認通過才存、本機位址沒有網站的說明、<code>check --state</code>）、<code>test_login_errors.py</code>（不需瀏覽器）、<code>test_production_api.py</code>（假的人工登入子程序：開視窗的那台確認、關掉視窗、舊版；檢查不能用時 422 與灰按鈕）、<code>test_recorder_api.py</code>（檢查交給錄製端、保留較新的狀態、舊版錄製端、頁面）、<code>test_recorder_flow.py</code>（真的錄製端與瀏覽器：伺服器沒有瀏覽器時透過錄製端自動登入）。<code>apps/server/tests/conftest.py</code> 讓測試一律當作伺服器有瀏覽器，結果不隨環境而變。</li>
+          </ul>
+        </li>
+        <li><strong>未完成／阻礙：</strong>審閱、合併；人工驗收（見下方步驟）。錄製端要更新到含這個修正的版本（重新建置安裝 RPA 錄製端，或命令列 <code>git pull</code> 後 <code>uv run rpa recorder</code>），人工登入才會在 Mac 確認；舊版錄製端時伺服器沒有瀏覽器就會說明要更新。</li>
+        <li><strong>決定：</strong>
+          <ul class="points">
+            <li>（使用者 2026-10-20 04:47 PDT，已確認）照 Claude 的三項建議實作。</li>
+            <li>（實作選擇）確認用「剛取得的登入狀態開一個新的無頭 context，打開確認網址看已登入元素」，和執行前的登入檢查同一個判斷；在開視窗的那個子程序裡做。</li>
+            <li>（實作選擇）「檢查」優先在伺服器（有瀏覽器時，維持原本的行為），其次在發出請求的錄製端；伺服器有哪些瀏覽器由 Playwright 預期的執行檔位置判斷，快取幾分鐘。</li>
+            <li>（實作選擇）檢查改用登入狀態的複本，通過後只在原本的狀態沒有被別人更新時才取代，避免舊的蓋掉新的。</li>
+          </ul>
+        </li>
+        <li><strong>下一個具體動作：</strong>使用者審閱並合併 #50；合併後 Linux 伺服器 <code>git pull</code>、重新啟動，Mac 錄製端更新，照下面的人工驗收做一次。</li>
+        <li><strong>人工驗收（未執行）：</strong>(0) 伺服器照「部署與操作 › 共用伺服器的測試網站」開放 8765，兩個測試網站角色的登入網址、確認網址改成 <code>http://伺服器:8765/login</code>、<code>…/account</code>，BA-004、BA-005 的預設網址改成 <code>http://伺服器:8765</code>。(1) 從 8080 直接打開：Firefox 角色的「檢查」是灰的，滑鼠移上去有說明。(2) 透過 Mac 錄製端打開，對 testsite-user 按「登入」：視窗開在 Mac；還沒登入就按「完成登入」，頁面說明還沒登入、視窗不關；用 user／user-pass 登入後再按一次，狀態變成「已登入」。(3) 透過錄製端按「檢查」：在 Mac 無頭檢查，仍是「已登入」。(4) 執行 BA-004（遠端 Worker）：通過。(5) 角色網址暫時改回 127.0.0.1 再按「登入」：Mac 沒有測試網站時，紅字說明 127.0.0.1 是開瀏覽器的這台電腦自己。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無（本機的 <code>.venv</code> 是指向測試用 venv 的連結，不提交）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>基準 a6164f7＋本分支（ad1c740 與之後未提交的伺服器與文件差異）／Claude 雲端環境（Linux、Python 3.13.16、ruff 0.16.9、pyright 1.1.414、Playwright 1.56 只有 Chromium 1194）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>、<code>git diff --check</code></td><td>通過</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pyright</code>（全專案 strict）</td><td>改到的檔案 0 錯誤；全專案剩 13 個錯誤都是環境造成：本機沒有 keyring（<code>credentials.py</code>）、Playwright 1.56 的型別（<code>test_portal.py</code>），和本次改動無關</td><td>CI 用鎖定的依賴再跑一次</td></tr>
+          <tr><td>同上</td><td><code>pytest packages/rpa_runner/tests</code></td><td>96 通過、18 略過（Firefox）</td><td>Firefox</td></tr>
+          <tr><td>同上</td><td><code>pytest apps/server/tests apps/worker/tests apps/testsite/tests</code>（含 Chromium 的瀏覽器測試）</td><td>361 通過、15 略過（Firefox）、1 失敗：<code>test_portal.py::test_rpa_serve_recognizes_a_running_portal[None]</code>，單獨重跑通過（全套同時跑時的埠號競爭，和本次改動無關）。之後修了一個測試的時序（錄製端的「啟動」指令在背景執行緒送出），登入相關的 8 個檔案重跑 117 通過、10 略過，<code>-k role_check</code> 連跑 3 次通過</td><td>Firefox</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/docs tests/i18n</code>；<code>tools/i18n.py stamp</code> 兩個英文頁</td><td>287 通過；1 失敗是 <code>test_simplified_chinese_is_generated</code>（本機沒有 OpenCC，簡中由 bootstrap 產生）</td><td>簡中</td></tr>
+          <tr><td>618c86e／bootstrap run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39421918358">39421918358</a>（2026-10-20 05:23～05:26 PDT）</td><td>uv lock、產生簡中、ruff、pyright、<code>pytest -m "not browser"</code></td><td>全部通過；bot 提交簡中 6716c2d</td><td>—</td></tr>
+          <tr><td>6716c2d／PR #50 的 CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39422382519">39422382519</a>、桌面端建置 run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39422382496">39422382496</a>（2026-10-20 05:27～05:36 PDT）</td><td>靜態檢查、測試（Python 3.12、3.13，含瀏覽器測試）、Worker 測試（Windows）；RPA Worker（Windows）、RPA 錄製端（macOS）的建置</td><td>全部通過。Worker 測試（Windows）第一次失敗在既有的 <code>test_login.py::test_state_file_without_check[firefox]</code>（第一次執行沒有存下登入狀態，第二次執行找不到狀態檔；這個測試只檢查第二次，第一次在 45 秒總期限內沒完成的可能性高；同一個 job 裡其他 Firefox 自動登入測試都通過，main 與其他 PR 最近的同一個 job 都通過）；重跑失敗的 job（第 2 次）通過</td><td>真的 Linux 伺服器＋ Mac 錄製端</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：6716c2d 全部通過（Windows 的 job 重跑一次）；人工驗收：未執行；審閱：未審閱（等使用者）。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-20 04:58 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>fix/login-check-on-device</code>（base a6164f7）。開工前查 GitHub：開著的 PR 只有 #48（M11 PR 1，<code>m11/domain-packs</code>），重疊的檔案記在上方。</li>
+        <li>2026-10-20 05:23 America/Los_Angeles（PDT，UTC−07:00），Claude：三項都已實作、本地檢查（見驗證）；提交伺服器、測試與文件（618c86e，含 <code>[bootstrap]</code>）並推送。</li>
+        <li>2026-10-20 05:26～05:37 America/Los_Angeles（PDT，UTC−07:00），Claude：bootstrap 通過、bot 提交簡中 6716c2d；05:27 開 PR #50；CI 的 Worker 測試（Windows）第一次失敗在既有的 Firefox 測試，重跑通過（見驗證）；狀態改為待審閱。這期間開了 #49（M11 PR 2，<code>m11/composite-packs</code>，疊在 #48 上）：和本任務一樣改到伺服器的三個 locales、<code>pages.py</code>、<code>test_render.py</code>、<code>docs/design/portal.html</code>（含英文、簡中），沒有改 <code>roles.py</code>；後合併的一方整合。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

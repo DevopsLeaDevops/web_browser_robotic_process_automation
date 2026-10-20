@@ -66,5 +66,7 @@
   "run.needs_login": "Role \"{role}\" needs to log in again; no steps were run. Log in and run it again.",
   "run.login_refreshed": "Role \"{role}\" was not logged in or its login had expired; it was logged in automatically",
   "login.browser_closed": "The browser was closed before the login state could be read; log in again and press \"Finish login\" in the Portal",
+  "login.local_refused": "Could not open {url}: {host} is the computer running this browser itself, and no site is listening there. If the site runs on another computer (for example the test site on the server), change the role's login and check URLs to that computer's address, such as http://server:8765/login.",
+  "login.refused": "Could not connect to {url} (connection refused): check the address and port, that the site is running, and that this computer can reach it.",
   "debug.ready": "Debug session ready"
 }

@@ -33,6 +33,7 @@
           {% if role.message and not role.activity %}<span class="cell-sub">{{ role.message }}</span>{% endif %}
           {% if session and role.activity == "login" %}
           <div class="notice login-session" role="status">{{ t("roles.session_" + session.status) }}
+            {% if session.message %}<span class="cell-sub text-danger">{{ session.message }}</span>{% endif %}
             {% if session.status == "waiting" %}<span class="actions"><button class="button primary" data-action="finish-login" data-role="{{ role.id }}">{{ t("roles.finish_login") }}</button><button class="button" data-action="cancel-login" data-role="{{ role.id }}">{{ t("roles.cancel_login") }}</button></span>{% endif %}
           </div>
           {% elif session and session.status in ("failed", "done") and session.message %}
@@ -43,7 +44,9 @@
         <td class="role-actions">
           {% if display %}<button class="text-btn" data-action="login" data-role="{{ role.id }}"{% if role.activity %} disabled{% endif %} title="{{ t('roles.login_title') }}">{{ t("roles.login") }}</button>
           {% else %}<span class="disabled-hint" title="{{ t('display.use_recorder') }}"><button class="text-btn" data-action="login" data-role="{{ role.id }}" disabled>{{ t("roles.login") }}</button></span>{% endif %}
-          <button class="text-btn" data-action="check-role" data-role="{{ role.id }}"{% if role.activity %} disabled{% endif %} title="{{ t('roles.check_title') }}">{{ t("roles.check") }}</button>
+          {% set blocked = check_unavailable.get(role.engine) %}
+          {% if blocked %}<span class="disabled-hint" title="{{ blocked }}"><button class="text-btn" data-action="check-role" data-role="{{ role.id }}" disabled>{{ t("roles.check") }}</button></span>
+          {% else %}<button class="text-btn" data-action="check-role" data-role="{{ role.id }}"{% if role.activity %} disabled{% endif %} title="{{ t('roles.check_title') }}">{{ t("roles.check") }}</button>{% endif %}
           <button class="text-btn" data-action="edit-role" data-role="{{ role.id }}" data-values="{{ role_values(role) | tojson | forceescape }}">{{ t("roles.edit") }}</button>
           {% if role.has_state %}<button class="text-btn" data-action="clear-role" data-role="{{ role.id }}" data-name="{{ role.name }}">{{ t("roles.clear") }}</button>{% endif %}
           {% if not role.used_by %}<button class="text-btn" data-action="delete-role" data-role="{{ role.id }}" data-name="{{ role.name }}">{{ t("roles.delete") }}</button>{% endif %}

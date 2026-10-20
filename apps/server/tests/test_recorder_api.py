@@ -7,6 +7,7 @@
 
 import io
 import json
+import os
 import threading
 import time
 import zipfile
@@ -404,6 +405,115 @@ def test_debug_session_runs_on_the_recorder(app: FastAPI, client: Client, remote
     assert error(device.output(process, ["late"], status=404), 404)["code"] == "process_not_found"
     assert body(client.get("/api/recorders/mac-01"))["status"] == "online"
     assert not folder.exists()
+
+
+# ---------------------------------------------------------------- 登入檢查交給錄製端
+
+ROLE: JsonObject = {
+    "id": "erp-clerk",
+    "name": "ERP 職員",
+    "loginUrl": "http://127.0.0.1:9/login",
+    "checkUrl": "http://127.0.0.1:9/home",
+    "check": "{ testId: current-user }",
+    "engine": "firefox",
+}
+OLD_STATE = b'{"cookies": [], "origins": []}'
+NEW_STATE = (
+    b'{"cookies": [{"name": "s", "value": "new", "domain": "x", "path": "/"}], "origins": []}'
+)
+
+
+def start_role_check(app: FastAPI, client: Client, remote: Client) -> tuple[Device, JsonObject]:
+    """伺服器沒有下載瀏覽器：透過錄製端按「檢查」，檢查交給錄製端（無頭）。"""
+    body(client.post("/api/roles", json=ROLE), 201)
+    services(app).roles.local_engines = lambda: ()
+    state = services(app).storage.role_state("erp-clerk")
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_bytes(OLD_STATE)
+    device = paired(client, remote)
+    device.hello(display=False)  # 無頭檢查：錄製端沒有畫面也可以
+    started = body(remote.post("/api/roles/erp-clerk/check", headers=auth(device.token)), 202)
+    assert started["activity"] == "checking"
+    # 子程序在背景的檢查執行緒啟動：等到「啟動」指令出現
+    (start,) = device.collect(lambda items: any(item["type"] == "start" for item in items))
+    return device, start
+
+
+def role_when_idle(client: Client) -> JsonObject:
+    deadline = time.monotonic() + 10
+    while True:
+        role = body(client.get("/api/roles/erp-clerk"))
+        if not role["activity"]:
+            return role
+        assert time.monotonic() < deadline, role
+        time.sleep(0.05)
+
+
+def test_role_check_runs_on_the_recorder(app: FastAPI, client: Client, remote: Client) -> None:
+    device, start = start_role_check(app, client, remote)
+    assert start["module"] == "rpa_runner.login"
+    args = cast("list[str]", start["args"])
+    assert args[:3] == ["check", "--out", WORK]
+    assert args[args.index("--engine") + 1] == "firefox"
+    assert args[args.index("--state") + 1] == f"{WORK}/state.json"
+    assert "--headed" not in args
+    files = cast("dict[str, str]", start["files"])
+    assert b64decode(files["state.json"]) == OLD_STATE  # 送過去的是角色登入狀態的複本
+    env = cast("dict[str, str]", start["env"])
+    assert json.loads(env["RPA_LOGIN"])["role"] == "erp-clerk"
+    assert start["log"] == "login.log"
+
+    # 錄製端：檢查通過，寫回換發過的登入狀態
+    process = str(start["process"])
+    result = {"role": "erp-clerk", "status": "passed", "refreshed": False, "url": None}
+    device.files(process, {"login.json": json.dumps(result).encode(), "state.json": NEW_STATE})
+    device.output(process, [], exit_code=0)
+    role = role_when_idle(client)
+    assert (role["status"], role["message"]) == ("logged_in", None)
+    storage = services(app).storage
+    assert storage.role_state("erp-clerk").read_bytes() == NEW_STATE
+    assert not (storage.roles / "erp-clerk" / "check" / "state.json").exists()
+
+
+def test_role_check_keeps_a_newer_state(app: FastAPI, client: Client, remote: Client) -> None:
+    """檢查期間角色的登入狀態被別人更新（例如人工登入、執行時自動登入）：不拿檢查的複本蓋掉。"""
+    device, start = start_role_check(app, client, remote)
+    state = services(app).storage.role_state("erp-clerk")
+    newer = (
+        b'{"cookies": [{"name": "s", "value": "newer", "domain": "x", "path": "/"}], "origins": []}'
+    )
+    state.write_bytes(newer)
+    later = time.time_ns() + 5_000_000_000
+    os.utime(state, ns=(later, later))
+    process = str(start["process"])
+    result = {"role": "erp-clerk", "status": "passed", "refreshed": True, "url": None}
+    device.files(process, {"login.json": json.dumps(result).encode(), "state.json": NEW_STATE})
+    device.output(process, [], exit_code=0)
+    assert role_when_idle(client)["status"] == "logged_in"
+    assert state.read_bytes() == newer
+
+
+def test_role_check_on_an_outdated_recorder(app: FastAPI, client: Client, remote: Client) -> None:
+    device, start = start_role_check(app, client, remote)
+    process = str(start["process"])
+    usage = f"error: unrecognized arguments: --state {WORK}/state.json\n".encode()
+    device.files(process, {"login.log": usage})
+    device.output(process, [], exit_code=2)
+    role = role_when_idle(client)
+    assert role["status"] == "unknown"
+    assert "這台錄製端的版本較舊" in str(role["message"])
+    assert services(app).storage.role_state("erp-clerk").read_bytes() == OLD_STATE
+
+
+def test_role_check_page_through_a_recorder(app: FastAPI, client: Client, remote: Client) -> None:
+    """伺服器沒有瀏覽器：直接打開時「檢查」是灰的，透過錄製端打開時可以按。"""
+    body(client.post("/api/roles", json=ROLE), 201)
+    services(app).roles.local_engines = lambda: ()
+    device = paired(client, remote)
+    device.hello()
+    assert 'data-action="check-role" data-role="erp-clerk" disabled>' in client.get("/roles").text
+    page = remote.get("/roles", headers=auth(device.token)).text
+    assert 'data-action="check-role" data-role="erp-clerk" title=' in page
 
 
 def test_unsafe_files_are_refused(client: Client, remote: Client) -> None:
