@@ -63,6 +63,8 @@ uv run rpa --version</pre>
             <tr><td>安装或检查整个环境</td><td><code>./scripts/setup.sh</code>（Windows：<code>scripts\setup.ps1</code>），见<a href="quickstart.html">本机从零运行</a></td></tr>
             <tr><td>跑全部测试</td><td><code>uv run pytest</code></td></tr>
             <tr><td>跳过需要浏览器的测试</td><td><code>uv run pytest -m "not browser"</code></td></tr>
+            <tr><td>平行跑测试（较快；CI 在 Linux 上这样跑）</td><td><code>uv run pytest -n 4 --dist loadfile</code>（数字是进程数，不要超过 CPU 核数；机器忙时浏览器步骤较容易超时）</td></tr>
+            <tr><td>只跑冒烟测试（浏览器能启动、<code>rpa run</code> 能跑完示例）</td><td><code>uv run pytest -m smoke</code></td></tr>
             <tr><td>只检查文档</td><td><code>uv run pytest tests/docs</code></td></tr>
             <tr><td>Lint 并自动修正</td><td><code>uv run ruff check --fix .</code></td></tr>
             <tr><td>格式化</td><td><code>uv run ruff format .</code></td></tr>

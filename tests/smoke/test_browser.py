@@ -10,7 +10,7 @@ from typing import Literal
 import pytest
 from playwright.sync_api import Error, sync_playwright
 
-pytestmark = pytest.mark.browser
+pytestmark = [pytest.mark.browser, pytest.mark.smoke]
 
 PAGE = "data:text/html;charset=utf-8,<title>冒煙測試</title><button>登入</button>"
 

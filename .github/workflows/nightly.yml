@@ -1,0 +1,113 @@
+# 每晚完整測試：在 macOS、Ubuntu、Windows 跑全部測試，瀏覽器測試再連跑兩遍（共三遍）。
+#
+# 為什麼要有這個流程（handoff/tasks/20261019-ci-test-time.html）：
+# - PR 上的 CI 只在 Ubuntu 跑瀏覽器測試；一鍵安裝腳本也只在改動腳本或依賴時才觸發。
+#   這裡讓 Windows、macOS 每天至少對 main 跑一次全部測試。
+# - 過去一鍵安裝腳本在每台機器上把全部測試跑三遍，意外抓到過只偶爾出現的時序問題
+#   （例如 run 38840392412 的契約草稿 inert、拖放位置）。PR 上改成只跑一遍之後，
+#   重複執行搬到這裡，刻意連跑三遍；不靠自動重跑把失敗變成通過。
+# - Python 3.12（最低支援版本）在 PR 上只跑不需瀏覽器的測試，這裡補跑全部。
+#
+# 逐一執行（不加 -n），跟使用者電腦上的執行方式一致，也不額外增加機器負載造成的逾時。
+name: 每晚完整測試
+
+on:
+  schedule:
+    # America/Los_Angeles：每天 00:17 PDT（UTC−07:00）；冬令時為前一天 23:17 PST（UTC−08:00）。
+    # 避開整點，也避開平常 PR 最多的時段，少佔 macOS 的並行名額（每個帳號最多 5 個）。
+    # 公開倉庫 60 天沒有任何活動時，GitHub 會自動停用排程。
+    - cron: "17 7 * * *"
+  # 修改本流程的 PR 先實際跑一次；排程流程要先進 main 才能手動觸發
+  pull_request:
+    paths:
+      - ".github/workflows/nightly.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  full:
+    name: 完整測試（${{ matrix.os }}，Python ${{ matrix.python }}）
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # extra：第 1 遍全部測試之後，瀏覽器測試再跑幾遍
+          - { os: ubuntu-latest, python: "3.13", extra: 2 }
+          - { os: macos-latest, python: "3.13", extra: 2 }
+          - { os: windows-latest, python: "3.13", extra: 2 }
+          - { os: ubuntu-latest, python: "3.12", extra: 0 }
+    env:
+      # 缺少瀏覽器時直接失敗，而不是略過
+      RPA_REQUIRE_BROWSER: "1"
+      REPORTS: ${{ github.workspace }}/test-results
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: ${{ matrix.python }}
+      # 跟一鍵安裝腳本（setup.ps1）跑測試時一樣用 UTF-8；Windows 預設的 cp1252 會讓
+      # 測試自己啟動、印中文的子程序失敗（2026-10-19 PR #45 的第一次執行）
+      - name: Windows：測試時用 UTF-8（與 setup.ps1 相同）
+        if: runner.os == 'Windows'
+        run: |
+          echo "PYTHONUTF8=1" >> "$GITHUB_ENV"
+          echo "PYTHONIOENCODING=utf-8" >> "$GITHUB_ENV"
+      - name: 安裝依賴
+        run: uv sync --locked
+      - name: 安裝瀏覽器（Chromium、Firefox）
+        id: browsers
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            uv run playwright install --with-deps chromium firefox
+          else
+            uv run playwright install chromium firefox
+          fi
+      - name: 全部測試（第 1 遍）
+        run: |
+          mkdir -p "$REPORTS"
+          set +e
+          uv run pytest --durations=30 --junitxml="$REPORTS/pass-1.xml" -o junit_family=xunit1
+          code=$?
+          set -e
+          # 工具印中文；Windows 主控台預設不是 UTF-8
+          PYTHONIOENCODING=utf-8 uv run python tools/ci_annotations.py junit "$REPORTS/pass-1.xml"
+          exit "$code"
+      # 第 1 遍失敗也照跑：看得出是穩定失敗還是偶發
+      - name: 瀏覽器測試再跑 ${{ matrix.extra }} 遍（抓偶發問題）
+        if: ${{ !cancelled() && matrix.extra > 0 && steps.browsers.outcome == 'success' }}
+        run: |
+          failed=""
+          for pass in $(seq 2 $(( ${{ matrix.extra }} + 1 ))); do
+            echo "::group::瀏覽器測試第 $pass 遍"
+            set +e
+            uv run pytest -m browser --junitxml="$REPORTS/pass-$pass.xml" -o junit_family=xunit1
+            code=$?
+            set -e
+            echo "::endgroup::"
+            PYTHONIOENCODING=utf-8 uv run python tools/ci_annotations.py junit "$REPORTS/pass-$pass.xml"
+            if [ "$code" -ne 0 ]; then
+              failed="$failed $pass"
+              echo "::error title=瀏覽器測試第 $pass 遍失敗::同一份程式碼在前面的執行通過、這一遍失敗，通常是偶發的時序問題；看上面的註記與 test-results-* 裡的報告"
+            fi
+          done
+          [ -z "$failed" ]
+      - name: 保留測試報告
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.python }}
+          path: ${{ env.REPORTS }}
+          if-no-files-found: ignore
+          retention-days: 14

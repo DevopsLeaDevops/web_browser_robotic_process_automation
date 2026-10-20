@@ -187,6 +187,7 @@ def test_python_script_scenario(site: str, engine: str, tmp_path: Path) -> None:
     assert (result.directory / "scenario" / "automation.py").is_file()
 
 
+@pytest.mark.smoke  # 剛裝好的環境：rpa run 經由子程序在兩種瀏覽器真的跑完範例場景
 def test_cli_run(site: str, engine: str, tmp_path: Path) -> None:
     args = [
         "run",
