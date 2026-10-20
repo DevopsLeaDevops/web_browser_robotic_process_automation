@@ -424,6 +424,9 @@ def _source(kind: str, **fields: object) -> dict[str, object]:
 
 def _m6_pages(*, english: bool = False) -> dict[str, str]:
     """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）。"""
+    domains = (
+        [replace(DOMAIN, name="Lab"), replace(OTHER_DOMAIN, name="Other")] if english else DOMAINS
+    )
     name = "Create then look up" if english else "建立後查詢"
     run = (
         replace(RUN, scene_name="Scene", input={"title": "x"}, output={"recordId": "DEMO-1"})
@@ -559,7 +562,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "playground": render(
             "playground.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=t("nav.playground"),
             workflows=[
                 record,
@@ -572,7 +575,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "playground-empty": render(
             "playground.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=t("nav.playground"),
             workflows=[],
             runs=[],
@@ -582,7 +585,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow": render(
             "workflow.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=name,
             workflow=record,
             data=data,
@@ -595,7 +598,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-run": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=passed.id,
             run=passed,
             workflow_exists=True,
@@ -605,7 +608,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-run-login": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=login.id,
             run=login,
             workflow_exists=False,
@@ -615,7 +618,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-running": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=running.id,
             run=running,
             workflow_exists=True,
@@ -625,7 +628,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         "workflow-blocked": render(
             "workflow_run.html",
             page="playground",
-            domains=DOMAINS,
+            domains=domains,
             title=blocked.id,
             run=blocked,
             workflow_exists=True,
