@@ -101,7 +101,7 @@ sudo journalctl -u rpa-server -f
 # 尚无代码：完整下载成功后再运行（需要先有 curl 与 CA 凭证）
 curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup-linux.sh -o /tmp/rpa-setup-linux.sh
 bash /tmp/rpa-setup-linux.sh --dir "$HOME/code/web_browser_robotic_process_automation"</pre>
-        <p>第一次产生项目内的 <code>.rpa-server.env</code>（Bash 语法、权限 600、已加入 Git ignore）。默认管理页面只听 <code>127.0.0.1:8080</code>，设备 API 听 <code>0.0.0.0:8081</code>；以 <code>--no-local-worker --no-testsite</code> 启动。可修改文件中的 <code>RPA_DATA_DIR</code>、<code>RPA_PORT</code>、<code>RPA_WORKER_PORT</code>、<code>RPA_WORKER_HOST</code>，再重启服务；重跑 setup 会保留设置。服务与数据都归运行脚本的账号，不要整份脚本改用 sudo。</p>
+        <p>第一次产生项目内的 <code>.rpa-server.env</code>（Bash 语法、权限 600、已加入 Git ignore）。默认管理页面只听 <code>127.0.0.1:8080</code>，设备 API 听 <code>0.0.0.0:8081</code>；以 <code>--no-local-worker</code> 启动，默认不启动测试网站。可修改文件中的 <code>RPA_DATA_DIR</code>、<code>RPA_PORT</code>、<code>RPA_WORKER_PORT</code>、<code>RPA_WORKER_HOST</code>、<code>RPA_TESTSITE_HOST</code>（设成 <code>0.0.0.0</code> 时在 8765 启动测试网站并让录制端、Worker 也连得到，见<a href="operations.html#shared-testsite">共用服务器的测试网站</a>；较早创建的设置档没有这一行，自己加上），再重启服务；重跑 setup 会保留设置。服务与数据都归运行脚本的账号，不要整份脚本改用 sudo。</p>
         <p>首次管理：在自己的电脑运行下面的 SSH 转发，再开 <code>http://127.0.0.1:8080</code>，从「设备」创建邀请。Worker／录制端的邀请地址要是它们可连到的服务器 IP 或 DNS、端口 8081；不要填 SSH 转发的 127.0.0.1。配对后录制端可经其本机闸道使用管理页面。见<a href="remote-worker.html">远程 Worker</a>与<a href="../design/desktop.html">桌面端分发</a>。</p>
 <pre class="source">ssh -N -L 8080:127.0.0.1:8080 admin@SERVER
 

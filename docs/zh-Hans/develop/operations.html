@@ -75,6 +75,7 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # 数据放在项目以
             <tr><td><code>--data 文件夹</code></td><td>数据放哪里，默认项目里的 <code>data</code>（也可以用环境变量 <code>RPA_DATA_DIR</code>）。见<a href="../design/portal.html#data-folder">管理 Portal › 文件夹</a>。</td></tr>
             <tr><td><code>--port</code>、<code>--host</code></td><td>管理页面的端口与地址，默认 <code>127.0.0.1:8080</code>。<strong>不要改成 0.0.0.0</strong>：管理页面没有登录保护。</td></tr>
             <tr><td><code>--no-testsite</code></td><td>不在 127.0.0.1:8765 启动测试网站。</td></tr>
+            <tr><td><code>--testsite-host 0.0.0.0</code></td><td>测试网站对其他电脑开放（默认只有本机 127.0.0.1）。见下方<a href="#shared-testsite">共用服务器的测试网站</a>。</td></tr>
             <tr><td><code>RPA_LANG</code></td><td>环境变量：服务器创建的消息用哪种语言（<code>zh-Hant</code>、<code>zh-Hans</code>、<code>en</code>）。</td></tr>
           </tbody>
         </table>
@@ -86,6 +87,15 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # 数据放在项目以
           <li><strong>8081，对外端口。</strong>每个请求都要权杖或一次性的邀请：运行端用 Worker API，录制端用 Client API，并用录制端的权杖打开管理页面。没配对的电脑打开只会看到 401。防火墙只开这个端口，而且只开给区网（或 VPN），例如 Ubuntu：<code>sudo ufw allow from 192.168.1.0/24 to any port 8081 proto tcp</code>。</li>
           <li><strong>是 HTTP，不加密。</strong>Secrets 与登录状态会经过网络，只在信任的区网或 VPN 使用。服务器在云端或不同网段时，可以用 SSH 通道把对外端口带到设备那台：<code>ssh -N -L 8081:127.0.0.1:8081 用户@服务器</code>，设备配对时服务器填 <code>http://127.0.0.1:8081</code>。</li>
         </ul>
+
+        <h3 id="shared-testsite">共用服务器的测试网站</h3>
+        <p>默认每台电脑各自在 127.0.0.1:8765 跑一份测试网站，数据与登录不互通：在 Mac 建的记录，Windows 查不到。要让录制端与 Worker 都用服务器上的同一份：</p>
+        <ol>
+          <li>服务器加 <code>--testsite-host 0.0.0.0</code> 启动。用 Linux 安装脚本时，在 <code>.rpa-server.env</code> 设 <code>export RPA_TESTSITE_HOST=0.0.0.0</code> 再重新启动（较早创建的设置档没有这一行，自己加上）。启动消息会印出「测试网站：http://区网 IP:8765/」，地址是猜的。</li>
+          <li>防火墙开 8765，<strong>只开给录制端与 Worker 那几台</strong>：测试网站没有任何保护，连得到的人都能创建记录、用示范账号登录。例如 RHEL 系：<code>sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.1.0/24 port port=8765 protocol=tcp accept'</code>，再 <code>sudo firewall-cmd --reload</code>。</li>
+          <li>录制的起始网址填 <code>http://服务器:8765/</code>。示例场景要用它时，在 BA-001～BA-005 的场景页把「默认网址」改成 <code>http://服务器:8765</code>；「登录与凭证」把两个测试网站角色的登录网址、检查网址改成 <code>http://服务器:8765/login</code>、<code>http://服务器:8765/account</code>。</li>
+        </ol>
+        <p>改好之后，BA-001 建的记录在任何一台用 BA-002 都查得到，角色的登录状态也对每一台有效。</p>
 
         <h3 id="open-portal">从别台电脑打开管理 Portal</h3>
         <ul>
