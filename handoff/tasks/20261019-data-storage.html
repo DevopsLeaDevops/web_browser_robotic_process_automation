@@ -10,7 +10,7 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 05:55 America/Los_Angeles（PDT，UTC−07:00）。<strong>實作 PR 1 完成、CI 全綠，待使用者審閱合併</strong>（<code>m11/domain-packs</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>）；<strong>PR 2（組合場景檔案化）完成、CI 全綠，待審閱</strong>（<code>m11/composite-packs</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/49">#49</a>，疊在 PR 1 上；見<a href="#log">追加紀錄</a>）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 07:27 America/Los_Angeles（PDT，UTC−07:00）。<strong>PR 1（#48）已 squash 合併；PR 2（#49）已在本機完成 rebase 到 main，尚未推送</strong>。遠端 #49 的 base 仍是 <code>m11/domain-packs</code>；推送後需改成 <code>main</code> 並確認新版本 CI。本機檢查結果與缺口見<a href="#pr49-rebase">整合紀錄</a>。<strong>設計已確認</strong>（D1～D11 見<a href="#decisions">第 13 節</a>）；功能實作與歷史證據保留於下方，不能將 rebase 前的 CI 視為新版本通過。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
@@ -467,7 +467,18 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
 
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
-      <div class="panel-body"><p>未接收。</p></div>
+      <div class="panel-body"><p>2026-10-20 07:27 America/Los_Angeles（PDT，UTC−07:00），Codex 接續使用者在共用 checkout 執行到一半的 rebase；範圍僅為 PR #49 文件衝突與整合檢查。已核對舊遠端 head <code>f86478d2fea1489db1839ed4a5188d5407fefdff</code> 與本機備份 <code>backup/pr49-before-rebase</code> 相同。結果留在本機 <code>m11/composite-packs</code>，尚未推送；由使用者接手遠端更新與合併。</p></div>
+    </section>
+
+    <section class="panel" id="pr49-rebase">
+      <div class="panel-header"><h2>PR #49 本機整合紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>版本：</strong>#48 已於 2026-10-20 07:17 America/Los_Angeles（PDT，UTC−07:00）squash 成 main 的 <code>cfef585b95be34818150591356c0518a2984f526</code>。以舊 base <code>cbac33c807b812d73c7b039930c1cabdd5812927</code> 為界重播 #49 的 9 個提交，本機結果 <code>ecefaf24e032e7103a6518078fc11f5f2fa1f43d</code> 加本次翻譯指紋與交接紀錄；range-diff 確認功能改動保留。</li>
+        <li><strong>衝突：</strong><code>docs/en/design/portal.html</code> 只有翻譯指紋衝突，保留 main 的登入說明與 #49 的組合場景說明。系統 Python 太舊，首次 stamp 失敗；已用 <code>.venv/bin/python tools/i18n.py stamp docs/en/design/portal.html</code> 更新為 <code>sha256:c1f35f838cc44d76</code>。sync 更新 0 個檔案，i18n check、git diff --check、Ruff 與格式檢查通過。</li>
+        <li><strong>驗證：</strong>macOS arm64、Python 3.13.16、uv 0.12.24，先執行 <code>uv sync --locked</code>。<code>pytest -q tests/docs tests/i18n apps/server/tests/test_composites.py apps/server/tests/test_migrations.py apps/server/tests/test_render.py apps/server/tests/test_packs.py apps/cli/tests/test_pack_cli.py packages/rpa_core/tests/test_pack.py</code>：382 通過。</li>
+        <li><strong>擴大檢查：</strong><code>pytest -q -n 4 --dist loadfile -m "not browser"</code>：1308 通過、2 個 Windows 專屬測試略過、1 失敗（<code>test_frozen_commands_use_the_app_entry</code>）。測試寫死 App 路徑，本機已安裝 <code>rpa-child</code>，程式會優先選它；main 原始程式可重現，相關檔案在 rebase 前後未變。預設 Pyright 有既存的 <code>Foundation</code> 缺少型別宣告錯誤；<code>pyright --pythonplatform Linux</code> 為 0 errors、3 個 <code>pystray</code> 來源缺失警告。未執行真實瀏覽器測試（本機沒有 Chromium）及實際 Linux 升級驗收。</li>
+        <li><strong>待辦：</strong>推送、把 #49 base 改成 main、確認新 head 的 CI。既有 <code>0010</code> 的舊 SQLite 資料升級外鍵失敗問題仍未修正，本次 rebase 不修改遷移。</li>
+      </ul></div>
     </section>
 
     <section class="panel" id="log">
