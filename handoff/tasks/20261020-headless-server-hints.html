@@ -3,31 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>沒有畫面的伺服器：調試與錄製變灰、提示用錄製端 · 瀏覽器 RPA</title>
+<title>沒有畫面的伺服器：調試與錄製變灰、提示用錄製端；共用伺服器的測試網站 · 瀏覽器 RPA</title>
 <link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
 <link rel="stylesheet" href="../handoff.css">
 </head>
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>沒有畫面的伺服器：調試與錄製變灰、提示用錄製端</h1><p>Linux 伺服器（沒有桌面）＋ Mac 錄製端＋ Windows Worker 的人工驗收中，使用者回報的兩個問題：直接打開伺服器的管理 Portal 時，調試與錄製看起來能用；錄製的起始網址填了伺服器的對外埠，錄製的瀏覽器得到 401。</p></div></div>
+  <div class="heading"><div><h1>沒有畫面的伺服器：調試與錄製變灰、提示用錄製端；共用伺服器的測試網站</h1><p>Linux 伺服器（沒有桌面）＋ Mac 錄製端＋ Windows Worker 的人工驗收中，使用者回報的兩個問題：直接打開伺服器的管理 Portal 時，調試與錄製看起來能用；錄製的起始網址填了伺服器的對外埠，錄製的瀏覽器得到 401。</p></div></div>
   <div class="stack">
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd><code>20261020-headless-server-hints</code>；2026-10-20 00:52 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd><code>20261020-headless-server-hints</code>；2026-10-20 01:25 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-19 23:52 PDT（UTC−07:00）在 Claude 對話提出，2026-10-20 00:29 PDT 同意 Claude 的建議並要求開工：
           <ol class="steps">
             <li>伺服器沒有畫面時（直接打開伺服器的管理 Portal），逐步調試變灰，滑鼠移上去提示改用錄製端；「自主腳本錄製」的開始錄製一樣。</li>
             <li>錄製的起始網址指向管理 Portal 自己（管理頁面或對外埠）時直接擋下，說明要填被測試的網站。</li>
+            <li>（追加：使用者 2026-10-20 01:19 PDT）Linux 伺服器啟動的測試網站支援外部存取，例如 <code>http://215.192.222.14:8765</code>。</li>
           </ol>
-          驗收：在沒有畫面的伺服器上直接打開 Portal，場景卡片、場景頁、錄製清單、錄製詳情、調試頁的調試入口與「開始錄製」、角色的「登入」都是灰的，滑鼠移上去有說明；透過有畫面的錄製端打開時照常可用；起始網址填 <code>http://伺服器:8081/</code> 時「開始錄製」回錯誤並說明。</dd>
-        <dt>範圍／不包含</dt><dd>範圍：管理 Portal 的頁面、樣式、三語訊息、錄製 API 的網址檢查、相關文件。不包含：錄製端執行場景（使用者 2026-10-20 00:29 PDT 決定不做，見決定）；逐步調試 API 本身仍接受無頭模式（測試與自動化在用，只改頁面）；人工登入後「確認已登入」在伺服器執行的問題（推測，尚未實測，另開任務）。</dd>
+          驗收：在沒有畫面的伺服器上直接打開 Portal，場景卡片、場景頁、錄製清單、錄製詳情、調試頁的調試入口與「開始錄製」、角色的「登入」都是灰的，滑鼠移上去有說明；透過有畫面的錄製端打開時照常可用；起始網址填 <code>http://伺服器:8081/</code> 時「開始錄製」回錯誤並說明；伺服器設定 <code>RPA_TESTSITE_HOST=0.0.0.0</code>（或 <code>rpa serve --testsite-host 0.0.0.0</code>）後，Mac 與 Windows 打得開 <code>http://伺服器:8765/</code>。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：管理 Portal 的頁面、樣式、三語訊息、錄製 API 的網址檢查；<code>rpa serve --testsite-host</code>、Linux 安裝腳本的 <code>RPA_TESTSITE_HOST</code>；相關文件。不包含：錄製端執行場景（使用者 2026-10-20 00:29 PDT 決定不做，見決定）；逐步調試 API 本身仍接受無頭模式（測試與自動化在用，只改頁面）；人工登入後「確認已登入」在伺服器執行的問題（推測，尚未實測，另開任務）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
-        <dt>修改檔案／整合者</dt><dd><code>apps/server</code> 的 templates（domain、scene、recording、recording_detail、debug、roles）、<code>static/portal-app.css</code>、<code>pages.py</code>、<code>render.py</code>、<code>i18n.py</code>、<code>recordings.py</code>、<code>api.py</code>、<code>services.py</code>、<code>app.py</code>、<code>config.py</code>、locales；<code>apps/cli</code> 的 <code>serve.py</code>；測試；<code>docs/develop/operations.html</code>（繁中、英文；簡中由 bootstrap 產生）；本頁與任務索引。沒有其他進行中的 PR（2026-10-20 00:31 PDT 查 GitHub）。</dd>
-        <dt>狀態</dt><dd>待審閱：實作完成，最新程式 head 的 CI 全部通過；等使用者審閱、合併與人工驗收。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/server</code> 的 templates（domain、scene、recording、recording_detail、debug、roles）、<code>static/portal-app.css</code>、<code>pages.py</code>、<code>render.py</code>、<code>i18n.py</code>、<code>recordings.py</code>、<code>api.py</code>、<code>services.py</code>、<code>app.py</code>、<code>config.py</code>、locales；<code>apps/cli</code> 的 <code>serve.py</code> 與 locales；<code>apps/testsite</code>（<code>server.py</code>、<code>__main__.py</code>）；<code>scripts/setup-linux.sh</code>；測試；<code>docs/develop/operations.html</code>、<code>remote-worker.html</code>、<code>setup.html</code>（繁中、英文；簡中由 bootstrap 產生）；本頁與任務索引。沒有其他進行中的 PR（2026-10-20 00:31 PDT 查 GitHub）。</dd>
+        <dt>狀態</dt><dd>實作中：追加的測試網站對外開放已寫好、本地檢查完成，推送後看 CI。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>fix/headless-server-hints</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/47">PR #47</a>（base main）；base <code>9dc68be</code>（origin/main，#46）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>已推送。程式的最後一個提交 <code>3ea4b0c</code>；之後只有本頁的回填。</dd>
+        <dt>交接版本／同步狀態</dt><dd>前兩項已推送（<code>3ea4b0c</code>，CI 全部通過）；追加的測試網站對外開放隨下一次推送，CI 結果回填在追加紀錄。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、git 2.43）。連不到 PyPI：伺服器（FastAPI、SQLAlchemy）的測試只能在 CI 跑；本機只能跑不需要這些套件的檢查。</dd>
       </dl></div>
     </section>
@@ -42,10 +43,11 @@
             <li>（使用者 2026-10-20 00:29 PDT，已確認）錄製端不執行場景：錄製端只負責錄製、逐步調試、人工登入，執行仍交給伺服器或 Worker（維持 ADR 0014 的分工）。</li>
             <li>（實作選擇）「自主腳本錄製」這一頁照樣能進入，因為「貼上錄製稿」不需要畫面；只有「開始錄製」變灰。</li>
             <li>（實作選擇）逐步調試只改頁面，API 仍接受無頭模式。</li>
+            <li>（使用者 2026-10-20 01:19 PDT，追加）伺服器的測試網站要讓其他電腦連得到。實作選擇：<code>rpa serve --testsite-host</code>（預設 127.0.0.1，行為不變）；Linux 安裝腳本的 <code>.rpa-server.env</code> 新增 <code>RPA_TESTSITE_HOST</code>，<strong>預設空白＝不啟動</strong>（和之前一樣），設成 <code>0.0.0.0</code> 才在 8765 對外開放；較早的設定檔沒有這一行時照舊不啟動。測試網站沒有任何保護，啟動訊息提醒用防火牆只開給錄製端與 Worker。範例場景與兩個測試網站角色的網址不自動改，文件說明在場景的「預設網址」與角色的登入、檢查網址改成伺服器的位址。加在 #47 而不另開 PR：#47 還沒合併、同樣改到 <code>serve.py</code>，避免疊 PR。</li>
           </ul></li>
         <li><strong>另外提醒使用者（不在這個任務）：</strong>使用者用 <code>nohup … rpa serve --host 0.0.0.0 --port 8080</code> 啟動，管理頁面沒有登入保護，伺服器是公網 IP；已建議改回 <code>--host 127.0.0.1</code>（或直接用 <code>.venv-server/bin/rpa-server</code>／systemd），從 Mac 用錄製端或 SSH 通道操作，並把 8081 的防火牆限制在自己的 IP。</li>
         <li><strong>下一個具體動作：</strong>使用者審閱並合併 #47；合併後在 Linux 伺服器 <code>git pull</code>、重新啟動，照下方「人工驗收」做一次。</li>
-        <li><strong>人工驗收（未執行）：</strong>(1) 用 SSH 通道從 8080 打開伺服器的 Portal：場景卡片與場景頁的「逐步調試」、錄製清單與錄製詳情的「調試」、調試頁的「開始調試」、「開始錄製」、角色的「登入」都是灰的，滑鼠移上去有提示；「貼上錄製稿」可以用。(2) 透過 Mac 的錄製端打開：都照常可用。(3) 錄製的起始網址填 <code>http://伺服器:8081/</code>：「開始錄製」顯示「是管理 Portal 自己的位址」；改填 <code>http://127.0.0.1:8765/</code> 可以錄製。</li>
+        <li><strong>人工驗收（未執行）：</strong>(0) 伺服器 <code>.rpa-server.env</code> 加 <code>export RPA_TESTSITE_HOST=0.0.0.0</code> 後重新啟動，防火牆開 8765 給自己的 IP；Mac、Windows 的瀏覽器打得開 <code>http://215.192.222.14:8765/</code>。(1) 用 SSH 通道從 8080 打開伺服器的 Portal：場景卡片與場景頁的「逐步調試」、錄製清單與錄製詳情的「調試」、調試頁的「開始調試」、「開始錄製」、角色的「登入」都是灰的，滑鼠移上去有提示；「貼上錄製稿」可以用。(2) 透過 Mac 的錄製端打開：都照常可用。(3) 錄製的起始網址填 <code>http://伺服器:8081/</code>：「開始錄製」顯示「是管理 Portal 自己的位址」；改填 <code>http://127.0.0.1:8765/</code> 可以錄製。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -72,6 +74,7 @@
         <li>2026-10-20 00:33 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁與分支 <code>fix/headless-server-hints</code>（base <code>9dc68be</code>），開始實作。</li>
         <li>2026-10-20 00:39 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>b741e3b</code>（本頁）、<code>845cff1</code>（實作，含 <code>[bootstrap]</code>）；00:41 bot 提交簡中 <code>53cbfda</code>；00:42 開 PR #47。另向使用者說明 <code>nohup … --host 0.0.0.0 --port 8080</code> 會把沒有登入保護的管理頁面開到公網，建議改回 127.0.0.1。</li>
         <li>2026-10-20 00:44～00:52 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>cea5396</code>（英文提示的測試改用 <code>?lang=en</code>）、<code>3ea4b0c</code>（pyright strict 的型別）；最新程式 head 的 CI 全部通過；回填本頁，狀態改為待審閱。</li>
+        <li>2026-10-20 01:19～01:25 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者追加「Linux 伺服器的測試網站支援外部存取」。加上 <code>rpa serve --testsite-host</code>、測試網站的 host 參數、<code>RPA_TESTSITE_HOST</code>、測試與文件。本地：ruff、format、<code>bash -n</code>、<code>git diff --check</code> 通過；<code>tests/ci/test_linux_setup.py</code> 20 通過；<code>apps/cli/tests/test_serve.py -k testsite</code> 3 通過（同檔另 2 個因本機沒有 FastAPI 失敗，未改動時一樣）；<code>tests/docs tests/i18n apps/testsite/tests</code> 290 通過、2 個失敗都是簡中還沒由 bootstrap 產生（本機沒有 OpenCC）；改到的檔案 strict pyright 只剩 3 個因本機沒有 FastAPI 的錯誤（不在改動的行）。狀態改回實作中，等 CI。</li>
       </ul></div>
     </section>
   </div>
