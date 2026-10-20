@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>人工登入的 Firefox 在背景停住 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>人工登入的 Firefox 在背景停住</h1><p>「登入與憑證」按「登入」開的 Firefox 有時一直停住，切換到別的視窗再切回來才繼續。接在 <a href="20261020-login-check-on-device.html">20261020-login-check-on-device</a>（#50，已合併）之後的修正。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261020-firefox-background-login；2026-10-20 06:09 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-20 05:43 PDT 在 Claude 對話回報：點「登入」打開的 Firefox 有機率一直卡住，直到切換到其他頁面再切回來才好；問原因與解法（同一則訊息的另一個小問題是任務 20261020-linux-setup-mirrors，分支 <code>fix/linux-setup-mirrors</code>）。驗收：透過 Mac 錄製端（App 留在最前面）多按幾次「登入」，Firefox 不切換視窗也會載入登入頁。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>rpa_runner.contexts</code> 啟動 Firefox 的偏好設定與 <code>no_viewport</code>，人工登入的視窗使用它。所有經由 <code>open_context</code> 的 Firefox（執行、登入檢查、逐步調試、接續錄製的重播）都會加上同樣的偏好設定。不包含：新場景錄製用的 <code>playwright codegen</code> 命令列（沒辦法加偏好設定）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/contexts.py</code>、<code>login.py</code>、<code>packages/rpa_runner/tests/test_contexts.py</code>（新）、<code>test_login.py</code>、本頁與任務索引。和 #48、#49（M11）沒有重疊的檔案；任務索引和 <code>fix/linux-setup-mirrors</code> 都加一行，後合併的一方保留兩邊的連結。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #51 的 CI 與桌面端建置全部通過（3e1f6db）。等使用者審閱、合併，以及更新錄製端後的人工驗收。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/firefox-background-login</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/51">PR #51</a>（base main）；base <code>53a0578</code>（origin/main，#50）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送；程式的最後一個提交是 3e1f6db，之後只有本頁的回填。同樣的程式改動先推到了已合併的 <code>fix/login-check-on-device</code>（39d150e，推送時 #50 已在 2026-10-20 05:40 PDT 合併），那個提交不會進 main，由本分支取代。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13.16、Playwright 1.56 只有 Chromium）；伺服器依賴從 GitHub 原始碼載入（見 <a href="20261020-login-check-on-device.html">#50 的任務紀錄</a>）。沒有 Mac，不能重現。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>原因（Claude 分析，沒有 Mac 可以重現，屬於推測）：</strong>
+          <ul class="points">
+            <li>Playwright 替 Chromium 加了關掉背景節流的參數（例如 <code>--disable-backgrounding-occluded-windows</code>、<code>--disable-renderer-backgrounding</code>），Firefox 沒有對應的設定（查過 Playwright 的 <code>browser_patches/firefox/preferences</code>）。</li>
+            <li>macOS 上 Firefox 不是最前面的 App 時（錄製端 App 在前面），Firefox 會調低主執行緒與分頁程序的優先權（背景 QoS）；CPU 忙時剛開的分頁可能一直停在載入中，切到 Firefox 才恢復。Firefox 自己的自動化（Marionette、WebDriver BiDi）因此關掉 <code>threads.lower_mainthread_priority_in_background.enabled</code>、<code>dom.ipc.processPriorityManager.enabled</code>（Mozilla bug 1960734；Firefox 的 <code>remote/shared/RecommendedPreferences.sys.mjs</code>）。</li>
+            <li>另一條可能的路：Playwright 的 Firefox 模擬固定視窗大小時，會調整視窗並等頁面尺寸完全相符（Juggler 的 <code>updateViewportSize</code> → <code>awaitViewportDimensions</code>），視窗在背景時可能等不到（同類問題：Playwright #43028，Firefox r1555 的尺寸出現小數）。</li>
+          </ul>
+        </li>
+        <li><strong>決定（實作選擇）：</strong>每次啟動 Firefox 都加上 <code>threads.lower_mainthread_priority_in_background.enabled=false</code>、<code>dom.ipc.processPriorityManager.enabled=false</code>、<code>widget.windows.window_occlusion_tracking.enabled=false</code>（和 Firefox 自動化建議的設定相同；Windows 的有頭執行也受益）；人工登入的視窗不模擬固定大小（<code>no_viewport</code>，視窗用自己的大小，使用者也能拉大）。</li>
+        <li><strong>已完成：</strong><code>FIREFOX_PREFS</code> 在 <code>launch</code> 與預熱設定檔的持久化 context 都加上；<code>open_context(no_viewport=…)</code>；<code>capture</code> 使用它。測試：<code>test_contexts.py</code>（假的 Playwright，不需瀏覽器）；<code>test_login.py</code> 的兩個 capture 測試改成 Chromium、Firefox 各跑一次（Firefox 在 CI，也證明這些偏好設定被 Firefox 接受）。</li>
+        <li><strong>未完成／阻礙：</strong>審閱、合併；人工驗收要更新後的 Mac 錄製端。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱並合併 #51；更新 Mac 錄製端後，App 留在最前面，多按幾次「登入」確認 Firefox 不再停住。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>同樣的程式改動（39d150e，base a6baecc）／Claude 雲端環境</td><td><code>ruff check</code>、<code>ruff format --check</code>；改到的檔案 <code>pyright</code>；<code>pytest packages/rpa_runner/tests apps/server/tests/test_production_flow.py apps/server/tests/test_recorder_flow.py</code></td><td>通過；pyright 0 錯誤；106 通過、26 略過（Firefox）</td><td>Firefox、macOS 的實際情況</td></tr>
+          <tr><td>3e1f6db／PR #51 的 CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39426565078">39426565078</a>、桌面端建置 run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39426564960">39426564960</a>（2026-10-20 05:59～06:02 PDT）</td><td>靜態檢查、測試（Python 3.12、3.13）、Worker 測試（Windows，<code>test_login.py</code> 含 Firefox）；RPA Worker、RPA 錄製端的建置</td><td>全部通過（第一次就通過）</td><td>macOS 上的實際情況</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：3e1f6db 全部通過；人工驗收：未執行；審閱：未審閱（等使用者）。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-20 05:43～05:57 America/Los_Angeles（PDT，UTC−07:00），Claude：分析原因、實作，提交 39d150e 推到 <code>fix/login-check-on-device</code>；之後才發現 #50 已在 05:40 合併。</li>
+        <li>2026-10-20 06:04 America/Los_Angeles（PDT，UTC−07:00），Claude：從 origin/main 53a0578 開 <code>fix/firefox-background-login</code>，帶入同樣的程式改動，建立本頁。</li>
+        <li>2026-10-20 05:58～06:09 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 3e1f6db、開 PR #51；CI 與桌面端建置通過；狀態改為待審閱。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
