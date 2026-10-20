@@ -10,19 +10,19 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 04:45 America/Los_Angeles（PDT，UTC−07:00）。<strong>實作 PR 1 進行中</strong>（<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，見<a href="#log">追加紀錄</a>）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 04:50 America/Los_Angeles（PDT，UTC−07:00）。<strong>實作 PR 1 完成、CI 全綠，待使用者審閱合併</strong>（<code>m11/domain-packs</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，見<a href="#log">追加紀錄</a>）。下一步是 PR 2（組合場景檔案化）。<strong>設計已確認</strong>（使用者 2026-10-19 06:05 PDT 回覆 D1～D11，見<a href="#decisions">第 13 節</a>）；D3 依使用者的回覆改成「發布與驗證紀錄進 git」（<a href="#publish">第 8 節</a>），D4 加上回看的預留方案（<a href="#review">第 9 節</a>）。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-20 04:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd><code>20261019-data-storage</code>；2026-10-20 04:50 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源</dt><dd>使用者 2026-10-19 04:47 PDT（UTC−07:00）在 Claude 對話提出（<a href="#goals">第 1 節</a>）；06:05 PDT 回覆全部決定點（<a href="#decisions">第 13 節</a>）。</dd>
         <dt>驗收條件</dt><dd>見<a href="#plan">第 15 節</a>的人工驗收（以測試倉庫走完分散式的錄製 → 驗證 → 發布 → 使用），以及各 PR 的自動測試。</dd>
         <dt>範圍／不包含</dt><dd>範圍：領域資料夾格式、檔案與資料庫的分工、載入與熱載入、驗證與發布紀錄、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移；執行紀錄回看的<strong>格式預留</strong>。不包含：執行紀錄的歸檔與跨伺服器回看的實作（D4，之後做）、使用者與權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
-        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）已推送、草稿 #48，CI 修正中</dd>
+        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2～4 未開始</dd>
         <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁隨 <code>m11/domain-packs</code> 推送；以追加紀錄最後一筆的提交為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
@@ -445,6 +445,7 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
           <tr><td>測試倉庫</td><td>匿名 <code>git clone --depth 1</code></td><td>公開、空倉庫（沒有提交）</td><td>沒有推送權限，也沒有嘗試推送</td></tr>
           <tr><td>PR 1：<code>b624acb</code>＋文件 <code>a55c01e</code>＋本地未提交的修正／Claude 雲端環境（Python 3.13.16，git 2.43；連不到 PyPI，用 uv 快取裡的 pytest 9.1.1、ruff 0.16.9、pyright 1.1.414）</td><td><code>pytest packages/rpa_core</code>、<code>apps/cli/tests/test_pack_cli.py</code>、<code>apps/server/tests/test_storage.py</code>、<code>tests/docs</code>；<code>ruff check .</code>、<code>ruff format --check .</code>；pyright strict（只含 <code>rpa_core</code>、<code>rpa_cli</code> 的新檔案）</td><td>266、4、14、262 個測試通過；ruff 全倉庫通過；pyright 在範圍內沒有新錯誤</td><td>伺服器的測試與型別檢查要 FastAPI、SQLAlchemy，只能在 CI；本地 pyright 缺 PyYAML 的型別資料，<code>yaml_loader.py</code> 的既有錯誤是環境問題</td></tr>
           <tr><td>PR 1：<code>a55c01e</code>／GitHub Actions（#48 第一次 CI）</td><td>CI 的靜態檢查、Linux 測試（Python 3.12、3.13，含網站的瀏覽器測試）、Windows Worker、桌面 App；結果從 check run 的 annotations 讀取（這個環境連不到 Actions 的日誌下載網址）</td><td>1311 個測試中只有 2 個失敗：<code>test_packs.py::test_reload_picks_up_new_revisions_and_missing_scenes</code>（測試呼叫錯了 API）與簡中文件還沒產生（bootstrap 之後補上）；pyright 在 <code>packs.py</code> 有 3 個錯誤（設定值的型別、不必要的 cast）。Windows Worker、錄製端 App、Worker App 通過</td><td>修正已在下一個提交；以最新 head 的 CI 為準</td></tr>
+          <tr><td>PR 1：<code>7ff5f2f</code>／GitHub Actions（#48）</td><td>同上：靜態檢查（ruff、pyright strict、i18n）、Linux 測試 Python 3.12 與 3.13（依生產角色，含網站的瀏覽器測試）、Windows Worker 測試、RPA Worker 與錄製端 App 的建置</td><td>全部通過（2026-10-20 04:47 PDT 完成）</td><td>macOS 錄製端與 Windows 上的網站瀏覽器測試由每天的完整測試承擔（見 CI 與流水線）；人工驗收未執行</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p>設計（#40）：CI 不適用（只有交接文件），使用者 06:05 PDT 回覆了決定點，2026-10-19 17:57 PDT 合併。PR 1：自動測試見上表，以 #48 最新 head 的 CI 為準；人工驗收：未執行（第 15 節，PR 3 之後）；審閱：未審閱。</p></div>
@@ -473,6 +474,7 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
             <li>伺服器名稱在 PR 1 只有 API（<code>GET/PUT /api/settings/server</code>），頁面留給 PR 3 的領域管理頁。</li>
           </ul>
           第一次 CI 的結果見<a href="#validation">驗證與審閱</a>；修正（<code>packs.py</code> 的型別、一個測試）在下一個提交。</li>
+        <li>2026-10-20 04:50 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>7ff5f2f</code> 的 CI 全部通過（04:47 PDT 完成）；#48 改成可以審閱。交接狀態：PR 1 的程式碼都在 <code>m11/domain-packs</code>，沒有未推送的修改；下一個動作是使用者審閱、合併 #48，之後從新的 main 開 PR 2（組合場景檔案化，第 15 節）。</li>
       </ul></div>
     </section>
   </div>
