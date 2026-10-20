@@ -23,7 +23,7 @@
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
         <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2（組合場景檔案化）進行中，疊在 PR 1 上；PR 3、4 未開始</dd>
-        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。實作 PR 2：<code>m11/composite-packs</code>，base 是 <code>m11/domain-packs</code> 的 <code>cbac33c</code>（#48 還沒合併）；#48 合併後把 PR 的 base 改成 main。</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。實作 PR 2：<code>m11/composite-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/49">#49</a>，base 是 <code>m11/domain-packs</code> 的 <code>cbac33c</code>（#48 還沒合併）；#48 合併後把 PR 的 base 改成 main。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁隨 <code>m11/domain-packs</code> 推送；以追加紀錄最後一筆的提交為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
       </dl></div>
@@ -494,6 +494,7 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
             <li>版本說明檔的 <code>requires</code> 必須是節點用到的場景版本的子集（多出來的是錯誤）；節點沒有釘住時 <code>rpa pack check</code> 只提醒，伺服器把它當成依賴錯誤（要重新存檔），不能執行與發布。</li>
             <li>驗證紀錄記的雜湊是實際跑的定義的雜湊（不是版本的雜湊）：重跑遷移前的舊執行時，定義和版本不同就不會成為發布的證明。</li>
             <li>「執行」只跑發布的版本、不寫驗證紀錄；「驗證」可以指定版本，預設最新。頁面目前只能驗證最新版本、發布任何驗證過的版本；封存只能在 <code>composite.yaml</code> 改（頁面留給之後）。</li>
+            <li>「組合場景」領域不列在場景管理的左側選單（組合場景在「組合場景自動化」管理），領域管理頁照常列出。</li>
             <li>資料夾格式版本改成 3；格式 2 的資料夾有組合場景時先備份資料庫到 <code>backups/&lt;時間&gt;-before-composites/</code>（同一次啟動剛做過格式 2 的備份就不重複）。</li>
           </ul>
         </li>

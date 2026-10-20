@@ -81,6 +81,7 @@ from rpa_core.pack import (
     write_model,
 )
 from rpa_core.workflow import Workflow, parse_workflow
+from rpa_server.config import COMPOSITES_DOMAIN
 from rpa_server.domain import FINISHED, LOCAL_WORKER, now
 from rpa_server.i18n import t
 from rpa_server.models import (
@@ -110,8 +111,6 @@ logger = logging.getLogger("rpa_server")
 
 UNASSIGNED_DOMAIN: Final = "unassigned"
 """「未分類」領域：遷移時沒有領域的場景、沒有場景用到的角色放這裡（D7）。"""
-COMPOSITES_DOMAIN: Final = "composites"
-"""「組合場景」領域：只放組合場景的領域；遷移的與沒指定領域的新組合場景放這裡（D1、D7）。"""
 RUN_MANIFEST: Final = "run.json"
 """執行目錄的說明檔。"""
 RUN_MANIFEST_VERSION: Final = 1

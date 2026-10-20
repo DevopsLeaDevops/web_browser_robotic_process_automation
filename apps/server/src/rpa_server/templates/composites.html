@@ -20,7 +20,7 @@
           </svg>
         {% else %}<span>{{ t("playground.no_nodes") }}</span>{% endif %}
         </a>
-        <div class="composite-summary"><p class="clamp">{{ item.description or t("composites.no_description") }}</p><span class="cell-sub">{{ t("composites.node_count", count=item.workflow.nodes | length) }} · {{ t("composite.latest", number=item.version) }} · {% if item.published %}{{ t("composite.published_revision", number=item.published_number) }}{% else %}{{ t("composite.not_published") }}{% endif %}</span>{% if item.domain_id %}<span class="cell-sub">{{ t("composite.domain") }}：<a href="/domains/{{ item.domain_id }}">{{ domain_names.get(item.domain_id, item.domain_id) }}</a></span>{% endif %}</div>
+        <div class="composite-summary"><p class="clamp">{{ item.description or t("composites.no_description") }}</p><span class="cell-sub">{{ t("composites.node_count", count=item.workflow.nodes | length) }} · {{ t("composite.latest", number=item.version) }} · {% if item.published %}{{ t("composite.published_revision", number=item.published_number) }}{% else %}{{ t("composite.not_published") }}{% endif %}</span>{% if item.domain_id %}<span class="cell-sub">{{ t("composite.domain") }} <a href="/domains/{{ item.domain_id }}">{{ domain_names.get(item.domain_id, item.domain_id) }}</a></span>{% endif %}</div>
       </div>
       <nav class="card-links even scene-card-links" aria-label="{{ item.name }}">
         <a href="/playground/{{ item.id }}">{{ t("composites.edit") }}</a>

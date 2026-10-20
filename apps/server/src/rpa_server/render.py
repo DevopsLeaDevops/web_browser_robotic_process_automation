@@ -19,6 +19,7 @@ from markupsafe import Markup, escape
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_core.workflow import Workflow
 from rpa_server import __version__
+from rpa_server.config import COMPOSITES_DOMAIN
 from rpa_server.context import via_recorder
 from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, SceneRecord
 from rpa_server.i18n import page_t, t
@@ -201,7 +202,11 @@ def domain_page(domain_id: str | None) -> str:
 
 def _side_items(group: NavGroup, domains: Sequence[DomainRecord]) -> list[SideItem]:
     if group.id == "manage":
-        items = [SideItem(f"domain:{d.id}", d.name, f"/domains/{d.id}") for d in domains]
+        items = [
+            SideItem(f"domain:{d.id}", d.name, f"/domains/{d.id}")
+            for d in domains
+            if d.id != COMPOSITES_DOMAIN  # 組合場景在「組合場景自動化」管理
+        ]
         return [
             *items,
             SideItem("domains", t("nav.domains"), "/domains"),
