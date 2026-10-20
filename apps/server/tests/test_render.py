@@ -33,6 +33,7 @@ from rpa_server.domain import (
     WorkflowRecord,
     WorkflowRunRecord,
 )
+from rpa_server.gitsync import Change, GitSource, SyncStatus
 from rpa_server.i18n import follow_locale, t
 from rpa_server.render import js_messages, render, run_filters, workflow_messages, workflow_preview
 from rpa_server.secret_store import SecretInfo
@@ -111,6 +112,26 @@ VERIFICATIONS = [
         here=False,
     ),
 ]
+SOURCE = GitSource(url="git@github.com:org/rpa-data.git", directory="testsite", auth="ssh")
+SYNC = SyncStatus(
+    "testsite",
+    True,
+    "conflict",
+    source=SOURCE,
+    public_key="ssh-ed25519 AAAAC3Nza rpa-portal-testsite",
+    host_keys=("256 SHA256:abc github.com (ED25519)",),
+    branch="main",
+    synced_commit="a" * 40,
+    remote_commit="b" * 40,
+    remote_commits=2,
+    changes=(Change("scenes/ba-001/revisions/3.yaml", "added", "revision", "ba-001", 3),),
+    conflicts=("scenes/ba-001/scene.yaml",),
+    checked_at="2026-10-20T05:00:00-07:00",
+    synced_at="2026-10-20T04:00:00-07:00",
+    pushed_branch="rpa/testsite-20261020-050000",
+)
+LOCAL_SYNC = SyncStatus("google", True, "local")
+SERVER = {"id": "3a9d", "name": "jia-mac"}
 RUN = RunRecord(
     id="ba-001-20261010-083000-abcdef",
     scene_id="ba-001",
@@ -653,6 +674,7 @@ def _pages() -> dict[str, str]:
                     replace(SCENE, id="ba-009", published_number=None, kind="script"), None, None
                 ),
             ],
+            sync=SYNC,
             can_import=True,
         ),
         "domain-empty": render(
@@ -662,6 +684,7 @@ def _pages() -> dict[str, str]:
             domains=DOMAINS,
             domain=OTHER_DOMAIN,
             cards=[],
+            sync=LOCAL_SYNC,
             can_import=False,
         ),
         "domains": render(
@@ -670,6 +693,19 @@ def _pages() -> dict[str, str]:
             title="領域管理",
             domains=DOMAINS,
             unassigned=[replace(SCENE, id="loose", domain_id=None)],
+            syncs={DOMAIN.id: SYNC, OTHER_DOMAIN.id: LOCAL_SYNC},
+            server=SERVER,
+            git_available=True,
+        ),
+        "domain-sync": render(
+            "domain_sync.html",
+            page="domain:testsite",
+            title="資料來源與同步",
+            domains=DOMAINS,
+            domain=DOMAIN,
+            sync=SYNC,
+            source=SOURCE,
+            server=SERVER,
         ),
         "scene": render(
             "scene.html",
@@ -974,6 +1010,7 @@ def test_domain_page_shows_load_problems_and_reload() -> None:
             domains=DOMAINS,
             domain=replace(DOMAIN, problems=(problem,), loaded_at=MOMENT),
             cards=[],
+            sync=LOCAL_SYNC,
             can_import=False,
         )
     assert 'data-action="reload-domain" data-domain="testsite"' in html
@@ -1023,6 +1060,7 @@ def _english_domain_pages() -> dict[str, str]:
                     SceneCard(scene, run, run.id),
                     SceneCard(replace(scene, id="b", published_number=None), None, None),
                 ],
+                sync=SYNC,
                 can_import=True,
             ),
             "domain-empty": render(
@@ -1032,6 +1070,7 @@ def _english_domain_pages() -> dict[str, str]:
                 domains=domains,
                 domain=domains[1],
                 cards=[],
+                sync=LOCAL_SYNC,
                 can_import=False,
             ),
             "domains": render(
@@ -1040,6 +1079,19 @@ def _english_domain_pages() -> dict[str, str]:
                 title=t("nav.domains"),
                 domains=domains,
                 unassigned=[replace(scene, id="loose", domain_id=None)],
+                syncs={domain.id: SYNC, domains[1].id: LOCAL_SYNC},
+                server=SERVER,
+                git_available=True,
+            ),
+            "domain-sync": render(
+                "domain_sync.html",
+                page="domain:testsite",
+                title="Source & sync",
+                domains=domains,
+                domain=domain,
+                sync=SYNC,
+                source=SOURCE,
+                server=SERVER,
             ),
             "scene": render(
                 "scene.html",
@@ -1138,6 +1190,7 @@ def _english_domain_pages() -> dict[str, str]:
         "domain",
         "domain-empty",
         "domains",
+        "domain-sync",
         "scene",
         "roles",
         "recording",

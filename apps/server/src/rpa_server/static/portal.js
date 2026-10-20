@@ -271,6 +271,75 @@
         });
       });
     }
+    // 從 git 新增領域（M11 PR 3）：先測試連線，遠端有 pack.yaml 就預填代號與名稱
+    const fromGit = qs('[data-action="new-domain-git"]');
+    if (fromGit) {
+      fromGit.addEventListener('click', () => {
+        modal(messages.domain_git_title, qs('#domain-git-form').innerHTML, {
+          label: messages.domain_git_action,
+          run: async () => {
+            const dialog = qs('#dialog-content');
+            const action = $('#dialog-action');
+            const body = sourceBody(dialog);
+            body.id = qs('[name="id"]', dialog).value.trim();
+            body.name = qs('[name="name"]', dialog).value.trim() || null;
+            delete body.privateKey;
+            action.disabled = true;
+            const result = await api('POST', '/api/domains/from-git', body);
+            action.disabled = false;
+            if (!result.ok) {
+              qs('.form-error', dialog).textContent = syncError(result);
+              return;
+            }
+            location.href = '/domains/' + path(result.data.id) + '/sync';
+          },
+        });
+        const dialog = qs('#dialog-content');
+        showAuth(dialog);
+        const probe = qs('[data-action="probe-git"]', dialog);
+        probe.addEventListener('click', async () => {
+          const output = qs('[data-probe-result]', dialog);
+          busy(probe, true);
+          output.textContent = '';
+          const body = sourceBody(dialog);
+          delete body.privateKey;
+          const result = await api('POST', '/api/git/probe', body);
+          busy(probe, false);
+          if (!result.ok) {
+            qs('.form-error', dialog).textContent = errorMessage(result);
+            return;
+          }
+          qs('.form-error', dialog).textContent = '';
+          output.textContent = result.data.message;
+          const id = qs('[name="id"]', dialog);
+          const name = qs('[name="name"]', dialog);
+          if (result.data.packId) id.value = result.data.packId;
+          if (result.data.packName && !name.value.trim()) name.value = result.data.packName;
+          if (!id.value.trim()) id.value = qs('[name="directory"]', dialog).value.trim().split('/').pop().toLowerCase();
+        });
+        qs('[name="url"]', dialog).focus();
+      });
+    }
+    const rename = qs('[data-action="rename-server"]');
+    if (rename) {
+      rename.addEventListener('click', () => {
+        const html = '<label>' + esc(messages.server_name) + '<input name="name" maxlength="100" value="' + esc(rename.dataset.name) + '"></label><p class="form-error" role="alert"></p>';
+        modal(messages.server_rename_title, html, {
+          label: messages.save,
+          run: async () => {
+            const dialog = qs('#dialog-content');
+            const result = await api('PUT', '/api/settings/server', {name: qs('[name="name"]', dialog).value.trim()});
+            if (!result.ok) {
+              qs('.form-error', dialog).textContent = errorMessage(result);
+              return;
+            }
+            flash(messages.saved);
+            location.reload();
+          },
+        });
+        qs('#dialog-content input').focus();
+      });
+    }
     qsa('[data-action="edit-domain"]').forEach(button => {
       button.addEventListener('click', () => {
         const values = {name: button.dataset.name, description: button.dataset.description};
@@ -296,6 +365,179 @@
         });
       });
     });
+  }
+
+  // ---------------------------------------------------------------- 資料來源與同步（M11 PR 3）
+
+  // 認證方式切換時只顯示那一種要填的欄位
+  function showAuth(root) {
+    const select = qs('select[name="auth"]', root);
+    if (!select) return;
+    const update = () => qsa('[data-auth-section]', root).forEach(section => {
+      section.hidden = section.dataset.authSection !== select.value;
+    });
+    select.addEventListener('change', update);
+    update();
+  }
+
+  // 錯誤訊息加上衝突的檔案或擋下推送的原因
+  function syncError(result) {
+    const lines = [errorMessage(result)];
+    const error = result.data && result.data.error;
+    if (error && Array.isArray(error.conflicts)) lines.push(...error.conflicts);
+    if (error && Array.isArray(error.problems)) {
+      lines.push(...error.problems.map(item => (typeof item === 'string' ? item : (item && item.message) || '')));
+    }
+    return lines.filter(Boolean).join('\n');
+  }
+
+  function sourceBody(root) {
+    const value = name => {
+      const field = qs('[name="' + name + '"]', root);
+      return field ? field.value.trim() : '';
+    };
+    const autoPull = qs('[name="autoPull"]', root);
+    return {
+      url: value('url'), directory: value('directory'), branch: value('branch') || null,
+      auth: value('auth') || 'none', username: value('username') || null, token: value('token') || null,
+      privateKey: value('privateKey') || null, committerName: value('committerName') || null,
+      committerEmail: value('committerEmail') || null, autoPull: autoPull ? autoPull.checked : true,
+    };
+  }
+
+  function fillList(root, items) {
+    qs('[data-list]', root).innerHTML = items.map(item => '<li>' + esc(item) + '</li>').join('');
+    root.hidden = items.length === 0;
+  }
+
+  function bindSync() {
+    const root = qs('#sync');
+    if (!root) return;
+    const base = '/api/domains/' + path(root.dataset.domain);
+    const form = qs('form[data-action="sync-save"]');
+    if (form) {
+      showAuth(form);
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = qs('button[type="submit"]', form);
+        busy(button, true);
+        const result = await api('PUT', base + '/source', sourceBody(form));
+        busy(button, false);
+        if (!result.ok) {
+          qs('.form-error', form).textContent = errorMessage(result);
+          return;
+        }
+        flash(messages.saved);
+        location.reload();
+      });
+    }
+    // 測試連線與拉取：結果（含衝突、錯誤）記在同步狀態，重新整理就看得到
+    [['sync-test', '/sync/test'], ['sync-pull', '/sync/pull']].forEach(([action, url]) => {
+      const button = qs('[data-action="' + action + '"]');
+      if (!button) return;
+      button.addEventListener('click', async () => {
+        busy(button, true);
+        const result = await api('POST', base + url);
+        if (!result.ok) {
+          busy(button, false);
+          if (result.status === 409 || result.status === 502) {
+            flash(syncError(result));
+            location.reload();
+            return;
+          }
+          return toast(syncError(result));
+        }
+        flash(action === 'sync-test' ? result.data.message : messages.sync_pulled);
+        location.reload();
+      });
+    });
+    const keyButton = qs('[data-action="sync-key"]');
+    if (keyButton) {
+      keyButton.addEventListener('click', async () => {
+        busy(keyButton, true);
+        const result = await api('POST', base + '/source/key');
+        busy(keyButton, false);
+        if (!result.ok) return toast(errorMessage(result));
+        const holder = qs('#sync-public-key');
+        const pre = document.createElement('pre');
+        pre.className = 'source';
+        pre.id = 'sync-public-key';
+        pre.textContent = result.data.publicKey;
+        holder.replaceWith(pre);
+        toast(messages.sync_key_ready);
+      });
+    }
+    const disconnect = qs('[data-action="sync-disconnect"]');
+    if (disconnect) {
+      disconnect.addEventListener('click', () => {
+        confirmDialog(messages.sync_disconnect_title, messages.sync_disconnect_body, messages.sync_disconnect_action, async () => {
+          const result = await api('DELETE', base + '/source');
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.reload();
+        });
+      });
+    }
+    qsa('[data-action="sync-resolve"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const choice = button.dataset.resolve;
+        const run = async () => {
+          busy(button, true);
+          const result = await api('POST', base + '/sync/resolve', {action: choice});
+          if ($('#dialog').open) $('#dialog').close();
+          busy(button, false);
+          if (!result.ok) return toast(syncError(result));
+          if (choice === 'branch' && result.data.pushedBranch) flash(fill(messages.sync_branch_pushed, {branch: result.data.pushedBranch}));
+          location.reload();
+        };
+        if (choice === 'cancel') return run();
+        const title = choice === 'branch' ? messages.sync_resolve_branch_title : messages.sync_resolve_remote_title;
+        const body = choice === 'branch' ? messages.sync_resolve_branch_body : messages.sync_resolve_remote_body;
+        confirmDialog(title, body, messages.sync_resolve_action, run);
+      });
+    });
+    const push = qs('[data-action="sync-push"]');
+    if (push) {
+      push.addEventListener('click', async () => {
+        busy(push, true);
+        const preview = await api('GET', base + '/sync/preview');
+        busy(push, false);
+        if (!preview.ok) return toast(errorMessage(preview));
+        const data = preview.data;
+        const blocked = data.blockers.length > 0;
+        modal(messages.sync_push_title, qs('#sync-push-form').innerHTML, blocked ? undefined : {
+          label: messages.sync_push_action,
+          run: async () => {
+            const dialog = qs('#dialog-content');
+            const action = $('#dialog-action');
+            action.disabled = true;
+            const result = await api('POST', base + '/sync/push', {message: qs('[name="message"]', dialog).value.trim() || null});
+            action.disabled = false;
+            if (!result.ok) {
+              if (result.status === 409) {
+                $('#dialog').close();
+                flash(syncError(result));
+                location.reload();
+                return;
+              }
+              qs('.form-error', dialog).textContent = syncError(result);
+              return;
+            }
+            $('#dialog').close();
+            flash(messages.sync_pushed);
+            location.reload();
+          },
+        });
+        const dialog = qs('#dialog-content');
+        fillList(qs('[data-push-blockers]', dialog), data.blockers);
+        fillList(qs('[data-push-warnings]', dialog), data.warnings);
+        const changes = qs('[data-push-changes]', dialog);
+        qs('[data-summary]', changes).textContent = fill(messages.sync_changes, {count: data.changes.length});
+        fillList(changes, data.changes.map(change => (messages['sync_' + change.action] || change.action) + ' ' + change.path));
+        qs('[data-push-empty]', dialog).hidden = data.changes.length > 0;
+        qs('[name="message"]', dialog).value = data.message;
+      });
+    }
   }
 
   // ---------------------------------------------------------------- 編輯版本
@@ -2508,6 +2750,7 @@
   bindScenes();
   bindCompositePublish();
   bindDomains();
+  bindSync();
   bindSceneSettings();
   bindEditor();
   bindSection();

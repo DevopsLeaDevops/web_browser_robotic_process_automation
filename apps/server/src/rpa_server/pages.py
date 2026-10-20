@@ -18,6 +18,7 @@ from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
 from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord
 from rpa_server.errors import ServiceError
+from rpa_server.gitsync import GitSource
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
 from rpa_server.render import domain_page, render, run_filters, workflow_messages
@@ -174,6 +175,24 @@ def page_router(services: Services) -> APIRouter:
             page="domains",
             title=t("nav.domains"),
             unassigned=services.unassigned_scenes(),
+            syncs={item.id: services.git.status(item.id) for item in services.list_domains()},
+            server=services.server_info(),
+            git_available=services.git.available(),
+        )
+
+    @router.get("/domains/{domain_id}/sync", include_in_schema=False)
+    def domain_sync(domain_id: str) -> HTMLResponse:
+        """資料來源與同步（M11 PR 3）：設定、狀態、拉取、推送、衝突。"""
+        record = services.get_domain(domain_id)
+        sync = services.git.status(domain_id)
+        return page(
+            "domain_sync.html",
+            page=domain_page(domain_id),
+            title=t("sync.page_title", name=record.name),
+            domain=record,
+            sync=sync,
+            source=sync.source or GitSource(url="", directory=domain_id),
+            server=services.server_info(),
         )
 
     @router.get("/domains/{domain_id}", include_in_schema=False)
@@ -186,6 +205,7 @@ def page_router(services: Services) -> APIRouter:
             title=record.name,
             domain=record,
             cards=services.scene_cards(domain_id),
+            sync=services.git.status(domain_id),
             can_import=domain_id == EXAMPLES_DOMAIN and examples is not None and examples.is_dir(),
         )
 

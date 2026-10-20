@@ -32,6 +32,7 @@
           <li><strong>全新的資料夾。</strong>第一次啟動（還沒有任何領域）時，自動建立「測試網站自動化」，放進 <code>scenarios/demo</code> 的範例與登入角色。適合驗收新版本，又不動到平常用的資料。</li>
           <li><strong>舊的資料夾。</strong>新版本第一次打開時自動升級資料庫，原有的場景與紀錄都保留；新版本新增的範例要到「測試網站自動化」按「匯入範例」。</li>
           <li><strong>領域資料夾（M11）。</strong>場景、版本、角色與驗證、發布紀錄放在 <code>domains/&lt;領域&gt;/</code>，一個領域一個資料夾，可以單獨校驗（<code>rpa pack check</code>）。M11 之前的資料夾第一次打開時自動把舊的 <code>scenes/</code> 搬進去，搬之前先把資料庫與 <code>scenes/</code> 備份到 <code>backups/&lt;時間&gt;-before-domains/</code>；沒有領域的場景與沒有場景用到的角色放進「未分類」。資料庫裡的組合場景（M11 PR 2）搬進「組合場景」領域，代號是 <code>wf-&lt;原編號&gt;</code>、現在的定義成為第 1 版；搬之前先把資料庫備份到 <code>backups/&lt;時間&gt;-before-composites/</code>。</li>
+          <li><strong>git 同步（M11 PR 3）。</strong>領域可以和 git 倉庫裡的一個目錄同步：「領域管理 › 同步」設定倉庫網址、分支、目錄與認證方式（公開倉庫免認證只能拉取；HTTPS 用使用者名稱＋存取權杖；SSH 用 Portal 產生的部署金鑰），也可以「從 git 新增」領域。只有伺服器做拉取與推送，錄製端與 worker 照舊由伺服器送來需要的檔案。本機變更＝資料夾和上次同步的提交的差異，存檔不必每次提交；拉取與推送都以檔案為單位合併，同一個檔案兩邊改成不同內容就停下來三選一（取消、推送到新分支 <code>rpa/&lt;領域&gt;-&lt;時間&gt;</code>、以遠端為準並先備份到 <code>backups/</code>），永遠不強推。推送前擋下登入狀態、Secrets、私鑰之類的檔名、非定義檔、超過 1 MB 的檔案，以及內容含有已保存的 Secret 值的檔案；組合場景依賴的其他領域的版本還沒推送時提醒。伺服器啟動時在背景拉取設定了「自動拉取」的領域，連不上時用本機上一次的資料。</li>
           <li><strong>從頭開始與備份。</strong>先停止管理 Portal（終端機按 Ctrl+C）：刪掉資料夾就是從頭開始，複製整個資料夾就是備份。</li>
           <li><strong>不要提交或分享。</strong>裡面有登入狀態與 Secrets 的值（只有本人能讀寫）。Git 已經忽略專案裡的 <code>data/</code> 與 <code>data-*/</code>；用其他名稱或放在別處時請自己留意。</li>
         </ul>
@@ -217,7 +218,8 @@
           <tbody>
             <tr><td><code>/scenes</code></td><td>轉到第一個領域；還沒有領域時轉到領域管理</td></tr>
             <tr><td><code>/domains/{代號}</code></td><td>領域頁：場景卡片；新增場景、匯入範例（測試網站自動化）</td></tr>
-            <tr><td><code>/domains</code></td><td>領域管理：新增、改名、刪除；還沒分到領域的場景</td></tr>
+            <tr><td><code>/domains/{代號}/sync</code></td><td>資料來源與同步（M11 PR 3）：設定倉庫、目錄與認證，同步狀態與變更清單，測試連線、拉取、推送，衝突時三選一</td></tr>
+            <tr><td><code>/domains</code></td><td>領域管理：新增（也可以從 git 新增）、改名、刪除；每個領域的資料來源與同步狀態；這台伺服器的名稱；還沒分到領域的場景</td></tr>
             <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、執行前要準備的角色與 Secrets、入參與出參（可以直接編輯）、所屬領域與預設網址、最近執行</td></tr>
             <tr><td><code>/scenes/{id}/debug</code></td><td>逐步調試：步驟清單、截圖、定位器測試、頁面事實、修改 YAML</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上</td></tr>
@@ -246,6 +248,13 @@
             <tr><td><code>GET</code>、<code>POST /api/domains</code></td><td>領域清單；新增領域（<code>id</code>、<code>name</code>、<code>description</code>）</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代號}</code></td><td>領域與它的場景卡片（最近一次執行、截圖）、載入問題；改名稱與說明（寫進 <code>pack.yaml</code>）；刪除沒有場景與角色的領域（連同領域資料夾）</td></tr>
             <tr><td><code>POST /api/domains/{代號}/reload</code></td><td>重新載入領域資料夾（在資料夾外面改了檔案之後）；回傳載入問題</td></tr>
+            <tr><td><code>GET /api/domains/{代號}/sync</code></td><td>同步狀態（M11 PR 3，不連網路）：<code>state</code>（local、unchecked、synced、ahead、behind、diverged、empty、no_directory、conflict、error）、資料來源（不含權杖）、上次同步的提交、本機變更與分類計數、遠端新提交數、錯誤、衝突的檔案、部署金鑰的公鑰</td></tr>
+            <tr><td><code>PUT</code>、<code>DELETE /api/domains/{代號}/source</code></td><td>設定資料來源（<code>url</code>、<code>directory</code>、<code>branch</code>、<code>auth</code>：none／https／ssh、<code>username</code>、<code>token</code>、<code>privateKey</code>、<code>committerName</code>、<code>committerEmail</code>、<code>autoPull</code>；權杖與私鑰只寫不讀，留空不變；網址裡不能有帳密）；中斷 git 連結（資料夾保留，刪除權杖、金鑰與工作副本）</td></tr>
+            <tr><td><code>POST /api/domains/{代號}/source/key</code></td><td>產生 SSH 部署金鑰（ed25519），回傳公鑰</td></tr>
+            <tr><td><code>POST /api/domains/{代號}/sync/test</code>、<code>…/pull</code></td><td>測試連線（<code>state</code>：ready、empty、no_branch、no_directory；遠端 <code>pack.yaml</code> 的代號與名稱）；拉取並重新載入（衝突 409 <code>sync_conflict</code>，<code>conflicts</code> 列出檔案；連不上或認證失敗 502）</td></tr>
+            <tr><td><code>GET /api/domains/{代號}/sync/preview</code>、<code>POST …/sync/push</code></td><td>推送前的變更清單、預設的提交說明、<code>blockers</code> 與 <code>warnings</code>；推送（<code>message</code>；檢查沒過 422 <code>sync_blocked</code>，衝突 409，遠端剛好又有新提交 409 <code>sync_rejected</code>）</td></tr>
+            <tr><td><code>POST /api/domains/{代號}/sync/resolve</code></td><td>衝突時三選一：<code>action</code> 是 <code>cancel</code>、<code>branch</code>（推送到新分支，回應的 <code>pushedBranch</code>、<code>compareUrl</code>）、<code>remote</code>（以遠端為準，先備份）</td></tr>
+            <tr><td><code>POST /api/git/probe</code>、<code>POST /api/domains/from-git</code></td><td>從 git 新增領域前測試連線（公開倉庫或 HTTPS 權杖）；新增並拉取（<code>id</code> 沒填時用遠端 <code>pack.yaml</code> 的代號，填了要一樣；目錄還不存在就建立空的領域）</td></tr>
             <tr><td><code>GET /api/scenes</code>、<code>POST /api/scenes</code></td><td>場景清單（<code>q</code>、<code>category</code>、<code>domain</code>）；建立場景（可帶 <code>domainId</code>）</td></tr>
             <tr><td><code>POST /api/scenes/import</code></td><td>匯入範例資料夾的場景，已存在的略過；可帶 <code>domainId</code>，預設放進測試網站自動化</td></tr>
             <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>場景與版本清單；修改所屬領域、預設網址、封存</td></tr>
@@ -306,11 +315,12 @@
             <dt><code>recordings/<wbr>&lt;錄製編號&gt;/</code></dt><dd>遮罩過的原始錄製稿與轉換結果</dd>
             <dt><code>debug/<wbr>&lt;工作階段&gt;/</code></dt><dd>調試的截圖（工作階段結束就刪除）</dd>
             <dt><code>secrets.json</code></dt><dd>Secrets 的值（只有本人能讀寫）</dd>
-            <dt><code>backups/</code></dt><dd>升級到領域資料夾之前的資料庫與 <code>scenes/</code>；組合場景搬進資料夾之前的資料庫</dd>
+            <dt><code>backups/</code></dt><dd>升級到領域資料夾之前的資料庫與 <code>scenes/</code>；組合場景搬進資料夾之前的資料庫；衝突時「以遠端為準」之前的領域資料夾</dd>
+            <dt><code>git/</code></dt><dd>git 同步（M11 PR 3，只有本人能讀寫）：<code>repos/&lt;領域&gt;.git</code> 裸倉庫（只用來取得與建立提交）、<code>credentials.json</code>（HTTPS 權杖）、<code>keys/&lt;領域&gt;</code>（SSH 部署金鑰）、<code>known_hosts</code>。git 子程序不讀系統與使用者的設定、不用憑證快取，權杖只經由 GIT_ASKPASS 交給那一次子程序</dd>
           </dl>
           <p class="muted">資料庫的表：</p>
           <dl class="spec-list">
-            <dt>domains</dt><dd>代號、名稱、說明、排列順序；最近一次載入領域資料夾的時間與載入問題</dd>
+            <dt>domains</dt><dd>代號、名稱、說明、排列順序；最近一次載入領域資料夾的時間與載入問題；git 資料來源（不含權杖）與同步狀態（上次同步的提交、上次看到的遠端提交、分支、錯誤、衝突的檔案）</dd>
             <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存、來源缺失</dd>
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間；來源缺失、不能執行的問題、有沒有雜湊相符的通過驗證紀錄</dd>
             <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間；試驗場節點的序列執行與節點代號；執行位置、指定的 worker、實際執行的 worker 與租約</dd>

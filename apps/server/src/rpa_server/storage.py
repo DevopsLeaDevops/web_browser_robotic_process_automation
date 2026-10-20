@@ -11,7 +11,10 @@
       recordings/<錄製編號>/     遮罩過的原始錄製稿 raw.py 與轉換結果 scenario.yaml
       debug/<工作階段>/          調試工作階段的入參、場景快照與截圖（工作階段結束就刪除）
       secrets.json              Secrets 的值（只有本人能讀寫）
-      backups/                  遷移前的備份（M11）
+      backups/                  遷移前、「以遠端為準」前的備份（M11）
+      git/                      git 同步（M11 PR 3，見 gitsync.py）：repos/<領域>.git 裸倉庫、
+                                credentials.json（HTTPS 權杖）、keys/<領域>（SSH 部署金鑰）、
+                                known_hosts
 
 版本一旦寫入就不再修改；改內容就是新版本。版本內容的雜湊與 rpa-runner 記在 result.json 的
 scenarioHash 用同一個演算法（:func:`rpa_core.dsl.sources.scenario_digest`），發布門檻靠它確認

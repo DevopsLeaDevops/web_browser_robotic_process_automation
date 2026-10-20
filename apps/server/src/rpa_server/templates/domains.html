@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block description %}{{ t("domains.description") }}{% endblock %}
-{% block actions %}<button class="button primary" data-action="new-domain">{{ t("domains.new") }}</button>{% endblock %}
+{% import "_macros.html" as m %}
+{% block actions %}{% if git_available %}<button class="button" data-action="new-domain-git">{{ t("domains.new_from_git") }}</button>{% endif %}<button class="button primary" data-action="new-domain">{{ t("domains.new") }}</button>{% endblock %}
 {% block content %}
 <div class="stack">
   <section class="panel">
     <div class="panel-header"><h2>{{ t("domains.list") }} <span class="count">{{ domains | length }}</span></h2></div>
     {% if domains %}
     <div class="table-scroll"><table class="wrap">
-      <thead><tr><th>{{ t("domains.col_name") }}</th><th>{{ t("domains.col_id") }}</th><th>{{ t("domains.col_description") }}</th><th class="numeric">{{ t("domains.col_scenes") }}</th><th>{{ t("domains.col_actions") }}</th></tr></thead>
+      <thead><tr><th>{{ t("domains.col_name") }}</th><th>{{ t("domains.col_id") }}</th><th>{{ t("domains.col_description") }}</th><th class="numeric">{{ t("domains.col_scenes") }}</th><th>{{ t("domains.col_source") }}</th><th>{{ t("domains.col_actions") }}</th></tr></thead>
       <tbody>
       {% for domain in domains %}
         <tr data-domain="{{ domain.id }}">
@@ -15,7 +16,10 @@
           <td><span class="tag">{{ domain.id }}</span></td>
           <td>{{ domain.description or "—" }}</td>
           <td class="numeric">{{ domain.scene_count }}</td>
+          {% set sync = syncs[domain.id] %}
+          <td data-sync="{{ sync.state }}">{% if sync.source %}<a href="/domains/{{ domain.id }}/sync" class="status-link">{{ m.badge(sync.state, t("sync.state_" + sync.state)) }}</a>{% if sync.counts.total %}<span class="cell-sub">{{ t("sync.changes_short", count=sync.counts.total) }}</span>{% endif %}<span class="cell-sub mono">{{ sync.source.directory }}/</span>{% else %}<span class="muted">{{ t("sync.state_local") }}</span>{% endif %}</td>
           <td>
+            <a class="text-btn" href="/domains/{{ domain.id }}/sync">{{ t("domains.sync") }}</a>
             <button class="text-btn" data-action="edit-domain" data-domain="{{ domain.id }}" data-name="{{ domain.name }}" data-description="{{ domain.description or '' }}">{{ t("domains.edit") }}</button>
             {% if domain.scene_count == 0 %}<button class="text-btn" data-action="delete-domain" data-domain="{{ domain.id }}" data-name="{{ domain.name }}">{{ t("domains.delete") }}</button>{% endif %}
           </td>
@@ -24,6 +28,14 @@
       </tbody>
     </table></div>
     {% else %}<div class="empty">{{ t("domains.empty") }}</div>{% endif %}
+  </section>
+  <section class="panel" id="server">
+    <div class="panel-header"><h2>{{ t("domains.server") }}</h2><span class="muted">{{ t("domains.server_hint") }}</span></div>
+    <div class="panel-body"><dl class="spec-list">
+      <dt>{{ t("domains.server_name") }}</dt><dd><strong data-server-name>{{ server.name }}</strong> <button class="text-btn" data-action="rename-server" data-name="{{ server.name }}">{{ t("domains.server_rename") }}</button></dd>
+      <dt>{{ t("domains.server_id") }}</dt><dd><code>{{ server.id }}</code></dd>
+      <dt>{{ t("domains.git") }}</dt><dd>{% if git_available %}{{ t("domains.git_ready") }}{% else %}<span class="text-danger">{{ t("sync.git_missing") }}</span>{% endif %}</dd>
+    </dl></div>
   </section>
   {% if unassigned %}
   <section class="panel">
@@ -34,6 +46,22 @@
   </section>
   {% endif %}
 </div>
+<template id="domain-git-form">
+  <div class="notice">{{ t("domains.git_notice") }}</div>
+  <label>{{ t("sync.url") }}<input name="url" required maxlength="2000" placeholder="https://github.com/org/repo.git" autocomplete="off" spellcheck="false"></label>
+  <label>{{ t("sync.directory") }}<input name="directory" required maxlength="500" placeholder="testsite" autocomplete="off" spellcheck="false"></label>
+  <label>{{ t("sync.branch") }}<input name="branch" maxlength="200" placeholder="{{ t('sync.branch_default') }}" autocomplete="off"></label>
+  <label>{{ t("sync.auth") }}<select name="auth"><option value="none">{{ t("sync.auth_none") }}</option><option value="https">{{ t("sync.auth_https") }}</option></select></label>
+  <div data-auth-section="https" hidden>
+    <label>{{ t("sync.username") }}<input name="username" maxlength="200" autocomplete="off"></label>
+    <label>{{ t("sync.token") }}<input name="token" type="password" maxlength="2000" autocomplete="new-password"></label>
+  </div>
+  <p class="cell-sub">{{ t("domains.git_ssh_hint") }}</p>
+  <div class="actions"><button class="button" type="button" data-action="probe-git">{{ t("sync.test") }}</button><span class="muted" data-probe-result role="status"></span></div>
+  <label>{{ t("domains.new_id") }}<input name="id" pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" autocomplete="off"></label>
+  <label>{{ t("domains.new_name") }}<input name="name" maxlength="100"></label>
+  <p class="form-error" role="alert"></p>
+</template>
 <template id="domain-form">
   <div class="notice" data-new-only>{{ t("domains.new_notice") }}</div>
   <label data-new-only>{{ t("domains.new_id") }}<input name="id" pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="google" autocomplete="off"></label>

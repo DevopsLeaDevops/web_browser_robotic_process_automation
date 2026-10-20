@@ -12,6 +12,7 @@ M10.2：對外埠上的 Portal 頁面與 API 給帶著錄製端權杖的請求�
 """
 
 import logging
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -103,6 +104,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             hub.start_reaper()
             services.recorders.start_reaper()
             services.debug.start_reaper()
+
+            def pull() -> None:
+                with use_locale(settings.locale):
+                    services.git.pull_on_startup()
+
+            # 啟動時自動拉取（M11 PR 3）：在背景做，連不上時用本機上一次的資料照常啟動
+            threading.Thread(target=pull, name="git-startup-pull", daemon=True).start()
         try:
             yield
         finally:

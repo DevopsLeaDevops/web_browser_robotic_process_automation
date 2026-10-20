@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block crumb %}<a href="/domains/{{ domain.id }}">{{ domain.name }}</a> › {{ t("sync.title") }}{% endblock %}
+{% block description %}{{ t("sync.description") }}{% endblock %}
+{% block actions %}
+{% if sync.source and sync.available %}
+<button class="button" data-action="sync-test" data-domain="{{ domain.id }}" title="{{ t('sync.test_title') }}">{{ t("sync.test") }}</button>
+<button class="button" data-action="sync-pull" data-domain="{{ domain.id }}" title="{{ t('sync.pull_title') }}">{{ t("sync.pull") }}</button>
+<button class="button primary" data-action="sync-push" data-domain="{{ domain.id }}" title="{{ t('sync.push_title') }}">{{ t("sync.push") }}</button>
+{% endif %}
+<button class="button" data-action="reload-domain" data-domain="{{ domain.id }}" title="{{ t('domain.reload_title') }}">{{ t("domain.reload") }}</button>
+<a class="button" href="/domains/{{ domain.id }}">{{ t("sync.back") }} {{ m.arrow() }}</a>
+{% endblock %}
+{% block content %}
+<div class="stack" id="sync" data-domain="{{ domain.id }}" data-state="{{ sync.state }}">
+  {% if not sync.available %}<div class="notice warn">{{ t("sync.git_missing") }}</div>{% endif %}
+  {% if sync.source %}
+  <section class="panel" id="sync-status">
+    <div class="panel-header"><h2>{{ t("sync.status") }}</h2>{{ m.badge(sync.state, t("sync.state_" + sync.state)) }}</div>
+    <div class="panel-body">
+      <p>{{ t("sync.hint_" + sync.state, changes=sync.counts.total, remote=sync.remote_commits) }}</p>
+      {% if sync.error %}<p class="text-danger" id="sync-error">{{ sync.error }}</p>{% endif %}
+      <dl class="spec-list">
+        <dt>{{ t("sync.url") }}</dt><dd><code>{{ sync.source.url }}</code></dd>
+        <dt>{{ t("sync.branch_directory") }}</dt><dd><code>{{ sync.branch or sync.source.branch or t("sync.branch_default") }}</code> · <code>{{ sync.source.directory }}/</code></dd>
+        <dt>{{ t("sync.synced_commit") }}</dt><dd>{% if sync.synced_commit %}<code title="{{ sync.synced_commit }}">{{ sync.synced_commit[:12] }}</code>{% if sync.synced_at %} · <time datetime="{{ sync.synced_at }}">{{ sync.synced_at }}</time>{% endif %}{% else %}{{ t("sync.never") }}{% endif %}</dd>
+        <dt>{{ t("sync.local_changes") }}</dt><dd>{{ t("sync.counts", revisions=sync.counts.revisions, verifications=sync.counts.verifications, publications=sync.counts.publications, others=sync.counts.others) }}</dd>
+        <dt>{{ t("sync.remote_commits") }}</dt><dd>{{ sync.remote_commits }}{% if sync.checked_at %}<span class="cell-sub">{{ t("sync.checked_at") }} <time datetime="{{ sync.checked_at }}">{{ sync.checked_at }}</time></span>{% endif %}</dd>
+      </dl>
+      {% if sync.changes %}
+      <details id="sync-changes"><summary>{{ t("sync.change_list", count=sync.changes | length) }}</summary>
+        <ul class="checklist">{% for change in sync.changes %}<li data-change="{{ change.kind }}"><span class="tag">{{ t("sync.action_" + change.action) }}</span> <code>{{ change.path }}</code></li>{% endfor %}</ul>
+      </details>
+      {% endif %}
+    </div>
+  </section>
+  {% if sync.state == "conflict" %}
+  <section class="panel" id="sync-conflict">
+    <div class="panel-header"><h2>{{ t("sync.conflict_title") }}</h2>{{ m.badge("conflict", t("sync.state_conflict")) }}</div>
+    <div class="panel-body">
+      <p>{{ t("sync.conflict_body") }}</p>
+      <ul class="checklist">{% for path in sync.conflicts %}<li><code>{{ path }}</code></li>{% endfor %}</ul>
+      <div class="actions">
+        <button class="button" data-action="sync-resolve" data-resolve="cancel" data-domain="{{ domain.id }}">{{ t("sync.resolve_cancel") }}</button>
+        <button class="button" data-action="sync-resolve" data-resolve="branch" data-domain="{{ domain.id }}">{{ t("sync.resolve_branch") }}</button>
+        <button class="button danger" data-action="sync-resolve" data-resolve="remote" data-domain="{{ domain.id }}">{{ t("sync.resolve_remote") }}</button>
+      </div>
+      <p class="muted">{{ t("sync.conflict_hint") }}</p>
+    </div>
+  </section>
+  {% endif %}
+  {% if sync.pushed_branch %}
+  <div class="notice" id="sync-branch">{{ t("sync.pushed_branch", branch=sync.pushed_branch) }}{% if sync.compare_url %} <a href="{{ sync.compare_url }}" target="_blank" rel="noopener">{{ t("sync.open_pr") }}</a>{% endif %}</div>
+  {% endif %}
+  {% endif %}
+  <section class="panel" id="sync-source">
+    <div class="panel-header"><h2>{{ t("sync.source") }}</h2><span class="muted">{{ t("sync.source_hint") }}</span></div>
+    <form class="panel-body" data-action="sync-save" data-domain="{{ domain.id }}" data-configured="{{ 'true' if sync.source else 'false' }}">
+      <label class="field">{{ t("sync.url") }}<input name="url" required maxlength="2000" value="{{ source.url }}" placeholder="https://github.com/org/repo.git" autocomplete="off" spellcheck="false"></label>
+      <div class="field-pair">
+        <label class="field">{{ t("sync.directory") }}<input name="directory" required maxlength="500" value="{{ source.directory }}" autocomplete="off" spellcheck="false"><span class="cell-sub">{{ t("sync.directory_hint") }}</span></label>
+        <label class="field">{{ t("sync.branch") }}<input name="branch" maxlength="200" value="{{ source.branch or '' }}" placeholder="{{ t('sync.branch_default') }}" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <label class="field">{{ t("sync.auth") }}
+        <select name="auth">{% for auth in ("none", "https", "ssh") %}<option value="{{ auth }}"{% if source.auth == auth %} selected{% endif %}>{{ t("sync.auth_" + auth) }}</option>{% endfor %}</select>
+      </label>
+      <div data-auth-section="https"{% if source.auth != "https" %} hidden{% endif %}>
+        <div class="field-pair">
+          <label class="field">{{ t("sync.username") }}<input name="username" maxlength="200" value="{{ source.username or '' }}" autocomplete="off"></label>
+          <label class="field">{{ t("sync.token") }}<input name="token" type="password" maxlength="2000" autocomplete="new-password" placeholder="{{ t('sync.token_saved') if sync.has_token else '' }}"></label>
+        </div>
+        <p class="cell-sub">{{ t("sync.https_hint") }}</p>
+      </div>
+      <div data-auth-section="ssh"{% if source.auth != "ssh" %} hidden{% endif %}>
+        <p class="cell-sub">{{ t("sync.ssh_hint") }}</p>
+        {% if sync.public_key %}<pre class="source" id="sync-public-key">{{ sync.public_key }}</pre>{% else %}<p class="muted" id="sync-public-key">{{ t("sync.no_key") }}</p>{% endif %}
+        <div class="actions"><button class="button" type="button" data-action="sync-key" data-domain="{{ domain.id }}">{{ t("sync.generate_key") }}</button></div>
+        <details><summary>{{ t("sync.paste_key") }}</summary><textarea name="privateKey" rows="5" spellcheck="false" autocomplete="off" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></details>
+        {% if sync.host_keys %}<p class="cell-sub">{{ t("sync.host_keys") }}</p><ul class="checklist">{% for line in sync.host_keys %}<li><code>{{ line }}</code></li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="field-pair">
+        <label class="field">{{ t("sync.committer_name") }}<input name="committerName" maxlength="100" value="{{ source.committer_name or '' }}" placeholder="{{ server.name }}" autocomplete="off"></label>
+        <label class="field">{{ t("sync.committer_email") }}<input name="committerEmail" type="email" maxlength="200" value="{{ source.committer_email or '' }}" autocomplete="off"></label>
+      </div>
+      <p class="checklist"><label><input type="checkbox" name="autoPull"{% if source.auto_pull %} checked{% endif %}> {{ t("sync.auto_pull") }}</label></p>
+      <div class="notice warn">{{ t("sync.public_warning") }}</div>
+      <p class="form-error" role="alert"></p>
+      <div class="actions">
+        <button class="button primary" type="submit"{% if not sync.available %} disabled{% endif %}>{{ t("sync.save") }}</button>
+        {% if sync.source %}<button class="button danger" type="button" data-action="sync-disconnect" data-domain="{{ domain.id }}">{{ t("sync.disconnect") }}</button>{% endif %}
+      </div>
+    </form>
+  </section>
+</div>
+<template id="sync-push-form">
+  <div data-push-blockers hidden><div class="notice warn"><strong>{{ t("sync.blocked") }}</strong><ul class="checklist" data-list></ul></div></div>
+  <div data-push-warnings hidden><div class="notice"><strong>{{ t("sync.warnings") }}</strong><ul class="checklist" data-list></ul></div></div>
+  <p data-push-empty hidden>{{ t("sync.nothing_to_push") }}</p>
+  <details data-push-changes open><summary data-summary></summary><ul class="checklist" data-list></ul></details>
+  <label>{{ t("sync.message_label") }}<textarea name="message" rows="3" maxlength="2000"></textarea></label>
+  <p class="form-error" role="alert"></p>
+</template>
+{% endblock %}

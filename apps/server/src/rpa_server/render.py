@@ -127,6 +127,15 @@ _BADGES: Final[Mapping[str, str]] = {
     "queued": "blue",
     "running": "blue",
     "validating": "blue",
+    # 領域的同步狀態（M11 PR 3）
+    "synced": "green",
+    "ahead": "blue",
+    "behind": "blue",
+    "diverged": "amber",
+    "empty": "amber",
+    "no_directory": "amber",
+    "conflict": "red",
+    "error": "red",
 }
 
 
@@ -316,6 +325,28 @@ def js_messages() -> dict[str, str]:
         "js.worker_delete_action",
         "js.worker_disabled",
         "js.worker_enabled",
+        "js.sync_pulled",
+        "js.sync_pushed",
+        "js.sync_push_title",
+        "js.sync_push_action",
+        "js.sync_changes",
+        "js.sync_added",
+        "js.sync_modified",
+        "js.sync_deleted",
+        "js.sync_key_ready",
+        "js.sync_disconnect_title",
+        "js.sync_disconnect_body",
+        "js.sync_disconnect_action",
+        "js.sync_resolve_branch_title",
+        "js.sync_resolve_branch_body",
+        "js.sync_resolve_remote_title",
+        "js.sync_resolve_remote_body",
+        "js.sync_resolve_action",
+        "js.sync_branch_pushed",
+        "js.domain_git_title",
+        "js.domain_git_action",
+        "js.server_rename_title",
+        "js.server_name",
     )
     return {key.removeprefix("js."): page_t(key) for key in keys}  # 透過錄製端時換掉用詞
 

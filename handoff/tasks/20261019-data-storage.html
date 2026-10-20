@@ -10,7 +10,7 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 07:27 America/Los_Angeles（PDT，UTC−07:00）。<strong>PR 1（#48）已 squash 合併；PR 2（#49）已在本機完成 rebase 到 main，尚未推送</strong>。遠端 #49 的 base 仍是 <code>m11/domain-packs</code>；推送後需改成 <code>main</code> 並確認新版本 CI。本機檢查結果與缺口見<a href="#pr49-rebase">整合紀錄</a>。<strong>設計已確認</strong>（D1～D11 見<a href="#decisions">第 13 節</a>）；功能實作與歷史證據保留於下方，不能將 rebase 前的 CI 視為新版本通過。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 09:10 America/Los_Angeles（PDT，UTC−07:00）。<strong>PR 1（#48）、PR 2（#49）已合併</strong>（main <code>cfef585</code>、<code>e54025c</code>）。<strong>PR 3（git 同步）進行中</strong>，分支 <code>m11/git-sync</code>（base main <code>0fef3cd</code>）；另開 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a> 修正舊 SQLite 資料升級時遷移被外鍵檢查擋下（見<a href="#log">追加紀錄</a>）。<strong>設計已確認</strong>（D1～D11 見<a href="#decisions">第 13 節</a>）。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
@@ -22,8 +22,8 @@
         <dt>範圍／不包含</dt><dd>範圍：領域資料夾格式、檔案與資料庫的分工、載入與熱載入、驗證與發布紀錄、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移；執行紀錄回看的<strong>格式預留</strong>。不包含：執行紀錄的歸檔與跨伺服器回看的實作（D4，之後做）、使用者與權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
-        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2（組合場景檔案化）完成、CI 全綠，#49 疊在 #48 上待審閱；PR 3、4 未開始</dd>
-        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。實作 PR 2：<code>m11/composite-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/49">#49</a>，base 是 <code>m11/domain-packs</code> 的 <code>cbac33c</code>（#48 還沒合併）；#48 合併後把 PR 的 base 改成 main。</dd>
+        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2（組合場景檔案化）已合併（#48、#49）；PR 3（git 同步）進行中；PR 4 未開始；舊資料升級的外鍵問題由 #53 修正</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。實作 PR 2：<code>m11/composite-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/49">#49</a>，base 是 <code>m11/domain-packs</code> 的 <code>cbac33c</code>（#48 還沒合併）；#48 合併後把 PR 的 base 改成 main。#48 於 2026-10-20 07:17 PDT、#49 於 07:34 PDT 合併。實作 PR 3：<code>m11/git-sync</code>，base <code>0fef3cd</code>（origin/main，2026-10-20 08:18 PDT 合併的 #52）。外鍵修正：<code>fix/sqlite-migration-fk</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a>，base 同上。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁隨 <code>m11/domain-packs</code> 推送；以追加紀錄最後一筆的提交為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
       </dl></div>
@@ -512,6 +512,18 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
           </ul>
         </li>
         <li>2026-10-20 05:55 America/Los_Angeles（PDT，UTC−07:00），Claude：開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/49">#49</a>（base <code>m11/domain-packs</code>）。CI 抓到的問題與修正：真實瀏覽器執行的通過紀錄不成為證明，因為組合場景執行存的 <code>definition</code> 是解析過同名匹配來源的快照，雜湊和版本不同——改成開始執行時把版本的雜湊記在 <code>workflow_runs.workflow_hash</code>（遷移 0011 一併加上），<code>test_composites.py</code> 改用同名匹配涵蓋這個情況；改名不再分版本，<code>test_portal.py</code> 改成另一分頁改定義來製造存檔衝突；「組合場景」領域不列在左側選單。<code>ea58b19</code> 全部通過，#49 改成可以審閱。交接狀態：沒有未推送的修改；#48 合併後把 #49 的 base 改成 main。下一步是使用者審閱 #48、#49，之後做 PR 3（git 同步）。</li>
+        <li>2026-10-20 09:10 America/Los_Angeles（PDT，UTC−07:00），Claude（新的 session 接續）：使用者說 #48、#49 都已合併，繼續後續流程。從 main <code>0fef3cd</code> 開 <code>m11/git-sync</code> 做 PR 3。另外 #49 整合紀錄提到「0010 的舊 SQLite 資料升級外鍵失敗」但沒有錯誤訊息：推測是 SQLite 的 batch 遷移重建資料表時，開著外鍵檢查刪除被參照的舊表；另開 <code>fix/sqlite-migration-fk</code>（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a>），先只推測試看 CI 能不能重現，再推修正（遷移期間關閉外鍵檢查，完成後 <code>PRAGMA foreign_key_check</code>）。PR 3 實作時的選擇（和第 10 節不同或沒寫的）：
+          <ul>
+            <li>工作副本改成<strong>裸倉庫＋git 底層命令</strong>（<code>git/repos/&lt;領域&gt;.git</code>）：用暫存的索引檔從遠端最新的提交只換掉設定的目錄來建立提交，不需要工作目錄與稀疏複製；rebase 改成以檔案為單位的三方合併（上次同步、本機、遠端），結果和「本機一個提交 rebase 到遠端」一樣，同一個檔案兩邊改成不同內容才是衝突。MVP 取回整個分支的物件，不做部分複製。</li>
+            <li>資料來源與同步狀態放在 <code>domains.source</code>、<code>domains.sync</code>（JSON，遷移 0012）；權杖在 <code>git/credentials.json</code>（0600），SSH 金鑰在 <code>git/keys/</code>；git 子程序的 HOME 指到 <code>git/</code>，不讀使用者的 git 設定與 <code>~/.ssh</code>。</li>
+            <li>每個領域同時只有一個 git 操作，第二個回 409 <code>sync_busy</code>（不排隊）；Portal 的存檔不等待，改在套用前比對資料夾是否在同步期間被改過，改過就不套用、請使用者重試。</li>
+            <li>剛建立、只有 <code>pack.yaml</code> 的本機領域第一次接上已有資料的遠端時直接用遠端的內容（不算衝突）；沒設定分支時沿用上次同步的分支。</li>
+            <li>「從 git 新增」只支援公開倉庫與 HTTPS 權杖（測試連線要在建立領域前）；SSH 倉庫先建立領域，再到「同步」產生部署金鑰。</li>
+            <li>推送前檢查：<code>pack.yaml</code> 不對、敏感檔名、非 yaml／json／py／md／txt、超過 1 MB、內容含有已保存的 Secret 值（4 個字以上）會擋下；載入問題與「依賴的領域沒有 git 或版本還沒推送」是提醒，不擋。</li>
+            <li>啟動時自動拉取在背景執行緒做，不拖慢啟動；測試直接呼叫同一個方法。</li>
+            <li>還沒做：領域管理頁「被哪些組合場景依賴」、依 <code>pack.yaml</code> 的 <code>source</code> 預填「新增領域」（requires 還不寫 source）。</li>
+          </ul>
+        </li>
       </ul></div>
     </section>
   </div>

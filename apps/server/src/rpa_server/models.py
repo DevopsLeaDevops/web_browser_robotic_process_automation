@@ -62,6 +62,11 @@ class Domain(Base):
     """最近一次載入領域資料夾發現的問題（M11，rpa_core.pack.PackIssue 的 JSON）。"""
     loaded_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     """最近一次載入領域資料夾的時間（M11）。"""
+    source: Mapped[dict[str, object] | None] = mapped_column(JsonType)
+    """git 資料來源（M11 PR 3，rpa_server.gitsync.GitSource 的 JSON）：倉庫、分支、目錄、認證方式、
+    使用者名稱、提交者、啟動時自動拉取。沒有就是本機領域。權杖與私鑰不在這裡（git/ 目錄）。"""
+    sync: Mapped[dict[str, object] | None] = mapped_column(JsonType)
+    """同步狀態（M11 PR 3）：上次同步的提交、上次看到的遠端提交、分支、錯誤、衝突的檔案、時間。"""
 
 
 class Scene(Base):
