@@ -9,7 +9,7 @@ import json
 import os
 import shutil
 import subprocess
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import cast
@@ -118,7 +118,7 @@ def push(client: Client, message: str | None = None) -> JsonObject:
 
 
 @contextmanager
-def second_server(tmp_path: Path) -> Iterator[tuple[FastAPI, Client]]:
+def second_server(tmp_path: Path) -> Generator[tuple[FastAPI, Client]]:
     """另一個人的伺服器：全新的資料目錄。"""
     data = tmp_path / "second"
     settings = Settings(
