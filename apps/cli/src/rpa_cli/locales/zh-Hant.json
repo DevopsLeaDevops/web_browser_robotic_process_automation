@@ -51,6 +51,8 @@
   "cli.serve.testsite_running": "測試網站已經在 {url} 執行，直接沿用。",
   "cli.serve.testsite_busy": "埠號 {port} 被其他程式占用，沒有啟動測試網站，「測試網站自動化」的案例會連不上。關掉占用的程式後重新啟動，或加 --no-testsite 不啟動測試網站。",
   "cli.serve.testsite_failed": "無法啟動測試網站（{url}）：{error}",
+  "cli.serve.testsite_host_help": "測試網站監聽的位址。預設只有這台電腦；設成 0.0.0.0 時，錄製端、Worker 等其他電腦也用 http://這台的位址:{port}/ 連到同一個測試網站（資料與登入共用）。測試網站沒有任何保護，只在信任的網路使用。",
+  "cli.serve.testsite_exposed": "注意：測試網站對其他電腦開放（{url}，位址是猜的），沒有任何保護：連得到的人都能建立紀錄、用示範帳號登入。請用防火牆只開放給錄製端、Worker 那幾台。範例場景要用它時，把場景的「預設網址」與兩個測試網站角色的登入網址、檢查網址改成這個位址。",
   "cli.serve.browsers_missing": "這台電腦還沒有下載 {browsers}，用到的場景會執行失敗。在專案資料夾執行 {command} 下載即可，不用重新啟動 Portal。",
   "cli.record.help": "在這台電腦錄製瀏覽器操作（Playwright codegen）：瀏覽器視窗與 Playwright Inspector 會開在這台電腦上，操作完關掉視窗即結束。錄製稿存成遮罩過密碼的 Python（--out），加 --scenario 同時轉成場景 DSL 草稿：輸入的值變成入參、密碼欄位改成 Secret，轉不了的行以註解保留。草稿要先驗證才能發布。",
   "cli.record.short_help": "錄製操作並轉成場景草稿。",

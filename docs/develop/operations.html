@@ -74,6 +74,7 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # 資料放在專案以
             <tr><td><code>--data 資料夾</code></td><td>資料放哪裡，預設專案裡的 <code>data</code>（也可以用環境變數 <code>RPA_DATA_DIR</code>）。見<a href="../design/portal.html#data-folder">管理 Portal › 資料夾</a>。</td></tr>
             <tr><td><code>--port</code>、<code>--host</code></td><td>管理頁面的埠與位址，預設 <code>127.0.0.1:8080</code>。<strong>不要改成 0.0.0.0</strong>：管理頁面沒有登入保護。</td></tr>
             <tr><td><code>--no-testsite</code></td><td>不在 127.0.0.1:8765 啟動測試網站。</td></tr>
+            <tr><td><code>--testsite-host 0.0.0.0</code></td><td>測試網站對其他電腦開放（預設只有本機 127.0.0.1）。見下方<a href="#shared-testsite">共用伺服器的測試網站</a>。</td></tr>
             <tr><td><code>RPA_LANG</code></td><td>環境變數：伺服器建立的訊息用哪種語言（<code>zh-Hant</code>、<code>zh-Hans</code>、<code>en</code>）。</td></tr>
           </tbody>
         </table>
@@ -85,6 +86,15 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # 資料放在專案以
           <li><strong>8081，對外埠。</strong>每個請求都要權杖或一次性的邀請：運行端用 Worker API，錄製端用 Client API，並用錄製端的權杖打開管理頁面。沒配對的電腦打開只會看到 401。防火牆只開這個埠，而且只開給區網（或 VPN），例如 Ubuntu：<code>sudo ufw allow from 192.168.1.0/24 to any port 8081 proto tcp</code>。</li>
           <li><strong>是 HTTP，不加密。</strong>Secrets 與登入狀態會經過網路，只在信任的區網或 VPN 使用。伺服器在雲端或不同網段時，可以用 SSH 通道把對外埠帶到裝置那台：<code>ssh -N -L 8081:127.0.0.1:8081 使用者@伺服器</code>，裝置配對時伺服器填 <code>http://127.0.0.1:8081</code>。</li>
         </ul>
+
+        <h3 id="shared-testsite">共用伺服器的測試網站</h3>
+        <p>預設每台電腦各自在 127.0.0.1:8765 跑一份測試網站，資料與登入不互通：在 Mac 建的紀錄，Windows 查不到。要讓錄製端與 Worker 都用伺服器上的同一份：</p>
+        <ol>
+          <li>伺服器加 <code>--testsite-host 0.0.0.0</code> 啟動。用 Linux 安裝腳本時，在 <code>.rpa-server.env</code> 設 <code>export RPA_TESTSITE_HOST=0.0.0.0</code> 再重新啟動（較早建立的設定檔沒有這一行，自己加上）。啟動訊息會印出「測試網站：http://區網 IP:8765/」，位址是猜的。</li>
+          <li>防火牆開 8765，<strong>只開給錄製端與 Worker 那幾台</strong>：測試網站沒有任何保護，連得到的人都能建立紀錄、用示範帳號登入。例如 RHEL 系：<code>sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.1.0/24 port port=8765 protocol=tcp accept'</code>，再 <code>sudo firewall-cmd --reload</code>。</li>
+          <li>錄製的起始網址填 <code>http://伺服器:8765/</code>。範例場景要用它時，在 BA-001～BA-005 的場景頁把「預設網址」改成 <code>http://伺服器:8765</code>；「登入與憑證」把兩個測試網站角色的登入網址、檢查網址改成 <code>http://伺服器:8765/login</code>、<code>http://伺服器:8765/account</code>。</li>
+        </ol>
+        <p>改好之後，BA-001 建的紀錄在任何一台用 BA-002 都查得到，角色的登入狀態也對每一台有效。</p>
 
         <h3 id="open-portal">從別台電腦打開管理 Portal</h3>
         <ul>

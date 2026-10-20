@@ -155,6 +155,28 @@ def test_testsite_starts_once_and_is_reused() -> None:
         site.server_close()
 
 
+def test_testsite_open_to_other_computers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--testsite-host 0.0.0.0：其他電腦用區網位址連得到；訊息附上沒有保護的提醒。"""
+    monkeypatch.setattr("rpa_worker.environment.lan_address", lambda: "192.168.1.10")
+    with occupied() as port:
+        pass
+    site, message = start_testsite(port, "0.0.0.0")
+    assert site is not None
+    try:
+        assert site.server_address[0] == "0.0.0.0"
+        first, second = message.splitlines()
+        assert first == f"測試網站：http://192.168.1.10:{port}/"
+        assert second.startswith(f"注意：測試網站對其他電腦開放（http://192.168.1.10:{port}/")
+        assert "防火牆" in second
+        # 綁定所有介面時，本機照樣認得出它
+        again, reused = start_testsite(port, "0.0.0.0")
+        assert again is None
+        assert reused == f"測試網站已經在 http://192.168.1.10:{port}/ 執行，直接沿用。"
+    finally:
+        site.shutdown()
+        site.server_close()
+
+
 def test_testsite_port_used_by_another_program() -> None:
     with occupied() as busy:
         site, message = start_testsite(busy)

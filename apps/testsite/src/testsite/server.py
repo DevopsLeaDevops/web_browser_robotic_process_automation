@@ -6,7 +6,8 @@
   兩個示範帳號 user（一般使用者）與 manager（主管）看到的待辦不同；``POST /api/login``、
   ``POST /api/logout``；``POST /api/sessions/expire`` 讓所有人的登入失效（測試 needs_login 用）
 - ``GET /api/about``：回傳 ``{"name": "rpa-testsite"}``，讓 ``rpa serve`` 認出已經在執行的測試網站
-- 只綁定 127.0.0.1；不連線任何外部系統
+- 預設只綁定 127.0.0.1；``rpa serve --testsite-host 0.0.0.0`` 可以讓其他電腦（錄製端、Worker）
+  連到同一個測試網站，資料與登入共用。不連線任何外部系統
 
 ``rpa serve`` 會在 8765 一起啟動；測試用 ``running()`` 在隨機埠號啟動；
 單獨啟動：``uv run python -m testsite --port 8765``。``rpa worker`` 與打包的 RPA Worker
@@ -35,10 +36,12 @@ __all__ = [
     "ACCOUNTS",
     "ADDRESS_IN_USE",
     "DEFAULT_PORT",
+    "LOOPBACK",
     "MAX_QUANTITY",
     "NAME",
     "PAGE",
     "SESSION_COOKIE",
+    "WILDCARD_HOSTS",
     "StartState",
     "create_server",
     "is_testsite",
@@ -48,6 +51,10 @@ __all__ = [
 
 DEFAULT_PORT: Final = 8765
 """範例場景的 browser.baseUrl 指向 http://127.0.0.1:8765。"""
+LOOPBACK: Final = "127.0.0.1"
+"""預設只讓這台電腦連。"""
+WILDCARD_HOSTS: Final = frozenset({"0.0.0.0", ""})
+"""綁定所有介面（其他電腦也連得到）。"""
 NAME: Final = "rpa-testsite"
 PAGE: Final = Path(__file__).with_name("index.html")
 LOGIN_PAGE: Final = Path(__file__).with_name("login.html")
@@ -100,8 +107,11 @@ class _Server(ThreadingHTTPServer):
     daemon_threads = True
 
 
-def create_server(port: int = 0) -> ThreadingHTTPServer:
-    """建立測試網站；port 為 0 時由系統挑一個空的埠號（server.server_port）。"""
+def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
+    """建立測試網站；port 為 0 時由系統挑一個空的埠號（server.server_port）。
+
+    host 預設只有本機；0.0.0.0 讓其他電腦也連得到（沒有任何保護，只在信任的網路使用）。
+    """
     records: dict[str, dict[str, object]] = {}
     sessions: dict[str, str] = {}
     """登入憑證 → 帳號；只存在記憶體。"""
@@ -251,7 +261,7 @@ def create_server(port: int = 0) -> ThreadingHTTPServer:
                 records[str(record["recordId"])] = record
             self._json(201, record)
 
-    return _Server(("127.0.0.1", port), Handler)
+    return _Server((host, port), Handler)
 
 
 @contextmanager
@@ -268,11 +278,12 @@ def running(port: int = 0) -> Generator[str, None, None]:
         thread.join(timeout=5)
 
 
-def is_testsite(port: int) -> bool:
-    """這個埠號上是不是已經在執行的測試網站（讀 /api/about）。"""
+def is_testsite(port: int, host: str = LOOPBACK) -> bool:
+    """這個埠號上是不是已經在執行的測試網站（讀 /api/about）。綁定所有介面時從本機問。"""
+    address = LOOPBACK if host in WILDCARD_HOSTS else host
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 本機位址不走代理
     try:
-        with opener.open(f"http://127.0.0.1:{port}/api/about", timeout=1) as response:
+        with opener.open(f"http://{address}:{port}/api/about", timeout=1) as response:
             data: object = json.load(response)
     except (OSError, ValueError):
         return False
@@ -281,6 +292,7 @@ def is_testsite(port: int) -> bool:
 
 def start_in_background(
     port: int = DEFAULT_PORT,
+    host: str = LOOPBACK,
 ) -> tuple[ThreadingHTTPServer | None, StartState, str]:
     """在背景執行緒啟動測試網站，回傳 (伺服器，沒有啟動時為 None；狀態；失敗的原因)。
 
@@ -288,10 +300,10 @@ def start_in_background(
     ``busy`` 被別的程式占用；``failed`` 其他錯誤。
     """
     try:
-        server = create_server(port)
+        server = create_server(port, host)
     except OSError as error:
         if error.errno not in ADDRESS_IN_USE:
             return None, "failed", error.strerror or str(error)
-        return None, ("running" if is_testsite(port) else "busy"), ""
+        return None, ("running" if is_testsite(port, host) else "busy"), ""
     threading.Thread(target=server.serve_forever, name="testsite", daemon=True).start()
     return server, "started", ""

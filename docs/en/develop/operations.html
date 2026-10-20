@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:bd2d44b0b4c4cb00">
+<meta name="translation-source" content="sha256:ef001dfab670602d">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -75,6 +75,7 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # keep the data outside
             <tr><td><code>--data folder</code></td><td>Where the data lives, <code>data</code> in the project by default (or the <code>RPA_DATA_DIR</code> environment variable). See <a href="../design/portal.html#data-folder">Management portal › Data folder</a>.</td></tr>
             <tr><td><code>--port</code>, <code>--host</code></td><td>The port and address of the management pages, <code>127.0.0.1:8080</code> by default. <strong>Do not change it to 0.0.0.0</strong>: the management pages have no login.</td></tr>
             <tr><td><code>--no-testsite</code></td><td>Does not start the test site on 127.0.0.1:8765.</td></tr>
+            <tr><td><code>--testsite-host 0.0.0.0</code></td><td>Opens the test site to other computers (by default only 127.0.0.1). See <a href="#shared-testsite">Sharing the server’s test site</a> below.</td></tr>
             <tr><td><code>RPA_LANG</code></td><td>Environment variable: the language of messages the server creates (<code>zh-Hant</code>, <code>zh-Hans</code>, <code>en</code>).</td></tr>
           </tbody>
         </table>
@@ -86,6 +87,15 @@ uv run rpa serve --worker-port 8081 --data ~/rpa-data    # keep the data outside
           <li><strong>8081, the external port.</strong> Every request needs a token or a one-time invitation: workers use the Worker API, recorders use the Client API and open the management pages with the recorder's token. Unpaired computers only get 401. Open only this port in the firewall, and only to the LAN (or VPN), for example on Ubuntu: <code>sudo ufw allow from 192.168.1.0/24 to any port 8081 proto tcp</code>.</li>
           <li><strong>It is plain HTTP.</strong> Secrets and sign-in state cross the network, so use it only on a trusted LAN or VPN. When the server is in the cloud or on another network, an SSH tunnel can bring the external port to the device: <code>ssh -N -L 8081:127.0.0.1:8081 user@server</code>, then use <code>http://127.0.0.1:8081</code> as the server when pairing.</li>
         </ul>
+
+        <h3 id="shared-testsite">Sharing the server’s test site</h3>
+        <p>By default every computer runs its own test site on 127.0.0.1:8765, and records and logins are not shared: a record created on the Mac cannot be found on Windows. To let the recorder and the worker use the single copy on the server:</p>
+        <ol>
+          <li>Start the server with <code>--testsite-host 0.0.0.0</code>. With the Linux installer, set <code>export RPA_TESTSITE_HOST=0.0.0.0</code> in <code>.rpa-server.env</code> and restart (settings files created earlier lack this line; add it yourself). The startup message prints “Test site: http://LAN-IP:8765/”; the address is a guess.</li>
+          <li>Open port 8765 in the firewall <strong>only to the recorder and worker computers</strong>: the test site has no protection, so anyone who can reach it can create records and log in with the demo accounts. For example on RHEL-family systems: <code>sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.1.0/24 port port=8765 protocol=tcp accept'</code>, then <code>sudo firewall-cmd --reload</code>.</li>
+          <li>Use <code>http://server:8765/</code> as the recording start URL. To run the example scenes against it, set the “Default URL” on the scene pages of BA-001 to BA-005 to <code>http://server:8765</code>, and under “Login and credentials” change the login and check URLs of the two test-site roles to <code>http://server:8765/login</code> and <code>http://server:8765/account</code>.</li>
+        </ol>
+        <p>After that, a record created by BA-001 can be found by BA-002 on any computer, and role sign-in state works on every one of them.</p>
 
         <h3 id="open-portal">Opening the portal from another computer</h3>
         <ul>

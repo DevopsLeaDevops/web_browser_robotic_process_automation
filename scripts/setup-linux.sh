@@ -29,7 +29,8 @@ usage() {
 
 一般帳號執行即可；安裝系統套件與 systemd 服務時會呼叫 sudo。
 首次安裝可設定 RPA_DATA_DIR（預設 ~/.local/share/rpa-server）、
-RPA_PORT（8080）、RPA_WORKER_PORT（8081）、RPA_WORKER_HOST（0.0.0.0）。
+RPA_PORT（8080）、RPA_WORKER_PORT（8081）、RPA_WORKER_HOST（0.0.0.0）、
+RPA_TESTSITE_HOST（預設空白＝不啟動測試網站；0.0.0.0＝在 8765 對其他電腦開放）。
 後續修改專案內 .rpa-server.env；重跑安裝會保留該設定與資料。
 管理頁面只監聽 127.0.0.1；裝置使用有權杖驗證的 Worker／Client API。
 內網可設定 HTTPS_PROXY、UV_PYTHON_INSTALL_MIRROR、UV_NATIVE_TLS；
@@ -194,6 +195,8 @@ write_launchers() {
       printf 'export RPA_PORT=%q\n' "${RPA_PORT:-8080}"
       printf 'export RPA_WORKER_PORT=%q\n' "${RPA_WORKER_PORT:-8081}"
       printf 'export RPA_WORKER_HOST=%q\n' "${RPA_WORKER_HOST:-0.0.0.0}"
+      printf '# 測試網站（8765）：空白＝不啟動；0.0.0.0＝錄製端、Worker 也連得到（沒有保護，防火牆只開給它們）。\n'
+      printf 'export RPA_TESTSITE_HOST=%q\n' "${RPA_TESTSITE_HOST:-}"
       } > .rpa-server.env
     )
   fi
@@ -201,7 +204,10 @@ write_launchers() {
     printf '#!/usr/bin/env bash\nset -Eeuo pipefail\numask 077\n'
     printf 'cd %q\nsource %q\n' "$REPO_DIR" "$REPO_DIR/.rpa-server.env"
     printf 'mkdir -p "$RPA_DATA_DIR"\n'
-    printf 'exec %q serve --host 127.0.0.1 --port "$RPA_PORT" --data "$RPA_DATA_DIR" --worker-host "$RPA_WORKER_HOST" --worker-port "$RPA_WORKER_PORT" --no-local-worker --no-testsite\n' "$REPO_DIR/.venv-server/bin/rpa"
+    # 較早建立的 .rpa-server.env 沒有 RPA_TESTSITE_HOST：當成空白，照舊不啟動測試網站。
+    printf 'testsite=(--no-testsite)\n'
+    printf 'if [ -n "${RPA_TESTSITE_HOST:-}" ]; then testsite=(--testsite-host "$RPA_TESTSITE_HOST"); fi\n'
+    printf 'exec %q serve --host 127.0.0.1 --port "$RPA_PORT" --data "$RPA_DATA_DIR" --worker-host "$RPA_WORKER_HOST" --worker-port "$RPA_WORKER_PORT" --no-local-worker "${testsite[@]}"\n' "$REPO_DIR/.venv-server/bin/rpa"
   } > "$launcher"
   chmod 755 "$launcher"
   {
