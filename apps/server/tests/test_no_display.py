@@ -97,8 +97,7 @@ def test_entries_are_links_with_a_display(shown: Client) -> None:
 
 def test_english_hint(client: Client) -> None:
     prepare(client)
-    client.cookies.set("rpa_lang", "en")
-    scene = client.get("/scenes/ba-001").text
+    scene = client.get("/scenes/ba-001?lang=en").text
     assert 'title="This server has no display' in scene
     assert "RPA Recorder" in scene
 
