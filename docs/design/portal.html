@@ -166,6 +166,7 @@
         <li><strong>代號、領域與版本（M11 PR 2）。</strong>組合場景有英數代號（沒填就是 <code>wf-&lt;數字&gt;</code>，所有領域不能重複），放在某個領域資料夾的 <code>composites/&lt;代號&gt;/</code>，沒選領域就放「組合場景」領域。改定義的每次存檔都是新版本（<code>revisions/&lt;版本&gt;/workflow.json</code>，唯讀），版本說明檔釘住每個節點用到的場景版本（領域、場景、版本、雜湊）；改名稱與說明只改 <code>composite.yaml</code>，不分版本。用到其他領域時寫進 <code>pack.yaml</code> 的 <code>requires</code>。</li>
         <li><strong>驗證、發布與執行（M11 PR 2）。</strong>執行時選目的：「驗證」跑某個版本（預設最新），結束時寫驗證紀錄（每個節點的場景、版本、雜湊、狀態與執行編號）；「執行」只跑發布的版本，不寫驗證紀錄。發布要有雜湊相符的通過驗證紀錄，而且每個節點跑的都是釘住的場景版本、那些場景版本現在還在且雜湊相同；發布寫進 <code>composite.yaml</code>。每次執行在 <code>workflow-runs/&lt;執行編號&gt;/run.json</code> 記下定義快照、版本、目的與每個節點的狀態。</li>
         <li><strong>依賴檢查（M11 PR 2）。</strong>組合場景頁列出最新版本與發布版本的依賴問題並給補全方式：沒有那個領域（新增領域）、場景或版本不在、版本不能執行（重新載入領域）、雜湊不符或沒釘住（重新存檔）是錯誤，不能執行與發布；角色沒登入、缺少 Secrets 是提醒。卡片顯示「依賴不完整」或「依賴有提醒」。有組合場景的領域不能刪除。<code>rpa pack check</code> 一次給多個資料夾時也檢查它們之間的依賴。</li>
+        <li><strong>補全依賴與管理（M11 收尾）。</strong>領域接上 git 後，依賴它的領域的 <code>pack.yaml</code> 在 <code>requires</code> 記下 <code>source</code>（倉庫、目錄、分支，不含帳密）；別人缺這個領域時，依賴提示的「從 git 新增」帶著它預填；領域有資料來源但缺場景或版本時提示「拉取」。領域管理頁列出每個領域被哪些組合場景依賴。組合場景頁可以改代號、搬到其他領域（資料夾連同版本與驗證紀錄改名或搬走）、封存（不能執行），也可以驗證指定的舊版本。</li>
         <li><strong>保存與預檢。</strong>草稿可帶待修正的問題保存；保存攜帶 <code>baseVersion</code>，版本衝突回 409，頁面保留草稿供匯出。執行前檢查全圖、已發布固定版本、欄位、型別、必填值及固定值規則；有問題時第一個節點也不排入佇列。問題清單與執行阻擋對話框顯示節點、場景、入參及具體原因，點選可定位到畫布節點或入參欄位；欄位同步標紅。「執行前檢查」可手動檢查，卡片執行也重新取得最新問題。新增場景時不自動建立與前一節點的連線。</li>
         <li><strong>分叉與匯合。</strong>拓撲排序保證所有上游都通過才執行下游；就緒節點以定義中的順序穩定選取，逐個排入既有佇列。每個節點有自己的真實執行、入參、成功出參與報告。下游執行前再檢查實際值，不符合規則就停止，不回退到預設值。</li>
         <li><strong>快照與恢復。</strong>開始時固定編排、場景版本及同名匹配的具體來源，後續編輯不影響已開始的執行。失敗、逾時、取消、需要登入或 worker 失聯皆停止全圖；續跑沿用拓撲順序中已通過的結果，不重複已成功的外部操作。所有節點沿用同一台 worker；取消不回滾外部動作。</li>
@@ -285,6 +286,7 @@
             <tr><td><code>POST /api/workflows/check</code></td><td>檢查一份定義（不存檔），回傳 <code>problems</code></td></tr>
             <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{序列}</code></td><td>序列與最近的執行、版本、驗證紀錄、依賴問題；存檔（<code>baseVersion</code> 是最新的版本號碼、<code>name</code>、<code>description</code>、<code>definition</code>；不是最新版本就 409，定義改了才是新版本）；刪除（執行中不能刪，連同資料夾）</td></tr>
             <tr><td><code>POST /api/workflows/{序列}/revisions/{n}/publish</code></td><td>發布組合場景的版本（M11 PR 2）；沒有雜湊相符的通過驗證紀錄 409 <code>workflow_not_validated</code>，依賴不完整 409 <code>workflow_dependencies</code></td></tr>
+            <tr><td><code>PATCH /api/workflows/{序列}</code></td><td>改代號（<code>code</code>）、搬到其他領域（<code>domainId</code>）、封存（<code>archived</code>）；執行中不能改代號或搬，代號重複 409</td></tr>
             <tr><td><code>POST /api/workflows/{序列}/runs</code></td><td>執行序列（<code>engine</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>；<code>purpose</code> 是 <code>validation</code> 或 <code>execution</code>，驗證時可帶 <code>revision</code>；還沒發布就執行 409 <code>workflow_unpublished</code>）；有問題（含依賴錯誤）時 422 並列出 <code>problems</code>；202 回序列的執行</td></tr>
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{序列執行}</code></td><td>序列執行清單（可用 <code>workflow</code> 篩選）；單次的狀態與每個節點（狀態、入參的來源、那次執行）</td></tr>
             <tr><td><code>POST /api/workflow-runs/{序列執行}/cancel</code>、<code>…/rerun</code></td><td>取消；再執行一次（<code>resume: true</code> 從停下的節點繼續，否則從頭）</td></tr>
@@ -311,6 +313,7 @@
             <dt><code>domains/<wbr>&lt;領域&gt;/</code></dt><dd>領域資料夾（M11）：<code>pack.yaml</code>；<code>scenes/&lt;場景&gt;/</code> 裡的 <code>scene.yaml</code>、<code>revisions/&lt;版本&gt;/</code>（scenario.yaml，腳本場景另有兩支腳本）與版本說明檔 <code>revisions/&lt;版本&gt;.yaml</code>、驗證紀錄 <code>verifications/&lt;版本&gt;/</code>；角色定義 <code>roles/&lt;角色&gt;.yaml</code>；組合場景 <code>composites/&lt;代號&gt;/</code>（<code>composite.yaml</code>、<code>revisions/&lt;版本&gt;/workflow.json</code> 與版本說明檔、驗證紀錄）。格式見 <code>rpa_core.pack</code></dd>
             <dt><code>runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>M2 的執行目錄（input.json、report.html…）；<code>run.json</code> 記下伺服器、領域、場景、版本、雜湊、時間與每個檔案的 sha256</dd>
             <dt><code>workflow-runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>組合場景的執行（M11 PR 2）：<code>run.json</code> 記下定義快照、版本、目的、每個節點的狀態與執行編號</dd>
+            <dt><code>work/<wbr>&lt;執行編號&gt;/</code></dt><dd>本機執行中的版本檔案快照（M11 收尾）：開始時從領域資料夾複製，執行中拉取或重新載入不影響；結束就刪，伺服器啟動時清空</dd>
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登入狀態（只有本人能讀寫）</dd>
             <dt><code>recordings/<wbr>&lt;錄製編號&gt;/</code></dt><dd>遮罩過的原始錄製稿與轉換結果</dd>
             <dt><code>debug/<wbr>&lt;工作階段&gt;/</code></dt><dd>調試的截圖（工作階段結束就刪除）</dd>

@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
 from rpa_core.pack import (
+    COMPOSITES_DIR,
     CompositeManifest,
     PublishedRef,
     SceneRequirement,
@@ -450,6 +451,110 @@ class WorkflowService:
                 raise
             session.refresh(row)
         return self._record(row)
+
+    def manage(
+        self,
+        workflow_id: int,
+        *,
+        code: str | None = None,
+        domain_id: str | None = None,
+        archived: bool | None = None,
+    ) -> WorkflowRecord:
+        """改代號、搬到其他領域、封存（M11 收尾；第 12 節「之後可以在頁面改代號或搬到其他領域」）。
+
+        代號就是資料夾的名稱：改代號是把 composites/<舊代號> 改名，搬領域是把資料夾搬到另一個
+        領域資料夾（推送後在 git 裡是刪除＋新增；版本與驗證紀錄跟著走）。執行中不能改代號或搬。
+        """
+        packs = self.services.packs
+        storage = self.services.storage
+        with packs.lock, self.sessions() as session:
+            row = self._row(session, workflow_id)
+            code = (code or "").strip() or None
+            moving = (code is not None and code != row.code) or (
+                domain_id is not None and domain_id != row.domain_id
+            )
+            if moving:
+                running = session.scalar(
+                    select(func.count())
+                    .select_from(WorkflowRunRow)
+                    .where(
+                        WorkflowRunRow.workflow_id == workflow_id,
+                        WorkflowRunRow.status == "running",
+                    )
+                )
+                if running:
+                    raise conflict("workflow_running", t("error.workflow_running", id=row.code))
+            if code is not None and code != row.code:
+                if not _CODE.fullmatch(code):
+                    raise invalid(
+                        "workflow_code_invalid", t("error.workflow_code_invalid", code=code)
+                    )
+                if self._code_taken(session, code):
+                    raise conflict(
+                        "workflow_code_exists", t("error.workflow_code_exists", code=code)
+                    )
+                source = storage.composite_dir(row.code)
+                target = source.with_name(code)
+                source.rename(target)
+                storage.forget_composite(row.code)
+                storage.place_composite(code, row.domain_id or self.services.composites_domain())
+                manifest = packs.composite_manifest(code) or CompositeManifest(
+                    id=code, name=row.name
+                )
+                packs.write_composite(manifest.model_copy(update={"id": code}))
+                row.code = code
+            if domain_id is not None and domain_id != row.domain_id:
+                if session.get(Domain, domain_id) is None:
+                    raise not_found("domain_not_found", t("error.domain_not_found", id=domain_id))
+                source = storage.composite_dir(row.code)
+                target = storage.domain_dir(domain_id) / COMPOSITES_DIR / row.code
+                if target.exists():
+                    raise conflict(
+                        "workflow_code_exists", t("error.workflow_code_exists", code=row.code)
+                    )
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source.rename(target)
+                storage.forget_composite(row.code)
+                storage.place_composite(row.code, domain_id)
+                row.domain_id = domain_id
+                for number in {
+                    row.version,
+                    *([row.published_number] if row.published_number else []),
+                }:
+                    entry, _ = packs.composite_entry(row.code)
+                    revision = entry.revisions.get(number) if entry is not None else None
+                    if revision is not None and revision.requires:
+                        packs.declare_requirements(domain_id, revision.requires)
+            if archived is not None and archived != row.archived:
+                manifest = packs.composite_manifest(row.code) or CompositeManifest(
+                    id=row.code, name=row.name
+                )
+                packs.write_composite(manifest.model_copy(update={"archived": archived}))
+                row.archived = archived
+            row.updated_at = now()
+            session.commit()
+            session.refresh(row)
+        return self._record(row)
+
+    def dependents(self) -> dict[str, list[WorkflowRecord]]:
+        """領域 → 依賴它的組合場景（最新版本或發布的版本釘住了那個領域的場景）。"""
+        found: dict[str, list[WorkflowRecord]] = {}
+        packs = self.services.packs
+        for record in self.list_workflows():
+            entry, _ = packs.composite_entry(record.code)
+            if entry is None:
+                continue
+            domains: set[str] = set()
+            for number in {
+                record.version,
+                *([record.published_number] if record.published else []),
+            }:
+                revision = entry.revisions.get(number)
+                if revision is not None:
+                    domains.update(item.domain for item in revision.requires or [])
+            for domain_id in sorted(domains - {record.domain_id or ""}):
+                found.setdefault(domain_id, []).append(record)
+        return found
 
     def delete_workflow(self, workflow_id: int) -> None:
         """刪除組合場景；執行中不能刪。已經執行過的紀錄保留（有定義的快照）。"""
@@ -1012,6 +1117,20 @@ class WorkflowService:
                 session, number, revision.requires or [], revision.workflow
             )
 
+    def _requirement_source(self, domain_id: str) -> dict[str, str] | None:
+        """依賴的領域從哪裡取得：任一個領域的 pack.yaml requires 裡記的 source。"""
+        packs = self.services.packs
+        folders = sorted(self.services.storage.domains.glob("*"))
+        for folder in folders:
+            manifest = packs.manifest(folder.name) if folder.is_dir() else None
+            for item in manifest.requires if manifest is not None else []:
+                if item.domain == domain_id and item.source is not None:
+                    found = {"url": item.source.repo, "directory": item.source.directory or ""}
+                    if item.source.branch:
+                        found["branch"] = item.source.branch
+                    return found
+        return None
+
     def _requirement_items(
         self,
         session: Session,
@@ -1027,7 +1146,11 @@ class WorkflowService:
         checked: set[tuple[str, int]] = set()
 
         def add(
-            level: Literal["error", "warning"], code: str, action: str | None, **params: object
+            level: Literal["error", "warning"],
+            code: str,
+            action: str | None,
+            source: dict[str, str] | None = None,
+            **params: object,
         ) -> None:
             items.append(
                 DependencyItem(
@@ -1038,6 +1161,7 @@ class WorkflowService:
                     domain=cast("str | None", params.get("domain")),
                     scene=cast("str | None", params.get("scene")),
                     action=action,
+                    source=source,
                 )
             )
 
@@ -1052,12 +1176,21 @@ class WorkflowService:
                 add("error", "unpinned", "resave", **params)
                 continue
             params["domain"] = pin.domain
-            if session.get(Domain, pin.domain) is None:
-                add("error", "domain_missing", "add_domain", **params)
+            domain = session.get(Domain, pin.domain)
+            if domain is None:
+                add(
+                    "error",
+                    "domain_missing",
+                    "add_domain",
+                    self._requirement_source(pin.domain),
+                    **params,
+                )
                 continue
+            # 領域有 git 資料來源：缺的東西多半是還沒拉取（或拉取失敗），補全的方式是拉取
+            refresh = "pull" if domain.source else "reload_domain"
             scene = session.get(Scene, pin.scene)
             if scene is None or scene.missing or scene.domain_id != pin.domain:
-                add("error", "scene_missing", "reload_domain", **params)
+                add("error", "scene_missing", refresh, **params)
                 continue
             revision = session.scalars(
                 select(Revision).where(
@@ -1065,7 +1198,7 @@ class WorkflowService:
                 )
             ).first()
             if revision is None or revision.missing:
-                add("error", "revision_missing", "reload_domain", **params)
+                add("error", "revision_missing", refresh, **params)
                 continue
             if revision.problem is not None:
                 add("error", "revision_unusable", "reload_domain", **params)

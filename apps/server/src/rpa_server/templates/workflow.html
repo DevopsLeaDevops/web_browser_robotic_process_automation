@@ -60,7 +60,7 @@
   <section class="panel" id="composite-dependencies">
     <div class="panel-header"><h2>{{ t("composite.dependencies") }}</h2>{% if workflow.dependency == "incomplete" %}{{ m.badge("failed", t("composite.dependency_incomplete")) }}{% elif workflow.dependency == "warnings" %}{{ m.badge("needs_login", t("composite.dependency_warnings")) }}{% else %}{{ m.badge("passed", t("composite.dependency_complete")) }}{% endif %}<span class="muted">{{ t("composite.dependencies_hint") }}</span></div>
     {% if dependencies %}
-    <ul class="panel-body checklist">{% for item in dependencies %}<li data-dependency="{{ item.code }}"{% if item.level == "error" %} class="text-danger"{% endif %}><strong>v{{ item.revision }}</strong> {{ item.message }}{% if item.action == "add_domain" %} <a class="text-btn" href="/domains">{{ t("composite.action_add_domain") }}</a>{% elif item.action == "reload_domain" and item.domain %} <a class="text-btn" href="/domains/{{ item.domain }}">{{ t("composite.action_reload_domain") }}</a>{% elif item.action == "login" %} <a class="text-btn" href="/roles">{{ t("composite.action_login") }}</a>{% elif item.action == "secrets" %} <a class="text-btn" href="/roles#secrets">{{ t("composite.action_secrets") }}</a>{% endif %}</li>{% endfor %}</ul>
+    <ul class="panel-body checklist">{% for item in dependencies %}<li data-dependency="{{ item.code }}"{% if item.level == "error" %} class="text-danger"{% endif %}><strong>v{{ item.revision }}</strong> {{ item.message }}{% if item.action == "add_domain" and item.source %} <a class="text-btn" href="/domains?{{ {"from-git": "1", "id": item.domain, "url": item.source.url, "directory": item.source.directory, "branch": item.source.get("branch", "")} | urlencode }}">{{ t("composite.action_add_domain_git", domain=item.domain) }}</a>{% elif item.action == "add_domain" %} <a class="text-btn" href="/domains">{{ t("composite.action_add_domain") }}</a>{% elif item.action == "pull" and item.domain %} <a class="text-btn" href="/domains/{{ item.domain }}/sync">{{ t("composite.action_pull", domain=item.domain) }}</a>{% elif item.action == "reload_domain" and item.domain %} <a class="text-btn" href="/domains/{{ item.domain }}">{{ t("composite.action_reload_domain") }}</a>{% elif item.action == "login" %} <a class="text-btn" href="/roles">{{ t("composite.action_login") }}</a>{% elif item.action == "secrets" %} <a class="text-btn" href="/roles#secrets">{{ t("composite.action_secrets") }}</a>{% endif %}</li>{% endfor %}</ul>
     {% else %}<div class="empty">{{ t("composite.no_dependencies") }}</div>{% endif %}
   </section>
   <section class="panel" id="composite-revisions">
@@ -75,11 +75,23 @@
           <td>{{ m.revision_badge(revision) }}{% if revision.problem %} <span class="cell-sub text-danger">{{ t("scene.revision_problem") }}</span>{% endif %}</td>
           <td><code class="mono" title="{{ revision.content_hash }}">{{ revision.content_hash[:12] }}</code></td>
           <td>{{ revision.note or "—" }}</td>
-          <td>{% if revision.verified and not revision.problem and not revision.published %}<button class="text-btn" data-action="publish-composite" data-workflow="{{ workflow.id }}" data-revision="{{ revision.number }}">{{ t("composite.publish") }}</button>{% elif revision.published %}{{ t("composite.published") }}{% else %}—{% endif %}</td>
+          <td>{% if revision.verified and not revision.problem and not revision.published %}<button class="text-btn" data-action="publish-composite" data-workflow="{{ workflow.id }}" data-revision="{{ revision.number }}">{{ t("composite.publish") }}</button>{% elif revision.published %}{{ t("composite.published") }}{% endif %}{% if not revision.problem and not workflow.archived %} <button class="text-btn" data-action="validate-composite" data-workflow="{{ workflow.id }}" data-revision="{{ revision.number }}">{{ t("composite.validate_revision") }}</button>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table></div>
+  </section>
+  <section class="panel" id="composite-settings">
+    <div class="panel-header"><h2>{{ t("composite.settings") }}</h2>{% if workflow.archived %}{{ m.badge("disabled", t("composite.archived")) }}{% endif %}<span class="muted">{{ t("composite.settings_hint") }}</span></div>
+    <form class="panel-body" data-action="composite-settings" data-workflow="{{ workflow.id }}">
+      <div class="field-pair">
+        <label class="field">{{ t("composite.code") }}<input name="code" required maxlength="64" pattern="[a-z0-9][a-z0-9_-]{0,63}" value="{{ workflow.code }}" autocomplete="off" spellcheck="false"></label>
+        <label class="field">{{ t("composite.domain") }}<select name="domainId">{% for item in domains %}<option value="{{ item.id }}"{% if item.id == workflow.domain_id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+      </div>
+      <p class="checklist"><label><input type="checkbox" name="archived"{% if workflow.archived %} checked{% endif %}> {{ t("composite.archive") }}</label></p>
+      <p class="form-error" role="alert"></p>
+      <div class="actions"><button class="button" type="submit">{{ t("composite.settings_save") }}</button></div>
+    </form>
   </section>
   <section class="panel" id="composite-verifications">
     <div class="panel-header"><h2>{{ t("composite.verifications") }} <span class="count">{{ verifications | length }}</span></h2><span class="muted">{{ t("composite.verifications_hint") }}</span></div>

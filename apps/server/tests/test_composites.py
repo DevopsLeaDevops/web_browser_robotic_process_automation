@@ -330,6 +330,66 @@ def test_dependencies_block_a_changed_scene_revision(
     assert error(client.delete("/api/domains/composites"), 409)["code"] == "domain_has_composites"
 
 
+def test_code_domain_and_archive_can_change(
+    app: FastAPI, client: Client, settings: Settings, chain: JsonObject, worker: Worker
+) -> None:
+    """改代號、搬到其他領域、封存（M11 收尾）：資料夾跟著改名或搬走，版本與驗證紀錄都在。"""
+    workflow_id = chain["id"]
+    run_to_end(client, worker, workflow_id, headless=True)  # 留一份驗證紀錄
+    renamed = body(client.patch(f"/api/workflows/{workflow_id}", json={"code": "order-flow"}))
+    assert renamed["code"] == "order-flow"
+    assert not composite_dir(settings, "wf-1").exists()
+    folder = composite_dir(settings, "order-flow")
+    manifest, _ = read_model(folder / "composite.yaml", CompositeManifest)
+    assert manifest is not None
+    assert manifest.id == "order-flow"
+    assert list((folder / "verifications" / "1").glob("*.yaml"))
+
+    moved = body(client.patch(f"/api/workflows/{workflow_id}", json={"domainId": "lab"}))
+    assert moved["domainId"] == "lab"
+    assert not folder.exists()
+    folder = composite_dir(settings, "order-flow", "lab")
+    assert (folder / "revisions" / "1" / "workflow.json").is_file()
+    detail = body(client.get(f"/api/workflows/{workflow_id}"))
+    assert cast("list[JsonObject]", detail["verifications"])  # 驗證紀錄跟著搬
+    lab = read_pack(settings.data_dir / "domains" / "lab", expected_id="lab")
+    assert lab.ok, lab.issues
+    assert list(lab.composites) == ["order-flow"]
+
+    archived = body(client.patch(f"/api/workflows/{workflow_id}", json={"archived": True}))
+    assert archived["archived"] is True
+    manifest, _ = read_model(folder / "composite.yaml", CompositeManifest)
+    assert manifest is not None
+    assert manifest.archived is True
+    refused = client.post(f"/api/workflows/{workflow_id}/runs", json={"headless": True})
+    assert error(refused, 409)["code"] == "workflow_archived"
+    assert "composite.archived" not in client.get("/composites").text
+    assert "已封存" in client.get("/composites").text
+    body(client.patch(f"/api/workflows/{workflow_id}", json={"archived": False}))
+
+    # 重新載入：從資料夾認得新的代號與領域
+    body(client.post("/api/domains/lab/reload"))
+    reloaded = body(client.get(f"/api/workflows/{workflow_id}"))
+    assert (reloaded["code"], reloaded["domainId"]) == ("order-flow", "lab")
+    bad = client.patch(f"/api/workflows/{workflow_id}", json={"code": "壞 代號"})
+    assert error(bad, 422)["code"] == "workflow_code_invalid"
+    other = body(client.post("/api/workflows", json={"name": "另一個", "definition": CHAIN}), 201)
+    taken = client.patch(f"/api/workflows/{other['id']}", json={"code": "order-flow"})
+    assert error(taken, 409)["code"] == "workflow_code_exists"
+    missing = client.patch(f"/api/workflows/{workflow_id}", json={"domainId": "nope"})
+    assert error(missing, 404)["code"] == "domain_not_found"
+
+    # 驗證指定的版本；領域管理頁列出依賴 lab 的組合場景
+    page = client.get(f"/playground/{workflow_id}").text
+    assert 'data-action="validate-composite"' in page
+    assert 'id="composite-settings"' in page
+    dependents = client.get("/domains").text.split("data-dependents")
+    assert len(dependents) == 2  # 只有 lab：被組合場景領域的另一個依賴
+    used = dependents[1].split("</span>")[0]
+    assert other["code"] in used
+    assert "order-flow" not in used  # 在 lab 裡、只用 lab 的場景，不算依賴別的領域
+
+
 def test_reload_picks_up_and_loses_composite_folders(
     app: FastAPI, client: Client, settings: Settings, chain: JsonObject
 ) -> None:

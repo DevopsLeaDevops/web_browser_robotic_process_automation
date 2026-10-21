@@ -697,6 +697,7 @@ class GitSync:
         reload: Callable[[str], object],
         secret_values: Callable[[], Mapping[str, str]],
         operator: Callable[[], str],
+        on_source: Callable[[str], object] = lambda domain_id: None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -710,6 +711,8 @@ class GitSync:
         self._reload = reload
         self._secret_values = secret_values
         self._operator = operator
+        self._on_source = on_source
+        """資料來源設定好之後（依賴這個領域的 pack.yaml 更新 source）。"""
         self.git = _Git(self.root, self.known_hosts)
         self._locks: dict[str, threading.Lock] = {}
         self._locks_guard = threading.Lock()
@@ -783,6 +786,7 @@ class GitSync:
                 self._store_token(domain_id, None)
             if private_key:
                 self._store_private_key(domain_id, private_key)
+        self._on_source(domain_id)
         return self.status(domain_id)
 
     def remove_source(self, domain_id: str) -> None:

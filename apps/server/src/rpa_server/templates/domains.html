@@ -12,7 +12,7 @@
       <tbody>
       {% for domain in domains %}
         <tr data-domain="{{ domain.id }}">
-          <td class="nowrap"><a href="/domains/{{ domain.id }}">{{ domain.name }}</a></td>
+          <td class="nowrap"><a href="/domains/{{ domain.id }}">{{ domain.name }}</a>{% if dependents.get(domain.id) %}<span class="cell-sub" data-dependents>{{ t("domains.used_by", count=dependents[domain.id] | length) }}{% for item in dependents[domain.id] %} <a href="/playground/{{ item.id }}#composite-dependencies" class="mono">{{ item.code }}</a>{% endfor %}</span>{% endif %}</td>
           <td><span class="tag">{{ domain.id }}</span></td>
           <td>{{ domain.description or "—" }}</td>
           <td class="numeric">{{ domain.scene_count }}</td>
