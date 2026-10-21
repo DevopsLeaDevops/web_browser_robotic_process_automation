@@ -208,6 +208,7 @@
           <li><strong>需要登录与重新运行。</strong>对 <code>testsite-user</code> 按「注销」，再运行 BA-004：停在「需要登录」，没有运行任何步骤；点运行页的登录角色回到「登录与凭证」再登录一次，回到运行页按「重新运行」，结果是「通过」。</li>
           <li><strong>自由试验场。</strong>先验证并发布 BA-001、BA-002。创建组合场景，加入一个 BA-001、两个 BA-002 及另一个 BA-001 作为汇合节点；连接「创建 → 两次查询 → 汇合」，让两个查询的 recordId 同名匹配上游，汇合的 title 与 quantity 分别取自两个查询。拖动节点、保存并重载，确认位置保留。运行后四个节点都通过且实际入参相符；反向连接应被拒绝。从场景管理的组合场景卡片打开最近运行，确认报告可追溯。</li>
           <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「场景生产 › 设备」添加 <code>win-01</code>，在另一台电脑用对话框里的邀请启动 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付后改在 App 粘贴；步骤见<a href="../develop/remote-worker.html">远程 worker</a>），设备页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
+          <li><strong>运行回看（M12）。</strong>运行报告的「回看」栏有 ▶ 与视频长度；打开第 3 步的验证：视频可以播放、暂停、拖曳，滑过时间轴有预览，步骤列表跟着视频走，点一步跳到那一步。运行 BA-002 查询不存在的编号（失败）：打开回看就停在失败步骤之前，结束时有「回到失败的步骤」。在 win-01 用有头、无头各运行一次，运行中取消一次：三段视频都能播放与拖曳。在 Mac 录制端 App 里打开同一页也能播放。</li>
         </ol>
         <p>结束后停止管理 Portal，删掉 <code>data-check</code> 文件夹即可；worker 机器上的 <code>worker-data</code> 文件夹也可以删掉。</p>
       </div>
@@ -229,7 +230,9 @@
             <tr><td><code>/scenes/{id}/edit?part=steps</code>、<code>?part=verify</code></td><td>DSL 场景的自动化脚本、断言脚本：只编辑那一段，右侧可插入页面事实、入参与检查</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>验证或运行的表单：入参（JSON，已带入默认值）、浏览器、网址</td></tr>
             <tr><td><code>/runs</code></td><td>运行报告：分类、场景、结果、目的的筛选菜单，每一项都可以复选</td></tr>
-            <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图、运行目录的文件；取消、发布</td></tr>
+            <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图、运行目录的文件；取消、发布；有录像时「回看」</td></tr>
+            <tr><td><code>/replay</code></td><td>运行回看（M12）：还有录像的运行（筛选同运行报告）、录像设置与目前用量</td></tr>
+            <tr><td><code>/runs/{运行编号}/replay</code></td><td>回看一次运行：视频（网址列、目前步骤的标签）、控制列（播放、上一步／下一步、逐格、¼×～2×、全屏幕、快捷键）、缩略图时间轴（滑过预览、拖曳、步骤轨）、步骤列表跟着视频走（点一步跳到那一步；详细有错误、定位器、填入的值、抽到的事实、场景文件原文与行号、「在场景中打开」）、断言、运行信息与钉选；失败的运行打开就停在失败步骤之前 1 秒；同一个场景的上一次、下一次、上一次没通过；组合场景的节点之间切换。<code>?t=秒&amp;step=步骤</code> 打开时跳到那一刻</td></tr>
             <tr><td><code>/roles</code></td><td>登录与凭证：登录角色（登录、检查、注销）、Secrets</td></tr>
             <tr><td><code>/recording</code>、<code>/recordings/{录制编号}</code></td><td>自主脚本录制：在这台电脑录制或粘贴录制稿；最近的录制；录制详情（转不了的行、转换结果、遮罩过的原始录制稿）</td></tr>
             <tr><td><code>/composites</code></td><td>组合场景卡片管理、DAG 缩略图、快捷运行、最近报告、打开画布、删除</td></tr>
