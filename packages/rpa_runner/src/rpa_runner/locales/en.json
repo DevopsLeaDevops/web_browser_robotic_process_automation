@@ -1,4 +1,5 @@
 {
+  "browser.any_frame_scope": "anyFrame searches from the page; it cannot be relative to another element (such as extract fields)",
   "status.passed": "Passed",
   "status.failed": "Failed",
   "status.timed_out": "Timed out",

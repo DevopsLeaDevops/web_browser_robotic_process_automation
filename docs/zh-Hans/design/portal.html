@@ -123,7 +123,7 @@
           <li><strong>Inspector 的代码不能直接改。</strong>Inspector 右侧的代码是 Playwright 依操作实时产生的，只能看、拷贝（Playwright 本身的设计，不是本工程限制）；Locator 分页可以输入并测试定位器。要修改请在转换后到场景的「自动化脚本」「断言脚本」编辑。</li>
           <li><strong>粘贴录制稿。</strong>在别台电脑录好的 codegen 原始稿（同步、异步或 pytest 写法）可以粘贴直接转换，例如 Portal 跑在没有图形界面的电脑时。</li>
           <li><strong>断言变成出参。</strong>Inspector 的「Assert text」「Assert value」（<code>expect(…).to_contain_text</code>、<code>to_have_value</code>、<code>to_have_text</code>）不当成步骤里的检查，而是：自动化脚本多一个 <code>extract</code> 读取那个元素（先等它出现），出参多一项取自这个页面事实，断言脚本（<code>verify:</code>）多一条检查——录到的值等于某个输入的值时检查「等于该入参」，否则检查「有取得内容」。出参名称取自元素的英数名称，之后可以改。</li>
-          <li><strong>转换规则。</strong>goto、click、fill、press、select_option、check 与其他常见的 expect，以及 get_by_role、label、placeholder、text、test_id、CSS、XPath、first、nth、filter(has_text) 等定位器。第一个网址的来源成为 <code>browser.baseUrl</code>。转不了的行（hover、上传、iframe、新分页…）以注释留在草稿里并列在录制详情。</li>
+          <li><strong>转换规则。</strong>goto、click、fill、press、select_option、check 与其他常见的 expect，以及 get_by_role、label、placeholder、text、test_id、CSS、XPath、first、nth、filter(has_text) 等定位器；iframe 里的元素（<code>frame_locator(…)</code>、<code>locator(…).content_frame</code>，可嵌套）转成定位器的 <code>frame</code>，开头不带参数的 <code>frame_locator()</code> 转成 <code>anyFrame</code>；点击 iframe 元素本身的那一步保留，但列为提醒（M7a）。第一个网址的来源成为 <code>browser.baseUrl</code>。转不了的行（hover、上传、新分页…）以注释留在草稿里并列在录制详情。</li>
           <li><strong>自动参数化。</strong>每个输入的值变成一个入参，默认值是录到的值；名称取自字段的英数名称（没有时叫 field、field_2…），字段标签写在说明，之后在场景页的表单改名。</li>
           <li><strong>密码不落地。</strong>密码字段（标签、提示文字或选择器含有 password、密码等字）改成 Secret 引用，原始录制稿也遮罩成 <code>***</code> 才保存；录制中的暂存原始稿转换后就删除。</li>
           <li><strong>只产生草稿。</strong>转换结果存成新场景的 v1，或既有场景的新版本；录制稿只当来源，一样要调试、验证通过才能发布。录制详情列出步骤、入参、出参、断言与转不了的行的数量。</li>

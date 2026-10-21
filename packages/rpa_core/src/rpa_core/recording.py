@@ -7,7 +7,11 @@
   expect 的 to_be_visible、to_contain_text、to_have_text、to_have_value、to_be_checked 等，
   以及 get_by_role／label／placeholder／text／alt_text／title／test_id、locator（CSS、XPath）、
   first／last／nth、filter(has_text=…) 與串接（外層 → within）。
-- 轉不了的行（例如 hover、上傳檔案、iframe、新分頁）以註解留在草稿裡，並列在警告中。
+- iframe 裡的元素：``frame_locator("…")`` 與 ``locator("…").content_frame`` 兩種寫法都轉成定位器的
+  ``frame``（iframe 的定位器）；iframe 裡還有 iframe 時，frame 裡再有 frame。
+  兩層以上的 iframe，codegen 1.63 起常錄成開頭不帶引數的 ``frame_locator()``
+  （在任何一個 iframe 裡找），轉成最外層定位器的 ``anyFrame: true``。
+- 轉不了的行（例如 hover、上傳檔案、新分頁）以註解留在草稿裡，並列在警告中。
 - **自動參數化**：每個 fill 的值變成一個入參，預設值是錄到的值，名稱取自欄位的英數名稱
   （test id、CSS 的 #id 等），沒有英數名稱時依欄位種類叫 text、number…，欄位的標籤寫在入參說明；
   數字欄位（spinbutton）填的是整數時入參是 integer。
@@ -276,8 +280,6 @@ def _strategy(segment: _Segment) -> dict[str, object]:
         if value is None or segment.kwargs or len(segment.args) != 1:
             raise _UnsupportedError("arguments", name=name)
         return _selector(value)
-    if name in ("frame_locator", "content_frame"):
-        raise _UnsupportedError("frame")
     raise _UnsupportedError("method", name=name)
 
 
@@ -307,29 +309,71 @@ def _filter(current: dict[str, object], segment: _Segment) -> list[str]:
     return [catalog("recording.loose_filter", text=text)] if exact else []
 
 
+def _enter_frame(current: dict[str, object], frame: dict[str, object] | None) -> dict[str, object]:
+    """目前的元素是 iframe：之後的元素都在它載入的頁面裡；外層還有 iframe 時記在它的 frame。"""
+    if frame is not None:
+        current["frame"] = frame
+    return current
+
+
+def _mark_any_frame(
+    entered: dict[str, object], frame: dict[str, object] | None, pending: bool
+) -> bool:
+    """進入第一層 iframe 時，把開頭的 ``frame_locator()`` 記在它上面；回傳是否還沒記上。"""
+    if pending and frame is None:
+        entered["anyFrame"] = True
+        return False
+    return pending
+
+
 def _locator(segments: Sequence[_Segment]) -> tuple[dict[str, object], list[str]]:
-    """定位器的呼叫鏈 → (DSL 定位器（camelCase 欄位）, 警告)。"""
+    """定位器的呼叫鏈 → (DSL 定位器（camelCase 欄位）, 警告)。
+
+    ``frame_locator("#a")`` 與 ``locator("#a").content_frame`` 代表進入那個 iframe：
+    之前的鏈成為 iframe 的定位器，之後的鏈在 iframe 裡重新開始，最後放在結果的 ``frame``。
+    開頭不帶引數的 ``frame_locator()`` 代表在頁面與所有 iframe 裡找：
+    最外層的定位器（最先進入的 iframe，沒有 iframe 時就是目標元素）加上 ``anyFrame``。
+    """
     current: dict[str, object] | None = None
+    frame: dict[str, object] | None = None
     notes: list[str] = []
+    any_frame = False
+    head = segments[0] if segments else None
+    if head and head.name == "frame_locator" and head.call and not head.args and not head.kwargs:
+        any_frame, segments = True, segments[1:]
     for segment in segments:
         name = segment.name
+        # frame_locator(…) 之後的 first／last／nth 選的是第幾個 iframe
+        nth_owner = current if current is not None else frame
         if name in ("first", "last") and not segment.call:
-            if current is None or "nth" in current:
+            if nth_owner is None or "nth" in nth_owner:
                 raise _UnsupportedError("chain")
-            current["nth"] = 0 if name == "first" else -1
-        elif name == "content_frame":
-            raise _UnsupportedError("frame")
+            nth_owner["nth"] = 0 if name == "first" else -1
+        elif name == "content_frame" and not segment.call:
+            if current is None:
+                raise _UnsupportedError("chain")
+            any_frame = _mark_any_frame(current, frame, any_frame)
+            frame, current = _enter_frame(current, frame), None
         elif not segment.call:
             raise _UnsupportedError("chain")
         elif name == "nth":
             value = _literal(segment.args[0]) if segment.args else ...
-            if current is None or "nth" in current or type(value) is not int:
+            if nth_owner is None or "nth" in nth_owner or type(value) is not int:
                 raise _UnsupportedError("chain")
-            current["nth"] = value
+            nth_owner["nth"] = value
         elif name == "filter":
             if current is None:
                 raise _UnsupportedError("filter")
             notes += _filter(current, segment)
+        elif name == "frame_locator":
+            value = _string(segment.args[0]) if segment.args else None
+            if value is None or segment.kwargs or len(segment.args) != 1:
+                raise _UnsupportedError("arguments", name=name)
+            found = _selector(value)
+            if current is not None:
+                found["within"] = current
+            any_frame = _mark_any_frame(found, frame, any_frame)
+            frame, current = _enter_frame(found, frame), None
         else:
             found = _strategy(segment)
             if current is not None:
@@ -337,6 +381,10 @@ def _locator(segments: Sequence[_Segment]) -> tuple[dict[str, object], list[str]
             current = found
     if current is None:
         raise _UnsupportedError("chain")
+    if frame is not None:
+        current["frame"] = frame
+    elif any_frame:
+        current["anyFrame"] = True
     return current, notes
 
 
@@ -405,6 +453,8 @@ _ROLE_NAMES: Final = {
 }
 """欄位沒有英數名稱時，依角色取的入參名稱。"""
 _INTEGER: Final = re.compile(r"-?[0-9]{1,15}")
+_FRAME_ELEMENT: Final = re.compile(r"\s*i?frame\b", flags=re.IGNORECASE)
+"""CSS 選擇器指的是 iframe 元素本身（例如 ``iframe[title="…"]``）。"""
 
 
 def _input_name(target: Mapping[str, object], used: set[str]) -> str:
@@ -724,6 +774,10 @@ def _click(
         fields["modifiers"] = cast("list[object]", value)
     if "position" in action.kwargs:
         state.warn(statement, catalog("recording.dropped_position"))
+    css = target.get("css")
+    if isinstance(css, str) and _FRAME_ELEMENT.match(css):
+        # 點的是 iframe 元素本身：執行時點在 iframe 的正中央，不是錄製時的那個欄位或按鈕
+        state.warn(statement, catalog("recording.frame_click", target=css))
     state.add("click", fields, described)
 
 

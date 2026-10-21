@@ -8,6 +8,9 @@
   協定版本不同就拒絕；程式指紋不同只提醒（頁面顯示「版本不同」）。
 - **領取**（claim）：長輪詢；只給這台 worker 能跑的任務（位置是 remote 或 any、瀏覽器有下載、
   有頭模式要能顯示視窗、指定給它的）。領取時設租約，心跳延長。
+- **App 太舊**（M7a）：場景或登入設定用到 worker 沒回報看得懂的 DSL 擴充（``features``，例如
+  iframe 的 ``frame``）時不交給它：位置是 any 而這台伺服器自己會執行時留給本機；否則直接標為失敗，
+  說明要更新 RPA Worker（舊 App 自己只會回「場景檔有問題」）。
 - **租約過期**：背景執行緒每隔幾秒檢查，過期的執行標為失敗「worker 失聯」；**不自動重跑**，
   因為可能已經有副作用。之後 worker 才回報的結果一律 409。
 - **結果**：上傳的執行目錄（zip）解到 data/runs/<執行編號>/；result.json 的內容照本機的規則寫回
@@ -33,6 +36,7 @@ from typing import Any, Final, cast
 from sqlalchemy import CursorResult, delete, or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+from rpa_core.dsl.features import data_features, missing_features, scenario_features
 from rpa_core.i18n import Locale, use_locale
 from rpa_server import __version__
 from rpa_server.domain import (
@@ -60,7 +64,7 @@ from rpa_worker.protocol import (
     unpack_directory,
 )
 
-__all__ = ["ONLINE_SECONDS", "Invitation", "WorkerHub", "hash_token"]
+__all__ = ["ONLINE_SECONDS", "Invitation", "WorkerHub", "hash_token", "reported_names"]
 
 logger = logging.getLogger("rpa_server.dispatch")
 
@@ -77,6 +81,13 @@ def hash_token(token: str) -> str:
 
 def _info(row: RemoteWorker) -> dict[str, object]:
     return dict(row.info or {})
+
+
+def reported_names(value: object) -> tuple[str, ...]:
+    """裝置回報的名稱清單（例如 features）；不是清單時是空的。"""
+    if not isinstance(value, list):
+        return ()
+    return tuple(str(item) for item in cast("list[object]", value))
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +114,7 @@ class WorkerHub:
         *,
         locale: Locale,
         lease_seconds: float = LEASE_SECONDS,
+        local_worker: bool = True,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -110,6 +122,9 @@ class WorkerHub:
         self.roles = roles
         self.locale: Locale = locale
         self.lease_seconds = lease_seconds
+        self.local_worker = local_worker
+        """這台伺服器自己也執行（rpa serve 沒有 --no-local-worker）。"""
+        self._needs: dict[tuple[str, int], frozenset[str]] = {}
         self._condition = threading.Condition()
         self._generation = 0
         self._closing = threading.Event()
@@ -199,6 +214,7 @@ class WorkerHub:
             else (),
             display=info.get("display") is True,
             version=text("version"),
+            features=reported_names(info.get("features")),
         )
 
     def list_workers(self) -> list[WorkerRecord]:
@@ -435,7 +451,17 @@ class WorkerHub:
                 "protocol_mismatch",
                 t("error.worker_protocol", worker=protocol, server=PROTOCOL),
             )
-        keys = ("protocol", "fingerprint", "os", "python", "host", "browsers", "display", "version")
+        keys = (
+            "protocol",
+            "fingerprint",
+            "os",
+            "python",
+            "host",
+            "browsers",
+            "display",
+            "version",
+            "features",
+        )
         with self.sessions() as session:
             row = self._touch(session, worker_id)
             row.info = {key: info.get(key) for key in keys}
@@ -455,9 +481,11 @@ class WorkerHub:
             "leaseSeconds": self.lease_seconds,
         }
 
-    def _capabilities(self, worker_id: str) -> tuple[set[str] | None, bool]:
+    def _capabilities(self, worker_id: str) -> tuple[set[str] | None, bool, object, str]:
+        """瀏覽器、能不能顯示視窗、看得懂的 DSL 擴充（原樣，見 missing_features）、名稱。"""
         with self.sessions() as session:
-            info = _info(self._touch(session, worker_id))
+            row = self._touch(session, worker_id)
+            info, name = _info(row), row.name
             session.commit()
         browsers = info.get("browsers")
         engines = (
@@ -465,7 +493,25 @@ class WorkerHub:
             if isinstance(browsers, list) and browsers
             else None
         )
-        return engines, info.get("display") is not False
+        return engines, info.get("display") is not False, info.get("features"), name
+
+    def _needed(self, run: Run) -> frozenset[str]:
+        """這次執行用到的 DSL 擴充：場景，加上它的登入設定（檢查與自動登入在 worker 上跑）。
+
+        版本不可變，所以依場景與版本快取；登入設定可能改，不快取。
+        """
+        key = (run.scene_id, run.revision_number)
+        scenario = self.queue.scenario(*key)
+        if scenario is None:
+            return frozenset()
+        needed = self._needs.get(key)
+        if needed is None:
+            needed = self._needs[key] = scenario_features(scenario)
+        if scenario.login is not None:
+            login = self.roles.login_settings(scenario.login.role)
+            if login is not None:
+                needed |= data_features(login.to_json())
+        return needed
 
     def claim(
         self, worker_id: str, wait_seconds: float = CLAIM_WAIT_SECONDS
@@ -475,20 +521,37 @@ class WorkerHub:
         while not self._closing.is_set():
             with self._condition:
                 generation = self._generation
-            engines, display = self._capabilities(worker_id)
+            engines, display, features, name = self._capabilities(worker_id)
 
             def accepts(
-                run: Run, engines: set[str] | None = engines, display: bool = display
+                run: Run,
+                engines: set[str] | None = engines,
+                display: bool = display,
+                features: object = features,
             ) -> bool:
                 if not run.headless and not display:
                     return False
-                return engines is None or self.queue.engine_of(run) in engines
+                if engines is not None and self.queue.engine_of(run) not in engines:
+                    return False
+                # App 太舊、而這台伺服器自己會執行：留給本機（領取後才標失敗的只有沒有別處可跑的）
+                return not (
+                    run.target == "any"
+                    and run.required_worker is None
+                    and self.local_worker
+                    and missing_features(self._needed(run), features)
+                )
 
             lease = now() + timedelta(seconds=self.lease_seconds)
             run = self.queue.claim_run(
                 worker_id, ("remote", "any"), accepts=accepts, lease_until=lease
             )
             if run is not None:
+                missing = missing_features(self._needed(run), features)
+                if missing:
+                    with use_locale(self.locale):  # 執行頁的訊息用伺服器的語言
+                        message = t("run.worker_outdated", name=name, features=", ".join(missing))
+                    self.queue.fail_run(run.id, message, worker_id=worker_id)
+                    continue
                 payload = self._payload(run)
                 if payload is not None:
                     self._set_current(worker_id, run.id)

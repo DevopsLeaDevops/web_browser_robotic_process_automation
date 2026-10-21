@@ -5,6 +5,8 @@
 - 登入（M4 的角色與登入狀態）：``/login`` 登入頁、``/account`` 我的帳號（沒登入時轉到登入頁）。
   兩個示範帳號 user（一般使用者）與 manager（主管）看到的待辦不同；``POST /api/login``、
   ``POST /api/logout``；``POST /api/sessions/expire`` 讓所有人的登入失效（測試 needs_login 用）
+- iframe（M7a）：``/frames`` 的表單在 iframe 裡（``/frames/form``），表單裡還有一個 iframe
+  （``/frames/note``，送出前要勾選「我已確認」）；只在瀏覽器裡運作，不寫入資料
 - ``GET /api/about``：回傳 ``{"name": "rpa-testsite"}``，讓 ``rpa serve`` 認出已經在執行的測試網站
 - 預設只綁定 127.0.0.1；``rpa serve --testsite-host 0.0.0.0`` 可以讓其他電腦（錄製端、Worker）
   連到同一個測試網站，資料與登入共用。不連線任何外部系統
@@ -58,6 +60,12 @@ WILDCARD_HOSTS: Final = frozenset({"0.0.0.0", ""})
 NAME: Final = "rpa-testsite"
 PAGE: Final = Path(__file__).with_name("index.html")
 LOGIN_PAGE: Final = Path(__file__).with_name("login.html")
+FRAME_PAGES: Final = {
+    "/frames": Path(__file__).with_name("frames.html"),
+    "/frames/form": Path(__file__).with_name("frames-form.html"),
+    "/frames/note": Path(__file__).with_name("frames-note.html"),
+}
+"""iframe 範例頁（M7a）。"""
 MAX_QUANTITY: Final = 30
 SESSION_COOKIE: Final = "rpa_testsite_session"
 _MAX_BODY: Final = 8192
@@ -208,6 +216,8 @@ def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
                 self._reply(200, LOGIN_PAGE.read_bytes(), "text/html; charset=utf-8")
             elif path == "/account":
                 self._account()
+            elif path in FRAME_PAGES:
+                self._reply(200, FRAME_PAGES[path].read_bytes(), "text/html; charset=utf-8")
             elif path == "/api/about":
                 self._json(200, {"name": NAME})
             elif path.startswith("/api/records/"):

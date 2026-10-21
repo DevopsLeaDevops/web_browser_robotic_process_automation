@@ -7,6 +7,8 @@
   「執行到這一步」只會執行還沒執行過的步驟，不會自動重複任何步驟。
 - 修改 YAML 存成新版本後可以換到新版本繼續（瀏覽器與 facts 保留，執行過的步驟依 id 對應）。
 - 只支援 DSL 場景；Python 腳本場景請用驗證執行。
+- 在錄製端調試時，場景用到錄製端的 App 看不懂的 DSL 擴充（例如 iframe 的 frame，M7a）就不開始，
+  直接說明要更新 RPA 錄製端（見 :meth:`rpa_server.devices.RecorderHub.check`）。
 """
 
 import json
@@ -21,12 +23,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
 from rpa_core.dsl import Scenario, Step
+from rpa_core.dsl.features import scenario_features
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.browser import DEFAULT_STEP_TIMEOUT_MS
 from rpa_runner.commands import module_command
 from rpa_runner.contract import check_inputs
 from rpa_runner.run import ENV_STORAGE_STATE
+from rpa_server.context import Via
 from rpa_server.domain import now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
@@ -248,7 +252,9 @@ class DebugManager:
             raise invalid("engine_invalid", t("error.role_engine_invalid", engine=engine))
         launcher = self.launcher
         if via is not None and self.hosts is not None:
-            self.hosts.check(via, engine=engine, headed=not headless)
+            self.hosts.check(
+                via, engine=engine, headed=not headless, features=scenario_features(scenario)
+            )
             launcher = self.hosts.launcher(via)
         if inputs is None:
             inputs = {n: s.default for n, s in scenario.inputs.items() if s.default is not None}
@@ -479,6 +485,11 @@ class DebugManager:
         scenario = self.services.revision_scenario(session.scene_id, revision)
         if scenario.script is not None:
             raise invalid("debug_script", t("error.debug_script"))
+        if session.device is not None and self.hosts is not None:
+            via = self.hosts.current()
+            if via is None or via.id != session.device:
+                via = Via(session.device, session.device)
+            self.hosts.check(via, headed=False, features=scenario_features(scenario))
         files = self.services.revision_files(session.scene_id, revision)
         path = session.folder / f"scenario-{revision}.yaml"
         path.write_text(files[SCENARIO_FILE], encoding="utf-8")

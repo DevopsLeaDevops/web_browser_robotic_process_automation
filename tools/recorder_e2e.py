@@ -18,6 +18,9 @@ CI 的桌面端建置在 macOS 建好 RPA 錄製端、跑完自我測試之後�
    ``--no-window`` 少的只是 App 的視窗）：工作階段在錄製端、執行第一步通過、截圖傳回管理 Portal
    再經由閘道拿得到；結束後錄製端的暫存資料夾清空。
    調試中檢查程序：無頭時只有 headless shell（或帶 ``--headless``），有頭時有一般的 Chromium。
+   再逐步調試 iframe 的範例（M7a，``scenarios/examples/iframe-form.yaml``，無頭）：打包版回報看得懂
+   ``frame``、``anyFrame``，每一步都通過（打包版自己的測試網站 ``/frames``，巢狀 iframe），
+   最後抽到送出後的狀態；定位器測試用 ``anyFrame`` 找到內層 iframe 的勾選框。
 7. 在資料夾寫 ``stop.request`` 請打包版結束（結束碼 0），網址檔刪掉；等管理 Portal 判定離線
    （30 秒沒消息），下一步看到的「上線」才是新啟動的那份。
 8. 不給邀請再啟動一次（用鑰匙圈裡存下的配對），上線後送 SIGTERM，結束碼 0；最後結束管理 Portal。
@@ -42,10 +45,13 @@ from typing import IO, Final, cast
 from urllib.parse import parse_qs, urlsplit
 
 from desktop_e2e import (
+    IFRAME_EXAMPLE,
+    IFRAME_STATUS,
     ROOT,
     Api,
     JsonObject,
     StepFailedError,
+    create_scene,
     free_port,
     stop_process,
     tail,
@@ -310,6 +316,56 @@ def run(app: Path, folder: Path) -> JsonObject:
         mode = "無頭" if headless else "有頭（瀏覽器視窗開在這台）"
         return f"{mode}：第一步通過，截圖 {len(image)} bytes；瀏覽器 {seen}"
 
+    def debug_iframe() -> str:
+        """M7a：iframe 的場景在打包版逐步調試到最後一步；定位器測試 anyFrame。"""
+        record = api.call("GET", f"/api/recorders/{DEVICE}")
+        features = record.get("features")
+        if not isinstance(features, list) or not {"frame", "anyFrame"} <= set(
+            cast("list[object]", features)
+        ):
+            raise StepFailedError(f"打包版沒有回報看得懂 frame、anyFrame：features={features}")
+        revision = create_scene(api, "iframe-form", IFRAME_EXAMPLE)
+        gateway = cast("Gateway", state["gateway"])
+        payload = {"engine": "chromium", "headless": True, "restart": True, "revision": revision}
+        session = gateway.json("POST", "/api/scenes/iframe-form/debug", payload)
+        session_id = str(session.get("id"))
+        if session.get("deviceId") != DEVICE:
+            raise StepFailedError(f"調試沒有交給錄製端（deviceId {session.get('deviceId')}）")
+
+        def settled() -> JsonObject | None:
+            current = gateway.json("GET", f"/api/debug/{session_id}")
+            return current if current.get("status") in ("ready", "failed") else None
+
+        ready = wait_until("調試的瀏覽器啟動", settled, 180)
+        if ready.get("status") != "ready":
+            raise StepFailedError(f"調試沒有啟動：{ready.get('message')}")
+        count = len(cast("list[object]", ready.get("steps") or []))
+        result: JsonObject = ready
+        for index in range(count):
+            result = gateway.json("POST", f"/api/debug/{session_id}/steps/{index}")
+            item = cast("list[JsonObject]", result.get("steps") or [])[index]
+            if item.get("status") != "passed":
+                raise StepFailedError(
+                    f"第 {index + 1} 步（{item.get('id')}）沒有通過：{item.get('error')}"
+                )
+        facts = cast("JsonObject", result.get("facts") or {})
+        if facts.get("status") != IFRAME_STATUS:
+            raise StepFailedError(f"抽到的狀態是 {facts}，應該是「{IFRAME_STATUS}」")
+        locator = {"label": "我已確認", "anyFrame": True}
+        located = gateway.json("POST", f"/api/debug/{session_id}/locate", {"locator": locator})
+        found = cast("JsonObject", located.get("located") or {})
+        if found.get("count") != 1:
+            raise StepFailedError(f"anyFrame 的定位器測試找到 {found.get('count')} 個：{found}")
+        gateway.json("DELETE", f"/api/debug/{session_id}")
+
+        def cleaned() -> JsonObject | None:
+            idle = api.call("GET", f"/api/recorders/{DEVICE}").get("status") == "online"
+            left = list((home / "sessions").glob("rpa-*")) if (home / "sessions").exists() else []
+            return {} if idle and not left else None
+
+        wait_until("錄製端的子程序結束、暫存資料夾刪掉", cleaned, 60)
+        return f"{count} 步都通過，{facts.get('status')}；anyFrame 找到 1 個"
+
     def restart() -> str:
         """再啟動一次（不給邀請：用鑰匙圈裡存下的配對），用 SIGTERM 結束（Ctrl+C 同理）。"""
         launch(invite=False)
@@ -353,6 +409,7 @@ def run(app: Path, folder: Path) -> JsonObject:
         ("gateway", through_gateway),
         ("debug-headless", lambda: debug(True)),
         ("debug-headed", lambda: debug(False)),
+        ("debug-iframe", debug_iframe),
         ("stop", stop),
         ("restart", restart),
     ]

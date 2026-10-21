@@ -63,7 +63,8 @@
             <tr><td>目標系統只能從內網存取</td><td>平台與 worker 都部署在內網；worker 必須能直連目標系統</td><td>M9</td></tr>
             <tr><td>每次執行都要登入</td><td>每個角色保存並重用自己的登入狀態（Playwright storage state），減少登入次數、降低帳號鎖定的風險；登入失效時回報 needs_login，引導人工重新登入後續跑</td><td>M4</td></tr>
             <tr><td>老系統缺少語意化標籤</td><td>定位器更依賴 css、xpath 與文字；錄製器避開自動生成的 id，產出穩定的選擇器</td><td>M1、M4</td></tr>
-            <tr><td>iframe、彈出視窗、多分頁</td><td>DSL 提供切換 frame 與分頁的步驟，定位器可指定所在 frame</td><td>M7</td></tr>
+            <tr><td>iframe</td><td>定位器以 <code>frame</code> 指定元素所在的 iframe（可巢狀），見 <a href="dsl.html#locators">DSL</a></td><td>M7a</td></tr>
+            <tr><td>彈出視窗、多分頁</td><td>DSL 提供切換分頁的步驟</td><td>M7</td></tr>
             <tr><td>檔案上傳與下載</td><td>upload、download 動作；下載檔作為產物保存</td><td>M7</td></tr>
             <tr><td>表格資料抽取</td><td>extract 支援表格轉成結構化資料</td><td>M1</td></tr>
             <tr><td>自簽憑證</td><td>場景層級可設定忽略 HTTPS 錯誤，預設關閉並在審核時標示</td><td>M2</td></tr>
@@ -73,7 +74,7 @@
       </div>
     </section>
 
-    <div class="notice">MVP 是單機：錄製與調試在執行平台的同一台電腦上開啟有畫面的隔離瀏覽器（M4）。多用戶部署之後（M8 起）再考慮遠端瀏覽器畫面串流或瀏覽器擴充功能。測試網站（M2）先沿用 MVP 原型的本機測試頁，之後擴充成典型內部系統：登入、選單、iframe、表格與檔案下載。</div>
+    <div class="notice">MVP 是單機：錄製與調試在執行平台的同一台電腦上開啟有畫面的隔離瀏覽器（M4）。多用戶部署之後（M8 起）再考慮遠端瀏覽器畫面串流或瀏覽器擴充功能。測試網站（M2）先沿用 MVP 原型的本機測試頁，之後擴充成典型內部系統：登入、選單、iframe（M7a 的 <code>/frames</code>）、表格與檔案下載。</div>
   </div>
 </main>
 </body>
