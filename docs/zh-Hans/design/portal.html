@@ -167,6 +167,7 @@
         <li><strong>代号、领域与版本（M11 PR 2）。</strong>组合场景有英数代号（没填就是 <code>wf-&lt;数字&gt;</code>，所有领域不能重复），放在某个领域文件夹的 <code>composites/&lt;代号&gt;/</code>，没选领域就放「组合场景」领域。改定义的每次保存都是新版本（<code>revisions/&lt;版本&gt;/workflow.json</code>，唯读），版本说明档钉住每个节点用到的场景版本（领域、场景、版本、哈希）；改名称与说明只改 <code>composite.yaml</code>，不分版本。用到其他领域时写进 <code>pack.yaml</code> 的 <code>requires</code>。</li>
         <li><strong>验证、发布与运行（M11 PR 2）。</strong>运行时选目的：「验证」跑某个版本（默认最新），结束时写验证记录（每个节点的场景、版本、哈希、状态与运行编号）；「运行」只跑发布的版本，不写验证记录。发布要有哈希相符的通过验证记录，而且每个节点跑的都是钉住的场景版本、那些场景版本现在还在且哈希相同；发布写进 <code>composite.yaml</code>。每次运行在 <code>workflow-runs/&lt;运行编号&gt;/run.json</code> 记下定义快照、版本、目的与每个节点的状态。</li>
         <li><strong>依赖检查（M11 PR 2）。</strong>组合场景页列出最新版本与发布版本的依赖问题并给补全方式：没有那个领域（添加领域）、场景或版本不在、版本不能运行（重新加载领域）、哈希不符或没钉住（重新保存）是错误，不能运行与发布；角色没登录、缺少 Secrets 是提醒。卡片显示「依赖不完整」或「依赖有提醒」。有组合场景的领域不能删除。<code>rpa pack check</code> 一次给多个文件夹时也检查它们之间的依赖。</li>
+        <li><strong>补全依赖与管理（M11 收尾）。</strong>领域接上 git 后，依赖它的领域的 <code>pack.yaml</code> 在 <code>requires</code> 记下 <code>source</code>（仓库、目录、分支，不含帐密）；别人缺这个领域时，依赖提示的「从 git 添加」带着它预填；领域有数据源但缺场景或版本时提示「拉取」。领域管理页列出每个领域被哪些组合场景依赖。组合场景页可以改代号、搬到其他领域（文件夹连同版本与验证记录改名或搬走）、封存（不能运行），也可以验证指定的旧版本。</li>
         <li><strong>保存与预检。</strong>草稿可带待修正的问题保存；保存携带 <code>baseVersion</code>，版本冲突回 409，页面保留草稿供导出。运行前检查全图、已发布固定版本、字段、类型、必填值及固定值规则；有问题时第一个节点也不排入队列。问题清单与运行阻挡对话框显示节点、场景、入参及具体原因，点击可定位到画布节点或入参字段；字段同步标红。「运行前检查」可手动检查，卡片运行也重新取得最新问题。添加场景时不自动创建与前一节点的连接。</li>
         <li><strong>分叉与汇合。</strong>拓扑排序保证所有上游都通过才运行下游；就绪节点以定义中的顺序稳定选取，逐个排入既有队列。每个节点有自己的真实运行、入参、成功出参与报告。下游运行前再检查实际值，不符合规则就停止，不回退到默认值。</li>
         <li><strong>快照与恢复。</strong>开始时固定编排、场景版本及同名匹配的具体来源，后续编辑不影响已开始的运行。失败、超时、取消、需要登录或 worker 失联皆停止全图；续跑沿用拓扑顺序中已通过的结果，不重复已成功的外部操作。所有节点沿用同一台 worker；取消不回滚外部动作。</li>
@@ -286,6 +287,7 @@
             <tr><td><code>POST /api/workflows/check</code></td><td>检查一份定义（不保存），回传 <code>problems</code></td></tr>
             <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{串行}</code></td><td>串行与最近的运行、版本、验证记录、依赖问题；保存（<code>baseVersion</code> 是最新的版本号码、<code>name</code>、<code>description</code>、<code>definition</code>；不是最新版本就 409，定义改了才是新版本）；删除（运行中不能删，连同文件夹）</td></tr>
             <tr><td><code>POST /api/workflows/{串行}/revisions/{n}/publish</code></td><td>发布组合场景的版本（M11 PR 2）；没有哈希相符的通过验证记录 409 <code>workflow_not_validated</code>，依赖不完整 409 <code>workflow_dependencies</code></td></tr>
+            <tr><td><code>PATCH /api/workflows/{串行}</code></td><td>改代号（<code>code</code>）、搬到其他领域（<code>domainId</code>）、封存（<code>archived</code>）；运行中不能改代号或搬，代号重复 409</td></tr>
             <tr><td><code>POST /api/workflows/{串行}/runs</code></td><td>运行串行（<code>engine</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>；<code>purpose</code> 是 <code>validation</code> 或 <code>execution</code>，验证时可带 <code>revision</code>；还没发布就运行 409 <code>workflow_unpublished</code>）；有问题（含依赖错误）时 422 并列出 <code>problems</code>；202 回串行的运行</td></tr>
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{串行运行}</code></td><td>串行运行清单（可用 <code>workflow</code> 筛选）；单次的状态与每个节点（状态、入参的来源、那次运行）</td></tr>
             <tr><td><code>POST /api/workflow-runs/{串行运行}/cancel</code>、<code>…/rerun</code></td><td>取消；再运行一次（<code>resume: true</code> 从停下的节点继续，否则从头）</td></tr>
@@ -312,6 +314,7 @@
             <dt><code>domains/<wbr>&lt;领域&gt;/</code></dt><dd>领域文件夹（M11）：<code>pack.yaml</code>；<code>scenes/&lt;场景&gt;/</code> 里的 <code>scene.yaml</code>、<code>revisions/&lt;版本&gt;/</code>（scenario.yaml，脚本场景另有两支脚本）与版本说明档 <code>revisions/&lt;版本&gt;.yaml</code>、验证记录 <code>verifications/&lt;版本&gt;/</code>；角色定义 <code>roles/&lt;角色&gt;.yaml</code>；组合场景 <code>composites/&lt;代号&gt;/</code>（<code>composite.yaml</code>、<code>revisions/&lt;版本&gt;/workflow.json</code> 与版本说明档、验证记录）。格式见 <code>rpa_core.pack</code></dd>
             <dt><code>runs/<wbr>&lt;运行编号&gt;/</code></dt><dd>M2 的运行目录（input.json、report.html…）；<code>run.json</code> 记下服务器、领域、场景、版本、哈希、时间与每个文件的 sha256</dd>
             <dt><code>workflow-runs/<wbr>&lt;运行编号&gt;/</code></dt><dd>组合场景的运行（M11 PR 2）：<code>run.json</code> 记下定义快照、版本、目的、每个节点的状态与运行编号</dd>
+            <dt><code>work/<wbr>&lt;运行编号&gt;/</code></dt><dd>本机运行中的版本文件快照（M11 收尾）：开始时从领域文件夹拷贝，运行中拉取或重新加载不影响；结束就删，服务器启动时清空</dd>
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登录状态（只有本人能读写）</dd>
             <dt><code>recordings/<wbr>&lt;录制编号&gt;/</code></dt><dd>遮罩过的原始录制稿与转换结果</dd>
             <dt><code>debug/<wbr>&lt;工作阶段&gt;/</code></dt><dd>调试的截图（工作阶段结束就删除）</dd>
