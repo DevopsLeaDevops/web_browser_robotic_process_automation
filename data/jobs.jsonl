@@ -918,3 +918,13 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 1845.0, "job": "完整測試（ubuntu-latest，Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 39673814013, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "success", "duration_s": 2435.0, "job": "完整測試（windows-latest，Python 3.13）", "os": "windows", "queue_s": 2.0, "run_id": 39673814013, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39673814013, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 6.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 221.0, "job": "從零開始（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "專案內執行（macos-latest）", "os": "macos", "queue_s": 0.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 1204.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 2.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "從零開始（macos-latest）", "os": "macos", "queue_s": 0.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 709.0, "job": "專案內執行（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 150.0, "job": "Linux 伺服器（Rocky 8，in-repo）", "os": "linux", "queue_s": 3.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 301.0, "job": "從零開始（windows-latest）", "os": "windows", "queue_s": 2.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 84.0, "job": "Linux 伺服器（Rocky 8，from-scratch）", "os": "linux", "queue_s": 2.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39676733530, "workflow": "一鍵安裝腳本"}
