@@ -36,18 +36,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final, Literal, cast
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.pack import (
+    COMPOSITE_FILE,
     COMPOSITES_DIR,
     PACK_FILE,
     REVISIONS_DIR,
     ROLES_DIR,
+    SCENE_FILE,
     SCENES_DIR,
     VERIFICATIONS_DIR,
     CompositeEntry,
+    CompositeManifest,
+    CompositeRevisionInfo,
     PackManifest,
+    RevisionInfo,
+    SceneManifest,
     is_sensitive,
     read_model,
     read_pack,
@@ -1170,6 +1177,77 @@ class GitSync:
             self.git.run(repo, *args, data=message.encode("utf-8"), env=identity).decode().strip()
         )
 
+    def _settle(
+        self, repo: Path, base: Files, local: Files, theirs: Files, result: _Merge
+    ) -> _Merge:
+        """把「其實是同一件事」的衝突改成用遠端的那份，其餘照舊是衝突。
+
+        兩台各自從同一批範例建立的領域（全新的資料夾會自動匯入範例），版本內容一樣，只有說明檔
+        記的建立時間、伺服器不同；不能因此在第一次拉取就衝突。
+
+        - 版本說明檔（``revisions/<n>.yaml``）：雜湊相同就是同一個版本。
+        - ``scene.yaml``、``composite.yaml``：本機沒有發布，其他欄位和遠端相同（遠端多了發布）。
+        - ``pack.yaml``：第一次接上遠端時代號相同（名稱與說明以遠端為準）。
+        """
+        if not result.conflicts:
+            return result
+        remaining: list[str] = []
+        for path in result.conflicts:
+            mine, other = local.get(path), theirs.get(path)
+            if mine is not None and other is not None and self._same(repo, path, mine, other, base):
+                result.files[path] = other
+            else:
+                remaining.append(path)
+        result.conflicts = remaining
+        return result
+
+    def _same(self, repo: Path, path: str, mine: str, other: str, base: Files) -> bool:
+        parts = path.split("/")
+        revision_info = (
+            parts[0] in (SCENES_DIR, COMPOSITES_DIR)
+            and len(parts) == 4
+            and parts[2] == REVISIONS_DIR
+            and parts[3].endswith(".yaml")
+            and parts[3].removesuffix(".yaml").isdigit()
+        )
+        if revision_info:
+            model = CompositeRevisionInfo if parts[0] == COMPOSITES_DIR else RevisionInfo
+            first, second = self._manifests(repo, model, mine, other)
+            return first is not None and second is not None and first.hash == second.hash
+        if parts[0] == SCENES_DIR and len(parts) == 3 and parts[2] == SCENE_FILE:
+            scene, remote = self._manifests(repo, SceneManifest, mine, other)
+            return (
+                scene is not None
+                and remote is not None
+                and scene.published is None
+                and scene == remote.model_copy(update={"published": None})
+            )
+        if parts[0] == COMPOSITES_DIR and len(parts) == 3 and parts[2] == COMPOSITE_FILE:
+            composite, remote = self._manifests(repo, CompositeManifest, mine, other)
+            return (
+                composite is not None
+                and remote is not None
+                and composite.published is None
+                and composite == remote.model_copy(update={"published": None})
+            )
+        if path == PACK_FILE and not base:
+            pack, remote = self._manifests(repo, PackManifest, mine, other)
+            return pack is not None and remote is not None and pack.id == remote.id
+        return False
+
+    def _manifests[M: BaseModel](
+        self, repo: Path, model: type[M], *shas: str
+    ) -> tuple[M | None, ...]:
+        """讀出幾個 blob 的說明檔（格式不對的是 None）。"""
+        contents = self._blobs(repo, shas)
+        found: list[M | None] = []
+        with tempfile.TemporaryDirectory(dir=self._tmp()) as temporary:
+            for index, sha in enumerate(shas):
+                path = Path(temporary) / f"{index}.yaml"
+                path.write_bytes(contents[sha])
+                found.append(read_model(path, model)[0])
+        return tuple(found)
+
     def _push(self, repo: Path, commit: str, branch: str, credentials: _Credentials) -> None:
         self.git.run(
             repo, "push", "-q", "origin", f"{commit}:refs/heads/{branch}", credentials=credentials
@@ -1384,7 +1462,7 @@ class GitSync:
         if prefer_remote or fresh:
             result = _Merge(files=dict(theirs))
         else:
-            result = merge(base, local, theirs)
+            result = self._settle(repo, base, local, theirs, merge(base, local, theirs))
         if result.conflicts:
             self._save_sync(
                 domain_id, state="conflict", **{**common, "conflicts": result.conflicts}
@@ -1590,7 +1668,7 @@ class GitSync:
         base = self._tree(repo, synced, source.directory) if self._has_commit(repo, synced) else {}
         theirs = self._tree(repo, remote.commit, source.directory)
         local = self._folder(folder, repo, write=True)
-        result = merge(base, local, theirs)
+        result = self._settle(repo, base, local, theirs, merge(base, local, theirs))
         moment = now().isoformat(timespec="seconds")
         common: dict[str, object] = {"branch": remote.branch, "checkedAt": moment, "error": None}
         if result.conflicts:

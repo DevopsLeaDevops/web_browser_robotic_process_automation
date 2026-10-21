@@ -247,6 +247,32 @@ def test_records_and_revisions_travel_between_servers(
     assert body(client.post("/api/domains/lab/sync/pull"))["state"] == "synced"
 
 
+def test_examples_seeded_on_both_servers_do_not_conflict(
+    app: FastAPI, client: Client, tmp_path: Path, remote: Path
+) -> None:
+    """全新的資料夾都會自動匯入範例：內容一樣、版本說明檔的時間與伺服器不同，第一次拉取不算衝突。"""
+    services(app).seed_examples_domain()
+    source = {"url": str(remote), "directory": "testsite"}
+    body(client.put("/api/domains/testsite/source", json=source))
+    body(client.post("/api/domains/testsite/sync/push", json={}))
+
+    with second_server(tmp_path) as (other_app, other):
+        services(other_app).seed_examples_domain()
+        folder = tmp_path / "second" / "domains" / "testsite"
+        info = folder / "scenes" / "ba-001" / "revisions" / "1.yaml"
+        remote_info = git(
+            "--git-dir", str(remote), "show", "main:testsite/scenes/ba-001/revisions/1.yaml"
+        )
+        assert info.read_text(encoding="utf-8") != remote_info  # 各自建立的說明檔
+        body(other.put("/api/domains/testsite/source", json=source))
+        pulled = body(other.post("/api/domains/testsite/sync/pull"))
+        assert pulled["state"] == "synced"
+        assert pulled["conflicts"] == []
+        assert pulled["changes"] == []
+        assert info.read_text(encoding="utf-8") == remote_info  # 換成遠端那份
+        assert latest_revision(other, "ba-001") == 1
+
+
 def test_conflict_stops_and_offers_three_choices(
     client: Client, settings: Settings, tmp_path: Path, remote: Path, lab: str
 ) -> None:
