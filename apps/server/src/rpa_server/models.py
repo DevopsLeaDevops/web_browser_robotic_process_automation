@@ -13,6 +13,7 @@ M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資�
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Float,
     ForeignKey,
@@ -153,6 +154,15 @@ class Run(Base):
     """實際由哪台 worker 執行；local 代表本機。worker 刪除後紀錄仍保留，所以不設外鍵。"""
     lease_until: Mapped[datetime | None] = mapped_column(UtcDateTime())
     """遠端 worker 的租約：過了這個時間還沒報到，執行標為「worker 失聯」。"""
+    video_seconds: Mapped[float | None] = mapped_column(Float)
+    """錄影的長度（M12）；沒有錄影時是 None。影片在執行目錄的 video.webm。"""
+    video_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    video_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """釘選：不依保留規則刪除錄影。"""
+    video_deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    """錄影被刪除的時間；運行紀錄本身留著。"""
+    video_deleted_reason: Mapped[str | None] = mapped_column(String(20))
+    """刪除的原因：expired（超過保留天數）、quota（超過總量上限）。"""
 
 
 class Role(Base):

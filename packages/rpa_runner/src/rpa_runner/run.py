@@ -9,6 +9,8 @@
 - 只有每個階段都通過，才寫出 output.json；任何失敗都沒有成功出參。
 - 每次執行一個目錄（見 files.py），最後一定寫出 result.json 與 report.html。
 - 可以從別的執行緒取消（``cancel``，例如管理介面的 worker）：立即終止程序群組，狀態為 cancelled。
+- ``record_video`` 時 DSL 場景的自動化階段錄影（M12，見 video.py）：終止時留下錄影的 ffmpeg
+  把影片寫完（:func:`_stop_gracefully`），結束後整理成 video.webm 與 video.json。
 """
 
 import contextlib
@@ -61,8 +63,10 @@ from rpa_runner.files import (
 from rpa_runner.i18n import t
 from rpa_runner.installed import missing_browser_hint
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
+from rpa_runner.proctree import descendants, terminate, wait_exit
 from rpa_runner.report import render_report
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
+from rpa_runner.video import finalize as finalize_video
 
 # scenario_digest、scenario_sources 在 rpa-core（領域資料夾的校驗也要用，M11），這裡照舊匯出
 __all__ = [
@@ -82,6 +86,10 @@ DEFAULT_DEADLINE_MS: Final = 120_000
 """場景沒有寫 deadline 時的總期限。"""
 _GRACE_SECONDS: Final = 3.0
 """子程序在總期限後還有這麼多秒可以寫診斷與截圖，之後就被終止。"""
+_VIDEO_GRACE_SECONDS: Final = 6.0
+"""錄影時的收尾時間（多了關 context、把影片寫完）。"""
+_GRACEFUL_STOP_SECONDS: Final = 8.0
+"""Windows 上錄影時被終止：最多等錄影的 ffmpeg 這麼久把影片寫完。"""
 _EXIT_DEADLINE: Final = 3
 _POLL_SECONDS: Final = 0.2
 """等待子程序時，每隔這麼久檢查一次是否被取消。"""
@@ -199,8 +207,11 @@ class _StageFailedError(Exception):
         self.message: str = message
 
 
-def _stop(process: subprocess.Popen[bytes]) -> None:
-    """終止子程序與它開出的瀏覽器（整個程序群組）。"""
+def _stop(process: subprocess.Popen[bytes], *, graceful: bool = False) -> None:
+    """終止子程序與它開出的瀏覽器（整個程序群組）；``graceful`` 時見 :func:`_stop_gracefully`。"""
+    if graceful:
+        _stop_gracefully(process)
+        return
     if os.name == "nt":  # pragma: no cover - Windows 在 CI 的安裝腳本測試涵蓋
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(process.pid)],
@@ -214,6 +225,40 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
         with contextlib.suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
     process.wait(timeout=10)
+
+
+def _stop_gracefully(process: subprocess.Popen[bytes]) -> None:
+    """錄影時的終止：結束子程序與瀏覽器，但讓錄影的 ffmpeg 把影片寫完。
+
+    其他系統和平常一樣終止程序群組就好：Playwright 把瀏覽器與 ffmpeg 放在自己的程序群組，
+    不會被一起結束；ffmpeg 發現輸入斷了就自己收尾。Windows 見 :func:`_stop_keeping_ffmpeg`。
+    """
+    if os.name == "nt":  # pragma: no cover - Windows 在 CI 的 Worker 測試涵蓋
+        _stop_keeping_ffmpeg(process)
+    else:
+        _stop(process)
+
+
+def _stop_keeping_ffmpeg(process: subprocess.Popen[bytes]) -> None:  # pragma: no cover - Windows
+    """Windows：``taskkill /T`` 會連 ffmpeg 一起結束，影片沒有長度、最後幾秒也沒寫進去。
+
+    先列出子孫（父程序結束後就找不到了），結束 ffmpeg 以外的全部；ffmpeg 輸入斷了會自己收尾，
+    最多等一陣子，還沒結束才結束它。列不出子孫時照平常的方式終止。
+    """
+    try:
+        tree = descendants(process.pid)
+    except OSError:
+        _stop(process)
+        return
+    keep = [item.pid for item in tree if item.name.lower().startswith("ffmpeg")]
+    with contextlib.suppress(OSError):
+        process.kill()
+    for item in tree:
+        if item.pid not in keep:
+            terminate(item.pid)
+    process.wait(timeout=10)
+    for pid in wait_exit(keep, _GRACEFUL_STOP_SECONDS):
+        terminate(pid)
 
 
 def _remove_leftover(path: Path, *, attempts: int = 30, delay: float = 0.1) -> None:
@@ -238,7 +283,13 @@ def _check_cancelled(cancel: threading.Event | None) -> None:
         raise _StageFailedError("cancelled", t("run.cancelled"))
 
 
-def _wait(process: subprocess.Popen[bytes], seconds: float, cancel: threading.Event | None) -> int:
+def _wait(
+    process: subprocess.Popen[bytes],
+    seconds: float,
+    cancel: threading.Event | None,
+    *,
+    graceful: bool = False,
+) -> int:
     """等子程序結束；超過 seconds 或被取消時終止整個程序群組。"""
     end = time.monotonic() + seconds
     while True:
@@ -247,10 +298,10 @@ def _wait(process: subprocess.Popen[bytes], seconds: float, cancel: threading.Ev
             return process.wait(timeout=max(0.0, min(_POLL_SECONDS, left)))
         except subprocess.TimeoutExpired:
             if cancel is not None and cancel.is_set():
-                _stop(process)
+                _stop(process, graceful=graceful)
                 raise _StageFailedError("cancelled", t("run.cancelled")) from None
             if left <= 0:
-                _stop(process)
+                _stop(process, graceful=graceful)
                 raise _StageFailedError("timed_out", t("run.deadline_killed")) from None
 
 
@@ -271,8 +322,13 @@ def _run_process(
     env: Mapping[str, str],
     cancel: threading.Event | None = None,
     special: Mapping[int, _StageFailedError] | None = None,
+    *,
+    video: bool = False,
 ) -> None:
-    """執行子程序直到結束；``special`` 是有特別意義的結束碼（例如需要登入）。"""
+    """執行子程序直到結束；``special`` 是有特別意義的結束碼（例如需要登入）。
+
+    ``video`` 時子程序在錄影：收尾時間長一點，終止時先讓 Playwright 把錄影寫完。
+    """
     _check_cancelled(cancel)
     remaining = deadline.remaining_ms() / 1000
     if remaining <= 0:
@@ -286,12 +342,13 @@ def _run_process(
             start_new_session=os.name != "nt",
             creationflags=no_window_flags(),
         )
+        grace = _VIDEO_GRACE_SECONDS if video else _GRACE_SECONDS
         try:
-            code = _wait(process, remaining + _GRACE_SECONDS, cancel)
+            code = _wait(process, remaining + grace, cancel, graceful=video)
         except _StageFailedError:
             raise
         except BaseException:
-            _stop(process)
+            _stop(process, graceful=video)
             raise
     if code == _EXIT_DEADLINE:
         raise _StageFailedError("timed_out", t("run.deadline_in_stage"))
@@ -361,6 +418,7 @@ def execute(
     on_stage: Callable[[StageName], None] | None = None,
     login: LoginSettings | None = None,
     secrets: Mapping[str, str] | None = None,
+    record_video: bool = False,
 ) -> RunResult:
     """執行場景檔，回傳結果；場景本身沒通過校驗時拋出 ScenarioInvalidError。
 
@@ -369,6 +427,7 @@ def execute(
     - ``on_stage``：每個階段開始時呼叫，用來回報進度。
     - ``login``：場景有 login 時，這個角色的登入設定（管理 Portal 登記的角色）。
     - ``secrets``：Secrets 的值（例如管理 Portal 保存的）；沒有的再從同名的環境變數找。
+    - ``record_video``：自動化階段錄影（M12；只有 DSL 場景，Python 腳本場景不錄）。
     """
     validated = validate_file(path)
     if validated.scenario is None:
@@ -403,6 +462,7 @@ def execute(
         name: environ[name] for name in (login.secrets if login else ()) if name in environ
     }
     secrets = read_secrets(scenario, environ)
+    video = record_video and scenario.script is None
     deadline = Deadline.after((deadline_ms or scenario.deadline or DEFAULT_DEADLINE_MS) / 1000)
     current: Stage = result.stage("input")
 
@@ -441,6 +501,7 @@ def execute(
             cancel,
             result,
             state,
+            video=video,
         )
         enter("verify")
         _verify_stage(scenario, snapshot, folder, deadline, secrets, cancel, result)
@@ -464,6 +525,8 @@ def execute(
         result.status = "cancelled"
         result.error = current.message
     finally:
+        if video:
+            finalize_video(folder, engine=result.engine)
         (folder / CANDIDATE).unlink(missing_ok=True)
         for leftover in folder.glob(".*.tmp"):  # 子程序寫到一半被終止時留下的暫存檔
             _remove_leftover(leftover)
@@ -576,6 +639,8 @@ def _automation_stage(
     cancel: threading.Event | None,
     result: RunResult,
     state: Path | None = None,
+    *,
+    video: bool = False,
 ) -> None:
     started = time.monotonic()
     stage = result.stage("automation")
@@ -612,10 +677,11 @@ def _automation_stage(
         command += ["--base-url", base_url] if base_url else []
         command += ["--headed"] if headed else []
         command += ["--storage-state", str(state)] if state is not None else []
+        command += ["--video"] if video else []
     hint: str | None = None
     try:
         env = _environment(secrets, deadline, engine or scenario.browser.engine, headed, state)
-        _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel)
+        _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel, video=video)
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌
         if failure.status == "failed":

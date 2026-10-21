@@ -74,6 +74,7 @@ from rpa_server.recordings import RecordingService
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
+from rpa_server.videos import VideoService, VideoSettings, video_details
 from rpa_server.workflows import WorkflowService
 from rpa_worker.environment import external_url
 from rpa_worker.pairing import Invite
@@ -278,6 +279,7 @@ def run_record(run: Run) -> RunRecord:
         node_id=run.node_id,
         target=cast("Target", run.target),
         worker_id=run.worker_id,
+        video=video_details(run),
     )
 
 
@@ -360,7 +362,9 @@ class Services:
             storage, self, self.roles, display=display, locale=locale, hosts=self.recorders
         )
         self.workflows = WorkflowService(sessions, self)
-        self.queue = RunQueue(sessions, storage, self.roles)
+        self.videos = VideoService(sessions, storage)
+        """錄影的設定、釘選與保留規則（M12）。"""
+        self.queue = RunQueue(sessions, storage, self.roles, self.videos)
         """執行佇列：本機 worker 的任務來源；遠端 worker 經由 workers 領取（M9a）。"""
         self.queue.on_finished = self.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
         self.workers = WorkerHub(sessions, storage, self.queue, self.roles, locale=locale)
@@ -1448,6 +1452,24 @@ class Services:
         if path is None:
             raise _not_found("file_not_found", t("error.file_not_found", path=relative))
         return path
+
+    # ------------------------------------------------------------ 錄影（M12）
+
+    def video_settings(self) -> dict[str, object]:
+        """錄影設定，加上目前保存的錄影有幾段、多大。"""
+        return {**self.videos.settings().to_json(), "usage": self.videos.usage()}
+
+    def save_video_settings(self, settings: VideoSettings) -> dict[str, object]:
+        """改錄影設定；之後新的任務照新設定，保留規則立刻套用（可能刪掉一些錄影）。"""
+        self.videos.save_settings(settings)
+        return self.video_settings()
+
+    def pin_video(self, run_id: str, pinned: bool) -> RunRecord:
+        """釘選的錄影不依保留規則刪除。"""
+        run = self.videos.set_pinned(run_id, pinned)
+        if run is None:
+            raise _not_found("run_not_found", t("error.run_not_found", id=run_id))
+        return run_record(run)
 
     def cancel_run(self, run_id: str) -> RunRecord:
         """取消：排隊中的直接取消；執行中的通知 worker 終止。不回滾已經發生的外部動作。"""

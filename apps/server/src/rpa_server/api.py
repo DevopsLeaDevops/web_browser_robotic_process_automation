@@ -32,6 +32,7 @@ from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services, render_contract
 from rpa_server.storage import SCENARIO_FILE
+from rpa_server.videos import VideoSettings
 
 __all__ = ["api_router"]
 
@@ -295,6 +296,19 @@ class TargetSetting(_Body):
 
 class ServerSetting(_Body):
     name: str = Field(max_length=100)
+
+
+class VideoSettingsBody(_Body):
+    """錄影設定（M12）。"""
+
+    enabled: bool
+    keep_passed_days: int = Field(ge=0, le=3650)
+    keep_other_days: int = Field(ge=0, le=3650)
+    max_total_gb: float = Field(gt=0, le=100_000)
+
+
+class VideoPin(_Body):
+    pinned: bool
 
 
 class WorkflowRerun(_Body):
@@ -641,6 +655,11 @@ def api_router(services: Services) -> APIRouter:
             "result": services.run_result(run_id) if run.finished else None,
             "files": services.storage.run_files(run_id) if run.finished else [],
         }
+
+    @router.put("/runs/{run_id}/video")
+    def pin_video(run_id: str, body: VideoPin) -> dict[str, object]:
+        """釘選或取消釘選這次運行的錄影（M12）。"""
+        return services.pin_video(run_id, body.pinned).to_json()
 
     @router.post("/runs/{run_id}/cancel", status_code=202)
     def cancel_run(run_id: str) -> dict[str, object]:
@@ -993,6 +1012,23 @@ def api_router(services: Services) -> APIRouter:
     @router.put("/settings/server")
     def rename_server(body: ServerSetting) -> dict[str, object]:
         return dict(services.rename_server(body.name))
+
+    @router.get("/settings/video")
+    def get_video_settings() -> dict[str, object]:
+        """錄影設定與目前保存的錄影（M12）。"""
+        return services.video_settings()
+
+    @router.put("/settings/video")
+    def set_video_settings(body: VideoSettingsBody) -> dict[str, object]:
+        """改錄影設定；保留規則立刻套用。"""
+        return services.save_video_settings(
+            VideoSettings(
+                enabled=body.enabled,
+                keep_passed_days=body.keep_passed_days,
+                keep_other_days=body.keep_other_days,
+                max_total_gb=body.max_total_gb,
+            )
+        )
 
     @router.get("/workflow-runs")
     def list_workflow_runs(

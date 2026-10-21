@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:282171a24e748d66">
+<meta name="translation-source" content="sha256:b3c3348fd4c6c221">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -128,10 +128,12 @@
   input.json          # this run's validated inputs
   facts.json          # page facts extracted by the automation
   output.json         # created only when the independent assertions and output validation pass
-  screenshot.png, trace.zip
+  steps.json          # each step's result, start and end time, and the page URL after it
+  screenshot.png, diagnostic.json
+  video.webm, video.json  # recording of the automation stage and its description (M12, ADR 0016)
   automation.log, assertion.log
   scenario/           # snapshot of the scenario revision used (including Python scripts)
-  result.json, report.html</pre>
+  result.json, report.html, run.json</pre>
       </div>
     </section>
 
@@ -186,9 +188,9 @@
             <li>A user triggers a run in the management portal or the CLI (from M9 the scheduler can create runs too).</li>
             <li>The API checks the published revision, validates the inputs before any browser starts, and writes a run record and a task.</li>
             <li>The worker takes the task and starts the runner in a subprocess with the scenario revision snapshot, the inputs and the secrets (kept in memory only), under an overall deadline.</li>
-            <li>The runner opens an isolated browser context, executes step by step and records page facts, reporting the status of each step.</li>
+            <li>The runner opens an isolated browser context, executes step by step and records page facts, reporting the status and the start and end time of each step. The automation stage is recorded (M12, <a href="../adr/0016-run-replay.html">ADR 0016</a>); replay lines the video up with the steps because both use the same clock.</li>
             <li>The independent assertions compare the facts with the inputs; only after they pass are the outputs validated and output.json written.</li>
-            <li>Screenshots, traces, logs and the report go into the run directory (object storage from M9); on failure the failing stage, step and screenshot are highlighted.</li>
+            <li>Screenshots, recordings, logs and the report go into the run directory (object storage from M9); on failure the failing stage, step and screenshot are highlighted.</li>
           </ol>
         </div>
       </section>

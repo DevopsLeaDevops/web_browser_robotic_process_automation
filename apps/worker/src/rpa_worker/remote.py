@@ -347,6 +347,7 @@ class RemoteJobSource:
             login=payload.login,
             secrets=dict(payload.secrets),
             locale=payload.locale,
+            record_video=payload.record_video,
         )
         active = _Active(job, folder, state_path, _digest(state_path))
         active.thread = threading.Thread(

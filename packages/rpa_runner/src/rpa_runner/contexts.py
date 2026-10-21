@@ -92,12 +92,15 @@ def open_context(
     storage_state: Path | None = None,
     persistent: bool = True,
     no_viewport: bool = False,
+    video_dir: Path | None = None,
+    video_size: ViewportSize | None = None,
 ) -> BrowserContext:
     """開瀏覽器與一個 BrowserContext；``storage_state`` 是要載入的登入狀態檔（可以不存在）。
 
     ``persistent=False`` 時 Firefox 也不用預熱設定檔（持久化 context 在使用者關掉最後一個
     視窗時會一起關閉，人工登入要在那之後讀取登入狀態）。``no_viewport`` 時頁面跟著視窗大小，
     不模擬固定的視窗大小：有頭的 Firefox 模擬時要調整視窗並等尺寸完全相符，視窗在背景時可能等不到。
+    ``video_dir`` 時錄影（M12，見 video.py）：關閉的動作先關 context，Playwright 這時才把影片寫完。
     """
     state = read_state(storage_state)
     if engine == "firefox" and persistent:
@@ -111,6 +114,8 @@ def open_context(
                 no_viewport=no_viewport or None,
                 locale=locale,
                 firefox_user_prefs=FIREFOX_PREFS,
+                record_video_dir=video_dir,
+                record_video_size=video_size,
             )
             stack.callback(_close, context)
             if state is not None:
@@ -123,7 +128,11 @@ def open_context(
         no_viewport=no_viewport or None,
         locale=locale,
         storage_state=cast("StorageState", state) if state is not None else None,
+        record_video_dir=video_dir,
+        record_video_size=video_size,
     )
+    if video_dir is not None:
+        stack.callback(_close, context)  # 在關瀏覽器之前（ExitStack 依相反順序）
     return context
 
 

@@ -23,6 +23,9 @@ __all__ = [
     "SCENARIO_DIR",
     "SCREENSHOT",
     "STEPS",
+    "VIDEO",
+    "VIDEO_INFO",
+    "VIDEO_TMP",
     "read_json",
     "read_json_or",
     "write_json",
@@ -50,6 +53,12 @@ SCENARIO_DIR: Final = "scenario"
 """本次使用的場景快照（含 Python 腳本）。"""
 RESULT: Final = "result.json"
 REPORT: Final = "report.html"
+VIDEO: Final = "video.webm"
+"""自動化階段的錄影（M12）。"""
+VIDEO_INFO: Final = "video.json"
+"""錄影的說明：開始時間、長度、大小、是否修復過（見 video.py）。"""
+VIDEO_TMP: Final = ".video"
+"""錄影時 Playwright 寫入的暫存資料夾；執行結束時整理成 video.webm 後刪掉。"""
 
 
 def write_json(path: Path, value: object) -> None:

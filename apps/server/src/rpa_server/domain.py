@@ -318,6 +318,8 @@ class RunRecord:
     """執行位置（M9a）。"""
     worker_id: str | None = None
     """由哪台 worker 執行；local 是本機，還沒開始時是 None。"""
+    video: dict[str, object] | None = None
+    """錄影（M12，見 rpa_server.videos.video_details）；從來沒有錄影時是 None。"""
 
     @property
     def finished(self) -> bool:
@@ -351,6 +353,7 @@ class RunRecord:
             "nodeId": self.node_id,
             "target": self.target,
             "workerId": self.worker_id,
+            "video": self.video,
         }
 
 

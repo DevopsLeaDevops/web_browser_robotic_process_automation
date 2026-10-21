@@ -176,6 +176,12 @@ def test_remote_worker_runs_validation_and_playground(
         assert report.status_code == 200
         assert "遠端 worker" in report.text
         assert client.get(f"/runs/{created['id']}/files/screenshot.png").status_code == 200
+        # 錄影也跟著執行目錄回來（M12）
+        video = cast("JsonObject", created["video"])
+        assert cast("float", video["seconds"]) > 0
+        movie = client.get(cast("str", video["url"]))
+        assert movie.status_code == 200
+        assert movie.headers["content-type"] == "video/webm"
         record = cast("JsonObject", created["output"])
         validate_and_publish(client, "ba-002", {"recordId": record["recordId"]}, engine)
 

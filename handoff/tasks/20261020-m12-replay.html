@@ -10,19 +10,19 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M12 運行回看</h1><p>驗證與執行時錄影；運行結束後在 Portal 回看，時間軸有縮圖、和步驟關聯，可以暫停、拖曳、定位到失敗的步驟。本頁是設計階段的紀錄：<strong>設計待使用者確認，確認後才開始寫程式</strong>。</p></div></div>
+  <div class="heading"><div><h1>M12 運行回看</h1><p>驗證與執行時錄影；運行結束後在 Portal 回看，時間軸有縮圖、和步驟關聯，可以暫停、拖曳、定位到失敗的步驟。設計在 2026-10-20 21:03 PDT 由使用者確認（第 9 節），開始實作。</p></div></div>
   <div class="stack">
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261020-m12-replay；2026-10-20 20:55 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261020-m12-replay；2026-10-20 22:30 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-20 20:19 PDT 在 Claude 對話：「先一起設計完成，有不確定的溝通確定，設計沒問題再動手 coding」。前提：Playwright 錄製支援錄影回看。目標：(1) 腳本在 worker 驗證、運行時錄影，有頭、無頭都支援；(2) 運行結束後在運行紀錄回看；(3) 回看是獨立功能、之後會很常用：方便定位運作過程、還原執行現場，支援暫停、拖曳、和現有的步驟關聯；期望有播放介面、有縮圖的進度條、有步驟關聯。UI 互動由 Claude 設計。定為 M12 里程碑。驗收見第 1 節。</dd>
         <dt>範圍／不包含</dt><dd>見第 3～7 節。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱與決定：使用者。接收方：未指定。</dd>
-        <dt>修改檔案／整合者</dt><dd>設計階段只有本頁、<a href="20261020-m12-replay/prototype.html">互動原型</a>與任務索引。實作的檔案範圍見第 8 節；會碰到的共用檔案：<code>rpa_runner</code>（child、run、files）、<code>rpa_server</code>（pages、api、render 的選單、templates、static）、遷移編號（若需要設定表欄位）、三種語言的訊息目錄、<code>docs/</code>。整合者：Claude。</dd>
-        <dt>狀態</dt><dd>設計待確認：第 9 節的決定等使用者回覆；確認前不寫程式。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>docs/m12-replay-design</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（base main）；base <code>b9a3387</code>（origin/main，#56）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>已推送：設計與原型 d667ea6，之後只有本頁的回填。</dd>
+        <dt>修改檔案／整合者</dt><dd>本頁、<a href="20261020-m12-replay/prototype.html">互動原型</a>、任務索引、<a href="../decisions.html">決定</a>。PR 1：<code>rpa_runner</code>（browser、child、contexts、files、run、新的 video、proctree）、<code>rpa_worker</code>（Job、JobPayload、remote）、<code>rpa_server</code>（新的 videos、jobs、dispatch、services、api、domain、pages、models、遷移 0013、app）、<code>rpa_cli</code>（<code>rpa run --video</code>）、<code>testsite.webm</code>（測試用）、文件（架構、管理 Portal、DSL、ADR 0016 與導覽）。共用檔案：遷移編號 0013、訊息目錄、<code>docs/assets/nav.js</code>、ADR 索引（#60 也改 ADR 索引與導覽，後合併的一方解衝突）。整合者：Claude。</dd>
+        <dt>狀態</dt><dd>實作中：PR 1（錄影與資料）本地檢查中；PR 2（播放器與入口）接著做。</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>docs/m12-replay-design</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（只有設計，併入 PR 1 後關閉）。實作：<code>m12/replay</code>，從 <code>b9a3387</code>（origin/main，#56）開，先帶入設計的三個提交；PR 建立後回填。</dd>
+        <dt>交接版本／同步狀態</dt><dd>設計 d667ea6～8e620a4 已推送；實作只在本機，推送後回填。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、Playwright 1.56 只有 Chromium、系統 ffmpeg 只用來檢查）。PyPI、npm 與 Playwright 的瀏覽器下載被擋，沒辦法裝倉庫用的 Playwright 1.64；1.64 的行為是讀它的原始碼（v1.64.0 的 <code>packages/playwright-core/src/server</code>）得到的，第 8 節安排在 CI 實測。</dd>
       </dl></div>
     </section>
@@ -51,6 +51,7 @@
           <tr><td>檔案大小</td><td>1280×720、有打字和換頁的 11.6 秒是 322 KB（1.56 的 VP8）。粗估每分鐘 1～3 MB；1.64 的 VP9 位元率上限依畫面大小調整（800×450 是 1 Mbps）。</td><td>本機實測</td><td>CI 用 1.64 量真實大小與錄影多花的時間</td></tr>
           <tr><td>ffmpeg 從哪裡來</td><td>每次 <code>playwright install &lt;任何瀏覽器&gt;</code> 都會一起下載 ffmpeg（1.64 是 ffmpeg-1013）。一鍵安裝、Worker App、錄製端都已經有。</td><td>v1.64.0 <code>registry/index.ts</code> 的 <code>resolveBrowsers</code></td><td>無</td></tr>
           <tr><td>Playwright 的動作標註（showActions）</td><td>會在頁面裡注入標註，而且每個操作前多等 500 ms，改變執行的時間與畫面。<strong>不採用</strong>，步驟由播放器顯示。</td><td>v1.64.0 <code>screencast.ts</code> 的 <code>onBeforeInputAction</code></td><td>無</td></tr>
+          <tr><td>被終止時影片停在哪</td><td>影片只有到最後一次畫面變化（Playwright 只在畫面變化時送出畫面，正常關閉時才補上最後一格到現在）。1.56 甚至把最後一格留在記憶體，被終止就沒寫進去；1.64 收到就寫。</td><td>本機 1.56 取消的實測；v1.64.0 <code>videoRecorder.ts</code> 的 <code>_writeFrame</code></td><td>回看頁要能處理「步驟超出影片長度」</td></tr>
           <tr><td>能不能播放</td><td>Chrome、Edge、Firefox、Windows Worker App（WebView2）支援 WebM VP9。Safari 從 macOS 11.3 支援 WebM。</td><td>公開資料</td><td>Mac 錄製端 App（WKWebView）裡能不能播，要在使用者的 Mac 上確認</td></tr>
         </tbody>
       </table></div>
@@ -62,8 +63,8 @@
         <li><strong>DSL 場景的自動化階段</strong>：<code>rpa_runner.child</code> 開 context 時加上錄影，畫面大小跟頁面一樣、寬度上限 1280（D2）。結束時先關 context 再關瀏覽器，存成執行目錄的 <code>video.webm</code>。Firefox 的預熱設定檔（持久化 context）同樣支援。</li>
         <li><strong>步驟時間</strong>：<code>steps.json</code> 每一步加 <code>startedAt</code>、<code>endedAt</code>（UTC、毫秒）和 <code>url</code>（步驟結束後的網址，Playwright 已有的值，不多一次來回）。</li>
         <li><strong>新檔 <code>video.json</code></strong>：格式版本、檔名、錄影開始時間（從檔案標頭讀，讀不到才用開頁面的時間）、長度、寬高、大小、是否修復過、瀏覽器、保留到何時、是否釘選、刪除的時間與原因。</li>
-        <li><strong>失敗、逾時、取消</strong>：總期限到時子程序自己收尾（現在就有），影片正常存檔。被強制終止後，父程序檢查影片有沒有長度；沒有就用 Playwright 的 ffmpeg 重新封裝，找不到 ffmpeg 或修不了就保留原檔並在 <code>video.json</code> 註明。</li>
-        <li><strong>Python 腳本場景</strong>：多給環境變數 <code>RPA_VIDEO_DIR</code>，腳本自己決定要不要把它傳給 <code>record_video_dir</code>；範例 <code>ba-001-script</code> 加上。沒有步驟，只有階段。</li>
+        <li><strong>失敗、逾時、取消</strong>：總期限到時子程序自己收尾（現在就有），影片正常存檔。被強制終止（取消、超過收尾時間）時：Linux、macOS 上 Playwright 把 ffmpeg 放在自己的程序群組，終止子程序的程序群組不會碰到它，ffmpeg 輸入斷了就自己收尾；Windows 的 <code>taskkill /T</code> 會連 ffmpeg 一起結束，所以錄影時先用 <code>CreateToolhelp32Snapshot</code> 列出子孫，結束 ffmpeg 以外的全部，最多等 8 秒讓 ffmpeg 收尾（<code>rpa_runner.proctree</code>、<code>run._stop_gracefully</code>）。整理時影片還是沒有長度與索引，就用 Playwright 的 ffmpeg 重新封裝；修不了也保留原檔（能從頭播放、不能拖曳），<code>video.json</code> 的 <code>complete</code> 是 false。實作時試過「只結束子程序、讓 Playwright 的 driver 自己收尾」：在本環境 driver 一直沒把 ffmpeg 正常關掉，30 秒後 driver 結束時還把 ffmpeg 一起砍掉，所以不用這個做法。</li>
+        <li><strong>Python 腳本場景</strong>：不錄（使用者 D5：暫不支援）。</li>
         <li><strong>不錄</strong>：登入檢查與自動登入（已有 <code>login.png</code>）、逐步調試、錄製（D5）。</li>
         <li><strong>設定</strong>：伺服器設定「錄影：開／關」。關閉時 child 完全不加錄影，和現在一樣。遠端 worker 從領取的任務得知要不要錄，舊版 worker 不認得就不錄（不擋執行）。</li>
         <li><strong>遠端 worker</strong>：照舊把整個執行目錄壓縮上傳（上限 512 MB）；上傳後刪除本機副本的行為不變。</li>
@@ -135,16 +136,16 @@
     </section>
 
     <section class="panel" id="decisions">
-      <div class="panel-header"><h2>9. 待使用者決定</h2><span class="legend"><span class="kind pending">待定</span><span class="kind rec">建議</span></span></div>
+      <div class="panel-header"><h2>9. 使用者的決定</h2><span class="muted">2026-10-20 21:03 America/Los_Angeles（PDT，UTC−07:00）逐項回覆；D2 選的是「跟頁面一樣大、寬度上限 1280」這個選項；D5 的腳本場景改成暫不支援（不給 <code>RPA_VIDEO_DIR</code>）</span></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選項</th></tr></thead>
         <tbody>
-          <tr><td>D1</td><td><span class="kind pending">待定</span> 錄哪些、留多久</td><td>驗證、執行、試驗場節點全部錄。通過的留 7 天，失敗、逾時、取消、需要登入的留 30 天，總量上限 20 GB；可以釘選</td><td>全部錄、通過的運行結束就刪影片；或預設不錄，在執行對話框勾選才錄</td></tr>
-          <tr><td>D2</td><td><span class="kind pending">待定</span> 畫面清晰度</td><td>跟頁面一樣大，寬度上限 1280（文字看得清楚，粗估每分鐘 1～3 MB）</td><td>Playwright 預設（縮到 800×800 以內，約一半大小，小字可能糊）</td></tr>
-          <tr><td>D3</td><td><span class="kind pending">待定</span> 公司規定：錄影會留下畫面上的一切（業務資料，以及填在非密碼欄位的 Secrets 值）。M8 之前，能開 Portal 的人都看得到</td><td>需要使用者確認可以保存、保存多久；Secrets 只填在密碼欄位時畫面上是遮住的</td><td>不允許時：只錄驗證運行，或只保留失敗的</td></tr>
-          <tr><td>D4</td><td><span class="kind pending">待定</span> 主要在哪裡看回看</td><td>一般瀏覽器（Chrome、Edge）；Mac 錄製端 App 在 PR 2 前確認能不能播</td><td>若 Mac App 不能播：App 裡改成「用瀏覽器開啟」</td></tr>
-          <tr><td>D5</td><td><span class="kind rec">建議</span> 登入檢查與自動登入不錄；Python 腳本場景由腳本自己選擇；showActions 不採用</td><td>照第 3 節</td><td>登入那一段也錄成第二段影片</td></tr>
-          <tr><td>D6</td><td><span class="kind rec">建議</span> 播放器的互動與入口</td><td>照原型與第 5、6 節；選單名稱「運行回看」，和「運行報告」一致</td><td>使用者看原型後提出</td></tr>
+          <tr><td>D1</td><td><span class="kind user">已確認：照建議</span> 錄哪些、留多久</td><td>驗證、執行、試驗場節點全部錄。通過的留 7 天，失敗、逾時、取消、需要登入的留 30 天，總量上限 20 GB；可以釘選</td><td>全部錄、通過的運行結束就刪影片；或預設不錄，在執行對話框勾選才錄</td></tr>
+          <tr><td>D2</td><td><span class="kind user">已確認：跟頁面一樣大</span> 畫面清晰度</td><td>跟頁面一樣大，寬度上限 1280（文字看得清楚，粗估每分鐘 1～3 MB）</td><td>Playwright 預設（縮到 800×800 以內，約一半大小，小字可能糊）</td></tr>
+          <tr><td>D3</td><td><span class="kind user">已確認：允許</span> 公司規定：錄影會留下畫面上的一切（業務資料，以及填在非密碼欄位的 Secrets 值）。M8 之前，能開 Portal 的人都看得到</td><td>需要使用者確認可以保存、保存多久；Secrets 只填在密碼欄位時畫面上是遮住的</td><td>不允許時：只錄驗證運行，或只保留失敗的</td></tr>
+          <tr><td>D4</td><td><span class="kind user">已確認：Mac 錄製端 App 與伺服器的網站</span> 主要在哪裡看回看</td><td>一般瀏覽器（Chrome、Edge）；Mac 錄製端 App 在 PR 2 前確認能不能播</td><td>若 Mac App 不能播：App 裡改成「用瀏覽器開啟」</td></tr>
+          <tr><td>D5</td><td><span class="kind user">已確認：沒問題；Python 腳本場景暫不支援</span> 登入檢查與自動登入不錄；Python 腳本場景由腳本自己選擇；showActions 不採用</td><td>照第 3 節</td><td>登入那一段也錄成第二段影片</td></tr>
+          <tr><td>D6</td><td><span class="kind user">已確認：沒問題</span> 播放器的互動與入口</td><td>照原型與第 5、6 節；選單名稱「運行回看」，和「運行報告」一致</td><td>使用者看原型後提出</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -167,6 +168,7 @@
         <tbody>
           <tr><td>Playwright 1.56、Chromium 1194（無頭；Xvfb 有頭）／Claude 雲端環境</td><td>錄一段每秒換色的頁面，逐格讀顏色換算對時；強制終止後檢查與重新封裝；用 DSL 步驟真實執行測試網站並錄影；Chromium 裡用 canvas 產生 40 張縮圖</td><td>畫面靜止時對得上；畫面一直動時 1.56 慢 12%；終止後檔案可修復；縮圖 3.7 秒</td><td>1.64、Firefox、Windows、macOS（第 8 節 PR 1 的 CI）</td></tr>
           <tr><td>39ff7e4／PR #58 的 CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39540115533">39540115533</a>（2026-10-20 20:44～20:47 PDT）</td><td>執行範圍、靜態檢查、測試（Python 3.12、3.13）</td><td>全部通過；Worker 測試（Windows）依只改文件的規則略過</td><td>只有文件，沒有程式行為</td></tr>
+          <tr><td>PR 1 本機（base b9a3387＋工作區）／Claude 雲端環境（Python 3.13、Playwright 1.56 只有 Chromium、伺服器依賴依 uv.lock 版本從 GitHub 原始碼載入）</td><td><code>ruff check</code>、<code>ruff format --check</code>、<code>pyright</code>（strict）；<code>pytest -m "not browser or ((smoke or role_server or role_recorder or role_worker) and not firefox)"</code></td><td>ruff 通過；pyright 剩本環境才有的錯誤（沒有 keyring、Playwright 1.56 的型別）；pytest 1416 通過、5 略過、3 失敗：<code>test_cancelled_run_keeps_a_playable_video[chromium]</code>（1.56 被終止時把最後一格留在記憶體，1.64 收到就寫，CI 驗證）、<code>test_rpa_serve_recognizes_a_running_portal</code>（埠號競爭，單獨重跑通過）、簡中還沒產生（bootstrap）</td><td>Firefox、Windows、macOS、Playwright 1.64：CI</td></tr>
           <tr><td>原型／Chromium（1440、400 寬）</td><td>開啟原型，等縮圖產生、滑過時間軸</td><td>沒有錯誤；頁面不會橫向捲動；縮圖全部產生</td><td>Safari、Mac App</td></tr>
         </tbody>
       </table></div>

@@ -42,6 +42,7 @@ def payload(**changes: object) -> JobPayload:
         ),
         "login_state": b'{"cookies": []}',
         "secrets": {"CLERK_PASSWORD": "s3cret"},
+        "record_video": True,
     }
     values.update(changes)
     return JobPayload(**values)  # pyright: ignore[reportArgumentType]
@@ -70,6 +71,15 @@ def test_payload_round_trip_keeps_bytes_and_replaces_state_path(tmp_path: Path) 
     assert restored.login.secrets == ("CLERK_PASSWORD",)
     assert restored.login_state == b'{"cookies": []}'
     assert restored.secrets == {"CLERK_PASSWORD": "s3cret"}
+    assert restored.record_video is True
+
+
+def test_payload_from_an_older_portal_does_not_record(tmp_path: Path) -> None:
+    """舊版管理 Portal 不送 recordVideo：不錄（M12）。"""
+    data = payload().to_json()
+    del data["recordVideo"]
+
+    assert JobPayload.from_json(data, state_path=tmp_path / "s.json").record_video is False
 
 
 def test_payload_without_login(tmp_path: Path) -> None:

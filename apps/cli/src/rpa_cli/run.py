@@ -15,6 +15,7 @@ from rpa_cli.i18n import t
 from rpa_cli.validate import EXIT_INVALID, display_path, issue_line
 from rpa_core.dsl import validate_file
 from rpa_runner.contract import parse_cli_value
+from rpa_runner.files import VIDEO
 from rpa_runner.i18n import t as runner_t
 from rpa_runner.login import LoginSettings
 from rpa_runner.run import ScenarioInvalidError, execute
@@ -72,6 +73,7 @@ def build_run_command() -> click.Command:
         help=t("cli.run.browser_help"),
     )
     @click.option("--headed", is_flag=True, help=t("cli.run.headed_help"))
+    @click.option("--video", is_flag=True, help=t("cli.run.video_help"))
     @click.option(
         "--storage-state",
         type=click.Path(exists=True, dir_okay=False, path_type=Path),
@@ -100,6 +102,7 @@ def build_run_command() -> click.Command:
         base_url: str | None,
         browser: str | None,
         headed: bool,
+        video: bool,
         storage_state: Path | None,
         deadline: int | None,
         out: Path,
@@ -131,6 +134,7 @@ def build_run_command() -> click.Command:
                 headed=headed,
                 deadline_ms=deadline,
                 login=login,
+                record_video=video,
             )
         except ScenarioInvalidError as invalid:
             display = display_path(scenario)
@@ -158,6 +162,8 @@ def build_run_command() -> click.Command:
             if result.output is not None:
                 click.echo(t("cli.run.output", path=display_path(result.directory / "output.json")))
             click.echo(t("cli.run.report", path=display_path(result.directory / "report.html")))
+            if (result.directory / VIDEO).is_file():
+                click.echo(t("cli.run.video", path=display_path(result.directory / VIDEO)))
         if result.status != "passed":
             ctx.exit(EXIT_INVALID)
 

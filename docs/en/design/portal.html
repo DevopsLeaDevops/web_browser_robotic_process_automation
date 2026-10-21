@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c6fd5f6a2b6d2f9c">
+<meta name="translation-source" content="sha256:73238a35118d2a07">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -92,6 +92,7 @@
           <li><strong>No double submission.</strong> Each form load creates an <code>idempotencyKey</code>; submitting twice returns the same run.</li>
           <li><strong>Run again.</strong> Any finished run can be repeated with the same inputs and options (validation uses the same revision, production runs the currently published one).</li>
           <li><strong>Server restarts.</strong> On start-up, runs that were interrupted are marked as failed; queued runs continue.</li>
+          <li id="video"><strong>Recording (M12).</strong> The automation stage of a DSL scenario is recorded, headed or headless, as <code>video.webm</code> and <code>video.json</code> in the run folder; <code>steps.json</code> records when each step started and ended and the page URL after it, so replay can line them up with the video. The video is as large as the page, at most 1280 wide. Cancelled, timed-out and failed runs get a complete video too (on Windows, cancelling leaves the recording's ffmpeg running to finish the file; a broken file is remuxed with Playwright's own ffmpeg). Login checks, step-by-step debugging, recording sessions and Python script scenarios are not recorded. By default everything is recorded; passed runs keep the video for 7 days, failed, timed-out, cancelled and needs-login runs for 30 days, and all videos together use at most 20 GB (the oldest are deleted first); pinned videos are kept. Clean-up only deletes videos: run records, reports and screenshots stay. See <a href="../adr/0016-run-replay.html">ADR 0016</a>.</li>
         </ul>
       </div>
     </section>
@@ -266,7 +267,8 @@
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>Publish; 409 if the publishing gate is not met</td></tr>
             <tr><td><code>GET /api/scenes/{id}/verifications</code></td><td>Validation records in the domain folder, from any server, newest first</td></tr>
             <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>Run the published revision: <code>inputs</code>, <code>engine</code>, <code>baseUrl</code>, <code>headless</code> (when omitted, headed if the computer that runs it has a graphical desktop), <code>target</code> (where to run; the default when omitted), <code>idempotencyKey</code>; validation accepts the same fields</td></tr>
-            <tr><td><code>GET /api/runs</code>, <code>GET /api/runs/{run ID}</code></td><td>List runs (<code>scene</code>, <code>category</code>, <code>status</code>, <code>purpose</code> can repeat); one run with its <code>result.json</code> and file list</td></tr>
+            <tr><td><code>GET /api/runs</code>, <code>GET /api/runs/{run ID}</code></td><td>List runs (<code>scene</code>, <code>category</code>, <code>status</code>, <code>purpose</code> can repeat); one run with its <code>result.json</code> and file list; <code>video</code> holds the recording's length, size, pin, when and why it was deleted, and the video URL (M12; null when there is no recording)</td></tr>
+            <tr><td><code>PUT /api/runs/{run ID}/video</code></td><td>Pin or unpin the recording (<code>pinned</code>); pinned recordings are not deleted by the retention rules (M12)</td></tr>
             <tr><td><code>POST /api/runs/{run ID}/cancel</code></td><td>Cancel</td></tr>
             <tr><td><code>POST /api/runs/{run ID}/rerun</code></td><td>Run again with the same inputs and options; 202 with the new run</td></tr>
             <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>Save the input/output tables: <code>baseRevision</code>, <code>inputs</code>, <code>outputs</code> (each with <code>name</code>, the previous name in <code>previous</code>…; a section left out stays as it is), <code>note</code></td></tr>
@@ -296,6 +298,7 @@
             <tr><td><code>POST /api/workers/{id}/invite</code></td><td>Create an invitation (M10.1): the old token and any earlier invitation stop working immediately; the <code>invite</code> in the response (<code>line</code>, <code>server</code>, <code>code</code>, <code>app</code>, <code>expiresAt</code>) is available only this once; 409 <code>invite_needs_port</code> without the external port, 409 <code>worker_disabled</code> while disabled</td></tr>
             <tr><td><code>PUT /api/settings/default-target</code></td><td>Default place to run (<code>target</code>: <code>local</code>, <code>remote</code>, <code>any</code>)</td></tr>
             <tr><td><code>GET</code>, <code>PUT /api/settings/server</code></td><td>This server's ID and name (<code>name</code>), written to revision, validation and publication records</td></tr>
+            <tr><td><code>GET</code>, <code>PUT /api/settings/video</code></td><td>Recording settings (M12): <code>enabled</code>, <code>keepPassedDays</code>, <code>keepOtherDays</code> (0–3650), <code>maxTotalGb</code>; the response also has <code>usage</code> (how many recordings, their total size, how many are pinned). New runs follow the new settings and the retention rules apply right away</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>Only on the external port, no token (M10.1): exchanges <code>code</code> and <code>app</code> for a token and returns the device ID, name, <code>token</code>, and the server's protocol, fingerprint and version; 401 <code>invite_invalid</code> for a wrong or used code, 401 <code>invite_expired</code>, 409 <code>invite_wrong_app</code> (the code is kept), 409 when the device is disabled; the formats are in <code>rpa_worker.pairing</code></td></tr>
             <tr><td><code>/worker-api/v1/…</code></td><td>Only on the external port, token required: <code>hello</code>, <code>claim</code>, <code>runs/{run ID}/heartbeat</code>, <code>…/artifacts</code> (zip), <code>…/role-state</code>, <code>…/finish</code>, <code>…/fail</code>; the formats are in <code>rpa_worker.protocol</code></td></tr>
           </tbody>
@@ -312,7 +315,7 @@
           <dl class="spec-list">
             <dt><code>rpa.db</code></dt><dd>SQLite database (tables below)</dd>
             <dt><code>domains/<wbr>&lt;domain&gt;/</code></dt><dd>domain folder (M11): <code>pack.yaml</code>; in <code>scenes/&lt;scenario&gt;/</code>, <code>scene.yaml</code>, <code>revisions/&lt;n&gt;/</code> (scenario.yaml, plus two scripts for script scenarios) with the revision file <code>revisions/&lt;n&gt;.yaml</code>, and validation records in <code>verifications/&lt;n&gt;/</code>; role definitions in <code>roles/&lt;role&gt;.yaml</code>; composite scenarios in <code>composites/&lt;code&gt;/</code> (<code>composite.yaml</code>, <code>revisions/&lt;n&gt;/workflow.json</code> with revision files, validation records). Format: <code>rpa_core.pack</code></dd>
-            <dt><code>runs/<wbr>&lt;run ID&gt;/</code></dt><dd>the M2 run folder (input.json, report.html…); <code>run.json</code> records the server, domain, scenario, revision, hash, times and the sha256 of every file</dd>
+            <dt><code>runs/<wbr>&lt;run ID&gt;/</code></dt><dd>the M2 run folder (input.json, report.html…); <code>run.json</code> records the server, domain, scenario, revision, hash, times and the sha256 of every file; the recording <code>video.webm</code> and <code>video.json</code> (M12; when the retention rules delete the video, <code>removed</code> in <code>run.json</code> records when and why)</dd>
             <dt><code>workflow-runs/<wbr>&lt;run id&gt;/</code></dt><dd>composite scenario runs (M11 PR 2): <code>run.json</code> with the definition snapshot, revision, purpose, and each node's state and run id</dd>
             <dt><code>work/<wbr>&lt;run id&gt;/</code></dt><dd>snapshot of the revision files for a local run (M11 wrap-up): copied from the domain folder at the start so pulls and reloads do not affect the run; deleted at the end and cleared when the server starts</dd>
             <dt><code>roles/<wbr>&lt;role&gt;/<wbr>state.json</code></dt><dd>a role's login state (readable only by you)</dd>
@@ -327,7 +330,7 @@
             <dt>domains</dt><dd>ID, name, description, order; when the domain folder was last loaded and its load problems; the git source (without the token) and the sync state (last synced commit, last seen remote commit, branch, error, conflicting files)</dd>
             <dt>scenes</dt><dd>ID, name and category (from the latest revision), domain, default URL, latest and published revision numbers, archived, source missing</dd>
             <dt>revisions</dt><dd>Scenario, revision number (unique), content hash, kind, status, note, publishing time; source missing, the problem that prevents running it, whether a passed validation record with a matching hash exists</dd>
-            <dt>runs</dt><dd>Run ID, scenario and revision, the name and category at the time, purpose, status and stage, headed or headless mode, inputs and outputs, error, hash, times; for playground nodes, the sequence run and node ID; where to run, the pinned worker, the worker that ran it and its lease</dd>
+            <dt>runs</dt><dd>Run ID, scenario and revision, the name and category at the time, purpose, status and stage, headed or headless mode, inputs and outputs, error, hash, times; for playground nodes, the sequence run and node ID; where to run, the pinned worker, the worker that ran it and its lease; the recording's length and size, pin, and when and why it was deleted (M12)</dd>
             <dt>roles</dt><dd>Id, name, login URL, check URL and element, browser, automatic login steps, the latest status and check time; domain, source missing</dd>
             <dt>recordings</dt><dd>Recording ID, target scenario and revision, mode (new scenario, continue after the existing steps, replace everything) and the revision it continues, source (recorded or pasted), URL, browser, role, status, lines not converted</dd>
             <dt>workflows</dt><dd>Composite scenarios: code, domain, name, description, the latest revision's definition (JSON) and number, published revision, archived, source missing</dd>
@@ -335,7 +338,7 @@
             <dt>workflow_runs</dt><dd>Sequence runs: the sequence and its name, code, revision and purpose at the time, a snapshot of the definition, status, the node it stopped at and why, reused nodes (when continuing from a stopped node), browser and window mode, times; where to run and the pinned worker</dd>
             <dt>workers</dt><dd>Remote workers: ID, name, token hash, disabled, the details reported when coming online (the app version from M10.1), current run, last report time</dd>
             <dt>device_invites</dt><dd>Device invitations (M10.1): hash of the code, app, device ID, creation time, expiry, time used</dd>
-            <dt>settings</dt><dd>Settings (the default place to run, this server's ID and name, the folder format)</dd>
+            <dt>settings</dt><dd>Settings (the default place to run, this server's ID and name, the folder format, recording)</dd>
           </dl>
           <p class="muted">The models use SQLAlchemy 2; schema changes go through Alembic migrations, applied automatically when the server starts. A test checks that the migrations match the models.</p>
         </div>

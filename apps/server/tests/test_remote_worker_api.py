@@ -306,6 +306,7 @@ def test_job_carries_exact_files_inputs_locale_and_secrets(
     assert (job["baseUrl"], job["headless"], job["locale"]) == ("http://h:1/", True, "zh-Hant")
     assert job["login"] is None
     assert job["secrets"] == {}
+    assert job["recordVideo"] is True  # 預設錄影（M12）
 
 
 # ---------------------------------------------------------------- 心跳、取消、結果

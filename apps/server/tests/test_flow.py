@@ -60,6 +60,12 @@ def test_validate_publish_run_and_chain(
     validated = run_next(app, client, queued)
 
     assert validated["status"] == "passed", validated["error"]
+    # 預設錄影（M12）：本機 worker 的運行也有錄影，步驟記下時間
+    video = cast("JsonObject", validated["video"])
+    assert cast("float", video["seconds"]) > 0
+    assert client.get(cast("str", video["url"])).status_code == 200
+    steps = cast("list[JsonObject]", cast("JsonObject", validated["result"])["steps"])
+    assert all(step["startedAt"] and step["endedAt"] for step in steps)
     revision = body(client.get("/api/scenes/ba-001/revisions/1"))
     assert validated["scenarioHash"] == revision["contentHash"]
     assert revision["status"] == "passed"

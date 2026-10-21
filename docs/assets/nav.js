@@ -158,6 +158,11 @@ window.DOCS_NAV = {
           "id": "adr-0014",
           "href": "adr/0014-desktop-apps.html",
           "name": {"zh-Hant": "0014 桌面 App", "zh-Hans": "0014 桌面 App", "en": "0014 Desktop apps"}
+        },
+        {
+          "id": "adr-0016",
+          "href": "adr/0016-run-replay.html",
+          "name": {"zh-Hant": "0016 運行回看", "zh-Hans": "0016 运行回看", "en": "0016 Run replay"}
         }
       ]
     },
