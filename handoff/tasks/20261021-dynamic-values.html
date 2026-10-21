@@ -15,14 +15,14 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-21 08:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-21 08:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-21 07:30 America/Los_Angeles（PDT，UTC−07:00）：「場景錄製支持可變參數」，例如 arrivalDate 是當前日期、expiryDate 是當前日期＋1、purchaseQuantity 是 10～30 之間的隨機數，附上入參 JSON（<code>"arrivalDate": "{{today}}"</code>、<code>"expiryDate": "{{today+1}}"</code>、<code>"purchaseQuantity": "{{random:10:30}}"</code>、<code>"remark": "CG-001脚本创建{{today}}日期"</code> 等）。<br>驗收：(1) 入參的預設值、執行表單的入參 JSON、試驗場節點的固定值、命令列 <code>-i</code>／<code>--input</code> 都能寫這些動態值；(2) 每次執行開始時求值，<code>input.json</code> 與報告是實際用到的值，重新執行時重新求值；(3) 寫錯（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）時在存檔或啟動瀏覽器之前就說明哪裡錯；(4) 整數入參寫 <code>{{random:10:30}}</code> 得到整數。</dd>
         <dt>範圍／不包含</dt><dd>範圍：rpa_core 的動態值語法與校驗、Runner 求值、伺服器與 Portal 的提示、遠端裝置的擴充檢查、DSL 文檔。<br>不包含（待使用者決定）：錄製轉換時自動把「錄製當天的日期」改成 <code>{{today}}</code>；步驟裡直接寫動態值；引用其他入參。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude（本會話）；審閱與合併：使用者；接收方：未指定</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/</code>（新增 <code>dynamic.py</code>；<code>contract.py</code>、<code>checks.py</code>、<code>features.py</code>、<code>yaml_loader.py</code>）、<code>rpa_core/workflow.py</code>、rpa_core／rpa_runner／rpa_server 的訊息目錄、<code>rpa_runner/contract.py</code>、伺服器的 <code>dispatch.py</code>、<code>debugging.py</code>、樣板與 <code>portal.js</code>、<code>docs/design/dsl.html</code>（含英文）、本任務卡與任務索引。<br><strong>並行注意</strong>：<code>m7b/popup</code>（M7b 新分頁，2026-10-21 07:30 起有提交）也改 <code>features.py</code>、<code>checks.py</code>、訊息目錄、<code>docs/design/dsl.html</code>、任務索引。後合併的一方解衝突；<code>FEATURES</code> 兩邊的名稱都要保留。</dd>
-        <dt>狀態</dt><dd>待審閱：實作完成、本地檢查通過、PR #67 已開；CI 進行中；人工驗收未執行</dd>
+        <dt>狀態</dt><dd>待審閱：實作完成、本地檢查通過、PR #67 的 CI 全部通過（<code>a17706b</code>）；人工驗收未執行；合併由使用者決定</dd>
         <dt>分支／PR／base SHA</dt><dd><code>feat/dynamic-values</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/67">PR #67</a>（base main）；base <code>fcb8e8f</code>（main，#65 合併後）</dd>
-        <dt>交接版本／同步狀態</dt><dd>已推送：<code>ed0c4cd</code>（實作）→ <code>33b1676</code>（bootstrap 機器人產生簡中，已 fast-forward 取回）→ 本紀錄更新的提交</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：<code>ed0c4cd</code>（實作）→ <code>33b1676</code>（bootstrap 機器人產生簡中，已 fast-forward 取回）→ <code>a17706b</code>（任務紀錄）→ 本紀錄更新的提交（只改本檔）</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器；PyPI 被擋，<code>uv sync</code> 無法執行。系統 Python 3.13＋從 GitHub 依 uv.lock 版本 clone 的 fastapi、starlette、sqlalchemy、alembic、mako、annotated-doc（只在本機跑測試）；Playwright 只有 Chromium。簡中與 uv.lock 靠 <code>[bootstrap]</code>。</dd>
       </dl></div>
     </section>
@@ -44,9 +44,9 @@
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong><code>rpa_core.dsl.dynamic</code>（語法、求值、代表值、跳脫）；<code>InputSpec</code> 預設值與 <code>check_value</code>；Runner <code>check_inputs</code> 求值（<code>input.json</code>、報告是實際值）；試驗場固定值檢查與上游出參跳脫；DSL 擴充 <code>dynamicValues</code>（場景預設值、這次的入參；遠端 worker 與錄製端裝置）；調試換版本時預設值求值；Portal 提示與「動態值」標示；三種語言訊息（簡中待 bootstrap）；<code>docs/design/dsl.html</code>「入參的動態值」一節與英文版（stamp）。</li>
-        <li><strong>未完成／阻礙：</strong>CI（最新 head）；審閱與合併（使用者）；人工驗收（實際業務系統的採購單場景；遠端執行要用這個版本以後的 Worker App）。</li>
+        <li><strong>未完成／阻礙：</strong>審閱與合併（使用者）；人工驗收（實際業務系統的採購單場景；遠端執行要用這個版本以後的 Worker App）；錄製時自動改成 <code>{{today}}</code> 待使用者決定。</li>
         <li><strong>決定：</strong>上面「設計」全部是實作選擇（使用者這次給了語法，其餘照常規選項）；錄製時要不要自動把錄製當天的日期改成 <code>{{today}}</code>：待使用者決定。</li>
-        <li><strong>下一個具體動作：</strong>確認 PR #67 最新 head 的 CI；有失敗就讀 <code>check-runs/&lt;job&gt;/annotations</code> 修正。<code>m7b/popup</code>（PR #66）若先合併，本分支 rebase 時解 <code>features.py</code>、<code>checks.py</code>、訊息目錄、<code>docs/design/dsl.html</code>、<code>test_protocol.py</code> 與任務索引的衝突（兩邊都保留）。</li>
+        <li><strong>下一個具體動作：</strong>等使用者審閱、合併 PR #67，並回答「錄製時要不要自動把當天日期改成動態值」。<code>m7b/popup</code>（PR #66）若先合併，本分支 rebase 時解 <code>features.py</code>、<code>checks.py</code>、訊息目錄、<code>docs/design/dsl.html</code>、<code>test_protocol.py</code> 與任務索引的衝突（兩邊都保留）。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -62,7 +62,8 @@
           <tr><td>同上</td><td><code>pytest packages/rpa_runner/tests/test_run.py -k "dynamic or chain"</code>（真實瀏覽器）</td><td>Chromium 2 通過；Firefox 未安裝而略過</td><td>Firefox 與其他瀏覽器測試交給 CI</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>bootstrap：<code>ed0c4cd</code> 的 bootstrap 運行成功，產生 <code>33b1676</code>（簡中訊息與 <code>docs/zh-Hans/design/dsl.html</code>）；取回後 <code>pytest tests/docs</code> 278 通過。機器人提交觸發的 CI 是 action_required（未執行），所以再推送本紀錄的更新，讓 CI 在使用者身分的 head 上執行。CI：進行中；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>bootstrap：<code>ed0c4cd</code> 的 bootstrap 運行成功，產生 <code>33b1676</code>（簡中訊息與 <code>docs/zh-Hans/design/dsl.html</code>）；取回後 <code>pytest tests/docs</code> 278 通過。機器人提交觸發的 CI 是 action_required（未執行），所以再推送本紀錄的更新，讓 CI 在使用者身分的 head 上執行。</p>
+        <p>CI（<code>a17706b</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39622125851">CI 運行 39622125851</a>）：第 1 次「Worker 測試（Windows）」失敗——Firefox 的登入、設定檔、Python 腳本、錄影取消與 Chromium 的 BA-001 鏈路多個逾時，都是本 PR 沒有改到的測試，新增的動態值測試兩種瀏覽器都通過；重跑失敗的工作（第 2 次）後靜態檢查、Python 3.12／3.13 測試、Worker 測試（Windows，61 個）全部通過。桌面端建置（Windows Worker、macOS 錄製端）通過。舊 head <code>ed0c4cd</code> 的 CI 只有簡中未產生的兩個預期失敗。人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -74,6 +75,7 @@
         <li>2026-10-21 07:38 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，分支 <code>feat/dynamic-values</code> 從 main <code>fcb8e8f</code> 建立；發現並行的 <code>m7b/popup</code>，記下重疊的檔案。</li>
         <li>2026-10-21 07:58 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試、文檔完成，本地檢查見「驗證與審閱」；準備提交與推送。</li>
         <li>2026-10-21 08:05 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>ed0c4cd</code>、開 PR #67；bootstrap 產生 <code>33b1676</code> 並取回；發現並行的 PR #66（<code>m7b/popup</code>）已開。</li>
+        <li>2026-10-21 08:45 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>a17706b</code> 的 CI 第 1 次 Windows Worker 測試逾時，重跑後全部通過；桌面端建置通過。取消了被取代的舊 head 桌面端建置。交給使用者審閱。</li>
       </ul></div>
     </section>
   </div>
