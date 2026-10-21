@@ -238,3 +238,19 @@ def test_descendants_walks_the_process_tree() -> None:
 
     assert [item.pid for item in found] == [101, 102, 104, 103]
     assert descendants(999, processes) == []
+
+
+def test_descendants_skip_children_of_a_reused_pid() -> None:
+    """Windows 的程序代號會重複使用：比父程序早建立的「子程序」是先前同一個代號留下的。"""
+    processes = [
+        ProcessInfo(100, 50, "python.exe", created=1000),
+        ProcessInfo(101, 100, "node.exe", created=1100),
+        ProcessInfo(102, 101, "chrome.exe", created=1200),
+        ProcessInfo(150, 100, "unrelated.exe", created=900),  # 舊的 100 開的，還指著 100
+        ProcessInfo(151, 150, "unrelated-child.exe", created=950),
+        ProcessInfo(160, 100, "unknown.exe"),  # 讀不到建立時間：照舊當作子孫
+    ]
+
+    found = descendants(100, processes)
+
+    assert [item.pid for item in found] == [101, 160, 102]

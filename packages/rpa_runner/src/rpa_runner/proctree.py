@@ -20,6 +20,8 @@ __all__ = ["ProcessInfo", "descendants", "terminate", "wait_exit"]
 _TH32CS_SNAPPROCESS: Final = 0x00000002
 _PROCESS_TERMINATE: Final = 0x0001
 _SYNCHRONIZE: Final = 0x00100000
+_QUERY_LIMITED: Final = 0x1000
+"""PROCESS_QUERY_LIMITED_INFORMATION：讀建立時間用。"""
 _WAIT_TIMEOUT: Final = 0x00000102
 
 
@@ -29,6 +31,8 @@ class ProcessInfo:
     parent: int
     name: str
     """執行檔名稱，例如 ffmpeg-win64.exe。"""
+    created: int | None = None
+    """建立的時間（FILETIME，100 奈秒）；讀不到時是 None。"""
 
 
 if sys.platform == "win32":  # pragma: no cover - Windows 在 CI 的 Worker 測試涵蓋
@@ -63,6 +67,27 @@ if sys.platform == "win32":  # pragma: no cover - Windows 在 CI 的 Worker 測�
     _kernel32.WaitForSingleObject.restype = wintypes.DWORD
     _kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
     _kernel32.CloseHandle.restype = wintypes.BOOL
+    _kernel32.GetProcessTimes.argtypes = (
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.FILETIME),
+        ctypes.POINTER(wintypes.FILETIME),
+        ctypes.POINTER(wintypes.FILETIME),
+        ctypes.POINTER(wintypes.FILETIME),
+    )
+    _kernel32.GetProcessTimes.restype = wintypes.BOOL
+
+    def _created(pid: int) -> int | None:
+        handle = _kernel32.OpenProcess(_QUERY_LIMITED, False, pid)
+        if not handle:
+            return None
+        try:
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if not _kernel32.GetProcessTimes(handle, *(ctypes.byref(item) for item in times)):
+                return None
+            return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+        finally:
+            _kernel32.CloseHandle(handle)
+
     _INVALID: Final = wintypes.HANDLE(-1).value
 
     def _snapshot() -> list[ProcessInfo]:
@@ -111,23 +136,46 @@ else:
     def _wait(pid: int, milliseconds: int) -> bool:
         return True
 
+    def _created(pid: int) -> int | None:
+        return None
+
 
 def descendants(root: int, processes: list[ProcessInfo] | None = None) -> list[ProcessInfo]:
-    """root 的子孫（不含 root），由上往下；``processes`` 給測試用，預設列出這台電腦的程序。"""
+    """root 的子孫（不含 root），由上往下；``processes`` 給測試用，預設列出這台電腦的程序。
+
+    Windows 的程序代號會重複使用，只記父程序的代號：父程序結束後，它的子程序還指著那個代號，
+    之後拿到同一個代號的程序就會被誤認成父程序。所以子程序的建立時間要晚於父程序，
+    不是的就不算（兩邊都讀得到建立時間時才判斷；只讀走訪到的程序）。
+    """
     every = _snapshot() if processes is None else processes
+    born: dict[int, int | None] = {}
+
+    def created(item: ProcessInfo) -> int | None:
+        if item.pid not in born:
+            born[item.pid] = item.created if processes is not None else _created(item.pid)
+        return born[item.pid]
+
     children: dict[int, list[ProcessInfo]] = {}
+    top: ProcessInfo | None = None
     for item in every:
+        if item.pid == root:
+            top = item
         if item.pid != item.parent:  # 系統程序的父程序可能是自己
             children.setdefault(item.parent, []).append(item)
     found: list[ProcessInfo] = []
-    queue = [root]
+    queue: list[tuple[int, int | None]] = [(root, created(top) if top is not None else None)]
     seen = {root}
     while queue:
-        for child in children.get(queue.pop(0), []):
-            if child.pid not in seen:
-                seen.add(child.pid)
-                found.append(child)
-                queue.append(child.pid)
+        parent, parent_born = queue.pop(0)
+        for child in children.get(parent, []):
+            if child.pid in seen:
+                continue
+            child_born = created(child)
+            if parent_born is not None and child_born is not None and child_born < parent_born:
+                continue  # 代號被重複使用：這是先前同一個代號的程序留下的子程序
+            seen.add(child.pid)
+            found.append(ProcessInfo(child.pid, child.parent, child.name, child_born))
+            queue.append((child.pid, child_born))
     return found
 
 
