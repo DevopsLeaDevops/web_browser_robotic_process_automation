@@ -15,20 +15,20 @@
 <dt>任務／開始時間</dt><dd>20261021-browser-download-speed；2026-10-21 02:25 America/Los_Angeles（PDT，UTC−07:00）。</dd>
 <dt>需求與驗收</dt><dd>使用者於本次對話要求把實測換源的做法加入「[5/7] 安裝瀏覽器（Chromium、Firefox）」。未下載的瀏覽器應比較來源速度並選最快；已下載、指定來源、來源不可用、下載失敗都能正確處理。</dd>
 <dt>主責／審閱／接收</dt><dd>OpenAI Codex；未審閱；接收方未指定。</dd>
-<dt>分支／基準／PR</dt><dd><code>fix/browser-download-speed</code>；<code>origin/main 097464c</code>；PR 尚未建立。</dd>
+<dt>分支／基準／PR</dt><dd><code>fix/browser-download-speed</code>；<code>origin/main 097464c</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/63">PR #63</a>。</dd>
 <dt>範圍與整合者</dt><dd>Codex 整合 <code>tools/install_browsers.py</code>、<code>scripts/setup.sh</code>、<code>scripts/setup.ps1</code>、安裝 CI 與測試、quickstart/setup 三語文件及本任務索引。Linux 純伺服器安裝不下載瀏覽器，不修改其流程。</dd>
-<dt>狀態／同步</dt><dd>本地實作與驗證完成，待推送及 CI；基準 SHA 加本機未提交差異。獨立 worktree，保留使用者正在使用的 <code>m7a/iframe</code> 工作區。</dd>
+<dt>狀態／同步</dt><dd>程式已推送 <code>b28e3c2</code>，PR #63 待審閱；CI 與跨平台安裝全部成功。後續只回填本頁；最終 head 狀態以 PR 的 Checks 為準。獨立 worktree，保留使用者正在使用的 <code>m7a/iframe</code> 工作區。</dd>
 <dt>環境</dt><dd>macOS arm64、Python 3.13.16、Playwright 1.64.0；已執行 <code>uv sync --locked</code>。</dd>
 </dl></div></section>
 <section class="panel" id="progress"><div class="panel-header"><h2>決定與下一步</h2></div><div class="panel-body"><ul class="points">
 <li>從當前 Playwright 的 <code>install --dry-run</code> 取得版本、平台、快取位置與網址；不寫死瀏覽器 revision。預設比較清單內的官方來源與 npmmirror CDN。</li>
 <li>每個未安裝檔案最多讀 2 MiB；依序測速避免同時競爭頻寬，每次子程序最多 5 秒、整體測速最多 30 秒。檢查 ZIP 開頭、長度與分段回應；有官方樣本時比對總大小與片段 SHA-256，這不是整包校驗。</li>
 <li>通用與個別 <code>PLAYWRIGHT_*_DOWNLOAD_HOST</code>（含 Playwright 支援的 npm 設定形式）優先，手動設定時不探測其他來源。自動設定只傳給安裝子程序，不修改 shell、鎖檔或套件。無測速結果／格式變更時用原安裝流程，自動選源安裝失敗則用原始來源重試。</li>
-<li>下一步：推送並建立 PR、確認 CI；合併由使用者決定。</li>
+<li>下一步：使用者審閱並合併 PR #63；合併後重跑原本的 setup 命令即可。</li>
 </ul></div></section>
 <section class="panel" id="validation"><div class="panel-header"><h2>驗證</h2></div><div class="panel-body"><p>基準 <code>097464c</code> 加本次差異：<code>uv sync --locked</code>、Ruff check/format、Bash 語法、i18n check、git diff --check、handoff 相對連結檢查通過；新工具及測試的 Pyright strict 通過；全倉庫 <code>pyright --pythonplatform Linux</code> 0 錯誤（3 項既存 pystray 警告）。<code>tests/ci/test_linux_setup.py</code> 32 通過。<code>pytest -q tests/ci/test_browser_download.py tests/docs tests/i18n</code>：324 通過。全倉庫 Pyright 有既存 macOS <code>Foundation</code> 型別 stub 缺失 1 項與 <code>pystray</code> 來源警告 3 項；全體不需瀏覽器測試 1374 通過、2 略過、1 失敗（<code>test_frozen_commands_use_the_app_entry</code> 假定的 /Applications 路徑與已安裝 Recorder 的 rpa-child 碰撞；該程式與測試均未改動）。
 </p><p>macOS arm64 真實驗證：使用獨立 <code>PLAYWRIGHT_BROWSERS_PATH</code> 空快取，Chromium／headless shell 官方 0.83、npmmirror 5.41 MiB/s；Firefox 官方 1.72、npmmirror 5.85 MiB/s；FFmpeg 官方 1.06、npmmirror 4.87 MiB/s。選最快來源並全部下載成功；Chromium 156.0.8078.4、Firefox 157.0 啟動與點擊驗證通過。重跑顯示已下載、略過測速且成功。數字是當次樣本，非速度保證。
-</p><p>CI 未執行；Windows／Linux 真機與受限 PowerShell 尚未驗收。</p></div></section>
+</p><p>程式提交 <code>b28e3c2</code>：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39579549013">CI 39579549013</a> 成功（靜態、Python 3.12／3.13）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39579548948">安裝 CI 39579548948</a> 成功（Windows、macOS、Ubuntu 的專案內安裝與重跑；Rocky 8 專案內及從零安裝）。一般三平台從零安裝、Worker 瀏覽器組依既有 PR 範圍略過。Windows／Linux 使用者真機與受限 PowerShell 人工驗收仍未執行。</p></div></section>
 <section class="panel" id="receipt"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>未接收。未提交檔案以上述範圍為限；ignored 產物為本 worktree 的 .venv、artifacts/browser-download-check（獨立瀏覽器快取）、artifacts/browser-download-nonbrowser.xml（測試報告）。</p></div></section>
-<section class="panel" id="log"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-10-21 02:25 America/Los_Angeles（PDT，UTC−07:00），Codex：核對最新 main 與開啟 PR，獨立開工；瀏覽器來源的後續維護與 Linux PyPI 鏡像分開。</li></ul></div></section>
+<section class="panel" id="log"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-10-21 02:25 America/Los_Angeles（PDT，UTC−07:00），Codex：核對最新 main 與開啟 PR，獨立開工；瀏覽器來源的後續維護與 Linux PyPI 鏡像分開。</li><li>2026-10-21 02:48 America/Los_Angeles（PDT，UTC−07:00），Codex：推送 b28e3c2 並建立 PR #63；靜態檢查通過，跨平台安裝與 Python 測試執行中。提交 hook 使用符合 required-version 的 uv；macOS Pyright 的既存錯誤已記錄，該 hook 略過，改以已完成的 Linux 平台全倉庫檢查及新檔 strict 結果記錄。</li><li>2026-10-21 02:53 America/Los_Angeles（PDT，UTC−07:00），Codex：上述 CI 全部成功，回填結果與 PR 連結。此後僅本頁更新，不修改被測程式；推送後仍核對最終 head 的靜態檢查及依既有規則沿用的重測結果。尚未合併、未代填使用者接收或人工驗收。</li></ul></div></section>
 </div></main></body></html>
