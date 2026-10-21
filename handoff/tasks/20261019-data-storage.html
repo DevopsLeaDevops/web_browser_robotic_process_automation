@@ -10,7 +10,7 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 17:45 America/Los_Angeles（PDT，UTC−07:00）。<strong>PR 1（#48）、PR 2（#49）已合併</strong>（main <code>cfef585</code>、<code>e54025c</code>）。<strong>PR 3（git 同步）完成、CI 全綠，待審閱</strong>（<code>m11/git-sync</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/54">#54</a>，base main <code>0fef3cd</code>）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a>（舊 SQLite 資料升級時遷移被外鍵檢查擋下）已合併。人工驗收步驟見<a href="#pr3-check">PR 3 與整個 M11 的人工驗收</a>，還沒完成的事見<a href="#m11-remaining">這裡</a>（見<a href="#log">追加紀錄</a>）。<strong>設計已確認</strong>（D1～D11 見<a href="#decisions">第 13 節</a>）。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 21:10 America/Los_Angeles（PDT，UTC−07:00）。<strong>實作 PR 1～3、外鍵修正與收尾的 #55、#56 已合併</strong>（#48、#49、#53、#54、#55、#56）。<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/57">#57</a>（PR 4：ADR 0015、路線圖、部署文件、驗收紀錄）合併到了 <code>m11/leftovers</code> 而不是 main，由 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pulls?q=head%3Adocs%2Fm11-wrap-up-main">docs/m11-wrap-up-main</a> 補進 main（見追加紀錄最後一筆）。人工驗收：git 推送已由使用者驗證，其餘進行中（<a href="#pr3-check">步驟</a>、<a href="#acceptance">紀錄</a>）。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
@@ -22,7 +22,7 @@
         <dt>範圍／不包含</dt><dd>範圍：領域資料夾格式、檔案與資料庫的分工、載入與熱載入、驗證與發布紀錄、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移；執行紀錄回看的<strong>格式預留</strong>。不包含：執行紀錄的歸檔與跨伺服器回看的實作（D4，之後做）、使用者與權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
-        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2（組合場景檔案化）已合併（#48、#49）；PR 3（git 同步）完成、CI 全綠，#54 待審閱；PR 4（ADR、路線圖、人工驗收）未開始；舊資料升級的外鍵問題由 #53 修正（2026-10-20 17:39 PDT 合併）</dd>
+        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1～3、外鍵修正、#55、#56 已合併；#57 的內容不在 main，由 <code>docs/m11-wrap-up-main</code> 的 PR 補進，待審閱；人工驗收進行中（使用者）</dd>
         <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。實作 PR 2：<code>m11/composite-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/49">#49</a>，base 是 <code>m11/domain-packs</code> 的 <code>cbac33c</code>（#48 還沒合併）；#48 合併後把 PR 的 base 改成 main。#48 於 2026-10-20 07:17 PDT、#49 於 07:34 PDT 合併。實作 PR 3：<code>m11/git-sync</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/54">#54</a>，base <code>0fef3cd</code>（origin/main，2026-10-20 08:18 PDT 合併的 #52）。外鍵修正：<code>fix/sqlite-migration-fk</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a>，base 同上。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁隨 <code>m11/domain-packs</code> 推送；以追加紀錄最後一筆的提交為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
@@ -460,15 +460,25 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
           <li><strong>憑證不外流</strong>：頁面與 <code>curl http://127.0.0.1:8080/api/domains/testsite/sync</code> 看不到權杖；<code>ls -l ~/rpa-m11-a/git/credentials.json</code> 是 <code>-rw-------</code>；<code>grep -c 權杖 ~/rpa-m11-a/rpa.db</code> 是 0。「中斷 git 連結」→ 領域變回本機、資料夾還在、<code>credentials.json</code> 裡沒有那個領域。</li>
         </ol>
         <p>做完後測試倉庫留有測試資料與 <code>rpa/…</code> 分支；要重做時清空倉庫或換一個新的空倉庫。PR 1 的伺服器遷移（第 1 項起）要等 #53（已合併）之後的版本才能用舊資料夾驗證；錄製端、Worker 的部分照上一節。</p>
-        <h3 id="m11-remaining">M11 還沒完成的事（2026-10-20 17:45 PDT）</h3>
+        <h3 id="m11-remaining">M11 還沒完成的事（2026-10-20 19:50 PDT 更新）</h3>
         <ul>
-          <li>合併 #54（CI 全綠；Python 3.12 的 <code>apps/desktop/tests/test_worker_app.py::test_console_worker_stops_on_request_before_connecting</code> 在 <code>78f45bf</code> 偶發失敗，和 #54 無關，重跑通過）。</li>
-          <li><s>修正已知問題：全新資料夾自動匯入的範例第一次拉取會衝突</s>——已加進 #54（2026-10-20 18:00 PDT）。</li>
-          <li>人工驗收：PR 1（伺服器遷移、錄製端、Worker）、PR 2（組合場景）、PR 3（上面的步驟）都還沒做。</li>
-          <li>PR 4：ADR 0015、路線圖的 M11、人工驗收紀錄；部署與操作文件補上 <code>git/</code>、<code>backups/</code> 與還原方式。</li>
-          <li>設計有、還沒做（可以放 PR 4 或之後）：依賴提示「新增領域」用 <code>pack.yaml</code> 的 <code>source</code> 預填、「領域有設定但還沒拉取」時給「拉取」按鈕；領域管理頁顯示被哪些組合場景依賴；組合場景改代號、搬到其他領域、封存的頁面；頁面上驗證指定的舊版本；本機執行開始時先把版本檔案複製到執行目錄（第 6 節）；git 操作期間存檔排隊（現在是第二個 git 操作回「正在同步」、套用前發現資料夾被改就請重試）；只取設定目錄的部分複製。</li>
+          <li><s>合併 #54</s>——2026-10-20 19:15 PDT 前已合併；Worker App 測試的偶發失敗由 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/55">#55</a> 修正（只改測試）。</li>
+          <li><s>全新資料夾自動匯入的範例第一次拉取會衝突</s>——隨 #54 合併。</li>
+          <li><s>設計有、還沒做的功能</s>——<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/56">#56</a>：依賴提示的「從 git 新增」預填與「拉取」、領域管理頁的「被哪些組合場景依賴」、組合場景改代號／搬領域／封存、頁面驗證指定的舊版本、本機執行用版本快照。</li>
+          <li><s>PR 4 的文件</s>——ADR 0015、路線圖的 M11、部署與操作（升級、退回、領域與 git 同步、常見問題）。</li>
+          <li><strong>不做（MVP 的取捨，記在 ADR 0015）</strong>：git 操作期間存檔排隊、只取設定目錄的部分複製。</li>
+          <li><strong>剩下的</strong>：使用者的人工驗收（PR 1 的伺服器遷移、錄製端、Worker；PR 2 的組合場景；PR 3 除了推送以外的步驟），結果記在<a href="#acceptance">人工驗收紀錄</a>；全部通過後路線圖的 M11 改成「已完成」。</li>
           <li>M11 之後：執行紀錄的回看（D4，第 9 節）。</li>
         </ul>
+        <h3 id="acceptance">人工驗收紀錄</h3>
+        <table class="wrap">
+          <thead><tr><th>項目</th><th>結果</th><th>時間與執行者</th></tr></thead>
+          <tbody>
+            <tr><td>PR 3：git 推送（<a href="#pr3-check">步驟</a>第 1 項附近）</td><td>通過（使用者口頭回報「推送 git 已經驗證過」，細節未提供）</td><td>2026-10-20 19:18 PDT 前，使用者</td></tr>
+            <tr><td>PR 3：其餘步驟（第 2～10 項）</td><td>未執行</td><td>—</td></tr>
+            <tr><td>PR 1：伺服器遷移、校驗、紀錄、兩台之間發布、保護、名稱、錄製端、Worker（<a href="#pr1-check">步驟</a>）</td><td>未執行</td><td>—</td></tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -556,6 +566,9 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
         <li>2026-10-20 17:45 America/Los_Angeles（PDT，UTC−07:00），Claude：#53 已合併（main <code>1be5a90</code>）。#54 的 <code>78f45bf</code> 在 Python 3.12 有一個和本 PR 無關的桌面 App 測試偶發失敗，重跑通過，#54 可以合併。依使用者要求整理人工驗收步驟（<a href="#pr3-check">pr3-check</a>）與 M11 還沒完成的事（<a href="#m11-remaining">m11-remaining</a>）。整理時發現：全新資料夾自動匯入的範例和遠端的範例第一次拉取會在 <code>revisions/&lt;n&gt;.yaml</code> 衝突（建立時間、伺服器不同），驗收步驟先用空的範例資料夾避開，修正待使用者決定。</li>
         <li>2026-10-20 18:00 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者要求把範例衝突的修正加進 #54：合併後的衝突再檢查一次「其實是同一件事」的情況，用遠端的那份——版本說明檔的雜湊相同；<code>scene.yaml</code>、<code>composite.yaml</code> 本機沒有發布、其他欄位相同；第一次接上遠端時 <code>pack.yaml</code> 代號相同。其餘照舊是衝突。新增測試：兩台都自動匯入範例，第一次拉取不衝突。人工驗收步驟改成不用空的範例資料夾。</li>
         <li>2026-10-20 19:25 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者已合併 #54，並驗證過 git 推送；其他人工驗收慢慢做，要我把 M11 遺留的事做完。分成三個 PR：#55 修 Worker App 結束請求測試的偶發失敗（只改測試：包住 <code>on_stop</code>，等它做完）；<code>m11/leftovers</code> 做「還沒做」清單裡的功能——<code>pack.yaml</code> 的 requires 記下依賴領域的 <code>source</code>（領域接上 git 時更新依賴它的領域）、依賴提示「從 git 新增」預填與「拉取」、領域管理頁列出被哪些組合場景依賴、組合場景改代號／搬領域／封存（<code>PATCH /api/workflows/{id}</code>）、頁面驗證指定的舊版本、本機執行從 <code>work/&lt;執行編號&gt;/</code> 的快照執行；最後 PR 4 是 ADR 0015、路線圖、部署文件與驗收紀錄。「git 操作期間存檔排隊」與「只取設定目錄的部分複製」不做，在 ADR 記為 MVP 的取捨。</li>
+        <li>2026-10-20 19:50 America/Los_Angeles（PDT，UTC−07:00），Claude：#55 的 CI 全綠；開 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/56">#56</a>（遺留功能，草稿，等 CI）。PR 4 疊在 <code>m11/leftovers</code> 上：ADR 0015（三語，簡中由 bootstrap 產生）、ADR 索引與導覽、路線圖新增 M11（進行中）、部署與操作補上 M11 的升級與退回、「領域與 git 同步」與常見問題；本頁新增<a href="#acceptance">人工驗收紀錄</a>（使用者回報 git 推送已驗證）並更新「還沒完成的事」。交接狀態：剩使用者的人工驗收；全部通過後把路線圖的 M11 改成已完成。</li>
+        <li>2026-10-20 20:10 America/Los_Angeles（PDT，UTC−07:00），Claude：#56 第一次 CI 有 pyright 的 3 個型別錯誤（依賴檢查用 <code>**params</code> 傳參數、<code>published_number</code> 沒有收窄、測試的 <code>in</code>）與還沒產生的簡中，<code>1828531</code> 修正後全部通過，改成可以審閱。PR 4 開成 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/57">#57</a>（base <code>m11/leftovers</code>）；第一次 CI 只差 bootstrap 產生的簡中頁面。#55 的 CI 全綠。交接狀態：三個 PR 待使用者審閱合併（#55、#56 可以任意順序；#57 在 #56 之後），之後是使用者的人工驗收。</li>
+        <li>2026-10-20 21:10 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者在 20:10 合併 #55、#56（#56 squash 成 main 的 <code>b9a3387</code>），20:14 合併的 #57 那時的 base 仍是 <code>m11/leftovers</code>，所以 #57 的三個提交（<code>769e903</code>、<code>c2c038c</code>、<code>1a5a4cb</code>，合併提交 <code>b79f7f5</code>）只在那個分支，main 沒有 ADR 0015、路線圖的 M11、部署文件與本頁的驗收紀錄。使用者 21:03 同意補進 main：從 <code>b9a3387</code> 開 <code>docs/m11-wrap-up-main</code>，原樣 cherry-pick 這三個提交（沒有衝突；和 <code>m11/leftovers</code> 的差異只剩 main 較新的 #55 測試檔），本頁更新狀態。之後 <code>m11/leftovers</code>、<code>m11/wrap-up</code> 沒有獨有的工作，可以刪。</li>
       </ul></div>
     </section>
   </div>

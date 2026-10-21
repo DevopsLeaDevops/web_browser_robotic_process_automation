@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0015 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0015" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0015：場景與組合場景放在領域資料夾，經由 git 在伺服器之間同步</h1>
+      <p>每個領域一個自給自足的資料夾（說明檔＋不可變的版本＋驗證與發布紀錄）；資料庫只是索引。領域資料夾可以和 git 倉庫裡的一個目錄同步，讓分散錄製、多人驗證、分散使用的伺服器共用同一份定義，而登入狀態、Secrets 與執行紀錄留在各自的伺服器。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-19（提議，#40）；2026-10-19（使用者確認 D1～D11）；2026-10-20（M11 PR 1～3 合併）</dd>
+        <dt>影響範圍</dt><dd>rpa-core（<code>rpa_core.pack</code> 資料夾格式與校驗）、rpa-cli（<code>rpa pack check</code>）、rpa-server（<code>packs.py</code> 載入與紀錄、<code>gitsync.py</code>、遷移 0010～0012、領域管理與組合場景頁）；資料夾的結構（<code>domains/</code>、<code>git/</code>、<code>work/</code>、<code>workflow-runs/</code>、<code>backups/</code>）</dd>
+        <dt>相關</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a>（DSL 是唯一真實來源）；<a href="0008-sqlite-and-postgresql.html">ADR 0008</a>（資料庫）；<a href="0009-scenario-contract.html">ADR 0009</a>（驗證的就是發布的）；<a href="0012-remote-workers.html">ADR 0012</a>、<a href="0014-desktop-apps.html">ADR 0014</a>（worker 與錄製端自帶檔案）；設計與決定見任務紀錄 <code>handoff/tasks/20261019-data-storage.html</code></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>M10 之前場景版本放在資料夾的 <code>scenes/&lt;場景&gt;/&lt;n&gt;/</code>，版本狀態、驗證結果、發布與組合場景的定義都只在 SQLite 裡。一台伺服器沒有問題，但營運是分散式的多人協作：分散錄製、多人驗證後發布、分散使用。兩台伺服器之間沒有辦法交換場景，也看不到對方的驗證結果；組合場景用到另一個業務領域的場景時，沒有地方說明它依賴什麼。</p>
+          <p>使用者希望場景與組合場景能像程式碼一樣放進第三方倉庫，每個領域可以單獨載入，新的伺服器只拉自己需要的領域就能錄製、調試、執行。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>領域資料夾。</strong><code>domains/&lt;領域&gt;/</code> 有 <code>pack.yaml</code>（名稱、說明、依賴的領域與它們的來源）、<code>scenes/</code>、<code>roles/</code>、<code>composites/</code>。場景與組合場景同一套規則：說明檔＋不可變的版本目錄＋版本說明檔（雜湊）＋驗證紀錄。格式在 <code>rpa_core.pack</code>，<code>rpa pack check</code> 不開 Portal 也能校驗。</li>
+            <li><strong>資料庫是索引。</strong>啟動、拉取、按「重新載入」時依資料夾重建；只在資料庫的是每台自己的設定（網址覆寫、排序、資料來源、同步狀態）。</li>
+            <li><strong>驗證與發布紀錄進資料夾（D3）。</strong>每次驗證寫一份紀錄（誰、哪台伺服器、哪台 worker、結果、雜湊；組合場景另記每個節點跑的場景版本），發布寫在 <code>scene.yaml</code>／<code>composite.yaml</code>。發布門檻是「資料夾裡有一份雜湊相符的通過紀錄」，不管是哪台伺服器驗證的。</li>
+            <li><strong>執行紀錄不進資料夾（D4）。</strong>報告、截圖留在伺服器的 <code>runs/</code>、<code>workflow-runs/</code>，另寫 <code>run.json</code> 給之後的回看。</li>
+            <li><strong>git 同步只在伺服器（D5、D6）。</strong>每個領域可以設定倉庫、分支、目錄與認證（公開倉庫、HTTPS 權杖、Portal 產生的 SSH 部署金鑰）。拉取與推送以檔案為單位三方合併（上次同步、本機、遠端）；同一個檔案兩邊改成不同內容才是衝突，停下來三選一（取消、推送到新分支、以遠端為準並先備份），永遠不強推。內容雜湊相同的版本視為同一個版本。</li>
+            <li><strong>代號全域唯一（D8）。</strong>DSL、角色與組合場景的引用方式不變；跨領域的依賴記在組合場景版本的 <code>requires</code>（領域、場景、版本、雜湊）與 <code>pack.yaml</code>，缺的時候頁面提示怎麼補（從 git 新增、拉取、重新存檔）。</li>
+            <li><strong>機密不離開伺服器（D9）。</strong>Secrets 的值、登入狀態、網址覆寫、git 權杖與私鑰只在伺服器的資料夾；推送前擋下看起來像機密的檔名與含有 Secret 值的內容。</li>
+            <li><strong>升級自動遷移（D7）。</strong>先備份到 <code>backups/</code>，再把舊的版本目錄、資料庫裡的驗證、發布與組合場景搬進領域資料夾。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body">
+          <h3>好處</h3>
+          <ul class="points">
+            <li>場景、組合場景與它們的驗證、發布歷史可以用 git 審閱、回溯，放在公司自己的倉庫。</li>
+            <li>任何一台伺服器的通過紀錄都能當發布依據，「甲驗證、乙發布」不必重跑。</li>
+            <li>新伺服器只設定需要的領域就能用；錄製端與 worker 不變（任務自帶檔案）。</li>
+            <li>在資料夾外面改了已存在的版本，雜湊對不上，那個版本不能執行也不能發布。</li>
+          </ul>
+          <h3>代價</h3>
+          <ul class="points">
+            <li>多了資料夾與資料庫兩份狀態：資料夾是真相，資料庫要在載入時對齊；在外面改檔案要按「重新載入」（D10，不監看）。</li>
+            <li>同一個場景同時在兩台伺服器建立同號版本或同時發布會衝突，要人決定；建議同一個場景同時只在一台編輯。</li>
+            <li>伺服器需要 git 2.25 以上；推送需要倉庫的寫入權限（權杖或部署金鑰）。</li>
+            <li><strong>MVP 的取捨：</strong>工作副本取回整個分支的物件，不做只取設定目錄的部分複製（倉庫很大時才有差）；同步進行中，同一個領域的第二個 git 操作直接回「正在同步」，Portal 的存檔不排隊，改在套用前確認資料夾沒被改過、改過就請使用者重試。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>資料庫之間同步（匯出入或複寫）</td><td>看不到歷史、不能審閱，也不能只取一個領域；SQLite 不適合多台寫入。</td></tr>
+              <tr><td>發布狀態只在各自的伺服器（不進 git）</td><td>原本的建議；使用者要求發布狀態要記錄，因為多人驗證後發布、分散使用（D3）。</td></tr>
+              <tr><td>每次存檔都提交</td><td>提交會非常碎，推送也要等網路；改成「本機變更＝資料夾和上次同步的差異」，推送時一次提交。</td></tr>
+              <tr><td>自動合併同一個檔案的內容</td><td>版本與發布的 YAML 合併錯了會讓發布門檻失效；版本目錄不可變、驗證紀錄一次一個檔案，衝突本來就少，交給人決定。</td></tr>
+              <tr><td>稀疏工作副本＋rebase</td><td>原本的設計；改成裸倉庫＋git 底層命令只換掉設定的目錄，不需要工作目錄，結果和 rebase 一樣，也不會動到倉庫的其他目錄。</td></tr>
+              <tr><td>錄製端與 worker 也做 git</td><td>憑證要散到每台電腦；任務本來就帶著版本檔案過去（M9a、M10），不必改協定。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -160,6 +160,11 @@ window.DOCS_NAV = {
           "name": {"zh-Hant": "0014 桌面 App", "zh-Hans": "0014 桌面 App", "en": "0014 Desktop apps"}
         },
         {
+          "id": "adr-0015",
+          "href": "adr/0015-domain-folders-and-git.html",
+          "name": {"zh-Hant": "0015 領域資料夾與 git", "zh-Hans": "0015 领域文件夹与 git", "en": "0015 Domain folders and git"}
+        },
+        {
           "id": "adr-0016",
           "href": "adr/0016-run-replay.html",
           "name": {"zh-Hant": "0016 運行回看", "zh-Hans": "0016 运行回看", "en": "0016 Run replay"}
