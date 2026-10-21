@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-21 01:04 America/Los_Angeles（PDT，UTC−07:00）。共 125 次運行。
+更新：2026-10-21 01:09 America/Los_Angeles（PDT，UTC−07:00）。共 126 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,7 +9,7 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 63（0） | 40（0） | 2.5 分（0.0 分） | 4.9 分（0.0 分） | 0.0 分（0.0 分） | 263／74／0 分（0／0／0 分） |
+| CI | 64（0） | 40（0） | 2.5 分（0.0 分） | 4.9 分（0.0 分） | 0.0 分（0.0 分） | 265／76／0 分（0／0／0 分） |
 | 桌面端建置 | 46（0） | 37（0） | 3.9 分（0.0 分） | 4.2 分（0.0 分） | 0.1 分（0.0 分） | 4／124／124 分（0／0／0 分） |
 | 一鍵安裝腳本 | 15（0） | 7（0） | 3.0 分（0.0 分） | 15.5 分（0.0 分） | 0.1 分（0.0 分） | 69／47／17 分（0／0／0 分） |
 | 每晚完整測試 | 1（0） | 0（0） | 39.3 分（0.0 分） | 39.3 分（0.0 分） | 0.0 分（0.0 分） | 36／39／0 分（0／0／0 分） |
@@ -19,7 +19,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-21 | 1 | 3 | 2 | 0 | 5 |
+| 2026-10-21 | 2 | 5 | 4 | 0 | 10 |
 | 2026-10-20 | 121 | 359 | 274 | 134 | 767 |
 | 2026-10-19 | 3 | 10 | 8 | 6 | 25 |
 
@@ -27,30 +27,27 @@
 
 ### CI · pytest-report-3.12/pytest-report.xml
 
-最近一次：2026-10-21 01:02 America/Los_Angeles（PDT，UTC−07:00），合計 117 秒。
+最近一次：2026-10-21 01:06 America/Los_Angeles（PDT，UTC−07:00），合計 28 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 80.5（80.5） | 10 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 36.2（36.2） | 1 | `packages/rpa_runner/tests/test_zz_diag_firefox_video.py` |
+| 27.8（32.0） | 1 | `packages/rpa_runner/tests/test_zz_diag_firefox_video.py` |
 
 ### CI · pytest-report-3.13/pytest-report.xml
 
-最近一次：2026-10-21 01:02 America/Los_Angeles（PDT，UTC−07:00），合計 118 秒。
+最近一次：2026-10-21 01:06 America/Los_Angeles（PDT，UTC−07:00），合計 26 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 80.7（80.7） | 10 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 37.3（37.3） | 1 | `packages/rpa_runner/tests/test_zz_diag_firefox_video.py` |
+| 26.0（31.6） | 1 | `packages/rpa_runner/tests/test_zz_diag_firefox_video.py` |
 
 ### CI · pytest-report-windows/pytest-report.xml
 
-最近一次：2026-10-21 01:02 America/Los_Angeles（PDT，UTC−07:00），合計 186 秒。
+最近一次：2026-10-21 01:06 America/Los_Angeles（PDT，UTC−07:00），合計 64 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 123.6（93.2） | 10 | `packages\rpa_runner\tests\test_video_browser.py` |
-| 62.1（62.1） | 1 | `packages\rpa_runner\tests\test_zz_diag_firefox_video.py` |
+| 63.8（63.0） | 1 | `packages\rpa_runner\tests\test_zz_diag_firefox_video.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.12/pass-1.xml
 
@@ -175,6 +172,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 10-21 01:06 | CI | 手動 | tmp/m12-firefox-video-diag | failure | 2.1 分 | 0.0 分 | [#39566825305](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39566825305/attempts/1) |
 | 10-21 01:02 | CI | 手動 | tmp/m12-firefox-video-diag | failure | 2.3 分 | 0.1 分 | [#39566241679](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39566241679/attempts/1) |
 | 10-20 23:20 | CI | 推送 | main | success | 1.4 分 | 0.0 分 | [#39554827230](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39554827230/attempts/1) |
 | 10-20 21:48 | CI | PR | m12/replay | failure | 2.6 分 | 0.0 分 | [#39546044758](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39546044758/attempts/1) |
@@ -214,5 +212,4 @@
 | 10-20 09:38 | 桌面端建置 | PR | m11/git-sync | success | 0.1 分 | 0.0 分 | [#39459275827](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39459275827/attempts/1) |
 | 10-20 09:38 | CI | PR | m11/git-sync | failure | 1.4 分 | 0.0 分 | [#39459275810](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39459275810/attempts/1) |
 | 10-20 09:30 | CI | PR | m11/git-sync | success | 2.6 分 | 0.1 分 | [#39457969054](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39457969054/attempts/1) |
-| 10-20 09:30 | 桌面端建置 | PR | m11/git-sync | success | 3.9 分 | 0.1 分 | [#39457969192](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39457969192/attempts/1) |
 

@@ -9579,3 +9579,6 @@
 {"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_firefox_video.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 39566241679, "seconds": 37.3, "tests": 1, "workflow": "CI"}
 {"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_video_browser.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39566241679, "seconds": 123.6, "tests": 10, "workflow": "CI"}
 {"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_zz_diag_firefox_video.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39566241679, "seconds": 62.1, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_firefox_video.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39566825305, "seconds": 27.8, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_firefox_video.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 39566825305, "seconds": 26.0, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_zz_diag_firefox_video.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39566825305, "seconds": 63.8, "tests": 1, "workflow": "CI"}
