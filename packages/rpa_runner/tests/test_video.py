@@ -164,12 +164,16 @@ def test_finalize_repairs_a_cut_off_video(tmp_path: Path, monkeypatch: pytest.Mo
     assert details["durationMs"] == 900
 
 
+def _cannot_repair(*args: object, **kwargs: object) -> bool:
+    return False
+
+
 def test_finalize_keeps_a_video_that_cannot_be_repaired(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """修不了（例如找不到 ffmpeg）也留著：瀏覽器還是能從頭播放，只是不能拖曳。"""
     _recorded(tmp_path, tiny_webm(finished=False, started_at=STARTED))
-    monkeypatch.setattr(video, "repair", lambda *args, **kwargs: False)
+    monkeypatch.setattr(video, "repair", _cannot_repair)
 
     details = finalize(tmp_path, wait_seconds=0.6)
 
@@ -187,7 +191,7 @@ def test_finalize_without_a_usable_video(
     mark_page(tmp_path, None, STARTED.timestamp())
     if content is not None:
         (tmp_path / VIDEO_TMP / "page1.webm").write_bytes(content)
-    monkeypatch.setattr(video, "repair", lambda *args, **kwargs: False)
+    monkeypatch.setattr(video, "repair", _cannot_repair)
 
     details = finalize(tmp_path, wait_seconds=0.6)
 

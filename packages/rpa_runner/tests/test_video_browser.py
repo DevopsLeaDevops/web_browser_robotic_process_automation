@@ -213,17 +213,28 @@ def test_failed_step_is_in_the_video(site: str, engine: str, tmp_path: Path) -> 
 
 
 def test_cancelled_run_keeps_a_playable_video(site: str, engine: str, tmp_path: Path) -> None:
-    """取消時立刻停止操作，影片仍然有長度、能拖曳（Windows 上要留下 ffmpeg 把影片寫完）。"""
-    cancel = threading.Event()
-    started = threading.Event()
+    """取消時立刻停止操作，影片仍然有長度、能拖曳（Windows 上要留下 ffmpeg 把影片寫完）。
 
-    def on_stage(name: str) -> None:
-        if name == "automation":
-            started.set()
+    等「變紅」那一步真的做完（steps.json）再取消，不靠固定的秒數：機器忙時瀏覽器開得慢，
+    太早取消時頁面還沒出現，影片是空的。
+    """
+    cancel = threading.Event()
+    steps_file = tmp_path / "runs" / "video-cancel" / STEPS
+
+    def turned_red() -> bool:
+        try:
+            steps = json.loads(steps_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        return any(
+            step.get("id") == "turn-red" and step.get("status") == "passed" for step in steps
+        )
 
     def cancel_later() -> None:
-        started.wait(30)
-        time.sleep(4.0)  # 頁面已經變紅、正在等不會出現的元素
+        ends = time.monotonic() + 40
+        while time.monotonic() < ends and not turned_red():
+            time.sleep(0.1)
+        time.sleep(1.0)  # 頁面已經變紅、正在等不會出現的元素
         cancel.set()
 
     threading.Thread(target=cancel_later, daemon=True).start()
@@ -234,7 +245,7 @@ def test_cancelled_run_keeps_a_playable_video(site: str, engine: str, tmp_path: 
         engine=engine,
         record_video=True,
         cancel=cancel,
-        on_stage=on_stage,
+        run_id="video-cancel",
     )
 
     assert result.status == "cancelled"

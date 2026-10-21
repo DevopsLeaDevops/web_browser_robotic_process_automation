@@ -55,7 +55,10 @@ def _open_page(
 ) -> Page:
     """開瀏覽器與頁面；關閉的動作登記在 stack，離開時依相反順序執行。
 
-    ``video`` 是執行目錄時錄影：記下主要頁面的影片檔名與開頁面的時間。
+    ``video`` 是執行目錄時錄影：記下主要頁面的影片檔名與開頁面的時間。Firefox 的預熱設定檔
+    （持久化 context）啟動時就有一個分頁，這個分頁錄到的畫面少了工具列的高度（Windows、Linux
+    都是，例如 640×360 的頁面只錄到 640×273，下方是 ffmpeg 補的灰色）；錄影時改用新開的分頁，
+    畫面才完整，原本的分頁關掉（2026-10-21 在 CI 用 Playwright 1.64 實測）。
     """
     context = open_context(
         playwright,
@@ -70,7 +73,13 @@ def _open_page(
         video_dir=video / VIDEO_TMP if video is not None else None,
         video_size=video_size(_viewport(scenario)) if video is not None else None,
     )
-    page = context.pages[0] if context.pages else context.new_page()
+    if video is not None and context.pages:
+        first = context.pages[0]
+        page = context.new_page()
+        with contextlib.suppress(Exception):  # 關不掉也不影響，只是多一段沒用到的影片
+            first.close()
+    else:
+        page = context.pages[0] if context.pages else context.new_page()
     if video is not None:
         name: str | None = None
         with contextlib.suppress(Exception):  # 只是讓父程序找得到主要頁面的影片
