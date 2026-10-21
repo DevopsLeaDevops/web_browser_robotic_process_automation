@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:73238a35118d2a07">
+<meta name="translation-source" content="sha256:76546ca528215569">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -92,7 +92,7 @@
           <li><strong>No double submission.</strong> Each form load creates an <code>idempotencyKey</code>; submitting twice returns the same run.</li>
           <li><strong>Run again.</strong> Any finished run can be repeated with the same inputs and options (validation uses the same revision, production runs the currently published one).</li>
           <li><strong>Server restarts.</strong> On start-up, runs that were interrupted are marked as failed; queued runs continue.</li>
-          <li id="video"><strong>Recording (M12).</strong> The automation stage of a DSL scenario is recorded, headed or headless, as <code>video.webm</code> and <code>video.json</code> in the run folder; <code>steps.json</code> records when each step started and ended and the page URL after it, so replay can line them up with the video. The video is as large as the page, at most 1280 wide. Cancelled, timed-out and failed runs get a complete video too (on Windows, cancelling leaves the recording's ffmpeg running to finish the file; a broken file is remuxed with Playwright's own ffmpeg). Login checks, step-by-step debugging, recording sessions and Python script scenarios are not recorded. By default everything is recorded; passed runs keep the video for 7 days, failed, timed-out, cancelled and needs-login runs for 30 days, and all videos together use at most 20 GB (the oldest are deleted first); pinned videos are kept. Clean-up only deletes videos: run records, reports and screenshots stay. See <a href="../adr/0016-run-replay.html">ADR 0016</a>.</li>
+          <li id="video"><strong>Recording (M12).</strong> The automation stage of a DSL scenario is recorded, headed or headless, as <code>video.webm</code> and <code>video.json</code> in the run folder; <code>steps.json</code> records when each step started and ended and the page URL after it, so replay can line them up with the video. The video is as large as the page, at most 1280 wide. Cancelled, timed-out and failed runs get a complete video too (on Windows, cancelling ends only the browsers first so Playwright can finish the file; a broken file is remuxed with Playwright's own ffmpeg). Login checks, step-by-step debugging, recording sessions and Python script scenarios are not recorded. By default everything is recorded; passed runs keep the video for 7 days, failed, timed-out, cancelled and needs-login runs for 30 days, and all videos together use at most 20 GB (the oldest are deleted first); pinned videos are kept. Clean-up only deletes videos: run records, reports and screenshots stay. See <a href="../adr/0016-run-replay.html">ADR 0016</a>.</li>
         </ul>
       </div>
     </section>

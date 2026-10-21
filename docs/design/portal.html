@@ -91,7 +91,7 @@
           <li><strong>不重複送出。</strong>表單每次載入產生一個 <code>idempotencyKey</code>，重複送出只會得到同一個執行。</li>
           <li><strong>重新執行。</strong>結束的執行都可以用同樣的入參與選項再執行一次（驗證用同一個版本，正式執行用目前發布的版本）。</li>
           <li><strong>伺服器重啟。</strong>啟動時把上次執行到一半的任務標為失敗；排隊中的會繼續執行。</li>
-          <li id="video"><strong>錄影（M12）。</strong>DSL 場景的自動化階段錄影，有頭、無頭都錄，存成執行目錄的 <code>video.webm</code> 與 <code>video.json</code>；<code>steps.json</code> 記下每一步的開始、結束時間與步驟後的網址，回看時和影片對上。畫面跟頁面一樣大，寬度最多 1280。取消、逾時、失敗的運行也有完整的影片（Windows 上取消時留下錄影的 ffmpeg 把影片寫完；寫壞的影片用 Playwright 自帶的 ffmpeg 重新封裝）。登入檢查、逐步調試、錄製與 Python 腳本場景不錄。預設全部錄；通過的運行保留 7 天，失敗、逾時、取消、需要登入的保留 30 天，全部最多 20 GB（超過時從最舊的刪起），釘選的不刪。清理只刪影片，運行紀錄、報告、截圖都留著。見 <a href="../adr/0016-run-replay.html">ADR 0016</a>。</li>
+          <li id="video"><strong>錄影（M12）。</strong>DSL 場景的自動化階段錄影，有頭、無頭都錄，存成執行目錄的 <code>video.webm</code> 與 <code>video.json</code>；<code>steps.json</code> 記下每一步的開始、結束時間與步驟後的網址，回看時和影片對上。畫面跟頁面一樣大，寬度最多 1280。取消、逾時、失敗的運行也有完整的影片（Windows 上取消時先只結束瀏覽器，讓 Playwright 把影片寫完；寫壞的影片用 Playwright 自帶的 ffmpeg 重新封裝）。登入檢查、逐步調試、錄製與 Python 腳本場景不錄。預設全部錄；通過的運行保留 7 天，失敗、逾時、取消、需要登入的保留 30 天，全部最多 20 GB（超過時從最舊的刪起），釘選的不刪。清理只刪影片，運行紀錄、報告、截圖都留著。見 <a href="../adr/0016-run-replay.html">ADR 0016</a>。</li>
         </ul>
       </div>
     </section>

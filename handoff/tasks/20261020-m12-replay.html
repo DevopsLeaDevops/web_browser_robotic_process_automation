@@ -15,15 +15,15 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261020-m12-replay；2026-10-20 22:30 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261020-m12-replay；2026-10-21 02:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-20 20:19 PDT 在 Claude 對話：「先一起設計完成，有不確定的溝通確定，設計沒問題再動手 coding」。前提：Playwright 錄製支援錄影回看。目標：(1) 腳本在 worker 驗證、運行時錄影，有頭、無頭都支援；(2) 運行結束後在運行紀錄回看；(3) 回看是獨立功能、之後會很常用：方便定位運作過程、還原執行現場，支援暫停、拖曳、和現有的步驟關聯；期望有播放介面、有縮圖的進度條、有步驟關聯。UI 互動由 Claude 設計。定為 M12 里程碑。驗收見第 1 節。</dd>
         <dt>範圍／不包含</dt><dd>見第 3～7 節。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱與決定：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>本頁、<a href="20261020-m12-replay/prototype.html">互動原型</a>、任務索引、<a href="../decisions.html">決定</a>。PR 1：<code>rpa_runner</code>（browser、child、contexts、files、run、新的 video、proctree）、<code>rpa_worker</code>（Job、JobPayload、remote）、<code>rpa_server</code>（新的 videos、jobs、dispatch、services、api、domain、pages、models、遷移 0013、app）、<code>rpa_cli</code>（<code>rpa run --video</code>）、<code>testsite.webm</code>（測試用）、文件（架構、管理 Portal、DSL、ADR 0016 與導覽）。共用檔案：遷移編號 0013、訊息目錄、<code>docs/assets/nav.js</code>、ADR 索引（#60 也改 ADR 索引與導覽，後合併的一方解衝突）。整合者：Claude。</dd>
-        <dt>狀態</dt><dd>實作中：PR 1（錄影與資料）本地檢查中；PR 2（播放器與入口）接著做。</dd>
-        <dt>分支／PR／base SHA</dt><dd>設計：<code>docs/m12-replay-design</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（只有設計，併入 PR 1 後關閉）。實作：<code>m12/replay</code>，從 <code>b9a3387</code>（origin/main，#56）開，先帶入設計的三個提交；PR 建立後回填。</dd>
-        <dt>交接版本／同步狀態</dt><dd>設計 d667ea6～8e620a4 已推送；實作只在本機，推送後回填。</dd>
-        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、Playwright 1.56 只有 Chromium、系統 ffmpeg 只用來檢查）。PyPI、npm 與 Playwright 的瀏覽器下載被擋，沒辦法裝倉庫用的 Playwright 1.64；1.64 的行為是讀它的原始碼（v1.64.0 的 <code>packages/playwright-core/src/server</code>）得到的，第 8 節安排在 CI 實測。</dd>
+        <dt>狀態</dt><dd>實作中：PR 1（#61，錄影與資料）修完 CI 找到的三個問題（Firefox 畫面被裁、Windows 取消後影片是空的、pyright），確認最新 head 的 CI；PR 2（播放器與入口）本機檢查通過，堆疊在 #61 上開 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>docs/m12-replay-design</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（只有設計，併入 PR 1 後關閉）。實作：<code>m12/replay</code>，從 <code>b9a3387</code>（origin/main，#56）開，先帶入設計的三個提交；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/61">PR #61</a>（base main；2026-10-21 01:10 PDT 併入 main 097464c，含 #60）。PR 2：<code>m12/replay-player</code>（堆疊在 <code>m12/replay</code> 上，#61 合併後改 base 為 main）。診斷用的暫時分支 <code>tmp/m12-firefox-video-diag</code>（不合併，用完刪除）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>設計 d667ea6～8e620a4 已推送（併入 #61）。PR 1 已推送，見追加紀錄的 SHA；PR 2 已推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、Playwright 1.56 只有 Chromium、系統 ffmpeg 只用來檢查）。PyPI、npm 與 Playwright 的瀏覽器下載被擋，沒辦法裝倉庫用的 Playwright 1.64；1.64 的行為是讀它的原始碼（v1.64.0 的 <code>packages/playwright-core/src/server</code>）得到的，第 8 節安排在 CI 實測。2026-10-21 00:57 PDT 起環境重建過（上一段在用量上限中斷，容器回收後只剩倉庫與暫存目錄），依賴照同樣的方式從 GitHub 原始碼載入；CI 的日誌下載網域被擋，診斷靠測試失敗訊息變成的標註。</dd>
       </dl></div>
     </section>
 
@@ -52,6 +52,8 @@
           <tr><td>ffmpeg 從哪裡來</td><td>每次 <code>playwright install &lt;任何瀏覽器&gt;</code> 都會一起下載 ffmpeg（1.64 是 ffmpeg-1013）。一鍵安裝、Worker App、錄製端都已經有。</td><td>v1.64.0 <code>registry/index.ts</code> 的 <code>resolveBrowsers</code></td><td>無</td></tr>
           <tr><td>Playwright 的動作標註（showActions）</td><td>會在頁面裡注入標註，而且每個操作前多等 500 ms，改變執行的時間與畫面。<strong>不採用</strong>，步驟由播放器顯示。</td><td>v1.64.0 <code>screencast.ts</code> 的 <code>onBeforeInputAction</code></td><td>無</td></tr>
           <tr><td>被終止時影片停在哪</td><td>影片只有到最後一次畫面變化（Playwright 只在畫面變化時送出畫面，正常關閉時才補上最後一格到現在）。1.56 甚至把最後一格留在記憶體，被終止就沒寫進去；1.64 收到就寫。</td><td>本機 1.56 取消的實測；v1.64.0 <code>videoRecorder.ts</code> 的 <code>_writeFrame</code></td><td>回看頁要能處理「步驟超出影片長度」</td></tr>
+          <tr><td>Firefox 預熱設定檔的錄影</td><td>持久化 context 啟動時就有的那個分頁，錄到的畫面少了工具列的高度：640×360 的頁面每一格只有 640×273，下方是 ffmpeg 補的灰色（Windows、Linux；有頭、無頭都一樣）。同一個 context 新開的分頁畫面完整。錄影時改用新分頁、關掉原本的（<code>child._open_page</code>）。</td><td>2026-10-21 CI 用 1.64 的診斷：量每一格 JPEG 的大小、影片裡有畫面的範圍</td><td>無</td></tr>
+          <tr><td>Windows 上被終止的影片</td><td>只留下 ffmpeg、結束其他程序時，ffmpeg 在 6～11 ms 後也結束，緩衝區沒寫進檔案，影片是空的：Node（Playwright 的 driver）用 libuv 開子程序，子程序在「Node 結束時一起結束」的 Job Object 裡。改成先只結束瀏覽器：Playwright 照常替頁面收尾錄影，子程序因為頁面關了自己結束（Chromium 0.31 秒、Firefox 0.14 秒），影片完整、不必修復（<code>run._stop_browsers_first</code>）。</td><td>2026-10-21 CI 診斷；<code>video.json</code> 的 <code>stop</code></td><td>無</td></tr>
           <tr><td>能不能播放</td><td>Chrome、Edge、Firefox、Windows Worker App（WebView2）支援 WebM VP9。Safari 從 macOS 11.3 支援 WebM。</td><td>公開資料</td><td>Mac 錄製端 App（WKWebView）裡能不能播，要在使用者的 Mac 上確認</td></tr>
         </tbody>
       </table></div>
@@ -63,7 +65,7 @@
         <li><strong>DSL 場景的自動化階段</strong>：<code>rpa_runner.child</code> 開 context 時加上錄影，畫面大小跟頁面一樣、寬度上限 1280（D2）。結束時先關 context 再關瀏覽器，存成執行目錄的 <code>video.webm</code>。Firefox 的預熱設定檔（持久化 context）同樣支援。</li>
         <li><strong>步驟時間</strong>：<code>steps.json</code> 每一步加 <code>startedAt</code>、<code>endedAt</code>（UTC、毫秒）和 <code>url</code>（步驟結束後的網址，Playwright 已有的值，不多一次來回）。</li>
         <li><strong>新檔 <code>video.json</code></strong>：格式版本、檔名、錄影開始時間（從檔案標頭讀，讀不到才用開頁面的時間）、長度、寬高、大小、是否修復過、瀏覽器、保留到何時、是否釘選、刪除的時間與原因。</li>
-        <li><strong>失敗、逾時、取消</strong>：總期限到時子程序自己收尾（現在就有），影片正常存檔。被強制終止（取消、超過收尾時間）時：Linux、macOS 上 Playwright 把 ffmpeg 放在自己的程序群組，終止子程序的程序群組不會碰到它，ffmpeg 輸入斷了就自己收尾；Windows 的 <code>taskkill /T</code> 會連 ffmpeg 一起結束，所以錄影時先用 <code>CreateToolhelp32Snapshot</code> 列出子孫，結束 ffmpeg 以外的全部，最多等 8 秒讓 ffmpeg 收尾（<code>rpa_runner.proctree</code>、<code>run._stop_gracefully</code>）。整理時影片還是沒有長度與索引，就用 Playwright 的 ffmpeg 重新封裝；修不了也保留原檔（能從頭播放、不能拖曳），<code>video.json</code> 的 <code>complete</code> 是 false。實作時試過「只結束子程序、讓 Playwright 的 driver 自己收尾」：在本環境 driver 一直沒把 ffmpeg 正常關掉，30 秒後 driver 結束時還把 ffmpeg 一起砍掉，所以不用這個做法。</li>
+        <li><strong>失敗、逾時、取消</strong>：總期限到時子程序自己收尾（現在就有），影片正常存檔。被強制終止（取消、超過收尾時間）時：Linux、macOS 上 Playwright 把 ffmpeg 放在自己的程序群組，終止子程序的程序群組不會碰到它，ffmpeg 輸入斷了就自己收尾；Windows 上 <code>taskkill /T</code> 會連 ffmpeg 一起結束，只留下 ffmpeg 也不行（Node 的 Job Object，見第 2 節），所以錄影時先用 <code>CreateToolhelp32Snapshot</code> 列出子孫、只結束瀏覽器，等子程序自己結束（最多 15 秒），再等 ffmpeg 最多 8 秒；還沒結束才結束整個程序樹（<code>rpa_runner.proctree</code>、<code>run._stop_browsers_first</code>）。終止的經過記在 <code>video.json</code> 的 <code>stop</code>；被我們終止時，子程序寫的「頁面已關閉」不採用為錯誤原因。整理時影片還是沒有長度與索引，就用 Playwright 的 ffmpeg 重新封裝；修不了也保留原檔（能從頭播放、不能拖曳），<code>video.json</code> 的 <code>complete</code> 是 false。實作時試過「只結束子程序、讓 Playwright 的 driver 自己收尾」：在本環境 driver 一直沒把 ffmpeg 正常關掉，30 秒後 driver 結束時還把 ffmpeg 一起砍掉，所以不用這個做法；先只結束瀏覽器則是讓 Playwright 走它自己的「頁面關閉」流程。</li>
         <li><strong>Python 腳本場景</strong>：不錄（使用者 D5：暫不支援）。</li>
         <li><strong>不錄</strong>：登入檢查與自動登入（已有 <code>login.png</code>）、逐步調試、錄製（D5）。</li>
         <li><strong>設定</strong>：伺服器設定「錄影：開／關」。關閉時 child 完全不加錄影，和現在一樣。遠端 worker 從領取的任務得知要不要錄，舊版 worker 不認得就不錄（不擋執行）。</li>
@@ -153,11 +155,13 @@
     <section class="panel" id="progress">
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>已完成：</strong>需求整理、讀現有的執行流程（<code>rpa_runner.run</code>、<code>child</code>、<code>contexts</code>、<code>browser</code>、遠端 worker 上傳、運行頁與檔案路由）、技術驗證（第 2 節）、設計（第 3～8 節）、互動原型。</li>
-        <li><strong>未完成／阻礙：</strong>第 9 節等使用者決定；1.64 的行為要在 CI 實測（本環境裝不了 1.64）。</li>
-        <li><strong>順帶發現（和本任務無關）：</strong>PR #57（M11 PR 4：ADR 0015、路線圖 M11、部署與操作、人工驗收紀錄）在 2026-10-20 20:14 PDT 合併到 <code>m11/leftovers</code>，那時 #56 已在 20:10 PDT squash 合併進 main，所以 #57 的內容（b79f7f5）不在 main。已在對話告訴使用者。</li>
-        <li><strong>下一個具體動作：</strong>使用者回覆第 9 節與原型的意見 → 把確認的決定寫進本頁與 <a href="../decisions.html">決定</a> → 從最新 main 開 <code>m12/recording</code> 做 PR 1，先跑 CI 的技術驗證。</li>
-        <li><strong>未提交／stash／ignored 產物：</strong>無。產生原型的腳本與示範場景在 Claude 雲端環境的暫存目錄，不進倉庫（原型已包含影片與步驟資料）。</li>
+        <li><strong>已完成（設計）：</strong>需求整理、技術驗證（第 2 節）、設計（第 3～8 節）、互動原型；使用者 2026-10-20 21:03 PDT 確認（第 9 節）。</li>
+        <li><strong>已完成（PR 1，#61）：</strong>錄影、<code>video.json</code>、步驟時間、修復、設定與保留規則、遠端 worker、檔案快取、文件與 ADR 0016（見 #61 的說明）。2026-10-21：Firefox 預熱設定檔改用新分頁錄影；Windows 上取消時先只結束瀏覽器；終止的經過記在 <code>video.json</code>；取消的測試改成等頁面變紅才取消；pyright；併入 main（#60）並解 ADR 索引與導覽的衝突；路線圖加 M12。</li>
+        <li><strong>已完成（PR 2）：</strong>回看頁（播放器、縮圖時間軸、步驟清單、斷言、運行資訊與釘選）、<code>GET /api/runs/{id}/replay</code>、「運行回看」選單與錄影設定、運行報告／運行頁／試驗場的入口、編輯頁 <code>?line=</code>、三種語言（簡中由 bootstrap 產生）、管理 Portal 設計（繁中、英文）。中斷前寫到 2026-10-20 22:05 PDT 左右；2026-10-21 補完：沒有影片時的分頁與清單、影片 metadata 比程式早載入、縮圖在知道長度前就截、點一步時標成點的那一步、上一步／下一步改依順序（步驟常比 0.4 秒短）、執行中結束後自動重新整理、分頁數字間距、影片區照影片比例、略過的步驟、定位提示的文字。</li>
+        <li><strong>未完成／阻礙：</strong>Windows 的 Worker 測試偶爾卡住：66ebb8a 的 PR 運行與一次診斷運行卡住超過 20 分鐘（步驟逾時也停不下來），同樣的程式加上看門狗的另一次診斷全部通過、看門狗沒有抓到超過 90 秒的測試——卡住的地方可能在測試之外（例如殘留的程序佔著步驟的輸出）。已加上程序代號重複使用的防護與 CI 的工作逾時，重跑確認；人工驗收（第 8 節）；兩個 PR 的審閱與合併。</li>
+        <li><strong>決定（實作選擇）：</strong>Firefox 錄影用新分頁；Windows 上先只結束瀏覽器；列出子孫時比對建立時間（程序代號會重複使用，避免結束無關的程序）；CI 的 Linux 測試與 Windows 的 Worker 測試各最多 30 分鐘（之前沒有上限）；PR 2 堆疊在 #61 上、以草稿開，#61 合併後改 base（避免重演 #57）。</li>
+        <li><strong>下一個具體動作：</strong>找出 Windows Worker 測試卡住的原因並修好，確認 #61 最新 head 的 CI 全綠；PR 2 的 CI；使用者審閱與合併 #61，再改 PR 2 的 base 為 main、合併；人工驗收。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。暫存目錄裡有本機的依賴副本與截圖，不進倉庫。</li>
       </ul></div>
     </section>
 
