@@ -95,7 +95,7 @@
   "run_form.problems": "无法开始运行",
   "run_form.inputs": "入参",
   "run_form.inputs_label": "本次入参（JSON）",
-  "run_form.inputs_hint": "已帶入預設值；沒有預設值的入參要自己填。值可以寫動態值，例如 {{{{today}}}}、{{{{today+1}}}}、{{{{random:10:30}}}}，開始時換成當下的值。開始前會先校驗，不合規則就不會啟動瀏覽器。",
+  "run_form.inputs_hint": "已带入默认值；没有默认值的入参要自己填。值可以写动态值，例如 {{{{today}}}}、{{{{today+1}}}}、{{{{random:10:30}}}}，开始时换成当下的值。开始前会先校验，不合规则就不会启动浏览器。",
   "run_form.options": "运行选项",
   "run_form.engine": "浏览器",
   "run_form.engine_default": "场景默认（{engine}）",
@@ -649,7 +649,7 @@
   "contract.no_rules": "这个类型没有限制可以设置",
   "contract.add_inputs": "＋ 添加入参",
   "contract.add_outputs": "＋ 添加出参",
-  "contract.table_hint_inputs": "必填的入參沒有預設值。預設值可以寫動態值：{{{{today}}}}、{{{{today+1}}}}、{{{{now}}}}、{{{{random:10:30}}}}，每次執行時換成當下的值。改名時，步驟裡引用舊名稱的地方一起改。存檔只改寫 inputs 這一段並建立新版本（要重新驗證）。",
+  "contract.table_hint_inputs": "必填的入参没有默认值。默认值可以写动态值：{{{{today}}}}、{{{{today+1}}}}、{{{{now}}}}、{{{{random:10:30}}}}，每次运行时换成当下的值。改名时，步骤里引用旧名称的地方一起改。保存只改写 inputs 这一段并创建新版本（要重新验证）。",
   "contract.table_hint_outputs": "取值可以从清单选步骤读到的页面事实。保存只改写 outputs 这一段并创建新版本（要重新验证）。",
   "contract.yaml_hint_inputs": "直接编辑场景文件的 inputs 段（以 inputs: 开头）。在这里改名不会改到步骤里的引用；切回表格前会先校验。",
   "contract.yaml_hint_outputs": "直接编辑场景文件的 outputs 段（以 outputs: 开头）；切回表格前会先校验。",
@@ -1378,6 +1378,6 @@
   "replayjs.action_expect": "确认 {{id}}",
   "replayjs.action_extract": "读取 {{id}}",
   "replayjs.action_screenshot": "截图 {{id}}",
-  "spec.dynamic": "動態值",
-  "spec.dynamic_title": "每次執行開始時換成當下的值（今天的日期、隨機數…）"
+  "spec.dynamic": "动态值",
+  "spec.dynamic_title": "每次运行开始时换成当下的值（今天的日期、随机数…）"
 }

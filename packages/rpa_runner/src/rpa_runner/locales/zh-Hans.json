@@ -70,5 +70,5 @@
   "login.local_refused": "打不开 {url}：{host} 指的是开浏览器的这台电脑自己，这台没有网站在听。网站在别台电脑（例如服务器上的测试网站）时，把角色的登录网址、确认网址改成那台的地址，例如 http://服务器:8765/login。",
   "login.refused": "连不到 {url}（连接被拒绝）：确认网址与端口号正确、网站有在运行，而且这台电脑连得到它。",
   "debug.ready": "调试工作阶段已就绪",
-  "contract.input_dynamic": "入參 {name} 的動態值寫錯：{detail}"
+  "contract.input_dynamic": "入参 {name} 的动态值写错：{detail}"
 }
