@@ -34,6 +34,7 @@ from rpa_core.dsl import (
     Step,
     WaitForStep,
 )
+from rpa_runner.i18n import t
 from rpa_runner.templates import Context, render_tree
 
 __all__ = [
@@ -121,7 +122,13 @@ def resolve(scope: Page | PwLocator | FrameLocator, locator: Locator) -> PwLocat
     """DSL 定位器 → Playwright Locator（不含 fallback）。
 
     有 frame 時先進入那個 iframe 載入的頁面；within 與元素本身都在那個頁面裡找。
+    anyFrame 在頁面與所有 iframe 裡找（Playwright 的 ``frame_locator()``，不帶引數）；
+    只能從頁面開始找，不能相對於另一個元素（例如 extract 的 fields）。
     """
+    if locator.any_frame:
+        if not isinstance(scope, Page):
+            raise ValueError(t("browser.any_frame_scope"))
+        scope = scope.frame_locator()
     if locator.frame is not None:
         scope = resolve(scope, locator.frame).content_frame
     base: Page | PwLocator | FrameLocator = (

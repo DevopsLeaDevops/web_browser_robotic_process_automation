@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:055d2edf28135a34">
+<meta name="translation-source" content="sha256:f703348cf9a11687">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -177,6 +177,7 @@ verify:
           <dt><code>hasText</code></dt><dd>Keep only elements that contain this text, for example the row with a given order number.</dd>
           <dt><code>within</code></dt><dd>Another locator: find the outer element (a table, a dialog) first and search inside it.</dd>
           <dt><code>frame</code></dt><dd>For an element inside an iframe, the locator of that iframe: find the iframe first, then search the page it loads (within also searches that page). For an iframe inside an iframe, write frame inside frame (the outer iframe), for example <code>{ label: 我已確認, frame: { css: "#note-frame", frame: { css: "#form-frame" } } }</code>. Without frame, only the top-level page is searched. (M7a)</dd>
+          <dt><code>anyFrame</code></dt><dd><code>true</code>: search the page and every iframe (nested ones too) without naming the iframe; the element must be found in exactly one iframe. For iframes two or more levels deep, codegen records <code>frame_locator()</code> with no argument, which converts to anyFrame, for example <code>{ role: checkbox, name: 我已確認, anyFrame: true }</code>. Only allowed on the outermost locator (with frame, on the innermost frame), not inside within. (M7a)</dd>
           <dt><code>fallback</code></dt><dd>Alternative locators tried in order when the primary one fails (used when running in M2 and self-healing in M5). A fallback locator cannot have its own fallback; without its own frame it uses the frame of the primary locator.</dd>
         </dl>
       </div>

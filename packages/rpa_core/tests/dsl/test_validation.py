@@ -302,6 +302,16 @@ def test_locator_with_two_strategies_points_at_second() -> None:
             "target.fallback[0].fallback",
         ),
         ("{ css: a, within: { nth: 0 } }", "locator.no_strategy", "target.within"),
+        (
+            "{ css: a, anyFrame: true, frame: { css: f } }",
+            "locator.any_frame_with_frame",
+            "target.anyFrame",
+        ),
+        (
+            "{ css: a, within: { css: b, anyFrame: true } }",
+            "locator.any_frame_in_within",
+            "target.within.anyFrame",
+        ),
         ("{ css: a, fallback: [] }", "too_few_items", "target.fallback"),
     ],
 )

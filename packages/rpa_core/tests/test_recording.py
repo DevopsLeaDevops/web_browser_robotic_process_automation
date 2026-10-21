@@ -224,17 +224,52 @@ def test_iframe_elements_get_a_frame_locator() -> None:
     assert result.warnings == ()
 
 
+def test_frame_locator_without_selector_becomes_any_frame() -> None:
+    """codegen 1.63 起，兩層以上的 iframe 錄成開頭不帶引數的 frame_locator()（在任何 iframe 裡找）。
+
+    錄製稿取自測試網站 /frames 的人工驗收（Firefox，2026-10-21）。
+    """
+    form = 'page.locator("iframe[title=\\"紀錄表單\\"]").content_frame'
+    note = 'locator("iframe[title=\\"確認事項\\"]")'
+    source = "\n".join(
+        [
+            'page.goto("http://127.0.0.1:8765/frames")',
+            f'{form}.get_by_role("textbox", name="標題").fill("标题一")',
+            'page.frame_locator().get_by_role("checkbox", name="我已確認").check()',
+            f"{form}.{note}.click()",
+            f'page.frame_locator().{note}.content_frame.get_by_text("我已確認").click()',
+            'page.frame_locator().locator("form").get_by_role("button", name="送出").click()',
+        ]
+    )
+    data, result = convert(source)
+
+    steps = steps_of(data)
+    form = {"css": 'iframe[title="紀錄表單"]'}
+    assert [step["target"] for step in steps[1:]] == [
+        {"role": "textbox", "name": "標題", "frame": form},
+        {"role": "checkbox", "name": "我已確認", "anyFrame": True},
+        {"css": 'iframe[title="確認事項"]', "frame": form},
+        {"text": "我已確認", "frame": {"css": 'iframe[title="確認事項"]', "anyFrame": True}},
+        {"role": "button", "name": "送出", "within": {"css": "form"}, "anyFrame": True},
+    ]
+    assert steps[2]["action"] == "check"
+    # 點擊 iframe 元素本身：保留這一步，但提醒確認
+    assert [warning.line for warning in result.warnings] == [4]
+    assert 'iframe[title="確認事項"]' in result.warnings[0].message
+
+
 def test_iframe_chains_that_cannot_be_converted() -> None:
     source = dedent(
         """\
         page.goto("https://erp.example.com/")
         page.frame_locator(selector).get_by_text("OK").click()
         page.locator("#a").content_frame.click()
+        page.get_by_text("A").frame_locator().get_by_text("B").click()
         """
     )
     _, result = convert(source)
 
-    assert [warning.line for warning in result.warnings] == [2, 3]
+    assert [warning.line for warning in result.warnings] == [2, 3, 4]
 
 
 def test_unsupported_lines_stay_as_comments_with_warnings() -> None:

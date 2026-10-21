@@ -127,6 +127,7 @@ class Locator(DslModel):
         { label: 密碼 }
         { css: "tr", hasText: 訂單 123, within: { role: table, name: 訂單 } }
         { label: 密碼, frame: { css: "#login" } }
+        { role: checkbox, name: 我已確認, anyFrame: true }
     """
 
     # ------------------------------------------------ 主要定位方式（恰好一種）
@@ -163,6 +164,10 @@ class Locator(DslModel):
     frame: "Locator | None" = None
     """元素在 iframe 裡：先找到這個 iframe 元素，再在它載入的頁面裡找（within 也在那個頁面裡找）。
     iframe 裡還有 iframe 時，在這個定位器裡再寫 frame（外層的 iframe）。"""
+    any_frame: bool | None = None
+    """在頁面與所有 iframe（含巢狀）裡找，不必寫出是哪個 iframe；要剛好只在一個 iframe 裡找到。
+    codegen 對兩層以上的 iframe 錄成 ``frame_locator()``（不帶引數）時用它。
+    只能寫在最外層（沒有 frame 的那個定位器），不能寫在 within 裡。"""
     fallback: list["Locator"] | None = Field(default=None, min_length=1)
     """主要定位失敗時依序嘗試的備用定位器（M2 執行、M5 自癒時使用）。
     備用定位器沒寫 frame 時，沿用主要定位器的 frame。"""
@@ -191,6 +196,10 @@ class Locator(DslModel):
                 raise dsl_error("locator.exact_not_supported", at=["exact"], strategy=strategy)
             if strategy == "role" and self.name is None:
                 raise dsl_error("locator.exact_requires_name", at=["exact"])
+        if self.any_frame and self.frame is not None:
+            raise dsl_error("locator.any_frame_with_frame", at=["anyFrame"])
+        if self.within is not None and self.within.any_frame:
+            raise dsl_error("locator.any_frame_in_within", at=["within", "anyFrame"])
         for index, item in enumerate(self.fallback or ()):
             if item.fallback is not None:
                 raise dsl_error("locator.nested_fallback", at=["fallback", index, "fallback"])
