@@ -9,8 +9,8 @@
 - 只有每個階段都通過，才寫出 output.json；任何失敗都沒有成功出參。
 - 每次執行一個目錄（見 files.py），最後一定寫出 result.json 與 report.html。
 - 可以從別的執行緒取消（``cancel``，例如管理介面的 worker）：立即終止程序群組，狀態為 cancelled。
-- ``record_video`` 時 DSL 場景的自動化階段錄影（M12，見 video.py）：終止時留下錄影的 ffmpeg
-  把影片寫完（:func:`_stop_gracefully`），結束後整理成 video.webm 與 video.json。
+- ``record_video`` 時 DSL 場景的自動化階段錄影（M12，見 video.py）：終止時讓錄影寫完
+  （:func:`_stop_gracefully`），結束後整理成 video.webm 與 video.json。
 """
 
 import contextlib
@@ -91,7 +91,11 @@ _GRACE_SECONDS: Final = 3.0
 _VIDEO_GRACE_SECONDS: Final = 6.0
 """錄影時的收尾時間（多了關 context、把影片寫完）。"""
 _GRACEFUL_STOP_SECONDS: Final = 8.0
-"""Windows 上錄影時被終止：最多等錄影的 ffmpeg 這麼久把影片寫完。"""
+"""Windows 上錄影時被終止：子程序結束後，最多再等錄影的 ffmpeg 這麼久把影片寫完。"""
+_BROWSER_STOP_SECONDS: Final = 15.0
+"""Windows 上錄影時被終止：結束瀏覽器後，最多等子程序這麼久自己結束。"""
+_KEEP_RUNNING: Final = ("python", "node", "ffmpeg", "conhost")
+"""Windows 上錄影時被終止：先不結束的程序（執行檔名稱的開頭，小寫）；其餘的是瀏覽器。"""
 _EXIT_DEADLINE: Final = 3
 _POLL_SECONDS: Final = 0.2
 """等待子程序時，每隔這麼久檢查一次是否被取消。"""
@@ -236,14 +240,14 @@ def _stop_gracefully(process: subprocess.Popen[bytes], record: Path) -> None:
     """錄影時的終止：結束子程序與瀏覽器，但讓錄影的 ffmpeg 把影片寫完。
 
     其他系統和平常一樣終止程序群組就好：Playwright 把瀏覽器與 ffmpeg 放在自己的程序群組，
-    不會被一起結束；ffmpeg 發現輸入斷了就自己收尾。Windows 見 :func:`_stop_keeping_ffmpeg`。
+    不會被一起結束；ffmpeg 發現輸入斷了就自己收尾。Windows 見 :func:`_stop_browsers_first`。
     終止的經過寫在 ``record``（錄影的暫存資料夾裡），整理影片時放進 video.json，影片有問題時
     才查得到原因。
     """
     started = time.monotonic()
     details: dict[str, object]
     if os.name == "nt":  # pragma: no cover - Windows 在 CI 的 Worker 測試涵蓋
-        details = _stop_keeping_ffmpeg(process)
+        details = _stop_browsers_first(process)
     else:
         _stop(process)
         details = {"method": "process_group"}
@@ -253,35 +257,50 @@ def _stop_gracefully(process: subprocess.Popen[bytes], record: Path) -> None:
         write_json(record, details)
 
 
-def _stop_keeping_ffmpeg(  # pragma: no cover - Windows
+def _stop_browsers_first(  # pragma: no cover - Windows
     process: subprocess.Popen[bytes],
 ) -> dict[str, object]:
-    """Windows：``taskkill /T`` 會連 ffmpeg 一起結束，影片沒有長度、最後幾秒也沒寫進去。
+    """Windows：先只結束瀏覽器，讓 Playwright 自己把錄影寫完，子程序隨後自己結束。
 
-    先列出子孫（父程序結束後就找不到了），結束 ffmpeg 以外的全部；ffmpeg 輸入斷了會自己收尾，
-    最多等一陣子，還沒結束才結束它。列不出子孫時照平常的方式終止。回傳終止的經過。
+    不能直接結束 Node（Playwright 的 driver）：libuv 把 Node 開的子程序放進「Node 結束時一起結束」
+    的 Job Object，ffmpeg 會跟著被結束，緩衝區還沒寫進檔案，影片是空的（2026-10-21 在 CI 實測：
+    只留下 ffmpeg、結束其他程序，ffmpeg 6～11 ms 後也結束了）。瀏覽器結束時，Playwright 照常替
+    每個頁面收尾錄影（補最後一格、關掉 ffmpeg 的輸入、等它寫完）；子程序的步驟因為頁面關了而失敗，
+    自己結束。最多等一陣子，子程序還沒結束才結束整個程序樹（這時影片可能沒寫完，整理時再修復）。
+    還沒開瀏覽器時（沒有錄影要保護）照平常的方式立即終止。回傳終止的經過。
     """
     try:
         tree = descendants(process.pid)
     except OSError as error:
         _stop(process)
         return {"method": "taskkill", "error": str(error)}
-    keep = [item.pid for item in tree if item.name.lower().startswith("ffmpeg")]
-    with contextlib.suppress(OSError):
-        process.kill()
-    for item in tree:
-        if item.pid not in keep:
-            terminate(item.pid)
-    process.wait(timeout=10)
-    waited = time.monotonic()
-    left = wait_exit(keep, _GRACEFUL_STOP_SECONDS)
+    names = sorted({item.name for item in tree})
+    browsers = [item for item in tree if not item.name.lower().startswith(_KEEP_RUNNING)]
+    if not browsers:
+        _stop(process)
+        return {"method": "taskkill", "processes": names}
+    for item in browsers:
+        terminate(item.pid)
+    started = time.monotonic()
+    try:
+        process.wait(timeout=_BROWSER_STOP_SECONDS)
+    except subprocess.TimeoutExpired:
+        _stop(process)
+        return {
+            "method": "browsers_then_taskkill",
+            "processes": names,
+            "browsers": len(browsers),
+        }
+    exited = round((time.monotonic() - started) * 1000)
+    ffmpeg = [item.pid for item in tree if item.name.lower().startswith("ffmpeg")]
+    left = wait_exit(ffmpeg, _GRACEFUL_STOP_SECONDS)
     for pid in left:
         terminate(pid)
     return {
-        "method": "keep_ffmpeg",
-        "processes": sorted({item.name for item in tree}),
-        "ffmpeg": len(keep),
-        "ffmpegExitedMs": None if left else round((time.monotonic() - waited) * 1000),
+        "method": "browsers_first",
+        "processes": names,
+        "browsers": len(browsers),
+        "childExitedMs": exited,
         "ffmpegKilled": len(left),
     }
 
@@ -704,9 +723,9 @@ def _automation_stage(
         command += ["--storage-state", str(state)] if state is not None else []
         command += ["--video"] if video else []
     hint: str | None = None
+    record = folder / VIDEO_TMP / VIDEO_STOP if video else None
     try:
         env = _environment(secrets, deadline, engine or scenario.browser.engine, headed, state)
-        record = folder / VIDEO_TMP / VIDEO_STOP if video else None
         _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel, video=record)
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌
@@ -717,7 +736,10 @@ def _automation_stage(
     finally:
         _timed(stage, started)
         details = read_json_or(folder / DIAGNOSTIC, None)
-        if hint is None and isinstance(details, dict):
+        # 錄影時被我們終止：子程序是因為瀏覽器被結束才失敗的（Windows 先結束瀏覽器），
+        # 它寫的「頁面已關閉」不是真正的原因，不採用
+        stopped = record is not None and record.is_file()
+        if hint is None and not stopped and isinstance(details, dict):
             error = cast("dict[str, object]", details).get("error", "")
             result.error = mask(str(error), secrets) or None
     if hint is not None:

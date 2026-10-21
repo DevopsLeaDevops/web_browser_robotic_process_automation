@@ -1,8 +1,9 @@
-"""Windows 的程序樹（M12）：錄影時取消，要結束子程序與瀏覽器，但留下錄影的 ffmpeg 把影片寫完。
+"""Windows 的程序樹（M12）：錄影時取消，要先只結束瀏覽器，讓 Playwright 把影片寫完。
 
-``taskkill /T`` 會連 ffmpeg 一起結束，影片沒有長度與索引、最後幾秒也沒寫進去。其他系統不需要：
-Playwright 把瀏覽器與 ffmpeg 放在自己的程序群組，終止子程序的程序群組不會碰到它們；ffmpeg 發現
-輸入斷了就自己收尾。
+``taskkill /T`` 會連 ffmpeg 一起結束；只留下 ffmpeg 也不夠：Node（Playwright 的 driver）把子程序
+放在「Node 結束時一起結束」的 Job Object，結束 Node 時 ffmpeg 也被結束。所以先列出子孫、只結束
+瀏覽器（見 run._stop_browsers_first）。其他系統不需要：Playwright 把瀏覽器與 ffmpeg 放在自己的
+程序群組，終止子程序的程序群組不會碰到它們；ffmpeg 發現輸入斷了就自己收尾。
 
 用 ``CreateToolhelp32Snapshot`` 列出全部程序，從子程序往下找子孫（要在結束任何一個之前找，
 父程序結束後就找不到它的子孫了）。只在 Windows 上有作用；其他系統呼叫時回傳空的結果。
