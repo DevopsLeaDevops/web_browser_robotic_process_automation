@@ -454,8 +454,7 @@ $RpaSetupArgs = @{
             Write-Info '已用 -SkipBrowser 略過；需要瀏覽器的測試也會略過。'
             return
         }
-        if ($env:PLAYWRIGHT_DOWNLOAD_HOST) { Write-Info '已設定 PLAYWRIGHT_DOWNLOAD_HOST，從瀏覽器鏡像下載。' }
-        Invoke-Native uv @('run', 'playwright', 'install', 'chromium', 'firefox') -Message '下載瀏覽器失敗。' `
+        Invoke-Native uv @('run', 'python', 'tools/install_browsers.py') -Message '下載瀏覽器失敗。' `
             -Hints @('公司網路請設定 $env:PLAYWRIGHT_DOWNLOAD_HOST 指向內部鏡像；或先加 -SkipBrowser 跳過這一步。')
         if (-not (Test-BrowserLaunches)) {
             Stop-Setup '瀏覽器已下載，但無法啟動。' @(

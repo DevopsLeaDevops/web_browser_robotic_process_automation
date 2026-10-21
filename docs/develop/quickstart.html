@@ -83,11 +83,27 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
             <tr><td>2. 準備程式碼</td><td>在專案裡執行就用這一份；否則用 <code>git clone</code> 下載到預設位置或 <code>--dir</code> 指定的位置。</td><td>已經下載過就直接使用，不會自動 <code>git pull</code></td></tr>
             <tr><td>3. 準備 uv</td><td>沒有就用官方安裝腳本安裝；版本低於 <code>pyproject.toml</code> 的 <code>required-version</code> 時嘗試升級。</td><td>版本夠新就跳過</td></tr>
             <tr><td>4. 安裝 Python 與依賴</td><td><code>uv sync</code>：依 <code>.python-version</code> 準備 Python 3.13，建立 <code>.venv</code>，依 <code>uv.lock</code> 的版本安裝全部套件與開發工具。</td><td>沒有變動時幾秒內結束</td></tr>
-            <tr><td>5. 安裝瀏覽器</td><td><code>uv run playwright install chromium firefox</code>，再實際啟動一次。Linux 缺系統函式庫時執行 <code>playwright install-deps</code>。</td><td>已下載就跳過下載，只做啟動檢查</td></tr>
+            <tr><td>5. 安裝瀏覽器</td><td><code>uv run python tools/install_browsers.py</code>：先測速，從官方來源與 npmmirror CDN 選最快可用來源下載，再實際啟動一次。Linux 缺系統函式庫時執行 <code>playwright install-deps</code>。</td><td>已下載就跳過測速與下載，只做啟動檢查</td></tr>
             <tr><td>6. 安裝提交前檢查</td><td><code>uv run pre-commit install</code>，之後每次 <code>git commit</code> 前自動跑 ruff、pyright 與文檔檢查。</td><td>重新寫入同一個 hook，不影響</td></tr>
             <tr><td>7. 確認能運行</td><td>執行 <code>rpa --version</code>，再設定 <code>RPA_REQUIRE_BROWSER=1</code> 跑全部測試：跟 CI 一樣，缺瀏覽器直接失敗而不是略過。</td><td>每次都跑</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="panel" id="browser-downloads">
+      <div class="panel-header"><h2>瀏覽器下載來源</h2></div>
+      <div class="panel-body">
+        <p>第 5 步會依目前 Playwright 版本與作業系統，測試實際要下載的安裝包。Chromium（含 headless shell）、Firefox 分別比較官方下載來源與 <code>cdn.npmmirror.com</code>，列出 MiB/s，使用當次測得最快的可用來源；需要時也測 FFmpeg 等輔助元件。</p>
+        <ul class="points">
+          <li>每個檔案最多讀取 2 MiB，依序測速避免互搶頻寬；單次最多 5 秒，全部測速合計最多 30 秒。這是當下的小檔案樣本速度，完整下載速度仍會波動。</li>
+          <li>已下載完成的元件不測速、不重複下載。來源缺檔、傳回錯誤頁或逾時時不採用；有官方樣本時另比對檔案總大小與樣本雜湊，這不是整個壓縮檔的校驗。</li>
+          <li>沒有可用結果或 Playwright 清單格式變更時，照原本方式安裝。自動選中的來源安裝失敗時，清掉這次自動設定的來源，改用 Playwright 原始來源重試。</li>
+          <li>已指定 <code>PLAYWRIGHT_DOWNLOAD_HOST</code>、<code>PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST</code> 或 <code>PLAYWRIGHT_FIREFOX_DOWNLOAD_HOST</code> 時，沿用設定並略過全部自動測速；也保留 Playwright 對應的 npm 設定。公司限定下載來源時，請先指定核准來源。</li>
+        </ul>
+        <p>選擇只對這次安裝有效，不修改 shell 設定、<code>uv.lock</code> 或 Playwright 套件。不想執行其他安裝步驟時，在專案目錄執行：</p>
+<pre class="source">uv run python tools/install_browsers.py</pre>
+        <p>指定來源的方法見 <a href="https://playwright.dev/python/docs/browsers#download-from-artifact-repository">Playwright 官方說明</a>。這項測速只用於下載瀏覽器，Python 套件來源仍由 <code>UV_INDEX_URL</code> 等設定決定。</p>
       </div>
     </section>
 

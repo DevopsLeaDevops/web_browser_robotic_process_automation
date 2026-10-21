@@ -31,7 +31,7 @@ cd web_browser_robotic_process_automation
 uv sync
 
 # 下载 Chromium 与 Firefox（Linux 第一次可加 --with-deps 安装系统依赖）
-uv run playwright install chromium firefox
+uv run python tools/install_browsers.py
 
 # 提交前自动检查
 uv run pre-commit install
@@ -127,7 +127,7 @@ bash scripts/setup-linux.sh --install-service</pre>
         <dl class="spec-list">
           <dt>CI 说 uv.lock 需要更新</dt><dd>改了 <code>pyproject.toml</code> 的依赖却没有更新锁文件。运行 <code>uv lock</code>，把 <code>uv.lock</code> 一起提交。</dd>
           <dt>内网连不到 PyPI</dt><dd>设置环境变量 <code>UV_INDEX_URL</code> 指向公司的包镜像。Linux 服务器的安装脚本用 <code>--mirror</code> 指定公司镜像的 simple 网址，见<a href="#linux-mirror">包来源</a>。</dd>
-          <dt>浏览器下载失败</dt><dd>设置 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 指向内部镜像；浏览器冒烟测试在本机没有浏览器时会自动略过。</dd>
+          <dt>浏览器下载失败</dt><dd>一键安装会先<a href="quickstart.html#browser-downloads">测速并选最快的可用来源</a>；也可运行 <code>uv run python tools/install_browsers.py</code>。需要固定来源时，设置 <code>PLAYWRIGHT_DOWNLOAD_HOST</code> 指向内部镜像；浏览器冒烟测试在本机没有浏览器时会自动略过。</dd>
           <dt>测试说简中不是最新</dt><dd>改了繁中文档或消息目录后，运行 <code>uv run python tools/i18n.py sync</code> 并提交产生的文件。</dd>
           <dt>测试说英文翻译需要更新</dt><dd>依繁中的修改更新 <code>docs/en/</code> 的同一页，再运行测试消息里的 <code>stamp</code> 命令。</dd>
           <dt>pyright 找不到包</dt><dd>确认已运行 <code>uv sync</code>，且编辑器使用的是项目的 <code>.venv</code>。</dd>
