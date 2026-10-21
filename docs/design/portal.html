@@ -121,7 +121,7 @@
           <li><strong>Inspector 的程式碼不能直接改。</strong>Inspector 右側的程式碼是 Playwright 依操作即時產生的，只能看、複製（Playwright 本身的設計，不是本工程限制）；Locator 分頁可以輸入並測試定位器。要修改請在轉換後到場景的「自動化腳本」「斷言腳本」編輯。</li>
           <li><strong>貼上錄製稿。</strong>在別台電腦錄好的 codegen 原始稿（同步、非同步或 pytest 寫法）可以貼上直接轉換，例如 Portal 跑在沒有圖形介面的電腦時。</li>
           <li><strong>斷言變成出參。</strong>Inspector 的「Assert text」「Assert value」（<code>expect(…).to_contain_text</code>、<code>to_have_value</code>、<code>to_have_text</code>）不當成步驟裡的檢查，而是：自動化腳本多一個 <code>extract</code> 讀取那個元素（先等它出現），出參多一項取自這個頁面事實，斷言腳本（<code>verify:</code>）多一條檢查——錄到的值等於某個輸入的值時檢查「等於該入參」，否則檢查「有取得內容」。出參名稱取自元素的英數名稱，之後可以改。</li>
-          <li><strong>轉換規則。</strong>goto、click、fill、press、select_option、check 與其他常見的 expect，以及 get_by_role、label、placeholder、text、test_id、CSS、XPath、first、nth、filter(has_text) 等定位器。第一個網址的來源成為 <code>browser.baseUrl</code>。轉不了的行（hover、上傳、iframe、新分頁…）以註解留在草稿裡並列在錄製詳情。</li>
+          <li><strong>轉換規則。</strong>goto、click、fill、press、select_option、check 與其他常見的 expect，以及 get_by_role、label、placeholder、text、test_id、CSS、XPath、first、nth、filter(has_text) 等定位器；iframe 裡的元素（<code>frame_locator(…)</code>、<code>locator(…).content_frame</code>，可巢狀）轉成定位器的 <code>frame</code>，開頭不帶引數的 <code>frame_locator()</code> 轉成 <code>anyFrame</code>；點擊 iframe 元素本身的那一步保留，但列為提醒（M7a）。第一個網址的來源成為 <code>browser.baseUrl</code>。轉不了的行（hover、上傳、新分頁…）以註解留在草稿裡並列在錄製詳情。</li>
           <li><strong>自動參數化。</strong>每個輸入的值變成一個入參，預設值是錄到的值；名稱取自欄位的英數名稱（沒有時叫 field、field_2…），欄位標籤寫在說明，之後在場景頁的表單改名。</li>
           <li><strong>密碼不落地。</strong>密碼欄位（標籤、提示文字或選擇器含有 password、密碼等字）改成 Secret 引用，原始錄製稿也遮罩成 <code>***</code> 才保存；錄製中的暫存原始稿轉換後就刪除。</li>
           <li><strong>只產生草稿。</strong>轉換結果存成新場景的 v1，或既有場景的新版本；錄製稿只當來源，一樣要調試、驗證通過才能發布。錄製詳情列出步驟、入參、出參、斷言與轉不了的行的數量。</li>

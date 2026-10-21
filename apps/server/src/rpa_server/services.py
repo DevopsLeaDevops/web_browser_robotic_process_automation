@@ -363,7 +363,9 @@ class Services:
         self.queue = RunQueue(sessions, storage, self.roles)
         """執行佇列：本機 worker 的任務來源；遠端 worker 經由 workers 領取（M9a）。"""
         self.queue.on_finished = self.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
-        self.workers = WorkerHub(sessions, storage, self.queue, self.roles, locale=locale)
+        self.workers = WorkerHub(
+            sessions, storage, self.queue, self.roles, locale=locale, local_worker=local_worker
+        )
         """遠端 worker 的登記與分派（M9a）。"""
         self.on_queued: Callable[[], None] = lambda: None
         """有新的執行排入佇列（叫醒 worker）。"""

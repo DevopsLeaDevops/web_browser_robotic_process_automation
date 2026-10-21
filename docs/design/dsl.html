@@ -175,7 +175,9 @@ verify:
           <dt><code>nth</code></dt><dd>符合多個元素時取第幾個：0 是第一個，-1 是最後一個。</dd>
           <dt><code>hasText</code></dt><dd>只保留內含這段文字的元素，例如找出含有某個訂單編號的那一列。</dd>
           <dt><code>within</code></dt><dd>另一個定位器：先找到外層元素（表格、對話框），再在裡面找。</dd>
-          <dt><code>fallback</code></dt><dd>備用定位器清單，主要方式失敗時依序嘗試（M2 執行、M5 自癒時使用）。備用定位器不能再有 fallback。</dd>
+          <dt><code>frame</code></dt><dd>元素在 iframe 裡時，指出那個 iframe 的定位器：先找到 iframe，再在它載入的頁面裡找（within 也在那個頁面裡找）。iframe 裡還有 iframe 時，在 frame 裡再寫 frame（外層的 iframe），例如 <code>{ label: 我已確認, frame: { css: "#note-frame", frame: { css: "#form-frame" } } }</code>。沒寫 frame 只在最外層的頁面找。（M7a）</dd>
+          <dt><code>anyFrame</code></dt><dd><code>true</code>：在頁面與所有 iframe（含巢狀）裡找，不必寫出是哪個 iframe，但要剛好只在一個 iframe 裡找到。codegen 對兩層以上的 iframe 會錄成不帶引數的 <code>frame_locator()</code>，轉換後就是 anyFrame，例如 <code>{ role: checkbox, name: 我已確認, anyFrame: true }</code>。只能寫在最外層（有 frame 時寫在最深的那個 frame 上），不能寫在 within 裡。（M7a）</dd>
+          <dt><code>fallback</code></dt><dd>備用定位器清單，主要方式失敗時依序嘗試（M2 執行、M5 自癒時使用）。備用定位器不能再有 fallback；沒寫 frame 時沿用主要定位器的 frame。</dd>
         </dl>
       </div>
     </section>
@@ -207,7 +209,7 @@ verify:
           <dt>extract 的 fields</dt><dd>每個元素抽成一筆記錄，鍵是欄位名稱，值可寫 target（相對於該元素）、get、attribute。有 fields 時不寫外層的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。download、upload、iframe、多分頁、條件與迴圈等在 M7 加入。</div>
+      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。download、upload、多分頁、條件與迴圈等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a）。</div>
     </section>
 
     <div class="two-col">

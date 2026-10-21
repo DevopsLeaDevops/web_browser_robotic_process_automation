@@ -24,6 +24,7 @@ from httpx2 import Client, Response
 from rpa_server.config import Settings
 from rpa_server.context import Via, use_recorder
 from rpa_server.devices import LOST_EXIT
+from rpa_server.errors import ServiceError
 from rpa_server.processes import child_env
 from rpa_server.services import Services
 from rpa_worker.environment import PROTOCOL
@@ -405,6 +406,43 @@ def test_debug_session_runs_on_the_recorder(app: FastAPI, client: Client, remote
     assert error(device.output(process, ["late"], status=404), 404)["code"] == "process_not_found"
     assert body(client.get("/api/recorders/mac-01"))["status"] == "online"
     assert not folder.exists()
+
+
+IFRAME_EXAMPLE = Path(__file__).resolve().parents[3] / "scenarios" / "examples" / "iframe-form.yaml"
+
+
+def create_scene(client: Client, scene_id: str, text: str) -> None:
+    """建立場景，並把 v2 存成指定的內容。"""
+    body(client.post("/api/scenes", json={"id": scene_id, "name": "暫名"}), 201)
+    files = {"scenario.yaml": text}
+    url = f"/api/scenes/{scene_id}/revisions"
+    body(client.post(url, json={"baseRevision": 1, "files": files}), 201)
+
+
+def test_outdated_recorder_is_told_to_update_for_iframes(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    """M7a：場景用到 iframe 的 frame。M7a 之前的錄製端 App 沒有回報 features，
+    交給它只會得到「場景校驗失敗」，所以伺服器先擋下並說明要更新 App。"""
+    create_scene(client, "iframe-form", IFRAME_EXAMPLE.read_text(encoding="utf-8"))
+    device = paired(client, remote)
+    device.hello()  # 舊 App：INFO 沒有 features
+    refused = remote.post("/api/scenes/iframe-form/debug", json={}, headers=auth(device.token))
+    problem = error(refused, 422)
+    assert problem["code"] == "recorder_outdated"
+    assert "Amy <Mac>" in str(problem["message"])
+    assert "frame" in str(problem["message"])
+    assert device.commands() == []  # 沒有交給錄製端
+    # 不用 iframe 的場景照舊交給它（見 test_debug_session_runs_on_the_recorder）；
+    # 新的 App 回報看得懂 frame、anyFrame：檢查通過
+    hub = services(app).recorders
+    via = Via("mac-01", "Amy <Mac>")
+    with pytest.raises(ServiceError):
+        hub.check(via, features={"frame"})
+    device.hello(features=["anyFrame", "frame"])
+    hub.check(via, engine="chromium", features={"frame", "anyFrame"})
+    with pytest.raises(ServiceError):
+        hub.check(via, features={"somethingNew"})
 
 
 # ---------------------------------------------------------------- 登入檢查交給錄製端

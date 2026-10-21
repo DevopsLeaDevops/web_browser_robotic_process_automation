@@ -765,7 +765,7 @@
     },
     "Locator": {
       "additionalProperties": false,
-      "description": "頁面元素的定位器。\n\n範例::\n\n    { role: button, name: 登入 }\n    { label: 密碼 }\n    { css: \"tr\", hasText: 訂單 123, within: { role: table, name: 訂單 } }",
+      "description": "頁面元素的定位器。\n\n範例::\n\n    { role: button, name: 登入 }\n    { label: 密碼 }\n    { css: \"tr\", hasText: 訂單 123, within: { role: table, name: 訂單 } }\n    { label: 密碼, frame: { css: \"#login\" } }\n    { role: checkbox, name: 我已確認, anyFrame: true }",
       "properties": {
         "testId": {
           "anyOf": [
@@ -1027,6 +1027,29 @@
             }
           ],
           "default": null
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "anyFrame": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anyframe"
         },
         "fallback": {
           "anyOf": [

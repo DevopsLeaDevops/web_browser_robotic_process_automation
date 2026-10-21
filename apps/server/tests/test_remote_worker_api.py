@@ -286,6 +286,40 @@ def test_claim_matches_target_browser_and_display(
     assert body(client.get("/api/workers/win-01"))["status"] == "busy"
 
 
+IFRAME_EXAMPLE = Path(__file__).resolve().parents[3] / "scenarios" / "examples" / "iframe-form.yaml"
+
+
+def test_outdated_worker_is_told_to_update_for_iframes(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    """M7a：場景用到 iframe 的 frame。M7a 之前的 Worker App 沒有回報 features，交給它只會得到
+    「場景檔有問題」：位置是 any 時留給本機，只能交給遠端時標為失敗並說明要更新 App。"""
+    body(client.post("/api/scenes", json={"id": "iframe-form", "name": "暫名"}), 201)
+    files = {"scenario.yaml": IFRAME_EXAMPLE.read_text(encoding="utf-8")}
+    body(client.post("/api/scenes/iframe-form/revisions", json={"baseRevision": 1, "files": files}))
+    url = "/api/scenes/iframe-form/revisions/2/validate"
+    payload: JsonObject = {"inputs": {}, "headless": True, "engine": "chromium"}
+    token = register(client)
+    hello(remote, token)  # 舊 App：INFO 沒有 features
+    anywhere = body(client.post(url, json={**payload, "target": "any"}), 202)
+    assert claim(remote, token) is None
+    assert run_row(app, anywhere["id"]).status == "queued"  # 留給這台伺服器的本機 worker
+
+    only_remote = body(client.post(url, json={**payload, "target": "remote"}), 202)
+    assert claim(remote, token) is None
+    row = run_row(app, only_remote["id"])
+    assert row.status == "failed"
+    assert row.error is not None
+    assert "Windows 機器" in row.error
+    assert "frame" in row.error
+
+    # 新的 App 回報看得懂 frame、anyFrame：照常領到
+    hello(remote, token, features=["anyFrame", "frame"])
+    job = claim(remote, token)
+    assert job is not None
+    assert job["runId"] == anywhere["id"]
+
+
 def test_job_carries_exact_files_inputs_locale_and_secrets(
     app: FastAPI, client: Client, remote: Client
 ) -> None:

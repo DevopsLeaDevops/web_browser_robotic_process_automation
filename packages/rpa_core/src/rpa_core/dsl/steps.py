@@ -4,7 +4,8 @@
 步驟內欄位之間的規則（例如 waitFor 三選一）在各模型的 model_validator 檢查；
 跨步驟的規則（id 重複、引用未宣告的參數）在 rpa_core.dsl.checks。
 
-retry、onError、download、upload、iframe、多分頁、條件與迴圈在 M7 加入（路線圖 v2）。
+retry、onError、download、upload、多分頁、條件與迴圈在 M7 加入（路線圖 v2）；
+iframe 在 M7a 以定位器的 frame 支援（見 locators.py）。
 """
 
 import re

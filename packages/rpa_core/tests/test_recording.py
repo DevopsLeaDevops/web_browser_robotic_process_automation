@@ -176,7 +176,8 @@ def test_password_on_unsupported_line_is_masked_in_comments() -> None:
     source = dedent(
         """\
         page.goto("https://erp.example.com/login")
-        page.frame_locator("#login").get_by_label("Password").fill("top-secret")
+        page1 = context.new_page()
+        page1.get_by_label("Password").fill("top-secret")
         """
     )
     data, result = convert(source)
@@ -184,7 +185,91 @@ def test_password_on_unsupported_line_is_masked_in_comments() -> None:
     assert len(steps_of(data)) == 1
     assert "top-secret" not in result.scenario
     assert "top-secret" not in result.masked_source
-    assert "iframe" in result.warnings[0].message
+    assert "page1" in result.warnings[0].message
+
+
+def test_iframe_elements_get_a_frame_locator() -> None:
+    """codegen 的兩種 iframe 寫法（frame_locator、content_frame）與巢狀 iframe 都轉成 frame。"""
+    source = dedent(
+        """\
+        page.goto("https://erp.example.com/login")
+        page.frame_locator("#login").get_by_label("Account").fill("alice")
+        page.frame_locator("#login").get_by_label("Password").fill("top-secret")
+        page.locator("iframe[name=\\"m\\"]").content_frame.get_by_role("button", name="Go").click()
+        page.locator("#app").content_frame.locator("iframe").first.content_frame.get_by_text("Done").click()
+        page.frame_locator("iframe").nth(1).locator("form").get_by_role("button").click()
+        page.locator("#panel").frame_locator("iframe").get_by_text("OK").click()
+        expect(page.locator("#report").content_frame.locator("#total")).to_contain_text("42")
+        """
+    )
+    data, result = convert(source)
+
+    steps = steps_of(data)
+    assert [step.get("target") for step in steps[1:7]] == [
+        {"label": "Account", "frame": {"css": "#login"}},
+        {"label": "Password", "frame": {"css": "#login"}},
+        {"role": "button", "name": "Go", "frame": {"css": 'iframe[name="m"]'}},
+        {"text": "Done", "frame": {"css": "iframe", "nth": 0, "frame": {"css": "#app"}}},
+        {"role": "button", "within": {"css": "form"}, "frame": {"css": "iframe", "nth": 1}},
+        {"text": "OK", "frame": {"css": "iframe", "within": {"css": "#panel"}}},
+    ]
+    # 密碼欄位照樣改成 Secret；欄位在 iframe 裡也一樣
+    assert steps[2]["value"] == "{{ secrets.REC_DEMO_PASSWORD }}"
+    assert "top-secret" not in result.scenario
+    assert "top-secret" not in result.masked_source
+    # assert text 在 iframe 裡：等出現、抽取、出參
+    assert [step["action"] for step in steps[7:]] == ["expect", "extract"]
+    assert steps[8]["target"] == {"css": "#total", "frame": {"css": "#report"}}
+    assert result.outputs == ("total",)
+    assert result.warnings == ()
+
+
+def test_frame_locator_without_selector_becomes_any_frame() -> None:
+    """codegen 1.63 起，兩層以上的 iframe 錄成開頭不帶引數的 frame_locator()（在任何 iframe 裡找）。
+
+    錄製稿取自測試網站 /frames 的人工驗收（Firefox，2026-10-21）。
+    """
+    form = 'page.locator("iframe[title=\\"紀錄表單\\"]").content_frame'
+    note = 'locator("iframe[title=\\"確認事項\\"]")'
+    source = "\n".join(
+        [
+            'page.goto("http://127.0.0.1:8765/frames")',
+            f'{form}.get_by_role("textbox", name="標題").fill("标题一")',
+            'page.frame_locator().get_by_role("checkbox", name="我已確認").check()',
+            f"{form}.{note}.click()",
+            f'page.frame_locator().{note}.content_frame.get_by_text("我已確認").click()',
+            'page.frame_locator().locator("form").get_by_role("button", name="送出").click()',
+        ]
+    )
+    data, result = convert(source)
+
+    steps = steps_of(data)
+    form = {"css": 'iframe[title="紀錄表單"]'}
+    assert [step["target"] for step in steps[1:]] == [
+        {"role": "textbox", "name": "標題", "frame": form},
+        {"role": "checkbox", "name": "我已確認", "anyFrame": True},
+        {"css": 'iframe[title="確認事項"]', "frame": form},
+        {"text": "我已確認", "frame": {"css": 'iframe[title="確認事項"]', "anyFrame": True}},
+        {"role": "button", "name": "送出", "within": {"css": "form"}, "anyFrame": True},
+    ]
+    assert steps[2]["action"] == "check"
+    # 點擊 iframe 元素本身：保留這一步，但提醒確認
+    assert [warning.line for warning in result.warnings] == [4]
+    assert 'iframe[title="確認事項"]' in result.warnings[0].message
+
+
+def test_iframe_chains_that_cannot_be_converted() -> None:
+    source = dedent(
+        """\
+        page.goto("https://erp.example.com/")
+        page.frame_locator(selector).get_by_text("OK").click()
+        page.locator("#a").content_frame.click()
+        page.get_by_text("A").frame_locator().get_by_text("B").click()
+        """
+    )
+    _, result = convert(source)
+
+    assert [warning.line for warning in result.warnings] == [2, 3, 4]
 
 
 def test_unsupported_lines_stay_as_comments_with_warnings() -> None:

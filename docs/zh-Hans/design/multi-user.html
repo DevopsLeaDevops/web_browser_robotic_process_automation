@@ -64,7 +64,8 @@
             <tr><td>目标系统只能从内网访问</td><td>平台与 worker 都部署在内网；worker 必须能直连目标系统</td><td>M9</td></tr>
             <tr><td>每次运行都要登录</td><td>每个角色保存并重用自己的登录状态（Playwright storage state），减少登录次数、降低账号锁定的风险；登录失效时回报 needs_login，引导人工重新登录后续跑</td><td>M4</td></tr>
             <tr><td>老系统缺少语意化标签</td><td>定位器更依赖 css、xpath 与文字；录制器避开自动生成的 id，产出稳定的选择器</td><td>M1、M4</td></tr>
-            <tr><td>iframe、弹出窗口、多标签页</td><td>DSL 提供切换 frame 与标签页的步骤，定位器可指定所在 frame</td><td>M7</td></tr>
+            <tr><td>iframe</td><td>定位器以 <code>frame</code> 指定元素所在的 iframe（可嵌套），见 <a href="dsl.html#locators">DSL</a></td><td>M7a</td></tr>
+            <tr><td>弹出窗口、多标签页</td><td>DSL 提供切换分页的步骤</td><td>M7</td></tr>
             <tr><td>文件上传与下载</td><td>upload、download 动作；下载文件作为产物保存</td><td>M7</td></tr>
             <tr><td>表格数据抽取</td><td>extract 支持表格转成结构化数据</td><td>M1</td></tr>
             <tr><td>自签凭证</td><td>场景层级可设置忽略 HTTPS 错误，默认关闭并在审核时标示</td><td>M2</td></tr>
@@ -74,7 +75,7 @@
       </div>
     </section>
 
-    <div class="notice">MVP 是单机：录制与调试在运行平台的同一台电脑上打开有画面的隔离浏览器（M4）。多用户部署之后（M8 起）再考虑远程浏览器画面实时传输或浏览器扩充功能。测试网站（M2）先沿用 MVP 原型的本机测试页，之后扩充成典型内部系统：登录、菜单、iframe、表格与文件下载。</div>
+    <div class="notice">MVP 是单机：录制与调试在运行平台的同一台电脑上打开有画面的隔离浏览器（M4）。多用户部署之后（M8 起）再考虑远程浏览器画面实时传输或浏览器扩充功能。测试网站（M2）先沿用 MVP 原型的本机测试页，之后扩充成典型内部系统：登录、菜单、iframe（M7a 的 <code>/frames</code>）、表格与文件下载。</div>
   </div>
 </main>
 </body>

@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=../../schema/scenario.v1.json
+#
+# iframe 裡的元素（M7a）：測試網站的 /frames 把表單放在 iframe #form-frame 裡，
+# 表單裡還有一個 iframe #note-frame。定位器用 frame 指出元素所在的 iframe；
+# iframe 裡還有 iframe 時，frame 裡再寫 frame（外層的 iframe）。
+
+schemaVersion: 1
+id: iframe-form
+name: 送出 iframe 裡的表單
+category: 範例
+description: 在 iframe 裡填寫標題、勾選內層 iframe 的確認、送出，讀取 iframe 裡的結果。
+
+inputs:
+  title:
+    type: string
+    minLength: 1
+    default: iframe 範例
+
+outputs:
+  status:
+    type: string
+    from: '{{ facts.status }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /frames
+
+  - id: fill-title
+    action: fill
+    target: { label: 標題, frame: { css: '#form-frame' } }
+    value: '{{ inputs.title }}'
+
+  - id: confirm
+    name: 勾選內層 iframe 的「我已確認」
+    action: check
+    target: { label: 我已確認, frame: { css: '#note-frame', frame: { css: '#form-frame' } } }
+
+  - id: submit
+    action: click
+    target: { role: button, name: 送出, frame: { title: 紀錄表單 } }
+
+  - id: read-status
+    action: extract
+    target: { role: status, frame: { css: '#form-frame' } }
+    as: status
+
+verify:
+  - name: 已送出並帶著入參的標題
+    value: '{{ facts.status }}'
+    equals: '已送出：{{ inputs.title }}'

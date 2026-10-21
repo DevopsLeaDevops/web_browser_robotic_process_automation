@@ -9,6 +9,9 @@
   啟動。它和本機的 :func:`rpa_server.processes.launch` 介面相同，回傳的 :class:`RemoteProcess`
   也像 ``subprocess.Popen``，所以三個服務讀輸出、送命令、等結束的程式都不用改。
   指令、檔案與輸出的格式見 :mod:`rpa_worker.interactive`。
+- **App 太舊**（M7a）：錄製端上線時回報看得懂的 DSL 擴充（``features``）。交給它的場景或登入設定
+  用到它不懂的（例如 iframe 的 ``frame``）時，:meth:`RecorderHub.check` 直接說明要更新 RPA 錄製端，
+  不讓舊 App 只回一句「場景校驗失敗」。
 - **失聯**：超過 :data:`rpa_worker.interactive.LOST_SECONDS` 沒有輪詢、錄製端重新啟動、
   停用或刪除時，它的子程序視為結束（結束碼 :data:`LOST_EXIT`，日誌最後加一行原因）。
 
@@ -33,11 +36,12 @@ from typing import Final, cast
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from rpa_core.dsl.features import missing_features
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.commands import FROZEN_MODULE
 from rpa_runner.run import ENV_STORAGE_STATE
 from rpa_server.context import Via, via_recorder
-from rpa_server.dispatch import hash_token
+from rpa_server.dispatch import hash_token, reported_names
 from rpa_server.domain import DOMAIN_ID, LOCAL_WORKER, RecorderRecord, RecorderStatus, now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
@@ -408,6 +412,7 @@ class RecorderHub:
             else (),
             display=info.get("display") is not False,
             active=active,
+            features=reported_names(info.get("features")),
         )
 
     def list_recorders(self) -> list[RecorderRecord]:
@@ -542,7 +547,16 @@ class RecorderHub:
             )
         values = {
             key: info[key]
-            for key in ("protocol", "fingerprint", "version", "os", "host", "browsers", "display")
+            for key in (
+                "protocol",
+                "fingerprint",
+                "version",
+                "os",
+                "host",
+                "browsers",
+                "display",
+                "features",
+            )
             if key in info
         }
         boot = str(info.get("boot") or "")
@@ -682,8 +696,16 @@ class RecorderHub:
             channel = self._channels.get(via.id)
             return channel is None or channel.info.get("display") is not False
 
-    def check(self, via: Via, *, engine: str | None = None, headed: bool = True) -> None:
-        """要交給這台錄製端之前：上線中、能顯示視窗、有這個瀏覽器；不行就拋出說明。"""
+    def check(
+        self,
+        via: Via,
+        *,
+        engine: str | None = None,
+        headed: bool = True,
+        features: Collection[str] = (),
+    ) -> None:
+        """要交給這台錄製端之前：上線中、能顯示視窗、有這個瀏覽器、看得懂要用到的 DSL 擴充
+        （``features``，見 :mod:`rpa_core.dsl.features`）；不行就拋出說明。"""
         if not self.online(via.id):
             raise conflict("recorder_offline", t("error.recorder_offline", name=via.name))
         with self._lock:
@@ -696,6 +718,12 @@ class RecorderHub:
             raise invalid(
                 "recorder_browser_missing",
                 t("error.recorder_browser_missing", name=via.name, engine=engine),
+            )
+        missing = missing_features(features, info.get("features"))
+        if missing:
+            raise invalid(
+                "recorder_outdated",
+                t("error.recorder_outdated", name=via.name, features=", ".join(missing)),
             )
 
     def launcher(self, via: Via) -> Launch:
