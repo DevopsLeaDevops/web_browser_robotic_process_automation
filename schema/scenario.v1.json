@@ -765,7 +765,7 @@
     },
     "Locator": {
       "additionalProperties": false,
-      "description": "頁面元素的定位器。\n\n範例::\n\n    { role: button, name: 登入 }\n    { label: 密碼 }\n    { css: \"tr\", hasText: 訂單 123, within: { role: table, name: 訂單 } }",
+      "description": "頁面元素的定位器。\n\n範例::\n\n    { role: button, name: 登入 }\n    { label: 密碼 }\n    { css: \"tr\", hasText: 訂單 123, within: { role: table, name: 訂單 } }\n    { label: 密碼, frame: { css: \"#login\" } }",
       "properties": {
         "testId": {
           "anyOf": [
@@ -1018,6 +1018,17 @@
           "title": "Hastext"
         },
         "within": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "frame": {
           "anyOf": [
             {
               "$ref": "#/$defs/Locator"

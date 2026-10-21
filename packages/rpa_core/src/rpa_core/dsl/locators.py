@@ -126,6 +126,7 @@ class Locator(DslModel):
         { role: button, name: 登入 }
         { label: 密碼 }
         { css: "tr", hasText: 訂單 123, within: { role: table, name: 訂單 } }
+        { label: 密碼, frame: { css: "#login" } }
     """
 
     # ------------------------------------------------ 主要定位方式（恰好一種）
@@ -159,8 +160,12 @@ class Locator(DslModel):
     """只保留內含這段文字的元素。"""
     within: "Locator | None" = None
     """先找到這個外層元素，再在裡面找。"""
+    frame: "Locator | None" = None
+    """元素在 iframe 裡：先找到這個 iframe 元素，再在它載入的頁面裡找（within 也在那個頁面裡找）。
+    iframe 裡還有 iframe 時，在這個定位器裡再寫 frame（外層的 iframe）。"""
     fallback: list["Locator"] | None = Field(default=None, min_length=1)
-    """主要定位失敗時依序嘗試的備用定位器（M2 執行、M5 自癒時使用）。"""
+    """主要定位失敗時依序嘗試的備用定位器（M2 執行、M5 自癒時使用）。
+    備用定位器沒寫 frame 時，沿用主要定位器的 frame。"""
 
     @property
     def strategy(self) -> str:

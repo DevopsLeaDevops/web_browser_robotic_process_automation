@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M7a iframe · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M7a：iframe 裡的元素（M7 提前的一部分）</h1><p>驗證時錄製稿的 iframe 那一行轉不了；把 M7 的 iframe 拿出來先做：定位器加上 <code>frame</code>，錄製稿轉換、Runner、定位器測試都支援。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261021-m7a-iframe；2026-10-21 01:21 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於本次對話（2026-10-21 01:04 America/Los_Angeles（PDT，UTC−07:00））回報驗證時出現「錄製稿第 17 行轉不了：iframe 裡的元素還不支援（M7）」，要求把 M7 中 iframe 支援的部分拿出來提高優先級做。完成條件：iframe（含巢狀）裡的操作能從錄製稿轉成可通過校驗的 DSL，不再出現該警告；Runner 在 iframe 裡執行步驟；人工驗收用真實錄製確認（見下方）。</dd>
+        <dt>範圍／不包含</dt><dd>包含：定位器 <code>frame</code> 欄位（可巢狀）與 JSON Schema；Runner 的定位（within、fallback、定位器測試、登入檢查共用同一個 <code>resolve</code>）；錄製稿 <code>frame_locator(…)</code>、<code>locator(…).content_frame</code> 的轉換；測試網站 <code>/frames</code>；範例場景 <code>scenarios/examples/iframe-form.yaml</code>；路線圖插入 M7a 與相關設計頁。不包含：M7 其餘項目（多分頁、彈出視窗、上傳下載、條件、迴圈、重試等），<code>page.frame(name=…)</code>／<code>page.frames</code> 這類以名稱或網址取 frame 的寫法（codegen 不產生）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（Opus 5.5）；審閱：未指定；接收方：未指定（可接續）</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/locators.py</code>、<code>dsl/steps.py</code>（註解）、<code>recording.py</code>、三語 <code>locales/*.json</code>（刪除 <code>recording.unsupported.frame</code>）；<code>packages/rpa_runner/src/rpa_runner/browser.py</code>；<code>apps/testsite/src/testsite/server.py</code> 與 <code>frames*.html</code>；<code>schema/scenario.v1.json</code>；測試 <code>packages/rpa_core/tests/test_recording.py</code>、<code>packages/rpa_runner/tests/test_frames.py</code>；文檔 <code>docs/roadmap.html</code>、<code>docs/design/{dsl,portal,multi-user}.html</code> 與英文版、簡中（由 bootstrap 產生）；本紀錄與任務索引。共用檔案（多語言目錄、Schema、任務索引）由本任務整合。</dd>
+        <dt>狀態</dt><dd>實作中 → 本地檢查完成後推送並開 PR（待審閱）；人工驗收未執行</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m7a/iframe</code>；PR 建立後補上；base <code>097464c</code>（origin/main，Merge PR #60）</dd>
+        <dt>交接版本／同步狀態</dt><dd>推送後以 PR head 為準；簡中（<code>docs/zh-Hans/</code>）由 <code>[bootstrap]</code> 提交的機器人產生</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、Python 3.13.16。PyPI 在這次工作中途被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成：本地檢查用系統的 Playwright 1.56.0（鎖定 1.64.0）與 Chromium 1194、ruff 0.16.9（鎖定 0.17.1）、pyright 1.1.414、pytest 9.1.1；沒有 Firefox、OpenCC、FastAPI。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>定位器 <code>frame</code>（iframe 的定位器，巢狀時 frame 裡再寫 frame）；Runner 先經 <code>content_frame</code> 進入 iframe，within 與元素都在那個頁面找；備用定位器沒寫 frame 時沿用主要定位器的 frame。錄製稿：<code>page.frame_locator("#a").…</code>、<code>page.locator("#a").content_frame.…</code>、巢狀、<code>frame_locator(…).first／nth(…)</code>、<code>locator("#x").frame_locator(…)</code> 都轉成 <code>frame</code>，密碼欄位照樣改成 Secret。測試網站 <code>/frames</code>（表單在 <code>#form-frame</code>，裡面還有 <code>#note-frame</code>）。</li>
+        <li><strong>未完成／阻礙：</strong>本地無 Firefox、無 OpenCC：Firefox 的瀏覽器測試與 <code>tools/i18n.py check</code>／<code>tests/i18n</code> 交給 CI；簡中由 bootstrap 產生。人工驗收（用使用者那份有 iframe 的真實錄製）未執行。</li>
+        <li><strong>決定：</strong>（實作選擇）iframe 用定位器欄位表達，不新增「切換 frame」步驟：每一步自己帶著位置，Runner 維持無狀態、逐步調試與定位器測試不需要記住目前在哪個 frame；<code>docs/design/multi-user.html</code> 原寫的「切換 frame 步驟」改為定位器的 frame，切換分頁的步驟仍留在 M7。（實作選擇）frame 放在最外層的目標定位器上，不放進 within，YAML 較好讀；語意是先進 iframe、within 再在 iframe 裡找。路線圖新增 M7a，依使用者這次的要求排在 M5 之前。</li>
+        <li><strong>下一個具體動作：</strong>CI 全綠後請使用者用原本那份錄製稿重新轉換（或在 Portal「接著錄製」重錄），確認第 17 行轉成 <code>target: { …, frame: { … } }</code>、驗證通過後發布並執行；如果還有警告，把錄製稿那一行（遮罩過的）貼回本紀錄。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。工作區的 <code>.venv</code> 是指向暫存環境的符號連結（已被 .gitignore 忽略），不需取得。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>base <code>097464c</code>＋本任務工作區差異；上述 Linux 環境</td><td><code>ruff check .</code>、<code>ruff format --check .</code></td><td>通過（ruff 0.16.9，非鎖定的 0.17.1）</td><td>鎖定版本由 CI 執行</td></tr>
+          <tr><td>同上</td><td><code>pyright</code>（strict）限定本任務修改的 6 個檔案</td><td>0 errors</td><td>全倉庫因缺 FastAPI 等依賴無法在本地跑，由 CI 執行</td></tr>
+          <tr><td>同上</td><td><code>pytest packages/rpa_core packages/rpa_runner tests/examples apps/testsite</code></td><td>399 passed、23 skipped（Firefox 未安裝）；含新測試：錄製稿 iframe 轉換、轉不了的 iframe 寫法、Chromium 在巢狀 iframe 執行範例場景、fallback 沿用 frame、沒寫 frame 時找不到 iframe 裡的元素</td><td>Firefox；apps/server、apps/cli、apps/worker、apps/desktop 的測試（缺依賴）</td></tr>
+          <tr><td>同上</td><td>突變檢查：拿掉 fallback 沿用 frame 的邏輯</td><td><code>test_fallback_without_frame_uses_the_primary_frame</code> 如預期失敗，還原後通過</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>rpa schema &gt; schema/scenario.v1.json</code>；<code>pytest tests/docs</code></td><td>Schema 只多了 frame；docs 270 passed；英文頁已 <code>stamp</code></td><td><code>tools/i18n.py check</code>、<code>tests/i18n</code>（缺 OpenCC）</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：推送後確認；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-21 01:04 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，從 origin/main <code>097464c</code> 建立 <code>m7a/iframe</code>。</li>
+        <li>2026-10-21 01:21 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試與文檔完成，本地檢查如上；準備以 <code>[bootstrap]</code> 推送讓機器人產生簡中，再開 PR。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

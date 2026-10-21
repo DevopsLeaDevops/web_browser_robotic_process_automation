@@ -24,6 +24,7 @@
     <div class="notice"><strong>順序調整（2026-10-13）：</strong>M4 完成後先做 M6 自由試驗場，再做 M5 AI 助手，MVP 改在 M5 完成；里程碑編號不變。原因見下方「為什麼是這個順序」。之後在 M6 與 M5 之間插入 M9a：提前做 M9 的遠端 worker。</div>
     <div class="notice"><strong>插入 M10（2026-10-15）：</strong>M5 之前先做 M10 桌面端分發；M5、M8、M9 的其餘部分往後放。M9a 剩下的三個小項與兩台電腦的驗收併入 M10.1。設計見<a href="design/desktop.html">桌面端分發</a>與 <a href="adr/0014-desktop-apps.html">ADR 0014</a>。</div>
     <div class="notice"><strong>新增 M11（2026-10-19）：</strong>M10.2 之後做 M11 資料存放升級（D11）：場景與組合場景放進領域資料夾、驗證與發布紀錄跟著資料夾、經由 git 在伺服器之間同步；M5 仍往後。決策見 <a href="adr/0015-domain-folders-and-git.html">ADR 0015</a>。</div>
+    <div class="notice"><strong>插入 M7a（2026-10-21）：</strong>把 M7 的 iframe 提前、在 M5 之前做：驗證時錄製稿裡 iframe 的元素轉不了，真實系統的表單常在 iframe 裡。定位器加上 <code>frame</code>（元素所在的 iframe，可巢狀）；M7 的其餘部分不變。</div>
 
     <section class="panel">
       <div class="panel-header"><h2>里程碑</h2><span class="muted">狀態隨每個 PR 更新</span></div>
@@ -42,7 +43,8 @@
             <tr class="current"><td><span class="milestone">M10</span></td><td>桌面端分發</td><td>兩個桌面 App：RPA 錄製端（macOS）與 RPA Worker（Windows），pywebview 殼沿用 Portal 現有的頁面；邀請配對、「裝置」頁；錄製、逐步調試、人工登入的瀏覽器開在操作的那台錄製端；PyInstaller 打包、第一次啟動下載瀏覽器、CI 自我測試。分 M10.0 打包地基、M10.1 Windows Worker、M10.2 macOS 錄製端、M10.3 文件與驗收（<a href="design/desktop.html">桌面端分發</a>、<a href="adr/0014-desktop-apps.html">ADR 0014</a>）</td><td>沒有開發工具的 Windows 安裝 Worker、貼上邀請後以有頭模式跑 BA-001 → BA-002；Mac 上的錄製端錄製、調試、人工登入時瀏覽器開在 Mac，草稿交給 Worker 驗證後發布</td><td><span class="badge blue">進行中</span><br><span class="muted">M10.0～M10.2 已完成（v0.2.0：Windows 的 Worker 安裝檔；v0.3.0：macOS 的錄製端 DMG）；下一步 M10.3</span></td></tr>
             <tr class="current"><td><span class="milestone">M11</span></td><td>資料存放升級</td><td>領域資料夾（說明檔＋不可變版本＋驗證與發布紀錄，<code>rpa pack check</code>）；組合場景的代號、版本、驗證、發布與跨領域依賴；領域與 git 倉庫的一個目錄同步（公開倉庫、HTTPS 權杖、SSH 部署金鑰；檔案層級合併，衝突三選一，不強推；推送前擋下機密）；舊資料自動遷移（先備份）（<a href="adr/0015-domain-folders-and-git.html">ADR 0015</a>、<a href="design/portal.html">管理 Portal</a>）</td><td>用測試倉庫：空倉庫的第一次推送；另一台拉取、驗證、推回紀錄，第一台依它發布；不重啟看到新版本；衝突時三選一且遠端不被覆蓋；只拉組合場景時提示缺少的依賴，補上後可以執行</td><td><span class="badge blue">進行中</span><br><span class="muted">實作已合併（#48、#49、#53、#54，收尾的 PR 審閱中）；人工驗收：git 推送已驗證，其餘進行中</span></td></tr>
             <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>對話調試、受限的工具、自然語言生成 DSL、校驗失敗自動修正、選擇器自癒</td><td>助手只改草稿、發布要使用者確認；一句話描述生成可通過驗證的場景。<strong>MVP 完成</strong></td><td><span class="badge">未開始</span></td></tr>
-            <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、iframe、多分頁、上傳與下載、子場景、資料驅動</td><td>複雜範例場景通過</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M7a</span></td><td>iframe（M7 提前的一部分）</td><td>定位器的 <code>frame</code>：元素在哪個 iframe 裡（iframe 裡還有 iframe 時再寫一層），within、備用定位器、定位器測試都在那個 iframe 裡找；錄製稿的 <code>frame_locator(…)</code> 與 <code>locator(…).content_frame</code> 轉成 frame；測試網站的 iframe 頁（<a href="design/dsl.html#locators">DSL</a>）</td><td>錄製 iframe 裡的表單後轉換沒有警告，驗證、發布並執行成功；Chromium 與 Firefox 在巢狀 iframe 裡執行範例場景</td><td><span class="badge blue">進行中</span><br><span class="muted">實作與自動測試在 PR 中；人工驗收：未執行</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、多分頁、上傳與下載、子場景、資料驅動（iframe 已提前到 M7a）</td><td>複雜範例場景通過</td><td><span class="badge">未開始</span></td></tr>
             <tr><td><span class="milestone">M8</span></td><td>多用戶與治理</td><td>認證（OIDC 或 LDAP）、專案權限、Secrets 加密、稽核；正式環境 PostgreSQL</td><td>API 測試在 SQLite 與 PostgreSQL 上都通過</td><td><span class="badge">未開始</span></td></tr>
             <tr><td><span class="milestone">M9</span></td><td>營運能力</td><td>排程（定時執行）、併發與 worker 標籤、通知、S3 相容物件儲存、Docker Compose 部署；遠端 worker 已在 M9a 提前完成</td><td><code>docker compose up</code> 一鍵啟動</td><td><span class="badge">未開始</span></td></tr>
           </tbody>
@@ -62,6 +64,7 @@
             <li><strong>先串接、再生成（M6 先於 M5）。</strong>試驗場只用已發布的場景，不需要新的外部服務，可以馬上開工；M5 要先決定 AI 模型（內部頁面能否送到外部 API）。先有試驗場，M5 生成的場景也能直接放進組合場景驗證。</li>
             <li><strong>先把執行搬離自己的電腦（M9a 插在 M5 前）。</strong>測試大多用有頭模式，瀏覽器視窗會占住執行 Portal 的電腦；有一台專門執行的電腦，就先把 M9 的遠端 worker 做出來。只動執行的位置，不改場景、契約與發布門檻。</li>
             <li><strong>先讓別人裝得起來（M10 插在 M5 前）。</strong>伺服器之後要放到正式環境；錄製者與執行機要能不裝開發工具就用，錄製的瀏覽器也要開在錄製者自己的電腦。只動安裝與「子程序在哪台執行」，不改場景、契約與發布門檻。</li>
+            <li><strong>先解掉擋住錄製的 iframe（M7a 插在 M5 前）。</strong>真實系統的表單常在 iframe 裡，錄製稿轉不了就無法驗證。只多一個定位器欄位，不改場景契約與發布門檻；M7 的其他流程能力仍照原順序。</li>
             <li><strong>生成只產生草稿。</strong>錄製與 AI 的輸出都要經過真實驗證與人工發布，驗證的版本必須就是發布的版本。</li>
             <li><strong>Runner 從一開始就無狀態。</strong>只吃場景、入參與 Secrets，輸出結果與產物；M3 的背景 worker 與 M9a 的遠端 worker 直接沿用。</li>
           </ul>

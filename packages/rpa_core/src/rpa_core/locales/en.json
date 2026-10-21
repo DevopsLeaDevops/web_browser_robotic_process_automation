@@ -101,7 +101,6 @@
   "recording.unsupported.selector": "Selector {value} is Playwright-specific syntax",
   "recording.unsupported.options": "Options {options} of {name} are not supported yet",
   "recording.unsupported.method": "{name} is not supported yet",
-  "recording.unsupported.frame": "Elements inside an iframe are not supported yet (M7)",
   "recording.unsupported.chain": "The locator is too complex",
   "recording.unsupported.filter": "filter only supports has_text",
   "recording.unsupported.popup": "This step opens a new tab; actions on other tabs are not supported yet (M7)",

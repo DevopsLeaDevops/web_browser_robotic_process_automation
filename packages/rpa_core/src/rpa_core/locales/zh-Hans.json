@@ -101,7 +101,6 @@
   "recording.unsupported.selector": "选择器 {value} 是 Playwright 专用的写法",
   "recording.unsupported.options": "{name} 的选项 {options} 还不支持",
   "recording.unsupported.method": "{name} 还不支持",
-  "recording.unsupported.frame": "iframe 里的元素还不支持（M7）",
   "recording.unsupported.chain": "定位器的写法太复杂",
   "recording.unsupported.filter": "filter 只支持 has_text",
   "recording.unsupported.popup": "这一步会打开新分页；新分页上的操作还不支持（M7）",
