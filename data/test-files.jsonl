@@ -11869,3 +11869,6 @@
 {"attempt": 1, "file": "packages/rpa_runner/tests/test_contexts.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39583026691, "seconds": 0.0, "tests": 3, "workflow": "CI"}
 {"attempt": 1, "file": "packages/rpa_core/tests/test_version.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39583026691, "seconds": 0.0, "tests": 1, "workflow": "CI"}
 {"attempt": 1, "file": "apps/desktop/tests/test_selftest.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39583026691, "seconds": 0.0, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_end.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 39583689575, "seconds": 49.4, "tests": 6, "workflow": "CI"}
+{"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_end.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39583689575, "seconds": 57.3, "tests": 6, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_zz_diag_end.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39583689575, "seconds": 58.2, "tests": 6, "workflow": "CI"}
