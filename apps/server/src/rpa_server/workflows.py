@@ -545,10 +545,10 @@ class WorkflowService:
             if entry is None:
                 continue
             domains: set[str] = set()
-            for number in {
-                record.version,
-                *([record.published_number] if record.published else []),
-            }:
+            numbers = {record.version}
+            if record.published_number is not None:
+                numbers.add(record.published_number)
+            for number in numbers:
                 revision = entry.revisions.get(number)
                 if revision is not None:
                     domains.update(item.domain for item in revision.requires or [])
@@ -1149,8 +1149,8 @@ class WorkflowService:
             level: Literal["error", "warning"],
             code: str,
             action: str | None,
+            params: Mapping[str, object],
             source: dict[str, str] | None = None,
-            **params: object,
         ) -> None:
             items.append(
                 DependencyItem(
@@ -1173,7 +1173,7 @@ class WorkflowService:
             params: dict[str, object] = {"scene": node.scene_id, "revision": node.revision}
             pin = pinned.get(key)
             if pin is None:
-                add("error", "unpinned", "resave", **params)
+                add("error", "unpinned", "resave", params)
                 continue
             params["domain"] = pin.domain
             domain = session.get(Domain, pin.domain)
@@ -1182,15 +1182,15 @@ class WorkflowService:
                     "error",
                     "domain_missing",
                     "add_domain",
+                    params,
                     self._requirement_source(pin.domain),
-                    **params,
                 )
                 continue
             # 領域有 git 資料來源：缺的東西多半是還沒拉取（或拉取失敗），補全的方式是拉取
             refresh = "pull" if domain.source else "reload_domain"
             scene = session.get(Scene, pin.scene)
             if scene is None or scene.missing or scene.domain_id != pin.domain:
-                add("error", "scene_missing", refresh, **params)
+                add("error", "scene_missing", refresh, params)
                 continue
             revision = session.scalars(
                 select(Revision).where(
@@ -1198,13 +1198,13 @@ class WorkflowService:
                 )
             ).first()
             if revision is None or revision.missing:
-                add("error", "revision_missing", refresh, **params)
+                add("error", "revision_missing", refresh, params)
                 continue
             if revision.problem is not None:
-                add("error", "revision_unusable", "reload_domain", **params)
+                add("error", "revision_unusable", "reload_domain", params)
                 continue
             if revision.content_hash != pin.hash:
-                add("error", "hash_mismatch", "resave", **params)
+                add("error", "hash_mismatch", "resave", params)
                 continue
             scenario = self._scenario(pin.scene, pin.revision)
             if scenario is None:
@@ -1213,15 +1213,17 @@ class WorkflowService:
                 role = session.get(Role, scenario.login.role)
                 params["role"] = scenario.login.role
                 if role is None or role.missing:
-                    add("error", "role_missing", "reload_domain", **params)
+                    add("error", "role_missing", "reload_domain", params)
                 elif role.status != "logged_in" and not role.auto_login:
-                    add("warning", "role_login", "login", **params)
+                    add("warning", "role_login", "login", params)
             stored = {info.name for info in self.services.roles.list_secrets()}
             missing = [
                 name for name in scenario.secrets if name not in stored and name not in os.environ
             ]
             if missing:
-                add("warning", "secrets_missing", "secrets", names=", ".join(missing), **params)
+                add(
+                    "warning", "secrets_missing", "secrets", {**params, "names": ", ".join(missing)}
+                )
         return items
 
     # ------------------------------------------------------------ 查詢

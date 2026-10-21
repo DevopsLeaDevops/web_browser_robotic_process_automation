@@ -386,7 +386,7 @@ def test_code_domain_and_archive_can_change(
     dependents = client.get("/domains").text.split("data-dependents")
     assert len(dependents) == 2  # 只有 lab：被組合場景領域的另一個依賴
     used = dependents[1].split("</span>")[0]
-    assert other["code"] in used
+    assert str(other["code"]) in used
     assert "order-flow" not in used  # 在 lab 裡、只用 lab 的場景，不算依賴別的領域
 
 
