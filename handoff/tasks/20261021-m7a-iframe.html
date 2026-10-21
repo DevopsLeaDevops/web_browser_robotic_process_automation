@@ -64,6 +64,7 @@
         <li>2026-10-21 01:35 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>503da45</code> 的 CI 與桌面端建置通過（結果留言在 PR #62）。</li>
         <li>2026-10-21 02:35 America/Los_Angeles（PDT，UTC−07:00），使用者：在測試網站 <code>/frames</code> 第一次人工驗收（錄製用 Firefox，轉換於 02:31）。第 12 行 <code>page.frame_locator().get_by_role("checkbox", name="我已確認").check()</code> 轉不了（「frame_locator 的引數不是固定的文字或清單」）；其餘 iframe 的步驟已帶 frame。結果：不通過。</li>
         <li>2026-10-21 02:41 America/Los_Angeles（PDT，UTC−07:00），Claude：查 Playwright v1.64.0 原始碼：兩層以上的 iframe，錄製器在能唯一定位時把路徑縮短成 <code>internal:control=any-frame</code>，Python 印成 <code>frame_locator()</code>；1.63 起 <code>Page.frame_locator(selector=None)</code> 支援。新增 <code>anyFrame</code>（DSL、校驗、Runner、轉換、Schema、文檔）與點擊 iframe 元素的提醒；本地檢查見驗證表。</li>
+        <li>2026-10-21 02:50 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>8b7f7e1</code>；bootstrap（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39579006795">運行 39579006795</a>）在鎖定的 1.64 上 ruff、全倉庫 pyright、<code>pytest -m "not browser"</code> 通過，提交簡中 <code>f37e3f2</code>。本紀錄的這次更新觸發 PR #62 的 CI。</li>
       </ul></div>
     </section>
   </div>
