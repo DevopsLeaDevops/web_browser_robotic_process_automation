@@ -20,9 +20,9 @@
         <dt>範圍／不包含</dt><dd>包含：定位器 <code>frame</code> 欄位（可巢狀）與 JSON Schema；Runner 的定位（within、fallback、定位器測試、登入檢查共用同一個 <code>resolve</code>）；錄製稿 <code>frame_locator(…)</code>、<code>locator(…).content_frame</code> 的轉換；測試網站 <code>/frames</code>；範例場景 <code>scenarios/examples/iframe-form.yaml</code>；路線圖插入 M7a 與相關設計頁。不包含：M7 其餘項目（多分頁、彈出視窗、上傳下載、條件、迴圈、重試等），<code>page.frame(name=…)</code>／<code>page.frames</code> 這類以名稱或網址取 frame 的寫法（codegen 不產生）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（Opus 5.5）；審閱：未指定；接收方：未指定（可接續）</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/locators.py</code>、<code>dsl/steps.py</code>（註解）、<code>recording.py</code>、三語 <code>locales/*.json</code>（刪除 <code>recording.unsupported.frame</code>）；<code>packages/rpa_runner/src/rpa_runner/browser.py</code>；<code>apps/testsite/src/testsite/server.py</code> 與 <code>frames*.html</code>；<code>schema/scenario.v1.json</code>；測試 <code>packages/rpa_core/tests/test_recording.py</code>、<code>packages/rpa_runner/tests/test_frames.py</code>；文檔 <code>docs/roadmap.html</code>、<code>docs/design/{dsl,portal,multi-user}.html</code> 與英文版、簡中（由 bootstrap 產生）；本紀錄與任務索引。共用檔案（多語言目錄、Schema、任務索引）由本任務整合。</dd>
-        <dt>狀態</dt><dd>實作中 → 本地檢查完成後推送並開 PR（待審閱）；人工驗收未執行</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>m7a/iframe</code>；PR 建立後補上；base <code>097464c</code>（origin/main，Merge PR #60）</dd>
-        <dt>交接版本／同步狀態</dt><dd>推送後以 PR head 為準；簡中（<code>docs/zh-Hans/</code>）由 <code>[bootstrap]</code> 提交的機器人產生</dd>
+        <dt>狀態</dt><dd>待審閱（PR #62）；CI 見 PR 最新 head；人工驗收未執行</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m7a/iframe</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/62">PR #62</a>；base <code>097464c</code>（origin/main，Merge PR #60）</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：<code>3b5cff5</code>（實作）、<code>e2fa4ec</code>（bootstrap 機器人產生的簡中）、之後是本紀錄的更新；以 PR #62 的最新 head 為準</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、Python 3.13.16。PyPI 在這次工作中途被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成：本地檢查用系統的 Playwright 1.56.0（鎖定 1.64.0）與 Chromium 1194、ruff 0.16.9（鎖定 0.17.1）、pyright 1.1.414、pytest 9.1.1；沒有 Firefox、OpenCC、FastAPI。</dd>
       </dl></div>
     </section>
@@ -48,7 +48,7 @@
           <tr><td>同上</td><td><code>rpa schema &gt; schema/scenario.v1.json</code>；<code>pytest tests/docs</code></td><td>Schema 只多了 frame；docs 270 passed；英文頁已 <code>stamp</code></td><td><code>tools/i18n.py check</code>、<code>tests/i18n</code>（缺 OpenCC）</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：推送後確認；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+      <div class="panel-body"><p>bootstrap（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39568796227">運行 39568796227</a>，<code>3b5cff5</code>）：鎖定版本的 uv sync、產生簡中與 Schema（Schema 無差異）、ruff、全倉庫 pyright、<code>pytest -m "not browser"</code> 全部通過，提交 <code>e2fa4ec</code>。CI：見 PR #62 最新 head；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -59,6 +59,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-21 01:04 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，從 origin/main <code>097464c</code> 建立 <code>m7a/iframe</code>。</li>
         <li>2026-10-21 01:21 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試與文檔完成，本地檢查如上；準備以 <code>[bootstrap]</code> 推送讓機器人產生簡中，再開 PR。</li>
+        <li>2026-10-21 01:30 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>3b5cff5</code>；bootstrap 通過並提交簡中 <code>e2fa4ec</code>；建立 PR #62。本紀錄的這次更新觸發 CI。</li>
       </ul></div>
     </section>
   </div>
