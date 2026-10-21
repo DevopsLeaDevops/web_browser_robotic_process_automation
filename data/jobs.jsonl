@@ -692,3 +692,11 @@
 {"attempt": 2, "conclusion": "success", "duration_s": 5.0, "job": "執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 39580097031, "workflow": "CI"}
 {"attempt": 2, "conclusion": "success", "duration_s": 145.0, "job": "測試（Python 3.13）", "os": "linux", "queue_s": 0.0, "run_id": 39580097031, "workflow": "CI"}
 {"attempt": 2, "conclusion": "success", "duration_s": 74.0, "job": "測試（Python 3.12）", "os": "linux", "queue_s": 0.0, "run_id": 39580097031, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 4.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 103.0, "job": "Linux 伺服器（Rocky 8，from-scratch）", "os": "linux", "queue_s": 1.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 689.0, "job": "Linux 伺服器（Rocky 8，in-repo）", "os": "linux", "queue_s": 2.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 144.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 1.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 64.0, "job": "專案內執行（ubuntu-latest）", "os": "linux", "queue_s": 1.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 180.0, "job": "專案內執行（macos-latest）", "os": "macos", "queue_s": 6.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39580322455, "workflow": "一鍵安裝腳本"}
