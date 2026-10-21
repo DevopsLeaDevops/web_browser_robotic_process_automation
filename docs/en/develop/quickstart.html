@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e23ef6d234ed3ad5">
+<meta name="translation-source" content="sha256:f384575e4ed04055">
 <title>Run locally from scratch · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -84,11 +84,27 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
             <tr><td>2. Prepare the code</td><td>Uses the project it runs in; otherwise <code>git clone</code>s to the default location or the one given with <code>--dir</code>.</td><td>Uses the existing download; does not <code>git pull</code> automatically</td></tr>
             <tr><td>3. Prepare uv</td><td>Installs it with the official installer if missing; tries to upgrade when older than <code>required-version</code> in <code>pyproject.toml</code>.</td><td>Skipped when new enough</td></tr>
             <tr><td>4. Install Python and dependencies</td><td><code>uv sync</code>: prepares Python 3.13 per <code>.python-version</code>, creates <code>.venv</code>, installs all packages and dev tools at the versions in <code>uv.lock</code>.</td><td>Finishes in seconds when nothing changed</td></tr>
-            <tr><td>5. Install the browsers</td><td><code>uv run playwright install chromium firefox</code>, then actually starts them once. On Linux, runs <code>playwright install-deps</code> if system libraries are missing.</td><td>Skips the download and only checks that it starts</td></tr>
+            <tr><td>5. Install the browsers</td><td><code>uv run python tools/install_browsers.py</code>: measures download speeds, selects the fastest available official source or npmmirror CDN, then actually starts the browsers once. On Linux, runs <code>playwright install-deps</code> if system libraries are missing.</td><td>Skips probing and downloading; only checks that the browsers start</td></tr>
             <tr><td>6. Install pre-commit checks</td><td><code>uv run pre-commit install</code>, so ruff, pyright and the docs checks run before every <code>git commit</code>.</td><td>Rewrites the same hook, no effect</td></tr>
             <tr><td>7. Confirm it works</td><td>Runs <code>rpa --version</code>, then all tests with <code>RPA_REQUIRE_BROWSER=1</code>: like CI, a missing browser fails instead of being skipped.</td><td>Runs every time</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="panel" id="browser-downloads">
+      <div class="panel-header"><h2>Browser download sources</h2></div>
+      <div class="panel-body">
+        <p>Step 5 tests the actual archives required by the installed Playwright version and operating system. It compares official download sources and <code>cdn.npmmirror.com</code> separately for Chromium (including its headless shell) and Firefox, prints MiB/s, and uses the fastest available source measured in this run. Auxiliary components such as FFmpeg are also tested when needed.</p>
+        <ul class="points">
+          <li>Each file contributes at most 2 MiB. Probes run sequentially to avoid competing for bandwidth, with a 5-second limit each and a 30-second total budget. These are current sample speeds; full download speeds may vary.</li>
+          <li>Completed components skip probing and downloading. Missing files, error pages and timeouts are rejected. When an official sample is available, file sizes and sample hashes must match; this does not verify the entire archive.</li>
+          <li>If no usable result is available or Playwright changes its listing format, installation uses the original flow. If installation with automatically selected sources fails, it retries with Playwright's original sources and without the automatic overrides.</li>
+          <li>Setting any of <code>PLAYWRIGHT_DOWNLOAD_HOST</code>, <code>PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST</code> or <code>PLAYWRIGHT_FIREFOX_DOWNLOAD_HOST</code> preserves your settings and skips all automatic probing, including Playwright's corresponding npm configuration forms. Set an approved source first if your company restricts download sources.</li>
+        </ul>
+        <p>The selection applies only to this installation. It does not change shell settings, <code>uv.lock</code> or the Playwright package. To run only this step, use the project directory:</p>
+<pre class="source">uv run python tools/install_browsers.py</pre>
+        <p>See the <a href="https://playwright.dev/python/docs/browsers#download-from-artifact-repository">official Playwright instructions</a> for setting a source. Probing applies to browser downloads only; Python package sources still use settings such as <code>UV_INDEX_URL</code>.</p>
       </div>
     </section>
 
