@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M12 運行回看 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M12 運行回看</h1><p>驗證與執行時錄影；運行結束後在 Portal 回看，時間軸有縮圖、和步驟關聯，可以暫停、拖曳、定位到失敗的步驟。本頁是設計階段的紀錄：<strong>設計待使用者確認，確認後才開始寫程式</strong>。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261020-m12-replay；2026-10-20 20:55 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-20 20:19 PDT 在 Claude 對話：「先一起設計完成，有不確定的溝通確定，設計沒問題再動手 coding」。前提：Playwright 錄製支援錄影回看。目標：(1) 腳本在 worker 驗證、運行時錄影，有頭、無頭都支援；(2) 運行結束後在運行紀錄回看；(3) 回看是獨立功能、之後會很常用：方便定位運作過程、還原執行現場，支援暫停、拖曳、和現有的步驟關聯；期望有播放介面、有縮圖的進度條、有步驟關聯。UI 互動由 Claude 設計。定為 M12 里程碑。驗收見第 1 節。</dd>
+        <dt>範圍／不包含</dt><dd>見第 3～7 節。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱與決定：使用者。接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd>設計階段只有本頁、<a href="20261020-m12-replay/prototype.html">互動原型</a>與任務索引。實作的檔案範圍見第 8 節；會碰到的共用檔案：<code>rpa_runner</code>（child、run、files）、<code>rpa_server</code>（pages、api、render 的選單、templates、static）、遷移編號（若需要設定表欄位）、三種語言的訊息目錄、<code>docs/</code>。整合者：Claude。</dd>
+        <dt>狀態</dt><dd>設計待確認：第 9 節的決定等使用者回覆；確認前不寫程式。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/m12-replay-design</code>；PR 建立後回填；base <code>b9a3387</code>（origin/main，#56）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送後回填。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、Playwright 1.56 只有 Chromium、系統 ffmpeg 只用來檢查）。PyPI、npm 與 Playwright 的瀏覽器下載被擋，沒辦法裝倉庫用的 Playwright 1.64；1.64 的行為是讀它的原始碼（v1.64.0 的 <code>packages/playwright-core/src/server</code>）得到的，第 8 節安排在 CI 實測。</dd>
+      </dl></div>
+    </section>
+
+    <section class="panel" id="goal">
+      <div class="panel-header"><h2>1. 目標與驗收</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>DSL 場景的驗證、執行、試驗場節點（本機 worker 與遠端 worker、Windows Worker App）都錄影；有頭、無頭都有；Chromium、Firefox 都有。</li>
+        <li>失敗、逾時、取消的運行也有可播放、可拖曳的影片（還原現場最需要的正是這些）。</li>
+        <li>運行頁、運行報告、試驗場節點都能進入回看；選單有獨立的「運行回看」。</li>
+        <li>播放器：播放、暫停、拖曳、逐格、變速；時間軸有縮圖、滑過有預覽；步驟清單跟著影片走，點步驟跳到那一步；失敗的運行打開就停在失敗步驟之前。</li>
+        <li>錄影關閉時一切照舊；影片依保留規則自動刪除，運行紀錄本身不刪。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="spike">
+      <div class="panel-header"><h2>2. 技術驗證（2026-10-20 20:24～20:35 PDT）</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>結果</th><th>根據</th><th>還要確認</th></tr></thead>
+        <tbody>
+          <tr><td>怎麼錄</td><td>context 選項 <code>record_video_dir</code>（和 <code>record_video_size</code>）。1.64 所有瀏覽器同一條路：瀏覽器送出每一格 JPEG 和那一格的實際時間，Playwright 用它自帶的 ffmpeg 編成 VP9 WebM。有頭、無頭都可以。關閉 context 時存檔。</td><td>v1.64.0 <code>server/videoRecorder.ts</code>、<code>screencast.ts</code>；本機 1.56 有頭（Xvfb）與無頭都錄到</td><td>Firefox、Windows、macOS 在 CI 實測</td></tr>
+          <tr><td>影片和步驟對時</td><td>1.64 依每一格的實際時間寫進影片，影片第 t 秒＝錄影開始時間＋t；開始時間寫在檔案標頭（<code>creation_time</code> → WebM 的 DateUTC，毫秒）。Python 讀得到（40 行的 EBML 解析，已試）。步驟記下開始、結束的時間，相減就是在影片裡的位置。</td><td>原始碼；本機解析 DateUTC 成功</td><td>1.56 在畫面一直動時影片會慢 12%（舊的補格算法，1.64 已改寫）。CI 用 1.64 量誤差，目標 &lt; 100 ms</td></tr>
+          <tr><td>拖曳</td><td>正常結束的檔案有長度和 Cues，瀏覽器可以直接拖曳；關鍵格約 5 秒一個。</td><td>本機 ffprobe；Chromium 裡 40 次跳轉 3.7 秒（11.6 秒的影片）</td><td>VP9 的關鍵格間隔</td></tr>
+          <tr><td>被終止的影片</td><td>Linux 被 <code>killpg</code> 時，ffmpeg 不在子程序的程序群組，輸入斷掉後自己收尾，檔案完整。Windows 的 <code>taskkill /T</code> 會連 ffmpeg 一起結束，檔案會沒有長度和 Cues，不能拖曳。修法：結束後用 Playwright 自帶的 ffmpeg 重新封裝（<code>-c copy</code>，不重新編碼）。</td><td>本機強制終止實測；重新封裝後有長度與 Cues</td><td>Windows 上實測</td></tr>
+          <tr><td>縮圖</td><td>Linux 伺服器沒有瀏覽器，也沒有 ffmpeg，所以縮圖在看影片的瀏覽器裡產生：另開一個看不見的 video 跳到各個時間點、畫到 canvas。</td><td>Chromium 實測：40 張 3.7 秒；原型就是這樣做的</td><td>長影片（10 分鐘以上）的速度；之後可改成 worker 端產生</td></tr>
+          <tr><td>檔案大小</td><td>1280×720、有打字和換頁的 11.6 秒是 322 KB（1.56 的 VP8）。粗估每分鐘 1～3 MB；1.64 的 VP9 位元率上限依畫面大小調整（800×450 是 1 Mbps）。</td><td>本機實測</td><td>CI 用 1.64 量真實大小與錄影多花的時間</td></tr>
+          <tr><td>ffmpeg 從哪裡來</td><td>每次 <code>playwright install &lt;任何瀏覽器&gt;</code> 都會一起下載 ffmpeg（1.64 是 ffmpeg-1013）。一鍵安裝、Worker App、錄製端都已經有。</td><td>v1.64.0 <code>registry/index.ts</code> 的 <code>resolveBrowsers</code></td><td>無</td></tr>
+          <tr><td>Playwright 的動作標註（showActions）</td><td>會在頁面裡注入標註，而且每個操作前多等 500 ms，改變執行的時間與畫面。<strong>不採用</strong>，步驟由播放器顯示。</td><td>v1.64.0 <code>screencast.ts</code> 的 <code>onBeforeInputAction</code></td><td>無</td></tr>
+          <tr><td>能不能播放</td><td>Chrome、Edge、Firefox、Windows Worker App（WebView2）支援 WebM VP9。Safari 從 macOS 11.3 支援 WebM。</td><td>公開資料</td><td>Mac 錄製端 App（WKWebView）裡能不能播，要在使用者的 Mac 上確認</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="recording">
+      <div class="panel-header"><h2>3. 錄影（rpa_runner、worker）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>DSL 場景的自動化階段</strong>：<code>rpa_runner.child</code> 開 context 時加上錄影，畫面大小跟頁面一樣、寬度上限 1280（D2）。結束時先關 context 再關瀏覽器，存成執行目錄的 <code>video.webm</code>。Firefox 的預熱設定檔（持久化 context）同樣支援。</li>
+        <li><strong>步驟時間</strong>：<code>steps.json</code> 每一步加 <code>startedAt</code>、<code>endedAt</code>（UTC、毫秒）和 <code>url</code>（步驟結束後的網址，Playwright 已有的值，不多一次來回）。</li>
+        <li><strong>新檔 <code>video.json</code></strong>：格式版本、檔名、錄影開始時間（從檔案標頭讀，讀不到才用開頁面的時間）、長度、寬高、大小、是否修復過、瀏覽器、保留到何時、是否釘選、刪除的時間與原因。</li>
+        <li><strong>失敗、逾時、取消</strong>：總期限到時子程序自己收尾（現在就有），影片正常存檔。被強制終止後，父程序檢查影片有沒有長度；沒有就用 Playwright 的 ffmpeg 重新封裝，找不到 ffmpeg 或修不了就保留原檔並在 <code>video.json</code> 註明。</li>
+        <li><strong>Python 腳本場景</strong>：多給環境變數 <code>RPA_VIDEO_DIR</code>，腳本自己決定要不要把它傳給 <code>record_video_dir</code>；範例 <code>ba-001-script</code> 加上。沒有步驟，只有階段。</li>
+        <li><strong>不錄</strong>：登入檢查與自動登入（已有 <code>login.png</code>）、逐步調試、錄製（D5）。</li>
+        <li><strong>設定</strong>：伺服器設定「錄影：開／關」。關閉時 child 完全不加錄影，和現在一樣。遠端 worker 從領取的任務得知要不要錄，舊版 worker 不認得就不錄（不擋執行）。</li>
+        <li><strong>遠端 worker</strong>：照舊把整個執行目錄壓縮上傳（上限 512 MB）；上傳後刪除本機副本的行為不變。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="storage">
+      <div class="panel-header"><h2>4. 存放、保留與檔案服務（rpa_server）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>影片在 <code>資料目錄/runs/&lt;運行編號&gt;/video.webm</code>；M11 的 <code>run.json</code> 檔案清單自然列入。影片不進領域資料夾，也不進 git（M11 D4 不變）。</li>
+        <li><strong>保留與清理</strong>（D1）：伺服器啟動時與每小時刪掉過期的影片。只刪影片，結果、報告、截圖、日誌都留著；<code>video.json</code> 記下刪除時間和原因，頁面顯示「錄影已依保留規則刪除」。總量超過上限時從最舊的刪起。釘選的不刪。設定放在「運行回看」頁。</li>
+        <li><strong>檔案服務</strong>：<code>/runs/{id}/files/video.webm</code> 沿用現有路由（Starlette 的 FileResponse 支援 Range，拖曳只抓需要的片段）。影片寫完就不會變，快取由 <code>no-store</code> 改成 <code>private, max-age</code>，拖曳時不重複下載。</li>
+        <li>「下載錄影」就是這個檔案；之後歸檔（M11 D4）時一起上傳。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="player">
+      <div class="panel-header"><h2>5. 回看播放器（/runs/{運行編號}/replay）</h2></div>
+      <div class="panel-body">
+        <p>可操作的原型：<a href="20261020-m12-replay/prototype.html">prototype.html</a>（單一檔案，影片和步驟時間來自一次真實執行：建立一筆紀錄後查詢不存在的編號，第 10 步逾時失敗；縮圖在瀏覽器裡從影片產生）。使用者另有同內容的 Claude artifact。</p>
+        <ul class="points">
+          <li><strong>版面</strong>（寬螢幕）：左邊是播放器（網址列、影片、控制列、時間軸），下面是階段條；右邊 372 px 是「步驟／斷言／運行資訊」三個分頁。1180 px 以下右欄移到下面；手機寬度一欄。</li>
+          <li><strong>網址列</strong>：影片只錄到網頁內容，沒有網址；播放器依步驟紀錄顯示「這一刻」的網址和「第 N／M 步」。</li>
+          <li><strong>影片上的標籤</strong>：左上角顯示目前的步驟（編號、狀態色、名稱、動作與定位器），不燒進影片。</li>
+          <li><strong>打開時的位置</strong>：失敗的運行停在失敗步驟開始前 1 秒、暫停，右邊展開那一步並提示「已定位到失敗的第 N 步之前 1 秒」；通過的運行停在開頭。</li>
+          <li><strong>時間軸</strong>：上排是縮圖條（寬度每 96 px 一張，依時間平均取樣），下排是步驟軌（每一步一段，長度＝耗時，通過綠、失敗紅、目前那一步藍框，太短的至少 3 px），再下面是刻度。已播放的部分加淡藍底。點或拖曳任何位置就跳過去（拖曳時暫停，放開後恢復原本的播放狀態）。滑過時出現大一點的預覽：先用最近的縮圖，停 120 ms 後換成那一刻的實際畫面，並標出時間和步驟。可以用鍵盤操作（滑桿）。</li>
+          <li><strong>控制列</strong>：播放／暫停、上一步、下一步、上一格、下一格（1/25 秒）、目前時間／長度（到百分之一秒）、速度 ¼×、½×、1×、2×（步驟通常很快，所以有慢放）、「步驟清單跟著跑」、快捷鍵說明、全螢幕。</li>
+          <li><strong>步驟清單</strong>：每一步一列：編號（狀態色；還沒到的是虛線圈、正在執行的是藍色）、那一步結束時的小縮圖、名稱（沒有名稱時用動作＋id）、動作與定位器、開始時間、耗時。播放時目前那一步反白並捲到看得到的位置（只在清單內捲動）。點一列：跳到那一步開始前 0.4 秒，並展開詳細。</li>
+          <li><strong>步驟詳細</strong>：錯誤訊息（失敗時）、結果與耗時、步驟後的網址、填入的值（Secrets 遮罩）、抽到的事實（extract）、場景檔快照裡那一段原文與行號；按鈕「從這一步播放」「複製這一刻的連結」（<code>?t=秒&amp;step=id</code>）「在場景中開啟（第 N 行）」。</li>
+          <li><strong>影片結束時</strong>：失敗的運行顯示結束卡：哪一步失敗、錯誤、斷言與出參沒有執行；按鈕「回到失敗的步驟」「從頭播放」。</li>
+          <li><strong>階段條與斷言分頁</strong>：影片只涵蓋自動化階段，入參校驗、獨立斷言、出參在階段條與「斷言」分頁顯示，說明它們在瀏覽器關閉後才執行。</li>
+          <li><strong>運行資訊分頁</strong>：運行編號、入參、錄影的大小與長度、錄影開始時間、保留到何時、「釘選，不自動刪除」。</li>
+          <li><strong>快捷鍵</strong>：空白／K 播放暫停；←→ 1 秒（Shift 5 秒）；, . 逐格；J L 上一步、下一步；E 跳到失敗的步驟；[ ] 變速；F 全螢幕；? 說明。</li>
+          <li><strong>頁首</strong>：同一個場景的「上一次失敗」「下一次」、運行詳情、開啟報告、下載錄影。試驗場的節點另外有「上一個節點／下一個節點」。</li>
+          <li><strong>沒有影片時</strong>：說明原因（錄影關閉、Python 腳本沒錄、依保留規則刪除、舊的運行），仍然顯示步驟與階段。</li>
+          <li><strong>實作</strong>：資料由 <code>GET /api/runs/{id}/replay</code> 提供（運行摘要、<code>video.json</code>、步驟加上場景快照的原文與行號、斷言、階段、前後的運行、試驗場節點）。頁面的 JavaScript 放 <code>static/replay.js</code>，只在這一頁載入；文字用 <code>replayjs.*</code> 訊息鍵（三種語言），和試驗場的 <code>wfjs.*</code> 同樣做法。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="entries">
+      <div class="panel-header"><h2>6. 入口</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>「場景生產」選單新增「運行回看」（<code>/replay</code>）：有錄影的運行，失敗的排前面，篩選沿用運行報告（場景、分類、結果、目的、執行的電腦）；錄影設定也在這頁。</li>
+        <li>運行報告的清單多一欄「回看」：▶ 加上影片長度；影片已刪除時顯示「已刪除」。</li>
+        <li>運行頁：頁首加「回看」按鈕。驗證運行的「發布」旁提示可以先看驗證錄影（多人驗證後發布時用得到）。</li>
+        <li>試驗場的序列執行頁：每個節點一個回看連結。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="out">
+      <div class="panel-header"><h2>7. 不在 M12（之後再做）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>時間軸上的主控台錯誤、網路失敗標記。</li>
+        <li>在畫面上框出步驟操作的元素（每一步要多記元素位置）。</li>
+        <li>整個組合場景連續播放；和上一次通過的運行並排比對。</li>
+        <li>跨伺服器的回看與歸檔（M11 第 9 節 D4）。</li>
+        <li>逐步調試、錄製的工作階段錄影。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="plan">
+      <div class="panel-header"><h2>8. PR 拆分與驗證計畫</h2></div>
+      <div class="panel-body"><ol class="steps">
+        <li><strong>PR 1 錄影與資料</strong>：先在 CI 用 1.64 跑一次技術驗證（對時誤差、大小、多花的時間；Chromium、Firefox；Linux、Windows、macOS），結果寫回本頁再往下做。之後是 runner 的錄影、<code>video.json</code>、步驟時間、修復、設定、遠端 worker、保留與清理、檔案快取、文件（架構、管理 Portal、ADR）。測試：單元（DateUTC 解析、修復、清理規則）、真實瀏覽器（有頭、無頭；正常、失敗、逾時、取消的影片都有長度且對得上步驟）。</li>
+        <li><strong>PR 2 播放器與入口</strong>：<code>/runs/{id}/replay</code>、API、<code>replay.js</code>、「運行回看」頁、運行報告的欄、運行頁與試驗場的連結、三種語言。測試：樣板（三種語言）、API、真實瀏覽器（播放、拖曳、點步驟跳轉、打開時定位到失敗步驟）。</li>
+        <li><strong>人工驗收</strong>：Windows Worker 有頭、無頭各一次；失敗、逾時、取消的影片都能播放與拖曳；Mac 錄製端 App 裡能播放；運行報告與試驗場的入口。</li>
+      </ol></div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>9. 待使用者決定</h2><span class="legend"><span class="kind pending">待定</span><span class="kind rec">建議</span></span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選項</th></tr></thead>
+        <tbody>
+          <tr><td>D1</td><td><span class="kind pending">待定</span> 錄哪些、留多久</td><td>驗證、執行、試驗場節點全部錄。通過的留 7 天，失敗、逾時、取消、需要登入的留 30 天，總量上限 20 GB；可以釘選</td><td>全部錄、通過的運行結束就刪影片；或預設不錄，在執行對話框勾選才錄</td></tr>
+          <tr><td>D2</td><td><span class="kind pending">待定</span> 畫面清晰度</td><td>跟頁面一樣大，寬度上限 1280（文字看得清楚，粗估每分鐘 1～3 MB）</td><td>Playwright 預設（縮到 800×800 以內，約一半大小，小字可能糊）</td></tr>
+          <tr><td>D3</td><td><span class="kind pending">待定</span> 公司規定：錄影會留下畫面上的一切（業務資料，以及填在非密碼欄位的 Secrets 值）。M8 之前，能開 Portal 的人都看得到</td><td>需要使用者確認可以保存、保存多久；Secrets 只填在密碼欄位時畫面上是遮住的</td><td>不允許時：只錄驗證運行，或只保留失敗的</td></tr>
+          <tr><td>D4</td><td><span class="kind pending">待定</span> 主要在哪裡看回看</td><td>一般瀏覽器（Chrome、Edge）；Mac 錄製端 App 在 PR 2 前確認能不能播</td><td>若 Mac App 不能播：App 裡改成「用瀏覽器開啟」</td></tr>
+          <tr><td>D5</td><td><span class="kind rec">建議</span> 登入檢查與自動登入不錄；Python 腳本場景由腳本自己選擇；showActions 不採用</td><td>照第 3 節</td><td>登入那一段也錄成第二段影片</td></tr>
+          <tr><td>D6</td><td><span class="kind rec">建議</span> 播放器的互動與入口</td><td>照原型與第 5、6 節；選單名稱「運行回看」，和「運行報告」一致</td><td>使用者看原型後提出</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>需求整理、讀現有的執行流程（<code>rpa_runner.run</code>、<code>child</code>、<code>contexts</code>、<code>browser</code>、遠端 worker 上傳、運行頁與檔案路由）、技術驗證（第 2 節）、設計（第 3～8 節）、互動原型。</li>
+        <li><strong>未完成／阻礙：</strong>第 9 節等使用者決定；1.64 的行為要在 CI 實測（本環境裝不了 1.64）。</li>
+        <li><strong>順帶發現（和本任務無關）：</strong>PR #57（M11 PR 4：ADR 0015、路線圖 M11、部署與操作、人工驗收紀錄）在 2026-10-20 20:14 PDT 合併到 <code>m11/leftovers</code>，那時 #56 已在 20:10 PDT squash 合併進 main，所以 #57 的內容（b79f7f5）不在 main。已在對話告訴使用者。</li>
+        <li><strong>下一個具體動作：</strong>使用者回覆第 9 節與原型的意見 → 把確認的決定寫進本頁與 <a href="../decisions.html">決定</a> → 從最新 main 開 <code>m12/recording</code> 做 PR 1，先跑 CI 的技術驗證。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。產生原型的腳本與示範場景在 Claude 雲端環境的暫存目錄，不進倉庫（原型已包含影片與步驟資料）。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>Playwright 1.56、Chromium 1194（無頭；Xvfb 有頭）／Claude 雲端環境</td><td>錄一段每秒換色的頁面，逐格讀顏色換算對時；強制終止後檢查與重新封裝；用 DSL 步驟真實執行測試網站並錄影；Chromium 裡用 canvas 產生 40 張縮圖</td><td>畫面靜止時對得上；畫面一直動時 1.56 慢 12%；終止後檔案可修復；縮圖 3.7 秒</td><td>1.64、Firefox、Windows、macOS（第 8 節 PR 1 的 CI）</td></tr>
+          <tr><td>原型／Chromium（1440、400 寬）</td><td>開啟原型，等縮圖產生、滑過時間軸</td><td>沒有錯誤；頁面不會橫向捲動；縮圖全部產生</td><td>Safari、Mac App</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行（只有文件）；人工驗收：未執行；審閱：等使用者。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-20 20:19 America/Los_Angeles（PDT，UTC−07:00），使用者：提出 M12 的需求，要求先設計、確認後再寫程式。</li>
+        <li>2026-10-20 20:21～20:55 America/Los_Angeles（PDT，UTC−07:00），Claude：讀程式、技術驗證、做互動原型、寫本頁；開 <code>docs/m12-replay-design</code>。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
