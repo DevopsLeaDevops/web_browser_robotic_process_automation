@@ -58,7 +58,7 @@
           <td>{% if node.run and node.run.output %}
             <ul class="io-list">{% for key, value in node.run.output.items() %}<li><code>{{ key }}</code> = <code>{{ value | compact_json }}</code></li>{% endfor %}</ul>
             {% else %}—{% endif %}</td>
-          <td class="nowrap">{% if node.run %}<a class="text-btn" href="/runs/{{ node.run.id }}">{{ t("workflow.node_report") }}</a>{% if node.run.finished %} <a class="text-btn" href="/runs/{{ node.run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}{% else %}—{% endif %}</td>
+          <td class="nowrap">{% if node.run %}<a class="text-btn" href="/runs/{{ node.run.id }}">{{ t("workflow.node_report") }}</a>{% if node.run.finished %} <a class="text-btn" href="/runs/{{ node.run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}{% if node.run.video and node.run.video.url %} {{ m.replay_link(node.run) }}{% endif %}{% else %}—{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

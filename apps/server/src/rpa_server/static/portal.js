@@ -602,6 +602,12 @@
         area.closest('section').scrollIntoView({block: 'start'});
       }
     }
+    // 從運行回看的「在場景中開啟（第 N 行）」進來：選取那一行（M12）
+    const line = Number(form.dataset.line);
+    if (line && area) {
+      selectLine(area, line);
+      area.closest('section').scrollIntoView({block: 'start'});
+    }
     const save = qs('[data-action="save-revision"]');
     form.addEventListener('submit', event => event.preventDefault());
     save.addEventListener('click', async () => {
@@ -2711,6 +2717,40 @@
     return api('POST', deviceApi(kind) + '/' + path(workerId) + '/invite');
   }
 
+  // ---------------------------------------------------------------- 運行回看的錄影設定（M12）
+
+  function bindVideoSettings() {
+    const form = qs('[data-video-settings]');
+    if (!form) return;
+    const toggle = qs('[data-action="toggle-video-settings"]');
+    const panel = qs('#video-settings');
+    if (toggle && panel) {
+      toggle.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        toggle.setAttribute('aria-expanded', String(!panel.hidden));
+        if (!panel.hidden) panel.scrollIntoView({block: 'nearest'});
+      });
+    }
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const error = qs('.form-error', form);
+      error.textContent = '';
+      const body = {
+        enabled: form.elements.enabled.checked,
+        keepPassedDays: Number(form.elements.keepPassedDays.value),
+        keepOtherDays: Number(form.elements.keepOtherDays.value),
+        maxTotalGb: Number(form.elements.maxTotalGb.value),
+      };
+      const result = await api('PUT', '/api/settings/video', body);
+      if (!result.ok) {
+        error.textContent = errorMessage(result);
+        return;
+      }
+      flash(messages.saved);
+      location.reload();
+    });
+  }
+
   function bindWorkers() {
     const root = qs('#workers');
     if (!root) return;
@@ -2812,5 +2852,6 @@
   bindWorkflowEditor();
   bindWorkflowRun();
   bindWorkers();
+  bindVideoSettings();
   showFlash();
 })();

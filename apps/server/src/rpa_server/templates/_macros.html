@@ -27,6 +27,11 @@
 
 {% macro time(value) %}{% if value %}<time datetime="{{ iso(value) }}">{{ display_time(value) }}</time>{% else %}—{% endif %}{% endmacro %}
 
+{# 回看的連結（M12）：▶ 加上影片長度；影片已依保留規則刪除時顯示「已刪除」 #}
+{% macro replay_link(run) -%}
+{% if run.video and run.video.url %}{% set seconds = (run.video.seconds or 0) | round(0, "ceil") | int %}<a class="text-btn replay-link" href="/runs/{{ run.id }}/replay" title="{{ t('runs.replay_title') }}"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>{{ "%02d:%02d"|format(seconds // 60, seconds % 60) }}</a>{% elif run.video and run.video.deletedAt %}<span class="muted">{{ t("runs.replay_deleted") }}</span>{% else %}<span class="muted">—</span>{% endif %}
+{%- endmacro %}
+
 {% macro run_rows(runs, show_scene=true, workers={}) %}
 <div class="table-scroll">
   <table>
@@ -37,6 +42,7 @@
       <th>{{ t("runs.col_purpose") }}</th>
       <th>{{ t("runs.col_status") }}</th>
       <th class="numeric">{{ t("runs.col_duration") }}</th>
+      <th>{{ t("runs.col_replay") }}</th>
       <th>{{ t("runs.col_actions") }}</th>
     </tr></thead>
     <tbody>
@@ -48,6 +54,7 @@
         <td>{{ t("purpose." + run.purpose) }}{% if run.worker_id and run.worker_id != "local" %}<span class="cell-sub">{{ t("runs.on_worker", name=workers.get(run.worker_id, run.worker_id)) }}</span>{% elif run.target != "local" and not run.worker_id %}<span class="cell-sub">{{ t("target." + run.target) }}</span>{% endif %}</td>
         <td>{{ run_badge(run.status) }}</td>
         <td class="numeric">{% if run.duration_seconds is not none %}{{ "%.1f"|format(run.duration_seconds) }} s{% else %}—{% endif %}</td>
+        <td>{{ replay_link(run) }}</td>
         <td><a class="text-btn" href="/runs/{{ run.id }}">{{ t("runs.view") }}</a>{% if run.finished %} <a class="text-btn" href="/runs/{{ run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}</td>
       </tr>
     {% endfor %}

@@ -7,7 +7,7 @@
 <button class="button primary" data-action="save-revision">{{ t("edit.save") }}</button>
 {% endblock %}
 {% block content %}
-<form class="stack" id="revision-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-focus="{{ focus or '' }}">
+<form class="stack" id="revision-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-focus="{{ focus or '' }}" data-line="{{ line | default(0) or '' }}">
   {% if revision.number != scene.latest_number %}
   <div class="notice warn">{{ t("edit.older", shown=revision.number, latest=scene.latest_number) }}</div>
   {% endif %}
