@@ -861,3 +861,11 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 299.0, "job": "建置與測試 / RPA Worker（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 39604149793, "workflow": "發布"}
 {"attempt": 1, "conclusion": "success", "duration_s": 221.0, "job": "建置與測試 / RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 39604149793, "workflow": "發布"}
 {"attempt": 1, "conclusion": "success", "duration_s": 20.0, "job": "草稿 Release", "os": "linux", "queue_s": 2.0, "run_id": 39604149793, "workflow": "發布"}
+{"attempt": 1, "conclusion": "success", "duration_s": 5.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "專案內執行（macos-latest）", "os": "macos", "queue_s": 0.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 69.0, "job": "Linux 伺服器（Rocky 8，in-repo）", "os": "linux", "queue_s": 2.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 72.0, "job": "專案內執行（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 200.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 2.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 116.0, "job": "Linux 伺服器（Rocky 8，from-scratch）", "os": "linux", "queue_s": 2.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39603383447, "workflow": "一鍵安裝腳本"}
