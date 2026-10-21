@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from rpa_core.dsl import Scenario, validate_file
+from rpa_core.dsl.dynamic import evaluate
 from rpa_core.i18n import use_locale
 from rpa_core.workflow import (
     InputSource,
@@ -186,6 +187,39 @@ def test_fixed_values_follow_the_input_rules() -> None:
         ("workflow.value_invalid", "quantity"),
     ]
     assert problems[2].message == "節點 n1：入參 quantity 的固定值不符合 maximum: 30"
+
+
+def test_fixed_values_can_be_dynamic() -> None:
+    def node(title: object, quantity: object) -> Workflow:
+        inputs = {"title": {"value": title}, "quantity": {"value": quantity}}
+        return parsed(
+            {"nodes": [{"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": inputs}]}
+        )
+
+    scenes = {"n1": load("ba-001")}
+    assert check_workflow(node("試驗 {{today}}", "{{random:1:30}}"), scenes) == []
+    problems = check_workflow(node("{{tody}}", "{{random:20:40}}"), scenes)
+    assert [(p.code, p.input) for p in problems] == [
+        ("workflow.value_dynamic", "title"),
+        ("workflow.value_invalid", "quantity"),
+    ]
+    assert problems[0].message == (
+        "節點 n1：入參 title 的固定值：看不懂動態值 {{tody}}；"
+        "可以用 {{today}}、{{today+1}}、{{now}}、{{random:10:30}}"
+    )
+    assert problems[1].message == "節點 n1：入參 quantity 的固定值不符合 maximum: 30"
+    # 固定值原樣交給執行，執行開始時才求值
+    assert resolve_inputs(node("試驗 {{today}}", 3).nodes[0], {}) == (
+        {"title": "試驗 {{today}}", "quantity": 3},
+        [],
+    )
+
+
+def test_upstream_outputs_are_never_treated_as_dynamic_values() -> None:
+    second = parsed(chain()).nodes[1]
+    values, problems = resolve_inputs(second, {"n1": {"recordId": "{{today}} {{x"}})
+    assert problems == []
+    assert evaluate(values["recordId"]) == "{{today}} {{x"
 
 
 def test_unloadable_scenarios_are_left_to_the_caller() -> None:

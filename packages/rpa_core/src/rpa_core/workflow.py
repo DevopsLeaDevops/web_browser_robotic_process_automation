@@ -11,6 +11,7 @@ from typing import Annotated, Final, Literal, Self
 
 from pydantic import Discriminator, Field, Tag, ValidationError, model_validator
 
+from rpa_core.dsl.dynamic import DynamicValueError, escape
 from rpa_core.dsl.fields import DslModel, Identifier, Slug, catalog, dsl_error
 from rpa_core.dsl.issues import format_field
 from rpa_core.dsl.scenario import Scenario
@@ -344,9 +345,16 @@ def _check_node(
             if spec.default is None:
                 problems.append(_problem("workflow.input_missing", node.id, name))
         elif isinstance(binding, ValueBinding):
-            for rule in spec.violations(binding.value):
+            # 固定值可以是動態值（例如 {{today}}），執行時才求值；這裡檢查寫法與代表值
+            try:
+                rules = spec.check_value(binding.value)
+            except DynamicValueError as error:
+                problems.append(
+                    _problem("workflow.value_dynamic", node.id, name, detail=error.message)
+                )
+                continue
+            for rule in rules[:1]:
                 problems.append(_problem("workflow.value_invalid", node.id, name, rule=rule))
-                break
         elif isinstance(binding, OutputBinding):
             source = binding.node
             if source not in positions:
@@ -407,6 +415,8 @@ def resolve_inputs(
 ) -> tuple[dict[str, object], list[WorkflowProblem]]:
     """執行到這個節點時的入參：固定值與上游節點的出參（預設值由執行時補上）。
 
+    固定值與預設值裡的動態值（例如 ``{{today}}``）在執行開始時求值；上游的出參先跳脫，原樣使用。
+
     outputs 是「節點代號 → 通過之後發布的出參」；上游沒有通過（None）或沒有那個出參時回報問題。
     """
     values: dict[str, object] = {}
@@ -434,7 +444,8 @@ def resolve_inputs(
                 )
             )
         else:
-            values[name] = published[binding.output]
+            # 上游的出參是資料：文字裡剛好有 {{ 時也照原樣，不當成動態值
+            values[name] = escape(published[binding.output])
     return values, problems
 
 

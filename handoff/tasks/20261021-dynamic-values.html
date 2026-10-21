@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>入參的動態值（今天、隨機數） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>入參的動態值（今天、隨機數）</h1><p>錄製出來的場景，入參的值可以寫 <code>{{today}}</code>、<code>{{today+1}}</code>、<code>{{random:10:30}}</code>，每次執行開始時換成當下的值。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-21 07:58 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-21 07:30 America/Los_Angeles（PDT，UTC−07:00）：「場景錄製支持可變參數」，例如 arrivalDate 是當前日期、expiryDate 是當前日期＋1、purchaseQuantity 是 10～30 之間的隨機數，附上入參 JSON（<code>"arrivalDate": "{{today}}"</code>、<code>"expiryDate": "{{today+1}}"</code>、<code>"purchaseQuantity": "{{random:10:30}}"</code>、<code>"remark": "CG-001脚本创建{{today}}日期"</code> 等）。<br>驗收：(1) 入參的預設值、執行表單的入參 JSON、試驗場節點的固定值、命令列 <code>-i</code>／<code>--input</code> 都能寫這些動態值；(2) 每次執行開始時求值，<code>input.json</code> 與報告是實際用到的值，重新執行時重新求值；(3) 寫錯（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）時在存檔或啟動瀏覽器之前就說明哪裡錯；(4) 整數入參寫 <code>{{random:10:30}}</code> 得到整數。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：rpa_core 的動態值語法與校驗、Runner 求值、伺服器與 Portal 的提示、遠端裝置的擴充檢查、DSL 文檔。<br>不包含（待使用者決定）：錄製轉換時自動把「錄製當天的日期」改成 <code>{{today}}</code>；步驟裡直接寫動態值；引用其他入參。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責 Claude（本會話）；審閱與合併：使用者；接收方：未指定</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/</code>（新增 <code>dynamic.py</code>；<code>contract.py</code>、<code>checks.py</code>、<code>features.py</code>、<code>yaml_loader.py</code>）、<code>rpa_core/workflow.py</code>、rpa_core／rpa_runner／rpa_server 的訊息目錄、<code>rpa_runner/contract.py</code>、伺服器的 <code>dispatch.py</code>、<code>debugging.py</code>、樣板與 <code>portal.js</code>、<code>docs/design/dsl.html</code>（含英文）、本任務卡與任務索引。<br><strong>並行注意</strong>：<code>m7b/popup</code>（M7b 新分頁，2026-10-21 07:30 起有提交）也改 <code>features.py</code>、<code>checks.py</code>、訊息目錄、<code>docs/design/dsl.html</code>、任務索引。後合併的一方解衝突；<code>FEATURES</code> 兩邊的名稱都要保留。</dd>
+        <dt>狀態</dt><dd>實作完成、本地檢查通過；推送與 PR 進行中（見追加紀錄）</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/dynamic-values</code>；PR 未建立；base <code>fcb8e8f</code>（main，#65 合併後）</dd>
+        <dt>交接版本／同步狀態</dt><dd>本機開工，尚未推送</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器；PyPI 被擋，<code>uv sync</code> 無法執行。系統 Python 3.13＋從 GitHub 依 uv.lock 版本 clone 的 fastapi、starlette、sqlalchemy、alembic、mako、annotated-doc（只在本機跑測試）；Playwright 只有 Chromium。簡中與 uv.lock 靠 <code>[bootstrap]</code>。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>設計（實作選擇，有意見再改）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>寫在哪裡</strong>：入參的值裡（場景的預設值、執行表單與 API、命令列、試驗場的固定值、逐步調試）。不是步驟裡的 <code>{{ }}</code>（那是 Jinja，引用 inputs、facts…）；步驟裡寫了 today、now、random 時，校驗提示改寫在入參。</li>
+        <li><strong>語法</strong>（<code>{{ }}</code> 內可以有空白）：<code>today</code>、<code>today+N</code>、<code>today-N</code>（天）；<code>now</code>（日期與時間）；兩者都可以加 <code>:格式</code>（<code>yyyy</code>／<code>YYYY</code>、<code>MM</code>、<code>dd</code>／<code>DD</code>、<code>HH</code>、<code>mm</code>、<code>ss</code>，其他字元照寫，例如 <code>{{today:YYYY/MM/DD}}</code>、<code>{{today:yyyy年MM月dd日}}</code>）；<code>random:A:B</code>（A 到 B 之間、含兩端的整數）；<code>"文字"</code>（原樣的文字，用來寫出 <code>{{</code> 本身）。預設格式：today 是 <code>2026-10-21</code>，now 是 <code>2026-10-21 07:30:00</code>。</li>
+        <li><strong>何時、以哪裡的時間求值</strong>：每次執行開始（Runner 的入參階段，啟動瀏覽器之前），用執行那台電腦的本地時區；同一次執行的所有入參用同一個「現在」。執行紀錄保存原本的寫法，所以重新執行會重新求值；<code>input.json</code>、報告是實際的值。</li>
+        <li><strong>型別</strong>：整個值只有一個 <code>random</code> 時，整數／數字入參得到數字；求值結果是整數形式的文字時，整數／數字入參也轉成數字；其他都是文字。</li>
+        <li><strong>寫錯就擋</strong>：入參值裡任何 <code>{{ … }}</code> 都當成動態值，看不懂就是錯（不會把 <code>{{tody}}</code> 原樣打進頁面）。預設值在存檔時校驗，限制（maxLength、minimum…）用隨機範圍的兩端各檢查一次；執行時再以實際的值校驗。</li>
+        <li><strong>上游出參</strong>：試驗場把上游的出參交給下游時，文字裡的 <code>{{</code> 先跳脫，出參永遠照原樣使用。</li>
+        <li><strong>隨機數的檢查</strong>：限制以範圍的兩端各檢查一次（預設值存檔、試驗場固定值、Runner 與 Portal 排入前的檢查都一樣），所以 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 一律報錯，不會時好時壞。</li>
+        <li><strong>附帶</strong>：YAML 裡沒加引號的 <code>{{ … }}</code>（例如 <code>default: {{today}}</code>、<code>value: {{ inputs.x }}</code>）原本只報「鍵必須是字串」，改成提示加引號；步驟裡寫了 today、now、random 時提示改寫在入參；入參表格的預設值是動態值時標示「動態值」；JSON Schema 匯出用 <code>x-dynamicDefault</code>。</li>
+        <li><strong>舊的 App</strong>：用到動態值（場景的預設值或這次的入參）時需要 DSL 擴充 <code>dynamicValues</code>；沒回報的 Worker／錄製端 App 照 M7a 的做法說明要更新。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>rpa_core.dsl.dynamic</code>（語法、求值、代表值、跳脫）；<code>InputSpec</code> 預設值與 <code>check_value</code>；Runner <code>check_inputs</code> 求值（<code>input.json</code>、報告是實際值）；試驗場固定值檢查與上游出參跳脫；DSL 擴充 <code>dynamicValues</code>（場景預設值、這次的入參；遠端 worker 與錄製端裝置）；調試換版本時預設值求值；Portal 提示與「動態值」標示；三種語言訊息（簡中待 bootstrap）；<code>docs/design/dsl.html</code>「入參的動態值」一節與英文版（stamp）。</li>
+        <li><strong>未完成／阻礙：</strong>簡中訊息與簡中文檔要靠 <code>[bootstrap]</code> 產生；CI；人工驗收（實際業務系統的採購單場景）。</li>
+        <li><strong>決定：</strong>上面「設計」全部是實作選擇（使用者這次給了語法，其餘照常規選項）；錄製時要不要自動把錄製當天的日期改成 <code>{{today}}</code>：待使用者決定。</li>
+        <li><strong>下一個具體動作：</strong>提交（含 <code>[bootstrap]</code>）、推送 <code>feat/dynamic-values</code>、等機器人產生簡中後 pull、開 PR 並確認最新 head 的 CI。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>基準 <code>fcb8e8f</code>＋本任務工作區差異；Claude 雲端 Linux，系統 Python 3.13、pydantic 2.13.5、Playwright 1.56（只有 Chromium）、fastapi 0.148.0 等 clone</td><td><code>ruff check .</code>、<code>ruff format --check .</code>（ruff 0.17.1，與 uv.lock 相同，GitHub release 下載）、<code>git diff --check</code></td><td>通過</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pyright</code>（1.1.414）</td><td>本任務的檔案沒有錯誤；剩下 42 個錯誤都是環境造成（本機 Playwright 1.56 的型別、沒有 keyring、webview、pystray）</td><td>CI 用 uv.lock 的依賴重跑</td></tr>
+          <tr><td>同上</td><td><code>pytest -m "not browser" packages apps/worker apps/cli tests</code></td><td>1106 通過；2 失敗是預期的：簡中文檔缺新錨點（bootstrap 產生）、本機沒有 OpenCC</td><td>簡中待 bootstrap 後由 CI 檢查</td></tr>
+          <tr><td>同上</td><td><code>pytest -m "not browser" apps/server/tests</code></td><td>268 通過、1 略過（沒有 ssh-keygen）；之後改動再跑 render、api、remote worker、workflow 113 通過</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pytest packages/rpa_runner/tests/test_run.py -k "dynamic or chain"</code>（真實瀏覽器）</td><td>Chromium 2 通過；Firefox 未安裝而略過</td><td>Firefox 與其他瀏覽器測試交給 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-21 07:38 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，分支 <code>feat/dynamic-values</code> 從 main <code>fcb8e8f</code> 建立；發現並行的 <code>m7b/popup</code>，記下重疊的檔案。</li>
+        <li>2026-10-21 07:58 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試、文檔完成，本地檢查見「驗證與審閱」；準備提交與推送。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

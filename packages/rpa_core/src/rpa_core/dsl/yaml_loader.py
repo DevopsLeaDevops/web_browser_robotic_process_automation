@@ -155,6 +155,9 @@ class _Builder:
         first_seen: dict[str, Position] = {}
         for key_node, value_node in node.value:
             key_position = _position(key_node)
+            if isinstance(key_node, MappingNode) and node.flow_style and key_node.flow_style:
+                # 沒加引號的 {{ … }}（例如 default: {{today}}）在 YAML 是「以物件當鍵的物件」
+                raise YamlLoadError("unquoted_template", _position(node), path)
             if not isinstance(key_node, ScalarNode) or key_node.tag != _STR:
                 raise YamlLoadError("key_not_string", key_position, path)
             key = str(key_node.value)

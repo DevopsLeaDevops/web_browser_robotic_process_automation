@@ -187,5 +187,18 @@
   "pack.requires_hash": "Revision {revision} of scenario {scene} in domain {domain} differs from when the composite scenario was saved",
   "pack.composite_requires": "Composite scenario {composite} revision {number}: {problem}",
   "pack.requires_not_checked": "The required domain {domain} was not checked; add its folder to the command to check the dependencies",
-  "pack.composite_unpinned": "A node of revision {number} uses {scene} revision {revision}, which could not be found when it was saved, so it is not in requires; save again after adding the scenario to run it"
+  "pack.composite_unpinned": "A node of revision {number} uses {scene} revision {revision}, which could not be found when it was saved, so it is not in requires; save again after adding the scenario to run it",
+  "dsl.dynamic.unclosed": "{{{{ has no matching }}}} in {text}",
+  "dsl.dynamic.quote": "Unmatched quote in {text}",
+  "dsl.dynamic.empty": "Nothing inside {{{{ }}}}; dynamic values can be today, now or random",
+  "dsl.dynamic.unknown": "Unknown dynamic value {text}; use {{{{today}}}}, {{{{today+1}}}}, {{{{now}}}} or {{{{random:10:30}}}}",
+  "dsl.dynamic.date_syntax": "Cannot read {text}; write dates as today, today+1 or today-1, with an optional format after a colon, e.g. today:YYYY/MM/DD",
+  "dsl.dynamic.offset_range": "The number of days in {text} exceeds {limit}",
+  "dsl.dynamic.format_no_token": "The format in {text} has no date or time fields; use YYYY, MM, DD, HH, mm, ss",
+  "dsl.dynamic.format_time": "{text}: today has no time of day; the month is upper-case MM (lower-case mm is minutes); use now for times",
+  "dsl.dynamic.random_syntax": "Cannot read {text}; write random integers as random:min:max, e.g. random:10:30",
+  "dsl.dynamic.random_range": "In {text} the minimum {low} is greater than the maximum {high}",
+  "dsl.template.dynamic_in_step": "{name} is a dynamic value for input values and cannot be used in a step directly; add an input whose default is {{{{{name}}}}} and refer to it with {{{{ inputs.NAME }}}}",
+  "dsl.workflow.value_dynamic": "Node {node}: the fixed value of input {input}: {detail}",
+  "dsl.yaml.unquoted_template": "Values that start with {{{{ need quotes, e.g. \"{{{{today}}}}\" or \"{{{{ inputs.title }}}}\""
 }

@@ -113,13 +113,46 @@ verify:
       <div class="panel-header"><h2>場景契約</h2><span class="muted">入參 → 步驟 → 頁面事實 → 獨立斷言 → 出參</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>inputs</code></dt><dd>每個入參有 <code>type</code>（string、number、integer、boolean，預設 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字串）、<code>minimum</code>、<code>maximum</code>（數字）。沒有預設值代表執行時必須提供。預設值也要符合限制。</dd>
+          <dt><code>inputs</code></dt><dd>每個入參有 <code>type</code>（string、number、integer、boolean，預設 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字串）、<code>minimum</code>、<code>maximum</code>（數字）。沒有預設值代表執行時必須提供。預設值也要符合限制；可以是<a href="#dynamic">動態值</a>（例如 <code>{{today}}</code>），每次執行時求值。</dd>
           <dt><code>facts</code></dt><dd>頁面事實：<code>extract</code> 以 <code>as: 名稱</code> 存成 <code>facts.名稱</code>。步驟只能引用前面步驟產生的事實；verify 與 outputs 可以引用全部。</dd>
           <dt><code>verify</code></dt><dd>每一條有 <code>value</code>（必須含 <code>{{ }}</code>）與 <code>equals</code>、<code>contains</code>、<code>matches</code>（正規表示式）、<code>notEmpty: true</code> 其中一種比較；<code>name</code> 會出現在報告。比較時兩邊都以代入後的文字比對。</dd>
           <dt><code>outputs</code></dt><dd>型別多了 array、object，限制同入參；<code>from</code> 指定取值，例如 <code>{{ facts.record.recordId }}</code>。只有一個 <code>{{ }}</code> 時保留原本的型別（例如清單），否則依 type 轉換文字。</dd>
           <dt><code>script</code></dt><dd><code>automation</code> 與 <code>assertion</code> 兩個 Python 檔，路徑相對於場景檔所在的資料夾、不能用 <code>..</code>。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令列契約）。腳本場景不寫 verify，出參也不寫 from。</dd>
         </dl>
         <p class="muted">執行順序與失敗時的處理見 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>；執行引擎在 M2 實作。<code>rpa schema 場景檔 --part inputs</code> 或 <code>--part outputs</code> 輸出單一場景的入參或出參 JSON Schema。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="dynamic">
+      <div class="panel-header"><h2>入參的動態值</h2><span class="muted">每次執行開始時換成當下的日期、隨機數</span></div>
+      <div class="panel-body stack">
+        <p>入參的值裡可以寫 <code>{{ … }}</code> 動態值：場景的 <code>default</code>、管理 Portal 執行表單的入參 JSON 與 API、<code>rpa run -i</code>／<code>--input</code>、試驗場節點的固定值、逐步調試的入參都可以。<code>{{ }}</code> 裡可以有空白，名稱不分大小寫；可以夾在文字中，例如 <code>CG-001 建立於 {{today}}</code>。</p>
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr><th>寫法</th><th>結果（以 2026-10-21 07:30:05 執行為例）</th></tr></thead>
+          <tbody>
+            <tr><td><code>{{today}}</code></td><td>2026-10-21</td></tr>
+            <tr><td><code>{{today+1}}</code>、<code>{{today-7}}</code></td><td>2026-10-22、2026-10-14（往後、往前幾天）</td></tr>
+            <tr><td><code>{{today:YYYY/MM/DD}}</code>、<code>{{today+1:yyyyMMdd}}</code>、<code>{{today:yyyy年MM月dd日}}</code></td><td>2026/10/21、20261022、2026年10月21日</td></tr>
+            <tr><td><code>{{now}}</code>、<code>{{now:HH:mm}}</code>、<code>{{now:yyyyMMddHHmmss}}</code></td><td>2026-10-21 07:30:05、07:30、20261021073005</td></tr>
+            <tr><td><code>{{random:10:30}}</code></td><td>10 到 30 之間（含兩端）的隨機整數，每個 random 各自抽</td></tr>
+            <tr><td><code>{{"{{"}}</code></td><td>引號裡的文字原樣保留，用來寫出 <code>{{</code> 本身</td></tr>
+          </tbody>
+        </table></div>
+        <dl class="spec-list">
+          <dt>格式</dt><dd><code>yyyy</code>／<code>YYYY</code> 年、<code>MM</code> 月、<code>dd</code>／<code>DD</code> 日、<code>HH</code> 時、<code>mm</code> 分、<code>ss</code> 秒（都補零），其他字元照寫。<code>today</code> 只有日期，格式裡寫了時、分、秒會報錯（最常見的是把月份寫成小寫 <code>mm</code>）。</dd>
+          <dt>求值的時間</dt><dd>每次執行開始時（入參階段，啟動瀏覽器之前），用<strong>執行那台電腦</strong>的本地時區；同一次執行的所有入參用同一個「現在」，所以 <code>{{today}}</code> 在每個入參都是同一天。執行紀錄保存原本的寫法，重新執行會重新求值；<code>input.json</code> 與報告是實際用到的值。</dd>
+          <dt>型別</dt><dd>求值的結果是數字的文字時（例如整個值是 <code>{{random:10:30}}</code>），integer、number 入參得到數字；其他都是文字，再照入參的 type 與限制校驗。</dd>
+          <dt>校驗</dt><dd>值裡任何 <code>{{ … }}</code> 都當成動態值，看不懂（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）就報錯，不會原樣打進頁面。預設值在存檔時就檢查：隨機數用範圍的兩端各檢查一次限制，例如 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 會報錯。</dd>
+          <dt>上游的出參</dt><dd>試驗場把上游節點的出參交給下游時永遠照原樣，出參的文字裡剛好有 <code>{{</code> 也不會被求值。</dd>
+          <dt>步驟裡</dt><dd>步驟的 <code>{{ }}</code> 是<a href="#templates">表達式</a>，不能直接寫 today、now、random；請在 <code>inputs</code> 加一個入參、預設值寫動態值，步驟再引用 <code>{{ inputs.名稱 }}</code>。</dd>
+          <dt>遠端執行</dt><dd>動態值在執行的那台裝置上求值。用到動態值的執行只交給回報看得懂 <code>dynamicValues</code> 的 Worker／錄製端 App；舊的 App 會看到要更新的說明（同 M7a 的做法）。</dd>
+        </dl>
+<pre class="source">inputs:
+  arrivalDate: { default: "{{today}}" }
+  expiryDate: { default: "{{today+1}}" }
+  purchaseQuantity: { type: integer, minimum: 10, maximum: 30, default: "{{random:10:30}}" }
+  remark: { default: "CG-001脚本创建{{today}}日期" }</pre>
+        <p class="muted">YAML 裡以 <code>{</code> 開頭的值要加引號。也可以在管理 Portal 場景頁的「入參」按「編輯」，把預設值改成 <code>{{today}}</code>，存檔時會自動加引號。</p>
       </div>
     </section>
 
@@ -219,6 +252,7 @@ verify:
           <ul class="points">
             <li><strong>只用 YAML 1.2 core 規則。</strong><code>yes</code>、<code>no</code>、<code>on</code> 是字串，不是布林；<code>2026-09-01</code> 是字串，不是日期；<code>12:30</code> 是字串，不是六十進位數字。</li>
             <li><strong>不自動轉型。</strong>字串欄位寫了數字或 true/false 會報錯，請加引號，例如 <code>value: "0123"</code>。</li>
+            <li><strong>以 <code>{{</code> 開頭的值要加引號。</strong>例如 <code>value: "{{ inputs.title }}"</code>、<code>default: "{{today}}"</code>；沒加引號時 YAML 會讀成物件，校驗會提示加引號。</li>
             <li><strong>鍵不能重複。</strong>同一層出現兩次的鍵會報錯並指出第一次出現的行號。</li>
             <li><strong>不認得的欄位會報錯。</strong>名稱相近時提示正確寫法，例如 fullpage → fullPage。</li>
             <li><strong>只接受一般的標籤。</strong><code>!!python/…</code>、<code>!!binary</code> 與自訂標籤一律拒絕；錨點與別名可以用，不支援 <code>&lt;&lt;</code> 合併。</li>
@@ -234,6 +268,7 @@ verify:
             <li><strong>可用的變數</strong>只有 <code>inputs</code>、<code>secrets</code>、<code>facts</code>、<code>env</code>；可以用 Jinja2 的過濾器，例如 <code>{{ inputs.title | upper }}</code>。</li>
             <li><strong>校驗時就會檢查</strong>語法、未知的變數與過濾器、沒有宣告的 inputs 與 secrets、沒有 extract 產生或還沒產生的 facts。</li>
             <li><strong>facts 不能用在 browser 設定</strong>，因為那時還沒開始操作頁面。</li>
+            <li><strong>today、now、random 是入參值的<a href="#dynamic">動態值</a></strong>，不是這裡的變數；寫在步驟裡時校驗會提示改寫在入參。</li>
             <li>場景、步驟與斷言的 <code>name</code>、<code>description</code> 是給人看的文字，不檢查也不代入。</li>
           </ul>
         </div>

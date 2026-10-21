@@ -200,6 +200,25 @@ def test_run_requests_are_checked_before_queueing(client: Client) -> None:
     assert body(client.get("/api/runs")) == {"runs": []}
 
 
+def test_dynamic_inputs_are_checked_but_kept_as_written(client: Client) -> None:
+    """動態值：排入前先檢查寫法與限制；執行紀錄保存原本的寫法，每次執行時才求值。"""
+    client.post("/api/scenes/import")
+    url = "/api/scenes/ba-001/revisions/1/validate"
+
+    wrong = client.post(url, json={"inputs": {"title": "{{tody}}", "quantity": "{{random:1:99}}"}})
+    queued = client.post(
+        url, json={"inputs": {"title": "試驗 {{today}}", "quantity": "{{random:1:30}}"}}
+    )
+
+    assert (wrong.status_code, error_code(wrong)) == (422, "inputs_invalid")
+    problems = cast("list[JsonObject]", cast("JsonObject", body(wrong)["error"])["problems"])
+    assert [problem["name"] for problem in problems] == ["title", "quantity"]
+    assert "{{tody}}" in str(problems[0]["message"])
+    assert queued.status_code == 202
+    run = body(client.get(f"/api/runs/{body(queued)['id']}"))
+    assert run["input"] == {"title": "試驗 {{today}}", "quantity": "{{random:1:30}}"}
+
+
 def test_validation_is_queued_once_per_idempotency_key(client: Client) -> None:
     client.post("/api/scenes/import")
     request = {"inputs": {"title": "甲"}, "engine": "chromium", "idempotencyKey": "k-1"}

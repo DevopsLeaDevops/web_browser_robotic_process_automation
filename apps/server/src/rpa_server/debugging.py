@@ -495,9 +495,9 @@ class DebugManager:
         path.write_text(files[SCENARIO_FILE], encoding="utf-8")
         resolved, problems = check_inputs(scenario, session.inputs)
         if problems:
-            resolved = {
-                n: s.default for n, s in scenario.inputs.items() if s.default is not None
-            } | {k: v for k, v in session.inputs.items() if k in scenario.inputs}
+            # 新版本的入參對不上時：新版本的預設值（動態值已求值），再蓋上原本的值
+            defaults, _ = check_inputs(scenario, {})
+            resolved = defaults | {k: v for k, v in session.inputs.items() if k in scenario.inputs}
         inputs = session.folder / f"input-{revision}.json"
         inputs.write_text(json.dumps(resolved, ensure_ascii=False), encoding="utf-8")
         reply = self._command(session, 60, cmd="load", scenario=str(path), input=str(inputs))

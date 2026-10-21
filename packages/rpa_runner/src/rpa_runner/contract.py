@@ -7,9 +7,11 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Final, Literal
 
 from rpa_core.dsl import InputSpec, OutputSpec, Scenario
+from rpa_core.dsl.dynamic import DynamicValueError, Pick, evaluate
 from rpa_runner.i18n import t
 from rpa_runner.templates import Context, TemplateEvaluationError, render, render_native
 
@@ -63,11 +65,21 @@ def parse_cli_value(spec: InputSpec, text: str) -> object:
 
 
 def check_inputs(
-    scenario: Scenario, values: Mapping[str, object]
+    scenario: Scenario,
+    values: Mapping[str, object],
+    *,
+    now: datetime | None = None,
+    pick: Pick | None = None,
 ) -> tuple[dict[str, object], list[Problem]]:
-    """補上預設值並校驗入參；回傳 (完整入參, 問題)。"""
+    """補上預設值、動態值求值並校驗入參；回傳 (完整入參, 問題)。
+
+    動態值（例如 ``{{today}}``、``{{random:10:30}}``）每次呼叫都重新求值，所有入參用同一個
+    ``now``（預設是這台電腦的本地時間）；回傳的是實際要用的值。隨機數以範圍的兩端檢查限制，
+    所以同樣的入參每次的檢查結果都一樣（管理 Portal 排入佇列前的檢查也靠這一點）。
+    """
     problems: list[Problem] = []
     resolved: dict[str, object] = {}
+    moment = now or datetime.now().astimezone()
     for name in values:
         if name not in scenario.inputs:
             problems.append(Problem(name, t("contract.input_unknown", name=name)))
@@ -79,8 +91,19 @@ def check_inputs(
         else:
             problems.append(Problem(name, t("contract.input_missing", name=name)))
             continue
-        for rule in spec.violations(value):
-            problems.append(Problem(name, t("contract.input_invalid", name=name, rule=rule)))
+        try:
+            # 隨機數的整個範圍都要符合限制（兩端各檢查一次），結果才不會時好時壞
+            rules = spec.check_value(value, now=moment)
+            value = evaluate(value, spec.type, now=moment, pick=pick)
+        except DynamicValueError as error:
+            problems.append(
+                Problem(name, t("contract.input_dynamic", name=name, detail=error.message))
+            )
+            continue
+        rules += [rule for rule in spec.violations(value) if rule not in rules]
+        problems += [
+            Problem(name, t("contract.input_invalid", name=name, rule=rule)) for rule in rules
+        ]
         resolved[name] = value
     return resolved, problems
 

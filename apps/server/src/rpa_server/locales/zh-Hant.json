@@ -95,7 +95,7 @@
   "run_form.problems": "無法開始執行",
   "run_form.inputs": "入參",
   "run_form.inputs_label": "本次入參（JSON）",
-  "run_form.inputs_hint": "已帶入預設值；沒有預設值的入參要自己填。開始前會先校驗，不合規則就不會啟動瀏覽器。",
+  "run_form.inputs_hint": "已帶入預設值；沒有預設值的入參要自己填。值可以寫動態值，例如 {{{{today}}}}、{{{{today+1}}}}、{{{{random:10:30}}}}，開始時換成當下的值。開始前會先校驗，不合規則就不會啟動瀏覽器。",
   "run_form.options": "執行選項",
   "run_form.engine": "瀏覽器",
   "run_form.engine_default": "場景預設（{engine}）",
@@ -649,7 +649,7 @@
   "contract.no_rules": "這個型別沒有限制可以設定",
   "contract.add_inputs": "＋ 新增入參",
   "contract.add_outputs": "＋ 新增出參",
-  "contract.table_hint_inputs": "必填的入參沒有預設值。改名時，步驟裡引用舊名稱的地方一起改。存檔只改寫 inputs 這一段並建立新版本（要重新驗證）。",
+  "contract.table_hint_inputs": "必填的入參沒有預設值。預設值可以寫動態值：{{{{today}}}}、{{{{today+1}}}}、{{{{now}}}}、{{{{random:10:30}}}}，每次執行時換成當下的值。改名時，步驟裡引用舊名稱的地方一起改。存檔只改寫 inputs 這一段並建立新版本（要重新驗證）。",
   "contract.table_hint_outputs": "取值可以從清單選步驟讀到的頁面事實。存檔只改寫 outputs 這一段並建立新版本（要重新驗證）。",
   "contract.yaml_hint_inputs": "直接編輯場景檔的 inputs 段（以 inputs: 開頭）。在這裡改名不會改到步驟裡的引用；切回表格前會先校驗。",
   "contract.yaml_hint_outputs": "直接編輯場景檔的 outputs 段（以 outputs: 開頭）；切回表格前會先校驗。",
@@ -1377,5 +1377,7 @@
   "replayjs.action_waitFor": "等待 {{id}}",
   "replayjs.action_expect": "確認 {{id}}",
   "replayjs.action_extract": "讀取 {{id}}",
-  "replayjs.action_screenshot": "截圖 {{id}}"
+  "replayjs.action_screenshot": "截圖 {{id}}",
+  "spec.dynamic": "動態值",
+  "spec.dynamic_title": "每次執行開始時換成當下的值（今天的日期、隨機數…）"
 }

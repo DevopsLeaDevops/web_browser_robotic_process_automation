@@ -108,6 +108,19 @@ def test_chain_ba001_to_ba002(site: str, engine: str, tmp_path: Path) -> None:
     assert second.output == first.output
 
 
+def test_dynamic_input_values_reach_the_page(site: str, engine: str, tmp_path: Path) -> None:
+    """入參的動態值在入參階段求值：頁面填的、獨立斷言比對的、出參都是求值後的值。"""
+    result = run(
+        BA_001, {"title": "建立於 {{today}}", "quantity": "{{random:5:5}}"}, site, engine, tmp_path
+    )
+    title = "建立於 " + time.strftime("%Y-%m-%d")
+
+    assert result.status == "passed", result.error
+    assert result.input == {"title": title, "quantity": 5}
+    assert result.output is not None
+    assert (result.output["title"], result.output["quantity"]) == (title, 5)
+
+
 def test_invalid_input_never_starts_browser(site: str, engine: str, tmp_path: Path) -> None:
     result = run(BA_001, {"quantity": 100}, site, engine, tmp_path)
 

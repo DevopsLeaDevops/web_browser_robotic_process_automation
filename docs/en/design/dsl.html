@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:b6b084a0ce6afb15">
+<meta name="translation-source" content="sha256:711b2ff57f38fa62">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -114,13 +114,46 @@ verify:
       <div class="panel-header"><h2>Scenario contract</h2><span class="muted">inputs → steps → page facts → independent assertions → outputs</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>inputs</code></dt><dd>Each input has a <code>type</code> (string, number, integer, boolean; default string), a <code>default</code>, a <code>description</code> and constraints: <code>enum</code>, <code>minLength</code>, <code>maxLength</code>, <code>pattern</code> (strings), <code>minimum</code>, <code>maximum</code> (numbers). An input without a default must be supplied at run time. Defaults must satisfy the constraints too.</dd>
+          <dt><code>inputs</code></dt><dd>Each input has a <code>type</code> (string, number, integer, boolean; default string), a <code>default</code>, a <code>description</code> and constraints: <code>enum</code>, <code>minLength</code>, <code>maxLength</code>, <code>pattern</code> (strings), <code>minimum</code>, <code>maximum</code> (numbers). An input without a default must be supplied at run time. Defaults must satisfy the constraints too; they can be <a href="#dynamic">dynamic values</a> (e.g. <code>{{today}}</code>), evaluated on every run.</dd>
           <dt><code>facts</code></dt><dd>Page facts: <code>extract</code> with <code>as: name</code> stores <code>facts.name</code>. A step may only use facts produced by earlier steps; verify and outputs may use them all.</dd>
           <dt><code>verify</code></dt><dd>Each rule has a <code>value</code> (which must contain <code>{{ }}</code>) and exactly one comparison: <code>equals</code>, <code>contains</code>, <code>matches</code> (regular expression) or <code>notEmpty: true</code>; its <code>name</code> appears in the report. Both sides are compared as text after substitution.</dd>
           <dt><code>outputs</code></dt><dd>Types add array and object; constraints are the same as for inputs. <code>from</code> says where the value comes from, for example <code>{{ facts.record.recordId }}</code>. With a single <code>{{ }}</code> the original type is kept (for example a list); otherwise the text is converted to the declared type.</dd>
           <dt><code>script</code></dt><dd>Two Python files, <code>automation</code> and <code>assertion</code>, relative to the scenario file's folder and without <code>..</code>. automation.py takes <code>--input --facts --screenshot --target-url</code>, and assertion.py takes <code>--input --facts --output</code> (the MVP prototype's command-line contract). Script scenarios have no verify, and their outputs have no from.</dd>
         </dl>
         <p class="muted">For the order of a run and what happens on failure, see <a href="../adr/0009-scenario-contract.html">ADR 0009</a>; the execution engine arrives in M2. <code>rpa schema SCENARIO --part inputs</code> or <code>--part outputs</code> prints the JSON Schema of one scenario's inputs or outputs.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="dynamic">
+      <div class="panel-header"><h2>Dynamic input values</h2><span class="muted">Replaced with the current date or a random number when each run starts</span></div>
+      <div class="panel-body stack">
+        <p>Input values can contain <code>{{ … }}</code> dynamic values: a scenario's <code>default</code>, the inputs JSON of the Portal's run form and the API, <code>rpa run -i</code>／<code>--input</code>, fixed values of playground nodes and the inputs of step-by-step debugging. Spaces inside <code>{{ }}</code> are allowed and names are case-insensitive; dynamic values can sit inside text, e.g. <code>CG-001 created on {{today}}</code>.</p>
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr><th>Written as</th><th>Result (for a run at 2026-10-21 07:30:05)</th></tr></thead>
+          <tbody>
+            <tr><td><code>{{today}}</code></td><td>2026-10-21</td></tr>
+            <tr><td><code>{{today+1}}</code>, <code>{{today-7}}</code></td><td>2026-10-22, 2026-10-14 (days later or earlier)</td></tr>
+            <tr><td><code>{{today:YYYY/MM/DD}}</code>, <code>{{today+1:yyyyMMdd}}</code>, <code>{{today:DD.MM.YYYY}}</code></td><td>2026/10/21, 20261022, 21.10.2026</td></tr>
+            <tr><td><code>{{now}}</code>, <code>{{now:HH:mm}}</code>, <code>{{now:yyyyMMddHHmmss}}</code></td><td>2026-10-21 07:30:05, 07:30, 20261021073005</td></tr>
+            <tr><td><code>{{random:10:30}}</code></td><td>A random integer from 10 to 30 inclusive; each random is drawn separately</td></tr>
+            <tr><td><code>{{"{{"}}</code></td><td>Quoted text is kept as is, which is how to write <code>{{</code> itself</td></tr>
+          </tbody>
+        </table></div>
+        <dl class="spec-list">
+          <dt>Format</dt><dd><code>yyyy</code>／<code>YYYY</code> year, <code>MM</code> month, <code>dd</code>／<code>DD</code> day, <code>HH</code> hour, <code>mm</code> minute, <code>ss</code> second (all zero-padded); other characters are written as they are. <code>today</code> has no time of day, so hours, minutes or seconds in its format are an error (most often a month written as lower-case <code>mm</code>).</dd>
+          <dt>When</dt><dd>When each run starts (the input stage, before the browser starts), in the local time zone of <strong>the computer that runs it</strong>. All inputs of one run share the same “now”, so <code>{{today}}</code> is the same day in every input. The run keeps the values as written, so running it again evaluates them again; <code>input.json</code> and the report show the values actually used.</dd>
+          <dt>Types</dt><dd>When the result is a number written as text (for example the whole value is <code>{{random:10:30}}</code>), integer and number inputs get a number; everything else is text. The result is then checked against the input's type and constraints.</dd>
+          <dt>Checks</dt><dd>Any <code>{{ … }}</code> in a value is a dynamic value: one that cannot be read (e.g. <code>{{tody}}</code> or <code>{{random:30:10}}</code>) is an error rather than being typed into the page. Defaults are checked when saved; random numbers are checked at both ends of the range, so <code>maximum: 20</code> with <code>{{random:10:30}}</code> is an error.</dd>
+          <dt>Upstream outputs</dt><dd>When the playground passes an upstream node's output to a downstream node it is always used as is, even if its text happens to contain <code>{{</code>.</dd>
+          <dt>In steps</dt><dd>Step <code>{{ }}</code> are <a href="#templates">expressions</a> and cannot use today, now or random directly; add an input whose default is the dynamic value and refer to it with <code>{{ inputs.NAME }}</code>.</dd>
+          <dt>Remote runs</dt><dd>Dynamic values are evaluated on the device that runs the scenario. Runs that use them only go to Worker／recorder apps that report <code>dynamicValues</code>; older apps get a message asking for an update (as in M7a).</dd>
+        </dl>
+<pre class="source">inputs:
+  arrivalDate: { default: "{{today}}" }
+  expiryDate: { default: "{{today+1}}" }
+  purchaseQuantity: { type: integer, minimum: 10, maximum: 30, default: "{{random:10:30}}" }
+  remark: { default: "CG-001 created on {{today}}" }</pre>
+        <p class="muted">In YAML, values starting with <code>{</code> need quotes. You can also click Edit on the Inputs panel of a scene in the Portal and change a default to <code>{{today}}</code>; quotes are added when saving.</p>
       </div>
     </section>
 
@@ -220,6 +253,7 @@ verify:
           <ul class="points">
             <li><strong>Only YAML 1.2 core rules.</strong> <code>yes</code>, <code>no</code> and <code>on</code> are strings, not booleans; <code>2026-09-01</code> is a string, not a date; <code>12:30</code> is a string, not a base-60 number.</li>
             <li><strong>No implicit conversion.</strong> A number or true/false in a string field is an error; quote it, for example <code>value: "0123"</code>.</li>
+            <li><strong>Quote values that start with <code>{{</code>.</strong> For example <code>value: "{{ inputs.title }}"</code> or <code>default: "{{today}}"</code>; without quotes YAML reads them as objects, and validation asks for quotes.</li>
             <li><strong>No duplicate keys.</strong> A key that appears twice at the same level is reported with the line of its first occurrence.</li>
             <li><strong>Unknown fields are errors.</strong> When a name is close to a valid one, the correct spelling is suggested, for example fullpage → fullPage.</li>
             <li><strong>Only plain tags.</strong> <code>!!python/…</code>, <code>!!binary</code> and custom tags are rejected; anchors and aliases are allowed, <code>&lt;&lt;</code> merges are not supported.</li>
@@ -235,6 +269,7 @@ verify:
             <li><strong>The only variables</strong> are <code>inputs</code>, <code>secrets</code>, <code>facts</code> and <code>env</code>; Jinja2 filters work, for example <code>{{ inputs.title | upper }}</code>.</li>
             <li><strong>Validation already checks</strong> syntax, unknown variables and filters, undeclared inputs and secrets, and facts that no extract produces or that are produced only later.</li>
             <li><strong>facts cannot be used in browser settings</strong>, because the page has not been touched yet at that point.</li>
+            <li><strong>today, now and random are <a href="#dynamic">dynamic input values</a></strong>, not variables here; when they appear in a step, validation suggests moving them to an input.</li>
             <li>The <code>name</code> and <code>description</code> of scenarios, steps and assertions are text for people; they are neither checked nor substituted.</li>
           </ul>
         </div>

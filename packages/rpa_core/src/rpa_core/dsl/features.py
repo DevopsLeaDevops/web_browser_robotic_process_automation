@@ -14,12 +14,21 @@
 from collections.abc import Iterable, Mapping
 from typing import Final, cast
 
+from rpa_core.dsl.dynamic import FEATURE as DYNAMIC_VALUES
+from rpa_core.dsl.dynamic import uses_dynamic
 from rpa_core.dsl.scenario import Scenario
 
-__all__ = ["FEATURES", "data_features", "missing_features", "scenario_features"]
+__all__ = [
+    "FEATURES",
+    "data_features",
+    "input_features",
+    "missing_features",
+    "scenario_features",
+]
 
-FEATURES: Final[frozenset[str]] = frozenset({"frame", "anyFrame"})
-"""這份程式看得懂的擴充：定位器的 ``frame``、``anyFrame``（M7a，iframe）。"""
+FEATURES: Final[frozenset[str]] = frozenset({"frame", "anyFrame", DYNAMIC_VALUES})
+"""這份程式看得懂的擴充：定位器的 ``frame``、``anyFrame``（M7a，iframe）；
+入參值的動態值 ``dynamicValues``（``{{today}}``、``{{random:10:30}}``…）。"""
 
 
 def data_features(data: object) -> frozenset[str]:
@@ -44,8 +53,16 @@ def data_features(data: object) -> frozenset[str]:
 
 
 def scenario_features(scenario: Scenario) -> frozenset[str]:
-    """場景用到的擴充。"""
-    return data_features(scenario.model_dump(mode="json", by_alias=True, exclude_none=True))
+    """場景用到的擴充；入參的預設值用了動態值時加上 ``dynamicValues``。"""
+    found = data_features(scenario.model_dump(mode="json", by_alias=True, exclude_none=True))
+    if uses_dynamic(spec.default for spec in scenario.inputs.values()):
+        found |= {DYNAMIC_VALUES}
+    return found
+
+
+def input_features(values: Mapping[str, object] | None) -> frozenset[str]:
+    """一次執行給的入參用到的擴充：有動態值就是 ``dynamicValues``（求值在執行的那台裝置）。"""
+    return frozenset({DYNAMIC_VALUES}) if values and uses_dynamic(values.values()) else frozenset()
 
 
 def missing_features(required: Iterable[str], reported: object) -> list[str]:

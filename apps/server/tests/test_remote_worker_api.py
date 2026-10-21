@@ -320,6 +320,34 @@ def test_outdated_worker_is_told_to_update_for_iframes(
     assert job["runId"] == anywhere["id"]
 
 
+def test_dynamic_inputs_go_to_apps_that_understand_them(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    """動態值在執行的那台裝置上求值：舊的 App 會把 {{today}} 原樣打進頁面，所以要更新 App；
+    任務裡的入參照原本的寫法交出去，每次執行（含重新執行）在 worker 上重新求值。"""
+    body(client.post("/api/scenes/import"))
+    token = register(client)
+    hello(remote, token, features=["anyFrame", "frame"])  # M7a 的 App：不懂動態值
+    dynamic = validate(client, target="remote", inputs={"title": "建立於 {{today}}"})
+    assert claim(remote, token) is None
+    row = run_row(app, dynamic["id"])
+    assert row.status == "failed"
+    assert row.error is not None
+    assert "dynamicValues" in row.error
+    plain = validate(client, target="remote", inputs={"title": "固定"})
+    job = claim(remote, token)
+    assert job is not None
+    assert job["runId"] == plain["id"]
+
+    newer = register(client, "win-02")
+    hello(remote, newer, features=["anyFrame", "dynamicValues", "frame"])
+    again = validate(client, target="remote", inputs={"title": "建立於 {{today}}"})
+    job = claim(remote, newer)
+    assert job is not None
+    assert job["runId"] == again["id"]
+    assert job["inputs"] == {"title": "建立於 {{today}}"}
+
+
 def test_job_carries_exact_files_inputs_locale_and_secrets(
     app: FastAPI, client: Client, remote: Client
 ) -> None:

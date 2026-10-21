@@ -36,7 +36,12 @@ from typing import Any, Final, cast
 from sqlalchemy import CursorResult, delete, or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from rpa_core.dsl.features import data_features, missing_features, scenario_features
+from rpa_core.dsl.features import (
+    data_features,
+    input_features,
+    missing_features,
+    scenario_features,
+)
 from rpa_core.i18n import Locale, use_locale
 from rpa_server import __version__
 from rpa_server.domain import (
@@ -496,9 +501,10 @@ class WorkerHub:
         return engines, info.get("display") is not False, info.get("features"), name
 
     def _needed(self, run: Run) -> frozenset[str]:
-        """這次執行用到的 DSL 擴充：場景，加上它的登入設定（檢查與自動登入在 worker 上跑）。
+        """這次執行用到的 DSL 擴充：場景，加上它的登入設定（檢查與自動登入在 worker 上跑），
+        以及這次的入參（動態值在 worker 上求值）。
 
-        版本不可變，所以依場景與版本快取；登入設定可能改，不快取。
+        版本不可變，所以依場景與版本快取；登入設定可能改、入參每次不同，不快取。
         """
         key = (run.scene_id, run.revision_number)
         scenario = self.queue.scenario(*key)
@@ -507,6 +513,7 @@ class WorkerHub:
         needed = self._needs.get(key)
         if needed is None:
             needed = self._needs[key] = scenario_features(scenario)
+        needed |= input_features(run.input)
         if scenario.login is not None:
             login = self.roles.login_settings(scenario.login.role)
             if login is not None:

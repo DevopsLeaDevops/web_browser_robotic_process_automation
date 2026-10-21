@@ -1,6 +1,7 @@
 """執行時的契約：{{ }} 求值、入參、獨立斷言、出參、Secrets 遮罩。不需要瀏覽器。"""
 
 from collections.abc import Iterator
+from datetime import datetime
 
 import pytest
 
@@ -115,6 +116,63 @@ def test_input_problems(scenario: Scenario) -> None:
         "不認得的入參 extra",
         "缺少入參 title",
         "入參 quantity 不符合限制：maximum: 30",
+    ]
+
+
+DYNAMIC = """\
+schemaVersion: 1
+id: purchase
+name: 採購單
+inputs:
+  arrivalDate: { default: '{{today}}' }
+  expiryDate: { default: '{{today+1}}' }
+  purchaseQuantity: { type: integer, minimum: 10, maximum: 30, default: '{{random:10:30}}' }
+  remark: { default: 'CG-001脚本创建{{today}}日期' }
+  skuCode: { default: '455590002' }
+steps:
+  - { id: open, action: goto, url: https://example.test/ }
+"""
+
+
+def test_dynamic_values_are_evaluated_for_each_run() -> None:
+    result = validate_text(DYNAMIC)
+    assert result.scenario is not None, result.issues
+    now = datetime(2026, 12, 31, 23, 59, 59)
+
+    resolved, problems = check_inputs(result.scenario, {}, now=now, pick=lambda lo, hi: hi)
+
+    assert problems == []
+    assert resolved == {
+        "arrivalDate": "2026-12-31",
+        "expiryDate": "2027-01-01",
+        "purchaseQuantity": 30,
+        "remark": "CG-001脚本创建2026-12-31日期",
+        "skuCode": "455590002",
+    }
+    # 執行時給的入參也可以是動態值；沒給 now 時用這台電腦的本地時間
+    resolved, problems = check_inputs(
+        result.scenario, {"skuCode": "SKU-{{random:1:1}}", "purchaseQuantity": "{{random:12:12}}"}
+    )
+    assert problems == []
+    assert resolved["skuCode"] == "SKU-1"
+    assert resolved["purchaseQuantity"] == 12
+    assert resolved["arrivalDate"] == datetime.now().astimezone().strftime("%Y-%m-%d")
+
+
+def test_dynamic_value_problems() -> None:
+    result = validate_text(DYNAMIC)
+    assert result.scenario is not None, result.issues
+
+    _, problems = check_inputs(
+        result.scenario,
+        {"arrivalDate": "{{tody}}", "purchaseQuantity": "{{random:31:40}}", "remark": "{{today"},
+    )
+
+    assert [problem.message for problem in problems] == [
+        "入參 arrivalDate 的動態值寫錯：看不懂動態值 {{tody}}；"
+        "可以用 {{today}}、{{today+1}}、{{now}}、{{random:10:30}}",
+        "入參 purchaseQuantity 不符合限制：maximum: 30",
+        "入參 remark 的動態值寫錯：{{today 的 {{ 沒有對應的 }}",
     ]
 
 
