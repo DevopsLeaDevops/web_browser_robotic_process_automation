@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-21 03:20 America/Los_Angeles（PDT，UTC−07:00）。共 158 次運行。
+更新：2026-10-21 03:22 America/Los_Angeles（PDT，UTC−07:00）。共 159 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,7 +9,7 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 83（0） | 47（0） | 2.6 分（0.0 分） | 5.1 分（0.0 分） | 0.0 分（0.0 分） | 335／174／0 分（0／0／0 分） |
+| CI | 84（0） | 47（0） | 2.6 分（0.0 分） | 5.1 分（0.0 分） | 0.0 分（0.0 分） | 338／176／0 分（0／0／0 分） |
 | 桌面端建置 | 57（0） | 46（0） | 3.9 分（0.0 分） | 4.2 分（0.0 分） | 0.1 分（0.0 分） | 5／162／161 分（0／0／0 分） |
 | 一鍵安裝腳本 | 17（0） | 9（0） | 3.2 分（0.0 分） | 15.2 分（0.0 分） | 0.1 分（0.0 分） | 90／52／23 分（0／0／0 分） |
 | 每晚完整測試 | 1（0） | 0（0） | 39.3 分（0.0 分） | 39.3 分（0.0 分） | 0.0 分（0.0 分） | 36／39／0 分（0／0／0 分） |
@@ -19,7 +19,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-21 | 34 | 97 | 145 | 43 | 286 |
+| 2026-10-21 | 35 | 100 | 147 | 43 | 291 |
 | 2026-10-20 | 121 | 359 | 274 | 134 | 767 |
 | 2026-10-19 | 3 | 10 | 8 | 6 | 25 |
 
@@ -27,27 +27,27 @@
 
 ### CI · pytest-report-3.12/pytest-report.xml
 
-最近一次：2026-10-21 03:19 America/Los_Angeles（PDT，UTC−07:00），合計 57 秒。
+最近一次：2026-10-21 03:21 America/Los_Angeles（PDT，UTC−07:00），合計 52 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 57.3（57.3） | 6 | `packages/rpa_runner/tests/test_zz_diag_end.py` |
+| 52.1（54.7） | 6 | `packages/rpa_runner/tests/test_zz_diag_end.py` |
 
 ### CI · pytest-report-3.13/pytest-report.xml
 
-最近一次：2026-10-21 03:19 America/Los_Angeles（PDT，UTC−07:00），合計 49 秒。
+最近一次：2026-10-21 03:21 America/Los_Angeles（PDT，UTC−07:00），合計 52 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 49.4（49.4） | 6 | `packages/rpa_runner/tests/test_zz_diag_end.py` |
+| 51.9（50.6） | 6 | `packages/rpa_runner/tests/test_zz_diag_end.py` |
 
 ### CI · pytest-report-windows/pytest-report.xml
 
-最近一次：2026-10-21 03:19 America/Los_Angeles（PDT，UTC−07:00），合計 58 秒。
+最近一次：2026-10-21 03:21 America/Los_Angeles（PDT，UTC−07:00），合計 72 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 58.2（58.2） | 6 | `packages\rpa_runner\tests\test_zz_diag_end.py` |
+| 71.9（65.1） | 6 | `packages\rpa_runner\tests\test_zz_diag_end.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.12/pass-1.xml
 
@@ -172,6 +172,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 10-21 03:21 | CI | 手動 | tmp/m12-firefox-video-diag | failure | 1.7 分 | 0.0 分 | [#39583944184](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39583944184/attempts/1) |
 | 10-21 03:19 | CI | 手動 | tmp/m12-firefox-video-diag | failure | 1.7 分 | 0.1 分 | [#39583689575](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39583689575/attempts/1) |
 | 10-21 03:13 | CI | PR | m12/replay | failure | 2.9 分 | 0.0 分 | [#39583026691](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39583026691/attempts/1) |
 | 10-21 03:13 | 桌面端建置 | PR | m12/replay | success | 3.8 分 | 0.1 分 | [#39583026727](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39583026727/attempts/1) |
@@ -211,5 +212,4 @@
 | 10-20 21:48 | 桌面端建置 | PR | m12/replay | success | 4.2 分 | 0.1 分 | [#39546044793](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39546044793/attempts/1) |
 | 10-20 21:05 | CI | PR | docs/m11-wrap-up-main | success | 2.5 分 | 0.0 分 | [#39542122137](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39542122137/attempts/1) |
 | 10-20 20:47 | CI | PR | docs/m12-replay-design | success | 1.4 分 | 0.0 分 | [#39540532284](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39540532284/attempts/1) |
-| 10-20 20:45 | CI | PR | chore/git-history-viewer | success | 2.6 分 | 0.1 分 | [#39540235210](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39540235210/attempts/1) |
 
