@@ -10333,3 +10333,10 @@
 {"attempt": 1, "file": "packages/rpa_runner/tests/test_contexts.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39570294857, "seconds": 0.0, "tests": 3, "workflow": "CI"}
 {"attempt": 1, "file": "packages/rpa_runner/tests/test_login_errors.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39570294857, "seconds": 0.0, "tests": 8, "workflow": "CI"}
 {"attempt": 1, "file": "apps/desktop/tests/test_autostart.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39570294857, "seconds": 0.0, "tests": 5, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_login.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39577768353, "seconds": 304.8, "tests": 16, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_run.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39577768353, "seconds": 76.0, "tests": 18, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_video_browser.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39577768353, "seconds": 63.9, "tests": 10, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_profiles.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39577768353, "seconds": 24.4, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "tests\\smoke\\test_browser.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39577768353, "seconds": 3.9, "tests": 2, "workflow": "CI"}
+{"attempt": 1, "file": "apps\\desktop\\tests\\test_selftest.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39577768353, "seconds": 2.9, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "apps\\worker\\tests\\test_worker.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39577768353, "seconds": 2.7, "tests": 1, "workflow": "CI"}
