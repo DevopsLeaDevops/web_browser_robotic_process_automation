@@ -552,6 +552,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             "hr",
             "hr-001",
             "add_domain",
+            {"url": "https://github.com/org/rpa-data.git", "directory": "hr"},
         ),
     ]
     data = {
@@ -696,6 +697,7 @@ def _pages() -> dict[str, str]:
             syncs={DOMAIN.id: SYNC, OTHER_DOMAIN.id: LOCAL_SYNC},
             server=SERVER,
             git_available=True,
+            dependents={},
         ),
         "domain-sync": render(
             "domain_sync.html",
@@ -1082,6 +1084,7 @@ def _english_domain_pages() -> dict[str, str]:
                 syncs={domain.id: SYNC, domains[1].id: LOCAL_SYNC},
                 server=SERVER,
                 git_available=True,
+                dependents={},
             ),
             "domain-sync": render(
                 "domain_sync.html",

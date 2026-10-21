@@ -18,10 +18,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Client, Response
+from sqlalchemy import select
 
+from rpa_core.pack import PackManifest, read_model
 from rpa_server.app import create_app
 from rpa_server.config import Settings, sqlite_url
-from rpa_server.models import Domain
+from rpa_server.domain import now
+from rpa_server.models import Domain, Revision, Scene
 from rpa_server.services import Services
 from rpa_server.storage import SCENARIO_FILE
 from rpa_worker import Worker
@@ -426,3 +429,106 @@ def test_sync_pages(client: Client, remote: Path, lab: str) -> None:
     assert 'data-action="sync-push"' in page
     assert 'id="sync-status"' in page
     assert 'href="/domains/lab/sync"' in client.get("/domains/lab").text
+
+
+# ---------------------------------------------------------------- 依賴的補全（M11 收尾）
+
+CHAIN: JsonObject = {
+    "version": 2,
+    "mode": "dag",
+    "nodes": [
+        {"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"title": {"value": "組合"}}},
+        {"id": "n2", "sceneId": "ba-002", "revision": 1, "inputs": {"recordId": {"auto": True}}},
+    ],
+    "edges": [{"source": "n1", "target": "n2"}],
+}
+
+
+def publish(app: FastAPI, scene_id: str) -> None:
+    with services(app).sessions() as session:
+        scene = session.get(Scene, scene_id)
+        revision = session.scalars(
+            select(Revision).where(Revision.scene_id == scene_id, Revision.number == 1)
+        ).one()
+        assert scene is not None
+        revision.status = "passed"
+        revision.published_at = now()
+        scene.published_number = 1
+        session.commit()
+
+
+def test_dependency_hints_point_to_where_the_domain_lives(
+    app: FastAPI, client: Client, settings: Settings, tmp_path: Path, remote: Path, lab: str
+) -> None:
+    body(client.post("/api/scenes/import", json={"domainId": "lab"}))
+    publish(app, "ba-001")
+    publish(app, "ba-002")
+    body(client.post("/api/workflows", json={"name": "跨領域", "definition": CHAIN}), 201)
+    # lab 接上 git 之後，依賴它的「組合場景」領域的 pack.yaml 記下從哪裡取得
+    connect(client, remote)
+    manifest, _ = read_model(
+        settings.data_dir / "domains" / "composites" / "pack.yaml", PackManifest
+    )
+    assert manifest is not None
+    sources = [
+        (item.domain, item.source.repo, item.source.directory)
+        for item in manifest.requires
+        if item.source is not None
+    ]
+    assert sources == [("lab", str(remote), "team/lab")]
+    push(client)
+    composites = {"url": str(remote), "directory": "team/composites"}
+    body(client.put("/api/domains/composites/source", json=composites))
+    body(client.post("/api/domains/composites/sync/push", json={}))
+    used = client.get("/domains").text.split("data-dependents")[1].split("</span>")[0]
+    assert "wf-1" in used
+
+    with second_server(tmp_path) as (_, other):
+        body(other.post("/api/domains/from-git", json=composites), 201)
+        workflow_id = cast("list[JsonObject]", body(other.get("/api/workflows"))["workflows"])[0][
+            "id"
+        ]
+        detail = body(other.get(f"/api/workflows/{workflow_id}"))
+        items = cast("list[JsonObject]", detail["dependencies"])
+        missing = [item for item in items if item["code"] == "dependency.domain_missing"]
+        assert missing
+        assert missing[0]["action"] == "add_domain"
+        assert missing[0]["source"] == {"url": str(remote), "directory": "team/lab"}
+        page = other.get(f"/playground/{workflow_id}").text
+        assert "from-git=1" in page
+        assert "team%2Flab" in page
+
+        # 補上領域：先只設定、還沒拉取時，缺的場景提示「拉取」
+        body(other.post("/api/domains", json={"id": "lab", "name": "實驗"}), 201)
+        body(
+            other.put("/api/domains/lab/source", json={"url": str(remote), "directory": "team/lab"})
+        )
+        items = cast(
+            "list[JsonObject]", body(other.get(f"/api/workflows/{workflow_id}"))["dependencies"]
+        )
+        assert {item["action"] for item in items if item["level"] == "error"} == {"pull"}
+        assert 'href="/domains/lab/sync"' in other.get(f"/playground/{workflow_id}").text
+        body(other.post("/api/domains/lab/sync/pull"))
+        items = cast(
+            "list[JsonObject]", body(other.get(f"/api/workflows/{workflow_id}"))["dependencies"]
+        )
+        assert [item for item in items if item["level"] == "error"] == []
+
+
+def test_local_runs_use_a_snapshot_of_the_revision(
+    app: FastAPI, client: Client, settings: Settings, lab: str
+) -> None:
+    """本機執行從 work/<執行編號>/ 的快照執行（第 6 節），結束就刪。"""
+    make_scene(client, "needs-secret", NEEDS_SECRET)
+    run = body(
+        client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}}), 202
+    )
+    queue = services(app).queue
+    job = queue.claim()
+    assert job is not None
+    assert job.run_id == run["id"]
+    assert job.scenario == settings.data_dir / "work" / str(run["id"]) / SCENARIO_FILE
+    original = services(app).storage.scenario_path("needs-secret", 2)
+    assert job.scenario.read_bytes() == original.read_bytes()
+    queue.fail(job, RuntimeError("測試"))
+    assert not (settings.data_dir / "work" / str(run["id"])).exists()

@@ -257,6 +257,14 @@ class WorkflowUpdate(_Body):
     definition: dict[str, object] | None = None
 
 
+class WorkflowManage(_Body):
+    """改代號、搬到其他領域、封存（M11 收尾）；沒帶的欄位不變。"""
+
+    code: str | None = Field(default=None, max_length=64)
+    domain_id: str | None = Field(default=None, max_length=64)
+    archived: bool | None = None
+
+
 class WorkflowCheck(_Body):
     definition: dict[str, object]
 
@@ -866,6 +874,13 @@ def api_router(services: Services) -> APIRouter:
             name=body.name,
             description=body.description,
             definition=body.definition,
+        )
+        return record.to_json()
+
+    @router.patch("/workflows/{workflow_id}")
+    def manage_workflow(workflow_id: int, body: WorkflowManage) -> dict[str, object]:
+        record = workflows.manage(
+            workflow_id, code=body.code, domain_id=body.domain_id, archived=body.archived
         )
         return record.to_json()
 

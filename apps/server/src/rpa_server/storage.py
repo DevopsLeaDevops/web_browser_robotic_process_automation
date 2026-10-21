@@ -32,7 +32,7 @@ import shutil
 import tempfile
 import threading
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
@@ -100,6 +100,8 @@ class Storage:
         self.recordings = root / "recordings"
         self.debug = root / "debug"
         self.secrets = root / "secrets.json"
+        self.work = root / "work"
+        """本機執行中的版本檔案快照（M11 收尾）：work/<執行編號>/，結束就刪。"""
         self.workflow_runs = root / "workflow-runs"
         """組合場景的執行紀錄（M11 PR 2）：workflow-runs/<編號>/run.json。"""
         self._places: dict[str, str] = {}
@@ -109,6 +111,8 @@ class Storage:
     def ensure(self) -> None:
         for folder in (self.domains, self.runs, self.roles, self.recordings, self.debug):
             folder.mkdir(parents=True, exist_ok=True)
+        # 上次沒刪掉的快照（伺服器在執行中停了）：啟動時沒有執行中的任務，整個清掉
+        _remove_tree(self.work)
         if os.name != "nt":
             self.roles.chmod(0o700)
 
@@ -207,6 +211,21 @@ class Storage:
 
     def scenario_path(self, scene_id: str, number: int) -> Path:
         return self.revision_dir(scene_id, number) / SCENARIO_FILE
+
+    def snapshot(self, scene_id: str, number: int, run_id: str) -> Path:
+        """本機執行開始時把版本檔案複製到 work/<執行編號>/（任務紀錄第 6 節）：執行中拉取、
+        重新載入或刪除領域資料夾都不影響這次執行，和遠端 worker 自帶檔案一致。回傳場景檔。"""
+        target = self.work / run_id
+        _remove_tree(target)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(self.revision_dir(scene_id, number), target)
+        for path in target.rglob("*"):
+            if path.is_file():
+                path.chmod(0o644)
+        return target / SCENARIO_FILE
+
+    def drop_snapshot(self, run_id: str) -> None:
+        _remove_tree(self.work / run_id)
 
     def check(self, files: Mapping[str, str], *, scene_id: str | None = None) -> CheckedRevision:
         """檢查一組版本檔案：路徑、場景校驗、場景 id、是否有多餘的檔案。"""
@@ -334,6 +353,17 @@ def _write_files(folder: Path, files: Mapping[str, str]) -> None:
         for path in folder.rglob("*"):
             if path.is_file():
                 path.chmod(0o444)
+
+
+def _remove_tree(folder: Path) -> None:
+    """刪除資料夾（版本檔案是唯讀的，Windows 上要先改成可寫）；不存在就算了。"""
+
+    def retry(function: Callable[..., object], path: str, _error: BaseException) -> None:
+        Path(path).chmod(0o700)
+        function(path)
+
+    if folder.exists():
+        shutil.rmtree(folder, onexc=retry)
 
 
 def _yaml_string(value: str) -> str:

@@ -178,6 +178,7 @@ def page_router(services: Services) -> APIRouter:
             syncs={item.id: services.git.status(item.id) for item in services.list_domains()},
             server=services.server_info(),
             git_available=services.git.available(),
+            dependents=services.workflows.dependents(),
         )
 
     @router.get("/domains/{domain_id}/sync", include_in_schema=False)

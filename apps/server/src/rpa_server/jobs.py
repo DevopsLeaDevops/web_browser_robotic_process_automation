@@ -186,7 +186,8 @@ class RunQueue:
         run = self.claim_run(LOCAL_WORKER, ("local", "any"))
         if run is None:
             return None
-        path = self.storage.scenario_path(run.scene_id, run.revision_number)
+        # 從快照執行：執行中拉取或重新載入領域資料夾不影響這次執行（M11 收尾）
+        path = self.storage.snapshot(run.scene_id, run.revision_number, run.id)
         login, secrets = self.extras(run.scene_id, run.revision_number)
         return Job(
             run_id=run.id,
@@ -213,9 +214,11 @@ class RunQueue:
         self.set_stage(job.run_id, stage)
 
     def finish(self, job: Job, result: RunResult) -> None:
+        self.storage.drop_snapshot(job.run_id)
         self.complete(job.run_id, Outcome.from_result(result))
 
     def fail(self, job: Job, error: Exception) -> None:
+        self.storage.drop_snapshot(job.run_id)
         if isinstance(error, ScenarioInvalidError):
             message = t("run.scenario_invalid", count=len(error.issues))
         else:

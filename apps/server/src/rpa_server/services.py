@@ -36,7 +36,7 @@ from rpa_core.dsl.editing import (
 )
 from rpa_core.dsl.sources import scenario_sources
 from rpa_core.i18n import DEFAULT_LOCALE, Locale
-from rpa_core.pack import PublishedRef, SceneManifest, parse_timestamp, timestamp
+from rpa_core.pack import PackSource, PublishedRef, SceneManifest, parse_timestamp, timestamp
 from rpa_runner.contract import check_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id
@@ -343,8 +343,10 @@ class Services:
             reload=self.reload_domain,
             secret_values=self.roles.secrets.values,
             operator=self.packs.operator,
+            on_source=self.packs.refresh_sources,
         )
         """領域資料夾的 git 同步（M11 PR 3）。"""
+        self.packs.source_of = self._pack_source
         self.recordings = RecordingService(
             sessions,
             storage,
@@ -519,6 +521,16 @@ class Services:
             domain = self._new_domain(session, domain_id, name, (description or "").strip() or None)
             session.commit()
             return self._domain_record(session, domain)
+
+    def _pack_source(self, domain_id: str) -> PackSource | None:
+        """領域的 git 資料來源，寫成 pack.yaml requires 的 source（不含帳號與權杖）。"""
+        try:
+            source = self.git.source(domain_id)
+        except ServiceError:
+            return None
+        if source is None:
+            return None
+        return PackSource(repo=source.url, directory=source.directory, branch=source.branch)
 
     def create_domain_from_git(
         self,

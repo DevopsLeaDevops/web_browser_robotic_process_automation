@@ -319,6 +319,17 @@
         });
         qs('[name="url"]', dialog).focus();
       });
+      // 組合場景的依賴提示「從 git 新增」帶著 pack.yaml 記的倉庫與目錄過來（M11 收尾）
+      const wanted = new URLSearchParams(location.search);
+      if (wanted.get('from-git') === '1') {
+        fromGit.click();
+        const dialog = qs('#dialog-content');
+        ['url', 'directory', 'branch', 'id'].forEach(name => {
+          const field = qs('[name="' + name + '"]', dialog);
+          if (field && wanted.get(name)) field.value = wanted.get(name);
+        });
+        history.replaceState(null, '', location.pathname);
+      }
     }
     const rename = qs('[data-action="rename-server"]');
     if (rename) {
@@ -1707,6 +1718,40 @@
     });
   }
 
+  // 組合場景的代號、領域、封存，以及驗證指定的版本（M11 收尾）
+  function bindCompositeSettings() {
+    const form = qs('form[data-action="composite-settings"]');
+    if (form) {
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const body = {
+          code: form.elements.namedItem('code').value.trim(),
+          domainId: form.elements.namedItem('domainId').value,
+          archived: form.elements.namedItem('archived').checked,
+        };
+        const result = await api('PATCH', '/api/workflows/' + path(form.dataset.workflow), body);
+        if (!result.ok) {
+          qs('.form-error', form).textContent = errorMessage(result);
+          return;
+        }
+        flash(messages.saved);
+        location.reload();
+      });
+    }
+    qsa('[data-action="validate-composite"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const number = button.dataset.revision;
+        confirmDialog(fill(messages.composite_validate_title, {number}), messages.composite_validate_body, messages.composite_validate_action, async () => {
+          const url = '/api/workflows/' + path(button.dataset.workflow) + '/runs';
+          const result = await api('POST', url, {purpose: 'validation', revision: Number(number), idempotencyKey: newKey()});
+          $('#dialog').close();
+          if (!result.ok) return toast([errorMessage(result), ...problemLines(result)].join('\n'));
+          location.href = '/playground/runs/' + path(result.data.id);
+        });
+      });
+    });
+  }
+
   function bindPlayground() {
     if (!qs('#playground')) return;
     const text = pageText();
@@ -2749,6 +2794,7 @@
   bindPublish();
   bindScenes();
   bindCompositePublish();
+  bindCompositeSettings();
   bindDomains();
   bindSync();
   bindSceneSettings();

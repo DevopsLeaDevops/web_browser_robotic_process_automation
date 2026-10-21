@@ -663,7 +663,10 @@ class DependencyItem:
     domain: str | None = None
     scene: str | None = None
     action: str | None = None
-    """補全的方式：add_domain、reload_domain、login、secrets、resave。"""
+    """補全的方式：add_domain、pull、reload_domain、login、secrets、resave。"""
+    source: dict[str, str] | None = None
+    """add_domain 時，依賴的領域從哪裡取得（pack.yaml requires 的 source：url、directory、
+    branch），用來預填「從 git 新增」；M11 收尾。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -674,6 +677,7 @@ class DependencyItem:
             "domain": self.domain,
             "scene": self.scene,
             "action": self.action,
+            "source": self.source,
         }
 
 

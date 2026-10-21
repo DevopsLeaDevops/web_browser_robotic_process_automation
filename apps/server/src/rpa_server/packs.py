@@ -56,6 +56,7 @@ from rpa_core.pack import (
     PackIssue,
     PackManifest,
     PackRequirement,
+    PackSource,
     PublishedRef,
     RevisionInfo,
     RoleDefinition,
@@ -194,6 +195,8 @@ class PackStore:
         self.lock = threading.RLock()
         """寫入資料夾、載入資料夾時持有；同一時間只有一個。"""
         self._server: ServerRef | None = None
+        self.source_of: Callable[[str], PackSource | None] = lambda domain_id: None
+        """依賴的領域從哪裡取得（git 資料來源；Services 設定）：寫進 requires 的 source。"""
 
     # ------------------------------------------------------------ 伺服器代號
 
@@ -262,16 +265,39 @@ class PackStore:
             write_model(self.pack_dir(domain_id) / PACK_FILE, manifest)
 
     def add_requirement(self, domain_id: str, required: str) -> None:
-        """pack.yaml 記下依賴另一個領域（例如用到它的角色）。"""
+        """pack.yaml 記下依賴另一個領域（例如用到它的角色）；那個領域有 git 資料來源時一起記下
+        source（別人缺這個領域時預填「從 git 新增」）。"""
         existing = self.manifest(domain_id)
-        if existing is None or any(item.domain == required for item in existing.requires):
+        if existing is None:
             return
-        requires = [*existing.requires, PackRequirement(domain=required)]
+        source = self.source_of(required)
+        requires = list(existing.requires)
+        for index, item in enumerate(requires):
+            if item.domain == required:
+                if source is None or item.source == source:
+                    return
+                requires[index] = item.model_copy(update={"source": source})
+                break
+        else:
+            requires.append(PackRequirement(domain=required, source=source))
         with self.lock:
             write_model(
                 self.pack_dir(domain_id) / PACK_FILE,
                 existing.model_copy(update={"requires": requires}),
             )
+
+    def refresh_sources(self, required: str) -> None:
+        """領域的 git 資料來源改了：依賴它的 pack.yaml 更新 source（中斷連結時保留舊的）。"""
+        if self.source_of(required) is None:
+            return
+        for folder in sorted(self.storage.domains.glob("*")):
+            manifest = self.manifest(folder.name) if folder.is_dir() else None
+            if (
+                manifest is not None
+                and manifest.id != required
+                and any(item.domain == required for item in manifest.requires)
+            ):
+                self.add_requirement(folder.name, required)
 
     def remove_pack(self, domain_id: str) -> None:
         with self.lock:

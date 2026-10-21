@@ -347,6 +347,9 @@ def js_messages() -> dict[str, str]:
         "js.domain_git_action",
         "js.server_rename_title",
         "js.server_name",
+        "js.composite_validate_title",
+        "js.composite_validate_body",
+        "js.composite_validate_action",
     )
     return {key.removeprefix("js."): page_t(key) for key in keys}  # 透過錄製端時換掉用詞
 
