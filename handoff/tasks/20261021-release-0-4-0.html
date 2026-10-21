@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>0.4.0 版本與安裝包 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>0.4.0 版本與安裝包</h1><p>將已合併的功能一起打包；錄影的已知問題留待後續修復。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261021-release-0-4-0；2026-10-21 05:23 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者要求先升級一個版本、打包可用，其他問題慢慢修復。七個工作區套件與鎖檔統一為 0.4.0，產出 Windows Worker 安裝檔／免安裝包及 macOS arm64 Recorder DMG；Linux 伺服器使用同版原始碼。PR 仍由使用者合併。</dd>
+        <dt>範圍</dt><dd>版本、發布準備與交接；沿用現有建置流程，沒有更改依賴或執行邏輯。A1／A2／A3 不在本次修復。</dd>
+        <dt>主責／審閱／接收方</dt><dd>ChatGPT／Codex；使用者審閱與合併；尚未完成接收。</dd>
+        <dt>修改檔案／整合者</dt><dd>七個套件的 pyproject.toml、uv.lock、本頁、任務索引與 M12 任務狀態；Codex 整合。</dd>
+        <dt>狀態</dt><dd>待使用者合併：PR #65 的 CI、安裝腳本與桌面建置通過，0.4.0 安裝包已產生；尚未建立正式標籤或 Release。main 全量測試另有錄影失敗，見驗證紀錄，未宣稱全量通過。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.4.0</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/65">PR #65</a>；基準 <code>9798db4613835a039adf309b78c22bfb8b0f1748</code>（main，已合併 #62、#61、#64）。</dd>
+        <dt>交接版本／同步狀態</dt><dd><code>82d81e691e74efd8e4215f9832e248203f16aebd</code> 已推送；後續文件回填不改產品內容，使用者尚未合併。</dd>
+        <dt>工作區／環境</dt><dd>macOS arm64、Python 3.13.16、uv 0.12.24、Playwright 1.64.0；沿用乾淨的工作區，從 origin/main 開新分支。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度與發布順序</h2></div>
+      <div class="panel-body"><ol class="steps">
+        <li>使用 <code>tools/release_version.py bump 0.4.0</code> 統一版本；完成版本、安裝檔與建置資訊的測試，建立版本 PR。</li>
+        <li>PR 的桌面端 CI 先產生 0.4.0 安裝包，可供試用。這些是 PR 產物，正式 Release 會從 main 的標籤重新建置。</li>
+        <li>使用者合併版本 PR 後，核對 main 的版本與 CI，在該提交建立並推送 <code>v0.4.0</code>；依 <a href="../../docs/design/desktop.html#release">發布流程</a>產生草稿 Release。</li>
+        <li>把本頁的已知問題補到 Release 說明，確認三個安裝包、SHA256SUMS.txt 與版本，再由維護者發布。</li>
+        <li>升級 Linux 伺服器與桌面端到同一版。停止服務後備份實際資料目錄，再更新至 <code>v0.4.0</code>、執行 <code>scripts/setup-linux.sh</code> 並依原有參數啟動；0013 錄影資料庫遷移由伺服器啟動時執行。Windows／macOS 安裝對應 0.4.0 套件，重新連線並核對裝置版本。</li>
+      </ol><p><strong>使用者已確認：</strong>先交付新版本，錄影問題另修；不把延後處理寫成已修復或人工驗收通過。PR 合併仍由使用者操作。</p></div>
+    </section>
+    <section class="panel" id="known-issues">
+      <div class="panel-header"><h2>需帶入 Release 說明的已知問題</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>A1，影片比例／裁切：</strong>使用者已確認主體功能可通，但回看影片比例不對、內容看不全；縮放與 DPI 的原因尚未驗證。見 <a href="20261020-m12-replay.html#acceptance-findings">M12 驗收發現</a>。</li>
+        <li><strong>A2，macOS Chromium 錄影對時：</strong>本地 <code>test_video_lines_up_with_the_steps[chromium]</code> 在點擊前 0.3 秒取樣時已讀到點擊後顏色；合併前版本也可重現。原因仍待釐清，不能視為已修復或推定與 A1 同因。</li>
+        <li><strong>A3，Linux Chromium 錄影取樣：</strong>main 9798db4 的全量 CI 重跑中，對時測試在點擊後取樣仍為白色；取消錄影測試的末格也仍為白色。這與 A2 的本機失敗位置不同，原因尚未釐清，留待後續修復。</li>
+        <li><strong>安裝與相容性：</strong>套件尚無程式碼簽章／macOS 公證；Recorder DMG 僅供 Apple 晶片，Worker 安裝檔僅供 Windows x64。伺服器、Worker、Recorder 一起更新至 0.4.0。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>main 9798db4</td><td>桌面建置與測試</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39596592102">成功</a></td><td>版本仍是 0.3.0；不是本次 0.4.0 產物</td></tr>
+          <tr><td>main 9798db4</td><td>CI</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39596592017">首次 Python 3.12 失敗</a>：<code>test_create_validate_publish_run_report[None-firefox]</code> 等待發布按鈕逾時；Python 3.13 與靜態檢查通過。第二次 Firefox 發布流程通過，但 Chromium 對時與取消錄影取樣失敗：1542 通過、2 失敗、2 略過（308.15 秒）。</td><td>錄影兩項失敗保留待修，未修改或略過斷言；PR 的範圍測試通過不能代替這次全量失敗</td></tr>
+          <tr><td>9798db4＋版本差異／本機 macOS</td><td>版本、鎖檔、安裝檔與建置資訊</td><td><code>uv sync --locked</code>、<code>release_version.py check v0.4.0</code> 通過；<code>rpa --version</code> 顯示 rpa／rpa-core 0.4.0；版本、安裝器、建置資訊、文件與 i18n 測試 324 通過；i18n check、41 個本地連結與錨點、git diff --check 通過。</td><td>Windows 實際安裝由 CI 驗證</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>另於同版 macOS 單獨執行 <code>test_create_validate_publish_run_report[None-firefox]</code>：1 通過（16.14 秒）；這不代替 Linux CI 複驗。本版 <code>82d81e6</code> 的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39598378356">CI</a>（Python 3.12：1440 通過／2 略過；Python 3.13：1468 通過／2 略過；Windows Worker：59 通過）、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39598378343">桌面包</a>與<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39598378351">安裝腳本</a>全部成功。安裝腳本含 Rocky 8 既有倉庫與從零安裝；一般桌面從零安裝矩陣依既有規則略過，不計為通過；本版人工跨機驗收：未執行。Codex 自查基準 SHA＋差異：八個版本檔僅變更 0.3.0 → 0.4.0，依賴與產品邏輯不變；使用者尚未審閱。上述各項分開記錄。</p></div>
+    </section>
+    <section class="panel" id="packages">
+      <div class="panel-header"><h2>0.4.0 PR 試用包（保留 14 天）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39598378343/artifacts/12345466068">macOS arm64 Recorder</a>：RPA-Recorder-0.4.0-macos-arm64.dmg。</li>
+        <li><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39598378343/artifacts/12344717515">Windows x64 Worker</a>：RPA-Worker-Setup-0.4.0-windows-x64.exe 與 RPA-Worker-0.4.0-windows-x64.zip。</li>
+        <li>下載 Actions 產物需登入 GitHub。來源為 PR #65 的 82d81e6，由 Actions 的 PR 合併提交 fbee3da 建置；兩端實際啟動回報 version 0.4.0、fingerprint a474b449f94f6ab8。正式標籤包另行建置。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。使用者合併後接續標籤與草稿 Release；不得代替使用者合併 PR。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-10-21 05:13 America/Los_Angeles（PDT，UTC−07:00），Codex：核對 #64 已合併、遠端沒有其他活躍 PR；建立版本分支，將七個套件與 uv.lock 升為 0.4.0，保留已知問題與使用者自行合併的規則。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
