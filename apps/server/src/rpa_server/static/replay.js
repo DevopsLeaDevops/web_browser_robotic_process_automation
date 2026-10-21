@@ -268,6 +268,10 @@
       canvas.height = Math.round(384 * (video.videoHeight || 9) / (video.videoWidth || 16));
       try {
         await seekVideo(grabber, Math.min(key, Math.max(0, (grabber.duration || duration) - 0.04)));
+        // 跳到之後那一格可能還沒解碼好（畫出來是黑的）：等到可以畫
+        for (let wait = 0; grabber.readyState < 2 && wait < 50; wait += 1) {
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
         canvas.getContext('2d').drawImage(grabber, 0, 0, canvas.width, canvas.height);
       } catch { /* 畫不出來就留空白 */ }
       frames.set(key, canvas);
