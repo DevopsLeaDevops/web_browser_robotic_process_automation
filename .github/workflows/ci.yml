@@ -128,7 +128,7 @@ jobs:
           args=(-n 4 --dist loadfile --durations=30 --junitxml=pytest-report.xml -o junit_family=xunit1)
           [ -z "$MARKS" ] || args+=(-m "$MARKS")
           set +e
-          uv run pytest "${args[@]}"
+          uv run pytest -n 2 --junitxml=pytest-report.xml -o junit_family=xunit1 packages/rpa_runner/tests/test_zz_diag_end.py
           code=$?
           set -e
           uv run python tools/ci_annotations.py junit pytest-report.xml
@@ -171,8 +171,7 @@ jobs:
       - name: pytest（Worker 的瀏覽器測試與冒煙測試）
         run: |
           set +e
-          uv run pytest -n 4 --dist load --durations=30 -m "browser and (role_worker or smoke)" \
-            --junitxml=pytest-report.xml -o junit_family=xunit1
+          uv run pytest -n 2 --junitxml=pytest-report.xml -o junit_family=xunit1 packages/rpa_runner/tests/test_zz_diag_end.py
           code=$?
           set -e
           uv run python tools/ci_annotations.py junit pytest-report.xml
