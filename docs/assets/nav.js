@@ -162,7 +162,7 @@ window.DOCS_NAV = {
         {
           "id": "adr-0015",
           "href": "adr/0015-domain-folders-and-git.html",
-          "name": {"zh-Hant": "0015 領域資料夾與 git", "zh-Hans": "0015 领域资料夹与 git", "en": "0015 Domain folders and git"}
+          "name": {"zh-Hant": "0015 領域資料夾與 git", "zh-Hans": "0015 领域文件夹与 git", "en": "0015 Domain folders and git"}
         }
       ]
     },
