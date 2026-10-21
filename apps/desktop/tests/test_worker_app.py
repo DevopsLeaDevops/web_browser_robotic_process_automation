@@ -383,15 +383,32 @@ def test_console_worker_stops_on_request_before_connecting(
 ) -> None:
     """安裝檔在下載瀏覽器時就寫 stop.request：那一步做完就結束，不再連線（結束碼 0）。"""
     Credentials(tmp_path, store).save(result())
+    handled = threading.Event()
+    watch = InstanceLock.watch
+
+    def watching(
+        lock: InstanceLock,
+        on_show: Callable[[], object] | None,
+        stop: threading.Event,
+        interval: float = 0.5,
+        *,
+        on_stop: Callable[[], object] | None = None,
+    ) -> threading.Thread:
+        # 背景的監看先刪掉請求檔、再呼叫 on_stop：只等檔案不見會有空檔（偶發失敗），
+        # 要等 on_stop 真的做完
+        def stopped() -> None:
+            if on_stop is not None:
+                on_stop()
+            handled.set()
+
+        return watch(lock, on_show, stop, interval, on_stop=stopped)
 
     def downloading(*args: object, **kwargs: object) -> bool:
-        request = tmp_path / "stop.request"
         InstanceLock(tmp_path).request_stop()
-        for _ in range(500):  # 等背景的監看讀走請求
-            if not request.exists():
-                break
-            threading.Event().wait(0.01)
+        assert handled.wait(10), "背景的監看沒有處理結束的請求"
         return True
+
+    monkeypatch.setattr(InstanceLock, "watch", watching)
 
     def never(*args: object, **kwargs: object) -> object:
         raise AssertionError("收到結束的請求後不應該連線")
