@@ -703,6 +703,8 @@ class WorkerRecord:
     display: bool
     version: str | None = None
     """App 的版本（M10.1；舊版 worker 沒有回報）。"""
+    features: tuple[str, ...] = ()
+    """App 看得懂的 DSL 擴充（M7a；更舊的 App 沒有回報，是空的）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -722,6 +724,7 @@ class WorkerRecord:
             "browsers": list(self.browsers),
             "display": self.display,
             "version": self.version,
+            "features": list(self.features),
         }
 
 
@@ -746,6 +749,8 @@ class RecorderRecord:
     display: bool
     active: int
     """這台正在執行的互動子程序（錄製、調試、人工登入）數量。"""
+    features: tuple[str, ...] = ()
+    """App 看得懂的 DSL 擴充（M7a；更舊的 App 沒有回報，是空的）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -765,4 +770,5 @@ class RecorderRecord:
             "browsers": list(self.browsers),
             "display": self.display,
             "active": self.active,
+            "features": list(self.features),
         }

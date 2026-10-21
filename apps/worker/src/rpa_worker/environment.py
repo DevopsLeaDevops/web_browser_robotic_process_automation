@@ -1,5 +1,6 @@
 """這台電腦能做什麼：能不能顯示瀏覽器視窗、下載了哪些瀏覽器、程式版本的指紋（M9a）。
-M10.1 加上 App 版本，管理 Portal 的裝置頁顯示。
+M10.1 加上 App 版本，管理 Portal 的裝置頁顯示。M7a 加上看得懂的 DSL 擴充（``features``）：
+管理 Portal 交出場景之前比對，舊的 App 缺少時直接說明要更新（見 :mod:`rpa_core.dsl.features`）。
 
 遠端 worker 上線時把這些告訴管理 Portal，Portal 只把它能跑的任務交給它；
 管理 Portal 自己（本機 worker）也用同一套判斷。
@@ -16,6 +17,8 @@ from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Final
+
+from rpa_core.dsl.features import FEATURES
 
 __all__ = [
     "FINGERPRINT_PACKAGES",
@@ -124,6 +127,8 @@ class WorkerInfo:
     display: bool = False
     version: str = ""
     """App 的版本（M10.1）：命令列是 rpa-worker 套件的版本，桌面 App 是建置資訊裡的版本。"""
+    features: tuple[str, ...] = tuple(sorted(FEATURES))
+    """看得懂的 DSL 擴充（M7a）；和程式碼一起打包，所以就是這份程式的 :data:`FEATURES`。"""
 
     @classmethod
     def detect(
@@ -153,4 +158,5 @@ class WorkerInfo:
             "browsers": list(self.browsers),
             "display": self.display,
             "version": self.version,
+            "features": list(self.features),
         }

@@ -35,6 +35,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Issue, format_field, format_issue, validate_data
+from rpa_core.dsl.features import data_features
 from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.commands import module_command
@@ -572,14 +573,15 @@ class RoleService:
 
     # ------------------------------------------------------------ 檢查
 
-    def check_launcher(self, engine: str) -> Launch:
+    def check_launcher(self, engine: str, features: Collection[str] = ()) -> Launch:
         """登入檢查在哪台跑：這台有下載這個瀏覽器時在這台；沒有時，請求透過錄製端就交給錄製端
-        （無頭，不必能顯示視窗）；都不行時拋出說明。"""
+        （無頭，不必能顯示視窗）；都不行時拋出說明。``features`` 是登入設定用到的 DSL 擴充
+        （錄製端的 App 要看得懂，M7a）。"""
         if engine in self.local_engines():
             return launch
         via = self.hosts.current() if self.hosts is not None else None
         if via is not None and self.hosts is not None:
-            self.hosts.check(via, engine=engine, headed=False)
+            self.hosts.check(via, engine=engine, headed=False, features=features)
             return self.hosts.launcher(via)
         raise _error(
             422,
@@ -690,7 +692,7 @@ class RoleService:
         if settings is None:
             raise _error(404, "role_not_found", t("error.role_not_found", id=role_id))
         engine = self.get_role(role_id).engine
-        launcher = self.check_launcher(engine)
+        launcher = self.check_launcher(engine, data_features(settings.to_json()))
         with self._lock:
             login = self._logins.get(role_id)
             if role_id in self._checking or (login is not None and login.active):
@@ -764,7 +766,7 @@ class RoleService:
         engine = self.get_role(role_id).engine
         launcher = self.launcher
         if via is not None and self.hosts is not None:
-            self.hosts.check(via, engine=engine)
+            self.hosts.check(via, engine=engine, features=data_features(settings.to_json()))
             launcher = self.hosts.launcher(via)
         folder = self.storage.roles / role_id
         folder.mkdir(parents=True, exist_ok=True)

@@ -13,7 +13,9 @@ CI 的桌面端建置在 Windows 建好 RPA Worker、跑完自我測試之後執
 4. 等裝置上線，確認回報的是建置資訊的版本與程式指紋（和 Portal 相同）；建置資訊從同資料夾的
    ``rpa-child --version`` 讀（主控台程式）。記下權杖存在哪裡（認證管理員或退回的檔案）。
 5. 以「遠端 worker」無頭執行 BA-001，再用它的出參執行 BA-002：兩個都要通過、都由這台裝置執行，
-   報告回到 Portal。
+   報告回到 Portal。再執行 iframe 的範例（M7a，``scenarios/examples/iframe-form.yaml``）：
+   打包版回報看得懂 ``frame``（否則伺服器不交給它），在打包版自己的測試網站 ``/frames``
+   的巢狀 iframe 裡填寫、勾選、送出，出參是送出後的狀態。
 給了 ``--installer``（M10.1 PR 3）時，第 3 步之前先**靜默安裝**到暫存資料夾（檢查檔案、開始功能表
 捷徑、解除安裝項目的版本），之後的步驟都用**裝好的** App；第 5 步之後再加三步：
 
@@ -53,6 +55,10 @@ RUN_KEY: Final = r"Software\Microsoft\Windows\CurrentVersion\Run"
 SILENT: Final = ("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART")
 
 JsonObject = dict[str, object]
+
+IFRAME_EXAMPLE: Final = ROOT / "scenarios" / "examples" / "iframe-form.yaml"
+"""iframe 的範例（M7a）：表單在 iframe 裡，裡面還有一個 iframe；入參 title 預設「iframe 範例」。"""
+IFRAME_STATUS: Final = "已送出：iframe 範例"
 
 
 class StepFailedError(Exception):
@@ -131,10 +137,18 @@ def stop_process(process: subprocess.Popen[bytes] | None, request: Path | None =
         process.wait(timeout=30)
 
 
-def _validate(api: Api, scene: str, inputs: JsonObject) -> JsonObject:
+def create_scene(api: Api, scene: str, path: Path) -> int:
+    """用管理 API 建立場景，把第 2 版存成這個檔案的內容；回傳版本號碼。"""
+    api.call("POST", "/api/scenes", {"id": scene, "name": scene})
+    files = {"scenario.yaml": path.read_text(encoding="utf-8")}
+    saved = api.call("POST", f"/api/scenes/{scene}/revisions", {"baseRevision": 1, "files": files})
+    return int(cast("int", saved.get("number") or 2))
+
+
+def _validate(api: Api, scene: str, inputs: JsonObject, revision: int = 1) -> JsonObject:
     """以「遠端 worker」無頭驗證一個範例場景，等它結束。"""
     payload = {"inputs": inputs, "headless": True, "engine": "chromium", "target": "remote"}
-    created = api.call("POST", f"/api/scenes/{scene}/revisions/1/validate", payload)
+    created = api.call("POST", f"/api/scenes/{scene}/revisions/{revision}/validate", payload)
     run_id = str(created.get("id"))
 
     def finished() -> JsonObject | None:
@@ -425,10 +439,23 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
         result = _validate(api, "ba-002", {"recordId": state["recordId"]})
         return str(result.get("id"))
 
+    def iframe() -> str:
+        """M7a：打包版回報看得懂 frame，在巢狀 iframe 裡執行範例場景。"""
+        record = api.call("GET", f"/api/workers/{DEVICE}")
+        features = record.get("features")
+        if not isinstance(features, list) or "frame" not in features:
+            raise StepFailedError(f"打包版沒有回報看得懂 frame：features={features}")
+        revision = create_scene(api, "iframe-form", IFRAME_EXAMPLE)
+        result = _validate(api, "iframe-form", {}, revision)
+        output = cast("JsonObject", result.get("output") or {})
+        if output.get("status") != IFRAME_STATUS:
+            raise StepFailedError(f"出參是 {output}，應該是「{IFRAME_STATUS}」")
+        return f"{result.get('id')} → {output.get('status')}"
+
     plan: list[tuple[str, Callable[[], str]]] = [("portal", start_portal), ("invite", invite)]
     if installer is not None:
         plan.append(("install", install))
-    plan += [("pair", start_worker), ("ba-001", ba_001), ("ba-002", ba_002)]
+    plan += [("pair", start_worker), ("ba-001", ba_001), ("ba-002", ba_002), ("iframe", iframe)]
     if installer is not None:
         plan += [("upgrade", upgrade), ("uninstall", uninstall), ("remove-data", remove_data)]
     try:
