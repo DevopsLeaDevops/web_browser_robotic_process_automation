@@ -19,7 +19,11 @@ LOCALES = ("zh-Hant", "zh-Hans", "en")
 CATALOG_DIRS = sorted(
     {
         p.parent
-        for pattern in ("packages/*/src/*/locales/*.json", "apps/*/src/*/locales/*.json")
+        for pattern in (
+            "packages/*/src/*/locales/*.json",
+            "apps/*/src/*/locales/*.json",
+            "tools/**/locales/*.json",
+        )
         for p in ROOT.glob(pattern)
     }
 )

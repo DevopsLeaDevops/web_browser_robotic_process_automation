@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Git 全歷史視覺化 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body><main id="main">
+<nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="index.html">任務索引</a></nav>
+<div class="heading"><div><h1>Git 全歷史視覺化</h1><p>20261020-git-history-viewer；ChatGPT／Codex 主責，審閱與接收方未指定。</p></div></div>
+<div class="stack">
+<section class="panel" id="scope"><div class="panel-header"><h2>需求與範圍</h2></div><div class="panel-body">
+<p>使用者於本次對話要求展示歷史上所有提交、分支與主線關係，並持久化成可重複使用的工具。實作獨立開發腳本，產生可離線開啟的完整歷史圖；支援分支／PR 篩選、搜尋、提交詳情及重新取得遠端資料。只展示可取得的 Git 物件，不宣稱能還原已刪除且無引用、已被回收的提交。</p>
+<p>分支：<code>chore/git-history-viewer</code>；起點：<code>b9a3387a46bdb858656d98eef323b308c0edf632</code>；PR 尚未建立。主工作區保持原分支，獨立 worktree 實作。責任範圍：<code>tools/git_history.py</code>、圖形資源與語系、相關測試、開發文件、翻譯來源掃描及本任務卡。</p>
+</div></section>
+<section class="panel" id="progress"><div class="panel-header"><h2>進度與決定</h2></div><div class="panel-body"><ul class="points">
+<li>實作與本地驗證完成，準備提交 PR。使用 Python 標準函式庫與 Git；GitHub PR 補全使用已登入的 gh。</li>
+<li>預設只讀本機 Git；指定更新時只 fetch，不切分支、不 merge、不 rebase、不修改工作檔案。輸出預設放在已忽略的 artifacts/。</li>
+<li>實線只代表 Git 的父子關係；Squash 的 PR 對應獨立標示，不虛構 merge 邊。</li>
+</ul></div></section>
+<section class="panel" id="validation"><div class="panel-header"><h2>驗證</h2></div><div class="panel-body">
+<p>2026-10-20 20:38 America/Los_Angeles（PDT，UTC−07:00），macOS arm64、Python 3.13.16、基準 b9a3387 加本次差異：</p>
+<ul class="points">
+<li><code>pytest tests/ci/test_git_history.py tests/docs tests/i18n -q</code>：310 passed。涵蓋 merge、多父提交路徑、分支、annotated tag、獨立根、detached HEAD、淺層與空倉庫、已刪分支的 PR head 補全、HTML 跳脫、PR 分頁及三語文件。</li>
+<li><code>ruff check .</code>、<code>ruff format --check .</code>、Node 語法檢查通過；修改範圍的 Pyright 0 errors／0 warnings。全倉庫以 <code>pyright --pythonplatform Linux</code> 驗證為 0 errors／3 個既有 pystray 平台警告；原生 macOS 設定另有未修改的 Foundation 缺少 stub 錯誤。</li>
+<li><code>pytest -m 'not browser' -n 4 --dist loadfile -q</code>：1359 passed、2 個 Windows 平台測試 skipped、1 個既有 macOS 測試失敗。失敗為 <code>test_frozen_commands_use_the_app_entry</code> 期待 rpa、實際 rpa-child；該測試與被測程式未在本任務修改。此結果在新增最後一項 PR head 補全測試之前取得，後續受影響測試已重跑。</li>
+<li>實際倉庫完整匯出：512 commits、139 refs、57 PRs；瀏覽器驗證桌面與窄視窗、origin/main 的 51 個祖先、跳至根提交、搜尋 #57、上一筆／下一筆及語言切換，無 JavaScript error。檢查出 PR57 目前合入 m11/leftovers，不是 main；圖形維持真實父子關係。</li>
+</ul>
+<p>使用者人工驗收與獨立審閱尚未執行；CI 將以 PR 最新 head 為準。</p>
+</div></section>
+<section class="panel" id="log"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><p>2026-10-20 America/Los_Angeles（PDT，UTC−07:00）：建立任務；取得最新 origin/main。桌面工具無法在外層非 Git 工作區建立受管 worktree，因此以 Git 在同層建立獨立工作目錄。</p></div></section>
+</div></main></body></html>

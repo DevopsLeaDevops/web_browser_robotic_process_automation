@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:f76f7b7a3aa0f8ab">
+<title>Git history graph · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="git-history" data-root="../">
+<main id="main">
+  <div class="heading"><div><h1>Git history graph</h1><p>Save commits, branches, tags and PR associations as an interactive, offline HTML file. Run the same command again to refresh it.</p></div></div>
+  <div class="stack">
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>Generate and refresh</h2></div>
+      <div class="panel-body">
+        <p>Run from the repository root. Only Python 3.12+ and Git are required; no additional Python packages. In a development environment use <code>uv run python</code>; on a Linux server use <code>.venv-server/bin/python</code>; on Windows use <code>.venv\Scripts\python.exe</code> in place of <code>python</code>.</p>
+<pre class="source">python tools/git_history.py --open
+python tools/git_history.py --fetch --github --lang zh-Hans --timezone Asia/Shanghai --open</pre>
+        <p>The first command reads all locally available history. The second fetches remote branches, tags and PR heads retained by GitHub, and reads PRs in every state. It requires an installed, authenticated <code>gh</code> CLI (run <code>gh auth login</code> first). Omit <code>--github</code> for other Git hosts. For offline use, omit <code>--fetch --github</code>.</p>
+        <p>The default output is <code>artifacts/git-history.html</code>, which Git ignores. On a headless server omit <code>--open</code>, copy the resulting HTML to your computer, and open it in a browser. Data, styles and scripts are embedded; no CDN or web server is required.</p>
+<pre class="source">python tools/git_history.py --repo /path/to/repository --output /path/to/history.html --fetch
+python tools/git_history.py --help</pre>
+        <p><code>--lang</code> supports <code>zh-Hant</code> (default), <code>zh-Hans</code> and <code>en</code>; the page also has a language selector. <code>--timezone</code> defaults to <code>America/Los_Angeles</code>. The page labels the timezone actually used. Generating again replaces the output file; there is no background monitoring.</p>
+      </div>
+    </section>
+    <section class="panel" id="read">
+      <div class="panel-header"><h2>Read the graph</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>The default includes all history, including independent branches such as CI metrics. Select <code>origin/main</code> to see the remote main branch and its ancestors. Local <code>main</code> may point elsewhere.</li>
+        <li>Dots represent commits; lines follow actual parents. Hollow dots have multiple parents. Newest-first topological order preserves ancestry, so dates across branches need not strictly decrease.</li>
+        <li>Search messages, authors, SHAs, branch names or <code>#57</code>, then use Previous/Next. Intermediate nodes stay visible, preserving complete paths. Select a commit for its full message, refs, related PRs and clickable parents.</li>
+        <li>A squash merge creates a different SHA. The graph preserves the original PR head and GitHub's recorded integration commit separately. A merged PR does not create a Git parent edge between these nodes. A PR merged into a feature branch is not necessarily in main.</li>
+        <li>Rendering is virtualized while scrolling, with no fixed commit limit. The complete JSON still loads into memory, so large repositories require correspondingly larger files and memory.</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="coverage">
+      <div class="panel-header"><h2>Coverage and effects</h2></div>
+      <div class="panel-body">
+        <p>Includes all commits reachable from local refs and HEAD, including fetched remote branches, tags and PRs. It does not read reflogs or scan dangling objects; deleted commits without surviving refs cannot be guaranteed recoverable. Shallow clones display a warning. If the remote has full history, run <code>git fetch --unshallow</code> before generating again.</p>
+        <p>The tool does not checkout, merge, rebase or push, or change working files and branches. <code>--fetch</code> updates remote-tracking refs and downloads objects and tags. GitHub PR heads go into dedicated <code>refs/git-history/origin/pr/*</code> refs (the name follows <code>--remote</code>). Old refs are not pruned; cached refs for deleted remote branches may remain visible and do not prove those branches still exist remotely.</p>
+        <p>The output contains commit messages, authors, branch names and PR titles; sharing the HTML shares this repository history. It does not export Git credentials or read Portal data directories. The page is a dated snapshot; fetch again to obtain current state.</p>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

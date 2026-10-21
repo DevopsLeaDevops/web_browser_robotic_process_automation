@@ -202,6 +202,11 @@ window.DOCS_NAV = {
           "name": {"zh-Hant": "開發規範", "zh-Hans": "开发规范", "en": "Conventions"}
         },
         {
+          "id": "git-history",
+          "href": "develop/git-history.html",
+          "name": {"zh-Hant": "Git 歷史圖", "zh-Hans": "Git 历史图", "en": "Git history graph"}
+        },
+        {
           "id": "writing-docs",
           "href": "develop/writing-docs.html",
           "name": {"zh-Hant": "文檔與 ADR", "zh-Hans": "文档与 ADR", "en": "Docs & ADRs"}

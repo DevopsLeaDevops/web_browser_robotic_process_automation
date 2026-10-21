@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Git 歷史圖 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="git-history" data-root="../">
+<main id="main">
+  <div class="heading"><div><h1>Git 歷史圖</h1><p>把提交、分支、標籤與 PR 的關係保存成可離線開啟的互動 HTML；後續重新執行同一命令即可更新。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>產生與更新</h2></div>
+      <div class="panel-body">
+        <p>在倉庫根目錄執行。工具只需要 Python 3.12 以上與 Git，不需要另外安裝 Python 套件。已有開發環境可用 <code>uv run python</code>；Linux 伺服器可用 <code>.venv-server/bin/python</code>；Windows 可用 <code>.venv\Scripts\python.exe</code> 代替下面的 <code>python</code>。</p>
+<pre class="source">python tools/git_history.py --open
+python tools/git_history.py --fetch --github --lang zh-Hans --timezone Asia/Shanghai --open</pre>
+        <p>第一條只讀本機已有的全部歷史。第二條先擷取遠端分支、標籤與 GitHub 保留的 PR head，並讀取所有狀態的 PR；需要已安裝且登入的 <code>gh</code>（先執行 <code>gh auth login</code>）。移除 <code>--github</code> 仍可用於其他 Git 服務。離線時移除 <code>--fetch --github</code>。</p>
+        <p>預設輸出到 <code>artifacts/git-history.html</code>（已被 Git 忽略）。無桌面的伺服器不要加 <code>--open</code>；把產出的 HTML 複製到自己的電腦後用瀏覽器開啟。所有資料、樣式與程式都在這個檔案中，無需 CDN 或網站服務。</p>
+<pre class="source">python tools/git_history.py --repo /path/to/repository --output /path/to/history.html --fetch
+python tools/git_history.py --help</pre>
+        <p><code>--lang</code> 支援 <code>zh-Hant</code>（預設）、<code>zh-Hans</code> 與 <code>en</code>，頁面上也能切換。<code>--timezone</code> 預設 <code>America/Los_Angeles</code>，畫面會標出實際採用的時區。重新產生會取代同一輸出檔，不會持續在背景監控。</p>
+      </div>
+    </section>
+    <section class="panel" id="read">
+      <div class="panel-header"><h2>怎麼讀圖</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>預設顯示全部歷史，包含 CI 指標等獨立分支；選擇 <code>origin/main</code> 可只看目前遠端主線及其祖先。<code>main</code> 是本機分支，兩者可能不同。</li>
+        <li>圓點代表提交，線沿實際父提交相連，空心圓有多個父提交。順序由新到舊且遵守父子拓撲，不保證跨分支的日期嚴格遞減。</li>
+        <li>搜尋訊息、作者、SHA、分支或 <code>#57</code>，以「上一筆／下一筆」跳轉；不隱藏中間節點，因此連線仍然完整。點選提交可看完整訊息、引用、PR 與可跳轉的父提交。</li>
+        <li>Squash 合併會產生不同 SHA；圖中分開保存原 PR head 與 GitHub 記錄的合入提交，不能把「PR 已合併」當作兩點間的真實 Git 父子連線。PR 若合入功能分支，也不等於已進入 main。</li>
+        <li>捲動會逐段繪製，沒有固定提交數上限；圖形仍需把完整 JSON 載入記憶體，極大型倉庫的檔案與記憶體用量會隨歷史增加。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="coverage">
+      <div class="panel-header"><h2>「全部」的範圍與副作用</h2></div>
+      <div class="panel-body">
+        <p>收集所有本機引用與 HEAD 可達的提交，包含已擷取的遠端分支、標籤與 PR。預設不讀 reflog，也不掃描 dangling objects；已刪除且沒有引用保留的提交無法保證找回。淺層複製會顯示警告；遠端有完整歷史時，可先執行 <code>git fetch --unshallow</code> 再產生。</p>
+        <p>工具不 checkout、merge、rebase 或 push，不改動工作檔案與分支。<code>--fetch</code> 會更新遠端追蹤引用、下載物件與標籤；GitHub PR head 存在專用的 <code>refs/git-history/origin/pr/*</code>（使用 <code>--remote</code> 指定其他遠端時名稱隨之改變）。不刪除舊引用；因此已刪除遠端分支的本機快取也可能出現在圖中，不能把所有引用都當作遠端仍存在的分支。</p>
+        <p>輸出包含提交訊息、作者、分支名稱與 PR 標題；分享 HTML 即分享這些倉庫歷史。工具不輸出 Git 認證資料，也不讀取 Portal 資料目錄。頁面是明確標示產生時間的快照，最新狀態需重新擷取。</p>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

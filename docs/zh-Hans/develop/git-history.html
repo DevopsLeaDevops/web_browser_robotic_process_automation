@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/git-history.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Git 历史图 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="git-history" data-root="../">
+<main id="main">
+  <div class="heading"><div><h1>Git 历史图</h1><p>把提交、分支、标签与 PR 的关系保存成可脱机打开的交互 HTML；后续重新运行同一命令即可更新。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>产生与更新</h2></div>
+      <div class="panel-body">
+        <p>在仓库根目录运行。工具只需要 Python 3.12 以上与 Git，不需要另外安装 Python 包。已有开发环境可用 <code>uv run python</code>；Linux 服务器可用 <code>.venv-server/bin/python</code>；Windows 可用 <code>.venv\Scripts\python.exe</code> 代替下面的 <code>python</code>。</p>
+<pre class="source">python tools/git_history.py --open
+python tools/git_history.py --fetch --github --lang zh-Hans --timezone Asia/Shanghai --open</pre>
+        <p>第一条只读本机已有的全部历史。第二条先截取远程分支、标签与 GitHub 保留的 PR head，并读取所有状态的 PR；需要已安装且登录的 <code>gh</code>（先运行 <code>gh auth login</code>）。移除 <code>--github</code> 仍可用于其他 Git 服务。脱机时移除 <code>--fetch --github</code>。</p>
+        <p>默认输出到 <code>artifacts/git-history.html</code>（已被 Git 忽略）。无桌面的服务器不要加 <code>--open</code>；把产出的 HTML 拷贝到自己的电脑后用浏览器打开。所有数据、样式与程序都在这个文件中，无需 CDN 或网站服务。</p>
+<pre class="source">python tools/git_history.py --repo /path/to/repository --output /path/to/history.html --fetch
+python tools/git_history.py --help</pre>
+        <p><code>--lang</code> 支持 <code>zh-Hant</code>（默认）、<code>zh-Hans</code> 与 <code>en</code>，页面上也能切换。<code>--timezone</code> 默认 <code>America/Los_Angeles</code>，画面会标出实际采用的时区。重新产生会取代同一输出档，不会持续在背景监控。</p>
+      </div>
+    </section>
+    <section class="panel" id="read">
+      <div class="panel-header"><h2>怎么读图</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>默认显示全部历史，包含 CI 指针等独立分支；选择 <code>origin/main</code> 可只看目前远程主线及其祖先。<code>main</code> 是本机分支，两者可能不同。</li>
+        <li>圆点代表提交，线沿实际父提交相连，空心圆有多个父提交。顺序由新到旧且遵守父子拓扑，不保证跨分支的日期严格递减。</li>
+        <li>搜索消息、作者、SHA、分支或 <code>#57</code>，以「上一笔／下一笔」跳转；不隐藏中间节点，因此连接仍然完整。点击提交可看完整消息、引用、PR 与可跳转的父提交。</li>
+        <li>Squash 合并会产生不同 SHA；图中分开保存原 PR head 与 GitHub 记录的合入提交，不能把「PR 已合并」当作两点间的真实 Git 父子连接。PR 若合入功能分支，也不等于已进入 main。</li>
+        <li>卷动会逐段绘制，没有固定提交数上限；图形仍需把完整 JSON 加载内存，极大型仓库的文件与内存用量会随历史增加。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="coverage">
+      <div class="panel-header"><h2>「全部」的范围与副作用</h2></div>
+      <div class="panel-body">
+        <p>收集所有本机引用与 HEAD 可达的提交，包含已截取的远程分支、标签与 PR。默认不读 reflog，也不扫描 dangling objects；已删除且没有引用保留的提交无法保证找回。浅层拷贝会显示警告；远程有完整历史时，可先运行 <code>git fetch --unshallow</code> 再产生。</p>
+        <p>工具不 checkout、merge、rebase 或 push，不改动工作文件与分支。<code>--fetch</code> 会更新远程追踪引用、下载对象与标签；GitHub PR head 存在专用的 <code>refs/git-history/origin/pr/*</code>（使用 <code>--remote</code> 指定其他远程时名称随之改变）。不删除旧引用；因此已删除远程分支的本机缓存也可能出现在图中，不能把所有引用都当作远程仍存在的分支。</p>
+        <p>输出包含提交消息、作者、分支名称与 PR 标题；分享 HTML 即分享这些仓库历史。工具不输出 Git 认证数据，也不读取 Portal 数据目录。页面是明确标示产生时间的快照，最新状态需重新截取。</p>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -224,7 +224,11 @@ def generate_nav(text: str, convert: Convert) -> str:
 
 
 def catalog_sources() -> list[Path]:
-    patterns = ("packages/*/src/*/locales/*zh-Hant.json", "apps/*/src/*/locales/*zh-Hant.json")
+    patterns = (
+        "packages/*/src/*/locales/*zh-Hant.json",
+        "apps/*/src/*/locales/*zh-Hant.json",
+        "tools/**/locales/*zh-Hant.json",
+    )
     return sorted(p for pattern in patterns for p in ROOT.glob(pattern))
 
 
