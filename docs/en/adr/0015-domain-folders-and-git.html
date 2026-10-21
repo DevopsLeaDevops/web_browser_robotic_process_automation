@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:9af81c865c512b4b">
+<title>ADR 0015 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0015" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0015: Scenarios and composite scenarios live in domain folders, synced between servers through git</h1>
+      <p>Each domain is a self-contained folder (manifests, immutable revisions, validation and publication records); the database is only an index. A domain folder can be synced with a directory in a git repository, so servers that record, validate and use scenarios in different places share the same definitions, while login states, Secrets and run records stay on each server.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-19 (proposed, #40); 2026-10-19 (D1–D11 confirmed by the user); 2026-10-20 (M11 PRs 1–3 merged)</dd>
+        <dt>Scope</dt><dd>rpa-core (<code>rpa_core.pack</code> folder format and checks), rpa-cli (<code>rpa pack check</code>), rpa-server (<code>packs.py</code> loading and records, <code>gitsync.py</code>, migrations 0010–0012, the domain and composite scenario pages); the data folder layout (<code>domains/</code>, <code>git/</code>, <code>work/</code>, <code>workflow-runs/</code>, <code>backups/</code>)</dd>
+        <dt>Related</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a> (the DSL is the single source of truth); <a href="0008-sqlite-and-postgresql.html">ADR 0008</a> (database); <a href="0009-scenario-contract.html">ADR 0009</a> (what was validated is what gets published); <a href="0012-remote-workers.html">ADR 0012</a>, <a href="0014-desktop-apps.html">ADR 0014</a> (workers and recorders get their files with each task); design and decisions in the task record <code>handoff/tasks/20261019-data-storage.html</code></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Before M11, scenario revisions were stored in <code>scenes/&lt;scenario&gt;/&lt;n&gt;/</code> in the data folder, while revision states, validation results, publications and composite scenario definitions lived only in SQLite. That is fine for one server, but operations are distributed: people record in different places, several people validate before publishing, and scenarios are used on several servers. Two servers had no way to exchange scenarios or see each other's validation results, and a composite scenario that used another business domain's scenarios had nowhere to state what it depends on.</p>
+          <p>The user wanted scenarios and composite scenarios to live in a third-party repository like code, with each domain loadable on its own, so that a new server pulls only the domains it needs and can record, debug and run them.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Domain folders.</strong> <code>domains/&lt;domain&gt;/</code> holds <code>pack.yaml</code> (name, description, the domains it depends on and where to get them), <code>scenes/</code>, <code>roles/</code> and <code>composites/</code>. Scenarios and composite scenarios follow the same rules: a manifest, immutable revision directories, revision files (hashes) and validation records. The format is in <code>rpa_core.pack</code>; <code>rpa pack check</code> checks a folder without the Portal.</li>
+            <li><strong>The database is an index.</strong> It is rebuilt from the folder on start, after a pull and on Reload; only per-server settings live only in the database (URL overrides, order, sources, sync state).</li>
+            <li><strong>Validation and publication records go into the folder (D3).</strong> Each validation writes a record (who, which server, which worker, result, hash; for composite scenarios also the scenario revision each node ran), and publication is written to <code>scene.yaml</code>/<code>composite.yaml</code>. The publishing gate is “the folder has a passed record with a matching hash”, whichever server validated it.</li>
+            <li><strong>Run records stay out of the folder (D4).</strong> Reports and screenshots stay in the server's <code>runs/</code> and <code>workflow-runs/</code>, with a <code>run.json</code> for later review.</li>
+            <li><strong>Only the server does git (D5, D6).</strong> Each domain can have a repository, branch, directory and authentication (public repository, HTTPS token, or an SSH deploy key the Portal generates). Pulls and pushes merge file by file (last sync, local, remote); only a file changed differently on both sides is a conflict, which stops with three choices (cancel, push to a new branch, or use the remote after a backup), and nothing is ever force-pushed. Revisions with the same content hash count as the same revision.</li>
+            <li><strong>IDs stay globally unique (D8).</strong> References in the DSL, roles and composite scenarios do not change; cross-domain dependencies are recorded in each composite scenario revision's <code>requires</code> (domain, scenario, revision, hash) and in <code>pack.yaml</code>, and the pages say how to fill a gap (add from git, pull, save again).</li>
+            <li><strong>Secrets stay on the server (D9).</strong> Secret values, login states, URL overrides, git tokens and private keys stay in the server's data folder; pushing is blocked by file names that look like secrets and by content containing a Secret value.</li>
+            <li><strong>Automatic migration on upgrade (D7).</strong> Back up to <code>backups/</code> first, then move the old revision directories and the database's validations, publications and composite scenarios into domain folders.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body">
+          <h3>Benefits</h3>
+          <ul class="points">
+            <li>Scenarios, composite scenarios and their validation and publication history can be reviewed and traced in git, in the company's own repository.</li>
+            <li>A passed record from any server can back a publication: “A validates, B publishes” needs no rerun.</li>
+            <li>A new server only sets up the domains it needs; recorders and workers do not change (tasks carry their files).</li>
+            <li>An existing revision changed outside the Portal no longer matches its hash, so it can neither run nor be published.</li>
+          </ul>
+          <h3>Costs</h3>
+          <ul class="points">
+            <li>There are two copies of the state: the folder is the truth and the database is aligned on load; files changed outside the Portal need a Reload (D10, no watching).</li>
+            <li>Creating the same revision number of a scenario, or publishing the same scenario, on two servers at once conflicts and needs a person to decide; edit a scenario on one server at a time.</li>
+            <li>The server needs git 2.25 or later; pushing needs write access to the repository (a token or deploy key).</li>
+            <li><strong>MVP trade-offs:</strong> the working copy fetches all objects of the branch rather than only the configured directory (it only matters for very large repositories); while a domain is syncing, a second git operation on it gets “syncing” right away, and saving in the Portal does not queue; instead the folder is checked before applying and the user is asked to retry if it changed.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Options not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Syncing databases (export/import or replication)</td><td>No history, no review, no way to take one domain; SQLite does not suit writes from several servers.</td></tr>
+              <tr><td>Publication state only on each server (not in git)</td><td>The original proposal; the user asked for publication state to be recorded, because several people validate before publishing and scenarios are used in several places (D3).</td></tr>
+              <tr><td>A commit for every save</td><td>Commits would be tiny and saving would wait for the network; instead local changes are the difference from the last sync, committed once when pushing.</td></tr>
+              <tr><td>Merging the contents of the same file automatically</td><td>A wrong merge of revision or publication YAML would break the publishing gate; revision directories are immutable and validation records are one file each, so conflicts are rare and left to a person.</td></tr>
+              <tr><td>A sparse working copy and rebase</td><td>The original design; replaced by a bare repository and low-level git commands that replace only the configured directory, which needs no working tree, gives the same result as a rebase and never touches other directories.</td></tr>
+              <tr><td>git on recorders and workers too</td><td>Credentials would spread to every computer; tasks already carry their revision files (M9a, M10), so the protocol does not change.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>
