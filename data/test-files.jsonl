@@ -10165,3 +10165,6 @@
 {"attempt": 1, "file": "apps/desktop/tests/test_selftest.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39569174958, "seconds": 0.0, "tests": 1, "workflow": "CI"}
 {"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_firefox_video.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 39573149135, "seconds": 29.1, "tests": 1, "workflow": "CI"}
 {"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_firefox_video.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39573149135, "seconds": 30.0, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_cancel.py", "report": "pytest-report-3.12/pytest-report.xml", "run_id": 39573187318, "seconds": 16.5, "tests": 2, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_zz_diag_cancel.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 39573187318, "seconds": 20.9, "tests": 2, "workflow": "CI"}
+{"attempt": 1, "file": "packages/rpa_runner/tests/test_zz_diag_cancel.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 39573187318, "seconds": 17.9, "tests": 2, "workflow": "CI"}
