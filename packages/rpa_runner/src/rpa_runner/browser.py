@@ -15,8 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal, cast
 
+from playwright.sync_api import FrameLocator, Page, expect
 from playwright.sync_api import Locator as PwLocator
-from playwright.sync_api import Page, expect
 from pydantic import TypeAdapter
 
 from rpa_core.dsl import (
@@ -35,6 +35,7 @@ from rpa_core.dsl import (
     Step,
     WaitForStep,
 )
+from rpa_runner.i18n import t
 from rpa_runner.templates import Context, render_tree
 
 __all__ = [
@@ -136,9 +137,22 @@ class StepRecord:
 # ---------------------------------------------------------------- 定位器
 
 
-def resolve(scope: Page | PwLocator, locator: Locator) -> PwLocator:
-    """DSL 定位器 → Playwright Locator（不含 fallback）。"""
-    base: Page | PwLocator = resolve(scope, locator.within) if locator.within else scope
+def resolve(scope: Page | PwLocator | FrameLocator, locator: Locator) -> PwLocator:
+    """DSL 定位器 → Playwright Locator（不含 fallback）。
+
+    有 frame 時先進入那個 iframe 載入的頁面；within 與元素本身都在那個頁面裡找。
+    anyFrame 在頁面與所有 iframe 裡找（Playwright 的 ``frame_locator()``，不帶引數）；
+    只能從頁面開始找，不能相對於另一個元素（例如 extract 的 fields）。
+    """
+    if locator.any_frame:
+        if not isinstance(scope, Page):
+            raise ValueError(t("browser.any_frame_scope"))
+        scope = scope.frame_locator()
+    if locator.frame is not None:
+        scope = resolve(scope, locator.frame).content_frame
+    base: Page | PwLocator | FrameLocator = (
+        resolve(scope, locator.within) if locator.within else scope
+    )
     exact = bool(locator.exact)
     match locator.strategy:
         case "testId":
@@ -168,12 +182,22 @@ def resolve(scope: Page | PwLocator, locator: Locator) -> PwLocator:
     return result
 
 
+def _inherit_frame(item: Locator, primary: Locator) -> Locator:
+    """備用定位器沒寫 frame 時，沿用主要定位器的 frame。"""
+    if item.frame is not None or primary.frame is None:
+        return item
+    return item.model_copy(update={"frame": primary.frame})
+
+
 def locate(page: Page, locator: Locator, timeout_ms: int) -> PwLocator:
     """有 fallback 時，在逾時內輪流找第一個存在的候選；都找不到就回傳主要定位器。"""
     primary = resolve(page, locator)
     if not locator.fallback:
         return primary
-    candidates = [primary, *(resolve(page, item) for item in locator.fallback)]
+    candidates = [
+        primary,
+        *(resolve(page, _inherit_frame(item, locator)) for item in locator.fallback),
+    ]
     ends = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < ends:
         for candidate in candidates:

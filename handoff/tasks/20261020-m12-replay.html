@@ -15,16 +15,41 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261020-m12-replay；2026-10-21 02:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261020-m12-replay；2026-10-21 04:44 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-20 20:19 PDT 在 Claude 對話：「先一起設計完成，有不確定的溝通確定，設計沒問題再動手 coding」。前提：Playwright 錄製支援錄影回看。目標：(1) 腳本在 worker 驗證、運行時錄影，有頭、無頭都支援；(2) 運行結束後在運行紀錄回看；(3) 回看是獨立功能、之後會很常用：方便定位運作過程、還原執行現場，支援暫停、拖曳、和現有的步驟關聯；期望有播放介面、有縮圖的進度條、有步驟關聯。UI 互動由 Claude 設計。定為 M12 里程碑。驗收見第 1 節。</dd>
         <dt>範圍／不包含</dt><dd>見第 3～7 節。</dd>
-        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱與決定：使用者。接收方：未指定。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原實作：Claude；使用者授權 ChatGPT／Codex 推進後續整合、驗證與推送，PR 合併仍由使用者處理。#61 整合已完成，見<a href="#main-integration">整合紀錄</a>；#61 合併後接續 #64，見<a href="#player-integration">播放器整合</a>。影片比例與對時問題另列後續修復。</dd>
         <dt>修改檔案／整合者</dt><dd>本頁、<a href="20261020-m12-replay/prototype.html">互動原型</a>、任務索引、<a href="../decisions.html">決定</a>。PR 1：<code>rpa_runner</code>（browser、child、contexts、files、run、新的 video、proctree）、<code>rpa_worker</code>（Job、JobPayload、remote）、<code>rpa_server</code>（新的 videos、jobs、dispatch、services、api、domain、pages、models、遷移 0013、app）、<code>rpa_cli</code>（<code>rpa run --video</code>）、<code>testsite.webm</code>（測試用）、文件（架構、管理 Portal、DSL、ADR 0016 與導覽）。共用檔案：遷移編號 0013、訊息目錄、<code>docs/assets/nav.js</code>、ADR 索引（#60 也改 ADR 索引與導覽，後合併的一方解衝突）。整合者：Claude。</dd>
-        <dt>狀態</dt><dd>實作中：PR 1（#61，錄影與資料）修完 CI 找到的三個問題（Firefox 畫面被裁、Windows 取消後影片是空的、pyright），確認最新 head 的 CI；PR 2（播放器與入口）本機檢查通過，堆疊在 #61 上開 PR。</dd>
-        <dt>分支／PR／base SHA</dt><dd>設計：<code>docs/m12-replay-design</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（只有設計，併入 PR 1 後關閉）。實作：<code>m12/replay</code>，從 <code>b9a3387</code>（origin/main，#56）開，先帶入設計的三個提交；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/61">PR #61</a>（base main；2026-10-21 01:10 PDT 併入 main 097464c，含 #60）。PR 2：<code>m12/replay-player</code>（堆疊在 <code>m12/replay</code> 上，#61 合併後改 base 為 main）。診斷用的暫時分支 <code>tmp/m12-firefox-video-diag</code>（不合併，用完刪除）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>設計 d667ea6～8e620a4 已推送（併入 #61）。PR 1 已推送，見追加紀錄的 SHA；PR 2 已推送。</dd>
+        <dt>狀態</dt><dd>使用者已合併 #61（main b306dbe）。Codex 接續 #64 的 main 整合：單一英文文檔衝突已解、本地服務端與回看測試通過；推送與遠端結果見<a href="#player-integration">播放器整合</a>。PR 仍由使用者審閱與合併；A1（比例／裁切）與 A2（macOS Chromium 對時）待後續處理。</dd>
+        <dt>分支／PR／base SHA</dt><dd>設計：<code>docs/m12-replay-design</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（只有設計，併入 PR 1 後關閉）。實作：<code>m12/replay</code>，從 <code>b9a3387</code>（origin/main，#56）開，先帶入設計的三個提交；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/61">PR #61</a>（base main；2026-10-21 01:10 PDT 併入 main 097464c，含 #60）。PR 2：<code>m12/replay-player</code>（堆疊在 <code>m12/replay</code> 上，#61 合併後改 base 為 main）。診斷用的暫時分支 <code>tmp/m12-firefox-video-diag</code>（不合併；這個環境的 Git 代理不允許刪除分支，請使用者刪除）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>設計 d667ea6～8e620a4 已推送（併入 #61）。PR 1：程式的最後一個提交 4cd7438，之後是機器人的 98a520c 與本頁的回填（b9be32b 起）。PR 2：c476f24＋機器人的 2160bcf。都已推送。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、Playwright 1.56 只有 Chromium、系統 ffmpeg 只用來檢查）。PyPI、npm 與 Playwright 的瀏覽器下載被擋，沒辦法裝倉庫用的 Playwright 1.64；1.64 的行為是讀它的原始碼（v1.64.0 的 <code>packages/playwright-core/src/server</code>）得到的，第 8 節安排在 CI 實測。2026-10-21 00:57 PDT 起環境重建過（上一段在用量上限中斷，容器回收後只剩倉庫與暫存目錄），依賴照同樣的方式從 GitHub 原始碼載入；CI 的日誌下載網域被擋，診斷靠測試失敗訊息變成的標註。</dd>
       </dl></div>
+    </section>
+
+    <section class="panel" id="main-integration">
+      <div class="panel-header"><h2>PR #62 合併後的 main 整合</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>交接與授權：</strong>2026-10-21 04:18 America/Los_Angeles（PDT，UTC−07:00），使用者已在 <code>m12/replay</code> 執行 <code>git merge origin/main</code>，要求 Codex 接續解衝突、驗證及推送；PR 仍由使用者合併。</li>
+        <li><strong>起點：</strong>PR #61／<code>m12/replay</code> 的 <code>cb8116a</code>，合入 main <code>54a2df5</code>（已包含 #62）。沿用使用者正在合併的 checkout，保留原有暫存區；不 rebase、不強制推送。</li>
+        <li><strong>整合內容：</strong>路線圖同時保留 M12 與 M7a；確認英文 DSL、Portal、路線圖的兩邊內容後重算翻譯指紋，再產生簡中。檢查自動合併的 runner 定位器、錄影資料與遠端 Worker 分派。</li>
+        <li><strong>本地驗證（macOS arm64、Python 3.13.16、Playwright 1.64.0；cb8116a＋本次整合）：</strong><code>uv sync --locked</code>、Ruff check／format、i18n check、handoff 的 26 個連結與錨點通過。<code>pytest -q -n 4 -m 'not browser'</code>：1430 通過、2 個 Windows 專用測試略過、1 個既存環境失敗（<code>test_frozen_commands_use_the_app_entry</code> 硬編碼的 /Applications 路徑遇到已安裝的 Recorder，實際選到 rpa-child）。</li>
+        <li><strong>瀏覽器整合驗證：</strong><code>RPA_REQUIRE_BROWSER=1 uv run pytest -q -n 2 packages/rpa_runner/tests/test_frames.py packages/rpa_runner/tests/test_video_browser.py apps/server/tests/test_remote_worker_flow.py</code>：24 通過、1 失敗（Chromium 錄影對時，見 A2）。另以 <code>iframe-form.yaml</code> 開啟 <code>record_video=True</code>，Chromium 與 Firefox 都執行通過、出參正確、產生完整非空影片。</li>
+        <li><strong>型別檢查：</strong>原生 macOS Pyright 有既存的 Foundation stub 缺失 1 項及 pystray 來源警告 3 項；<code>uv run pyright --pythonplatform Linux</code> 為 0 錯誤、3 警告。提交時只略過受此環境問題影響的 pyright hook，其餘 hook 照常執行；GitHub 的型別檢查保留。</li>
+        <li><strong>交付：</strong>整合提交 <code>358b654c5f0a3839199ef3ae3c8145049eedef9d</code> 已推送至 PR #61；2026-10-21 04:32 America/Los_Angeles（PDT，UTC−07:00） 核對 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39592002765">CI 39592002765</a> 的靜態檢查、Python 3.12／3.13、Windows Worker 瀏覽器測試全部通過，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39592002925">桌面端建置 39592002925</a> 的 macOS Recorder 與 Windows Worker 建置、自我測試與端到端驗證通過。PR 說明已同步驗證與缺口；本次回填只改交接紀錄，後續 head 的檢查以 PR 為準。未合併 PR、未改版本、未發布 Release。A1 與 A2 仍待修復或釐清，不能視為已通過人工驗收。</li>
+        <li><strong>下一步：</strong>#61 的整合提交及 CI 通過後交由使用者合併；之後才把 #64 同步至最新 main、確認 PR base 為 main。正式版本須包含後續 A1 修復並完成三端驗收，再統一打包。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="player-integration">
+      <div class="panel-header"><h2>PR #61 合併後的播放器整合</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>起點與範圍：</strong>使用者於 2026-10-21 04:39 America/Los_Angeles（PDT，UTC−07:00）合併 #61，main 為 <code>b306dbe</code>。Codex 依既有的後續整合授權，將它合入 #64 的 <code>m12/replay-player</code>（原 head <code>362c14e</code>），不 rebase、不強制推送、不代為合併 PR。</li>
+        <li><strong>衝突處理：</strong>只有 <code>docs/en/design/portal.html</code> 的翻譯指紋衝突；保留播放器與 iframe 的正文，重新 stamp 並檢查簡中。自動整合的 services 同時保留播放器服務與 Worker 的 <code>local_worker</code> 能力分派。</li>
+        <li><strong>本地驗證（macOS arm64、Python 3.13.16、Playwright 1.64.0；362c14e＋本次整合）：</strong><code>uv sync --locked</code>、i18n check、Ruff check／format、<code>node --check apps/server/src/rpa_server/static/replay.js</code> 通過；Pyright Linux 平台 0 錯誤、3 個既有 pystray 警告（原生 macOS Foundation stub 的環境缺口見上一輪，不另改依賴）。<code>pytest -q -n 4 -m 'not browser' apps/server/tests tests/docs tests/i18n</code>：570 通過；<code>RPA_REQUIRE_BROWSER=1 uv run pytest -q apps/server/tests/test_replay_flow.py</code>：1 通過，實際錄影後驗證播放、縮圖、點步驟跳轉、失敗定位與釘選。</li>
+        <li><strong>交付：</strong>整合透過原 PR #64 交付，目標分支改為 main；與 main 的差異僅含播放器、回看入口與相關文檔，沒有重複引入 #61／#62。推送後檢查該提交的 CI 與桌面建置，再回填結果；不代使用者合併。A1、A2 的既有驗收缺口仍保留。</li>
+        <li><strong>下一步：</strong>#64 通過驗證後轉為待審閱，由使用者合併；處理 A1／A2 並完成三端驗收後才統一升版本、打標籤與發布。</li>
+      </ul></div>
     </section>
 
     <section class="panel" id="goal">
@@ -160,8 +185,20 @@
         <li><strong>已完成（PR 2）：</strong>回看頁（播放器、縮圖時間軸、步驟清單、斷言、運行資訊與釘選）、<code>GET /api/runs/{id}/replay</code>、「運行回看」選單與錄影設定、運行報告／運行頁／試驗場的入口、編輯頁 <code>?line=</code>、三種語言（簡中由 bootstrap 產生）、管理 Portal 設計（繁中、英文）。中斷前寫到 2026-10-20 22:05 PDT 左右；2026-10-21 補完：沒有影片時的分頁與清單、影片 metadata 比程式早載入、縮圖在知道長度前就截、點一步時標成點的那一步、上一步／下一步改依順序（步驟常比 0.4 秒短）、執行中結束後自動重新整理、分頁數字間距、影片區照影片比例、略過的步驟、定位提示的文字。</li>
         <li><strong>未完成／阻礙：</strong>Windows 的 Worker 測試偶爾卡住：66ebb8a 的 PR 運行與一次診斷運行卡住超過 20 分鐘（步驟逾時也停不下來），同樣的程式加上看門狗的另一次診斷全部通過、看門狗沒有抓到超過 90 秒的測試——卡住的地方可能在測試之外（例如殘留的程序佔著步驟的輸出）。已加上程序代號重複使用的防護與 CI 的工作逾時，重跑確認；人工驗收（第 8 節）；兩個 PR 的審閱與合併。</li>
         <li><strong>決定（實作選擇）：</strong>Firefox 錄影用新分頁；Windows 上先只結束瀏覽器；列出子孫時比對建立時間（程序代號會重複使用，避免結束無關的程序）；CI 的 Linux 測試與 Windows 的 Worker 測試各最多 30 分鐘（之前沒有上限）；PR 2 堆疊在 #61 上、以草稿開，#61 合併後改 base（避免重演 #57）。</li>
-        <li><strong>下一個具體動作：</strong>找出 Windows Worker 測試卡住的原因並修好，確認 #61 最新 head 的 CI 全綠；PR 2 的 CI；使用者審閱與合併 #61，再改 PR 2 的 base 為 main、合併；人工驗收。</li>
+        <li><strong>下一個具體動作：</strong>下一個 PR（從合併後的 main 開 <code>fix/m12-replay-scale</code>）修「人工驗收的發現」A1，並補上使用者其他的驗收結果。原本的：使用者審閱並合併 #61（和 #62 都改了路線圖、任務索引與 <code>browser.py</code>，後合併的一方解衝突）；把 #64 的 base 改成 main、從 main 重新整理後轉成正式 PR、合併；照第 8 節人工驗收；刪除 <code>tmp/m12-firefox-video-diag</code>。之後 Windows 的 Worker 測試若再卡住，30 分鐘逾時會讓它失敗，請在那次運行回報。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。暫存目錄裡有本機的依賴副本與截圖，不進倉庫。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="acceptance-findings">
+      <div class="panel-header"><h2>人工驗收的發現與下一個 PR（M12 follow-up）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>A1（使用者 2026-10-21 04:08 PDT，待修）：主體功能是通的；影片比例不對、看不全。</strong>截圖：播放中的錄影是 BA-001 的測試頁，字很大、右側和下方被裁掉（只看到頁面左上的一部分）。其他項目使用者還在驗證。</li>
+        <li><strong>推測原因（未驗證）：</strong>畫面縮放大於 100% 的螢幕（例如 Windows 125%／150%、Mac Retina）上，瀏覽器送出的每一格是實際像素（例如 1280×800 的頁面在 150% 時是 1920×1200），影片大小卻是 CSS 像素的 1280×800；Playwright 的 ffmpeg 用 <code>pad</code>／<code>crop</code> 從左上角裁切，所以只留下左上的三分之二。Firefox 的截取程式（Juggler 的 <code>nsScreencastService</code>）也把實際像素的畫面寬度和 CSS 像素的頁面寬度直接比較後裁切。無頭模式的 devicePixelRatio 是 1，所以 CI 測不到。</li>
+        <li><strong>先確認：</strong>出問題的那段是哪台電腦、有頭或無頭、哪個瀏覽器、螢幕縮放比例；<code>video.json</code> 的 <code>width</code>／<code>height</code>；在那台執行 <code>page.evaluate("devicePixelRatio")</code>。</li>
+        <li><strong>可能的修法（下一個 PR 再決定）：</strong>(1) 錄影時 Firefox 加 <code>layout.css.devPixelsPerPx=1.0</code>、Chromium 加 <code>--force-device-scale-factor=1</code>，讓頁面一律以 1 倍繪製（有頭時視窗裡的字會變小，但錄影完整）；(2) 依 devicePixelRatio 放大 <code>record_video_size</code>（檔案變大，Firefox 的裁切問題可能仍在）；(3) 回看頁播放器用影片的實際比例顯示（已照 <code>video.json</code> 的寬高設定，但如果寬高本身錯了也會錯）。驗證：CI 的 Windows 有頭測試加上縮放比例的情境（或用 <code>device_scale_factor=1.5</code> 模擬），影片右下角要讀得到頁面的顏色。</li>
+        <li><strong>A2（Codex 整合時發現，待釐清）：macOS Chromium 錄影對時用例失敗。</strong><code>test_video_lines_up_with_the_steps[chromium]</code> 在點擊前 0.3 秒取樣時已讀到紅色，預期白色；平行執行與單獨重跑相同。將合併前的 <code>cb8116a</code> 匯出到獨立暫存目錄並指定其全部套件的 PYTHONPATH，使用同一個 Python／Playwright 重跑，得到相同失敗，確認不是本次 main 整合新增。Firefox 對時及其餘 iframe、錄影、遠端流程通過；尚未判定是影片時間、解碼取樣或平台差異，不能推定與 A1 同因。</li>
+        <li><strong>其他驗收項目：</strong>使用者驗完後補在這裡；照第 8 節與 <a href="../../docs/design/portal.html">管理 Portal</a> 的人工檢查第 8 項。</li>
       </ul></div>
     </section>
 
@@ -173,10 +210,14 @@
           <tr><td>Playwright 1.56、Chromium 1194（無頭；Xvfb 有頭）／Claude 雲端環境</td><td>錄一段每秒換色的頁面，逐格讀顏色換算對時；強制終止後檢查與重新封裝；用 DSL 步驟真實執行測試網站並錄影；Chromium 裡用 canvas 產生 40 張縮圖</td><td>畫面靜止時對得上；畫面一直動時 1.56 慢 12%；終止後檔案可修復；縮圖 3.7 秒</td><td>1.64、Firefox、Windows、macOS（第 8 節 PR 1 的 CI）</td></tr>
           <tr><td>39ff7e4／PR #58 的 CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39540115533">39540115533</a>（2026-10-20 20:44～20:47 PDT）</td><td>執行範圍、靜態檢查、測試（Python 3.12、3.13）</td><td>全部通過；Worker 測試（Windows）依只改文件的規則略過</td><td>只有文件，沒有程式行為</td></tr>
           <tr><td>PR 1 本機（base b9a3387＋工作區）／Claude 雲端環境（Python 3.13、Playwright 1.56 只有 Chromium、伺服器依賴依 uv.lock 版本從 GitHub 原始碼載入）</td><td><code>ruff check</code>、<code>ruff format --check</code>、<code>pyright</code>（strict）；<code>pytest -m "not browser or ((smoke or role_server or role_recorder or role_worker) and not firefox)"</code></td><td>ruff 通過；pyright 剩本環境才有的錯誤（沒有 keyring、Playwright 1.56 的型別）；pytest 1416 通過、5 略過、3 失敗：<code>test_cancelled_run_keeps_a_playable_video[chromium]</code>（1.56 被終止時把最後一格留在記憶體，1.64 收到就寫，CI 驗證）、<code>test_rpa_serve_recognizes_a_running_portal</code>（埠號競爭，單獨重跑通過）、簡中還沒產生（bootstrap）</td><td>Firefox、Windows、macOS、Playwright 1.64：CI</td></tr>
+          <tr><td>PR 1 的 CI（Playwright 1.64）：c96a95b run 39546044758、fa3a2a3 run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39567535880">39567535880</a>、d956eee run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39569168145">39569168145</a>、66ebb8a run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39570294857">39570294857</a>、4cd7438 run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39578539164">39578539164</a>（2026-10-20 21:48～2026-10-21 02:42 PDT）</td><td>靜態檢查、測試（Python 3.12、3.13）、Worker 測試（Windows，Chromium 與 Firefox）、桌面端建置</td><td>c96a95b：pyright、簡中、Windows 的 Firefox 錄影三個失敗（畫面灰色、取消後讀不到）。fa3a2a3：Firefox 對時與失敗影片通過，取消後讀不到（兩種瀏覽器）。d956eee：<code>video.json</code> 的 <code>stop</code> 顯示 ffmpeg 留下了，但 6～11 ms 後就結束。66ebb8a：Windows 卡住 20 分鐘以上，取消。4cd7438：Windows 的 Worker 測試全部通過（3 分 35 秒）、桌面端建置通過；Linux 只剩簡中（機器人的 98a520c 補上）</td><td>98a520c 之後的最終 head：見下一列</td></tr>
+          <tr><td>暫時的診斷分支 <code>tmp/m12-firefox-video-diag</code>（手動觸發，2026-10-21 01:00～02:30 PDT）：run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39566241679">39566241679</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39566825305">39566825305</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39573187318">39573187318</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39573733777">39573733777</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39577768353">39577768353</a></td><td>Firefox 每一格的大小與影片裡有畫面的範圍（持久化／非持久化、新分頁、有頭／無頭）；Windows 取消的流程（背景執行緒、90 秒看門狗）；完整的 Windows Worker 測試加上看門狗</td><td>第 2 節的兩個發現；先只結束瀏覽器後 Chromium 0.31 秒、Firefox 0.14 秒子程序自己結束，影片完整。看門狗：一次卡住（步驟逾時停不下來，工作在 25 分鐘被取消，看門狗的紀錄沒送出）、一次全部通過</td><td>卡住的原因沒有找到；靠程序代號的防護與 CI 的工作逾時降低影響</td></tr>
+          <tr><td>併入 main（#63）後的 b52439b：CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39583026691">39583026691</a>（2026-10-21 03:13～03:16 PDT）；診斷 run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39583944184">39583944184</a></td><td>同上；診斷：失敗的運行在失敗前 1.5 秒到最後一格取 11 個點（Linux、Windows 的 Firefox 各 3 次、Chromium 各 1 次）</td><td>Windows 的 <code>test_failed_step_is_in_the_video[firefox]</code> 偶發失敗：取樣讀到黑色；其他全部通過。診斷的 88 個取樣點全部是紅色，影片結尾沒有黑畫面——是取樣時那一格還沒解碼好。測試的取樣改成等可以畫、黑色就再畫一次；播放器的縮圖同樣處理（#64）</td><td>無</td></tr>
+          <tr><td>本機（Claude 雲端環境，Python 3.13、Playwright 1.56 只有 Chromium）：PR 2 c476f24（base 98a520c）</td><td><code>ruff check</code>、<code>ruff format --check</code>、<code>pyright</code>；<code>pytest -n 4 -m "not browser or ((smoke or role_server or role_recorder or role_worker) and not firefox)"</code>；回看頁的截圖（1440、400 寬，失敗與通過的運行）</td><td>ruff 通過；pyright 只剩本環境的錯誤（沒有 keyring、1.56 的型別）；pytest 1449 通過、5 略過、2 失敗（取消的影片：1.56 的限制；簡中：本環境沒有 OpenCC，bootstrap 產生）；截圖沒有主控台錯誤、手機寬度不會橫向捲動，看完修了四個小地方</td><td>Firefox、Windows、macOS：CI；Mac 錄製端 App：人工驗收</td></tr>
           <tr><td>原型／Chromium（1440、400 寬）</td><td>開啟原型，等縮圖產生、滑過時間軸</td><td>沒有錯誤；頁面不會橫向捲動；縮圖全部產生</td><td>Safari、Mac App</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：39ff7e4 通過（run 39540115533）；人工驗收：不適用（只有文件）；審閱：等使用者。</p></div>
+      <div class="panel-body"><p>CI：設計 39ff7e4 通過（run 39540115533）；PR 1 b9be32b 全部通過（run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39580097031">39580097031</a>；Windows 的 Worker 測試 3 分多鐘，2026-10-21 02:58 PDT 重跑一次也通過）；PR 2 2160bcf 全部通過（Windows 的 Worker 測試依規則略過：PR 2 只改伺服器）。人工驗收：未執行（第 8 節）。審閱：等使用者。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -188,6 +229,12 @@
         <li>2026-10-20 20:19 America/Los_Angeles（PDT，UTC−07:00），使用者：提出 M12 的需求，要求先設計、確認後再寫程式。</li>
         <li>2026-10-20 20:21～20:55 America/Los_Angeles（PDT，UTC−07:00），Claude：讀程式、技術驗證、做互動原型、寫本頁；開 <code>docs/m12-replay-design</code>，推送 d667ea6、開 PR #58。</li>
         <li>2026-10-20 20:47 America/Los_Angeles（PDT，UTC−07:00），Claude：39ff7e4 的 CI 通過（run 39540115533）；狀態維持「設計待確認」。</li>
+        <li>2026-10-20 21:03 America/Los_Angeles（PDT，UTC−07:00），使用者：逐項回覆第 9 節（見 #58 的留言），開始實作。</li>
+        <li>2026-10-20 21:47～21:48 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 c96a95b（PR 1，帶 [bootstrap]），開 #61、關 #58；機器人補 85aa261。之後在工作區寫 PR 2（沒有提交），約 22:05 時會話達到用量上限而中斷。</li>
+        <li>2026-10-20 23:20 America/Los_Angeles（PDT，UTC−07:00），使用者：合併 #60（main 097464c，把 #57 補進 main）。</li>
+        <li>2026-10-21 00:55 America/Los_Angeles（PDT，UTC−07:00），使用者：「繼續，之前 reach limit，沒有跑完繼續工作」。</li>
+        <li>2026-10-21 00:57～02:50 America/Los_Angeles（PDT，UTC−07:00），Claude：重建本機環境；PR 2 的工作區先存成 <code>m12/replay-player</code> 的暫存提交；讀 CI 的失敗、用暫時分支診斷（第 2 節的兩個發現）；PR 1 推送 9743b04（Firefox 新分頁、pyright、取消的測試）、fa3a2a3（併入 main、路線圖 M12）、d956eee（<code>stop</code> 記錄）、66ebb8a（Windows 先只結束瀏覽器）、2ca041e（程序代號的防護）、4ac0db2（CI 的工作逾時）、4cd7438（ADR 0016、管理 Portal、本頁）；PR 2 補完、看一次畫面後整理成 c476f24（base 98a520c）。</li>
+        <li>2026-10-21 04:08 America/Los_Angeles（PDT，UTC−07:00），使用者：主體功能是通的，但影片比例不對、看不全；其他還在驗證；準備先合併 PR，Claude 的 5 小時用量重置後在下一個 PR 修。Claude：把發現與修法寫進本頁（A1）。</li>
       </ul></div>
     </section>
   </div>

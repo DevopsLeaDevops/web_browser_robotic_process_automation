@@ -245,6 +245,7 @@ sudo systemctl restart rpa-portal          # 更新後重新啟動</pre>
             <tr><td>開始錄製時說起始網址是管理 Portal 自己的位址</td><td>起始網址填成了伺服器的 8080 或 8081。錄製開的是全新的瀏覽器，沒有錄製端的權杖，打開這兩個埠只會得到 401（<code>recorder_unauthorized</code>）。改填要自動化的網站。</td></tr>
             <tr><td>「開始錄製」是灰的，上方寫著錄製中</td><td>這台已經有一段錄製在進行：先把那個瀏覽器視窗關掉，或按「取消錄製」。</td></tr>
             <tr><td>錄製端說管理 Portal 不再接受這台的權杖</td><td>裝置頁重新邀請過、停用或刪除了這台。在裝置頁產生新的錄製端邀請（被停用時先按「啟用」），到「狀態與設定」貼上重新配對。</td></tr>
+            <tr><td>「App 版本太舊，看不懂…（例如 iframe 的寫法）」</td><td>錄製端或 Worker 的 App 比伺服器舊，看不懂場景用到的寫法（M7a 的 <code>frame</code>、<code>anyFrame</code>）。伺服器不把它交給那台：調試、接著錄製、登入檢查直接回這個錯誤，Worker 的執行標為失敗。安裝和伺服器同一個版本的 DMG 或安裝檔後再試，見<a href="#upgrade">更新版本</a>。</td></tr>
             <tr><td>版本不同的提醒</td><td>只是程式版本不同時仍可使用，但建議更新到同一個版本；協定版本不同時連不上，一定要更新。見<a href="#upgrade">更新版本</a>。</td></tr>
             <tr><td>錄製、調試突然結束，原因是失聯</td><td>錄製端停掉、睡眠或斷線超過 30 秒，或伺服器重新啟動。重新打開後再開始一次。</td></tr>
             <tr><td>任務一直排隊</td><td>見<a href="remote-worker.html#faq">遠端 worker › 常見問題</a>。</td></tr>

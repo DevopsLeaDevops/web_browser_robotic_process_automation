@@ -1,4 +1,5 @@
 {
+  "browser.any_frame_scope": "anyFrame 只能從頁面開始找，不能相對於另一個元素（例如 extract 的 fields）",
   "status.passed": "通過",
   "status.failed": "失敗",
   "status.timed_out": "逾時",

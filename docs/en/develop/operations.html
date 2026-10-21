@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:da6db9267646ace3">
+<meta name="translation-source" content="sha256:5685d19a4ce93630">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -246,6 +246,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
             <tr><td>Starting a recording says the start URL is the management portal itself</td><td>The start URL is the server’s 8080 or 8081. The recording opens a fresh browser without the recorder’s token, so those ports only answer 401 (<code>recorder_unauthorized</code>). Enter the website to automate instead.</td></tr>
             <tr><td>“Start recording” is grey and a recording is shown above it</td><td>This computer already has a recording in progress: close that browser window first, or choose “Cancel recording”.</td></tr>
             <tr><td>The recorder says the portal no longer accepts its token</td><td>This device was invited again, disabled or deleted on the Devices page. Create a new recorder invitation there (choose “Enable” first if it was disabled) and paste it under “Status and settings” to pair again.</td></tr>
+            <tr><td>“The app … is too old to understand … (for example the iframe syntax)”</td><td>The recorder or Worker app is older than the server and does not understand something the scenario uses (<code>frame</code> or <code>anyFrame</code> from M7a). The server does not hand it to that device: debugging, continuing a recording and login checks return this error, and the Worker run is marked failed. Install the DMG or installer of the same version as the server and try again; see <a href="#upgrade">Updating</a>.</td></tr>
             <tr><td>A version-mismatch warning</td><td>A different program version still works, but updating to the same version is safer; a different protocol version cannot connect and must be updated. See <a href="#upgrade">Updating</a>.</td></tr>
             <tr><td>A recording or debugging session ended because contact was lost</td><td>The recorder stopped, slept or was disconnected for more than 30 seconds, or the server restarted. Open it again and start over.</td></tr>
             <tr><td>Jobs stay queued</td><td>See <a href="remote-worker.html#faq">Remote workers › Troubleshooting</a>.</td></tr>

@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
+from rpa_core.dsl.features import scenario_features
 from rpa_core.i18n import Locale, use_locale
 from rpa_core.recording import Conversion, ConversionError, convert_recording, merge_recording
 from rpa_runner.commands import module_command, playwright_command
@@ -262,6 +263,9 @@ class RecordingService:
         replay: _Replay | None = None
         if checked.kind == "continue":
             replay = self._replay(checked.scene_id)
+            if via is not None and self.hosts is not None:
+                # 接著錄製要在錄製端重播既有步驟：用到它的 App 看不懂的寫法時先說明（M7a）
+                self.hosts.check(via, engine=engine, features=scenario_features(replay.scenario))
         elif start_url is None:
             raise invalid("recording_url_invalid", t("error.recording_url_invalid", value=""))
         elif portal is not None and points_to_portal(start_url, portal):

@@ -88,8 +88,18 @@ _SAMPLE = """async ({ data, times }) => {
   const colors = [];
   for (const time of times) {
     await new Promise((ok) => { video.onseeked = ok; video.currentTime = time; });
-    context.drawImage(video, 0, 0, 64, 36);
-    colors.push(Array.from(context.getImageData(56, 30, 1, 1).data.slice(0, 3)));
+    // 跳到之後那一格可能還沒解碼好，畫出來是黑的：等到可以畫，黑色（頁面上不會有）就再畫一次
+    for (let wait = 0; video.readyState < 2 && wait < 50; wait += 1) {
+      await new Promise((ok) => setTimeout(ok, 20));
+    }
+    let color = [0, 0, 0];
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      context.drawImage(video, 0, 0, 64, 36);
+      color = Array.from(context.getImageData(56, 30, 1, 1).data.slice(0, 3));
+      if (Math.max(...color) > 30) break;
+      await new Promise((ok) => setTimeout(ok, 100));
+    }
+    colors.push(color);
   }
   return { duration: video.duration, colors };
 }"""
