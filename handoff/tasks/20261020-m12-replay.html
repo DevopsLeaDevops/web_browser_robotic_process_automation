@@ -20,7 +20,7 @@
         <dt>範圍／不包含</dt><dd>見第 3～7 節。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱與決定：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>本頁、<a href="20261020-m12-replay/prototype.html">互動原型</a>、任務索引、<a href="../decisions.html">決定</a>。PR 1：<code>rpa_runner</code>（browser、child、contexts、files、run、新的 video、proctree）、<code>rpa_worker</code>（Job、JobPayload、remote）、<code>rpa_server</code>（新的 videos、jobs、dispatch、services、api、domain、pages、models、遷移 0013、app）、<code>rpa_cli</code>（<code>rpa run --video</code>）、<code>testsite.webm</code>（測試用）、文件（架構、管理 Portal、DSL、ADR 0016 與導覽）。共用檔案：遷移編號 0013、訊息目錄、<code>docs/assets/nav.js</code>、ADR 索引（#60 也改 ADR 索引與導覽，後合併的一方解衝突）。整合者：Claude。</dd>
-        <dt>狀態</dt><dd>待審閱：#61（PR 1）b9be32b 的 CI 全部通過，Windows 的 Worker 測試另外重跑一次也通過；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/64">#64</a>（PR 2，草稿，堆疊在 #61 上）2160bcf 的 CI 全部通過。等使用者審閱與合併（先 #61，再把 #64 的 base 改成 main），之後人工驗收。</dd>
+        <dt>狀態</dt><dd>使用者 2026-10-21 04:08 PDT 開始合併；人工驗收發現影片比例不對（見「人工驗收的發現」），在下一個 PR 修。合併前：#61（PR 1）b9be32b 的 CI 全部通過，Windows 的 Worker 測試另外重跑一次也通過；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/64">#64</a>（PR 2，草稿，堆疊在 #61 上）2160bcf 的 CI 全部通過。等使用者審閱與合併（先 #61，再把 #64 的 base 改成 main），之後人工驗收。</dd>
         <dt>分支／PR／base SHA</dt><dd>設計：<code>docs/m12-replay-design</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（只有設計，併入 PR 1 後關閉）。實作：<code>m12/replay</code>，從 <code>b9a3387</code>（origin/main，#56）開，先帶入設計的三個提交；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/61">PR #61</a>（base main；2026-10-21 01:10 PDT 併入 main 097464c，含 #60）。PR 2：<code>m12/replay-player</code>（堆疊在 <code>m12/replay</code> 上，#61 合併後改 base 為 main）。診斷用的暫時分支 <code>tmp/m12-firefox-video-diag</code>（不合併；這個環境的 Git 代理不允許刪除分支，請使用者刪除）。</dd>
         <dt>交接版本／同步狀態</dt><dd>設計 d667ea6～8e620a4 已推送（併入 #61）。PR 1：程式的最後一個提交 4cd7438，之後是機器人的 98a520c 與本頁的回填（b9be32b 起）。PR 2：c476f24＋機器人的 2160bcf。都已推送。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、Playwright 1.56 只有 Chromium、系統 ffmpeg 只用來檢查）。PyPI、npm 與 Playwright 的瀏覽器下載被擋，沒辦法裝倉庫用的 Playwright 1.64；1.64 的行為是讀它的原始碼（v1.64.0 的 <code>packages/playwright-core/src/server</code>）得到的，第 8 節安排在 CI 實測。2026-10-21 00:57 PDT 起環境重建過（上一段在用量上限中斷，容器回收後只剩倉庫與暫存目錄），依賴照同樣的方式從 GitHub 原始碼載入；CI 的日誌下載網域被擋，診斷靠測試失敗訊息變成的標註。</dd>
@@ -160,8 +160,19 @@
         <li><strong>已完成（PR 2）：</strong>回看頁（播放器、縮圖時間軸、步驟清單、斷言、運行資訊與釘選）、<code>GET /api/runs/{id}/replay</code>、「運行回看」選單與錄影設定、運行報告／運行頁／試驗場的入口、編輯頁 <code>?line=</code>、三種語言（簡中由 bootstrap 產生）、管理 Portal 設計（繁中、英文）。中斷前寫到 2026-10-20 22:05 PDT 左右；2026-10-21 補完：沒有影片時的分頁與清單、影片 metadata 比程式早載入、縮圖在知道長度前就截、點一步時標成點的那一步、上一步／下一步改依順序（步驟常比 0.4 秒短）、執行中結束後自動重新整理、分頁數字間距、影片區照影片比例、略過的步驟、定位提示的文字。</li>
         <li><strong>未完成／阻礙：</strong>Windows 的 Worker 測試偶爾卡住：66ebb8a 的 PR 運行與一次診斷運行卡住超過 20 分鐘（步驟逾時也停不下來），同樣的程式加上看門狗的另一次診斷全部通過、看門狗沒有抓到超過 90 秒的測試——卡住的地方可能在測試之外（例如殘留的程序佔著步驟的輸出）。已加上程序代號重複使用的防護與 CI 的工作逾時，重跑確認；人工驗收（第 8 節）；兩個 PR 的審閱與合併。</li>
         <li><strong>決定（實作選擇）：</strong>Firefox 錄影用新分頁；Windows 上先只結束瀏覽器；列出子孫時比對建立時間（程序代號會重複使用，避免結束無關的程序）；CI 的 Linux 測試與 Windows 的 Worker 測試各最多 30 分鐘（之前沒有上限）；PR 2 堆疊在 #61 上、以草稿開，#61 合併後改 base（避免重演 #57）。</li>
-        <li><strong>下一個具體動作：</strong>使用者審閱並合併 #61（和 #62 都改了路線圖、任務索引與 <code>browser.py</code>，後合併的一方解衝突）；把 #64 的 base 改成 main、從 main 重新整理後轉成正式 PR、合併；照第 8 節人工驗收；刪除 <code>tmp/m12-firefox-video-diag</code>。之後 Windows 的 Worker 測試若再卡住，30 分鐘逾時會讓它失敗，請在那次運行回報。</li>
+        <li><strong>下一個具體動作：</strong>下一個 PR（從合併後的 main 開 <code>fix/m12-replay-scale</code>）修「人工驗收的發現」A1，並補上使用者其他的驗收結果。原本的：使用者審閱並合併 #61（和 #62 都改了路線圖、任務索引與 <code>browser.py</code>，後合併的一方解衝突）；把 #64 的 base 改成 main、從 main 重新整理後轉成正式 PR、合併；照第 8 節人工驗收；刪除 <code>tmp/m12-firefox-video-diag</code>。之後 Windows 的 Worker 測試若再卡住，30 分鐘逾時會讓它失敗，請在那次運行回報。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。暫存目錄裡有本機的依賴副本與截圖，不進倉庫。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="acceptance-findings">
+      <div class="panel-header"><h2>人工驗收的發現與下一個 PR（M12 follow-up）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>A1（使用者 2026-10-21 04:08 PDT，待修）：主體功能是通的；影片比例不對、看不全。</strong>截圖：播放中的錄影是 BA-001 的測試頁，字很大、右側和下方被裁掉（只看到頁面左上的一部分）。其他項目使用者還在驗證。</li>
+        <li><strong>推測原因（未驗證）：</strong>畫面縮放大於 100% 的螢幕（例如 Windows 125%／150%、Mac Retina）上，瀏覽器送出的每一格是實際像素（例如 1280×800 的頁面在 150% 時是 1920×1200），影片大小卻是 CSS 像素的 1280×800；Playwright 的 ffmpeg 用 <code>pad</code>／<code>crop</code> 從左上角裁切，所以只留下左上的三分之二。Firefox 的截取程式（Juggler 的 <code>nsScreencastService</code>）也把實際像素的畫面寬度和 CSS 像素的頁面寬度直接比較後裁切。無頭模式的 devicePixelRatio 是 1，所以 CI 測不到。</li>
+        <li><strong>先確認：</strong>出問題的那段是哪台電腦、有頭或無頭、哪個瀏覽器、螢幕縮放比例；<code>video.json</code> 的 <code>width</code>／<code>height</code>；在那台執行 <code>page.evaluate("devicePixelRatio")</code>。</li>
+        <li><strong>可能的修法（下一個 PR 再決定）：</strong>(1) 錄影時 Firefox 加 <code>layout.css.devPixelsPerPx=1.0</code>、Chromium 加 <code>--force-device-scale-factor=1</code>，讓頁面一律以 1 倍繪製（有頭時視窗裡的字會變小，但錄影完整）；(2) 依 devicePixelRatio 放大 <code>record_video_size</code>（檔案變大，Firefox 的裁切問題可能仍在）；(3) 回看頁播放器用影片的實際比例顯示（已照 <code>video.json</code> 的寬高設定，但如果寬高本身錯了也會錯）。驗證：CI 的 Windows 有頭測試加上縮放比例的情境（或用 <code>device_scale_factor=1.5</code> 模擬），影片右下角要讀得到頁面的顏色。</li>
+        <li><strong>其他驗收項目：</strong>使用者驗完後補在這裡；照第 8 節與 <a href="../../docs/design/portal.html">管理 Portal</a> 的人工檢查第 8 項。</li>
       </ul></div>
     </section>
 
@@ -197,6 +208,7 @@
         <li>2026-10-20 23:20 America/Los_Angeles（PDT，UTC−07:00），使用者：合併 #60（main 097464c，把 #57 補進 main）。</li>
         <li>2026-10-21 00:55 America/Los_Angeles（PDT，UTC−07:00），使用者：「繼續，之前 reach limit，沒有跑完繼續工作」。</li>
         <li>2026-10-21 00:57～02:50 America/Los_Angeles（PDT，UTC−07:00），Claude：重建本機環境；PR 2 的工作區先存成 <code>m12/replay-player</code> 的暫存提交；讀 CI 的失敗、用暫時分支診斷（第 2 節的兩個發現）；PR 1 推送 9743b04（Firefox 新分頁、pyright、取消的測試）、fa3a2a3（併入 main、路線圖 M12）、d956eee（<code>stop</code> 記錄）、66ebb8a（Windows 先只結束瀏覽器）、2ca041e（程序代號的防護）、4ac0db2（CI 的工作逾時）、4cd7438（ADR 0016、管理 Portal、本頁）；PR 2 補完、看一次畫面後整理成 c476f24（base 98a520c）。</li>
+        <li>2026-10-21 04:08 America/Los_Angeles（PDT，UTC−07:00），使用者：主體功能是通的，但影片比例不對、看不全；其他還在驗證；準備先合併 PR，Claude 的 5 小時用量重置後在下一個 PR 修。Claude：把發現與修法寫進本頁（A1）。</li>
       </ul></div>
     </section>
   </div>
