@@ -75,6 +75,7 @@ jobs:
     name: 測試（Python ${{ matrix.python }}）
     needs: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -148,6 +149,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.mode != 'docs' && needs.changes.outputs.worker == 'true'
     runs-on: windows-latest
+    # 卡住時直接失敗（沒有上限時會跑到 GitHub 的 6 小時上限），見 docs/develop/ci.html
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash

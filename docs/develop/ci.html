@@ -55,7 +55,7 @@
         </table>
       </div>
       <div class="panel-body prose">
-        <p>排程放在倉庫最空閒的時段：20:17 UTC 是 America/Los_Angeles 13:17 PDT（UTC−07:00）／12:17 PST（UTC−08:00），新加坡 04:17。排程失敗時自動開（或更新）一個 <code>ci-schedule</code> 標籤的 issue。PR 上的路徑條件看的是整個 PR 的改動；同一個分支推了新版本，舊的運行會被取消。依賴更新的 PR 由 GitHub Actions 開，只自動觸發 CI，其他流程要等有人往那個分支推送。</p>
+        <p>排程放在倉庫最空閒的時段：20:17 UTC 是 America/Los_Angeles 13:17 PDT（UTC−07:00）／12:17 PST（UTC−08:00），新加坡 04:17。排程失敗時自動開（或更新）一個 <code>ci-schedule</code> 標籤的 issue。PR 上的路徑條件看的是整個 PR 的改動；同一個分支推了新版本，舊的運行會被取消。依賴更新的 PR 由 GitHub Actions 開，只自動觸發 CI，其他流程要等有人往那個分支推送。CI 的 Linux 測試與 Windows 的 Worker 測試各最多跑 30 分鐘，卡住時直接失敗（2026-10-21 起；之前沒有上限，Windows 上卡住的運行會一直跑到 GitHub 的 6 小時上限）。</p>
       </div>
     </section>
 
