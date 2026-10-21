@@ -27,6 +27,7 @@ from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError
+from rpa_server.gitsync import Auth, GitSource
 from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services, render_contract
@@ -48,6 +49,48 @@ class DomainCreate(_Body):
 class DomainUpdate(_Body):
     name: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=2000)
+
+
+class GitSourceBody(_Body):
+    """領域的 git 資料來源（M11 PR 3）；token 與 privateKey 只寫不讀（留空就不變）。"""
+
+    url: str = Field(max_length=2000)
+    directory: str = Field(max_length=500)
+    branch: str | None = Field(default=None, max_length=200)
+    auth: Auth = "none"
+    username: str | None = Field(default=None, max_length=200)
+    token: str | None = Field(default=None, max_length=2000)
+    private_key: str | None = Field(default=None, max_length=20000)
+    committer_name: str | None = Field(default=None, max_length=100)
+    committer_email: str | None = Field(default=None, max_length=200)
+    auto_pull: bool = True
+
+    def source(self) -> GitSource:
+        return GitSource(
+            url=self.url,
+            directory=self.directory,
+            branch=self.branch,
+            auth=self.auth,
+            username=self.username,
+            committer_name=self.committer_name,
+            committer_email=self.committer_email,
+            auto_pull=self.auto_pull,
+        )
+
+
+class DomainFromGit(GitSourceBody):
+    id: str = Field(default="", max_length=64)
+    """沒填時用遠端 pack.yaml 的代號。"""
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class SyncPush(_Body):
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class SyncResolve(_Body):
+    action: Literal["cancel", "branch", "remote"]
 
 
 class SceneCreate(_Body):
@@ -292,6 +335,73 @@ def api_router(services: Services) -> APIRouter:
         """重新載入領域資料夾（M11）：在資料夾外面改了檔案之後。"""
         report = services.reload_domain(domain_id)
         return {**report.to_json(), "domain": services.get_domain(domain_id).to_json()}
+
+    # ------------------------------------------------------------ git 同步（M11 PR 3）
+
+    git = services.git
+
+    @router.post("/git/probe")
+    def probe_git(body: GitSourceBody) -> dict[str, object]:
+        """「從 git 新增領域」前測試連線（公開倉庫或 HTTPS 權杖）：分支、目錄、pack.yaml。"""
+        return git.probe(body.source(), body.token).to_json()
+
+    @router.post("/domains/from-git", status_code=201)
+    def create_domain_from_git(body: DomainFromGit) -> dict[str, object]:
+        domain = services.create_domain_from_git(
+            body.id,
+            body.source(),
+            name=body.name,
+            description=body.description,
+            token=body.token,
+        )
+        return {**domain.to_json(), "sync": git.status(domain.id).to_json()}
+
+    @router.get("/domains/{domain_id}/sync")
+    def sync_status(domain_id: str) -> dict[str, object]:
+        """同步狀態（不連網路；遠端的部分是上次檢查時的）。"""
+        return git.status(domain_id).to_json()
+
+    @router.put("/domains/{domain_id}/source")
+    def set_source(domain_id: str, body: GitSourceBody) -> dict[str, object]:
+        status = git.set_source(
+            domain_id, body.source(), token=body.token, private_key=body.private_key
+        )
+        return status.to_json()
+
+    @router.delete("/domains/{domain_id}/source")
+    def remove_source(domain_id: str) -> dict[str, object]:
+        """中斷 git 連結：資料夾保留，變成本機領域。"""
+        git.remove_source(domain_id)
+        return {"disconnected": domain_id}
+
+    @router.post("/domains/{domain_id}/source/key")
+    def generate_key(domain_id: str) -> dict[str, object]:
+        """產生 SSH 部署金鑰，回傳公鑰（貼到倉庫的 Deploy keys 並允許寫入）。"""
+        return {"publicKey": git.generate_key(domain_id)}
+
+    @router.post("/domains/{domain_id}/sync/test")
+    def test_source(domain_id: str) -> dict[str, object]:
+        return git.test(domain_id).to_json()
+
+    @router.post("/domains/{domain_id}/sync/pull")
+    def pull_domain(domain_id: str) -> dict[str, object]:
+        """拉取並重新載入；衝突時 409（conflicts 列出檔案）。"""
+        return git.pull(domain_id).to_json()
+
+    @router.get("/domains/{domain_id}/sync/preview")
+    def preview_push(domain_id: str) -> dict[str, object]:
+        """推送前的變更清單、預設的提交說明、擋下推送的問題與提醒。"""
+        return git.preview(domain_id).to_json()
+
+    @router.post("/domains/{domain_id}/sync/push")
+    def push_domain(domain_id: str, body: SyncPush) -> dict[str, object]:
+        """同步推送；推送前檢查沒過 422，衝突 409。"""
+        return git.push(domain_id, body.message).to_json()
+
+    @router.post("/domains/{domain_id}/sync/resolve")
+    def resolve_conflict(domain_id: str, body: SyncResolve) -> dict[str, object]:
+        """衝突時三選一：cancel、branch（推送到新分支）、remote（以遠端為準，先備份）。"""
+        return git.resolve(domain_id, body.action).to_json()
 
     # ------------------------------------------------------------ 場景
 

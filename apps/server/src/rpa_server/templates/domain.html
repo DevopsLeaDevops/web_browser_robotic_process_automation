@@ -7,6 +7,7 @@
 {% if can_import %}<button class="button" data-action="import" data-domain="{{ domain.id }}">{{ t("scenes.import") }}</button>{% endif %}
 <button class="button" data-action="new-scene" data-domain="{{ domain.id }}">{{ t("scenes.new") }}</button>
 <button class="button" data-action="reload-domain" data-domain="{{ domain.id }}" title="{{ t('domain.reload_title') }}">{{ t("domain.reload") }}</button>
+<a class="button" href="/domains/{{ domain.id }}/sync" title="{{ t('domain.sync_title') }}">{% if sync.source %}{{ m.badge(sync.state, t("sync.state_" + sync.state)) }}{% else %}{{ t("domain.sync") }}{% endif %}</a>
 <a class="button" href="/domains">{{ t("domain.manage") }} {{ m.arrow() }}</a>
 {% endblock %}
 {% block content %}

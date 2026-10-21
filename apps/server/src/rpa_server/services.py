@@ -13,6 +13,7 @@ M6 的自由試驗場序列（workflows.py）是 ``services.workflows``。
 """
 
 import json
+import logging
 import os
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -63,6 +64,7 @@ from rpa_server.domain import (
     now,
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
+from rpa_server.gitsync import GitSource, GitSync
 from rpa_server.i18n import follow_locale, t
 from rpa_server.jobs import RunQueue
 from rpa_server.models import Domain, Revision, Role, Run, Scene
@@ -86,6 +88,8 @@ __all__ = [
     "run_record",
     "scene_record",
 ]
+
+logger = logging.getLogger("rpa_server.services")
 
 SCENE_ID: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """與 DSL 的 id 相同的規則。"""
@@ -332,6 +336,15 @@ class Services:
             packs=self.packs,
             default_domain=self.unassigned_domain,
         )
+        self.git = GitSync(
+            sessions,
+            storage,
+            lock=self.packs.lock,
+            reload=self.reload_domain,
+            secret_values=self.roles.secrets.values,
+            operator=self.packs.operator,
+        )
+        """領域資料夾的 git 同步（M11 PR 3）。"""
         self.recordings = RecordingService(
             sessions,
             storage,
@@ -507,6 +520,40 @@ class Services:
             session.commit()
             return self._domain_record(session, domain)
 
+    def create_domain_from_git(
+        self,
+        domain_id: str,
+        source: GitSource,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        token: str | None = None,
+    ) -> DomainRecord:
+        """從 git 新增領域（第 10.1 節）：遠端目錄裡有 pack.yaml 就用它的代號與名稱並拉取；
+        目錄還不存在就建立空的領域，第一次推送時建立目錄。拉取失敗時領域照樣建立，錯誤記在同步狀態。
+        """
+        probe = self.git.probe(source, token)
+        domain_id = domain_id.strip() or (probe.pack_id or "")
+        if probe.pack_id is not None and probe.pack_id != domain_id:
+            raise invalid(
+                "sync_pack_id",
+                t("error.sync_pack_id", id=domain_id, pack=probe.pack_id),
+            )
+        self.create_domain(
+            domain_id,
+            (name or "").strip() or probe.pack_name or domain_id,
+            description if description is not None else probe.pack_description,
+        )
+        self.git.set_source(domain_id, source, token=token)
+        try:
+            if probe.state == "ready":
+                self.git.pull(domain_id, prefer_remote=True)
+            else:
+                self.git.test(domain_id)
+        except ServiceError as error:
+            logger.warning("%s", t("sync.startup_pull_failed", id=domain_id, detail=error.message))
+        return self.get_domain(domain_id)
+
     def update_domain(
         self, domain_id: str, *, name: str | None = None, description: str | None = None
     ) -> DomainRecord:
@@ -568,6 +615,7 @@ class Services:
             session.delete(domain)
             session.commit()
             self.packs.remove_pack(domain_id)
+        self.git.forget(domain_id)  # 權杖、金鑰與工作副本（遠端的資料不動）
 
     def seed_examples_domain(self) -> ImportReport | None:
         """還沒有任何領域時：建立「測試網站自動化」，把已經存在的範例場景放進去，再匯入其餘範例。"""
