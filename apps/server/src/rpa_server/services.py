@@ -71,6 +71,7 @@ from rpa_server.models import Domain, Revision, Role, Run, Scene
 from rpa_server.models import Workflow as WorkflowRow
 from rpa_server.packs import COMPOSITES_DOMAIN, UNASSIGNED_DOMAIN, LoadReport, PackStore
 from rpa_server.recordings import RecordingService
+from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
@@ -1407,8 +1408,14 @@ class Services:
         workers: Sequence[str] = (),
         revision: int | None = None,
         limit: int = RUN_LIST_LIMIT,
+        with_video: bool = False,
     ) -> list[RunRecord]:
+        """運行清單（新的在前）；``with_video`` 時只列還有錄影的（運行回看頁，M12）。"""
         statement = select(Run).order_by(Run.created_at.desc(), Run.id.desc()).limit(limit)
+        if with_video:
+            statement = statement.where(
+                Run.video_seconds.is_not(None), Run.video_deleted_at.is_(None)
+            )
         if workers:
             # 執行位置（M9a）：已經有人領取的看 worker_id；還在排隊的看指定的 worker 或本機
             chosen = list(workers)
@@ -1456,6 +1463,17 @@ class Services:
         return path
 
     # ------------------------------------------------------------ 錄影（M12）
+
+    def replay(self, run_id: str) -> dict[str, object]:
+        """回看頁的資料：錄影、換算成影片時間的步驟、斷言、階段、前後的運行（見 replay.py）。"""
+        with self.sessions() as session:
+            run = session.get(Run, run_id)
+            if run is None:
+                raise _not_found("run_not_found", t("error.run_not_found", id=run_id))
+            return {
+                "run": run_record(run).to_json(),
+                **build_replay(session, self.storage, run, self.videos.settings()),
+            }
 
     def video_settings(self) -> dict[str, object]:
         """錄影設定，加上目前保存的錄影有幾段、多大。"""

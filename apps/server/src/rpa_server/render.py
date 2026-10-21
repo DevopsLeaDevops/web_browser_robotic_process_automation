@@ -35,6 +35,7 @@ __all__ = [
     "domain_page",
     "js_messages",
     "render",
+    "replay_messages",
     "run_filters",
     "workflow_messages",
 ]
@@ -99,6 +100,7 @@ NAV: Final = (
             NavPage("recording", "/recording"),
             NavPage("playground", "/playground"),
             NavPage("runs", "/runs"),
+            NavPage("replay", "/replay"),
             NavPage("workers", "/devices"),
         ),
     ),
@@ -397,6 +399,18 @@ def workflow_preview(workflow: Workflow) -> dict[str, object]:
     left, top = min(xs, default=0) - 24, min(ys, default=0) - 24
     width, height = max(xs, default=240) - left + 24, max(ys, default=120) - top + 24
     return {"nodes": nodes, "edges": edges, "viewbox": f"{left} {top} {width} {height}"}
+
+
+def replay_messages() -> dict[str, str]:
+    """運行回看頁的 JavaScript 用到的文字（replayjs. 開頭的鍵，目前語言；M12）。
+
+    和 workflow_messages 一樣只放在那一頁（#replay-messages），訊息目錄裡寫 ``{{名稱}}``。
+    """
+    return {
+        key.removeprefix("replayjs."): t(key)
+        for key in t.messages(get_locale())
+        if key.startswith("replayjs.")
+    }
 
 
 def workflow_messages() -> dict[str, str]:

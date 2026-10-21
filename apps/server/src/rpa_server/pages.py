@@ -2,6 +2,7 @@
 
 import mimetypes
 import os
+from datetime import datetime
 from typing import Annotated, Final, Literal, cast
 from urllib.parse import urlsplit
 
@@ -21,7 +22,14 @@ from rpa_server.errors import ServiceError
 from rpa_server.gitsync import GitSource
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
-from rpa_server.render import domain_page, render, run_filters, workflow_messages
+from rpa_server.render import (
+    domain_page,
+    render,
+    replay_messages,
+    run_filters,
+    workflow_messages,
+)
+from rpa_server.replay import dumps
 from rpa_server.services import Services
 from rpa_server.storage import SCENARIO_FILE
 
@@ -125,6 +133,43 @@ def _role_values(role: RoleRecord) -> dict[str, object]:
         "autoLogin": role.auto_login or "",
         "domainId": role.domain_id or "",
     }
+
+
+def _parse_time(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _size(value: object) -> str:
+    """位元組 → 給人看的大小（KB、MB、GB）。"""
+    if not isinstance(value, int) or isinstance(value, bool):
+        return "—"
+    size = float(value)
+    for unit in ("B", "KB", "MB"):
+        if size < 1024:
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.2f} GB"
+
+
+def _no_video_reason(
+    finished: bool, video: dict[str, object] | None, result: dict[str, object] | None
+) -> str:
+    """回看頁沒有影片時的說明（M12）。"""
+    if not finished:
+        return t("replay.no_video_running")
+    if video is not None and video.get("deletedAt"):
+        reason = str(video.get("deletedReason") or "expired")
+        return t("replay.no_video_deleted", reason=t(f"replay.deleted_{reason}"))
+    if video is not None and video.get("error"):
+        return t("replay.no_video_failed", error=str(video["error"]))
+    if result is not None and result.get("kind") == "script":
+        return t("replay.no_video_script")
+    return t("replay.no_video_off")
 
 
 def _location_context(services: Services) -> dict[str, object]:
@@ -249,6 +294,7 @@ def page_router(services: Services) -> APIRouter:
         file: str = "",
         focus: str = "",
         part: str = "",
+        line: int = 0,
     ) -> HTMLResponse:
         record = services.get_scene(scene_id)
         shown = services.get_revision(scene_id, revision)
@@ -280,6 +326,7 @@ def page_router(services: Services) -> APIRouter:
             files=files,
             selected=selected or next(iter(files)),
             focus=focus if focus in _FOCUS else "",
+            line=max(0, line),
         )
 
     @router.get("/scenes/{scene_id}/run", include_in_schema=False)
@@ -345,6 +392,70 @@ def page_router(services: Services) -> APIRouter:
                 locations=services.run_locations(),
             ),
             limit=200,
+        )
+
+    @router.get("/replay", include_in_schema=False)
+    def replays(
+        scene: Annotated[list[str] | None, Query()] = None,
+        category: Annotated[list[str] | None, Query()] = None,
+        status: Annotated[list[str] | None, Query()] = None,
+        purpose: Annotated[list[str] | None, Query()] = None,
+        worker: Annotated[list[str] | None, Query()] = None,
+    ) -> HTMLResponse:
+        """運行回看（M12）：還有錄影的運行，篩選與運行報告相同；錄影設定也在這頁。"""
+        selected = {
+            "scene": [item for item in scene or [] if item],
+            "category": [item for item in category or [] if item],
+            "status": [item for item in status or [] if item],
+            "purpose": [item for item in purpose or [] if item],
+            "worker": [item for item in worker or [] if item],
+        }
+        return page(
+            "replays.html",
+            page="replay",
+            title=t("nav.replay"),
+            runs=services.list_runs(
+                scenes=selected["scene"],
+                categories=selected["category"],
+                statuses=selected["status"],
+                purposes=selected["purpose"],
+                workers=selected["worker"],
+                with_video=True,
+            ),
+            filters=run_filters(
+                scenes=services.list_scenes(include_archived=True),
+                categories=services.run_categories(),
+                selected=selected,
+                locations=services.run_locations(),
+            ),
+            video_settings=services.video_settings(),
+            limit=200,
+        )
+
+    @router.get("/runs/{run_id}/replay", include_in_schema=False)
+    def replay(run_id: str) -> HTMLResponse:
+        """回看一次運行：影片、縮圖時間軸、和步驟關聯（M12，ADR 0016）。"""
+        record = services.get_run(run_id)
+        data = services.replay(run_id)
+        video = cast("dict[str, object] | None", data["video"])
+        playable = bool(video and video.get("playable"))
+        result = services.run_result(run_id) if record.finished else None
+        return page(
+            "replay.html",
+            page="replay",
+            title=t("replay.title", id=record.id),
+            run=record,
+            data=data,
+            data_json=dumps(data),
+            video=video or {},
+            playable=playable,
+            workflow=data["workflow"],
+            engine=(result or {}).get("engine") or record.engine or t("run.engine_scenario"),
+            no_video_reason=_no_video_reason(record.finished, video, result),
+            started=_parse_time(video.get("startedAt")) if video else None,
+            keep_until=_parse_time(video.get("keepUntil")) if video else None,
+            size=_size(video.get("bytes")) if video else "",
+            replay_messages=replay_messages(),
         )
 
     @router.get("/runs/{run_id}", include_in_schema=False)

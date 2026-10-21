@@ -656,6 +656,11 @@ def api_router(services: Services) -> APIRouter:
             "files": services.storage.run_files(run_id) if run.finished else [],
         }
 
+    @router.get("/runs/{run_id}/replay")
+    def get_replay(run_id: str) -> dict[str, object]:
+        """回看頁的資料（M12）：錄影、步驟在影片裡的時間、場景檔的原文與行號、斷言、前後的運行。"""
+        return services.replay(run_id)
+
     @router.put("/runs/{run_id}/video")
     def pin_video(run_id: str, body: VideoPin) -> dict[str, object]:
         """釘選或取消釘選這次運行的錄影（M12）。"""
