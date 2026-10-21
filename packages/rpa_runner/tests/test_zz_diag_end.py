@@ -42,7 +42,7 @@ def test_diag_end(site: str, tmp_path: Path, engine: str, attempt: int) -> None:
         "failedEnd": round(end, 2),
         "firstFrameMs": info.get("firstFrameMs"),
         "startedAtSource": info.get("startedAtSource"),
-        "samples": {f"{o:+}": c for o, c in zip(offsets + ["last"], colors, strict=True)},
+        "samples": {str(o): c for o, c in zip([*offsets, "last"], colors, strict=True)},
         "diag": {k: diag.get(k) for k in ("errorType", "remainingMs")},
     }
     if engine == "chromium" and attempt > 1:
