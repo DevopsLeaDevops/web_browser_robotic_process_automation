@@ -130,13 +130,44 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
           <li>到「运行报告」确认没有运行中的任务，录制端那边也没有进行中的录制或调试。</li>
           <li>停止服务器（Ctrl+C 或 <code>sudo systemctl stop rpa-portal</code>），建议先<a href="#backup">备份</a>。</li>
           <li><code>git pull</code>，再运行 <code>./scripts/setup.sh</code>（依赖与浏览器有变动才安装；只想更新依赖用 <code>uv sync</code>）。</li>
-          <li>启动服务器。数据库在启动时自动升级，原有的场景与记录都保留。</li>
+          <li>启动服务器。数据库在启动时自动升级，原有的场景与记录都保留。第一次升级到 M11 时，旧的 <code>scenes/</code> 与数据库里的验证、发布、组合场景会搬进 <code>domains/</code>，搬之前先备份到 <code>backups/&lt;时间&gt;-before-domains/</code>（组合场景另有 <code>-before-composites/</code>），日志会印出备份位置。</li>
           <li>把运行端与录制端更新到同一个版本：App 下载同版本的安装档或 DMG，命令行的那台 <code>git pull</code> 后重新启动。</li>
         </ol>
         <p>服务器重新启动时，录制端进行中的录制、调试、人工登录会结束；运行端与录制端会自己重新连上，不必重新配对。</p>
 
         <h3 id="backup">备份与搬家</h3>
-        <p>所有数据都在文件夹里（里面有什么见<a href="../design/portal.html#data-folder">管理 Portal › 文件夹</a>）。停止服务器后拷贝整个文件夹就是备份，例如 <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>。搬到新的服务器：在新的那台安装同一个版本，把文件夹放回去，用同样的 <code>--data</code> 启动。设备的权杖也在文件夹里，服务器网址不变时不必重新配对；网址变了（换了 IP）时，在设备页按「重新邀请」，到那台用新的邀请重新配对。文件夹里有 Secrets 的值与登录状态，备份档请一样只有本人能读。</p>
+        <p>所有数据都在文件夹里（里面有什么见<a href="../design/portal.html#data-folder">管理 Portal › 文件夹</a>）。停止服务器后拷贝整个文件夹就是备份，例如 <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>。搬到新的服务器：在新的那台安装同一个版本，把文件夹放回去，用同样的 <code>--data</code> 启动。设备的权杖也在文件夹里，服务器网址不变时不必重新配对；网址变了（换了 IP）时，在设备页按「重新邀请」，到那台用新的邀请重新配对。文件夹里有 Secrets 的值、登录状态与 git 的权杖、部署密钥（<code>git/</code>），备份档请一样只有本人能读。</p>
+        <p><strong>退回升级前的版本（M11）。</strong>新的文件夹格式旧版本读不懂。要退回：停止服务器，删掉 <code>domains/</code>，把 <code>backups/&lt;时间&gt;-before-domains/</code> 里的 <code>rpa.db</code> 与 <code>scenes/</code> 放回文件夹，再切回旧版本启动。升级之后才做的录制、验证、发布不在备份里。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="git-sync">
+      <div class="panel-header"><h2>领域与 git 同步</h2><span class="muted">M11；场景管理 › 领域管理 › 同步</span></div>
+      <div class="panel-body prose">
+        <p>每个领域可以和 git 仓库里的一个目录同步，多台服务器（不同的人）共用同一份场景、组合场景与验证、发布记录。只有服务器做 git；录制端与运行端照旧由服务器送来需要的文件。服务器要有 git 2.25 以上（一键脚本已经安装）。设计见<a href="../design/portal.html">管理 Portal</a> 与 <a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>。</p>
+        <h3>设置</h3>
+        <ol>
+          <li><strong>准备仓库与权限。</strong>建议用私有仓库（场景里可能有内网网址、账号名称）。HTTPS：GitHub 建一个 fine-grained personal access token，只开这个仓库的 Contents 读写；GitHub 不接受账号密码做 git 操作。SSH：在 Portal 产生部署密钥，贴到仓库的 Settings › Deploy keys 并勾 Allow write access；每台服务器的每个领域各一把。公开仓库可以不认证，但只能拉取。</li>
+          <li><strong>已有的领域。</strong>领域管理那一列按「同步」：填仓库网址、目录（例如 <code>testsite</code>；同一个仓库可以放多个领域）、分支（留空用远程的默认分支）、认证方式 → 保存 → 测试连接 → 同步推送。空仓库与还没有目录的情况，第一次推送时创建。</li>
+          <li><strong>从 git 添加领域。</strong>领域管理的「从 git 添加」：填仓库与目录、测试连接（目录里有 <code>pack.yaml</code> 就预填代号与名称）→ 添加并拉取。SSH 仓库先用「添加领域」创建，再到同步页产生部署密钥。</li>
+          <li><strong>这台服务器的名称。</strong>领域管理的「这台服务器」改成看得懂的名称（例如 mac-a），验证记录、发布与提交者都会写它。</li>
+        </ol>
+        <h3>平常怎么用</h3>
+        <ul>
+          <li><strong>本机变更。</strong>保存、验证、发布都先写进领域文件夹，不必每次提交；同步页列出和上次同步的差异（版本、验证记录、发布与设置）。</li>
+          <li><strong>同步推送。</strong>对话框列出变更与默认的提交说明（可以改）；远程有新的提交时会一起合并、应用回来。登录状态、Secrets、私钥之类的文件、含有已保存 Secret 值的文件、非定义档、超过 1 MB 的文件会挡下推送。</li>
+          <li><strong>拉取并重新加载。</strong>取回远程的新提交、校验后应用并重新加载，不必重新启动；服务器启动时也会在背景自动拉取（可以在同步页关掉）。</li>
+          <li><strong>依赖。</strong>组合场景用到其他领域的场景时，组合场景页的「依赖」会说缺什么、怎么补（从 git 添加、拉取、重新保存）；领域管理页列出每个领域被哪些组合场景依赖。</li>
+          <li><strong>建议同一个场景同时只在一台服务器上编辑</strong>，推送前先拉取。</li>
+        </ul>
+        <h3>冲突</h3>
+        <p>同一个文件两边改成不同内容（例如两台同时替同一个场景创建第 3 版，或同时发布）时，什么都不应用、远程也不会被覆盖，同步页给三个选择：</p>
+        <ul>
+          <li><strong>取消</strong>：本机照用，之后再处理。</li>
+          <li><strong>推送到新分支</strong>：本机的内容推到 <code>rpa/&lt;领域&gt;-&lt;时间&gt;</code>，到 GitHub 开 PR 合并后再拉取。</li>
+          <li><strong>以远程为准</strong>：先把领域文件夹备份到 <code>backups/&lt;时间&gt;-before-remote-&lt;领域&gt;/</code>，再用远程最新的内容；本机未推送的变更只留在备份里。</li>
+        </ul>
+        <p>「中断 git 链接」会把领域变回本机领域：文件夹保留，这台的权杖、密钥与工作副本删除，远程不受影响。</p>
       </div>
     </section>
 
@@ -218,6 +249,10 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
             <tr><td>版本不同的提醒</td><td>只是程序版本不同时仍可使用，但建议更新到同一个版本；协定版本不同时连不上，一定要更新。见<a href="#upgrade">更新版本</a>。</td></tr>
             <tr><td>录制、调试突然结束，原因是失联</td><td>录制端停掉、睡眠或断线超过 30 秒，或服务器重新启动。重新打开后再开始一次。</td></tr>
             <tr><td>任务一直排队</td><td>见<a href="remote-worker.html#faq">远程 worker › 常见问题</a>。</td></tr>
+            <tr><td>同步页说认证失败或找不到仓库</td><td>HTTPS：权杖过期或没有这个仓库的 Contents 权限，到同步页重新填权杖；不要把帐密写进网址。SSH：部署密钥还没贴到仓库或没勾 Allow write access；网址要是 <code>git@github.com:组织/仓库.git</code>。见<a href="#git-sync">领域与 git 同步</a>。</td></tr>
+            <tr><td>推送被挡下</td><td>对话框列出原因：删掉或搬走登录状态、私钥之类的文件与非定义档；内容含有 Secret 的值时改用 <code>{{ secrets.名称 }}</code>。</td></tr>
+            <tr><td>同步冲突</td><td>见<a href="#git-sync">领域与 git 同步 › 冲突</a>。</td></tr>
+            <tr><td>升级后启动失败，消息有 <code>FOREIGN KEY constraint failed</code></td><td>#53 之前的版本升级有数据的旧数据库会这样；更新到最新版再启动（失败时数据库没有改，不必还原）。</td></tr>
           </tbody>
         </table>
       </div>
