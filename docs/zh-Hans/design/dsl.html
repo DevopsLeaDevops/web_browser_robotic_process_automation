@@ -133,6 +133,8 @@ verify:
             <dt><code>action</code></dt><dd>必填，动作名称，见下方动作表。</dd>
             <dt><code>name</code></dt><dd>给人看的步骤说明。</dd>
             <dt><code>timeout</code></dt><dd>这一步的超时，<strong>毫秒整数</strong>，大于 0、最多 3,600,000（一小时）。没写就用 <code>defaults.timeout</code>；不会超过总期限剩下的时间。</dd>
+            <dt id="tabs"><code>page</code></dt><dd>在哪个分页运行（M7b）：前面某一步用 <code>popup</code> 开出来的分页名称；没写是一开始的分页。名称要在「之前」的步骤开过，不然校验时指出这一步。</dd>
+            <dt><code>popup</code></dt><dd>只有 click、fill、select、check、press 可以写（M7b）：这一步会开出新分页（弹出窗口，例如链接的 <code>target="_blank"</code> 或 <code>window.open</code>），运行时等它开好并取这个名称，之后的步骤用 <code>page</code> 指定它；同一个名称只能开一次。没有开出新分页时这一步超时失败。例如 <code>{ action: click, target: { role: link, name: 打开商品明细 }, popup: items }</code>，之后 <code>{ action: fill, page: items, target: { placeholder: 请选择 }, value: … }</code>。</dd>
           </dl>
           <p class="muted">retry 与 onError 在 M7 加入；重试只用于没有副作用的步骤，送出表单之类的动作不会自动重试。</p>
         </div>
@@ -210,7 +212,7 @@ verify:
           <dt>extract 的 fields</dt><dd>每个元素抽成一笔记录，键是字段名称，值可写 target（相对于该元素）、get、attribute。有 fields 时不写外层的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。download、upload、多标签页、条件与循环等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a）。</div>
+      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。download、upload、条件与循环等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分页用步骤的 <a href="#tabs">popup 与 page</a>（M7b）。</div>
     </section>
 
     <div class="two-col">

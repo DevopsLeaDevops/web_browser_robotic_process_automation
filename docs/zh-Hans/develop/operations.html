@@ -246,7 +246,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
             <tr><td>开始录制时说起始网址是管理 Portal 自己的地址</td><td>起始网址填成了服务器的 8080 或 8081。录制开的是全新的浏览器，没有录制端的权杖，打开这两个端口只会得到 401（<code>recorder_unauthorized</code>）。改填要自动化的网站。</td></tr>
             <tr><td>「开始录制」是灰的，上方写著录制中</td><td>这台已经有一段录制在进行：先把那个浏览器窗口关掉，或按「取消录制」。</td></tr>
             <tr><td>录制端说管理 Portal 不再接受这台的权杖</td><td>设备页重新邀请过、禁用或删除了这台。在设备页产生新的录制端邀请（被禁用时先按「激活」），到「状态与设置」粘贴重新配对。</td></tr>
-            <tr><td>「App 版本太旧，看不懂…（例如 iframe 的写法）」</td><td>录制端或 Worker 的 App 比服务器旧，看不懂场景用到的写法（M7a 的 <code>frame</code>、<code>anyFrame</code>）。服务器不把它交给那台：调试、接著录制、登录检查直接回这个错误，Worker 的运行标为失败。安装和服务器同一个版本的 DMG 或安装档后再试，见<a href="#upgrade">更新版本</a>。</td></tr>
+            <tr><td>「App 版本太旧，看不懂…（例如 iframe、新分页的写法）」</td><td>录制端或 Worker 的 App 比服务器旧，看不懂场景用到的写法（M7a 的 <code>frame</code>、<code>anyFrame</code>，M7b 的 <code>page</code>、<code>popup</code>）。服务器不把它交给那台：调试、接著录制、登录检查直接回这个错误，Worker 的运行标为失败。安装和服务器同一个版本的 DMG 或安装档后再试，见<a href="#upgrade">更新版本</a>。</td></tr>
             <tr><td>版本不同的提醒</td><td>只是程序版本不同时仍可使用，但建议更新到同一个版本；协定版本不同时连不上，一定要更新。见<a href="#upgrade">更新版本</a>。</td></tr>
             <tr><td>录制、调试突然结束，原因是失联</td><td>录制端停掉、睡眠或断线超过 30 秒，或服务器重新启动。重新打开后再开始一次。</td></tr>
             <tr><td>任务一直排队</td><td>见<a href="remote-worker.html#faq">远程 worker › 常见问题</a>。</td></tr>
