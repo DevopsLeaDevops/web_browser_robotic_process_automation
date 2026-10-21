@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-20 20:17 America/Los_Angeles（PDT，UTC−07:00）。共 115 次運行。
+更新：2026-10-20 20:44 America/Los_Angeles（PDT，UTC−07:00）。共 116 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,7 +9,7 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 54（0） | 35（0） | 2.5 分（0.0 分） | 5.1 分（0.0 分） | 0.0 分（0.0 分） | 231／70／0 分（0／0／0 分） |
+| CI | 55（0） | 35（0） | 2.5 分（0.0 分） | 5.1 分（0.0 分） | 0.0 分（0.0 分） | 234／70／0 分（0／0／0 分） |
 | 桌面端建置 | 45（0） | 36（0） | 3.9 分（0.0 分） | 4.2 分（0.0 分） | 0.1 分（0.0 分） | 4／120／121 分（0／0／0 分） |
 | 一鍵安裝腳本 | 15（0） | 7（0） | 3.0 分（0.0 分） | 15.5 分（0.0 分） | 0.1 分（0.0 分） | 69／47／17 分（0／0／0 分） |
 | 每晚完整測試 | 1（0） | 0（0） | 39.3 分（0.0 分） | 39.3 分（0.0 分） | 0.0 分（0.0 分） | 36／39／0 分（0／0／0 分） |
@@ -19,27 +19,27 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-20 | 112 | 330 | 267 | 131 | 728 |
+| 2026-10-20 | 113 | 333 | 267 | 131 | 731 |
 | 2026-10-19 | 3 | 10 | 8 | 6 | 25 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
 
 ### CI · pytest-report-3.12/pytest-report.xml
 
-最近一次：2026-10-20 20:11 America/Los_Angeles（PDT，UTC−07:00），合計 938 秒。
+最近一次：2026-10-20 20:43 America/Los_Angeles（PDT，UTC−07:00），合計 130 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 142.5（143.2） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 129.4（130.4） | 9 | `apps/server/tests/test_portal.py` |
-| 96.0（95.3） | 9 | `apps/server/tests/test_production_flow.py` |
-| 92.6（91.4） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 70.0（70.1） | 18 | `packages/rpa_runner/tests/test_run.py` |
-| 68.1（66.3） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 52.9（52.5） | 8 | `packages/rpa_runner/tests/test_debug.py` |
-| 25.9（26.1） | 4 | `apps/server/tests/test_recorder_flow.py` |
-| 20.4（21.4） | 3 | `apps/server/tests/test_flow.py` |
-| 19.3（0.0） | 18 | `packages/rpa_runner/tests/test_profiles.py` |
+| 14.0（14.5） | 17 | `apps/worker/tests/test_recorder.py` |
+| 12.5（13.6） | 14 | `apps/worker/tests/test_gateway.py` |
+| 10.5（17.9） | 24 | `apps/server/tests/test_production_api.py` |
+| 10.0（16.1） | 24 | `apps/server/tests/test_api.py` |
+| 9.5（15.8） | 20 | `apps/server/tests/test_remote_worker_api.py` |
+| 8.5（10.3） | 11 | `apps/server/tests/test_gitsync.py` |
+| 7.3（7.3） | 27 | `apps/desktop/tests/test_recorder_app.py` |
+| 6.9（12.7） | 14 | `apps/server/tests/test_workflow_api.py` |
+| 6.4（6.6） | 12 | `apps/worker/tests/test_remote.py` |
+| 6.3（10.9） | 16 | `apps/server/tests/test_recorder_api.py` |
 
 ### CI · pytest-report-3.13/pytest-report.xml
 
@@ -194,6 +194,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 10-20 20:43 | CI | PR | docs/m12-replay-design | cancelled | 1.6 分 | 0.0 分 | [#39540091556](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39540091556/attempts/1) |
 | 10-20 20:12 | 桌面端建置 | 推送 | main | success | 4.2 分 | 0.1 分 | [#39537160817](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39537160817/attempts/1) |
 | 10-20 20:11 | CI | 推送 | main | success | 5.3 分 | 0.0 分 | [#39537160834](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39537160834/attempts/1) |
 | 10-20 20:10 | CI | 推送 | main | cancelled | 1.7 分 | 0.0 分 | [#39537091049](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39537091049/attempts/1) |
@@ -233,5 +234,4 @@
 | 10-20 09:09 | CI | PR | fix/sqlite-migration-fk | failure | 2.4 分 | 0.1 分 | [#39454917465](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39454917465/attempts/1) |
 | 10-20 08:18 | CI | 推送 | main | success | 5.2 分 | 0.0 分 | [#39447249830](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39447249830/attempts/1) |
 | 10-20 08:18 | 一鍵安裝腳本 | 推送 | main | failure | 15.2 分 | 0.1 分 | [#39447249863](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39447249863/attempts/1) |
-| 10-20 07:56 | CI | PR | fix/linux-setup-mirrors | success | 2.1 分 | 0.0 分 | [#39443848931](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39443848931/attempts/1) |
 
