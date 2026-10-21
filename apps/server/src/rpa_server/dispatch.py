@@ -598,6 +598,7 @@ class WorkerHub:
                 login=login,
                 login_state=state,
                 secrets=values,
+                record_video=self.queue.record_video(),
             )
         except Exception as error:
             logger.exception("無法打包任務 %s", run.id)

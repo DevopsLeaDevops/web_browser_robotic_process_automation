@@ -11,6 +11,7 @@ import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal, cast
 
@@ -91,9 +92,21 @@ class Deadline:
         return max(1, min(step_ms, remaining))
 
 
+def _utc(moment: float | None) -> str | None:
+    """實際時間（time.time() 的秒數）→ UTC、到毫秒的 ISO 8601，例如 2026-10-21T03:30:12.041Z。"""
+    if moment is None:
+        return None
+    text = datetime.fromtimestamp(moment, UTC).isoformat(timespec="milliseconds")
+    return text.replace("+00:00", "Z")
+
+
 @dataclass(slots=True)
 class StepRecord:
-    """一個步驟的執行紀錄（寫進 steps.json）。"""
+    """一個步驟的執行紀錄（寫進 steps.json）。
+
+    ``started_at``、``ended_at`` 是實際時間（``time.time()``），回看時和錄影的開始時間相減，
+    就是這一步在影片裡的位置（M12）；``url`` 是這一步結束後頁面的網址（影片只錄到網頁內容）。
+    """
 
     id: str
     action: str
@@ -102,6 +115,9 @@ class StepRecord:
     duration_ms: int = 0
     error: str | None = None
     artifacts: list[str] = field(default_factory=list[str])
+    started_at: float | None = None
+    ended_at: float | None = None
+    url: str | None = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -112,6 +128,9 @@ class StepRecord:
             "durationMs": self.duration_ms,
             "error": self.error,
             "artifacts": self.artifacts,
+            "startedAt": _utc(self.started_at),
+            "endedAt": _utc(self.ended_at),
+            "url": self.url,
         }
 
 
@@ -375,6 +394,7 @@ def _execute_step(
 ) -> None:
     """執行一步並更新紀錄；失敗時記下錯誤再拋出。"""
     started = time.monotonic()
+    record.started_at = time.time()
     default_ms = run.scenario.defaults.timeout or DEFAULT_STEP_TIMEOUT_MS
     try:
         timeout = deadline.budget(step.timeout or default_ms)
@@ -389,6 +409,9 @@ def _execute_step(
         raise
     finally:
         record.duration_ms = int((time.monotonic() - started) * 1000)
+        record.ended_at = time.time()
+        with contextlib.suppress(Exception):  # 頁面已經關閉時沒有網址
+            record.url = run.page.url
 
 
 def run_step(

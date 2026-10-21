@@ -128,10 +128,12 @@
   input.json          # 校验后的本次入参
   facts.json          # 自动化抽取的页面事实
   output.json         # 只有独立断言与出参校验都通过才产生
-  screenshot.png、trace.zip
+  steps.json          # 每一步的结果、开始与结束时间、步骤后的网址
+  screenshot.png、diagnostic.json
+  video.webm、video.json  # 自动化阶段的录像与说明（M12，ADR 0016）
   automation.log、assertion.log
   scenario/           # 本次使用的场景版本快照（含 Python 脚本）
-  result.json、report.html</pre>
+  result.json、report.html、run.json</pre>
       </div>
     </section>
 
@@ -186,9 +188,9 @@
             <li>用户在管理 Portal 或 CLI 触发运行（M9 起也可以由调度器创建）。</li>
             <li>API 检查已发布的版本，在启动浏览器前校验入参，写入一笔运行记录与一个任务。</li>
             <li>worker 领取任务，以子进程启动 Runner，传入场景版本快照、入参与 Secrets（只在内存中），并设置总期限。</li>
-            <li>Runner 打开独立的浏览器上下文逐步运行，记下页面事实；每一步回报状态。</li>
+            <li>Runner 打开独立的浏览器上下文逐步运行，记下页面事实；每一步回报状态与开始、结束的时间。自动化阶段录像（M12，<a href="../adr/0016-run-replay.html">ADR 0016</a>），回看时视频与步骤靠同一个时钟对上。</li>
             <li>独立断言比较页面事实与入参；通过后出参校验，才写出 output.json。</li>
-            <li>截图、Trace、日志与报告存入运行目录（M9 改为对象存储）；失败时标出出错的阶段、步骤与截图。</li>
+            <li>截图、录像、日志与报告存入运行目录（M9 改为对象存储）；失败时标出出错的阶段、步骤与截图。</li>
           </ol>
         </div>
       </section>

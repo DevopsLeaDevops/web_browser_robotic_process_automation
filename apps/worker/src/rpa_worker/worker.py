@@ -46,6 +46,8 @@ class Job:
     """Secrets 的值（只放在記憶體）；沒有的由 runner 從同名的環境變數找。"""
     locale: Locale | None = None
     """報告與訊息的語言；None 用 worker 的語言（遠端任務帶著管理 Portal 的語言，M9a）。"""
+    record_video: bool = False
+    """自動化階段錄影（M12，管理 Portal 的錄影設定）。"""
 
 
 class JobSource(Protocol):
@@ -86,6 +88,7 @@ class Executor(Protocol):
         on_stage: Callable[[StageName], None] | None = None,
         login: LoginSettings | None = None,
         secrets: Mapping[str, str] | None = None,
+        record_video: bool = False,
     ) -> RunResult: ...
 
 
@@ -213,6 +216,7 @@ class Worker:
                 on_stage=lambda stage: self._report(self.source.progress, job, stage),
                 login=job.login,
                 secrets=job.secrets,
+                record_video=job.record_video,
             )
         except Exception as error:
             logger.warning("任務 %s 無法執行：%s", job.run_id, error)

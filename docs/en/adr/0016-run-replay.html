@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:c1975b38665acfab">
+<title>ADR 0016 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0016" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0016: Record runs, and line the video up with the steps by the same clock on replay</h1>
+      <p>The automation stage of validations and executions is recorded with Playwright and kept in the run folder. Steps record the real time they started and ended, and the replay page uses those times to find them in the video. Thumbnails are made in the browser that plays the video.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-20</dd>
+        <dt>Scope</dt><dd>rpa-runner, rpa-worker, rpa-server (from M12)</dd>
+        <dt>Related</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a> (run folder), <a href="0012-remote-workers.html">ADR 0012</a> (remote workers upload the run folder); M11 decision D4 (run records stay out of git); <a href="../design/portal.html#video">Management portal › Runs › Recording</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>When a run fails, the report only has the last screenshot, the step results and the logs, so you cannot see what happened on the screen before the failure. Runs usually happen on another worker, and in headless mode nothing is visible at all. The user asked (2026-10-20) for validations and executions to be recorded, headed or headless; for the recording to be replayed from the run record after the run; and for replay to be a separate, frequently used feature that can pause, seek, find the moment by thumbnails and follow the steps, so the run can be reconstructed.</p>
+          <p>Playwright can record video on its own: the browser hands every frame and the real time it appeared to Playwright, which encodes them into WebM with its own ffmpeg.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li><strong>What is recorded.</strong> The automation stage of DSL scenarios, using BrowserContext recording, headed or headless; the video is as large as the page, at most 1280 wide (scaled down proportionally). Login checks, step-by-step debugging, recording sessions and Python script scenarios are not recorded. Firefox's warm profile starts with a tab already open, and that tab records frames missing the height of the toolbar (measured on Windows and Linux), so recording uses a newly opened tab instead.</li>
+            <li><strong>How it lines up with the steps.</strong> Playwright encodes every frame at its real time, so second t of the video is the recording start time plus t; the start time is in the WebM header (DateUTC, milliseconds). <code>steps.json</code> records each step's <code>startedAt</code> and <code>endedAt</code> (UTC, milliseconds) and the page URL after it. Both come from the same clock on the same computer, so subtracting gives the step's place in the video. If the header has no start time (older Playwright), the time the page was opened is used.</li>
+            <li><strong>How it is finished.</strong> The subprocess closes the BrowserContext before it exits, which is when Playwright finishes the video; the parent turns it into <code>video.webm</code> and <code>video.json</code> (start time, length, size, whether it was repaired). When the subprocess is terminated (cancelled, or past the overall deadline): on Linux and macOS Playwright runs ffmpeg in its own process group, so it is not terminated along with the rest and finishes the file itself; on Windows the process tree cannot simply be ended: <code>taskkill /T</code> would end ffmpeg too, and keeping only ffmpeg is not enough either, because Node (Playwright's driver) puts the processes it starts in a Job Object that ends them all when Node ends. So while recording, the runner lists the descendants first and ends only the browsers: Playwright finishes each page's video as usual, and the subprocess exits by itself because its page closed (0.1 to 0.3 seconds in CI); only if it has not exited within 15 seconds is the whole process tree ended. How the run was stopped is recorded under <code>stop</code> in <code>video.json</code>. A video that still has no length or index is remuxed with Playwright's own ffmpeg (no re-encoding).</li>
+            <li><strong>Where it is kept.</strong> In the run folder (remote workers still upload the whole folder); the runs table records the length, size, pin, and when and why the video was deleted. Videos do not go into domain folders or git.</li>
+            <li><strong>How long it is kept.</strong> A server setting; by default everything is recorded, passed runs keep the video for 7 days, and failed, timed-out, cancelled and needs-login runs for 30 days; all videos together use at most 20 GB, deleting the oldest first; pinned videos are kept. Clean-up only deletes videos: run records, reports and screenshots stay, and <code>run.json</code> records when and why the video was deleted.</li>
+            <li><strong>How it is replayed.</strong> The replay page plays the video straight from the run folder (with Range support and caching). Thumbnails are made in the browser that plays the video, by seeking a hidden video and drawing it to a canvas; the Linux server has neither a browser nor ffmpeg.</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>About 1–3 MB per minute (1280 wide; less when the screen is still). The retention rules and the total limit keep disk use in check.</li>
+            <li>Workers run an extra real-time ffmpeg encoder (VP9; Playwright adjusts threads and bitrate to the frame size).</li>
+            <li>The video keeps everything on the screen, including business data and values typed into ordinary fields. The user agreed to keep them (2026-10-20, D3); until M8, anyone who can open the management portal can see them.</li>
+            <li>Cancelling while recording waits on Windows for the subprocess to exit by itself (usually under a second, at most 15 seconds). Actions still stop at the same moment: the browsers are ended right away.</li>
+            <li>The browser has to play WebM VP9: Chrome, Edge and Firefox do; Safari on macOS and the recorder app (WKWebView) need manual acceptance.</li>
+            <li>A terminated video only covers up to the last change on the screen; the waiting after that has no frames. The replay page attaches steps beyond the end of the video to its last frame.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Playwright traces</td><td>Large files that need the separate Trace Viewer; the user wants video playback, seeking and thumbnails.</td></tr>
+              <tr><td>A screenshot per step</td><td>An extra browser round trip changes step timing, and nothing between steps is visible.</td></tr>
+              <tr><td>Playwright's showActions (marking clicks in the video)</td><td>Injects annotations into the page and waits 500 ms before every action, which changes the run itself. The replay page shows the steps instead.</td></tr>
+              <tr><td>Making thumbnails on the server</td><td>The Linux server has neither a browser nor ffmpeg; adding a media package makes offline installation harder.</td></tr>
+              <tr><td>Receiving every frame and encoding ourselves</td><td>Playwright already encodes at real time; doing it ourselves means encoding twice, and termination still has to be handled.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

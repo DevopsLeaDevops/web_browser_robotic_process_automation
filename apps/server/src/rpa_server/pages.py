@@ -12,7 +12,7 @@ from rpa_core.dsl import ExtractStep, Scenario, validate_text
 from rpa_core.dsl.editing import contract_section, section_text
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
-from rpa_runner.files import REPORT
+from rpa_runner.files import REPORT, VIDEO
 from rpa_runner.installed import DISPLAY_NAMES
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
@@ -30,7 +30,12 @@ __all__ = ["page_router"]
 FormPurpose = Literal["validation", "execution"]
 """執行表單的目的（試驗場序列的節點不從表單執行）。"""
 
-_TEXT_TYPES: Final = {".log": "text/plain", ".py": "text/plain", ".yaml": "text/plain"}
+_TEXT_TYPES: Final = {
+    ".log": "text/plain",
+    ".py": "text/plain",
+    ".yaml": "text/plain",
+    ".webm": "video/webm",
+}
 _RECENT_RUNS: Final = 10
 _REPORT_CSP: Final = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'"
 
@@ -384,7 +389,8 @@ def page_router(services: Services) -> APIRouter:
             path,
             media_type=media_type,
             headers={
-                "Cache-Control": "no-store",
+                # 錄影寫完就不會再變（M12）：讓瀏覽器拖曳時不必重抓同一段
+                "Cache-Control": "private, max-age=86400" if relative == VIDEO else "no-store",
                 "X-Content-Type-Options": "nosniff",
                 # 報告是單一 HTML 檔，只有內嵌樣式與同目錄的截圖
                 "Content-Security-Policy": _REPORT_CSP,

@@ -127,10 +127,12 @@
   input.json          # 校驗後的本次入參
   facts.json          # 自動化抽取的頁面事實
   output.json         # 只有獨立斷言與出參校驗都通過才產生
-  screenshot.png、trace.zip
+  steps.json          # 每一步的結果、開始與結束時間、步驟後的網址
+  screenshot.png、diagnostic.json
+  video.webm、video.json  # 自動化階段的錄影與說明（M12，ADR 0016）
   automation.log、assertion.log
   scenario/           # 本次使用的場景版本快照（含 Python 腳本）
-  result.json、report.html</pre>
+  result.json、report.html、run.json</pre>
       </div>
     </section>
 
@@ -185,9 +187,9 @@
             <li>使用者在管理 Portal 或 CLI 觸發執行（M9 起也可以由排程器建立）。</li>
             <li>API 檢查已發布的版本，在啟動瀏覽器前校驗入參，寫入一筆執行紀錄與一個任務。</li>
             <li>worker 領取任務，以子程序啟動 Runner，傳入場景版本快照、入參與 Secrets（只在記憶體中），並設定總期限。</li>
-            <li>Runner 開啟獨立的瀏覽器上下文逐步執行，記下頁面事實；每一步回報狀態。</li>
+            <li>Runner 開啟獨立的瀏覽器上下文逐步執行，記下頁面事實；每一步回報狀態與開始、結束的時間。自動化階段錄影（M12，<a href="../adr/0016-run-replay.html">ADR 0016</a>），回看時影片與步驟靠同一個時鐘對上。</li>
             <li>獨立斷言比對頁面事實與入參；通過後出參校驗，才寫出 output.json。</li>
-            <li>截圖、Trace、日誌與報告存入執行目錄（M9 改為物件儲存）；失敗時標出出錯的階段、步驟與截圖。</li>
+            <li>截圖、錄影、日誌與報告存入執行目錄（M9 改為物件儲存）；失敗時標出出錯的階段、步驟與截圖。</li>
           </ol>
         </div>
       </section>

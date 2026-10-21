@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:960210578e7da413">
+<meta name="translation-source" content="sha256:658c44bdefae1b5f">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -56,7 +56,7 @@
         </table>
       </div>
       <div class="panel-body prose">
-        <p>The schedules sit in the quietest hours of the repository: 20:17 UTC is 13:17 PDT (UTC−07:00) / 12:17 PST (UTC−08:00) in America/Los_Angeles, 04:17 in Singapore. A failed scheduled run opens (or updates) an issue labeled <code>ci-schedule</code>. Path filters on PRs look at the whole PR; a new push to the same branch cancels the older run. Dependency-update PRs are opened by GitHub Actions and only trigger CI automatically; the other workflows run once someone pushes to that branch.</p>
+        <p>The schedules sit in the quietest hours of the repository: 20:17 UTC is 13:17 PDT (UTC−07:00) / 12:17 PST (UTC−08:00) in America/Los_Angeles, 04:17 in Singapore. A failed scheduled run opens (or updates) an issue labeled <code>ci-schedule</code>. Path filters on PRs look at the whole PR; a new push to the same branch cancels the older run. Dependency-update PRs are opened by GitHub Actions and only trigger CI automatically; the other workflows run once someone pushes to that branch. The Linux tests and the Windows worker tests in CI each run for at most 30 minutes, so a stuck run fails instead of running on (since 2026-10-21; before that there was no limit and a stuck run on Windows kept going until GitHub's 6-hour cap).</p>
       </div>
     </section>
 

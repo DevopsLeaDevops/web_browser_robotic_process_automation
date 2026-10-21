@@ -83,6 +83,8 @@ class JobPayload:
     login_state: bytes | None = None
     """角色目前的登入狀態檔內容（storageState JSON）；還沒登入過時是 None。"""
     secrets: Mapping[str, str] = field(default_factory=dict[str, str])
+    record_video: bool = False
+    """錄影（M12）；舊版管理 Portal 不會送這個欄位，就不錄。"""
 
     def to_json(self) -> dict[str, object]:
         login = None
@@ -102,6 +104,7 @@ class JobPayload:
             "login": login,
             "loginState": _b64(self.login_state) if self.login_state is not None else None,
             "secrets": dict(self.secrets),
+            "recordVideo": self.record_video,
         }
 
     @classmethod
@@ -150,6 +153,7 @@ class JobPayload:
             }
             if isinstance(secrets, dict)
             else {},
+            record_video=data.get("recordVideo") is True,
         )
 
 

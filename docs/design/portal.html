@@ -91,6 +91,7 @@
           <li><strong>不重複送出。</strong>表單每次載入產生一個 <code>idempotencyKey</code>，重複送出只會得到同一個執行。</li>
           <li><strong>重新執行。</strong>結束的執行都可以用同樣的入參與選項再執行一次（驗證用同一個版本，正式執行用目前發布的版本）。</li>
           <li><strong>伺服器重啟。</strong>啟動時把上次執行到一半的任務標為失敗；排隊中的會繼續執行。</li>
+          <li id="video"><strong>錄影（M12）。</strong>DSL 場景的自動化階段錄影，有頭、無頭都錄，存成執行目錄的 <code>video.webm</code> 與 <code>video.json</code>；<code>steps.json</code> 記下每一步的開始、結束時間與步驟後的網址，回看時和影片對上。畫面跟頁面一樣大，寬度最多 1280。取消、逾時、失敗的運行也有完整的影片（Windows 上取消時先只結束瀏覽器，讓 Playwright 把影片寫完；寫壞的影片用 Playwright 自帶的 ffmpeg 重新封裝）。登入檢查、逐步調試、錄製與 Python 腳本場景不錄。預設全部錄；通過的運行保留 7 天，失敗、逾時、取消、需要登入的保留 30 天，全部最多 20 GB（超過時從最舊的刪起），釘選的不刪。清理只刪影片，運行紀錄、報告、截圖都留著。見 <a href="../adr/0016-run-replay.html">ADR 0016</a>。</li>
         </ul>
       </div>
     </section>
@@ -265,7 +266,8 @@
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>發布；不符合發布門檻時 409</td></tr>
             <tr><td><code>GET /api/scenes/{id}/verifications</code></td><td>驗證紀錄（領域資料夾裡的，不管是哪一台伺服器），最新的在前</td></tr>
             <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已發布版本執行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不寫時執行的地方有圖形介面就用有頭模式）、<code>target</code>（執行位置，不寫用預設）、<code>idempotencyKey</code>；驗證也接受同樣的欄位</td></tr>
-            <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單</td></tr>
+            <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{執行編號}</code></td><td>報告清單（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重複）；單次狀態、<code>result.json</code> 與檔案清單；<code>video</code> 是錄影的長度、大小、釘選、刪除的時間與原因、影片網址（M12，沒有錄影時是 null）</td></tr>
+            <tr><td><code>PUT /api/runs/{執行編號}/video</code></td><td>釘選或取消釘選錄影（<code>pinned</code>）；釘選的不依保留規則刪除（M12）</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/cancel</code></td><td>取消</td></tr>
             <tr><td><code>POST /api/runs/{執行編號}/rerun</code></td><td>同樣的入參與選項再執行一次；202 回新的執行</td></tr>
             <tr><td><code>PUT /api/scenes/{id}/contract</code></td><td>入參與出參的表格存檔：<code>baseRevision</code>、<code>inputs</code>、<code>outputs</code>（每項有 <code>name</code>、改名前的 <code>previous</code>…；不帶的那一段不動）、<code>note</code></td></tr>
@@ -295,6 +297,7 @@
             <tr><td><code>POST /api/workers/{代號}/invite</code></td><td>產生邀請（M10.1）：舊權杖與之前的邀請立刻失效；回應的 <code>invite</code>（<code>line</code>、<code>server</code>、<code>code</code>、<code>app</code>、<code>expiresAt</code>）只有這一次拿得到；沒開對外埠時 409 <code>invite_needs_port</code>，停用中 409 <code>worker_disabled</code></td></tr>
             <tr><td><code>PUT /api/settings/default-target</code></td><td>預設執行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/server</code></td><td>這台伺服器的代號與名稱（<code>name</code>）；寫進版本、驗證、發布的紀錄</td></tr>
+            <tr><td><code>GET</code>、<code>PUT /api/settings/video</code></td><td>錄影設定（M12）：<code>enabled</code>、<code>keepPassedDays</code>、<code>keepOtherDays</code>（0～3650）、<code>maxTotalGb</code>；回應另有 <code>usage</code>（幾段、多大、釘選幾段）。改了之後新的任務照新設定，保留規則立刻套用</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>只在對外埠、不需要權杖（M10.1）：<code>code</code>、<code>app</code> 換權杖，回應裝置代號、名稱、<code>token</code> 與伺服器的協定、指紋、版本；代碼不對或已用過 401 <code>invite_invalid</code>、過期 401 <code>invite_expired</code>、App 種類不對 409 <code>invite_wrong_app</code>（代碼保留）、裝置停用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
             <tr><td><code>/worker-api/v1/…</code></td><td>只在對外埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
@@ -311,7 +314,7 @@
           <dl class="spec-list">
             <dt><code>rpa.db</code></dt><dd>SQLite 資料庫（各表見下方）</dd>
             <dt><code>domains/<wbr>&lt;領域&gt;/</code></dt><dd>領域資料夾（M11）：<code>pack.yaml</code>；<code>scenes/&lt;場景&gt;/</code> 裡的 <code>scene.yaml</code>、<code>revisions/&lt;版本&gt;/</code>（scenario.yaml，腳本場景另有兩支腳本）與版本說明檔 <code>revisions/&lt;版本&gt;.yaml</code>、驗證紀錄 <code>verifications/&lt;版本&gt;/</code>；角色定義 <code>roles/&lt;角色&gt;.yaml</code>；組合場景 <code>composites/&lt;代號&gt;/</code>（<code>composite.yaml</code>、<code>revisions/&lt;版本&gt;/workflow.json</code> 與版本說明檔、驗證紀錄）。格式見 <code>rpa_core.pack</code></dd>
-            <dt><code>runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>M2 的執行目錄（input.json、report.html…）；<code>run.json</code> 記下伺服器、領域、場景、版本、雜湊、時間與每個檔案的 sha256</dd>
+            <dt><code>runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>M2 的執行目錄（input.json、report.html…）；<code>run.json</code> 記下伺服器、領域、場景、版本、雜湊、時間與每個檔案的 sha256；錄影 <code>video.webm</code> 與 <code>video.json</code>（M12；依保留規則刪除影片時，<code>run.json</code> 的 <code>removed</code> 記下刪除的時間與原因）</dd>
             <dt><code>workflow-runs/<wbr>&lt;執行編號&gt;/</code></dt><dd>組合場景的執行（M11 PR 2）：<code>run.json</code> 記下定義快照、版本、目的、每個節點的狀態與執行編號</dd>
             <dt><code>work/<wbr>&lt;執行編號&gt;/</code></dt><dd>本機執行中的版本檔案快照（M11 收尾）：開始時從領域資料夾複製，執行中拉取或重新載入不影響；結束就刪，伺服器啟動時清空</dd>
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登入狀態（只有本人能讀寫）</dd>
@@ -326,7 +329,7 @@
             <dt>domains</dt><dd>代號、名稱、說明、排列順序；最近一次載入領域資料夾的時間與載入問題；git 資料來源（不含權杖）與同步狀態（上次同步的提交、上次看到的遠端提交、分支、錯誤、衝突的檔案）</dd>
             <dt>scenes</dt><dd>id、名稱與分類（取自最新版本）、所屬領域、預設網址、最新與已發布的版本號碼、封存、來源缺失</dd>
             <dt>revisions</dt><dd>場景、版本號碼（唯一）、內容雜湊、種類、狀態、說明、發布時間；來源缺失、不能執行的問題、有沒有雜湊相符的通過驗證紀錄</dd>
-            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間；試驗場節點的序列執行與節點代號；執行位置、指定的 worker、實際執行的 worker 與租約</dd>
+            <dt>runs</dt><dd>執行編號、場景與版本、當時的名稱與分類、目的、狀態與階段、有頭或無頭模式、入參與出參、錯誤、雜湊、時間；試驗場節點的序列執行與節點代號；執行位置、指定的 worker、實際執行的 worker 與租約；錄影的長度與大小、釘選、刪除的時間與原因（M12）</dd>
             <dt>roles</dt><dd>代號、名稱、登入網址、確認網址與判斷元素、瀏覽器、自動登入步驟、最近的狀態與檢查時間；所在領域、來源缺失</dd>
             <dt>recordings</dt><dd>錄製編號、目標場景與版本、方式（新場景、接著現有步驟、整份換掉）與接續的版本、來源（錄製或貼上）、網址、瀏覽器、角色、狀態、轉不了的行</dd>
             <dt>workflows</dt><dd>組合場景：代號、所在領域、名稱、說明、最新版本的定義（JSON）與版本號碼、發布的版本、封存、來源缺失</dd>
@@ -334,7 +337,7 @@
             <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、代號、版本與目的、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間；執行位置與固定的 worker</dd>
             <dt>workers</dt><dd>遠端 worker：代號、名稱、權杖的雜湊、停用、上線時回報的資訊（M10.1 加上 App 版本）、目前的執行、最後回報時間</dd>
             <dt>device_invites</dt><dd>裝置邀請（M10.1）：代碼的雜湊、App 種類、裝置代號、產生時間、期限、使用時間</dd>
-            <dt>settings</dt><dd>設定（預設執行位置、伺服器代號與名稱、資料夾的格式）</dd>
+            <dt>settings</dt><dd>設定（預設執行位置、伺服器代號與名稱、資料夾的格式、錄影）</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>
         </div>

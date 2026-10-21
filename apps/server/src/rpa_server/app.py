@@ -102,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if settings.local_worker:
                 worker.start()
             hub.start_reaper()
+            services.videos.start()  # 錄影的保留規則：啟動時與每小時清理（M12）
             services.recorders.start_reaper()
             services.debug.start_reaper()
 
@@ -115,6 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
         finally:
             hub.close()
+            services.videos.close()
             services.recorders.close()
             worker.stop()
             services.debug.close_all()

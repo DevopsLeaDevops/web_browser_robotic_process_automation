@@ -8,6 +8,7 @@
 - 試驗場序列的節點第一次被領取時，把序列固定給這台 worker（workflow_runs.worker_id）。
 - 場景有 login 時，任務帶著角色的登入設定與 Secrets；結束後依登入檢查的結果更新角色狀態（M4）。
 - 每個任務結束後呼叫 ``on_finished``：試驗場序列的節點由它接著排下一個節點（M6）。
+- 錄影（M12）：任務依錄影設定決定要不要錄；結束時把錄影的長度與大小記在 runs。
 """
 
 from collections.abc import Callable, Collection, Mapping
@@ -28,6 +29,7 @@ from rpa_server.i18n import t
 from rpa_server.models import Revision, Run, WorkflowRun
 from rpa_server.roles import RoleService
 from rpa_server.storage import Storage
+from rpa_server.videos import VideoService
 from rpa_worker import Job
 
 __all__ = ["Outcome", "RunQueue"]
@@ -91,11 +93,16 @@ def _scenario_at(path: str) -> Scenario | None:
 
 class RunQueue:
     def __init__(
-        self, sessions: sessionmaker[Session], storage: Storage, roles: RoleService | None = None
+        self,
+        sessions: sessionmaker[Session],
+        storage: Storage,
+        roles: RoleService | None = None,
+        videos: VideoService | None = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
         self.roles = roles
+        self.videos = videos
         self.on_finished: Callable[[str], None] = lambda run_id: None
         """任務結束（資料庫已更新）之後呼叫，參數是執行編號。"""
 
@@ -124,6 +131,10 @@ class RunQueue:
             login = self.roles.login_settings(scenario.login.role)
             names += list(login.secrets) if login is not None else []
         return login, self.roles.secret_values(names)
+
+    def record_video(self) -> bool:
+        """新領取的任務要不要錄影（M12）。"""
+        return self.videos.record_video() if self.videos is not None else False
 
     # ------------------------------------------------------------ 領取
 
@@ -199,6 +210,7 @@ class RunQueue:
             headless=run.headless,
             login=login,
             secrets=secrets,
+            record_video=self.record_video(),
         )
 
     # ------------------------------------------------------------ 進度與結果
@@ -239,6 +251,8 @@ class RunQueue:
             run.finished_at = now()
             run.duration_seconds = outcome.duration_seconds
             run.lease_until = None
+            if self.videos is not None:
+                self.videos.record_finished(run)
             if run.purpose == "validation":
                 revision = session.get(Revision, run.revision_id)
                 if revision is not None:
