@@ -21,8 +21,8 @@
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱與決定：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計階段只有本頁、<a href="20261020-m12-replay/prototype.html">互動原型</a>與任務索引。實作的檔案範圍見第 8 節；會碰到的共用檔案：<code>rpa_runner</code>（child、run、files）、<code>rpa_server</code>（pages、api、render 的選單、templates、static）、遷移編號（若需要設定表欄位）、三種語言的訊息目錄、<code>docs/</code>。整合者：Claude。</dd>
         <dt>狀態</dt><dd>設計待確認：第 9 節的決定等使用者回覆；確認前不寫程式。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>docs/m12-replay-design</code>；PR 建立後回填；base <code>b9a3387</code>（origin/main，#56）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>已推送後回填。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/m12-replay-design</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/58">PR #58</a>（base main）；base <code>b9a3387</code>（origin/main，#56）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：設計與原型 d667ea6，之後只有本頁的回填。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux、Python 3.13、Playwright 1.56 只有 Chromium、系統 ffmpeg 只用來檢查）。PyPI、npm 與 Playwright 的瀏覽器下載被擋，沒辦法裝倉庫用的 Playwright 1.64；1.64 的行為是讀它的原始碼（v1.64.0 的 <code>packages/playwright-core/src/server</code>）得到的，第 8 節安排在 CI 實測。</dd>
       </dl></div>
     </section>
@@ -179,7 +179,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-20 20:19 America/Los_Angeles（PDT，UTC−07:00），使用者：提出 M12 的需求，要求先設計、確認後再寫程式。</li>
-        <li>2026-10-20 20:21～20:55 America/Los_Angeles（PDT，UTC−07:00），Claude：讀程式、技術驗證、做互動原型、寫本頁；開 <code>docs/m12-replay-design</code>。</li>
+        <li>2026-10-20 20:21～20:55 America/Los_Angeles（PDT，UTC−07:00），Claude：讀程式、技術驗證、做互動原型、寫本頁；開 <code>docs/m12-replay-design</code>，推送 d667ea6、開 PR #58。</li>
       </ul></div>
     </section>
   </div>
