@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:b6b084a0ce6afb15">
+<meta name="translation-source" content="sha256:a569281f77fb0733">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -133,6 +133,8 @@ verify:
             <dt><code>action</code></dt><dd>Required; the action name, see the action table below.</dd>
             <dt><code>name</code></dt><dd>A step description for people.</dd>
             <dt><code>timeout</code></dt><dd>The timeout of this step as an <strong>integer number of milliseconds</strong>, greater than 0 and at most 3,600,000 (one hour). Falls back to <code>defaults.timeout</code>, and never exceeds what remains of the deadline.</dd>
+            <dt id="tabs"><code>page</code></dt><dd>The tab this step runs in (M7b): the name of a tab opened by an earlier step's <code>popup</code>; without it the step runs in the starting tab. The tab must be opened by an <em>earlier</em> step, or validation points at this step.</dd>
+            <dt><code>popup</code></dt><dd>Only on click, fill, select, check and press (M7b): this step opens a new tab (a pop-up, for example a link with <code>target="_blank"</code> or <code>window.open</code>); the run waits for it and gives it this name, and later steps refer to it with <code>page</code>. Each name can be opened only once. If no tab opens, the step times out and fails. For example <code>{ action: click, target: { role: link, name: 開啟商品明細 }, popup: items }</code>, then <code>{ action: fill, page: items, target: { placeholder: 請選擇 }, value: … }</code>.</dd>
           </dl>
           <p class="muted">retry and onError are added in M7; retries apply only to steps without side effects, so actions such as submitting a form are never retried automatically.</p>
         </div>
@@ -210,7 +212,7 @@ verify:
           <dt>extract fields</dt><dd>Turn each element into a record. Keys are field names; each value may set target (relative to the element), get and attribute. With fields, leave out the outer get.</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect guards a step; verify decides whether outputs are published. download, upload, multiple tabs, conditions and loops are added in M7; iframes use the locator <a href="#locators">frame</a> (M7a).</div>
+      <div class="diagram-caption">expect guards a step; verify decides whether outputs are published. download, upload, conditions and loops are added in M7; iframes use the locator <a href="#locators">frame</a> (M7a), and new tabs use the step fields <a href="#tabs">popup and page</a> (M7b).</div>
     </section>
 
     <div class="two-col">

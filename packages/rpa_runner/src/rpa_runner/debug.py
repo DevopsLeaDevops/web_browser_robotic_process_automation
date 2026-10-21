@@ -11,6 +11,9 @@
   回覆步驟紀錄、目前網址、標題、截圖檔名與 facts。
 - ``{"cmd": "locate", "locator": {…}}``：測試定位器：找到幾個、前幾個的文字，截圖時框出來。
 - ``{"cmd": "screenshot"}``：目前頁面的截圖。
+
+新分頁（M7b）：步驟開出的新分頁在整個工作階段都在（:class:`rpa_runner.browser.Tabs`）；
+「目前頁面」是最後一步所在（或剛開出）的分頁，截圖、網址與定位器測試都在這個分頁。
 - ``{"cmd": "load", "scenario": 路徑, "input": 路徑}``：換成新的場景版本或入參
   （瀏覽器與 facts 保留）。
 - ``{"cmd": "reset"}``：關掉目前的頁面，從頭開始（facts 清空，重新載入登入狀態）。
@@ -34,7 +37,7 @@ from pydantic import ValidationError
 
 from rpa_core.dsl import Locator, Scenario, validate_file
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
-from rpa_runner.browser import Deadline, resolve, run_step
+from rpa_runner.browser import Deadline, Tabs, resolve, run_step
 from rpa_runner.contexts import Engine, open_context
 from rpa_runner.i18n import t
 from rpa_runner.secrets import mask, read_secrets
@@ -85,6 +88,8 @@ class _Session:
         self.stack = contextlib.ExitStack()
         self.context: BrowserContext | None = None
         self.page: Page | None = None
+        self.tabs: Tabs | None = None
+        """整個工作階段的分頁（M7b）：步驟開出的新分頁在步驟之間一直都在。"""
 
     @staticmethod
     def _load(scenario_path: Path, input_path: Path) -> tuple[Scenario, dict[str, object]]:
@@ -112,6 +117,7 @@ class _Session:
             storage_state=Path(self.args.storage_state) if self.args.storage_state else None,
         )
         self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+        self.tabs = Tabs(self.page)
         self.facts = {}
         return self.page
 
@@ -120,6 +126,7 @@ class _Session:
             self.stack.close()
         self.context = None
         self.page = None
+        self.tabs = None
 
     def current_page(self) -> Page:
         """目前的頁面；使用者把視窗關掉了就開一個新的。"""
@@ -131,7 +138,13 @@ class _Session:
                 self.page = context.pages[0] if context.pages else context.new_page()
             except Exception:
                 return self.open()
+            self.tabs = Tabs(self.page)
         return self.page
+
+    def active_page(self) -> Page:
+        """目前在用的分頁：最後一步所在（或剛開出）的分頁（M7b）；截圖與定位器測試都在這裡。"""
+        page = self.current_page()
+        return self.tabs.active if self.tabs is not None else page
 
     def screenshot(self, page: Page) -> str | None:
         self.shots += 1
@@ -172,17 +185,18 @@ class _Session:
             base_url=self.args.base_url or self.scenario.browser.base_url,
             artifacts=self.out,
             deadline=Deadline.after(COMMAND_SECONDS),
+            tabs=self.tabs,
         )
         if record.error:
             record.error = mask(record.error, self.secrets)
-        return {"index": index, "record": record.to_json(), **self.page_state(page)}
+        return {"index": index, "record": record.to_json(), **self.page_state(self.active_page())}
 
     def locate(self, data: object) -> dict[str, object]:
         try:
             locator = Locator.model_validate(data)
         except ValidationError as error:
             return {"ok": False, "error": error.errors()[0]["msg"]}
-        page = self.current_page()
+        page = self.active_page()
         found = resolve(page, locator)
         count = found.count()
         matches: list[dict[str, str]] = []
@@ -209,7 +223,7 @@ class _Session:
         handlers: dict[str, Callable[[], dict[str, object]]] = {
             "step": lambda: self.step(int(cast("int", command.get("index")))),
             "locate": lambda: self.locate(command.get("locator")),
-            "screenshot": lambda: self.page_state(self.current_page()),
+            "screenshot": lambda: self.page_state(self.active_page()),
             "load": lambda: self.load(str(command["scenario"]), str(command["input"])),
             "reset": lambda: self.page_state(self.open(), shot=False),
         }
