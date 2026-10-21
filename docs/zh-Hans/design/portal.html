@@ -92,7 +92,7 @@
           <li><strong>不重复送出。</strong>表单每次加载产生一个 <code>idempotencyKey</code>，重复送出只会得到同一个运行。</li>
           <li><strong>重新运行。</strong>结束的运行都可以用同样的入参与选项再运行一次（验证用同一个版本，正式运行用目前发布的版本）。</li>
           <li><strong>服务器重启。</strong>启动时把上次运行到一半的任务标为失败；排队中的会继续运行。</li>
-          <li id="video"><strong>录像（M12）。</strong>DSL 场景的自动化阶段录像，有头、无头都录，存成运行目录的 <code>video.webm</code> 与 <code>video.json</code>；<code>steps.json</code> 记下每一步的开始、结束时间与步骤后的网址，回看时和视频对上。画面跟页面一样大，宽度最多 1280。取消、超时、失败的运行也有完整的视频（Windows 上取消时留下录像的 ffmpeg 把视频写完；写坏的视频用 Playwright 自带的 ffmpeg 重新封装）。登录检查、逐步调试、录制与 Python 脚本场景不录。默认全部录；通过的运行保留 7 天，失败、超时、取消、需要登录的保留 30 天，全部最多 20 GB（超过时从最旧的删起），钉选的不删。清理只删视频，运行记录、报告、截图都留着。见 <a href="../adr/0016-run-replay.html">ADR 0016</a>。</li>
+          <li id="video"><strong>录像（M12）。</strong>DSL 场景的自动化阶段录像，有头、无头都录，存成运行目录的 <code>video.webm</code> 与 <code>video.json</code>；<code>steps.json</code> 记下每一步的开始、结束时间与步骤后的网址，回看时和视频对上。画面跟页面一样大，宽度最多 1280。取消、超时、失败的运行也有完整的视频（Windows 上取消时先只结束浏览器，让 Playwright 把视频写完；写坏的视频用 Playwright 自带的 ffmpeg 重新封装）。登录检查、逐步调试、录制与 Python 脚本场景不录。默认全部录；通过的运行保留 7 天，失败、超时、取消、需要登录的保留 30 天，全部最多 20 GB（超过时从最旧的删起），钉选的不删。清理只删视频，运行记录、报告、截图都留着。见 <a href="../adr/0016-run-replay.html">ADR 0016</a>。</li>
         </ul>
       </div>
     </section>

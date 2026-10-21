@@ -41,9 +41,9 @@
         <div class="panel-header"><h2>决策</h2></div>
         <div class="panel-body prose">
           <ol>
-            <li><strong>录什么。</strong>DSL 场景的自动化阶段，用 BrowserContext 的录像，有头、无头都录；画面跟页面一样大，宽度最多 1280（等比例缩小）。登录检查、逐步调试、录制与 Python 脚本场景不录。</li>
+            <li><strong>录什么。</strong>DSL 场景的自动化阶段，用 BrowserContext 的录像，有头、无头都录；画面跟页面一样大，宽度最多 1280（等比例缩小）。登录检查、逐步调试、录制与 Python 脚本场景不录。Firefox 的预热设置档启动时就有一个分页，这个分页录到的画面少了工具列的高度（Windows、Linux 实测），所以录像时改用新开的分页。</li>
             <li><strong>怎么对上步骤。</strong>Playwright 依每一格的实际时间编码，视频的第 t 秒＝录像开始时间＋t；开始时间在 WebM 标头（DateUTC，毫秒）。<code>steps.json</code> 每一步记下 <code>startedAt</code>、<code>endedAt</code>（UTC、毫秒）与步骤后的网址。两边是同一台电脑的同一个时钟，相减就是步骤在视频里的位置。标头没有开始时间时（旧版 Playwright），用开页面的时间。</li>
-            <li><strong>怎么收尾。</strong>子进程结束前先关 BrowserContext，Playwright 这时把视频写完；父进程把它整理成 <code>video.webm</code> 与 <code>video.json</code>（开始时间、长度、大小、是否修复过）。被终止时（取消、超过总期限）：Linux 与 macOS 上 Playwright 把 ffmpeg 放在自己的进程组，不会被一起结束，自己收尾；Windows 的 <code>taskkill /T</code> 会连 ffmpeg 一起结束，所以录像时先列出子孙，结束 ffmpeg 以外的全部，等 ffmpeg 收尾。还是没有长度与索引的视频，用 Playwright 自带的 ffmpeg 重新封装（不重新编码）。</li>
+            <li><strong>怎么收尾。</strong>子进程结束前先关 BrowserContext，Playwright 这时把视频写完；父进程把它整理成 <code>video.webm</code> 与 <code>video.json</code>（开始时间、长度、大小、是否修复过）。被终止时（取消、超过总期限）：Linux 与 macOS 上 Playwright 把 ffmpeg 放在自己的进程组，不会被一起结束，自己收尾；Windows 上不能直接结束进程树：<code>taskkill /T</code> 会连 ffmpeg 一起结束，只留下 ffmpeg 也不行，Node（Playwright 的 driver）把它开的进程放在「Node 结束时一起结束」的 Job Object 里。所以录像时先列出子孙、只结束浏览器：Playwright 照常替每个页面收尾录像，子进程因为页面关了而自己结束（CI 实测 0.1～0.3 秒）；最多等 15 秒，还没结束才结束整个进程树。终止的经过记在 <code>video.json</code> 的 <code>stop</code>。还是没有长度与索引的视频，用 Playwright 自带的 ffmpeg 重新封装（不重新编码）。</li>
             <li><strong>存在哪里。</strong>运行目录（远程 worker 照旧上传整个目录）；数据库的 runs 记下长度、大小、钉选与删除的时间与原因。视频不进领域文件夹，也不进 git。</li>
             <li><strong>留多久。</strong>服务器设置，默认全部录；通过的运行保留 7 天，失败、超时、取消、需要登录的保留 30 天；全部最多 20 GB，超过从最旧的删起；钉选的不删。清理只删视频，运行记录、报告、截图都留着，<code>run.json</code> 记下删除的时间与原因。</li>
             <li><strong>怎么回看。</strong>回看页直接播放运行目录的视频（支持 Range、可缓存）。缩略图在看视频的浏览器里产生：另开一个看不见的 video 跳到各时间点、画到 canvas；Linux 服务器上没有浏览器，也没有 ffmpeg。</li>
@@ -60,7 +60,7 @@
             <li>每分钟约 1～3 MB（1280 宽；画面静止时更小）。保留规则与总量上限控制磁盘用量。</li>
             <li>Worker 多一个实时编码的 ffmpeg（VP9，Playwright 依画面大小调整线程与比特率）。</li>
             <li>视频会留下画面上的一切，包括业务数据与填在一般字段里的值。用户同意保存（2026-10-20，D3）；M8 之前能开管理 Portal 的人都看得到。</li>
-            <li>录像时取消，要多等几秒让 ffmpeg 收尾（最多 8 秒）。取消时停止操作的时机不变。</li>
+            <li>录像时取消，Windows 上要等子进程自己结束（通常不到 1 秒，最多 15 秒）。取消时停止操作的时机不变：浏览器立刻被结束。</li>
             <li>浏览器要能播 WebM VP9：Chrome、Edge、Firefox 可以；macOS 的 Safari 与录制端 App（WKWebView）要人工验收。</li>
             <li>被强制终止的视频只录到最后一次画面变化，之后的等待没有画面；回看页把超出视频的步骤接在最后一格。</li>
           </ul>
