@@ -35,6 +35,7 @@ from rpa_runner.files import VIDEO, VIDEO_INFO, VIDEO_TMP, read_json_or, write_j
 __all__ = [
     "MAX_WIDTH",
     "VIDEO_INFO_VERSION",
+    "VIDEO_STOP",
     "WebmInfo",
     "browsers_dir",
     "finalize",
@@ -52,6 +53,8 @@ MAX_WIDTH: Final = 1280
 _DEFAULT_VIEWPORT: Final[ViewportSize] = {"width": 1280, "height": 720}
 """場景沒有指定視窗大小時，Playwright 用的大小。"""
 _PAGE_MARK: Final = "page.json"
+VIDEO_STOP: Final = "stop.json"
+"""錄影時被終止（取消、超過收尾時間）的經過：父程序寫在 ``.video/``，整理時放進 video.json。"""
 _SETTLE_SECONDS: Final = 0.5
 """影片檔大小這麼久沒變，才當作寫完了。"""
 _REPAIR_TIMEOUT: Final = 120.0
@@ -408,6 +411,9 @@ def finalize(
         raw = read_json_or(temp / _PAGE_MARK, {})
         mark = cast("dict[str, object]", raw) if isinstance(raw, dict) else {}
         details: dict[str, object] = {"version": VIDEO_INFO_VERSION, "file": None, "engine": engine}
+        stop = read_json_or(temp / VIDEO_STOP, None)
+        if isinstance(stop, dict):
+            details["stop"] = stop
         source = _chosen(temp, mark)
         if source is None:
             details["error"] = "no_video"
@@ -423,6 +429,8 @@ def finalize(
                     info = read_webm(source)
             if info is None:
                 details["error"] = "unreadable"
+                with contextlib.suppress(OSError):
+                    details["bytes"] = source.stat().st_size
             elif not _move(source, folder / VIDEO, timeout=wait_seconds):
                 details["error"] = "locked"
             else:

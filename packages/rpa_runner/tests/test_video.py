@@ -10,9 +10,10 @@ from pathlib import Path
 import pytest
 
 from rpa_runner import video
-from rpa_runner.files import VIDEO, VIDEO_INFO, VIDEO_TMP
+from rpa_runner.files import VIDEO, VIDEO_INFO, VIDEO_TMP, write_json
 from rpa_runner.proctree import ProcessInfo, descendants
 from rpa_runner.video import (
+    VIDEO_STOP,
     browsers_dir,
     finalize,
     find_ffmpeg,
@@ -195,10 +196,25 @@ def test_finalize_without_a_usable_video(
 
     details = finalize(tmp_path, wait_seconds=0.6)
 
-    assert details == {"version": 1, "file": None, "engine": None, "error": error}
+    expected: dict[str, object] = {"version": 1, "file": None, "engine": None, "error": error}
+    if content is not None:
+        expected["bytes"] = len(content)  # 讀不到時記下檔案多大，查原因用
+    assert details == expected
     assert json.loads((tmp_path / VIDEO_INFO).read_text(encoding="utf-8")) == details
     assert not (tmp_path / VIDEO).exists()
     assert not (tmp_path / VIDEO_TMP).exists()
+
+
+def test_finalize_keeps_how_the_run_was_stopped(tmp_path: Path) -> None:
+    """被終止時父程序寫的 stop.json 放進 video.json，影片有問題時查得到原因。"""
+    _recorded(tmp_path, tiny_webm(started_at=STARTED))
+    write_json(tmp_path / VIDEO_TMP / VIDEO_STOP, {"method": "keep_ffmpeg", "ffmpeg": 1})
+
+    details = finalize(tmp_path)
+
+    assert details is not None
+    assert details["stop"] == {"method": "keep_ffmpeg", "ffmpeg": 1}
+    assert details["file"] == VIDEO
 
 
 def test_finalize_without_recording(tmp_path: Path) -> None:

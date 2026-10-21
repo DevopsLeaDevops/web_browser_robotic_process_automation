@@ -56,6 +56,7 @@ from rpa_runner.files import (
     SCENARIO_DIR,
     SCREENSHOT,
     STEPS,
+    VIDEO_TMP,
     read_json,
     read_json_or,
     write_json,
@@ -66,6 +67,7 @@ from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_runner.proctree import descendants, terminate, wait_exit
 from rpa_runner.report import render_report
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
+from rpa_runner.video import VIDEO_STOP
 from rpa_runner.video import finalize as finalize_video
 
 # scenario_digest、scenario_sources 在 rpa-core（領域資料夾的校驗也要用，M11），這裡照舊匯出
@@ -207,10 +209,13 @@ class _StageFailedError(Exception):
         self.message: str = message
 
 
-def _stop(process: subprocess.Popen[bytes], *, graceful: bool = False) -> None:
-    """終止子程序與它開出的瀏覽器（整個程序群組）；``graceful`` 時見 :func:`_stop_gracefully`。"""
-    if graceful:
-        _stop_gracefully(process)
+def _stop(process: subprocess.Popen[bytes], *, graceful: Path | None = None) -> None:
+    """終止子程序與它開出的瀏覽器（整個程序群組）。
+
+    ``graceful`` 是錄影時記錄終止經過的檔案（見 :func:`_stop_gracefully`）。
+    """
+    if graceful is not None:
+        _stop_gracefully(process, graceful)
         return
     if os.name == "nt":  # pragma: no cover - Windows 在 CI 的安裝腳本測試涵蓋
         subprocess.run(
@@ -227,29 +232,40 @@ def _stop(process: subprocess.Popen[bytes], *, graceful: bool = False) -> None:
     process.wait(timeout=10)
 
 
-def _stop_gracefully(process: subprocess.Popen[bytes]) -> None:
+def _stop_gracefully(process: subprocess.Popen[bytes], record: Path) -> None:
     """錄影時的終止：結束子程序與瀏覽器，但讓錄影的 ffmpeg 把影片寫完。
 
     其他系統和平常一樣終止程序群組就好：Playwright 把瀏覽器與 ffmpeg 放在自己的程序群組，
     不會被一起結束；ffmpeg 發現輸入斷了就自己收尾。Windows 見 :func:`_stop_keeping_ffmpeg`。
+    終止的經過寫在 ``record``（錄影的暫存資料夾裡），整理影片時放進 video.json，影片有問題時
+    才查得到原因。
     """
+    started = time.monotonic()
+    details: dict[str, object]
     if os.name == "nt":  # pragma: no cover - Windows 在 CI 的 Worker 測試涵蓋
-        _stop_keeping_ffmpeg(process)
+        details = _stop_keeping_ffmpeg(process)
     else:
         _stop(process)
+        details = {"method": "process_group"}
+    details["stopMs"] = round((time.monotonic() - started) * 1000)
+    with contextlib.suppress(OSError):
+        record.parent.mkdir(parents=True, exist_ok=True)
+        write_json(record, details)
 
 
-def _stop_keeping_ffmpeg(process: subprocess.Popen[bytes]) -> None:  # pragma: no cover - Windows
+def _stop_keeping_ffmpeg(  # pragma: no cover - Windows
+    process: subprocess.Popen[bytes],
+) -> dict[str, object]:
     """Windows：``taskkill /T`` 會連 ffmpeg 一起結束，影片沒有長度、最後幾秒也沒寫進去。
 
     先列出子孫（父程序結束後就找不到了），結束 ffmpeg 以外的全部；ffmpeg 輸入斷了會自己收尾，
-    最多等一陣子，還沒結束才結束它。列不出子孫時照平常的方式終止。
+    最多等一陣子，還沒結束才結束它。列不出子孫時照平常的方式終止。回傳終止的經過。
     """
     try:
         tree = descendants(process.pid)
-    except OSError:
+    except OSError as error:
         _stop(process)
-        return
+        return {"method": "taskkill", "error": str(error)}
     keep = [item.pid for item in tree if item.name.lower().startswith("ffmpeg")]
     with contextlib.suppress(OSError):
         process.kill()
@@ -257,8 +273,17 @@ def _stop_keeping_ffmpeg(process: subprocess.Popen[bytes]) -> None:  # pragma: n
         if item.pid not in keep:
             terminate(item.pid)
     process.wait(timeout=10)
-    for pid in wait_exit(keep, _GRACEFUL_STOP_SECONDS):
+    waited = time.monotonic()
+    left = wait_exit(keep, _GRACEFUL_STOP_SECONDS)
+    for pid in left:
         terminate(pid)
+    return {
+        "method": "keep_ffmpeg",
+        "processes": sorted({item.name for item in tree}),
+        "ffmpeg": len(keep),
+        "ffmpegExitedMs": None if left else round((time.monotonic() - waited) * 1000),
+        "ffmpegKilled": len(left),
+    }
 
 
 def _remove_leftover(path: Path, *, attempts: int = 30, delay: float = 0.1) -> None:
@@ -288,7 +313,7 @@ def _wait(
     seconds: float,
     cancel: threading.Event | None,
     *,
-    graceful: bool = False,
+    graceful: Path | None = None,
 ) -> int:
     """等子程序結束；超過 seconds 或被取消時終止整個程序群組。"""
     end = time.monotonic() + seconds
@@ -323,11 +348,11 @@ def _run_process(
     cancel: threading.Event | None = None,
     special: Mapping[int, _StageFailedError] | None = None,
     *,
-    video: bool = False,
+    video: Path | None = None,
 ) -> None:
     """執行子程序直到結束；``special`` 是有特別意義的結束碼（例如需要登入）。
 
-    ``video`` 時子程序在錄影：收尾時間長一點，終止時先讓 Playwright 把錄影寫完。
+    ``video`` 是錄影時記錄終止經過的檔案：子程序在錄影，收尾時間長一點，終止時先讓錄影寫完。
     """
     _check_cancelled(cancel)
     remaining = deadline.remaining_ms() / 1000
@@ -342,7 +367,7 @@ def _run_process(
             start_new_session=os.name != "nt",
             creationflags=no_window_flags(),
         )
-        grace = _VIDEO_GRACE_SECONDS if video else _GRACE_SECONDS
+        grace = _VIDEO_GRACE_SECONDS if video is not None else _GRACE_SECONDS
         try:
             code = _wait(process, remaining + grace, cancel, graceful=video)
         except _StageFailedError:
@@ -681,7 +706,8 @@ def _automation_stage(
     hint: str | None = None
     try:
         env = _environment(secrets, deadline, engine or scenario.browser.engine, headed, state)
-        _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel, video=video)
+        record = folder / VIDEO_TMP / VIDEO_STOP if video else None
+        _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel, video=record)
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌
         if failure.status == "failed":
