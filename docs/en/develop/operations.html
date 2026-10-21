@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:675e8a53586ffdfa">
+<meta name="translation-source" content="sha256:da6db9267646ace3">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -130,13 +130,44 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
           <li>Check “Run reports” for jobs still running, and make sure no recording or debugging is in progress on a recorder.</li>
           <li>Stop the server (Ctrl+C or <code>sudo systemctl stop rpa-portal</code>); a <a href="#backup">backup</a> first is a good idea.</li>
           <li><code>git pull</code>, then run <code>./scripts/setup.sh</code> (it installs only what changed; use <code>uv sync</code> to update just the dependencies).</li>
-          <li>Start the server. The database is upgraded on start, and existing scenes and history are kept.</li>
+          <li>Start the server. The database is upgraded on start, and existing scenes and history are kept. The first upgrade to M11 moves the old <code>scenes/</code> and the database's validations, publications and composite scenarios into <code>domains/</code>, after a backup to <code>backups/&lt;time&gt;-before-domains/</code> (composite scenarios also <code>-before-composites/</code>); the log prints where the backup is.</li>
           <li>Bring workers and recorders to the same version: the apps take the installer or DMG of that version, and command-line machines <code>git pull</code> and restart.</li>
         </ol>
         <p>When the server restarts, recordings, debugging and manual logins in progress on recorders end; workers and recorders reconnect by themselves without pairing again.</p>
 
         <h3 id="backup">Backup and moving</h3>
-        <p>All data is in the data folder (its contents are in <a href="../design/portal.html#data-folder">Management portal › Data folder</a>). Stop the server and copy the whole folder to back it up, for example <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>. To move to a new server, install the same version there, put the folder back and start with the same <code>--data</code>. Device tokens are in the folder too, so no pairing is needed while the server address stays the same; if the address changes (a new IP), choose “Invite again” on the Devices page and pair that device with the new invitation. The folder holds secret values and sign-in state, so keep backups readable only by you.</p>
+        <p>All data is in the data folder (its contents are in <a href="../design/portal.html#data-folder">Management portal › Data folder</a>). Stop the server and copy the whole folder to back it up, for example <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>. To move to a new server, install the same version there, put the folder back and start with the same <code>--data</code>. Device tokens are in the folder too, so no pairing is needed while the server address stays the same; if the address changes (a new IP), choose “Invite again” on the Devices page and pair that device with the new invitation. The folder holds secret values, sign-in state and git tokens and deploy keys (<code>git/</code>), so keep backups readable only by you.</p>
+        <p><strong>Going back to a version before M11.</strong> Older versions cannot read the new folder layout. To go back: stop the server, delete <code>domains/</code>, put the <code>rpa.db</code> and <code>scenes/</code> from <code>backups/&lt;time&gt;-before-domains/</code> back into the folder, then switch to the old version and start it. Recordings, validations and publications made after the upgrade are not in the backup.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="git-sync">
+      <div class="panel-header"><h2>Domains and git sync</h2><span class="muted">M11; Scenes › Domains › Sync</span></div>
+      <div class="panel-body prose">
+        <p>Each domain can be synced with a directory in a git repository, so several servers (different people) share the same scenarios, composite scenarios and validation and publication records. Only the server runs git; recorders and workers still get the files they need from the server. The server needs git 2.25 or later (the setup script installs it). Design in <a href="../design/portal.html">Management portal</a> and <a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>.</p>
+        <h3>Setting up</h3>
+        <ol>
+          <li><strong>Repository and access.</strong> Prefer a private repository (scenarios may contain internal URLs and account names). HTTPS: create a GitHub fine-grained personal access token with read and write access to Contents of this repository only; GitHub does not accept passwords for git. SSH: generate a deploy key in the Portal and add it under the repository's Settings › Deploy keys with Allow write access; one key per domain per server. A public repository works without authentication, but only for pulling.</li>
+          <li><strong>An existing domain.</strong> Choose Sync on its row in Domains: enter the repository URL, directory (for example <code>testsite</code>; one repository can hold several domains), branch (empty for the remote's default) and authentication → Save → Test connection → Push. An empty repository or a missing directory is created by the first push.</li>
+          <li><strong>Adding a domain from git.</strong> Add from git in Domains: enter the repository and directory, Test connection (if the directory has a <code>pack.yaml</code>, its ID and name are filled in) → Add and pull. For SSH repositories, create the domain with Add domain first, then generate a deploy key on its Sync page.</li>
+          <li><strong>This server's name.</strong> Rename This server in Domains to something recognisable (for example mac-a); validation records, publications and commits carry it.</li>
+        </ol>
+        <h3>Day to day</h3>
+        <ul>
+          <li><strong>Local changes.</strong> Saving, validating and publishing write to the domain folder first, with no commit each time; the Sync page lists the differences from the last sync (revisions, validation records, publications and settings).</li>
+          <li><strong>Push.</strong> The dialog lists the changes and a default commit message you can edit; new remote commits are merged and applied back at the same time. Pushing is blocked by files that look like login states, Secrets or private keys, by files containing a saved Secret value, by non-definition files and by files over 1 MB.</li>
+          <li><strong>Pull and reload.</strong> Fetches new remote commits, checks them, applies them and reloads without a restart; the server also pulls in the background when it starts (you can turn this off on the Sync page).</li>
+          <li><strong>Dependencies.</strong> When a composite scenario uses scenarios from another domain, its Dependencies panel says what is missing and how to fill it (add from git, pull, save again); the Domains page lists which composite scenarios depend on each domain.</li>
+          <li><strong>Edit a scenario on one server at a time</strong>, and pull before pushing.</li>
+        </ul>
+        <h3>Conflicts</h3>
+        <p>When the same file was changed differently on both sides (for example both servers created revision 3 of the same scenario, or published it at the same time), nothing is applied and the remote is not overwritten; the Sync page offers three choices:</p>
+        <ul>
+          <li><strong>Cancel</strong>: keep using the local data and deal with it later.</li>
+          <li><strong>Push to a new branch</strong>: push the local content to <code>rpa/&lt;domain&gt;-&lt;time&gt;</code>, open a PR on GitHub, merge it and pull.</li>
+          <li><strong>Use the remote</strong>: back the domain folder up to <code>backups/&lt;time&gt;-before-remote-&lt;domain&gt;/</code>, then take the latest remote content; unpushed local changes stay only in the backup.</li>
+        </ul>
+        <p>Disconnect git turns the domain back into a local one: the folder stays, this server's token, key and working copy are deleted, and the remote is not touched.</p>
       </div>
     </section>
 
@@ -218,6 +249,10 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
             <tr><td>A version-mismatch warning</td><td>A different program version still works, but updating to the same version is safer; a different protocol version cannot connect and must be updated. See <a href="#upgrade">Updating</a>.</td></tr>
             <tr><td>A recording or debugging session ended because contact was lost</td><td>The recorder stopped, slept or was disconnected for more than 30 seconds, or the server restarted. Open it again and start over.</td></tr>
             <tr><td>Jobs stay queued</td><td>See <a href="remote-worker.html#faq">Remote workers › Troubleshooting</a>.</td></tr>
+            <tr><td>The Sync page says authentication failed or the repository was not found</td><td>HTTPS: the token expired or lacks Contents access to this repository; enter it again on the Sync page, and never put credentials in the URL. SSH: the deploy key has not been added to the repository or lacks Allow write access; the URL must look like <code>git@github.com:org/repo.git</code>. See <a href="#git-sync">Domains and git sync</a>.</td></tr>
+            <tr><td>Pushing is blocked</td><td>The dialog lists why: delete or move files that look like login states or private keys and non-definition files; use <code>{{ secrets.NAME }}</code> instead of a Secret's value.</td></tr>
+            <tr><td>Sync conflict</td><td>See <a href="#git-sync">Domains and git sync › Conflicts</a>.</td></tr>
+            <tr><td>The server does not start after upgrading, with <code>FOREIGN KEY constraint failed</code></td><td>Versions before #53 fail like this when upgrading an old database with data; update to the latest version and start again (the failed attempt did not change the database, so nothing needs restoring).</td></tr>
           </tbody>
         </table>
       </div>
