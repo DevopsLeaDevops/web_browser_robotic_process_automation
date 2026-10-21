@@ -166,10 +166,11 @@
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
           <tr><td>Playwright 1.56、Chromium 1194（無頭；Xvfb 有頭）／Claude 雲端環境</td><td>錄一段每秒換色的頁面，逐格讀顏色換算對時；強制終止後檢查與重新封裝；用 DSL 步驟真實執行測試網站並錄影；Chromium 裡用 canvas 產生 40 張縮圖</td><td>畫面靜止時對得上；畫面一直動時 1.56 慢 12%；終止後檔案可修復；縮圖 3.7 秒</td><td>1.64、Firefox、Windows、macOS（第 8 節 PR 1 的 CI）</td></tr>
+          <tr><td>39ff7e4／PR #58 的 CI run <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39540115533">39540115533</a>（2026-10-20 20:44～20:47 PDT）</td><td>執行範圍、靜態檢查、測試（Python 3.12、3.13）</td><td>全部通過；Worker 測試（Windows）依只改文件的規則略過</td><td>只有文件，沒有程式行為</td></tr>
           <tr><td>原型／Chromium（1440、400 寬）</td><td>開啟原型，等縮圖產生、滑過時間軸</td><td>沒有錯誤；頁面不會橫向捲動；縮圖全部產生</td><td>Safari、Mac App</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行（只有文件）；人工驗收：未執行；審閱：等使用者。</p></div>
+      <div class="panel-body"><p>CI：39ff7e4 通過（run 39540115533）；人工驗收：不適用（只有文件）；審閱：等使用者。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -180,6 +181,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-20 20:19 America/Los_Angeles（PDT，UTC−07:00），使用者：提出 M12 的需求，要求先設計、確認後再寫程式。</li>
         <li>2026-10-20 20:21～20:55 America/Los_Angeles（PDT，UTC−07:00），Claude：讀程式、技術驗證、做互動原型、寫本頁；開 <code>docs/m12-replay-design</code>，推送 d667ea6、開 PR #58。</li>
+        <li>2026-10-20 20:47 America/Los_Angeles（PDT，UTC−07:00），Claude：39ff7e4 的 CI 通過（run 39540115533）；狀態維持「設計待確認」。</li>
       </ul></div>
     </section>
   </div>
