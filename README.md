@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-21 08:35 America/Los_Angeles（PDT，UTC−07:00）。共 205 次運行。
+更新：2026-10-21 08:37 America/Los_Angeles（PDT，UTC−07:00）。共 206 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,7 +9,7 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 106（0） | 63（0） | 2.7 分（0.0 分） | 5.1 分（0.0 分） | 0.0 分（0.0 分） | 447／216／0 分（0／0／0 分） |
+| CI | 107（0） | 64（0） | 2.7 分（0.0 分） | 5.1 分（0.0 分） | 0.0 分（0.0 分） | 449／216／0 分（0／0／0 分） |
 | 桌面端建置 | 77（0） | 65（0） | 3.9 分（0.0 分） | 4.3 分（0.0 分） | 0.1 分（0.0 分） | 7／218／209 分（0／0／0 分） |
 | 一鍵安裝腳本 | 20（0） | 11（0） | 3.1 分（0.0 分） | 15.2 分（0.0 分） | 0.1 分（0.0 分） | 99／57／26 分（0／0／0 分） |
 | 每晚完整測試 | 1（0） | 0（0） | 39.3 分（0.0 分） | 39.3 分（0.0 分） | 0.0 分（0.0 分） | 36／39／0 分（0／0／0 分） |
@@ -19,7 +19,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-21 | 81 | 220 | 253 | 97 | 570 |
+| 2026-10-21 | 82 | 222 | 253 | 97 | 573 |
 | 2026-10-20 | 121 | 359 | 274 | 134 | 767 |
 | 2026-10-19 | 3 | 10 | 8 | 6 | 25 |
 
@@ -27,37 +27,37 @@
 
 ### CI · pytest-report-3.12/pytest-report.xml
 
-最近一次：2026-10-21 08:13 America/Los_Angeles（PDT，UTC−07:00），合計 415 秒。
+最近一次：2026-10-21 08:35 America/Los_Angeles（PDT，UTC−07:00），合計 225 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 18.0（17.8） | 22 | `apps/server/tests/test_remote_worker_api.py` |
-| 18.0（17.8） | 22 | `apps/server/tests/test_remote_worker_api.py` |
-| 17.0（17.8） | 24 | `apps/server/tests/test_production_api.py` |
-| 17.0（17.8） | 24 | `apps/server/tests/test_production_api.py` |
-| 15.6（15.6） | 25 | `apps/server/tests/test_api.py` |
-| 15.6（15.6） | 25 | `apps/server/tests/test_api.py` |
-| 14.4（14.4） | 17 | `apps/worker/tests/test_recorder.py` |
-| 14.4（14.4） | 17 | `apps/worker/tests/test_recorder.py` |
-| 13.5（13.8） | 14 | `apps/worker/tests/test_gateway.py` |
-| 13.5（13.8） | 14 | `apps/worker/tests/test_gateway.py` |
+| 20.7（18.0） | 22 | `apps/server/tests/test_remote_worker_api.py` |
+| 20.0（18.9） | 24 | `apps/server/tests/test_production_api.py` |
+| 17.7（16.0） | 25 | `apps/server/tests/test_api.py` |
+| 14.9（14.4） | 17 | `apps/worker/tests/test_recorder.py` |
+| 14.3（12.2） | 17 | `apps/server/tests/test_recorder_api.py` |
+| 13.6（13.6） | 14 | `apps/worker/tests/test_gateway.py` |
+| 12.9（12.6） | 14 | `apps/server/tests/test_workflow_api.py` |
+| 11.8（11.9） | 11 | `apps/server/tests/test_gitsync.py` |
+| 9.2（8.5） | 9 | `apps/server/tests/test_replay.py` |
+| 9.0（8.4） | 14 | `apps/server/tests/test_packs.py` |
 
 ### CI · pytest-report-3.13/pytest-report.xml
 
-最近一次：2026-10-21 08:13 America/Los_Angeles（PDT，UTC−07:00），合計 870 秒。
+最近一次：2026-10-21 08:35 America/Los_Angeles（PDT，UTC−07:00），合計 198 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 57.8（54.0） | 6 | `apps/server/tests/test_portal.py` |
-| 57.8（54.0） | 6 | `apps/server/tests/test_portal.py` |
-| 43.9（40.5） | 3 | `apps/server/tests/test_workflow_flow.py` |
-| 43.9（40.5） | 3 | `apps/server/tests/test_workflow_flow.py` |
-| 33.9（31.8） | 3 | `apps/server/tests/test_remote_worker_flow.py` |
-| 33.9（31.8） | 3 | `apps/server/tests/test_remote_worker_flow.py` |
-| 30.4（27.6） | 5 | `apps/server/tests/test_production_flow.py` |
-| 30.4（27.6） | 5 | `apps/server/tests/test_production_flow.py` |
-| 19.8（19.4） | 4 | `packages/rpa_runner/tests/test_debug.py` |
-| 19.8（19.4） | 4 | `packages/rpa_runner/tests/test_debug.py` |
+| 16.2（15.8） | 22 | `apps/server/tests/test_remote_worker_api.py` |
+| 15.9（15.8） | 24 | `apps/server/tests/test_production_api.py` |
+| 15.3（14.7） | 25 | `apps/server/tests/test_api.py` |
+| 13.5（14.2） | 17 | `apps/worker/tests/test_recorder.py` |
+| 12.5（13.5） | 14 | `apps/worker/tests/test_gateway.py` |
+| 12.4（12.5） | 11 | `apps/server/tests/test_gitsync.py` |
+| 11.3（11.8） | 14 | `apps/server/tests/test_workflow_api.py` |
+| 10.9（11.4） | 17 | `apps/server/tests/test_recorder_api.py` |
+| 7.8（7.2） | 8 | `apps/server/tests/test_videos.py` |
+| 7.8（8.3） | 9 | `apps/server/tests/test_replay.py` |
 
 ### CI · pytest-report-windows/pytest-report.xml
 
@@ -200,6 +200,7 @@
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 10-21 08:35 | 桌面端建置 | PR | feat/dynamic-values | success | 0.1 分 | 0.0 分 | [#39627019438](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39627019438/attempts/1) |
+| 10-21 08:35 | CI | PR | feat/dynamic-values | success | 1.6 分 | 0.0 分 | [#39627019151](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39627019151/attempts/1) |
 | 10-21 08:13 | CI | PR | feat/dynamic-values | success | 3.9 分 | 0.0 分 | [#39622125851 第 2 次](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39622125851/attempts/2) |
 | 10-21 08:02 | 桌面端建置 | PR | feat/dynamic-values | success | 4.2 分 | 0.1 分 | [#39622125845](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39622125845/attempts/1) |
 | 10-21 08:02 | CI | PR | feat/dynamic-values | failure | 2.9 分 | 0.1 分 | [#39622125851](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39622125851/attempts/1) |
@@ -238,5 +239,4 @@
 | 10-21 04:09 | CI | PR | m12/replay | success | 1.1 分 | 0.0 分 | [#39589837910](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39589837910/attempts/1) |
 | 10-21 03:37 | 桌面端建置 | PR | m7a/iframe | success | 0.1 分 | 0.0 分 | [#39585987704](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39585987704/attempts/1) |
 | 10-21 03:37 | CI | PR | m7a/iframe | success | 1.5 分 | 0.0 分 | [#39585987856](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39585987856/attempts/1) |
-| 10-21 03:32 | CI | PR | m7a/iframe | success | 2.7 分 | 0.1 分 | [#39585381579](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39585381579/attempts/1) |
 
