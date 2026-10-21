@@ -10,7 +10,7 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 09:40 America/Los_Angeles（PDT，UTC−07:00）。<strong>PR 1（#48）、PR 2（#49）已合併</strong>（main <code>cfef585</code>、<code>e54025c</code>）。<strong>PR 3（git 同步）完成、CI 全綠，待審閱</strong>（<code>m11/git-sync</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/54">#54</a>，base main <code>0fef3cd</code>）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a> 修正舊 SQLite 資料升級時遷移被外鍵檢查擋下，CI 全綠待審閱（見<a href="#log">追加紀錄</a>）。<strong>設計已確認</strong>（D1～D11 見<a href="#decisions">第 13 節</a>）。</p></div></div>
+  <div class="heading"><div><h1>M11 資料存放升級：領域資料夾與 git 同步</h1><p>更新：2026-10-20 17:45 America/Los_Angeles（PDT，UTC−07:00）。<strong>PR 1（#48）、PR 2（#49）已合併</strong>（main <code>cfef585</code>、<code>e54025c</code>）。<strong>PR 3（git 同步）完成、CI 全綠，待審閱</strong>（<code>m11/git-sync</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/54">#54</a>，base main <code>0fef3cd</code>）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a>（舊 SQLite 資料升級時遷移被外鍵檢查擋下）已合併。人工驗收步驟見<a href="#pr3-check">PR 3 與整個 M11 的人工驗收</a>，還沒完成的事見<a href="#m11-remaining">這裡</a>（見<a href="#log">追加紀錄</a>）。<strong>設計已確認</strong>（D1～D11 見<a href="#decisions">第 13 節</a>）。</p></div></div>
   <div class="stack">
 
     <section class="panel" id="identity">
@@ -22,7 +22,7 @@
         <dt>範圍／不包含</dt><dd>範圍：領域資料夾格式、檔案與資料庫的分工、載入與熱載入、驗證與發布紀錄、跨領域依賴校驗、git 拉取與推送、伺服器／錄製端／worker 的存放位置、現有資料遷移；執行紀錄回看的<strong>格式預留</strong>。不包含：執行紀錄的歸檔與跨伺服器回看的實作（D4，之後做）、使用者與權限（M8）、Secrets 加密（M8）、S3 物件儲存（M9）、PostgreSQL（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本對話的 session）。審閱：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>設計：本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。實作會動到 <code>apps/server</code> 的 storage、services、workflows、roles、models、遷移、領域與組合場景頁面，<code>packages/rpa_core</code>（資料夾格式的模型）與 <code>apps/cli</code>；和 PR #39（<code>m10/recorder-display</code>，另一個 Claude session）可能在 <code>services.py</code> 重疊，開工前再核對。</dd>
-        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2（組合場景檔案化）已合併（#48、#49）；PR 3（git 同步）完成、CI 全綠，#54 待審閱；PR 4（ADR、路線圖、人工驗收）未開始；舊資料升級的外鍵問題由 #53 修正（CI 全綠待審閱）</dd>
+        <dt>狀態</dt><dd>設計已合併（#40）；實作 PR 1（領域資料夾：場景與角色）實作完成、CI 全綠，#48 待使用者審閱合併；PR 2（組合場景檔案化）已合併（#48、#49）；PR 3（git 同步）完成、CI 全綠，#54 待審閱；PR 4（ADR、路線圖、人工驗收）未開始；舊資料升級的外鍵問題由 #53 修正（2026-10-20 17:39 PDT 合併）</dd>
         <dt>分支／PR／base SHA</dt><dd>設計：<code>design/data-storage</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/40">#40</a>（只有設計文件），base <code>7990b7c</code>（origin/main，2026-10-19 04:17 PDT 合併的 #36）。實作 PR 1：<code>m11/domain-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/48">#48</a>，base <code>a6164f7</code>（origin/main，2026-10-20 01:39 PDT 合併的 #47）。實作 PR 2：<code>m11/composite-packs</code>，草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/49">#49</a>，base 是 <code>m11/domain-packs</code> 的 <code>cbac33c</code>（#48 還沒合併）；#48 合併後把 PR 的 base 改成 main。#48 於 2026-10-20 07:17 PDT、#49 於 07:34 PDT 合併。實作 PR 3：<code>m11/git-sync</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/54">#54</a>，base <code>0fef3cd</code>（origin/main，2026-10-20 08:18 PDT 合併的 #52）。外鍵修正：<code>fix/sqlite-migration-fk</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/53">#53</a>，base 同上。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁隨 <code>m11/domain-packs</code> 推送；以追加紀錄最後一筆的提交為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，git 2.43；連不到 PyPI，伺服器的測試只能在 CI 跑）。沒有連到使用者的電腦；讀過測試用資料倉庫（匿名讀取，見<a href="#testsite">第 14 節</a>）。</dd>
@@ -445,6 +445,30 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
           <li><strong>錄製端（Mac）</strong>：不必重新配對；錄製新場景（選或不選領域）→ 伺服器的 <code>domains/&lt;領域或 unassigned&gt;/scenes/&lt;代號&gt;/revisions/1/</code> 與 <code>1.yaml</code>；接著錄製 → 多一個版本；逐步調試、人工登入照常，登入狀態在伺服器 <code>roles/&lt;角色&gt;/state.json</code>，不在領域資料夾；Mac 的 <code>~/Library/Application Support/rpa/recorder</code> 沒有 <code>domains/</code>。</li>
           <li><strong>Worker（Windows）</strong>：不必重新配對；驗證選「遠端 worker」→ 驗證紀錄顯示這台的代號與瀏覽器（YAML 的 <code>worker.id</code>、<code>worker.os: windows</code>）；伺服器的 <code>run.json</code> 的 <code>worker</code> 是它、<code>files</code> 含上傳的報告與截圖；依這份紀錄發布，再遠端執行已發布版本；執行中關掉 Worker → 「worker 失聯」，<code>run.json</code> 照樣寫；<code>%LOCALAPPDATA%\rpa\worker</code> 只有暫存。</li>
         </ol>
+        <h3 id="pr3-check">PR 3 與整個 M11 的人工驗收（測試倉庫）</h3>
+        <p>2026-10-20 17:45 America/Los_Angeles（PDT，UTC−07:00）依使用者要求整理，尚未執行。一台有圖形介面的 Mac，切到 #54 的分支（合併後用 main）並 <code>uv sync --locked</code>。三個全新的資料夾代表三個人：A <code>~/rpa-m11-a</code>（埠 8080）、B <code>~/rpa-m11-b</code>（8090）、C <code>~/rpa-m11-c</code>（8100）；測試網站共用 127.0.0.1:8765。認證建議用 HTTPS：網址 <code>https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation_site.git</code>＋GitHub 帳號＋只開這個倉庫 Contents 讀寫的 fine-grained 權杖（三台都填同一個）；SSH 部署金鑰另外驗一次（每台每個領域各一把）。<strong>已知問題</strong>：全新資料夾會自動建立「測試網站自動化」並匯入範例，第一次拉取時和遠端的範例在 <code>revisions/&lt;n&gt;.yaml</code>（建立時間、伺服器）衝突；修正前 B、C 用空的範例資料夾啟動（<code>RPA_EXAMPLES_DIR</code>），只會建立只有 <code>pack.yaml</code> 的空領域，第一次拉取直接用遠端的內容。</p>
+        <ol>
+          <li><strong>A 第一次推送（空倉庫）</strong>：<code>uv run rpa serve --data ~/rpa-m11-a</code>；領域管理的「這台伺服器」改名 mac-a；「測試網站自動化」那列按「同步」，填網址、目錄 <code>testsite</code>、HTTPS、帳號、權杖 → 儲存設定 → 測試連線顯示「空倉庫：第一次推送時建立分支 main」→ 同步推送（對話框列出變更與預設說明）→ 狀態「已同步」。GitHub 上有 <code>testsite/pack.yaml</code>、<code>testsite/scenes/ba-001/…</code>、<code>testsite/roles/…</code>，沒有 <code>state.json</code>、Secrets、<code>runs/</code>、<code>run.json</code>；提交者是 mac-a。</li>
+          <li><strong>B 拉取、驗證、推回紀錄</strong>：<code>mkdir -p ~/rpa-empty &amp;&amp; RPA_EXAMPLES_DIR=~/rpa-empty uv run rpa serve --data ~/rpa-m11-b --port 8090</code>；改名 mac-b；「測試網站自動化」的同步頁填同樣的設定 → 拉取並重新載入 → BA-001～BA-005 與角色出現、狀態「已同步」。驗證 BA-001 v1（通過）→ 同步頁「本機有變更」、驗證紀錄 1 → 同步推送 → GitHub 多一份 <code>testsite/scenes/ba-001/verifications/1/&lt;執行編號&gt;.yaml</code>。</li>
+          <li><strong>A 依 B 的紀錄發布</strong>：A 拉取並重新載入 → BA-001 場景頁的驗證紀錄有 mac-b 那筆 → 不在 A 驗證就能發布 v1 → 同步推送。B 拉取 → BA-001 已發布，卡片「運行」通過。</li>
+          <li><strong>不必重啟就看到新版本</strong>：A 把 BA-002 存成 v2 並推送；B 拉取並重新載入 → 出現 v2。自動拉取：先停掉 B，A 再推一個變更，啟動 B（同樣的命令）→ 不按拉取也看得到。</li>
+          <li><strong>衝突三選一</strong>：A、B 都先拉到最新，各自把 BA-003 存成 v2（內容不同）。A 推送成功；B 推送 → 停下，同步頁出現「同步衝突」與 <code>scenes/ba-003/revisions/2/…</code>，GitHub 的 main 沒有被覆蓋。「推送到新分支」→ 顯示 <code>rpa/testsite-&lt;時間&gt;</code> 與「到 GitHub 開 PR」（不要合併）；「以遠端為準」→ B 的 BA-003 v2 變成 A 的內容，<code>~/rpa-m11-b/backups/&lt;時間&gt;-before-remote-testsite/</code> 有 B 原本的 v2。</li>
+          <li><strong>跨領域組合場景</strong>：A 驗證並發布 BA-002；自由試驗場新增組合場景（代號 <code>e2e-order</code>，領域留空＝「組合場景」），BA-001 → BA-002（recordId 同名匹配）→ 儲存 → 執行選「驗證最新版本」→ 通過 → 組合場景頁發布 v1。testsite 推送（BA-002 的發布）；領域管理的「組合場景」那列設定同步（目錄 <code>composites</code>）並推送 → GitHub 有 <code>composites/pack.yaml</code>（requires testsite）與 <code>composites/composites/e2e-order/…</code>。</li>
+          <li><strong>只拉組合場景時提示缺少的領域</strong>：<code>RPA_EXAMPLES_DIR=~/rpa-empty uv run rpa serve --data ~/rpa-m11-c --port 8100</code>；領域管理刪掉空的「測試網站自動化」→「從 git 新增」：網址、目錄 <code>composites</code>、測試連線（預填代號 composites）→ 新增並拉取 → 組合場景卡片「依賴不完整」，組合場景頁的「依賴」列出需要領域 testsite 與「到領域管理新增」→「從 git 新增」testsite → 依賴完整 → 執行選「執行發布的版本」→ 通過。</li>
+          <li><strong>推送前檢查</strong>：A 的「登入與憑證」新增 Secret（例如 <code>DEMO_PASSWORD</code>＝<code>hunter2-test</code>），在 <code>~/rpa-m11-a/domains/testsite/</code> 放 <code>notes.md</code>（內容含 <code>hunter2-test</code>）與 <code>state.json</code> → 同步推送的對話框「不能推送」列出兩個檔案、沒有推送按鈕；刪掉兩個檔案後可以推送。</li>
+          <li><strong>SSH 部署金鑰</strong>：A 的「組合場景」同步頁改成 SSH、網址 <code>git@github.com:DevopsLeaDevops/web_browser_robotic_process_automation_site.git</code> → 儲存 → 產生部署金鑰 → 公鑰貼到倉庫的 Settings › Deploy keys 並勾 Allow write access → 測試連線（顯示 github.com 的主機指紋）→ 拉取、推送成功。</li>
+          <li><strong>憑證不外流</strong>：頁面與 <code>curl http://127.0.0.1:8080/api/domains/testsite/sync</code> 看不到權杖；<code>ls -l ~/rpa-m11-a/git/credentials.json</code> 是 <code>-rw-------</code>；<code>grep -c 權杖 ~/rpa-m11-a/rpa.db</code> 是 0。「中斷 git 連結」→ 領域變回本機、資料夾還在、<code>credentials.json</code> 裡沒有那個領域。</li>
+        </ol>
+        <p>做完後測試倉庫留有測試資料與 <code>rpa/…</code> 分支；要重做時清空倉庫或換一個新的空倉庫。PR 1 的伺服器遷移（第 1 項起）要等 #53（已合併）之後的版本才能用舊資料夾驗證；錄製端、Worker 的部分照上一節。</p>
+        <h3 id="m11-remaining">M11 還沒完成的事（2026-10-20 17:45 PDT）</h3>
+        <ul>
+          <li>合併 #54（CI 全綠；Python 3.12 的 <code>apps/desktop/tests/test_worker_app.py::test_console_worker_stops_on_request_before_connecting</code> 在 <code>78f45bf</code> 偶發失敗，和 #54 無關，重跑通過）。</li>
+          <li>修正已知問題：版本說明檔的雜湊相同就視為同一個版本（用遠端的那份），全新資料夾自動匯入的範例第一次拉取就不會衝突。建議在人工驗收前做。</li>
+          <li>人工驗收：PR 1（伺服器遷移、錄製端、Worker）、PR 2（組合場景）、PR 3（上面的步驟）都還沒做。</li>
+          <li>PR 4：ADR 0015、路線圖的 M11、人工驗收紀錄；部署與操作文件補上 <code>git/</code>、<code>backups/</code> 與還原方式。</li>
+          <li>設計有、還沒做（可以放 PR 4 或之後）：依賴提示「新增領域」用 <code>pack.yaml</code> 的 <code>source</code> 預填、「領域有設定但還沒拉取」時給「拉取」按鈕；領域管理頁顯示被哪些組合場景依賴；組合場景改代號、搬到其他領域、封存的頁面；頁面上驗證指定的舊版本；本機執行開始時先把版本檔案複製到執行目錄（第 6 節）；git 操作期間存檔排隊（現在是第二個 git 操作回「正在同步」、套用前發現資料夾被改就請重試）；只取設定目錄的部分複製。</li>
+          <li>M11 之後：執行紀錄的回看（D4，第 9 節）。</li>
+        </ul>
       </div>
     </section>
 
@@ -528,6 +552,7 @@ summary: { steps: 12, durationSeconds: 42.1 }               # 不含入參與出
           </ul>
         </li>
         <li>2026-10-20 09:40 America/Los_Angeles（PDT，UTC−07:00），Claude：#53 的第一個提交（只有測試）在 CI 重現了外鍵問題（0010 重建 <code>scenes</code>），加上修正後全部通過，已改成可以審閱。PR 3 開成 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/54">#54</a>，<code>85c98f2</code> 的 CI 全部通過，已改成可以審閱。#53 與 #54 互不相依，可以任意順序合併。交接狀態：沒有未推送的修改；下一步是使用者審閱合併 #53、#54，之後依第 15 節用測試倉庫做人工驗收，再做 PR 4（ADR 0015、路線圖、驗收紀錄）。</li>
+        <li>2026-10-20 17:45 America/Los_Angeles（PDT，UTC−07:00），Claude：#53 已合併（main <code>1be5a90</code>）。#54 的 <code>78f45bf</code> 在 Python 3.12 有一個和本 PR 無關的桌面 App 測試偶發失敗，重跑通過，#54 可以合併。依使用者要求整理人工驗收步驟（<a href="#pr3-check">pr3-check</a>）與 M11 還沒完成的事（<a href="#m11-remaining">m11-remaining</a>）。整理時發現：全新資料夾自動匯入的範例和遠端的範例第一次拉取會在 <code>revisions/&lt;n&gt;.yaml</code> 衝突（建立時間、伺服器不同），驗收步驟先用空的範例資料夾避開，修正待使用者決定。</li>
       </ul></div>
     </section>
   </div>
