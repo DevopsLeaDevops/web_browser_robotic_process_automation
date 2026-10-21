@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:47a3874270ad3728">
+<meta name="translation-source" content="sha256:4eb0db7685d169c9">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -31,7 +31,7 @@ cd web_browser_robotic_process_automation
 uv sync
 
 # Download Chromium and Firefox (on Linux, add --with-deps the first time to install system dependencies)
-uv run playwright install chromium firefox
+uv run python tools/install_browsers.py
 
 # Automatic checks before each commit
 uv run pre-commit install
@@ -127,7 +127,7 @@ bash scripts/setup-linux.sh --install-service</pre>
         <dl class="spec-list">
           <dt>CI says uv.lock needs updating</dt><dd>A dependency in <code>pyproject.toml</code> changed without updating the lock file. Run <code>uv lock</code> and commit <code>uv.lock</code> together with the change.</dd>
           <dt>PyPI unreachable from the intranet</dt><dd>Set the <code>UV_INDEX_URL</code> environment variable to the company's package mirror. For the Linux server installer, pass the mirror's simple URL with <code>--mirror</code>; see <a href="#linux-mirror">Package source</a>.</dd>
-          <dt>Browser download fails</dt><dd>Set <code>PLAYWRIGHT_DOWNLOAD_HOST</code> to an internal mirror; the browser smoke test is skipped automatically when no browser is installed locally.</dd>
+          <dt>Browser download fails</dt><dd>Setup first <a href="quickstart.html#browser-downloads">tests and selects the fastest available source</a>; you can also run <code>uv run python tools/install_browsers.py</code>. To use a fixed source, set <code>PLAYWRIGHT_DOWNLOAD_HOST</code> to an internal mirror; the browser smoke test is skipped automatically when no browser is installed locally.</dd>
           <dt>Tests say Simplified Chinese is not up to date</dt><dd>After changing Traditional Chinese docs or message catalogs, run <code>uv run python tools/i18n.py sync</code> and commit the generated files.</dd>
           <dt>Tests say the English translation needs updating</dt><dd>Update the same page under <code>docs/en/</code> to match the Traditional Chinese change, then run the <code>stamp</code> command shown in the test message.</dd>
           <dt>pyright cannot find packages</dt><dd>Make sure you have run <code>uv sync</code> and your editor uses the project's <code>.venv</code>.</dd>

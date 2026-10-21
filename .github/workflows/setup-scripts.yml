@@ -20,6 +20,8 @@ on:
       - "uv.lock"
       - ".python-version"
       - "tools/linux_server_smoke.py"
+      - "tools/install_browsers.py"
+      - "tests/ci/test_browser_download.py"
       - "tests/ci/test_linux_setup.py"
       - "apps/cli/src/rpa_cli/serve.py"
   pull_request:
@@ -32,6 +34,8 @@ on:
       - "uv.lock"
       - ".python-version"
       - "tools/linux_server_smoke.py"
+      - "tools/install_browsers.py"
+      - "tests/ci/test_browser_download.py"
       - "tests/ci/test_linux_setup.py"
       - "apps/cli/src/rpa_cli/serve.py"
   schedule:

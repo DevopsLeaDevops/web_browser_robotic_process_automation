@@ -363,10 +363,7 @@ install_browser() {
     info "已用 --skip-browser 略過；需要瀏覽器的測試也會略過。"
     return 0
   fi
-  if [ -n "${PLAYWRIGHT_DOWNLOAD_HOST:-}" ]; then
-    info "已設定 PLAYWRIGHT_DOWNLOAD_HOST，從瀏覽器鏡像下載。"
-  fi
-  if ! run uv run playwright install chromium firefox; then
+  if ! run uv run python tools/install_browsers.py; then
     die "下載瀏覽器失敗。" \
       "公司網路請設定 PLAYWRIGHT_DOWNLOAD_HOST 指向內部鏡像；或先加 --skip-browser 跳過這一步。"
   fi
