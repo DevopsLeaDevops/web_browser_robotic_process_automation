@@ -19,9 +19,9 @@
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-21 07:12 America/Los_Angeles（PDT，UTC−07:00）回報錄製稿第 28 行（<code>with page.expect_popup() as page1_info:</code>）與第 31–33 行（<code>page1.…</code>）轉不了；07:14 同意 Claude 的建議，另開 PR 開始做。完成條件：錄製稿的新分頁寫法轉成可通過校驗的 DSL，不再出現這些警告；Runner、逐步調試、定位器測試能在新分頁上執行；錄製端與 Worker 的 App 太舊時直接提示更新；三台電腦（Linux 伺服器、macOS 錄製端、Windows Worker）走得通。</dd>
         <dt>範圍／不包含</dt><dd>包含：步驟的 <code>page</code> 與 <code>popup</code>、跨步驟檢查、Schema；錄製稿轉換；Runner、逐步調試；裝置的 features；測試網站 <code>/popup</code> 與範例；打包版端到端；文件與路線圖。不包含：用 <code>context.new_page()</code> 自己開的分頁、檔案下載（<code>expect_download</code>）、M7 的其他項目；運行回看的影片只錄一開始的分頁（M12 的限制）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（Opus 5.5）；審閱：未指定；接收方：未指定</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>m7b/popup</code>；PR 建立後補上；base <code>fcb8e8f</code>（origin/main，Merge PR #65，v0.4.0）。#62（M7a）已合併，所以不疊 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m7b/popup</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/66">PR #66</a>；base <code>fcb8e8f</code>（origin/main，Merge PR #65，v0.4.0）。#62（M7a）已合併，所以不疊 PR。</dd>
         <dt>修改檔案／整合者</dt><dd>rpa_core：<code>dsl/steps.py</code>、<code>dsl/checks.py</code>、<code>dsl/features.py</code>、<code>recording.py</code>、locales；rpa_runner：<code>browser.py</code>（<code>Tabs</code>）、<code>child.py</code>、<code>debug.py</code>、locales；伺服器 locales（舊 App 的訊息）；<code>apps/testsite</code>（<code>/popup</code>）；<code>scenarios/examples/popup-form.yaml</code>；<code>schema/scenario.v1.json</code>；測試；<code>tools/recorder_e2e.py</code>、<code>tools/desktop_e2e.py</code>、<code>.github/workflows/desktop.yml</code>；文件（DSL、Portal、多用戶、桌面端、營運、路線圖；繁中、英文，簡中由 bootstrap）。</dd>
-        <dt>狀態</dt><dd>實作完成、本地檢查完成；待推送與 PR</dd>
+        <dt>狀態</dt><dd>待審閱（PR #66）；CI 與桌面端建置通過；人工驗收未執行</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、Python 3.13.16；PyPI 仍被出口代理拒絕，沿用系統 Playwright 1.56＋Chromium、ruff 0.16.9、pyright 1.1.414、pytest 9.1.1；沒有 Firefox、OpenCC、FastAPI。</dd>
       </dl></div>
     </section>
@@ -31,7 +31,7 @@
         <li><strong>已完成：</strong>步驟的 <code>page</code>（所有動作）與 <code>popup</code>（click、fill、select、check、press）；跨步驟檢查：page 要是之前的步驟開過的分頁、popup 名稱不重複。Runner 的 <code>Tabs</code>：popup 時用 <code>expect_popup</code> 等新分頁、等到 domcontentloaded、記下名稱；page 時在那個分頁執行；步驟的網址、失敗截圖與 diagnostic 的網址都是最後用到的分頁。逐步調試整個工作階段共用 Tabs，「目前頁面」是最後一步所在（或剛開出）的分頁，截圖與定位器測試都在那裡；從頭開始（reset）時新分頁清掉。錄製稿：<code>with page.expect_popup() as page1_info:</code> 區塊裡第一個可以寫 popup 的動作加 <code>popup: page1</code>，<code>page1 = page1_info.value</code> 之後的 <code>page1.…</code> 操作與斷言加 <code>page: page1</code>，<code>page1.close()</code>、<code>page1.once("dialog", …)</code> 略過；巢狀（新分頁再開新分頁）、改名都可以；開出它的那一步轉不了時整個分頁略過並列警告；<code>context.new_page()</code> 與不認得的 <code>pageN</code> 列警告（之前不認得的變數會被默默丟掉）。features 加 <code>page</code>、<code>popup</code>，舊 App 直接提示更新。測試網站 <code>/popup</code>（連結 <code>target="_blank"</code> 開出商品明細，新增商品行、填「請選擇」、儲存）與範例 <code>popup-form.yaml</code>。打包版端到端：錄製端逐步調試 popup-form 並確認目前頁面換到新分頁再回來；Worker 執行 popup-form。</li>
         <li><strong>決定（實作選擇）：</strong>和 M7a 一樣用欄位表示、不做「切換分頁」步驟：每一步自己帶著位置，Runner 不必記「目前在哪個分頁」才能執行；逐步調試的「目前分頁」只影響截圖與定位器測試。popup 只開放給會點擊或輸入的動作（goto、expect、extract 等寫了會是「未知的欄位」）。新分頁名稱依 codegen 的 <code>page1_info</code> 取 <code>page1</code>，和既有名稱衝突時加 <code>_2</code>。</li>
         <li><strong>限制：</strong>運行回看的影片只錄一開始的分頁（M12 的設計），新分頁上的步驟在影片裡看到的是一開始的分頁；接著錄製時，既有步驟開過的分頁上的新操作轉不了（codegen 把它叫 page1，不知道場景裡的名稱），列警告要自己補 page；自己開的新分頁與下載仍未支援（M7）。</li>
-        <li><strong>下一個具體動作：</strong>推送（<code>[bootstrap]</code> 產生簡中）、建立 PR、確認 CI 與桌面端建置（含新的打包版端到端）；之後請使用者在三台電腦用新建置的 App 重新驗收原本那份錄製稿。</li>
+        <li><strong>下一個具體動作：</strong>使用者在三台電腦重新驗收：Linux 伺服器切到 <code>m7b/popup</code>（或合併後的 main）並重新啟動；Mac、Windows 安裝桌面端建置 39618008972 的 DMG 與安裝檔；重新轉換原本那份錄製稿，第 28 行那一步應有 <code>popup: page1</code>、第 31–33 行有 <code>page: page1</code>；錄製端逐步調試到最後一步，再以遠端 Worker 驗證、發布、執行。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -47,7 +47,7 @@
           <tr><td>同上</td><td><code>pyright</code>（strict）限定修改的 core、runner、testsite、tools</td><td>新程式 0 errors；<code>browser.py</code> 只剩 1.56 型別檔要求 <code>frame_locator</code> 的 selector（M7a 起，1.64 上通過）</td><td>全倉庫由 CI</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>bootstrap（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39617390727">39617390727</a>，<code>6817b28</code>）：鎖定版本的全倉庫 pyright、不需瀏覽器的測試通過，簡中 <code>6673080</code>。CI（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39618009102">39618009102</a>，<code>6673080</code>）全部通過，Windows 的 Worker 測試（1.64，Chromium 與 Firefox）含 <code>test_tabs.py</code>。桌面端建置（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39618008972">39618008972</a>）通過：錄製端（macOS 打包版）「debug-popup：7 步都通過，已儲存：455590002；新分頁 …/popup/items」，iframe 照舊通過；Worker（Windows 打包版）「popup：→ 已儲存：455590002」。DMG 與安裝檔在該運行的 Artifacts（到 2026-11-04）。人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -58,6 +58,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-21 07:20 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，從 origin/main <code>fcb8e8f</code> 建立 <code>m7b/popup</code>；沒有其他開啟中的 PR。</li>
         <li>2026-10-21 07:29 America/Los_Angeles（PDT，UTC−07:00），Claude：實作與本地檢查完成（見驗證表），準備以 <code>[bootstrap]</code> 推送並開 PR。</li>
+        <li>2026-10-21 07:45 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>6817b28</code>，bootstrap 通過並提交簡中 <code>6673080</code>；建立 PR #66；CI 與桌面端建置（含打包版的新分頁端到端）通過。下一步：使用者在三台電腦用這次建置的 App 重新驗收。</li>
       </ul></div>
     </section>
   </div>
