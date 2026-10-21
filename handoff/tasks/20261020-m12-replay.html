@@ -198,6 +198,7 @@
         <li><strong>先確認：</strong>出問題的那段是哪台電腦、有頭或無頭、哪個瀏覽器、螢幕縮放比例；<code>video.json</code> 的 <code>width</code>／<code>height</code>；在那台執行 <code>page.evaluate("devicePixelRatio")</code>。</li>
         <li><strong>可能的修法（下一個 PR 再決定）：</strong>(1) 錄影時 Firefox 加 <code>layout.css.devPixelsPerPx=1.0</code>、Chromium 加 <code>--force-device-scale-factor=1</code>，讓頁面一律以 1 倍繪製（有頭時視窗裡的字會變小，但錄影完整）；(2) 依 devicePixelRatio 放大 <code>record_video_size</code>（檔案變大，Firefox 的裁切問題可能仍在）；(3) 回看頁播放器用影片的實際比例顯示（已照 <code>video.json</code> 的寬高設定，但如果寬高本身錯了也會錯）。驗證：CI 的 Windows 有頭測試加上縮放比例的情境（或用 <code>device_scale_factor=1.5</code> 模擬），影片右下角要讀得到頁面的顏色。</li>
         <li><strong>A2（Codex 整合時發現，待釐清）：macOS Chromium 錄影對時用例失敗。</strong><code>test_video_lines_up_with_the_steps[chromium]</code> 在點擊前 0.3 秒取樣時已讀到紅色，預期白色；平行執行與單獨重跑相同。將合併前的 <code>cb8116a</code> 匯出到獨立暫存目錄並指定其全部套件的 PYTHONPATH，使用同一個 Python／Playwright 重跑，得到相同失敗，確認不是本次 main 整合新增。Firefox 對時及其餘 iframe、錄影、遠端流程通過；尚未判定是影片時間、解碼取樣或平台差異，不能推定與 A1 同因。</li>
+        <li><strong>A3（0.4.0 發布準備時補充）：</strong>main 9798db4 的 Linux／Python 3.12 全量 CI 重跑，Chromium 對時測試點擊後取樣仍為白色；取消錄影測試末格亦為白色，兩項失敗。原先 Firefox 發布按鈕逾時在這次重跑通過。詳見<a href="20261021-release-0-4-0.html#validation">發布驗證紀錄</a>；使用者要求先打包，後續修復錄影問題。</li>
         <li><strong>其他驗收項目：</strong>使用者驗完後補在這裡；照第 8 節與 <a href="../../docs/design/portal.html">管理 Portal</a> 的人工檢查第 8 項。</li>
       </ul></div>
     </section>
