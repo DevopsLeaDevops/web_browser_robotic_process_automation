@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-20 18:07 America/Los_Angeles（PDT，UTC−07:00）。共 100 次運行。
+更新：2026-10-20 18:15 America/Los_Angeles（PDT，UTC−07:00）。共 101 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -10,7 +10,7 @@
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
 | CI | 46（0） | 30（0） | 2.6 分（0.0 分） | 4.7 分（0.0 分） | 0.0 分（0.0 分） | 192／65／0 分（0／0／0 分） |
-| 桌面端建置 | 38（0） | 30（0） | 3.9 分（0.0 分） | 4.2 分（0.0 分） | 0.1 分（0.0 分） | 3／98／97 分（0／0／0 分） |
+| 桌面端建置 | 39（0） | 31（0） | 3.8 分（0.0 分） | 4.2 分（0.0 分） | 0.1 分（0.0 分） | 3／101／101 分（0／0／0 分） |
 | 一鍵安裝腳本 | 15（0） | 7（0） | 3.0 分（0.0 分） | 15.5 分（0.0 分） | 0.1 分（0.0 分） | 69／47／17 分（0／0／0 分） |
 | 每晚完整測試 | 1（0） | 0（0） | 39.3 分（0.0 分） | 39.3 分（0.0 分） | 0.0 分（0.0 分） | 36／39／0 分（0／0／0 分） |
 | 發布 | 0（0） | 0（0） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0／0／0 分（0／0／0 分） |
@@ -19,7 +19,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-20 | 97 | 290 | 240 | 107 | 638 |
+| 2026-10-20 | 98 | 290 | 244 | 111 | 645 |
 | 2026-10-19 | 3 | 10 | 8 | 6 | 25 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
@@ -194,6 +194,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 10-20 18:11 | 桌面端建置 | PR | m11/git-sync | success | 3.3 分 | 0.0 分 | [#39525059052 第 2 次](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39525059052/attempts/2) |
 | 10-20 18:03 | CI | PR | m11/git-sync | success | 2.0 分 | 0.1 分 | [#39525059107](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39525059107/attempts/1) |
 | 10-20 18:03 | 桌面端建置 | PR | m11/git-sync | failure | 4.0 分 | 0.1 分 | [#39525059052](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39525059052/attempts/1) |
 | 10-20 17:54 | CI | PR | m11/git-sync | failure | 2.5 分 | 0.0 分 | [#39524099794](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39524099794/attempts/1) |
@@ -233,5 +234,4 @@
 | 10-20 06:42 | CI | PR | fix/linux-setup-mirrors | success | 1.1 分 | 0.0 分 | [#39432681166](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39432681166/attempts/1) |
 | 10-20 06:25 | 一鍵安裝腳本 | PR | fix/linux-setup-mirrors | failure | 15.0 分 | 0.0 分 | [#39428051091 第 2 次](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39428051091/attempts/2) |
 | 10-20 06:09 | CI | PR | fix/linux-setup-mirrors | success | 2.3 分 | 0.1 分 | [#39428051105](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39428051105/attempts/1) |
-| 10-20 06:09 | 一鍵安裝腳本 | PR | fix/linux-setup-mirrors | failure | 15.2 分 | 0.0 分 | [#39428051091](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39428051091/attempts/1) |
 
