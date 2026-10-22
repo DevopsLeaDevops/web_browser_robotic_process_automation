@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=../../schema/scenario.v1.json
+#
+# 新分頁（M7b）：測試網站的 /popup 點連結會在新分頁打開「商品明細」。
+# 開出新分頁的那一步寫 popup（取個名稱），之後在新分頁上的步驟寫 page（同一個名稱）；
+# 沒寫 page 的步驟在一開始的分頁執行。
+
+schemaVersion: 1
+id: popup-form
+name: 在新分頁新增商品行
+category: 範例
+description: 從訂單頁在新分頁打開商品明細，新增一行、填商品編號、儲存，讀取新分頁上的結果。
+
+inputs:
+  item:
+    type: string
+    minLength: 1
+    default: '455590002'
+
+outputs:
+  status:
+    type: string
+    from: '{{ facts.status }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /popup
+
+  - id: open-items
+    name: 開啟商品明細（在新分頁打開）
+    action: click
+    target: { role: link, name: 開啟商品明細 }
+    popup: items
+
+  - id: add-row
+    action: click
+    page: items
+    target: { role: button, name: 新增商品行 }
+
+  - id: fill-item
+    action: fill
+    page: items
+    target: { placeholder: 請選擇 }
+    value: '{{ inputs.item }}'
+
+  - id: save
+    action: click
+    page: items
+    target: { role: button, name: 儲存 }
+
+  - id: read-status
+    action: extract
+    page: items
+    target: { role: status }
+    as: status
+
+  - id: still-on-order
+    name: 一開始的分頁還在訂單頁
+    action: expect
+    target: { role: heading, name: 訂單 SO-1001 }
+    state: visible
+
+verify:
+  - name: 已儲存並帶著入參的商品編號
+    value: '{{ facts.status }}'
+    equals: '已儲存：{{ inputs.item }}'

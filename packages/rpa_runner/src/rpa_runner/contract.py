@@ -74,7 +74,7 @@ def check_inputs(
     """補上預設值、動態值求值並校驗入參；回傳 (完整入參, 問題)。
 
     動態值（例如 ``{{today}}``、``{{random:10:30}}``）每次呼叫都重新求值，所有入參用同一個
-    ``now``（預設是這台電腦的本地時間）；回傳的是實際要用的值。隨機數以範圍的兩端檢查限制，
+    ``now``（預設是這台電腦的本地時間）；回傳的是實際要用的值。隨機數檢查邊界或全部組合，
     所以同樣的入參每次的檢查結果都一樣（管理 Portal 排入佇列前的檢查也靠這一點）。
     """
     problems: list[Problem] = []
@@ -92,7 +92,7 @@ def check_inputs(
             problems.append(Problem(name, t("contract.input_missing", name=name)))
             continue
         try:
-            # 隨機數的整個範圍都要符合限制（兩端各檢查一次），結果才不會時好時壞
+            # 隨機數的整個範圍都要符合限制，結果才不會時好時壞
             rules = spec.check_value(value, now=moment)
             value = evaluate(value, spec.type, now=moment, pick=pick)
         except DynamicValueError as error:

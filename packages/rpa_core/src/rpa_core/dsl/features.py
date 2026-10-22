@@ -26,15 +26,16 @@ __all__ = [
     "scenario_features",
 ]
 
-FEATURES: Final[frozenset[str]] = frozenset({"frame", "anyFrame", DYNAMIC_VALUES})
+FEATURES: Final[frozenset[str]] = frozenset({"frame", "anyFrame", "page", "popup", DYNAMIC_VALUES})
 """這份程式看得懂的擴充：定位器的 ``frame``、``anyFrame``（M7a，iframe）；
-入參值的動態值 ``dynamicValues``（``{{today}}``、``{{random:10:30}}``…）。"""
+步驟的 ``page``、``popup``（M7b，新分頁）；入參的 ``dynamicValues``（日期、隨機數）。"""
 
 
 def data_features(data: object) -> frozenset[str]:
     """DSL 資料（camelCase 的 dict／list，例如場景、角色的登入檢查與自動登入步驟）用到的擴充。
 
-    任何一層的 dict 有 ``frame: {…}`` 就是 ``frame``，有 ``anyFrame: true`` 就是 ``anyFrame``。
+    任何一層的 dict 有 ``frame: {…}`` 就是 ``frame``，有 ``anyFrame: true`` 就是 ``anyFrame``；
+    有 ``page: 名稱``、``popup: 名稱``（步驟）就是 ``page``、``popup``。
     """
     found: set[str] = set()
     pending: list[object] = [data]
@@ -46,6 +47,9 @@ def data_features(data: object) -> frozenset[str]:
                 found.add("frame")
             if values.get("anyFrame") is True:
                 found.add("anyFrame")
+            for key in ("page", "popup"):
+                if isinstance(values.get(key), str):
+                    found.add(key)
             pending.extend(values.values())
         elif isinstance(item, list | tuple):
             pending.extend(cast("Iterable[object]", item))

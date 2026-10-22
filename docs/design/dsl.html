@@ -142,10 +142,11 @@ verify:
           <dt>格式</dt><dd><code>yyyy</code>／<code>YYYY</code> 年、<code>MM</code> 月、<code>dd</code>／<code>DD</code> 日、<code>HH</code> 時、<code>mm</code> 分、<code>ss</code> 秒（都補零），其他字元照寫。<code>today</code> 只有日期，格式裡寫了時、分、秒會報錯（最常見的是把月份寫成小寫 <code>mm</code>）。</dd>
           <dt>求值的時間</dt><dd>每次執行開始時（入參階段，啟動瀏覽器之前），用<strong>執行那台電腦</strong>的本地時區；同一次執行的所有入參用同一個「現在」，所以 <code>{{today}}</code> 在每個入參都是同一天。執行紀錄保存原本的寫法，重新執行會重新求值；<code>input.json</code> 與報告是實際用到的值。</dd>
           <dt>型別</dt><dd>求值的結果是數字的文字時（例如整個值是 <code>{{random:10:30}}</code>），integer、number 入參得到數字；其他都是文字，再照入參的 type 與限制校驗。</dd>
-          <dt>校驗</dt><dd>值裡任何 <code>{{ … }}</code> 都當成動態值，看不懂（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）就報錯，不會原樣打進頁面。預設值在存檔時就檢查：數值上下限檢查範圍的兩端，例如 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 會報錯。若有 <code>enum</code> 或 <code>pattern</code>，則檢查全部隨機組合，避免範圍中間的值偶爾不合法；組合超過 1000 種時會提示縮小範圍。</dd>
+          <dt>校驗</dt><dd>值裡任何 <code>{{ … }}</code> 都當成動態值，看不懂（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）就報錯，不會原樣打進頁面。預設值在存檔時就檢查：單一隨機整數的數值上下限檢查範圍兩端，例如 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 會報錯。字串長度另檢查最短、最長組合（含跨零與多個隨機數）。若有 <code>enum</code>、<code>pattern</code>，或把隨機數與其他文字拼成數值（如 <code>0.{{random:1:10}}</code>），則檢查全部隨機組合；超過 1000 種時會提示縮小範圍。單一隨機整數及純長度檢查不受這個組合上限限制。</dd>
+          <dt>錄製的文字</dt><dd>錄製稿中的填寫內容照原樣保留；即使文字含有 <code>{{today}}</code> 或其他大括號，也會自動跳脫。需要動態值時再編輯入參的預設值。</dd>
           <dt>上游的出參</dt><dd>試驗場把上游節點的出參交給下游時永遠照原樣，出參的文字裡剛好有 <code>{{</code> 也不會被求值。</dd>
           <dt>步驟裡</dt><dd>步驟的 <code>{{ }}</code> 是<a href="#templates">表達式</a>，不能直接寫 today、now、random；請在 <code>inputs</code> 加一個入參、預設值寫動態值，步驟再引用 <code>{{ inputs.名稱 }}</code>。</dd>
-          <dt>遠端執行</dt><dd>動態值在執行的那台裝置上求值。用到動態值的執行只交給回報看得懂 <code>dynamicValues</code> 的 Worker／錄製端 App；舊的 App 會看到要更新的說明（同 M7a 的做法）。</dd>
+          <dt>遠端執行</dt><dd>動態值在執行的那台裝置上求值，包含逐步調試與接著錄製。調試重載保留已求值的入參，只對新增預設值求值；Portal 顯示錄製端實際用到的值。用到動態值的執行只交給回報看得懂 <code>dynamicValues</code> 的 Worker／錄製端 App；舊的 App 會看到要更新的說明（同 M7a 的做法）。</dd>
         </dl>
 <pre class="source">inputs:
   arrivalDate: { default: "{{today}}" }
@@ -165,6 +166,8 @@ verify:
             <dt><code>action</code></dt><dd>必填，動作名稱，見下方動作表。</dd>
             <dt><code>name</code></dt><dd>給人看的步驟說明。</dd>
             <dt><code>timeout</code></dt><dd>這一步的逾時，<strong>毫秒整數</strong>，大於 0、最多 3,600,000（一小時）。沒寫就用 <code>defaults.timeout</code>；不會超過總期限剩下的時間。</dd>
+            <dt id="tabs"><code>page</code></dt><dd>在哪個分頁執行（M7b）：前面某一步用 <code>popup</code> 開出來的分頁名稱；沒寫是一開始的分頁。名稱要在「之前」的步驟開過，不然校驗時指出這一步。</dd>
+            <dt><code>popup</code></dt><dd>只有 click、fill、select、check、press 可以寫（M7b）：這一步會開出新分頁（彈出視窗，例如連結的 <code>target="_blank"</code> 或 <code>window.open</code>），執行時等它開好並取這個名稱，之後的步驟用 <code>page</code> 指定它；同一個名稱只能開一次。沒有開出新分頁時這一步逾時失敗。例如 <code>{ action: click, target: { role: link, name: 開啟商品明細 }, popup: items }</code>，之後 <code>{ action: fill, page: items, target: { placeholder: 請選擇 }, value: … }</code>。</dd>
           </dl>
           <p class="muted">retry 與 onError 在 M7 加入；重試只用於沒有副作用的步驟，送出表單之類的動作不會自動重試。</p>
         </div>
@@ -242,7 +245,7 @@ verify:
           <dt>extract 的 fields</dt><dd>每個元素抽成一筆記錄，鍵是欄位名稱，值可寫 target（相對於該元素）、get、attribute。有 fields 時不寫外層的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。download、upload、多分頁、條件與迴圈等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a）。</div>
+      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。download、upload、條件與迴圈等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分頁用步驟的 <a href="#tabs">popup 與 page</a>（M7b）。</div>
     </section>
 
     <div class="two-col">

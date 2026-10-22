@@ -190,6 +190,29 @@ def test_dynamic_value_problems() -> None:
     ]
 
 
+@pytest.mark.parametrize("pick_index", [0, 1, 2])
+@pytest.mark.parametrize(
+    ("spec", "expression", "draws", "rule"),
+    [
+        ("{minLength: 2}", "{{random:-10:10}}", (-10, 0, 10), "minLength: 2"),
+        ("{type: number, maximum: 0.5}", "0.{{random:1:10}}", (1, 9, 10), "maximum: 0.5"),
+    ],
+)
+def test_random_constraint_errors_do_not_depend_on_the_draw(
+    spec: str, expression: str, draws: tuple[int, int, int], rule: str, pick_index: int
+) -> None:
+    result = validate_text(
+        "schemaVersion: 1\nid: demo\nname: 示範\n"
+        f"inputs:\n  q: {spec}\n"
+        "steps:\n  - { id: open, action: goto, url: https://example.test/ }\n"
+    )
+    assert result.scenario is not None
+    _, problems = check_inputs(
+        result.scenario, {"q": expression}, pick=lambda _lo, _hi: draws[pick_index]
+    )
+    assert [problem.message for problem in problems] == [f"入參 q 不符合限制：{rule}"]
+
+
 @pytest.mark.parametrize(
     ("spec", "text", "expected"),
     [

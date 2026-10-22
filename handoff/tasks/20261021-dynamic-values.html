@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-22 00:07 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-22 00:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-21 07:30 America/Los_Angeles（PDT，UTC−07:00）：「場景錄製支持可變參數」，例如 arrivalDate 是當前日期、expiryDate 是當前日期＋1、purchaseQuantity 是 10～30 之間的隨機數，附上入參 JSON（<code>"arrivalDate": "{{today}}"</code>、<code>"expiryDate": "{{today+1}}"</code>、<code>"purchaseQuantity": "{{random:10:30}}"</code>、<code>"remark": "CG-001脚本创建{{today}}日期"</code> 等）。<br>驗收：(1) 入參的預設值、執行表單的入參 JSON、試驗場節點的固定值、命令列 <code>-i</code>／<code>--input</code> 都能寫這些動態值；(2) 每次執行開始時求值，<code>input.json</code> 與報告是實際用到的值，重新執行時重新求值；(3) 寫錯（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）時在存檔或啟動瀏覽器之前就說明哪裡錯；(4) 整數入參寫 <code>{{random:10:30}}</code> 得到整數。</dd>
         <dt>範圍／不包含</dt><dd>範圍：rpa_core 的動態值語法與校驗、Runner 求值、伺服器與 Portal 的提示、遠端裝置的擴充檢查、DSL 文檔。<br>不包含（待使用者決定）：錄製轉換時自動把「錄製當天的日期」改成 <code>{{today}}</code>；步驟裡直接寫動態值；引用其他入參。</dd>
         <dt>主責／審閱／接收方</dt><dd>原實作 Claude；本輪修復主責 ChatGPT／Codex（使用者本次授權）；合併：使用者</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/</code>（新增 <code>dynamic.py</code>；<code>contract.py</code>、<code>checks.py</code>、<code>features.py</code>、<code>yaml_loader.py</code>）、<code>rpa_core/workflow.py</code>、rpa_core／rpa_runner／rpa_server 的訊息目錄、<code>rpa_runner/contract.py</code>、伺服器的 <code>dispatch.py</code>、<code>debugging.py</code>、樣板與 <code>portal.js</code>、<code>docs/design/dsl.html</code>（含英文）、本任務卡與任務索引。<br><strong>並行注意</strong>：<code>m7b/popup</code>（M7b 新分頁，2026-10-21 07:30 起有提交）也改 <code>features.py</code>、<code>checks.py</code>、訊息目錄、<code>docs/design/dsl.html</code>、任務索引。後合併的一方解衝突；<code>FEATURES</code> 兩邊的名稱都要保留。</dd>
-        <dt>狀態</dt><dd>兩項審閱問題已修復並推送（<code>7a51dd8</code>）；完整 CI 與 Windows Worker／macOS 錄製端建置及端到端驗證全部通過。此後只補交接紀錄；人工業務驗收未執行，未合併，合併由使用者決定</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>feat/dynamic-values</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/67">PR #67</a>（base main）；base <code>fcb8e8f</code>（main，#65 合併後）</dd>
+        <dt>狀態</dt><dd>本輪系統檢查及修復完成，本地驗證見下；已整合使用者合併的 PR #66（main 588e6a4），準備推送原 PR #67 並確認 CI。人工業務驗收未執行，合併由使用者決定</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/dynamic-values</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/67">PR #67</a>（base main）；本輪整合基準 <code>588e6a4</code>（main，#66 合併後）；原始起點 <code>fcb8e8f</code></dd>
         <dt>交接版本／同步狀態</dt><dd>已推送：<code>ed0c4cd</code>（實作）→ <code>33b1676</code>（bootstrap 機器人產生簡中，已 fast-forward 取回）→ <code>a17706b</code>（任務紀錄）→ <code>f2ebf8f</code>（原交接）→ <code>7a51dd8</code>（本輪小範圍修復與回歸測試）；後續提交只更新本紀錄</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器；PyPI 被擋，<code>uv sync</code> 無法執行。系統 Python 3.13＋從 GitHub 依 uv.lock 版本 clone 的 fastapi、starlette、sqlalchemy、alembic、mako、annotated-doc（只在本機跑測試）；Playwright 只有 Chromium。簡中與 uv.lock 靠 <code>[bootstrap]</code>。</dd>
       </dl></div>
@@ -33,9 +33,9 @@
         <li><strong>語法</strong>（<code>{{ }}</code> 內可以有空白）：<code>today</code>、<code>today+N</code>、<code>today-N</code>（天）；<code>now</code>（日期與時間）；兩者都可以加 <code>:格式</code>（<code>yyyy</code>／<code>YYYY</code>、<code>MM</code>、<code>dd</code>／<code>DD</code>、<code>HH</code>、<code>mm</code>、<code>ss</code>，其他字元照寫，例如 <code>{{today:YYYY/MM/DD}}</code>、<code>{{today:yyyy年MM月dd日}}</code>）；<code>random:A:B</code>（A 到 B 之間、含兩端的整數）；<code>"文字"</code>（原樣的文字，用來寫出 <code>{{</code> 本身）。預設格式：today 是 <code>2026-10-21</code>，now 是 <code>2026-10-21 07:30:00</code>。</li>
         <li><strong>何時、以哪裡的時間求值</strong>：每次執行開始（Runner 的入參階段，啟動瀏覽器之前），用執行那台電腦的本地時區；同一次執行的所有入參用同一個「現在」。執行紀錄保存原本的寫法，所以重新執行會重新求值；<code>input.json</code>、報告是實際的值。</li>
         <li><strong>型別</strong>：整個值只有一個 <code>random</code> 時，整數／數字入參得到數字；求值結果是整數形式的文字時，整數／數字入參也轉成數字；其他都是文字。</li>
-        <li><strong>寫錯就擋</strong>：入參值裡任何 <code>{{ … }}</code> 都當成動態值，看不懂就是錯（不會把 <code>{{tody}}</code> 原樣打進頁面）。預設值在存檔時校驗，一般限制用隨機範圍的兩端檢查；enum／pattern 另檢查全部隨機組合；執行時再以實際的值校驗。</li>
+        <li><strong>寫錯就擋</strong>：入參值裡任何 <code>{{ … }}</code> 都當成動態值，看不懂就是錯（不會把 <code>{{tody}}</code> 原樣打進頁面）。預設值在存檔時校驗，單一隨機數檢查數值邊界，文字檢查最短／最長組合；enum／pattern 與拼接數值檢查全部隨機組合；執行時再以實際的值校驗。</li>
         <li><strong>上游出參</strong>：試驗場把上游的出參交給下游時，文字裡的 <code>{{</code> 先跳脫，出參永遠照原樣使用。</li>
-        <li><strong>隨機數的檢查</strong>：數值上下限以範圍的兩端檢查；enum／pattern 檢查全部隨機組合，超過 1000 種就提示縮小範圍（預設值存檔、試驗場固定值、Runner 與 Portal 排入前都共用校驗）。因此 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 一律報錯，不會時好時壞。</li>
+        <li><strong>隨機數的檢查</strong>：單一隨機數的數值上下限以範圍兩端檢查，字串另檢查最短／最長組合；enum／pattern 與拼接數值檢查全部隨機組合，超過 1000 種就提示縮小範圍（預設值存檔、試驗場固定值、Runner 與 Portal 排入前都共用校驗）。因此 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 一律報錯，不會時好時壞。</li>
         <li><strong>附帶</strong>：YAML 裡沒加引號的 <code>{{ … }}</code>（例如 <code>default: {{today}}</code>、<code>value: {{ inputs.x }}</code>）原本只報「鍵必須是字串」，改成提示加引號；步驟裡寫了 today、now、random 時提示改寫在入參；入參表格的預設值是動態值時標示「動態值」；JSON Schema 匯出用 <code>x-dynamicDefault</code>。</li>
         <li><strong>舊的 App</strong>：用到動態值（場景的預設值或這次的入參）時需要 DSL 擴充 <code>dynamicValues</code>；沒回報的 Worker／錄製端 App 照 M7a 的做法說明要更新。</li>
       </ul></div>
@@ -75,6 +75,14 @@
 <li><code>pytest -q -m "not browser"</code>：1525 passed、2 skipped（Windows 專用）、1 failed。失敗是 <code>test_frozen_commands_use_the_app_entry</code> 受本機已安裝 App 的 <code>rpa-child</code> 影響；相同命令在原始 <code>f2ebf8f</code> 快照也失敗，未改動此無關測試或使用者 App。</li>
 <li>核心動態值與 Runner 契約測試：100 passed。真實瀏覽器 <code>test_step_debugging</code> 與 <code>test_dynamic_input_values_reach_the_page</code>：Chromium／Firefox 共 4 passed，覆蓋重複重載、保留字面輸入、新增動態預設值及重載後再次執行。</li>
 <li>2026-10-22 00:17 America/Los_Angeles（PDT，UTC−07:00）：<code>7a51dd8</code> 已推送；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39738902629">CI 39738902629</a>（完整靜態檢查、Python 3.12／3.13、Windows Worker）全部通過；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39738902647">桌面端 39738902647</a> 的 Windows Worker／macOS 錄製端建置與端到端驗證全部通過。本次收尾提交只改此交接紀錄，程式與該通過版本相同。實際業務系統與跨機人工驗收未執行。</li>
+</ul></div></section>
+    <section class="panel" id="system-review"><div class="panel-header"><h2>系統檢查與整合 PR #66</h2></div><div class="panel-body"><p>2026-10-22 00:32 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：依使用者本次指示接續 PR #67；起點 <code>5ad3f99</code>，main 已合併 PR #66（<code>588e6a4</code>）。範圍：隨機長度／拼接數值約束、動態值解析與呼叫鏈路、裝置相容性、相關回歸測試；沿用本分支，以 merge 保留兩邊提交歷史。本輪新增發現與修復：隨機長度／拼接數值端點漏判；錄製稿的字面大括號被誤解為動態值；遠端調試與接著錄製在伺服器提前求值、未使用錄製端時區；臨時動態入參未檢查舊錄製端能力。只調整現有函式與互動子程序的輸入回傳，保留原有語法、隨機分布與重載時保留舊值的行為。</p><ul class="points">
+<li>本地 macOS／Python 3.13.16／uv 0.12.24，使用既有 uv.lock。非瀏覽器全倉庫：1558 passed、2 skipped（Windows 專用）、1 failed；唯一失敗仍為前輪已在原始快照重現的 test_frozen_commands_use_the_app_entry，受本機已安裝 App 的 rpa-child 影響。</li>
+<li>最終核心動態值、契約、錄製轉換、能力聲明與互動子程序測試：148 passed；遠端 API／生產 API／互動子程序先前針對性驗證 48 passed，亦包含於全倉庫測試。</li>
+<li>Chromium／Firefox：動態入參、多分頁整合、逐步調試與重載 22 passed；經真實 HTTP、本機閘道及錄製端子程序的動態入參與重載 2 passed。另以完整枚舉對照 49 組含正負數、跨零及拼接的字串長度邊界，結果一致。</li>
+<li>Ruff、格式、diff、i18n stamp／sync／check 通過；修改檔案 Pyright strict：0 errors、0 warnings。全倉庫 Linux 目標：0 errors、3 個既有 pystray warnings；macOS 目標仍有既有 Foundation 型別宣告缺失（1 error）。提交時僅略過此已確認的本機 pyright hook 問題，CI 照常執行完整檢查。</li>
+<li>遠端調試在子程序回覆 ready／load 後回填實際入參；舊 App 的非動態入參仍帶齊預設值。遠端與本機的重複重載保留字面 {{today}}，新增預設值在錄製端求值。</li>
+<li>尚未推送／CI 待核對；此處不代表人工業務驗收完成。</li>
 </ul></div></section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>

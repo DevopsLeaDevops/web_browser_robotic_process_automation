@@ -215,6 +215,10 @@ def test_samples_use_both_ends_of_random_ranges() -> None:
         "{ type: integer, enum: [1, 3], default: '{{random:1:3}}' }",
         "{ enum: ['11', '22'], default: '{{random:1:2}}{{random:1:2}}' }",
         "{ pattern: '^(1|3)$', default: '{{random:1:3}}' }",
+        "{ minLength: 2, default: '{{random:-10:10}}' }",
+        "{ maxLength: 4, default: '{{random:-10:0}}{{random:0:10}}' }",
+        "{ type: number, maximum: 0.5, default: '0.{{random:1:10}}' }",
+        "{ type: number, minimum: -0.5, default: '-0.{{random:1:10}}' }",
     ],
 )
 def test_random_defaults_check_values_between_endpoints(spec: str) -> None:
@@ -250,6 +254,34 @@ def test_exhaustive_random_limit_is_reported_as_a_default_issue() -> None:
         HEADER + "inputs:\n  q: { pattern: '^[0-9]+$', default: '{{random:1:1001}}' }\n" + GOTO
     )
     assert [issue.code for issue in result.issues] == ["dynamic.random_checks_limit"]
+
+
+def test_large_random_ranges_keep_exact_length_and_numeric_checks() -> None:
+    assert (
+        InputSpec(type="integer", minimum=-1000000, maximum=1000000).check_value(
+            " {{random:-1000000:1000000}} "
+        )
+        == []
+    )
+    text = "{{random:-1000000:0}}{{random:0:1000000}}"
+    assert InputSpec.model_validate({"minLength": 2, "maxLength": 15}).check_value(text) == []
+    assert InputSpec.model_validate({"minLength": 3, "maxLength": 14}).check_value(text) == [
+        "minLength: 3",
+        "maxLength: 14",
+    ]
+    assert InputSpec(type="number", maximum=0.9).check_value("0.{{random:1:10}}") == []
+    with pytest.raises(DynamicValueError, match="1000"):
+        InputSpec(type="number").check_value("0.{{random:1:1001}}")
+
+
+def test_composed_random_types_are_checked_across_independent_draws() -> None:
+    # 兩端是 -10 與 11，都能轉整數；中間的 00／01 也應該合法。
+    assert InputSpec(type="integer").check_value("{{random:-1:1}}{{random:0:1}}") == []
+    # 小數與指數拼接後，範圍中間的 0.9e-1 也不能漏掉。
+    assert InputSpec(type="number", maximum=0.1).check_value("0.{{random:1:10}}e-1") == []
+    assert InputSpec(type="number", maximum=0.05).check_value("0.{{random:1:10}}e-1") == [
+        "maximum: 0.05"
+    ]
 
 
 def test_dynamic_expression() -> None:

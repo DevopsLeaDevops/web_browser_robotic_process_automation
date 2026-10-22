@@ -445,6 +445,52 @@ def test_outdated_recorder_is_told_to_update_for_iframes(
         hub.check(via, features={"somethingNew"})
 
 
+def test_dynamic_debug_inputs_are_evaluated_and_returned_by_the_recorder(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    body(client.post("/api/scenes/import"))
+    device = paired(client, remote)
+    device.hello()
+    options = {"inputs": {"title": "{{today}}", "quantity": "{{random:7:7}}"}}
+    refused = remote.post("/api/scenes/ba-001/debug", json=options, headers=auth(device.token))
+    assert error(refused, 422)["code"] == "recorder_outdated"
+    assert device.commands() == []
+    device.hello(features=["dynamicValues"])
+    session = start_debug(remote, device, **options)
+    (start,) = device.commands()
+    files = cast("dict[str, str]", start["files"])
+    assert json.loads(b64decode(files["input.json"])) == options["inputs"]
+    process = str(start["process"])
+    # 裝置的日期故意與伺服器不同：Portal 必須顯示裝置實際用到的值。
+    resolved = {"title": "2035-01-02", "quantity": 7}
+    device.output(process, [json.dumps({"event": "ready", "inputs": resolved})])
+    session_id = str(session["id"])
+    wait_until(lambda: body(client.get(f"/api/debug/{session_id}"))["status"] == "ready")
+    assert body(client.get(f"/api/debug/{session_id}"))["inputs"] == resolved
+    path = services(app).storage.debug_dir(session_id) / "input.json"
+    assert json.loads(path.read_text(encoding="utf-8")) == resolved
+    device.output(process, [], exit_code=0)
+
+
+def test_continue_recording_sends_dynamic_defaults_without_server_evaluation(
+    app: FastAPI, client: Client
+) -> None:
+    create_scene(
+        client,
+        "dynamic-replay",
+        """schemaVersion: 1
+id: dynamic-replay
+name: 接著錄製
+inputs:
+  title: {default: '{{today}}'}
+steps:
+  - {id: open, action: goto, url: https://example.test/}
+""",
+    )
+    replay = services(app).recordings._replay("dynamic-replay")  # pyright: ignore[reportPrivateUsage]
+    assert replay.inputs == {"title": "{{today}}"}
+
+
 # ---------------------------------------------------------------- 登入檢查交給錄製端
 
 ROLE: JsonObject = {

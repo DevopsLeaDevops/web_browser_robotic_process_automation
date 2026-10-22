@@ -33,6 +33,7 @@ from rpa_core.dsl import Scenario, validate_file
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
 from rpa_runner.browser import Deadline, plan_records, run_steps
 from rpa_runner.contexts import Engine, open_context
+from rpa_runner.contract import check_inputs
 from rpa_runner.i18n import t
 from rpa_runner.secrets import mask, read_secrets
 
@@ -82,13 +83,17 @@ def _load(args: argparse.Namespace) -> tuple[Scenario, dict[str, object]]:
     if validated.scenario is None:
         raise ValueError(t("child.invalid_scenario"))
     inputs = cast("dict[str, object]", json.loads(Path(args.input).read_text(encoding="utf-8")))
-    return validated.scenario, inputs
+    resolved, problems = check_inputs(validated.scenario, inputs)
+    if problems:
+        raise ValueError("; ".join(problem.message for problem in problems))
+    return validated.scenario, resolved
 
 
 def record(args: argparse.Namespace) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     scenario, inputs = _load(args)
+    (out / "input.json").write_text(json.dumps(inputs, ensure_ascii=False), encoding="utf-8")
     secrets = read_secrets(scenario)
     with sync_playwright() as playwright, contextlib.ExitStack() as stack:
         viewport = scenario.browser.viewport

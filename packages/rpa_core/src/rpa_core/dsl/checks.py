@@ -4,6 +4,7 @@
 - 出參：DSL 場景的每個出參都要有 from，有出參就要有 verify（獨立斷言通過才發布）
 - 步驟 id、secrets 名稱、extract 的 as 不能重複
 - goto 的網址以 / 開頭時，要有 browser.baseUrl
+- 新分頁（M7b）：page 要是「之前」某一步的 popup 開出來的分頁；popup 的名稱不能重複
 - ``{{ }}``：以 Jinja2 解析，語法要正確；只能用 inputs、secrets、facts、env；
   inputs、secrets 要宣告，facts 要由「之前」的 extract 產生；
   寫了入參值的動態值（today、now、random）時，說明要改寫在入參
@@ -52,6 +53,7 @@ def cross_check(scenario: "Scenario") -> list[CrossIssue]:
     issues.extend(_body(scenario))
     issues.extend(_duplicate_names(scenario))
     issues.extend(_relative_urls(scenario))
+    issues.extend(_tabs(scenario))
     issues.extend(_templates(scenario))
     return issues
 
@@ -117,6 +119,23 @@ def _relative_urls(scenario: "Scenario") -> Iterator[CrossIssue]:
             yield CrossIssue(
                 ("steps", index, "url"), "url.relative_without_base", {"value": step.url}
             )
+
+
+def _tabs(scenario: "Scenario") -> Iterator[CrossIssue]:
+    opened: dict[str, int] = {}
+    for index, step in enumerate(scenario.steps or ()):
+        if step.page is not None and step.page not in opened:
+            yield CrossIssue(("steps", index, "page"), "page.undefined", {"name": step.page})
+        popup = getattr(step, "popup", None)
+        if not isinstance(popup, str):
+            continue
+        if popup in opened:
+            first = opened[popup] + 1
+            yield CrossIssue(
+                ("steps", index, "popup"), "popup.duplicate", {"name": popup, "first": first}
+            )
+        else:
+            opened[popup] = index
 
 
 # ---------------------------------------------------------------- {{ }}

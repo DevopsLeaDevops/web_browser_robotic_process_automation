@@ -74,7 +74,7 @@ MAX_OFFSET_DAYS: Final = 36500
 """today±N 的天數上限（一百年）；超過多半是寫錯。"""
 
 _MAX_CHECK_COMBINATIONS: Final = 1000
-"""enum／pattern 完整檢查的組合上限，避免多個 random 的組合拖住存檔或執行。"""
+"""完整檢查的組合上限，避免多個 random 的組合拖住存檔或執行。"""
 
 _DEFAULT_FORMATS: Final = {"today": "yyyy-MM-dd", "now": "yyyy-MM-dd HH:mm:ss"}
 _TIME_TOKENS: Final = frozenset({"HH", "mm", "ss"})
@@ -307,16 +307,23 @@ def samples(
     now: datetime | None = None,
     exhaustive: bool = False,
 ) -> list[object]:
-    """校驗用的代表值：隨機數取最小、最大各一次（去掉重複）；沒有動態值時就是值本身。
+    """校驗用的代表值：純隨機數檢查數值兩端，字串另檢查最短與最長的組合。
 
-    enum／pattern 不能只看兩端：exhaustive=True 時列出所有隨機組合，
-    超過安全上限就明確拒絕，不退回抽樣而漏掉不符合限制的值。
+    enum／pattern（exhaustive=True）與拼接成數字的文字不能只看兩端，需檢查全部組合；
+    超過安全上限就明確拒絕。單一 random 的數值上下限及字串長度不受組合數限制。
     """
-    if not has_dynamic(value):
+    if not isinstance(value, str) or not has_dynamic(value):
         return [value]
     moment = now or _local_now()
-    if exhaustive and isinstance(value, str):
-        parts = parse(value)
+    parts = parse(value)
+    significant = [part for part in parts if not isinstance(part, Text) or part.text.strip()]
+    plain_random = len(significant) == 1 and isinstance(significant[0], RandomInteger)
+    numeric_composition = (
+        value_type in ("integer", "number")
+        and not plain_random
+        and any(isinstance(part, RandomInteger) for part in parts)
+    )
+    if exhaustive or numeric_composition:
         ranges: list[range] = []
         combinations = 1
         for part in parts:
@@ -332,8 +339,11 @@ def samples(
             values.append(_typed(text, value_type))
         return values
     found: list[object] = []
-    for pick in (_lowest, _highest):
-        result = evaluate(value, value_type, now=moment, pick=pick)
+    picks = (
+        (_lowest, _highest, _shortest, _longest) if value_type == "string" else (_lowest, _highest)
+    )
+    for pick in picks:
+        result = _typed(_render(parts, moment, pick), value_type)
         if result not in found:
             found.append(result)
     return found
@@ -347,3 +357,12 @@ def _lowest(low: int, high: int) -> int:
 def _highest(low: int, high: int) -> int:
     del low
     return high
+
+
+def _shortest(low: int, high: int) -> int:
+    # 範圍跨零時，端點不一定是最短的文字，例如 -10～10 的 0。
+    return min((low, high, max(low, min(0, high))), key=lambda value: len(str(value)))
+
+
+def _longest(low: int, high: int) -> int:
+    return max((low, high), key=lambda value: len(str(value)))

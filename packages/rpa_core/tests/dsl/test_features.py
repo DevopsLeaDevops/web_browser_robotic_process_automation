@@ -50,6 +50,21 @@ def test_frame_and_any_frame_are_found_anywhere() -> None:
     assert scenario_features(checked.scenario) == {"frame"}
 
 
+def test_tabs_are_found() -> None:
+    """新分頁（M7b）：步驟的 popup 與 page。"""
+    assert features_of(
+        "  - id: a\n    action: click\n    target: { text: 明細 }\n    popup: items\n"
+        "  - id: b\n    action: click\n    page: items\n    target: { text: 儲存 }\n"
+    ) == {"page", "popup"}
+    example = (ROOT / "scenarios" / "examples" / "popup-form.yaml").read_text(encoding="utf-8")
+    checked = validate_text(example)
+    assert checked.scenario is not None
+    assert scenario_features(checked.scenario) == {"page", "popup"}
+    dynamic = validate_text(example.replace("default: '455590002'", "default: '{{random:7:7}}'"))
+    assert dynamic.scenario is not None
+    assert scenario_features(dynamic.scenario) == {"page", "popup", "dynamicValues"}
+
+
 def test_data_features_reads_raw_settings() -> None:
     """角色的登入檢查與自動登入步驟是原始的 dict。"""
     assert data_features({"check": {"testId": "me"}, "steps": []}) == frozenset()
@@ -65,7 +80,7 @@ def test_data_features_reads_raw_settings() -> None:
 
 
 def test_missing_features() -> None:
-    assert {"frame", "anyFrame", "dynamicValues"} == FEATURES
+    assert {"frame", "anyFrame", "page", "popup", "dynamicValues"} == FEATURES
     # M7a 之前的 App 沒有回報 features：一個都不懂
     assert missing_features({"frame"}, None) == ["frame"]
     assert missing_features({"anyFrame", "frame"}, "frame") == ["anyFrame", "frame"]

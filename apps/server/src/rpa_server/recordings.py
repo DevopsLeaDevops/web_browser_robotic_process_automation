@@ -323,12 +323,13 @@ class RecordingService:
         defaults = {
             name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
         }
-        inputs, problems = check_inputs(scenario, defaults)
+        _, problems = check_inputs(scenario, defaults)
         if problems:
             names = ", ".join(problem.name for problem in problems)
             raise invalid("recording_continue_needs", t("recording.continue_needs", names=names))
         text = self.services.revision_files(scene_id, number)[SCENARIO_FILE]
-        return _Replay(number, scenario, text, inputs, self.services.get_scene(scene_id).base_url)
+        # 保留動態值寫法，接著錄製的子程序才依錄製端當地時間求值。
+        return _Replay(number, scenario, text, defaults, self.services.get_scene(scene_id).base_url)
 
     @staticmethod
     def _replay_command(

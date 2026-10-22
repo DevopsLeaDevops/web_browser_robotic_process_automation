@@ -4,8 +4,10 @@
 步驟內欄位之間的規則（例如 waitFor 三選一）在各模型的 model_validator 檢查；
 跨步驟的規則（id 重複、引用未宣告的參數）在 rpa_core.dsl.checks。
 
-retry、onError、download、upload、多分頁、條件與迴圈在 M7 加入（路線圖 v2）；
-iframe 在 M7a 以定位器的 frame 支援（見 locators.py）。
+retry、onError、download、upload、條件與迴圈在 M7 加入（路線圖 v2）；
+iframe 在 M7a 以定位器的 frame 支援（見 locators.py）；新分頁（彈出視窗）在 M7b 以步驟的
+``popup``（這一步開出新分頁，取個名稱）與 ``page``（在哪個分頁執行）支援，
+名稱的前後關係在 checks.py 檢查。
 """
 
 import re
@@ -88,6 +90,8 @@ class StepBase(DslModel):
     """給人看的說明。"""
     timeout: TimeoutMs | None = None
     """這一步的逾時（毫秒）；沒寫就用場景的 defaults.timeout。"""
+    page: Identifier | None = None
+    """在哪個分頁執行（M7b）：前面某一步用 popup 開出來的分頁名稱；沒寫是一開始的分頁。"""
 
 
 class GotoStep(StepBase):
@@ -119,6 +123,8 @@ class ClickStep(StepBase):
     """1 是單擊，2 是雙擊。"""
     modifiers: list[Literal["Alt", "Control", "ControlOrMeta", "Meta", "Shift"]] | None = None
     """點擊時同時按住的按鍵。"""
+    popup: Identifier | None = None
+    """這一步會開出新分頁（彈出視窗，M7b）：等它開好，叫做這個名稱；之後的步驟用 page 指定它。"""
 
 
 class FillStep(StepBase):
@@ -128,6 +134,8 @@ class FillStep(StepBase):
     target: Locator
     value: str
     """要填入的文字；空字串代表清空。數字要加引號。"""
+    popup: Identifier | None = None
+    """這一步會開出新分頁（彈出視窗，M7b）：等它開好，叫做這個名稱；之後的步驟用 page 指定它。"""
 
 
 class SelectStep(StepBase):
@@ -137,6 +145,8 @@ class SelectStep(StepBase):
     target: Locator
     option: OneOrMany
     """選項的值或顯示文字；寫成清單代表多選。"""
+    popup: Identifier | None = None
+    """這一步會開出新分頁（彈出視窗，M7b）：等它開好，叫做這個名稱；之後的步驟用 page 指定它。"""
 
 
 class CheckStep(StepBase):
@@ -146,6 +156,8 @@ class CheckStep(StepBase):
     target: Locator
     checked: bool = True
     """true 勾選、false 取消勾選。"""
+    popup: Identifier | None = None
+    """這一步會開出新分頁（彈出視窗，M7b）：等它開好，叫做這個名稱；之後的步驟用 page 指定它。"""
 
 
 class PressStep(StepBase):
@@ -156,6 +168,8 @@ class PressStep(StepBase):
     """Playwright 的按鍵寫法，例如 Enter、Tab、Control+A。"""
     target: Locator | None = None
     """先聚焦到這個元素再按；沒寫就送給目前聚焦的元素。"""
+    popup: Identifier | None = None
+    """這一步會開出新分頁（彈出視窗，M7b）：等它開好，叫做這個名稱；之後的步驟用 page 指定它。"""
 
 
 class WaitForStep(StepBase):
