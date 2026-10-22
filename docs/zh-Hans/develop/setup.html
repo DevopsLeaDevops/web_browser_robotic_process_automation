@@ -79,10 +79,36 @@ uv run rpa --version</pre>
       </div>
     </section>
 
-    <section class="panel" id="linux-server">
-      <div class="panel-header"><h2>Linux 服务器安装（yum／dnf）</h2></div>
+    <section class="panel" id="linux-package">
+      <div class="panel-header"><h2>Linux 服务器：分发包（建议）</h2></div>
       <div class="panel-body">
-        <p>无桌面服务器负责 Portal、数据库与调度；远程 Worker 运行浏览器，录制端提供录制、人工登录与有头调试。使用 <code>setup-linux.sh</code> 安装 <code>.venv-server</code>，不下载浏览器、不安装桌面 App、开发工具或 Git hooks。CLI 既有相依仍包含 Playwright 的 Python 包，但不启动其浏览器 driver。</p>
+        <p>下载 <code>RPA-Server-版本-linux-x64.tar.gz</code>（aarch64 用 <code>linux-arm64</code>），解压后运行里面的 <code>install.sh</code>。分发包内含 Python 3.13 与照 <code>uv.lock</code> 装好的所有包：服务器不需要 git clone、uv，也不必连到 GitHub 或 PyPI；在能上网的电脑下载一个文件、拷贝到服务器就能安装。适用的系统和<a href="#linux-server">从源代码安装</a>相同：RHEL／CentOS 衍生版、x86_64 或 aarch64、glibc 2.28 以上。</p>
+<pre class="source"># 文件名里的版本换成实际下载的
+tar -xzf RPA-Server-0.4.1-linux-x64.tar.gz
+bash RPA-Server-0.4.1-linux-x64/install.sh --install-service
+sudo systemctl status rpa-server
+
+# 不用 systemd（例如容器）：前景启动
+~/rpa-server/bin/rpa-server
+
+# 升级：解压新版的分发包，再运行一次；服务正在运行时自动重新启动
+tar -xzf RPA-Server-0.4.2-linux-x64.tar.gz
+bash RPA-Server-0.4.2-linux-x64/install.sh</pre>
+        <dl class="spec-list">
+          <dt>取得</dt><dd>GitHub Release 附 x64、arm64 两个分发包与 <code>SHA256SUMS.txt</code>（<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>）；加入分发包之后的第一个发布才有。在那之前，或要试尚未发布的版本，从 GitHub Actions「服务器分发包」那次运行的产物下载（需要登录 GitHub）。</dd>
+          <dt>安装位置</dt><dd>默认 <code>~/rpa-server</code>（<code>--prefix</code> 或 <code>RPA_SERVER_HOME</code> 可改）。每个版本放在 <code>releases/版本-提交/</code>，<code>current</code> 指向使用中的版本；<code>bin/rpa-server</code> 是启动器（systemd 也用它），<code>bin/rpa</code> 是 rpa 命令。新版本先放好、确认包内的 Python 在这台能运行，才把 <code>current</code> 换过去；保留最近 3 个版本（<code>--keep</code>）。</dd>
+          <dt>设置与数据</dt><dd>设置档 <code>~/rpa-server/rpa-server.env</code>，变量和下方的 <code>.rpa-server.env</code> 相同（<code>RPA_DATA_DIR</code>、<code>RPA_PORT</code>、<code>RPA_WORKER_PORT</code>、<code>RPA_WORKER_HOST</code>、<code>RPA_TESTSITE_HOST</code>）；首次安装时可以用环境变量指定，之后修改文件再重新启动服务。数据默认在 <code>~/.local/share/rpa-server</code>，安装、升级与重装都不会清除。</dd>
+          <dt>从 clone 安装改过来</dt><dd>第一次安装时自动沿用 <code>setup-linux.sh</code> 的设置：先找 systemd 服务启动的那份 <code>.rpa-server.env</code>，再找默认的 clone 位置；也可以用 <code>--import-env</code> 指定。数据目录照旧，不搬动数据。现有服务仍指向 clone 的那份时，安装程序不动它；加上 <code>--install-service</code> 才换成分发包并重新启动。换过去之后，clone 与 <code>.venv-server</code> 可以保留或删除。</dd>
+          <dt>系统包</dt><dd>只补装缺少的 <code>libstdc++</code> 与 <code>git</code>（git 只有领域文件夹的 git 同步要用），所以升级通常不用 sudo 装包；管理员已备妥时加 <code>--skip-system-packages</code>。安装 unit 与重新启动服务需要 sudo。</dd>
+          <dt>升级失败时</dt><dd>新版本启动后约 60 秒内管理端口没有回应，安装程序停下并说明怎么退回上一版（<code>current</code> 指回 <code>releases/上一版</code> 后重新启动）。数据库迁移在新版本启动时运行：升级前照下方的方式备份整个数据目录，退回旧版前先还原。</dd>
+        </dl>
+        <p>分发包由 CI 建置（<code>tools/build_server.py</code>、「服务器分发包」流程）：只选 <code>manylinux_2_28</code> 以下的包，建好后用包内的 Python 运行；再在同架构的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般账号）实际安装、沿用旧设置、冒烟测试、重装与升级。容器没有 systemd：真实的服务启停与公司主机仍需验收。首次管理、SSH 转发与防火墙和下方相同。</p>
+      </div>
+    </section>
+    <section class="panel" id="linux-server">
+      <div class="panel-header"><h2>Linux 服务器：从源代码安装（yum／dnf）</h2></div>
+      <div class="panel-body">
+        <p>一般建议用上方的<a href="#linux-package">分发包</a>；要在服务器上跑还没发布的代码，或服务器连得到 GitHub 与 PyPI 时，也可以 clone 后安装。无桌面服务器负责 Portal、数据库与调度；远程 Worker 运行浏览器，录制端提供录制、人工登录与有头调试。使用 <code>setup-linux.sh</code> 安装 <code>.venv-server</code>，不下载浏览器、不安装桌面 App、开发工具或 Git hooks。CLI 既有相依仍包含 Playwright 的 Python 包，但不启动其浏览器 driver。</p>
         <dl class="spec-list">
           <dt>系统辨识</dt><dd>读取 <code>/etc/os-release</code> 的 <code>ID</code> 与 <code>ID_LIKE</code>，接受 rhel、centos、fedora；先用 yum，再用 dnf。公司系统即使 <code>ID=""</code>、名称空白，只要 <code>ID_LIKE="rhel fedora centos "</code> 仍可辨识；不把 <code>VERSION_ID="3"</code> 当作 CentOS 3。</dd>
           <dt>运行环境</dt><dd>x86_64 或 aarch64、glibc 2.28 以上；用 <code>uname -m</code> 和 <code>getconf GNU_LIBC_VERSION</code> 检查。x86_64、glibc 2.32 符合这些前置检查，实际公司包库与主机仍需验收。不替换系统 glibc 或 Python；uv 下载 <code>.python-version</code> 指定的 Python，依 <code>uv.lock</code> 安装。</dd>

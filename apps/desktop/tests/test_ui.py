@@ -14,7 +14,7 @@ import pytest
 
 from rpa_core.i18n import LOCALES
 from rpa_desktop.controller import Phase
-from rpa_desktop.i18n import t
+from rpa_desktop.i18n import platform_key, t
 from rpa_desktop.icon import ICO_SIZES, draw, save_ico, status_color
 from rpa_desktop.ui import page_strings, render_page
 
@@ -95,3 +95,40 @@ def test_icon_sizes_and_status_colors(tmp_path: Path) -> None:
     with Image.open(path) as ico:
         sizes = ico.info["sizes"]
     assert set(ICO_SIZES) <= set(sizes)
+
+
+# ---------------------------------------------------------------- 各系統的說法
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_every_macos_wording_replaces_an_existing_message(locale: str) -> None:
+    """``前綴.darwin.名稱`` 一定有對應的 ``前綴.名稱``（否則在 Windows 上就缺字）。"""
+    messages = t.messages(locale)  # type: ignore[arg-type]
+    variants = [key for key in messages if ".darwin." in key]
+    assert variants
+    for key in variants:
+        prefix, _, name = key.partition(".darwin.")
+        assert f"{prefix}.{name}" in messages, key
+        assert set(re.findall(r"{(\w+)}", messages[key])) == set(
+            re.findall(r"{(\w+)}", messages[f"{prefix}.{name}"])
+        ), key
+
+
+def test_macos_page_says_menu_bar_and_keychain() -> None:
+    mac = page_strings("zh-Hant", platform="darwin")
+    windows = page_strings("zh-Hant", platform="win32")
+    assert mac["window.storage_keyring"] == "macOS 鑰匙圈"
+    assert windows["window.storage_keyring"] == "Windows 認證管理員"
+    assert "選單列" in mac["window.autostart_label"]
+    assert "Windows" in windows["window.autostart_label"]
+    assert "鑰匙圈" in mac["window.keyring_failed"]
+    english = page_strings("en", platform="darwin")
+    assert english["window.storage_keyring"] == "macOS Keychain"
+
+
+def test_platform_key() -> None:
+    assert platform_key("window.close_hint", "darwin") == "window.darwin.close_hint"
+    assert platform_key("worker.already_running", "darwin") == "worker.darwin.already_running"
+    assert platform_key("window.close_hint", "win32") == "window.close_hint"
+    assert platform_key("window.title", "darwin") == "window.title"  # 沒有 macOS 的說法
+    assert platform_key("nodot", "darwin") == "nodot"

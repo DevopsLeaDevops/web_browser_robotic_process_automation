@@ -12,11 +12,12 @@
 import html
 import json
 import re
+import sys
 from importlib.resources import files
 from typing import Final, Literal
 
 from rpa_core.i18n import DEFAULT_LOCALE, Locale
-from rpa_desktop.i18n import t
+from rpa_desktop.i18n import PLATFORM_VARIANT, t
 
 __all__ = ["PAGES", "PAGE_PREFIX", "Page", "page_strings", "read_asset", "render_page"]
 
@@ -32,14 +33,29 @@ def read_asset(name: str) -> str:
     return files("rpa_desktop").joinpath("ui", name).read_text(encoding="utf-8")
 
 
-def page_strings(locale: Locale, prefix: str = PAGE_PREFIX) -> dict[str, str]:
-    """頁面用的訊息（缺的鍵用繁中補上；測試會確保三種語言一致）。"""
+def page_strings(
+    locale: Locale, prefix: str = PAGE_PREFIX, platform: str = sys.platform
+) -> dict[str, str]:
+    """頁面用的訊息（缺的鍵用繁中補上；測試會確保三種語言一致）。
+
+    macOS 上 ``<前綴>darwin.<名稱>`` 蓋過 ``<前綴><名稱>``（選單列、鑰匙圈、登入 macOS），
+    頁面的腳本不必知道是哪個系統。
+    """
     strings = {
         key: value for key, value in t.messages(DEFAULT_LOCALE).items() if key.startswith(prefix)
     }
     strings.update(
         {key: value for key, value in t.messages(locale).items() if key.startswith(prefix)}
     )
+    if platform == PLATFORM_VARIANT:
+        variant = f"{prefix}{PLATFORM_VARIANT}."
+        strings.update(
+            {
+                prefix + key.removeprefix(variant): value
+                for key, value in strings.items()
+                if key.startswith(variant)
+            }
+        )
     return strings
 
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4eb0db7685d169c9">
+<meta name="translation-source" content="sha256:37194677be47ad46">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -79,10 +79,36 @@ uv run rpa --version</pre>
       </div>
     </section>
 
-    <section class="panel" id="linux-server">
-      <div class="panel-header"><h2>Linux server setup (yum/dnf)</h2></div>
+    <section class="panel" id="linux-package">
+      <div class="panel-header"><h2>Linux server: package (recommended)</h2></div>
       <div class="panel-body">
-        <p>The headless server hosts the Portal, database and scheduler. Remote Workers run browsers; the Recorder handles recording, manual login and headed debugging. <code>setup-linux.sh</code> installs <code>.venv-server</code> without browser downloads, desktop apps, development tools or Git hooks. Existing CLI dependencies still include the Playwright Python package, but its browser driver is not started.</p>
+        <p>Download <code>RPA-Server-VERSION-linux-x64.tar.gz</code> (<code>linux-arm64</code> for aarch64), extract it and run the <code>install.sh</code> inside. The package carries Python 3.13 and every package installed from <code>uv.lock</code>: the server needs no git clone, no uv and no access to GitHub or PyPI. Download one file on a machine with internet access, copy it to the server and install. Supported systems are the same as for <a href="#linux-server">installing from source</a>: RHEL/CentOS derivatives, x86_64 or aarch64, glibc 2.28 or later.</p>
+<pre class="source"># Use the version in the file you downloaded
+tar -xzf RPA-Server-0.4.1-linux-x64.tar.gz
+bash RPA-Server-0.4.1-linux-x64/install.sh --install-service
+sudo systemctl status rpa-server
+
+# Without systemd (for example in a container): run in the foreground
+~/rpa-server/bin/rpa-server
+
+# Upgrade: extract the new package and run it again; a running service is restarted
+tar -xzf RPA-Server-0.4.2-linux-x64.tar.gz
+bash RPA-Server-0.4.2-linux-x64/install.sh</pre>
+        <dl class="spec-list">
+          <dt>Download</dt><dd>GitHub Releases carry the x64 and arm64 packages and <code>SHA256SUMS.txt</code> (<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>), starting with the first release after packages were added. Before that, or to try an unreleased build, download the artifact of a "伺服器分發包" (server package) run in GitHub Actions (requires a GitHub sign-in).</dd>
+          <dt>Location</dt><dd><code>~/rpa-server</code> by default (change with <code>--prefix</code> or <code>RPA_SERVER_HOME</code>). Each version lives in <code>releases/VERSION-COMMIT/</code> and <code>current</code> points to the one in use; <code>bin/rpa-server</code> is the launcher (systemd uses it too) and <code>bin/rpa</code> the rpa command. A new version is put in place and its Python checked on this machine before <code>current</code> switches to it; the latest 3 versions are kept (<code>--keep</code>).</dd>
+          <dt>Settings and data</dt><dd>Settings are in <code>~/rpa-server/rpa-server.env</code>, with the same variables as <code>.rpa-server.env</code> below (<code>RPA_DATA_DIR</code>, <code>RPA_PORT</code>, <code>RPA_WORKER_PORT</code>, <code>RPA_WORKER_HOST</code>, <code>RPA_TESTSITE_HOST</code>). Set them as environment variables on the first install, then edit the file and restart the service. Data defaults to <code>~/.local/share/rpa-server</code>; installing, upgrading and reinstalling never remove it.</dd>
+          <dt>Moving from a clone</dt><dd>The first install reuses the settings of <code>setup-linux.sh</code>: first the <code>.rpa-server.env</code> of the clone the systemd service runs, then the default clone location; or name one with <code>--import-env</code>. The data folder stays where it is; nothing is moved. While the existing service still points to the clone, the installer leaves it alone; add <code>--install-service</code> to switch the service to the package and restart it. Afterwards you can keep or delete the clone and its <code>.venv-server</code>.</dd>
+          <dt>System packages</dt><dd>Only a missing <code>libstdc++</code> or <code>git</code> is installed (git is only needed for git sync of domain folders), so upgrades rarely need sudo for packages; add <code>--skip-system-packages</code> when an administrator has prepared them. Installing the unit and restarting the service need sudo.</dd>
+          <dt>If an upgrade fails</dt><dd>If the admin port does not answer within about 60 seconds after the new version starts, the installer stops and explains how to go back (point <code>current</code> at <code>releases/PREVIOUS</code> and restart). Database migrations run when the new version starts: back up the whole data folder before upgrading as described below, and restore it before going back.</dd>
+        </dl>
+        <p>CI builds the packages (<code>tools/build_server.py</code>, the "伺服器分發包" workflow): only packages at <code>manylinux_2_28</code> or older are chosen and the result is run with its own Python; then it is really installed in a Rocky Linux 8 container of the same architecture (glibc 2.28, a company-style os-release, a regular account), reusing old settings, smoke-tested, reinstalled and upgraded. The container has no systemd, so starting and stopping the real service and the company hosts still need checking by hand. First-time administration, SSH forwarding and the firewall are the same as below.</p>
+      </div>
+    </section>
+    <section class="panel" id="linux-server">
+      <div class="panel-header"><h2>Linux server: install from source (yum/dnf)</h2></div>
+      <div class="panel-body">
+        <p>The <a href="#linux-package">package</a> above is the recommended way; clone and install from source when you need code that has not been released yet, or when the server can reach GitHub and PyPI. The headless server hosts the Portal, database and scheduler. Remote Workers run browsers; the Recorder handles recording, manual login and headed debugging. <code>setup-linux.sh</code> installs <code>.venv-server</code> without browser downloads, desktop apps, development tools or Git hooks. Existing CLI dependencies still include the Playwright Python package, but its browser driver is not started.</p>
         <dl class="spec-list">
           <dt>Distribution detection</dt><dd>Reads <code>ID</code> and <code>ID_LIKE</code> from <code>/etc/os-release</code>, accepting rhel, centos or fedora; prefers yum, then dnf. Blank names and <code>ID=""</code> work with <code>ID_LIKE="rhel fedora centos "</code>. A corporate <code>VERSION_ID="3"</code> is not interpreted as CentOS 3.</dd>
           <dt>Runtime</dt><dd>x86_64 or aarch64 with glibc 2.28 or newer; check with <code>uname -m</code> and <code>getconf GNU_LIBC_VERSION</code>. x86_64 with glibc 2.32 meets these prerequisites; the actual corporate repositories and host still need acceptance testing. System glibc and Python are not replaced: uv downloads the Python specified by <code>.python-version</code> and installs from <code>uv.lock</code>.</dd>

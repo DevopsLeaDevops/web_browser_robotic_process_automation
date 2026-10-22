@@ -1,4 +1,4 @@
-# 運行耗時紀錄：每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，把耗時、排隊、
+# 運行耗時紀錄：每次 CI、桌面端建置、伺服器分發包、一鍵安裝腳本、每晚完整測試、發布結束後，把耗時、排隊、
 # 各工作與各測試檔案的時間追加到 ci-metrics 分支（tools/ci_metrics.py），並重新產生那裡的 README.md。
 #
 # - 資料在獨立的 ci-metrics 分支，不碰 main；GITHUB_TOKEN 的推送不會觸發任何流程（包括 bootstrap）。
@@ -11,7 +11,7 @@ name: 運行耗時紀錄
 on:
   workflow_run:
     # 和 tools/ci_metrics.py 的 TRACKED 一致
-    workflows: [CI, 桌面端建置, 一鍵安裝腳本, 每晚完整測試, 發布]
+    workflows: [CI, 桌面端建置, 伺服器分發包, 一鍵安裝腳本, 每晚完整測試, 發布]
     types: [completed]
   pull_request:
     paths:

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:118000876ec4d10c">
+<meta name="translation-source" content="sha256:2c5f1dc7d18dbbc3">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -27,7 +27,7 @@
           <thead><tr><th>Role</th><th>What it does</th><th>What to install</th><th>Start</th></tr></thead>
           <tbody>
             <tr><td><strong>Server</strong></td><td>Holds the management portal, the database, scene versions, run reports, sign-in state and secrets; it can also run jobs itself (the local worker).</td><td>The development environment (<a href="quickstart.html">one-line script</a>) on macOS, Linux or Windows.</td><td><code>uv run rpa serve --worker-port 8081</code></td></tr>
-            <tr><td><strong>Worker</strong></td><td>Picks up and runs scenarios; headed browser windows open on this computer, and reports, screenshots and traces go back to the server.</td><td>Windows: the <a href="remote-worker.html#packaged">RPA Worker app</a>; other systems use the development environment.</td><td>The app starts when you sign in; on the command line <code>uv run rpa worker</code></td></tr>
+            <tr><td><strong>Worker</strong></td><td>Picks up and runs scenarios; headed browser windows open on this computer, and reports, screenshots and traces go back to the server.</td><td>Windows: the <a href="remote-worker.html#packaged">RPA Worker app</a>; macOS (Apple silicon): the <a href="remote-worker.html#packaged-mac">RPA Worker app</a>; other systems use the development environment.</td><td>The app starts when you sign in; on the command line <code>uv run rpa worker</code></td></tr>
             <tr><td><strong>Recorder</strong></td><td>When you use the portal through it, the browsers for recording, step-by-step debugging and manual login open on this computer; recordings, screenshots and sign-in state go back to the server. It does not run scenarios.</td><td>macOS (Apple silicon): the <a href="remote-worker.html#recorder-app">RPA Recorder app</a>; other systems use the development environment.</td><td>Open the app; on the command line <code>uv run rpa recorder</code></td></tr>
           </tbody>
         </table>
@@ -129,7 +129,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
         <ol>
           <li>Check “Run reports” for jobs still running, and make sure no recording or debugging is in progress on a recorder.</li>
           <li>Stop the server (Ctrl+C or <code>sudo systemctl stop rpa-portal</code>); a <a href="#backup">backup</a> first is a good idea.</li>
-          <li><code>git pull</code>, then run <code>./scripts/setup.sh</code> (it installs only what changed; use <code>uv sync</code> to update just the dependencies).</li>
+          <li><code>git pull</code>, then run <code>./scripts/setup.sh</code> (it installs only what changed; use <code>uv sync</code> to update just the dependencies). A Linux server installed from the <a href="setup.html#linux-package">package</a> instead: extract the new package and run its <code>install.sh</code>; it puts the new version in place before switching and restarts a running service (this step and the next in one go).</li>
           <li>Start the server. The database is upgraded on start, and existing scenes and history are kept. The first upgrade to M11 moves the old <code>scenes/</code> and the database's validations, publications and composite scenarios into <code>domains/</code>, after a backup to <code>backups/&lt;time&gt;-before-domains/</code> (composite scenarios also <code>-before-composites/</code>); the log prints where the backup is.</li>
           <li>Bring workers and recorders to the same version: the apps take the installer or DMG of that version, and command-line machines <code>git pull</code> and restart.</li>
         </ol>
@@ -207,7 +207,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
       <section class="panel" id="worker">
         <div class="panel-header"><h2>Workers day to day</h2></div>
         <div class="panel-body prose">
-          <p>First-time installation and pairing: <a href="remote-worker.html#packaged">Windows: the RPA Worker app</a> (command line: <a href="remote-worker.html#start">Worker computer: start</a>).</p>
+          <p>First-time installation and pairing: <a href="remote-worker.html#packaged">Windows: the RPA Worker app</a>, <a href="remote-worker.html#packaged-mac">macOS: the RPA Worker app</a> (command line: <a href="remote-worker.html#start">Worker computer: start</a>).</p>
           <ol>
             <li><strong>Leave it running.</strong> The app starts when you sign in to Windows and waits for jobs in the notification area; closing the window does not stop it. On the command line, run <code>uv run rpa worker</code> in the project folder and keep the terminal open.</li>
             <li><strong>Send jobs.</strong> When you validate, run or run a sequence in the portal, set “place to run” to “Remote worker” or “Any”, or make Remote worker the default on the Devices page.</li>
@@ -229,7 +229,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
         <dl class="spec-list">
           <dt>Server</dt><dd>The terminal it was started from; with systemd, <code>journalctl -u rpa-portal</code>. Each run's log and report are in <code>runs/&lt;run id&gt;/</code> of the data folder and can also be opened from “Run reports”.</dd>
           <dt>RPA Recorder app</dt><dd><code>~/Library/Application Support/rpa/recorder/logs/recorder.log</code>; “Status and settings › Open the log folder”.</dd>
-          <dt>RPA Worker app</dt><dd><code>%LOCALAPPDATA%\rpa\worker\logs</code>; “Settings › Open log folder” in the window.</dd>
+          <dt>RPA Worker app</dt><dd><code>%LOCALAPPDATA%\rpa\worker\logs</code> (on macOS <code>~/Library/Application Support/rpa/worker/logs</code>); “Settings › Open log folder” in the window.</dd>
           <dt>Command-line worker and recorder</dt><dd>The terminal running them.</dd>
         </dl>
       </div>

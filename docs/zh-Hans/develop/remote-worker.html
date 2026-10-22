@@ -69,7 +69,7 @@ uv run rpa worker --invite 'rpa://pair?server=…&amp;app=worker&amp;code=…'
 # 服务器地址要改时：代码分开给
 uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <p>看到「已配对」与「已连上管理 Portal」就好了；设备页的状态变成「在线」。换到的权杖存在工作文件夹的 <code>worker-data\pairing.json</code>（只有你能读写，不要提交到 git），<strong>之后只要运行 <code>uv run rpa worker</code></strong>。按 Ctrl+C 停止：运行中的任务会被取消并回报。</p>
-          <p>以前的方式照样可用：用 API（<code>POST /api/workers/{代号}/token</code>）重新产生权杖后，放在环境变量 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，并加上 <code>--server</code>。Windows 上也可以改用 <a href="#packaged">RPA Worker App</a> 粘贴邀请，不必安装开发环境。</p>
+          <p>以前的方式照样可用：用 API（<code>POST /api/workers/{代号}/token</code>）重新产生权杖后，放在环境变量 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，并加上 <code>--server</code>。Windows 与 macOS（Apple 芯片）上也可以改用 RPA Worker App（<a href="#packaged">Windows</a>、<a href="#packaged-mac">macOS</a>）粘贴邀请，不必安装开发环境。</p>
         </div>
       </section>
     </div>
@@ -100,6 +100,29 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       </div>
     </section>
 
+    <section class="panel" id="packaged-mac">
+      <div class="panel-header"><h2>macOS：RPA Worker App</h2><span class="muted">Apple 芯片；功能和 Windows 版相同</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>从 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-版本-macos-arm64.dmg</code>（加入 macOS 版之后的第一个发布才有）。测试还没发布的版本时，改从「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-macos-15</code>。</li>
+          <li>打开 DMG，把「RPA Worker」拖进「应用程序」。没有签章与公证，第一次打开会被挡下：到「系统设置 › 隐私权与安全性」，在下方找到 RPA Worker，选择允许打开并输入密码（和<a href="../design/desktop.html#signing">录制端</a>相同）。熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Worker.app"</code>。</li>
+          <li>和 Windows 相同：粘贴 Worker 邀请、按「配对」，第一次下载 Chromium，状态变成「在线」就好了。macOS 15 起第一次连到区网时会问是否允许 RPA Worker 连到区网上的设备，请选「允许」。</li>
+        </ol>
+        <ul>
+          <li><strong>关闭窗口不会停止。</strong>RPA Worker 缩到菜单栏（屏幕右上角的图标）继续接任务，Dock 上的图标也收起来；第一次会用通知提示。菜单栏图标的菜单与圆点的颜色和 Windows 的通知区相同。要结束：菜单栏图标 › 结束，或在窗口按 ⌘Q；有任务在运行时先确认，取消后回报给管理 Portal。</li>
+          <li><strong>叫出窗口</strong>：菜单栏图标 › 打开窗口，或在 Finder、Launchpad 再打开一次 RPA Worker。</li>
+          <li><strong>登录 macOS 时自动启动</strong>：第一次配对成功后默认打开，只出现在菜单栏；在窗口的「设置」可以关闭。做法是放一个 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>）：macOS 13 起会通知「已加入背景项目」，也列在「系统设置 › 一般 › 登录项目」；在那里关掉时，系统另外记录禁用，App 的设置不会把它改回来。App 搬到别的位置后开一次，自动启动就会改成新的位置。</li>
+          <li><strong>升级</strong>：先从菜单栏结束 RPA Worker（运行中的任务被取消并回报），再把新版的 App 拖进「应用程序」取代。配对、设置与自动启动都保留。窗口的「下载新版」打开最新的 Release。</li>
+          <li><strong>卸载</strong>：先在「设置」关掉自动启动并结束 RPA Worker，再把 App 拖到垃圾桶。要一并删除配对：先运行 <code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --forget-pairing</code>（删除钥匙串里的权杖），再删除文件夹 <code>~/Library/Application Support/rpa/worker</code>。浏览器（<code>~/Library/Caches/ms-playwright</code>）录制端也可能在用，不要删。</li>
+          <li><strong>数据位置</strong>：<code>~/Library/Application Support/rpa/worker</code>（<code>pairing.json</code>、<code>settings.json</code>、日志 <code>logs/</code>、任务的暂存）。<strong>权杖存在钥匙串</strong>（登录钥匙串里的 <code>RPA Worker</code>）；钥匙串不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。日志不记权杖与邀请代码。</li>
+          <li><strong>注销、重新开机或关机</strong>：运行中的任务立刻被取消并回报（只等几秒，不挡住注销）；来不及回报时，管理 Portal 约一分钟后判定失联。</li>
+          <li><strong>同一台 Mac 也装了录制端</strong>：两个 App 各自配对（Worker 邀请、录制端邀请），文件夹与钥匙串项目分开，可以同时运行；下载的浏览器共用。</li>
+          <li><strong>排查问题</strong>：<code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --worker</code> 是主控台版；同文件夹的 <code>rpa-worker --no-window --invite … --log 文件</code> 不开窗口。两者都要在登录中的桌面（例如「终端」）运行，有头模式才开得了浏览器；和 App 用同一份配对，同一时间只能开一份。</li>
+          <li><strong>只支持 Apple 芯片</strong>（和录制端相同）。Intel Mac 用开发环境的 <code>rpa worker</code>（<a href="#start">启动 worker</a>）。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="recorder">
       <div class="panel-header"><h2>录制端：浏览器开在另一台电脑</h2><span class="muted">M10.2：录制、逐步调试、人工登录</span></div>
       <div class="panel-body prose">
@@ -126,7 +149,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       <div class="panel-header"><h2>macOS：RPA 录制端 App</h2><span class="muted">M10.2：不需要 uv、git、Python；Apple 芯片</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>从 GitHub 仓库的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Recorder-版本-macos-arm64.dmg</code>（v0.3.0 起）。测试还没发布的版本时，改从 PR 或 <code>main</code> 的「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>recorder-macos-14</code>（里面是 DMG）。打开 DMG，把「RPA 录制端」拖进「应用程序」。</li>
+          <li>从 GitHub 仓库的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Recorder-版本-macos-arm64.dmg</code>（v0.3.0 起）。测试还没发布的版本时，改从 PR 或 <code>main</code> 的「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>recorder-macos-15</code>（里面是 DMG）。打开 DMG，把「RPA 录制端」拖进「应用程序」。</li>
           <li>没有签章：第一次打开会被挡下。到「系统设置 › 隐私权与安全性」，在下方找到 RPA 录制端，选择允许打开并输入密码（熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>）。macOS 15 起会询问是否允许连到区网上的设备，请按「允许」。</li>
           <li>窗口打开后，把设备页产生的<strong>录制端</strong>邀请贴在「邀请」栏（只贴代码时另外填管理 Portal 的网址），需要 Firefox 就勾选，按「配对」。第一次会下载 Chromium，窗口显示进度；连上后自动打开管理 Portal，页眉显示「通过录制端「名称」」。</li>
         </ol>
@@ -134,10 +157,10 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <li><strong>菜单「RPA 录制端」</strong>：「状态与设置」回到 App 自己的页面（服务器、版本、进行中的工作、设置、重新配对、结束），「管理 Portal」回到 Portal，「刷新」。⌘V 可以粘贴邀请。</li>
           <li><strong>新窗口与下载。</strong>报告、截图、可执行文件案的链接在 App 内开新窗口；连到别的网站（例如角色的登录网址）时用默认浏览器。导出、下载的文件会询问存放位置（默认「下载项目」）。</li>
           <li><strong>关掉窗口就结束。</strong>有录制、调试或人工登录在进行时先确认（⌘Q 也一样），结束会中断它们，管理 Portal 那边标成结束。再打开一次会叫出已经在运行的那份。</li>
-          <li><strong>数据位置</strong>：<code>~/Library/Application Support/rpa/recorder</code>（配对的服务器与设备 <code>pairing.json</code>、设置、日志 <code>logs/recorder.log</code>、录制与调试的暂存，用完删除）。<strong>权杖存在钥匙圈</strong>（「RPA Recorder」项目）；钥匙圈不能用时退回存在 <code>pairing.json</code>（只有你能读写），状态页的「权杖存放」会标出来。浏览器在 <code>~/Library/Caches/ms-playwright</code>，和开发环境共用。</li>
+          <li><strong>数据位置</strong>：<code>~/Library/Application Support/rpa/recorder</code>（配对的服务器与设备 <code>pairing.json</code>、设置、日志 <code>logs/recorder.log</code>、录制与调试的暂存，用完删除）。<strong>权杖存在钥匙串</strong>（「RPA Recorder」项目）；钥匙串不能用时退回存在 <code>pairing.json</code>（只有你能读写），状态页的「权杖存放」会标出来。浏览器在 <code>~/Library/Caches/ms-playwright</code>，和开发环境共用。</li>
           <li><strong>服务器在同一台 Mac</strong>：一样用 <code>rpa serve --worker-port 8081</code> 开对外端口，配对 <code>http://127.0.0.1:8081</code>。</li>
           <li><strong>升级</strong>：先结束 App，打开新版的 DMG，把「RPA 录制端」拖进「应用程序」取代旧的；配对、设置与日志都保留。新版第一次打开可能又要到「隐私权与安全性」允许。状态页提醒「程序版本和管理 Portal 不同」时，旁边的「下载新版」会打开最新的 Release。</li>
-          <li><strong>卸载</strong>：结束 App 后把「RPA 录制端」丢到垃圾桶。配对、设置与日志在上面的文件夹，权杖在钥匙圈的「RPA Recorder」，不要了再删；浏览器的缓存和开发环境共用，不一定要删。</li>
+          <li><strong>卸载</strong>：结束 App 后把「RPA 录制端」丢到垃圾桶。配对、设置与日志在上面的文件夹，权杖在钥匙串的「RPA Recorder」，不要了再删；浏览器的缓存和开发环境共用，不一定要删。</li>
           <li><strong>不开 App 的窗口</strong>（排查问题、自动化）：在终端运行 <code>"/Applications/RPA Recorder.app/Contents/MacOS/rpa-recorder" --no-window --open</code>，连上后用默认浏览器打开管理 Portal。<strong>有头模式照样可以用</strong>：录制、逐步调试、人工登录的浏览器窗口照样开在这台，少的只是 App 的窗口，所以要在登录中的桌面运行（不要从 SSH）。消息印在终端，也写进日志。和 App 用同一份配对，同一时间只能开一份（这时双击 App 会用默认浏览器打开管理 Portal）；按 Ctrl+C 结束（或在文件夹放一个 <code>stop.request</code> 文件）。其他选项：<code>--invite</code>、<code>--server</code>、<code>--firefox</code>、<code>--log 文件</code>、<code>--url-file 文件</code>（把经由闸道打开 Portal 的网址写到文件，自动化用）。</li>
         </ul>
       </div>

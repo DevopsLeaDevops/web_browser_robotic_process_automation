@@ -3,6 +3,7 @@
     uv sync --locked --group desktop-build
     uv run python tools/build_desktop.py recorder   # macOS：dist/desktop/RPA Recorder.app 與 DMG
     uv run python tools/build_desktop.py worker     # Windows：rpa-worker/、zip 與安裝檔
+                                                    # macOS：dist/desktop/RPA Worker.app 與 DMG
 
 產物都在 dist/desktop/，中間檔在 build/desktop/（兩者都在 .gitignore）。最後印出三行：
 ``executable: …``（App 的執行檔）、``child: …``（同資料夾的 rpa-child，主控台程式：

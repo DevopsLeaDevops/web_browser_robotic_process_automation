@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a24ba7b9fdf04c45">
+<meta name="translation-source" content="sha256:b16627bbb45373b0">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -45,8 +45,8 @@
           <thead><tr><th>Component</th><th>macOS</th><th>Windows</th><th>Notes</th></tr></thead>
           <tbody>
             <tr><td>RPA Recorder</td><td><span class="badge green">Delivered</span> (from v0.3.0)</td><td><span class="badge">Planned option</span></td><td>Recording, step-by-step debugging, manual login and the rest of the portal; Apple silicon (arm64)</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge">Planned option</span></td><td><span class="badge green">Delivered</span> (from v0.2.0)</td><td>Runs scenarios (headed mode and video included); Windows x64</td></tr>
-            <tr><td>Server (rpa serve)</td><td colspan="2"><span class="badge">Not packaged</span>: installed from source with the setup scripts; on Linux (RHEL-compatible) <code>scripts/setup-linux.sh</code>, with an optional systemd service</td><td>First tuned on the user's own computer; now also runs on a Linux host without a screen (see <a href="../develop/operations.html">Deployment and operations</a>)</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge blue">Implemented</span> (2026-10-22, from the next release)</td><td><span class="badge green">Delivered</span> (from v0.2.0)</td><td>Runs scenarios (headed mode and video included); Windows x64, macOS (Apple silicon)</td></tr>
+            <tr><td>Server (rpa serve)</td><td colspan="2"><span class="badge blue">Linux package</span>: on Linux (RHEL-compatible) a tar.gz with its own Python (x64, arm64); extract it and run <code>install.sh</code>, with an optional systemd service (<a href="../develop/setup.html#linux-package">package</a>). Installing from source (<code>scripts/setup-linux.sh</code>) still works. On macOS and Windows the server is still installed from source with the setup scripts</td><td>First tuned on the user's own computer; now also runs on a Linux host without a screen (see <a href="../develop/operations.html">Deployment and operations</a>)</td></tr>
             <tr><td>Database</td><td colspan="2"><span class="badge">No separate binary</span></td><td>SQLite is embedded in the server; production PostgreSQL uses the official installers or Docker (M8, M9)</td></tr>
           </tbody>
         </table>
@@ -74,7 +74,7 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>Worker: what the user does</h2><span class="muted">Windows</span></div>
+        <div class="panel-header"><h2>Worker: what the user does</h2><span class="muted">Windows, macOS</span></div>
         <div class="panel-body prose">
           <ol>
             <li>Get <code>RPA-Worker-Setup.exe</code> and install it into the user profile; no administrator rights, uv, git or Python needed.</li>
@@ -83,6 +83,7 @@
             <li>Download the browsers; the status becomes "Online".</li>
             <li>Closing the window minimizes it to the notification area; "Start when I sign in to Windows" can be ticked.</li>
           </ol>
+          <p>macOS: open the DMG and drag "RPA Worker" to Applications; allow the first launch under Privacy &amp; Security (as for the recorder). Then the same as above: closing the window moves it to the menu bar, and "Start when I log in to macOS" can be ticked.</p>
         </div>
       </section>
     </div>
@@ -139,7 +140,7 @@
           <text class="sub" x="408" y="382">Job claims, leases, cancellation</text>
           <path class="link" d="M500 304V320" marker-end="url(#dep-arrow)"/>
           <rect class="frame" x="688" y="16" width="296" height="396" rx="10"/>
-          <text class="frame-label" x="700" y="34">Runner machine: RPA Worker app (Windows)</text>
+          <text class="frame-label" x="700" y="34">Runner machine: RPA Worker app (Windows, macOS)</text>
           <rect class="box" x="702" y="44" width="268" height="62" rx="8"/>
           <text class="title" x="716" y="66">Status window (WebView2) + tray</text>
           <text class="sub" x="716" y="86">Pairing, browser download, runs, settings</text>
@@ -338,7 +339,7 @@
         </div>
       </section>
       <section class="panel" id="worker">
-        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1, Windows</span></div>
+        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1, Windows; macOS 2026-10-22</span></div>
         <div class="panel-body prose">
           <ul>
             <li><strong>Inside is the existing RemoteWorker.</strong>Only the token now comes from pairing; claiming, heartbeats, uploads and the test site behave exactly like <code>rpa worker</code> (the run loop lives in <code>rpa_worker.service</code>, shared by both).</li>
@@ -353,6 +354,17 @@
             <li><strong>Where data lives.</strong>Working data, settings and logs in <code>%LOCALAPPDATA%\rpa\worker</code> (logs rotate and never contain the token or invitation code), Firefox warm-up templates still in <code>%LOCALAPPDATA%\rpa\cache</code>, browsers in Playwright's default <code>%LOCALAPPDATA%\ms-playwright</code>.</li>
             <li><strong>CI.</strong>The Windows build job first runs the desktop unit tests (with the real registry, lock and Credential Manager); <code>--smoke-test</code> opens a real WebView2 window and tray icon; the end-to-end test installs silently, pairs the installed app with <code>--no-window</code> and runs BA-001 → BA-002, then upgrades while the app runs and uninstalls (<a href="#installer">installer</a>). The windowed app has no standard output, so <code>--version</code> and <code>--self-test</code> use <code>rpa-child</code>.</li>
             <li><strong>The three remaining M9a items join M10.1:</strong> a "run location" filter in run reports, a warning when a scenario URL is a local address, and a "waiting for a worker" hint.</li>
+            <li><strong>macOS version (2026-10-22, a planned option of ADR 0014).</strong> The same code (<code>rpa_desktop.gui</code>) on Apple silicon, delivered as a DMG to drag to Applications, with no installer. Features are the same as above; the system-specific parts are in <code>rpa_desktop.macos</code>:
+              <ul>
+                <li>The notification area becomes a menu bar icon (<code>NSStatusItem</code>, same menu and status dot). Not pystray: both it and pywebview want to run NSApplication's loop on the main thread. PyObjC hooks the icon into pywebview's loop instead; AppKit calls are always queued to the main thread and menu actions run on another thread.</li>
+                <li>Closing the window moves it to the menu bar and also hides the Dock icon (<code>Accessory</code>), restored when the window comes back. ⌘Q means Quit (asking first if a job is running): pywebview turns ⌘Q and the close button into the same closing event, so the app checks whether the main thread is inside <code>applicationShouldTerminate_</code>, cancels AppKit's quit (which would end the process at once, before reporting) and closes itself after confirming.</li>
+                <li>Opening the app again from Finder or clicking its Dock icon (<code>rapp</code>) brings the window back: LaunchServices does not start a second copy, so <code>applicationShouldHandleReopen:hasVisibleWindows:</code> is added to pywebview's app delegate. Starting a second copy directly (for example <code>open -n</code>) still goes through <code>show.request</code>.</li>
+                <li>Auto-start is a LaunchAgent of the current user (<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>, <code>--background</code>, logged-in desktop sessions only); from macOS 13 it shows under Login Items.</li>
+                <li>The token is in the Keychain (<code>RPA Worker</code>, separate from the recorder's <code>RPA Recorder</code>); data is in <code>~/Library/Application Support/rpa/worker</code>. Before logout or shutdown (<code>NSWorkspaceWillPowerOffNotification</code>) it cancels the running job and reports, waiting only a few seconds. After the window closes and cleanup is done, the process exits directly (as the recorder does; pywebview leaves non-daemon threads behind).</li>
+                <li>On screen, "notification area, Credential Manager, sign in to Windows" become "menu bar, Keychain, log in to macOS" on macOS: <code>window.darwin.*</code> in the message catalog.</li>
+                <li>CI: the macOS worker build first runs the desktop unit tests (with the real Keychain); <code>open RPA Worker.app --args --smoke-test</code> opens the WKWebView window and the menu bar icon; the end-to-end test is the same as on Windows (without the installer), and the token must land in the Keychain.</li>
+              </ul>
+            </li>
           </ul>
         </div>
       </section>
@@ -421,7 +433,7 @@
           <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
         </svg>
       </div>
-      <div class="diagram-caption">The server is not packaged; update it from the source of the same version. Known issues of v0.4.0 (replay video aspect ratio, video timing) are listed in the release notes and the task record.</div>
+      <div class="diagram-caption">Server: on Linux, the package of the same version (built by the server package workflow and attached to the release); elsewhere, update it from the source of the same version. Known issues of v0.4.0 (replay video aspect ratio, video timing) are listed in the release notes and the task record.</div>
     </section>
 
     <div class="two-col">
@@ -444,7 +456,7 @@
         <div class="panel-body prose">
           <ul>
             <li><strong>One version.</strong>The server, worker, recorder and every package share one version (<code>MAJOR.MINOR.PATCH</code>, numbers only), tagged like <code>v0.2.0</code> (decided 2026-10-18). <code>python3 tools/release_version.py bump 0.2.0</code> changes every package and <code>uv.lock</code> at once.</li>
-            <li><strong>Process.</strong>Bump the version on a feature branch → merge the PR → tag on <code>main</code> and push the tag → the Release workflow (<code>.github/workflows/release.yml</code>) checks that the tag matches the package versions and is on <code>main</code>, calls the desktop build (including the install, upgrade and uninstall end-to-end test), and creates a <strong>draft</strong> release with the worker's installer and portable zip, the recorder's DMG (from M10.2) and <code>SHA256SUMS.txt</code>.</li>
+            <li><strong>Process.</strong>Bump the version on a feature branch → merge the PR → tag on <code>main</code> and push the tag → the Release workflow (<code>.github/workflows/release.yml</code>) checks that the tag matches the package versions and is on <code>main</code>, calls the desktop build (including the install, upgrade and uninstall end-to-end test) and the server package build (installed, started and upgraded in a Rocky 8 container), and creates a <strong>draft</strong> release with the worker's Windows installer, portable zip and macOS DMG, the recorder's DMG (from M10.2), the server packages (Linux x64, arm64) and <code>SHA256SUMS.txt</code>.</li>
             <li><strong>Drafts.</strong>The repository is public, so anyone can download a published release (without an invitation it cannot reach a portal); a maintainer therefore checks the draft before choosing Publish. A rerun replaces the same draft's files; a published version is never replaced, so use a new version instead.</li>
             <li><strong>Download the new version.</strong>When the app's version differs from the server's, the window's Download the new version opens the latest release (<code>…/releases/latest</code>, which counts only published ones).</li>
           </ul>
@@ -457,7 +469,7 @@
         <div class="panel-header"><h2>Signing and first launch</h2><span class="muted">No signing in the MVP</span></div>
         <div class="panel-body prose">
           <ul>
-            <li><strong>macOS.</strong>Only an ad-hoc signature (required on Apple silicon; PyInstaller handles it), no notarization. The first launch after downloading in a browser is blocked: in System Settings › Privacy &amp; Security, find the app near the bottom, choose to open it anyway and enter your password. Since macOS 15, Control-clicking "Open" no longer skips this step. Terminal users can instead run <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>.</li>
+            <li><strong>macOS.</strong>Only an ad-hoc signature (required on Apple silicon; PyInstaller handles it), no notarization. The first launch after downloading in a browser is blocked: in System Settings › Privacy &amp; Security, find the app near the bottom, choose to open it anyway and enter your password. Since macOS 15, Control-clicking "Open" no longer skips this step. Terminal users can instead run <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code> (for the worker, <code>RPA Worker.app</code>).</li>
             <li><strong>Windows.</strong>No code-signing certificate: when SmartScreen shows "Windows protected your PC", choose "More info › Run anyway"; the browser may also ask to keep the download.</li>
             <li><strong>Later.</strong>With an Apple Developer account, add Developer ID signing and notarization; on Windows, add a code-signing certificate. Only the CI build steps change.</li>
           </ul>
@@ -493,7 +505,7 @@
           </tbody>
         </table>
       </div>
-      <div class="panel-body"><p class="muted">Desktop-related changes after M10.2: with no browser on the server, login checks go to the Recorder, manual logins are confirmed on the computer that opened the window, and login errors are readable (#50); Firefox no longer stalls in the background during manual login (#51); apps report the DSL extensions they understand and older apps are not given scenarios that use newer syntax (M7a, #62); the Worker records video, and on Windows cancelling ends only the browser first so the video is finished (M12, #61).</p></div>
+      <div class="panel-body"><p class="muted">Desktop-related changes after M10.2: with no browser on the server, login checks go to the Recorder, manual logins are confirmed on the computer that opened the window, and login errors are readable (#50); Firefox no longer stalls in the background during manual login (#51); apps report the DSL extensions they understand and older apps are not given scenarios that use newer syntax (M7a, #62); the Worker records video, and on Windows cancelling ends only the browser first so the video is finished (M12, #61). 2026-10-22: the macOS worker (a planned option done early; see <a href="#worker">RPA Worker</a>).</p></div>
     </section>
 
     <div class="two-col">
@@ -504,8 +516,7 @@
             <thead><tr><th>Item</th><th>Plan</th></tr></thead>
             <tbody>
               <tr><td>Recorder for Windows</td><td>Same code, one more build combination plus acceptance</td></tr>
-              <tr><td>Worker for macOS</td><td>Same, plus start at login (login item)</td></tr>
-              <tr><td>Server</td><td>The same packaging tools build <code>rpa serve</code> (macOS, Windows, Linux); M9's Docker Compose is separate</td></tr>
+              <tr><td>Server on macOS, Windows</td><td>Linux already has a package with its own Python (<a href="../develop/setup.html#linux-package">package</a>); other systems can be built the same way when needed; M9's Docker Compose is separate</td></tr>
               <tr><td>Auto-update</td><td>The MVP only flags and links to the download page; later Sparkle and WinSparkle</td></tr>
               <tr><td>HTTPS</td><td>The server creates a self-signed certificate, the invitation carries its fingerprint, and the gateway and workers pin it; no purchased certificate needed</td></tr>
               <tr><td>Offline installers</td><td>Chromium bundled in the installer, for intranets that cannot reach the download site</td></tr>

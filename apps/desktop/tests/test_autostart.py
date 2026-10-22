@@ -1,15 +1,17 @@
 """登入時自動啟動（rpa_desktop.autostart）：命令、開啟與關閉、資料夾搬家後更新路徑。
 
-Windows 上另外用真的登錄檔測一次（用測試專用的值名稱，不碰使用者的設定）。
+Windows 上另外用真的登錄檔測一次（用測試專用的值名稱，不碰使用者的設定）；macOS 的 LaunchAgent
+寫在暫存資料夾（不碰使用者的 ~/Library/LaunchAgents）。
 """
 
+import plistlib
 import sys
 import uuid
 from pathlib import Path
 
 import pytest
 
-from rpa_desktop.autostart import AutoStart, WindowsRun, command_line
+from rpa_desktop.autostart import AGENT_LABEL, AutoStart, LaunchAgent, WindowsRun, command_line
 
 
 class FakeRun:
@@ -82,3 +84,58 @@ def test_real_windows_registry() -> None:
         autostart.disable()
     assert entry.get() is None
     autostart.disable()  # 已經沒有也不算錯
+
+
+# ---------------------------------------------------------------- macOS 的 LaunchAgent
+
+APP = Path("/Applications/RPA Worker.app/Contents/MacOS/rpa-worker")
+
+
+def test_launch_agent_round_trip(tmp_path: Path) -> None:
+    agent = LaunchAgent(folder=tmp_path / "LaunchAgents")
+    autostart = AutoStart(agent, APP)
+    assert not autostart.enabled()
+    autostart.enable()
+    assert agent.path == tmp_path / "LaunchAgents" / f"{AGENT_LABEL}.plist"
+    with agent.path.open("rb") as handle:
+        data = plistlib.load(handle)
+    assert data == {
+        "Label": AGENT_LABEL,
+        "ProgramArguments": [str(APP), "--background"],  # 有空白的路徑是一個參數
+        "RunAtLoad": True,
+        "LimitLoadToSessionType": "Aqua",
+        "ProcessType": "Interactive",
+    }
+    assert autostart.enabled()
+    assert agent.get() == command_line(APP)
+    assert not autostart.refresh()
+
+    # App 從「下載項目」拖進「應用程式」：下次啟動時改成新的位置
+    moved = AutoStart(agent, Path("/Users/amy/Downloads/RPA Worker.app/Contents/MacOS/rpa-worker"))
+    assert moved.refresh()
+    assert agent.get() == moved.command
+
+    autostart.disable()
+    assert not agent.path.exists()
+    autostart.disable()  # 已經沒有了也不出錯
+
+
+@pytest.mark.parametrize(
+    "content",
+    [b"not a plist", plistlib.dumps({"Label": "x"}), plistlib.dumps({"ProgramArguments": []})],
+)
+def test_unreadable_launch_agent_counts_as_off(tmp_path: Path, content: bytes) -> None:
+    agent = LaunchAgent(folder=tmp_path)
+    agent.path.write_bytes(content)
+    assert agent.get() is None
+    assert not AutoStart(agent, APP).enabled()
+
+
+def test_packaged_mac_app_uses_a_launch_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rpa_desktop import autostart as module
+
+    monkeypatch.setattr(module, "is_frozen", lambda: True)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    entry = AutoStart.for_this_app().entry
+    assert isinstance(entry, LaunchAgent)
+    assert entry.path.parent == Path.home() / "Library" / "LaunchAgents"
