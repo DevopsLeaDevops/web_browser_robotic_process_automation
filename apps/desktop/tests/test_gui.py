@@ -138,6 +138,37 @@ def test_quit_while_running_asks_in_the_window(
     assert window.calls[-1] == "destroy"
 
 
+def _asked_to_quit(platform: str | None = None) -> bool:
+    return True
+
+
+def test_command_q_on_macos_quits_instead_of_hiding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """macOS 的 ⌘Q 也走到 closing：當成「結束」，先取消 AppKit 的結束，再自己關。"""
+    from rpa_desktop import macos
+
+    desktop, window, tray = app(tmp_path)
+    monkeypatch.setattr(macos, "terminating", _asked_to_quit)
+    assert desktop._on_closing() is False  # pyright: ignore[reportPrivateUsage]
+    wait_for(lambda: "destroy" in window.calls)
+    assert "hide" not in window.calls
+    assert tray.notes == []
+
+
+def test_command_q_while_running_asks_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from rpa_desktop import macos
+
+    desktop, window, _ = app(tmp_path)
+    monkeypatch.setattr(macos, "terminating", _asked_to_quit)
+    monkeypatch.setattr(WorkerController, "busy", property(lambda self: True))
+    assert desktop._on_closing() is False  # pyright: ignore[reportPrivateUsage]
+    wait_for(lambda: window.scripts == ["window.rpa && window.rpa.askQuit()"])
+    assert "destroy" not in window.calls
+
+
 def test_shutdown_closes_without_hiding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     desktop, window, _ = app(tmp_path)
     monkeypatch.setattr(gui, "system_shutting_down", lambda: True)

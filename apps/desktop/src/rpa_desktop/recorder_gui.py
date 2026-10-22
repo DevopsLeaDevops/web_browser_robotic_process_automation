@@ -14,7 +14,6 @@
 """
 
 import argparse
-import contextlib
 import json
 import logging
 import os
@@ -28,6 +27,7 @@ from typing import TYPE_CHECKING, Final
 from urllib.parse import urlsplit
 
 from rpa_core.i18n import ENV_VAR, Locale, parse_locale, set_locale, use_locale
+from rpa_desktop import macos
 from rpa_desktop.build_info import load
 from rpa_desktop.credentials import Credentials, KeyringStore, TokenStore
 from rpa_desktop.i18n import resolve_locale, t
@@ -416,13 +416,7 @@ def smoke_test(
 
 def _alert(title: str, text: str) -> None:
     """沒有視窗可以顯示時的提示（macOS 用 osascript；其他系統只記日誌）。"""
-    logger.warning("%s：%s", title, text)
-    if sys.platform == "darwin":
-        script = f"display alert {json.dumps(title)} message {json.dumps(text)}"
-        try:
-            subprocess.run(["osascript", "-e", script], check=False, timeout=600)
-        except (OSError, subprocess.SubprocessError):
-            logger.debug("osascript 失敗", exc_info=True)
+    macos.alert(title, text)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -436,11 +430,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def _lingering() -> list[str]:
     """還在跑、會擋住程序結束的執行緒（pywebview 的事件與注入腳本的執行緒都不是 daemon）。"""
-    return sorted(
-        thread.name
-        for thread in threading.enumerate()
-        if thread.is_alive() and not thread.daemon and thread is not threading.main_thread()
-    )
+    return macos.lingering_threads()
 
 
 def _exit(code: int) -> int:
@@ -449,14 +439,7 @@ def _exit(code: int) -> int:
     pywebview 在背景開的執行緒（例如頁面載入時注入腳本、等 JavaScript 的結果）在視窗關掉後
     可能永遠等不到，又不是 daemon：一般的結束會一直等它們，App 關不掉。
     """
-    lingering = _lingering()
-    if lingering:
-        logger.info("結束時還在跑的執行緒：%s", ", ".join(lingering))
-    logging.shutdown()
-    for stream in (sys.stdout, sys.stderr):
-        with contextlib.suppress(Exception):
-            stream.flush()
-    os._exit(code)
+    return macos.exit_process(code)
 
 
 def main(

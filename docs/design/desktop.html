@@ -44,7 +44,7 @@
           <thead><tr><th>元件</th><th>macOS</th><th>Windows</th><th>說明</th></tr></thead>
           <tbody>
             <tr><td>RPA 錄製端</td><td><span class="badge green">已交付</span>（v0.3.0 起）</td><td><span class="badge">保留方案</span></td><td>錄製、逐步調試、人工登入，以及 Portal 的其他功能；Apple 晶片（arm64）</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>執行場景（含有頭模式、錄影）；Windows x64</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge blue">已實作</span>（2026-10-22，下一個發布起）</td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>執行場景（含有頭模式、錄影）；Windows x64、macOS（Apple 晶片）</td></tr>
             <tr><td>伺服器（rpa serve）</td><td colspan="2"><span class="badge blue">Linux 分發包</span>：Linux（RHEL 衍生版）用自帶 Python 的 tar.gz（x64、arm64），解壓後執行 <code>install.sh</code>，可用 systemd 開機啟動（<a href="../develop/setup.html#linux-package">分發包</a>）；也可以從原始碼安裝（<code>scripts/setup-linux.sh</code>）。macOS、Windows 照舊從原始碼安裝，一鍵安裝腳本</td><td>先在使用者自己的電腦調試；現在也放在沒有螢幕的 Linux 主機（見<a href="../develop/operations.html">部署與操作</a>）</td></tr>
             <tr><td>資料庫</td><td colspan="2"><span class="badge">不另做二進位</span></td><td>SQLite 內嵌在伺服器裡；正式環境的 PostgreSQL 用官方安裝包或 Docker（M8、M9）</td></tr>
           </tbody>
@@ -73,7 +73,7 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>Worker：使用者的流程</h2><span class="muted">Windows</span></div>
+        <div class="panel-header"><h2>Worker：使用者的流程</h2><span class="muted">Windows、macOS</span></div>
         <div class="panel-body prose">
           <ol>
             <li>取得 <code>RPA-Worker-Setup.exe</code>，安裝到使用者目錄；不需要管理員、uv、git、Python。</li>
@@ -82,6 +82,7 @@
             <li>下載瀏覽器，狀態變成「線上」。</li>
             <li>關掉視窗是縮到通知區；可勾選「登入 Windows 時自動啟動」。</li>
           </ol>
+          <p>macOS：打開 DMG，把「RPA Worker」拖進「應用程式」；第一次打開到「隱私權與安全性」允許（同錄製端）。之後同上，關掉視窗是縮到選單列，可勾選「登入 macOS 時自動啟動」。</p>
         </div>
       </section>
     </div>
@@ -139,7 +140,7 @@
           <text class="sub" x="408" y="382">任務的領取、租約與取消</text>
           <path class="link" d="M500 304V320" marker-end="url(#dep-arrow)"/>
           <rect class="frame" x="688" y="16" width="296" height="396" rx="10"/>
-          <text class="frame-label" x="700" y="34">執行機：RPA Worker App（Windows）</text>
+          <text class="frame-label" x="700" y="34">執行機：RPA Worker App（Windows、macOS）</text>
           <rect class="box" x="702" y="44" width="268" height="62" rx="8"/>
           <text class="title" x="716" y="66">狀態視窗（WebView2）＋通知區</text>
           <text class="sub" x="716" y="86">配對、下載瀏覽器、目前執行、設定</text>
@@ -337,7 +338,7 @@
         </div>
       </section>
       <section class="panel" id="worker">
-        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1，Windows</span></div>
+        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1，Windows；macOS 2026-10-22</span></div>
         <div class="panel-body prose">
           <ul>
             <li><strong>內部就是現有的 RemoteWorker。</strong>權杖改從配對取得；領取、心跳、上傳、測試網站的行為都和 <code>rpa worker</code> 一樣（執行迴圈在 <code>rpa_worker.service</code>，兩邊共用）。</li>
@@ -352,6 +353,17 @@
             <li><strong>資料位置。</strong>工作資料、設定與日誌在 <code>%LOCALAPPDATA%\rpa\worker</code>（日誌會輪替，不記權杖與邀請代碼），Firefox 預熱範本照舊在 <code>%LOCALAPPDATA%\rpa\cache</code>，瀏覽器在 Playwright 預設的 <code>%LOCALAPPDATA%\ms-playwright</code>。</li>
             <li><strong>CI。</strong>Windows 的建置工作先跑桌面端的單元測試（登錄檔、單一執行、認證管理員用真的）；<code>--smoke-test</code> 打開真的 WebView2 視窗與通知區圖示；端到端先靜默安裝，用裝好的 App 以 <code>--no-window</code> 配對並執行 BA-001 → BA-002，再在 App 執行中升級、解除安裝（<a href="#installer">安裝檔</a>）。視窗程式沒有標準輸出，<code>--version</code>、<code>--self-test</code> 改用 <code>rpa-child</code>。</li>
             <li><strong>M9a 剩下的三項併入 M10.1：</strong>執行報告的「執行位置」篩選、場景網址是本機位址時的提醒、等待 worker 的提示。</li>
+            <li><strong>macOS 版（2026-10-22，ADR 0014 的保留方案）。</strong>同一份程式（<code>rpa_desktop.gui</code>），Apple 晶片，DMG 拖進「應用程式」，沒有安裝檔；功能和上面相同，差別在系統的部分（<code>rpa_desktop.macos</code>）：
+              <ul>
+                <li>通知區換成選單列圖示（<code>NSStatusItem</code>，選單與圓點相同）。不用 pystray：它和 pywebview 都要在主執行緒跑 NSApplication 的迴圈；改用 PyObjC 掛在 pywebview 的迴圈裡，AppKit 的呼叫一律排到主執行緒，選單動作在另一個執行緒執行。</li>
+                <li>關掉視窗是縮到選單列，同時拿掉 Dock 圖示（<code>Accessory</code>），叫出視窗時恢復；⌘Q 當成「結束」（有任務先確認）：pywebview 把 ⌘Q 和關閉鈕都變成同一個 closing 事件，看主執行緒是不是在 <code>applicationShouldTerminate_</code> 裡來區分，先取消 AppKit 的結束（它會立刻結束程序，來不及回報），確認後由 App 自己關。</li>
+                <li>在 Finder 再打開或點 Dock 圖示時（<code>rapp</code>），叫出視窗：LaunchServices 不會啟動第二份，所以在 pywebview 的 App 委派補上 <code>applicationShouldHandleReopen:hasVisibleWindows:</code>。直接執行第二份（例如 <code>open -n</code>）照舊走 <code>show.request</code>。</li>
+                <li>自動啟動是目前使用者的 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>，<code>--background</code>，只在登入的桌面工作階段）；macOS 13 起列在「登入項目」。</li>
+                <li>權杖在鑰匙圈（<code>RPA Worker</code>，和錄製端的 <code>RPA Recorder</code> 分開）；資料在 <code>~/Library/Application Support/rpa/worker</code>。登出、關機前（<code>NSWorkspaceWillPowerOffNotification</code>）取消任務並回報，最多等幾秒。視窗關掉、收拾完後直接結束程序（同錄製端，pywebview 留下的執行緒不是 daemon）。</li>
+                <li>畫面上的「通知區、認證管理員、登入 Windows」在 macOS 上換成「選單列、鑰匙圈、登入 macOS」：訊息目錄的 <code>window.darwin.*</code>。</li>
+                <li>CI：macOS 的 Worker 建置先跑桌面端的單元測試（鑰匙圈用真的）；<code>open RPA Worker.app --args --smoke-test</code> 打開 WKWebView 視窗與選單列圖示；端到端和 Windows 相同（不含安裝檔），權杖要存進鑰匙圈。</li>
+              </ul>
+            </li>
           </ul>
         </div>
       </section>
@@ -443,7 +455,7 @@
         <div class="panel-body prose">
           <ul>
             <li><strong>同一個版本。</strong>伺服器、Worker、錄製端與所有套件用同一個版本（<code>主.次.修</code>，數字），標籤是 <code>v0.2.0</code> 這種格式（2026-10-18 決定）。<code>python3 tools/release_version.py bump 0.2.0</code> 一次改全部套件與 <code>uv.lock</code>。</li>
-            <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合併 → 在 <code>main</code> 上打標籤並推送 → 「發布」流程（<code>.github/workflows/release.yml</code>）確認標籤和套件版本一致、標籤在 <code>main</code> 上，呼叫桌面端建置（含安裝、升級、解除安裝的端到端）與伺服器分發包的建置（在 Rocky 8 容器裡安裝、啟動、升級），建立<strong>草稿</strong> Release：Worker 的安裝檔與免安裝 zip、錄製端的 DMG（M10.2 起）、伺服器的分發包（Linux x64、arm64）、<code>SHA256SUMS.txt</code>。</li>
+            <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合併 → 在 <code>main</code> 上打標籤並推送 → 「發布」流程（<code>.github/workflows/release.yml</code>）確認標籤和套件版本一致、標籤在 <code>main</code> 上，呼叫桌面端建置（含安裝、升級、解除安裝的端到端）與伺服器分發包的建置（在 Rocky 8 容器裡安裝、啟動、升級），建立<strong>草稿</strong> Release：Worker 的 Windows 安裝檔、免安裝 zip 與 macOS DMG、錄製端的 DMG（M10.2 起）、伺服器的分發包（Linux x64、arm64）、<code>SHA256SUMS.txt</code>。</li>
             <li><strong>草稿。</strong>倉庫是公開的，發布後任何人都下載得到（沒有邀請連不上 Portal）；所以由維護者確認草稿的內容後才按「發布」。重新執行時換掉同一個草稿的檔案；已經發布的版本不換，改用新的版本。</li>
             <li><strong>下載新版。</strong>App 的版本和伺服器不同時，視窗的「下載新版」打開最新的 Release（<code>…/releases/latest</code>，只算已發布的）。</li>
           </ul>
@@ -456,7 +468,7 @@
         <div class="panel-header"><h2>簽章與第一次開啟</h2><span class="muted">MVP 不簽章</span></div>
         <div class="panel-body prose">
           <ul>
-            <li><strong>macOS。</strong>只有 ad-hoc 簽章（Apple 晶片必需，PyInstaller 自動處理），沒有公證。從瀏覽器下載後第一次打開會被擋下：到「系統設定 › 隱私權與安全性」，在下方找到這個 App，選擇允許打開並輸入密碼。macOS 15 起，按住 Control 點「打開」已經不能略過這一步。熟悉終端機的人也可以執行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>。</li>
+            <li><strong>macOS。</strong>只有 ad-hoc 簽章（Apple 晶片必需，PyInstaller 自動處理），沒有公證。從瀏覽器下載後第一次打開會被擋下：到「系統設定 › 隱私權與安全性」，在下方找到這個 App，選擇允許打開並輸入密碼。macOS 15 起，按住 Control 點「打開」已經不能略過這一步。熟悉終端機的人也可以執行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>（Worker 是 <code>RPA Worker.app</code>）。</li>
             <li><strong>Windows。</strong>沒有程式碼簽章：SmartScreen 顯示「Windows 已保護您的電腦」時按「其他資訊 › 仍要執行」；瀏覽器下載時也可能要確認保留檔案。</li>
             <li><strong>之後。</strong>有 Apple Developer 帳號後加上 Developer ID 簽章與公證；Windows 加程式碼簽章憑證。只改 CI 的建置步驟。</li>
           </ul>
@@ -492,7 +504,7 @@
           </tbody>
         </table>
       </div>
-      <div class="panel-body"><p class="muted">M10.2 之後和桌面端有關的修改：伺服器沒有瀏覽器時「檢查」交給錄製端、人工登入在開視窗的那台確認、看得懂的登入錯誤（#50）；人工登入的 Firefox 在背景不再停住（#51）；App 回報看得懂的 DSL 擴充，舊 App 拿不到用了新寫法的場景（M7a，#62）；Worker 錄影，Windows 上取消時先只結束瀏覽器，讓影片寫完（M12，#61）。</p></div>
+      <div class="panel-body"><p class="muted">M10.2 之後和桌面端有關的修改：伺服器沒有瀏覽器時「檢查」交給錄製端、人工登入在開視窗的那台確認、看得懂的登入錯誤（#50）；人工登入的 Firefox 在背景不再停住（#51）；App 回報看得懂的 DSL 擴充，舊 App 拿不到用了新寫法的場景（M7a，#62）；Worker 錄影，Windows 上取消時先只結束瀏覽器，讓影片寫完（M12，#61）。2026-10-22：macOS 版 Worker（保留方案提前做，見<a href="#worker">RPA Worker</a>）。</p></div>
     </section>
 
     <div class="two-col">
@@ -503,7 +515,6 @@
             <thead><tr><th>項目</th><th>方案</th></tr></thead>
             <tbody>
               <tr><td>錄製端 Windows 版</td><td>同一份程式碼，多一個建置組合與驗收</td></tr>
-              <tr><td>Worker macOS 版</td><td>同上，加上「登入時啟動」（登入項目）</td></tr>
               <tr><td>macOS、Windows 的伺服器</td><td>Linux 已有自帶 Python 的分發包（<a href="../develop/setup.html#linux-package">分發包</a>）；其他系統需要時用同樣的方式另建；M9 的 Docker Compose 另做</td></tr>
               <tr><td>自動更新</td><td>MVP 只提醒並連到下載頁；之後用 Sparkle、WinSparkle</td></tr>
               <tr><td>HTTPS</td><td>伺服器產生自簽憑證，邀請裡帶憑證指紋，閘道與 worker 釘選；不必購買憑證</td></tr>

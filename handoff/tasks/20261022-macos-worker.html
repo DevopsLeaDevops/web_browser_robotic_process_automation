@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>macOS 版 RPA Worker · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>macOS 版 RPA Worker</h1><p>Worker App 支援 Mac（Apple 晶片），功能和 Windows 版一致：狀態視窗、選單列圖示、登入時自動啟動、只執行一份、鑰匙圈、DMG。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261022-macos-worker；2026-10-22 07:24 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求：「Worker 支持 Mac 端，功能和 Windows 保持一致。」驗收：發布時附上 macOS 的 Worker（DMG）；在 Mac 上不需要開發工具就能配對、下載瀏覽器、接任務（含有頭模式與錄影），報告回到 Portal；關掉視窗後仍在背景接任務、可以從選單列叫出或結束、登入時自動啟動、只執行一份、權杖存在系統的安全儲存；登出時取消並回報。</dd>
+        <dt>範圍／不包含</dt><dd>桌面端程式（選單列、Dock、再次打開、⌘Q、登出、自動啟動、平台用詞）、打包設定、CI（macOS 的 Worker 建置、單元測試、視窗自我測試、端到端）、發布、三語文件。不包含：Intel Mac（x86_64）、Developer ID 簽章與公證、安裝檔（.pkg）與自動更新、錄製端兼執行機；不改伺服器與 Worker API。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原實作：Claude；本次依使用者要求由 ChatGPT／Codex 接手 PR #71 衝突整合；未指定審閱者。</dd>
+        <dt>修改檔案／整合者</dt><dd>新增 <code>apps/desktop/src/rpa_desktop/macos.py</code>、<code>apps/desktop/tests/test_macos.py</code>；修改 <code>gui.py</code>、<code>autostart.py</code>（<code>LaunchAgent</code>）、<code>i18n.py</code>（<code>platform_key</code>）、<code>ui.py</code>、<code>worker_app.py</code>、<code>headless.py</code>、<code>recorder_gui.py</code>（提示與結束改用共用的 <code>macos</code> 函式）、桌面端訊息目錄（繁中、英文；簡中由 bootstrap 產生）、<code>apps/desktop/packaging/rpa_desktop.spec</code>、<code>tools/build_desktop.py</code>（說明）、<code>tools/desktop_e2e.py</code>（鑰匙圈的檢查）、<code>.github/workflows/desktop.yml</code>、<code>release.yml</code>、測試（autostart、gui、ui）、文件（遠端 Worker、桌面端分發、部署與操作、路線圖、README）、決定紀錄、本紀錄與任務索引。同時進行的 Linux 伺服器分發包（任務 20261022-linux-server-package，PR #70）也改 <code>release.yml</code>、<code>desktop.yml</code>、決定紀錄與任務索引：先合併的不動，後合併的 rebase 後整合（發布清單兩邊的產物都要留）。沒有改 <code>uv.lock</code>（用的 PyObjC 已經是 pywebview 在 macOS 上的相依）。</dd>
+        <dt>狀態</dt><dd>衝突已整合並推送：以 466a802 為起點合入 main ba1886f（PR #70），保留 macOS Worker 與 Linux 伺服器分發包。整合檢查通過；本機平台限制詳見追加紀錄。整合提交 36b271c 已推送，GitHub 確認 MERGEABLE；CI 與桌面端建置已觸發、尚未完成。本提交只回填交付紀錄，最終 head 的 CI 仍須核對；原實作證據保留於下方。人工驗收未執行；合併由使用者決定。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/macos-worker</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/71">PR #71</a>（對 <code>main</code>）；從 <code>origin/main</code> df47b14（#67 合併）建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>原程式驗證的 head 是 f1307ed，接收的遠端 head 為 466a802。本次合入 ba1886f 的衝突修正為 36b271c，已一般推送至原 PR 分支 feat/macos-worker（未重寫歷史）。本次後續提交僅更新交付紀錄。</dd>
+        <dt>工作區／環境</dt><dd>Claude 的雲端工作區（Ubuntu 24.04 x86_64、系統 Python 3.13、ruff 0.16.9、pyright 1.1.414、pytest 9.1.1）。連不到 PyPI，<code>uv sync</code> 做不到；本機的 Playwright 是 1.56（鎖檔 1.64），測試時用暫存的 sitecustomize 補一個型別名稱（不進倉庫）。<strong>沒有 Mac</strong>：AppKit 的部分只能由 CI 的 macOS 與人工驗收確認。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>做法</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>同一份程式：</strong><code>rpa_desktop.gui</code> 照舊是 Worker 的視窗版，系統的差別集中在 <code>rpa_desktop.macos</code>；打包設定的 macOS 部分（pywebview 的 cocoa 後端、鑰匙圈、PyObjC）改成兩個 App 共用；DMG 和錄製端一樣由 <code>tools/build_desktop.py</code> 產生（<code>RPA-Worker-版本-macos-arm64.dmg</code>）。</li>
+        <li><strong>選單列（實作選擇）：</strong>Windows 用 pystray；在 macOS 上 pystray 與 pywebview 都要在主執行緒跑 NSApplication 的迴圈，所以直接用 PyObjC 的 <code>NSStatusItem</code> 掛在 pywebview 的迴圈裡（介面和 <code>Tray</code> 相同）。AppKit 的呼叫一律經由 <code>AppHelper.callAfter</code> 排到主執行緒；選單動作在另一個執行緒執行（pywebview 的視窗操作在主執行緒呼叫會等不到自己）。沒有新增相依。</li>
+        <li><strong>視窗與結束：</strong>關掉視窗是縮到選單列並拿掉 Dock 圖示，叫出時恢復。⌘Q 當成「結束」：pywebview 把 ⌘Q 與關閉鈕都變成 closing 事件，用「主執行緒是不是在 <code>applicationShouldTerminate_</code> 裡」區分；先取消 AppKit 的結束（否則程序立刻結束、來不及回報任務），確認後自己關。Finder 再打開或點 Dock 圖示時，在 pywebview 的 App 委派補上 <code>applicationShouldHandleReopen:hasVisibleWindows:</code> 叫出視窗。登出、關機前（<code>NSWorkspaceWillPowerOffNotification</code>）取消任務並在主執行緒等幾秒回報。開過視窗後直接結束程序（同錄製端）。</li>
+        <li><strong>自動啟動：</strong>目前使用者的 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>，<code>RunAtLoad</code>、只在 Aqua 工作階段）；介面和 Windows 的「登入時執行」相同，搬家後更新路徑。不用 <code>SMAppService</code>：需要 macOS 13 且對沒有簽章的 App 行為不確定，plist 可以在 Linux 的 CI 測。</li>
+        <li><strong>用詞：</strong>訊息目錄新增 <code>window.darwin.*</code>、<code>worker.darwin.already_running</code>（選單列、鑰匙圈、登入 macOS），<code>platform_key</code> 與頁面的訊息在 macOS 上選用；三個說明文字改成兩個系統通用。順便修正錄製端的提示：<code>osascript</code> 的字串原本用 <code>json.dumps</code> 的 ASCII 跳脫，中文會顯示成 <code>\uXXXX</code>。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>上述程式、測試、CI 與文件（遠端 Worker 新增「macOS：RPA Worker App」，桌面端分發的範圍表、使用者流程、RPA Worker 面板、保留方案、簽章；部署與操作、路線圖、README）。</li>
+        <li><strong>未完成／阻礙：</strong>下列只能人工在 Mac 上確認（CI 的自我測試只開視窗與選單列圖示）：選單列圖示的外觀與選單、縮到選單列與 Dock 圖示的切換、⌘Q 與關閉鈕的區分、Finder 再打開叫出視窗、登入後自動上線與「登入項目」的顯示、登出時的回報、macOS 15 的本地網路權限、Gatekeeper 第一次打開。</li>
+        <li><strong>決定：</strong>做 Mac 版 Worker 是使用者明確要求；Apple 晶片、DMG、選單列用 PyObjC、LaunchAgent 是 Claude 的實作選擇（記在<a href="../decisions.html">決定紀錄</a>），和錄製端一致。</li>
+        <li><strong>另外修的：</strong>（1）CI 的 macOS 分配不到機器：macos-14 在 2026-11-02 停用（<a href="https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement">公告</a>），改用 macos-15（arm64，固定版本），產物名稱跟著變成 <code>recorder-macos-15</code>、<code>worker-macos-15</code>；#70 有同樣的修改。（2）簡中的 Apple 用詞：OpenCC 把鑰匙圈、選單列轉成「钥匙圈、菜单列」，加進 <code>tools/zh-Hans-overrides.json</code> 改成「钥匙串、菜单栏」，錄製端原有的說明一併改正。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併 #71。之後在真的 Mac 上照<a href="../../docs/develop/remote-worker.html#packaged-mac">遠端 Worker › macOS</a>走一次上面的人工項目，結果記在驗收紀錄。本次依使用者要求以 merge 合入 #70，兩邊的發布產物都已保留；英文頁翻譯雜湊已重新 stamp，簡中已重新產生。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無 stash；本機測試用的套件資訊與 sitecustomize 在 Claude 的暫存資料夾，不在倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>df47b14＋工作區差異；Ubuntu 24.04、系統 Python 3.13（套件從原始碼路徑載入）</td><td><code>pytest apps/desktop/tests</code></td><td>161 通過、3 略過（Windows 專用、keyring 沒裝）、1 失敗：簡中訊息目錄還沒有新的鍵（產生的檔案，交給 bootstrap）。新增：選單列的選單、動作、語言與暫停、跨執行緒排到主執行緒、沒有 AppKit 時不影響、Dock、再次打開、登出通知、⌘Q 的判斷（主執行緒與其他執行緒）、AppleScript 字串、LaunchAgent 的內容與搬家、macOS 的頁面用詞、⌘Q 在視窗版的結束與確認</td><td>AppKit 是替身；真的 AppKit 只有 CI 的 macOS 與人工</td></tr>
+          <tr><td>同上</td><td><code>ruff check</code>、<code>ruff format --check</code>；<code>pyright --pythonplatform Linux</code> 與 <code>Darwin</code>（改到的檔案）</td><td>通過；只剩既有的 webview stub 警告</td><td>整個專案的 pyright 與測試交給 bootstrap 與 CI</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/docs</code>；<code>tools/i18n.py stamp</code> 四個英文頁</td><td>277 通過，1 失敗：簡中 <code>remote-worker.html</code> 少了新錨點（交給 bootstrap）</td><td>簡中產生與 <code>i18n.py check</code> 需要 opencc</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI（PR #71，head f1307ed，2026-10-22 06:19～06:48 America/Los_Angeles（PDT，UTC−07:00））：桌面端建置全部通過——<strong>RPA Worker（macOS，macos-15，Darwin 24.6）</strong>：單元測試 174 個（鑰匙圈用真的）、打包版自我測試、用 <code>open</code> 開 App 的視窗自我測試（WKWebView 載入頁面，「tray: icon shown in the menu bar」）、端到端（配對時權杖存在 macOS 鑰匙圈 → BA-001 → BA-002 → iframe → popup，都由這台執行）；DMG 84 MB（App 189 MB）。錄製端（macos-15）與 Worker（Windows）照常通過。CI：靜態檢查、Python 3.12、Windows 的 Worker 測試通過；Python 3.13 第一次在沒有改到的 <code>apps/server/tests/test_portal.py::test_rpa_serve_recognizes_a_running_portal</code> 失敗（辨認已在執行的 Portal 的 HTTP 探測只等 1 秒；那台機器很慢，瀏覽器下載就花了 8 分鐘），只重跑失敗的工作後通過。前一個 head 83be533 的 macOS Worker 只有一個測試失敗：「沒有 AppKit」的測試在真的 Mac 上前提不成立（選單列圖示真的建立成功），f1307ed 改成模擬沒有。人工驗收：未執行。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-22 07:24 America/Los_Angeles（PDT，UTC−07:00）：ChatGPT／Codex 依使用者本次「幫處理 PR71 的衝突」指示接收 466a802；fetch 後核對 main ba1886f（#70），在獨立 worktree 整合。接手範圍僅為衝突、三語同步與驗證紀錄；未執行產品人工驗收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-22 05:24 America/Los_Angeles（PDT，UTC−07:00）：使用者提出兩個功能（本任務與 Linux 伺服器分發包）。Claude 讀共用流程、任務紀錄（M10.1、M10.2）與桌面端設計；確認沒有開啟的 PR，在獨立 worktree 從 <code>origin/main</code> df47b14 建立本分支。</li>
+        <li>2026-10-22 06:03 America/Los_Angeles（PDT，UTC−07:00）：完成實作、測試與文件，本地檢查如上；準備提交並推送。</li>
+        <li>2026-10-22 06:05 America/Los_Angeles（PDT，UTC−07:00）：推送 72fc68b、fae9964（<code>[bootstrap]</code>）；bootstrap 產生簡中（f7addae）並在 CI 環境跑過 ruff、pyright、<code>pytest -m "not browser"</code>。06:09 建立 PR #71；25818b7 改正簡中的 Apple 用詞。</li>
+        <li>2026-10-22 06:16 America/Los_Angeles（PDT，UTC−07:00）：macOS 工作分配不到機器（macos-14 停用中）；83be533 改用 macos-15，馬上分配到機器。06:19 f1307ed 修正「沒有 AppKit」的測試。06:48 最新 head 的所有流程通過（Python 3.13 重跑一次，原因見上）。狀態改為待審閱。</li>
+        <li>2026-10-22 07:24 America/Los_Angeles（PDT，UTC−07:00）（ChatGPT／Codex）：從 466a802 合入 main ba1886f，解決 9 個衝突檔案。<code>release.yml</code> 保留 5 組產物來源與 6 個發布檔案（Windows Worker exe／zip、macOS Worker／Recorder DMG、Linux x64／arm64 tar.gz），保留 Linux 建置相依、校驗碼與發布說明。桌面建置保留 macOS Worker 矩陣及 Linux packaging 的路徑排除；設計文件保留雙方功能，補上 macOS Worker 的發布清單，重新 stamp 英文並由工具產生簡中。決定與任務索引保留雙方紀錄。</li>
+        <li>本次驗證版本：466a802＋ba1886f 合併後的工作區；macOS 26.3.1 arm64、Python 3.13.16、uv 0.12.24、Ruff 0.17.1、Pyright 1.1.414、pytest 9.1.1。<code>/Users/suxiong.sx/.local/bin/uv sync --locked</code> 成功；PATH 預設的 uv 0.7.6 太舊，改用既有的 0.12.24。<code>.venv/bin/ruff check .</code>、<code>.venv/bin/ruff format --check .</code>、<code>.venv/bin/pyright --pythonplatform Linux</code>（0 錯誤，3 個 pystray 來源警告）、<code>.venv/bin/python tools/i18n.py check</code>、<code>git diff --check</code> 通過。<code>.venv/bin/pytest -q -n 4 -m 'not browser'</code>：1634 通過、2 個 Windows 專用項目略過、15 失敗，全部位於從 main 原樣帶入的 <code>tests/ci/test_server_package.py</code>，原因為本機 <code>/bin/bash</code> 缺少 <code>mapfile</code>。本機 Darwin 的 Pyright 另有既有 <code>recorder_gui.py:130</code> 的 Foundation 型別宣告缺失（該程式檔與接收的 head 完全相同）。未將上述失敗計為通過，Linux 安裝驗證交由對應 CI。</li>
+        <li>額外整合驗證：解析 workflow YAML，確認發布相依與 5 組下載來源對應；用暫存檔執行發布清單檢查，6 檔完整時成功並產生 6 筆 SHA-256，逐一移除任一檔皆正確失敗（macOS 用 <code>shasum -a 256</code> 提供等價校驗命令，未修改 workflow）。發布 shell 語法通過；3 份交接頁的 99 個本地連結與錨點通過。未在本機重建 DMG、執行瀏覽器流程或人工驗收；整合提交 36b271c 推送後 GitHub 已確認 MERGEABLE，CI 與桌面端建置已觸發，完整結果仍待確認。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

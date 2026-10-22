@@ -27,7 +27,7 @@
           <thead><tr><th>角色</th><th>做什么</th><th>装什么</th><th>启动</th></tr></thead>
           <tbody>
             <tr><td><strong>服务器</strong></td><td>管理 Portal、数据库、场景版本、运行报告、登录状态与 Secrets 都在这台；也可以自己运行任务（本机 worker）。</td><td>开发环境（<a href="quickstart.html">一键脚本</a>），macOS、Linux、Windows 都可以。</td><td><code>uv run rpa serve --worker-port 8081</code></td></tr>
-            <tr><td><strong>运行端</strong></td><td>领取并运行场景，有头模式的浏览器窗口开在这台；报告、截图、Trace 传回服务器。</td><td>Windows：<a href="remote-worker.html#packaged">RPA Worker App</a>；其他系统用开发环境。</td><td>App 登录时自动启动；命令行 <code>uv run rpa worker</code></td></tr>
+            <tr><td><strong>运行端</strong></td><td>领取并运行场景，有头模式的浏览器窗口开在这台；报告、截图、Trace 传回服务器。</td><td>Windows：<a href="remote-worker.html#packaged">RPA Worker App</a>；macOS（Apple 芯片）：<a href="remote-worker.html#packaged-mac">RPA Worker App</a>；其他系统用开发环境。</td><td>App 登录时自动启动；命令行 <code>uv run rpa worker</code></td></tr>
             <tr><td><strong>录制端</strong></td><td>通过它操作管理 Portal 时，录制、逐步调试、人工登录的浏览器开在这台；录制稿、截图与登录状态传回服务器。不运行场景。</td><td>macOS（Apple 芯片）：<a href="remote-worker.html#recorder-app">RPA 录制端 App</a>；其他系统用开发环境。</td><td>打开 App；命令行 <code>uv run rpa recorder</code></td></tr>
           </tbody>
         </table>
@@ -207,7 +207,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
       <section class="panel" id="worker">
         <div class="panel-header"><h2>运行端：平常怎么用</h2></div>
         <div class="panel-body prose">
-          <p>第一次安装与配对见<a href="remote-worker.html#packaged">Windows：RPA Worker App</a>（命令行见<a href="remote-worker.html#start">worker 机器：启动</a>）。</p>
+          <p>第一次安装与配对见<a href="remote-worker.html#packaged">Windows：RPA Worker App</a>、<a href="remote-worker.html#packaged-mac">macOS：RPA Worker App</a>（命令行见<a href="remote-worker.html#start">worker 机器：启动</a>）。</p>
           <ol>
             <li><strong>开着就好。</strong>App 在登录 Windows 时自动启动，缩在通知区接任务；关掉窗口不会停止。命令行：项目文件夹运行 <code>uv run rpa worker</code>，保持终端开着。</li>
             <li><strong>交任务。</strong>在管理 Portal 验证、运行或运行串行时，「运行位置」选「远程 worker」或「任一」，或把设备页的默认运行位置改成远程 worker。</li>
@@ -229,7 +229,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
         <dl class="spec-list">
           <dt>服务器</dt><dd>启动的终端；systemd 用 <code>journalctl -u rpa-portal</code>。每次运行的日志与报告在文件夹的 <code>runs/&lt;运行编号&gt;/</code>，也可以在「运行报告」打开。</dd>
           <dt>RPA 录制端 App</dt><dd><code>~/Library/Application Support/rpa/recorder/logs/recorder.log</code>；「状态与设置 › 打开日志文件夹」。</dd>
-          <dt>RPA Worker App</dt><dd><code>%LOCALAPPDATA%\rpa\worker\logs</code>；窗口的「设置 › 打开日志文件夹」。</dd>
+          <dt>RPA Worker App</dt><dd><code>%LOCALAPPDATA%\rpa\worker\logs</code>（macOS 是 <code>~/Library/Application Support/rpa/worker/logs</code>）；窗口的「设置 › 打开日志文件夹」。</dd>
           <dt>命令行的 worker、录制端</dt><dd>运行它的终端。</dd>
         </dl>
       </div>

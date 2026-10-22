@@ -30,7 +30,7 @@ from typing import Final, TextIO
 from rpa_core.i18n import set_locale
 from rpa_desktop.build_info import load
 from rpa_desktop.credentials import Credentials, TokenStore, TokenStoreError
-from rpa_desktop.i18n import resolve_locale, t
+from rpa_desktop.i18n import platform_key, resolve_locale, t
 from rpa_desktop.single_instance import InstanceLock
 from rpa_runner.commands import is_frozen, playwright_command
 from rpa_worker.pairing import InviteError, pair, parse_invite
@@ -144,7 +144,7 @@ def obtain_credentials(
         try:
             saved = credentials.load()
         except TokenStoreError as error:
-            say(t("window.keyring_failed", error=error))
+            say(t(platform_key("window.keyring_failed"), error=error))
             return None
         if saved is not None:
             say(t("worker.saved", server=saved.server))
@@ -300,7 +300,7 @@ def _run(
     say(t("worker.banner", version=build.version, home=home))
     lock = InstanceLock(home)
     if not lock.acquire():
-        say(t("worker.already_running", home=home))
+        say(t(platform_key("worker.already_running"), home=home))
         return 4
     stop, finished = threading.Event(), threading.Event()
     # 安裝檔升級或解除安裝時寫 stop.request：和 Ctrl+C 一樣取消任務、回報後結束。從拿到鎖就開始看，

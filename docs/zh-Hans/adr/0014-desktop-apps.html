@@ -44,7 +44,7 @@
           <ul class="points">
             <li><strong>两个 App，同一份代码。</strong>「RPA 录制端」与「RPA Worker」都在 <code>apps/desktop</code>（包 rpa-desktop），各自一份建置设置。MVP 交付录制端 macOS（Apple 芯片）与 Worker Windows（x64）；其他组合保留方案。</li>
             <li><strong>壳用 pywebview。</strong>macOS 用系统的 WKWebView、Windows 用 WebView2，不另带浏览器。录制端的窗口加载服务器现有的 Portal 页面，模板不分两套；App 自己的少数页面（配对、下载浏览器、状态）也用设计系统的 HTML。</li>
-            <li><strong>邀请配对。</strong>Portal 的「设备」页产生一次性邀请（24 小时内有效、只能用一次、限定是哪个 App）；App 用邀请换到设备权杖，存在系统钥匙圈或 Windows 认证管理员。</li>
+            <li><strong>邀请配对。</strong>Portal 的「设备」页产生一次性邀请（24 小时内有效、只能用一次、限定是哪个 App）；App 用邀请换到设备权杖，存在系统钥匙串或 Windows 认证管理员。</li>
             <li><strong>对外端口多两种用途。</strong><code>rpa serve --worker-port</code> 的端口除了 Worker API，也提供 Client API（配对、交互子进程）与 Portal 页面；Portal 页面只接受录制端的设备权杖，没有就拒绝。<code>127.0.0.1:8080</code> 的本机用法不变。</li>
             <li><strong>交互子进程在操作的那台运行。</strong>服务器多一层子进程主机：请求从录制端进来时，录制、逐步调试、人工登录的子进程交给那台录制端运行，输出与文件传回；从本机浏览器进来时照旧在服务器运行。转换、遮罩、版本与发布门槛仍在服务器。</li>
             <li><strong>子进程命令集中。</strong>所有 <code>sys.executable -m …</code> 改由 <code>rpa_runner.commands</code> 产生；打包后改走 App 自己的入口。</li>
