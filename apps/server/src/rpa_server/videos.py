@@ -4,7 +4,8 @@
   預設照使用者 2026-10-20 的決定（D1）：驗證、執行、組合場景的節點全部錄；通過的留 7 天，失敗、
   逾時、取消、需要登入的留 30 天；全部最多 20 GB。
 - 運行結束時讀執行目錄的 video.json，把長度與大小記在 runs（清單、篩選與清理用）。
-- 清理只刪影片（video.webm）：運行紀錄、報告、截圖、日誌都留著；runs 記下刪除的時間與原因，
+- 清理只刪影片（video.webm 與所有分頁片段）：運行紀錄、報告、截圖、日誌都留著；
+  runs 記下刪除的時間與原因，
   執行目錄的 run.json（M11）同步拿掉這個檔案。釘選的不刪。超過保留天數的先刪；總量還是超過上限，
   從最舊的刪起。伺服器啟動時、每小時、改設定後各清理一次。
 """
@@ -23,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_runner.files import VIDEO
-from rpa_runner.video import read_info
+from rpa_runner.video import read_info, video_files
 from rpa_server.domain import now
 from rpa_server.models import Run, Setting
 from rpa_server.storage import Storage
@@ -182,13 +183,17 @@ class VideoService:
         path = self.storage.run_dir(run.id) / VIDEO
         if not path.is_file():
             return
-        duration = info.get("durationMs")
+        duration = info.get("timelineDurationMs", info.get("durationMs"))
         run.video_seconds = (
             round(float(duration) / 1000, 3)
             if isinstance(duration, int | float) and not isinstance(duration, bool)
             else 0.0
         )
-        run.video_bytes = path.stat().st_size
+        run.video_bytes = sum(
+            (path.parent / name).stat().st_size
+            for name in video_files(info)
+            if (path.parent / name).is_file()
+        )
         run.video_deleted_at = None
         run.video_deleted_reason = None
 
@@ -254,11 +259,12 @@ class VideoService:
 
     def _delete(self, run: Run, reason: DeleteReason, moment: datetime) -> None:
         folder = self.storage.run_dir(run.id)
-        with contextlib.suppress(FileNotFoundError):
-            (folder / VIDEO).unlink()
+        for name in video_files(read_info(folder) or {"file": VIDEO}):
+            with contextlib.suppress(FileNotFoundError):
+                (folder / name).unlink()
+            _forget_in_manifest(folder / _RUN_MANIFEST, name, moment, reason)
         run.video_deleted_at = moment
         run.video_deleted_reason = reason
-        _forget_in_manifest(folder / _RUN_MANIFEST, VIDEO, moment, reason)
 
     # ------------------------------------------------------------ 背景
 

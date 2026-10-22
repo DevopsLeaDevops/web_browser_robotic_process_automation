@@ -15,6 +15,8 @@
   勾選、按鍵）加上 ``popup: page1``，之後 ``page1 = page1_info.value`` 與 ``page1.…`` 的操作、斷言
   加上 ``page: page1``；``page1.close()`` 略過。開出新分頁的那一步轉不了時，那個分頁上的操作也跟著
   略過並列在警告中（不然草稿會引用沒開的分頁）。
+- 填寫前點同一個欄位的那一步保留（可能是展開選單、載入候選）；逐字輸入的 ``type``、
+  ``press_sequentially`` 轉成 fill（DSL 沒有逐鍵輸入）並列在警告中。
 - 轉不了的行（例如 hover、上傳檔案、自己開的新分頁）以註解留在草稿裡，並列在警告中。
 - **自動參數化**：每個 fill 的值變成一個入參，預設值是錄到的值，名稱取自欄位的英數名稱
   （test id、CSS 的 #id 等），沒有英數名稱時依欄位種類叫 text、number…，欄位的標籤寫在入參說明；
@@ -564,10 +566,6 @@ class _State:
             self.pending = None
         self.entries.append(step)
 
-    def base(self, target: dict[str, object]) -> dict[str, object]:
-        """只有定位器（與分頁）的步驟欄位：用來比對「點了同一個欄位」。"""
-        return {"page": self.page, "target": target} if self.page else {"target": target}
-
     def tab_name(self, info: str | None) -> str:
         """新分頁的名稱：codegen 的 ``page1_info`` → ``page1``；避開用過的名稱。"""
         base = info.removesuffix("_info") if info else "popup"
@@ -802,6 +800,9 @@ def _action(state: _State, statement: ast.Expr, segments: list[_Segment]) -> Non
             if text is None:
                 state.warn(statement, catalog("recording.unsupported.arguments", name=name))
                 return
+            if name in ("type", "press_sequentially"):
+                # DSL 只有一次填入：逐鍵的事件不會重現，不能默默換掉
+                state.warn(statement, catalog("recording.typed_as_fill", name=name))
             _fill(state, target, text, described)
         case "press":
             key = _string(first)
@@ -864,10 +865,8 @@ def _click(
 
 
 def _fill(state: _State, target: dict[str, object], text: str, described: str) -> None:
-    # codegen 常常先錄一次點擊、再錄 fill；點的是同一個欄位而且沒有其他選項時，點擊沒有意義
-    last = state.entries[-1] if state.entries else None
-    if isinstance(last, _Step) and last.action == "click" and last.fields == state.base(target):
-        state.entries.pop()
+    # 填寫前點同一個欄位的那一步保留：點擊可能是展開下拉選單、載入候選或移動焦點，
+    # fill 只會聚焦，刪掉就和錄製時不一樣（例如「請選擇」的選單）
     if _is_password(target) and text:
         secret = _secret_name(state.scene_id, state.used_secrets)
         state.secrets.append(secret)

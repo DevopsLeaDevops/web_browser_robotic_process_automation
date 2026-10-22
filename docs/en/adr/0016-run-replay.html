@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c1975b38665acfab">
+<meta name="translation-source" content="sha256:0acedfb853615fc8">
 <title>ADR 0016 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -21,9 +21,23 @@
   </div>
 
   <div class="stack">
+    <section class="panel" id="multipage">
+      <div class="panel-header"><h2>Multi-page and timing correction (2026-10-22)</h2></div>
+      <div class="panel-body prose">
+        <p>Updated: 2026-10-22 00:35 America/Los_Angeles (PDT, UTC−07:00). This section supersedes the earlier assumptions that one video covers a run and that out-of-range steps should remain on its final frame.</p>
+        <p><strong>Cause:</strong> Playwright records each page separately. Finalization previously kept only the main video and removed other files with the temporary folder. Successful steps do not mean the main video contains popup activity. Replay also attributed every step beyond that video's duration to an interrupted run.</p>
+        <p><strong>Storage:</strong> video.json v2 adds clips with pageId, file, startedAt, startedAtSource, durationMs, dimensions and completeness. The initial page uses video.webm; other pages use video-page-N.webm. If the main clip is unavailable, the first usable clip retains the compatible video.webm entry point. Original top-level fields still describe that primary clip; timelineStartedAt and timelineDurationMs describe total coverage. steps.json adds pageId and createdPageId. Remote workers upload the whole run directory; quota accounting and removal cover all clips.</p>
+        <p><strong>Replay:</strong> Steps and clips use a shared UTC-based timeline. Playback, seeking and thumbnails select a clip by page identity, including returns to the initial page. Overlapping recordings are not concatenated. Loading pauses the clock; missing, corrupt and uncovered intervals show a gap. Legacy single videos remain readable, but deleted popup footage cannot be reconstructed. Downloads provide each original page recording, not a single rendered composite.</p>
+        <p><strong>Chromium timing:</strong> Synthetic tests on local Playwright 1.64 showed a zero first-frame PTS while DateUTC differed from the actual picture origin. The runner immediately subscribes to the public Screencast API, records the first observed frame timestamp and unsubscribes. When the file's first PTS is zero, this observed origin is used with source first-observed-frame. This is an observed baseline, not a frame-exact guarantee. Tests compare colors 0.3 seconds before and after clicks. Failed observation retains the file/page fallback; old recordings receive no fixed offset. The minimum Playwright version becomes 1.64.</p>
+        <p><strong>Validation scope:</strong> Synthetic white, blue and red pages cover headed/headless recording, popup closure and return, continuous playback, step jumps, missing clips, cancellation/timeouts and retention. This change does not address Firefox sizing/flicker or rerun business transactions. Windows, Linux and deployed product results depend on CI and post-deployment acceptance.</p>
+        <p>Public reference: <a href="https://playwright.dev/python/docs/videos">Playwright video storage and multi-page behavior</a>. Implementation evidence and test results: <a href="../../../handoff/tasks/20261022-replay-multipage.html">task handoff</a>.</p>
+      </div>
+    </section>
+
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>Date</dt><dd class="mono">2026-10-20</dd>
+        <dt>Amended</dt><dd><span class="mono">2026-10-22</span>: every tab gets its own recording, replay switches recordings by each step's tab, and Chromium is timed by the first observed frame; this supersedes the assumptions that one video covers a run and that out-of-range steps stay on its final frame. See <a href="#multipage">Multi-page and timing correction</a>.</dd>
         <dt>Scope</dt><dd>rpa-runner, rpa-worker, rpa-server (from M12)</dd>
         <dt>Related</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a> (run folder), <a href="0012-remote-workers.html">ADR 0012</a> (remote workers upload the run folder); M11 decision D4 (run records stay out of git); <a href="../design/portal.html#video">Management portal › Runs › Recording</a></dd>
       </dl>

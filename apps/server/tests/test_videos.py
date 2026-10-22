@@ -38,6 +38,7 @@ class VideoExecutor:
     def __init__(self) -> None:
         self.recorded: list[bool] = []
         self.status = "passed"
+        self.multiple_pages = False
 
     def __call__(
         self,
@@ -68,6 +69,10 @@ class VideoExecutor:
             (folder / VIDEO_TMP / "page.webm").write_bytes(
                 tiny_webm(duration_ms=2500, started_at=started)
             )
+            if self.multiple_pages:
+                (folder / VIDEO_TMP / "popup.webm").write_bytes(
+                    tiny_webm(duration_ms=4000, started_at=started + timedelta(seconds=1))
+                )
             finalize(folder, engine="chromium")
         return RunResult(
             run_id=run_id,
@@ -267,3 +272,27 @@ def test_unpinning_applies_the_rules_again(
     assert video["pinned"] is False
     assert video["deletedReason"] == "expired"
     assert client.put("/api/runs/missing/video", json={"pinned": True}).status_code == 404
+
+
+def test_all_page_videos_count_toward_quota_and_are_deleted_together(
+    app: FastAPI, client: Client, worker: Worker, executor: VideoExecutor
+) -> None:
+    executor.multiple_pages = True
+    run_id = run_once(client, worker, executor)
+    folder = services(app).storage.run_dir(run_id)
+    files = list(folder.glob("*.webm"))
+    assert len(files) == 2
+    info = video_of(client, run_id)
+    assert info is not None
+    assert info["bytes"] == sum(path.stat().st_size for path in files)
+    assert info["seconds"] == 5
+    for path in files:
+        response = client.get(f"/runs/{run_id}/files/{path.name}", headers={"Range": "bytes=0-9"})
+        assert response.status_code == 206
+        assert len(response.content) == 10
+    age(app, run_id, 8)
+    assert services(app).videos.sweep() == [run_id]
+    assert not list(folder.glob("*.webm"))
+    manifest = json.loads((folder / "run.json").read_text())
+    assert {item["path"] for item in manifest["removed"]} == {path.name for path in files}
+    assert (folder / VIDEO_INFO).exists()

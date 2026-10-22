@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:b3c3348fd4c6c221">
+<meta name="translation-source" content="sha256:69cd0994123e637c">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -128,9 +128,10 @@
   input.json          # this run's validated inputs
   facts.json          # page facts extracted by the automation
   output.json         # created only when the independent assertions and output validation pass
-  steps.json          # each step's result, start and end time, and the page URL after it
+  steps.json          # each step's result, start and end time, the page URL after it and its tab
   screenshot.png, diagnostic.json
   video.webm, video.json  # recording of the automation stage and its description (M12, ADR 0016)
+  video-page-N.webm       # recording of each tab opened by a step
   automation.log, assertion.log
   scenario/           # snapshot of the scenario revision used (including Python scripts)
   result.json, report.html, run.json</pre>

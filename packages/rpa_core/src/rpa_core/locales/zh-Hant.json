@@ -101,6 +101,7 @@
   "recording.loose_filter": "「{text}」原本要求整段文字完全相同，轉換後改成包含這段文字；調試時請確認只找到一個元素",
   "recording.dropped_position": "點擊位置（position）沒有保留，改成點擊元素中央",
   "recording.frame_click": "點擊的是 iframe 元素本身（{target}），執行時會點在 iframe 的正中央，不是裡面某個欄位或按鈕；請確認這一步是否需要",
+  "recording.typed_as_fill": "{name} 是逐字輸入，轉成 fill（一次填入整段文字），不會觸發每個按鍵的事件；欄位要靠按鍵才有反應（例如邊打邊搜尋）時，調試時請確認",
   "recording.unsupported.arguments": "{name} 的引數不是固定的文字或清單",
   "recording.unsupported.regex": "{name} 用了正規表示式",
   "recording.unsupported.selector": "選擇器 {value} 是 Playwright 專用的寫法",
