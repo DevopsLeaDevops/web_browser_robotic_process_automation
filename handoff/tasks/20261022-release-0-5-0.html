@@ -56,6 +56,7 @@
         <li><strong>選單：</strong>錄製端「不顯示」叢集管理與管理後台只是選單，不是權限；直接輸入網址仍然打得開（使用者權限在 M8）。</li>
         <li><strong>沒有人工驗收的新功能：</strong>macOS Worker（選單列、登入時自動啟動、Gatekeeper、本地網路權限）、Linux 分發包在公司主機（glibc 2.32、systemd、aarch64 實機）、新分頁、動態入參的實際採購場景、真的錄製端 App 上的選單。CI 通過不代替這些。</li>
         <li><strong>下載需要權限：</strong>倉庫目前是私有的，Release 與 App 的「下載新版」（…/releases/latest）只有登入且有權限的 GitHub 帳號打得開；<a href="../../docs/design/desktop.html#release">桌面端分發的設計文件</a>還寫「倉庫是公開的，發布後任何人都下載得到」。main 的「一鍵安裝腳本」從零安裝（Rocky 8）在 clone 時要求帳號密碼而失敗，也是同一個原因。</li>
+        <li><strong>Windows 上的瀏覽器測試不穩定：</strong>CI 的「Worker 測試（Windows）」每次有不同的瀏覽器測試逾時或錄影讀不到（Firefox 的登入、iframe、腳本場景逾時；Chromium 取消後的錄影 <code>unreadable</code>、錄影對時取樣）；main 從 #68（e63559a）起的 CI 都是失敗或被取消。發布流程不跑這個工作，但 Windows Worker 執行 Firefox 與錄影的可靠度要人工確認。</li>
         <li><strong>安裝與相容性：</strong>沒有程式碼簽章與 macOS 公證；錄製端與 macOS Worker 只支援 Apple 晶片，Windows Worker 只有 x64，Linux 分發包要 glibc 2.28 以上。伺服器、錄製端與 Worker 一起升級到 0.5.0。</li>
       </ul></div>
     </section>
@@ -65,10 +66,11 @@
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
           <tr><td>main 748cba8；GitHub Actions</td><td>合併 #72 後的 push</td><td>桌面端建置 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39796583661">39796583661</a> 與伺服器分發包 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39796582221">39796582221</a> 通過；CI <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39796583943">39796583943</a> 開工時還在執行</td><td>CI 結果見 PR</td></tr>
+          <tr><td>PR #73 head e1b4a99；GitHub Actions</td><td>CI、桌面端建置、伺服器分發包、一鍵安裝腳本</td><td>通過：靜態檢查、測試（Python 3.12、3.13）、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39800058923">桌面端建置</a>（0.5.0 的 Worker 與錄製端）、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39800059052">伺服器分發包</a>、安裝腳本的專案內執行（ubuntu、windows）與 Rocky 8 in-repo。<br>失敗：Worker 測試（Windows）兩次都失敗，失敗的測試每次不同（第一次三個 Firefox 逾時，重跑一個 Chromium 取消後錄影讀不到），main 748cba8 也失敗；Rocky 8 from-scratch 因倉庫私有、clone 要帳密而失敗，main ba1886f 也一樣。macOS 的專案內執行等不到 runner，15 分鐘後取消。說明見 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/73#issuecomment-6343894995">PR 留言 1</a>、<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/73#issuecomment-6344142681">留言 2</a>。</td><td>Windows 瀏覽器測試的穩定性要另外處理</td></tr>
           <tr><td>基準 748cba8＋本任務差異；雲端容器</td><td><code>python3 tools/release_version.py check v0.5.0</code>、<code>uv sync --locked</code>、<code>uv lock --check</code>、<code>uv run rpa --version</code>；<code>ruff check .</code>、<code>ruff format --check .</code>、<code>tools/i18n.py check</code>、<code>git diff --check</code>；<code>pytest -m "not browser" -n 4</code>；三份交接頁的相對連結與錨點</td><td>通過：版本一致 v0.5.0；<code>rpa 0.5.0（rpa-core 0.5.0）</code>；1653 通過、3 略過（Windows 登錄檔、Windows mutex、ssh-keygen）；連結沒有失效</td><td>Windows、macOS 的安裝與端到端交給 PR 的桌面端建置</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：推送後確認；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+      <div class="panel-body"><p>CI：見上表，版本差異沒有造成新的失敗；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -78,6 +80,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-22 07:55 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #72 合併後從 main 748cba8 重建分支；確認 v0.4.0 已發布、沒有開啟中的 PR；七個套件與 uv.lock 改為 0.5.0，建立本頁。</li>
+        <li>2026-10-22 08:22 America/Los_Angeles（PDT，UTC−07:00），Claude：開 PR #73。CI 結果記在驗證；兩項失敗與 main 相同、不是版本號造成，已在 PR 留言並各重跑一次；Windows 瀏覽器測試的不穩定加進已知問題。</li>
       </ul></div>
     </section>
   </div>
