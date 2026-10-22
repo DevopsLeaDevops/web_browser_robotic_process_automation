@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:66b27c0f68f55ee8">
+<meta name="translation-source" content="sha256:5946c9d62132590b">
 <title>Positioning · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -51,8 +51,8 @@
         <div class="four-col">
           <div><h3>1　Generate</h3><ul class="points"><li>Record user actions</li><li>Have AI produce it from natural language</li><li>Compose from templates or sub-scenarios</li></ul></div>
           <div><h3>2　Manage</h3><ul class="points"><li>Revisions and the publishing gate</li><li>Inputs, outputs and categories</li><li>Permissions and auditing</li></ul></div>
-          <div><h3>3　Run</h3><ul class="points"><li>Triggered manually, on a schedule or by API</li><li>Many workers in parallel</li><li>Retries and timeouts</li></ul></div>
-          <div><h3>4　Report</h3><ul class="points"><li>Screenshots and logs for every step</li><li>Playwright trace replay</li><li>Failure location and self-healing selectors</li></ul></div>
+          <div><h3>3　Run</h3><ul class="points"><li>Triggered manually, on a schedule or by API</li><li>Remote Workers, several running at once</li><li>Retries and timeouts</li></ul></div>
+          <div><h3>4　Report</h3><ul class="points"><li>Screenshots and logs for every step</li><li>Run videos for replay, lined up with the steps (M12)</li><li>Failure location and self-healing selectors</li></ul></div>
         </div>
       </div>
     </section>
@@ -71,9 +71,12 @@
           <dt>Output</dt><dd>A result published only after the independent assertions pass; it can feed the next scenario's inputs.</dd>
           <dt>Secret</dt><dd>Credentials and other sensitive values. Scenarios refer to them by name only; the plain value never appears in scenarios, logs or screenshot captions.</dd>
           <dt>Run</dt><dd>One execution of a revision, recording who triggered it, the inputs, and the result and duration of every step; its status is queued, running, passed, failed, timed out, cancelled or needs login.</dd>
-          <dt>Artifact</dt><dd>Screenshots, traces, downloaded files and extracted data produced by a run.</dd>
-          <dt>Workflow</dt><dd>Published scenarios arranged in sequence; upstream outputs bind to downstream inputs, and it stops on failure (M6).</dd>
-          <dt>Debug session</dt><dd>A recording or draft is debugged in an isolated browser; the AI assistant can only edit drafts, and publishing needs the user's confirmation (M4, M5).</dd>
+          <dt>Artifact</dt><dd>Screenshots, videos, reports, logs, downloaded files and extracted data produced by a run, kept in the run directory on the server.</dd>
+          <dt>Composite scenario</dt><dd>Fixed revisions of published scenarios arranged as a DAG (branching and joining); upstream outputs bind to downstream inputs, nodes run in order and it stops on failure (M6, formerly called workflow). It has its own revisions, validation and publishing, and can depend on scenarios from other domains (M11).</dd>
+          <dt>Domain</dt><dd>The unit that owns and stores scenarios, roles and composite scenarios: one folder per domain with immutable revisions and validation and publishing records, which can sync with one folder of a git repository (M11).</dd>
+          <dt>Role</dt><dd>One login identity on a target system; each role has its own login state, a scenario declares the role it uses with <code>login: { role }</code>, and when the login has expired the run stops at needs login (M4).</dd>
+          <dt>Device</dt><dd>A Recorder or Worker paired with an invitation: the Recorder opens browsers on the recorder's computer, the Worker runs scenarios (M10).</dd>
+          <dt>Debug session</dt><dd>A recording or draft is debugged step by step in an isolated browser, which opens on the Recorder the person is using (M4, M10.2); the AI assistant can only edit drafts, and publishing needs the user's confirmation (M5).</dd>
           <dt>Project</dt><dd>The unit of permission isolation. Scenarios, secrets and runs all belong to a project (M8; the MVP has a single user).</dd>
         </dl>
       </div>

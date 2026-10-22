@@ -26,11 +26,11 @@
           <dl class="spec-list">
             <dt>認證</dt><dd>先做本地帳號；預留 OIDC 與 LDAP 接口，方便接公司的 AD 或 SSO。</dd>
             <dt>權限</dt><dd>以「專案」為單位隔離場景、Secrets 與執行紀錄。</dd>
-            <dt>Secrets</dt><dd>加密存放。使用者可以在場景中引用，但無法讀出明文。</dd>
+            <dt>Secrets</dt><dd>加密存放。使用者可以在場景中引用，但無法讀出明文。M8 之前是伺服器上只限本人讀寫的明文檔，只送到需要它的 worker 或錄製端。</dd>
             <dt>稽核</dt><dd>誰在什麼時間修改、執行了哪個場景，全部留紀錄，不可刪改。</dd>
-            <dt>版本</dt><dd>場景每次儲存產生不可變的新版本；執行紀錄指向確切版本。</dd>
+            <dt>版本</dt><dd>場景每次儲存產生不可變的新版本；執行紀錄指向確切版本。版本、驗證與發布紀錄都在領域資料夾，可以經由 git 審閱（M11）。</dd>
             <dt>資料庫</dt><dd>正式環境用 PostgreSQL，支援多個 worker 與併發寫入；SQLite 只用於開發與原型（單機、單一程序），見 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
-            <dt>Runner 無狀態</dt><dd>從 M2 起只接收場景、入參與 Secrets，輸出結果與產物；放進 M3 的背景 worker 與 M9 的分散式 worker 時不用改。</dd>
+            <dt>Runner 無狀態</dt><dd>從 M2 起只接收場景、入參與 Secrets，輸出結果與產物；放進 M3 的背景 worker、M9a 的遠端 worker 與 M10 的 Worker App 時都不用改。</dd>
           </dl>
         </div>
       </section>
@@ -60,11 +60,11 @@
         <table class="wrap">
           <thead><tr><th>情況</th><th>對策</th><th>落在</th></tr></thead>
           <tbody>
-            <tr><td>目標系統只能從內網存取</td><td>平台與 worker 都部署在內網；worker 必須能直連目標系統</td><td>M9</td></tr>
+            <tr><td>目標系統只能從內網存取</td><td>平台與 worker 都部署在內網；worker 與錄製端必須能直連目標系統，只有它們連伺服器、伺服器不連它們</td><td>M9a、M10</td></tr>
             <tr><td>每次執行都要登入</td><td>每個角色保存並重用自己的登入狀態（Playwright storage state），減少登入次數、降低帳號鎖定的風險；登入失效時回報 needs_login，引導人工重新登入後續跑</td><td>M4</td></tr>
             <tr><td>老系統缺少語意化標籤</td><td>定位器更依賴 css、xpath 與文字；錄製器避開自動生成的 id，產出穩定的選擇器</td><td>M1、M4</td></tr>
             <tr><td>iframe</td><td>定位器以 <code>frame</code> 指定元素所在的 iframe（可巢狀），見 <a href="dsl.html#locators">DSL</a></td><td>M7a</td></tr>
-            <tr><td>彈出視窗、多分頁</td><td>DSL 提供切換分頁的步驟</td><td>M7</td></tr>
+            <tr><td>彈出視窗、多分頁</td><td>DSL 提供切換分頁的步驟；點擊開出的新分頁提前為 M7b（審閱中）</td><td>M7</td></tr>
             <tr><td>檔案上傳與下載</td><td>upload、download 動作；下載檔作為產物保存</td><td>M7</td></tr>
             <tr><td>表格資料抽取</td><td>extract 支援表格轉成結構化資料</td><td>M1</td></tr>
             <tr><td>自簽憑證</td><td>場景層級可設定忽略 HTTPS 錯誤，預設關閉並在審核時標示</td><td>M2</td></tr>
@@ -74,7 +74,7 @@
       </div>
     </section>
 
-    <div class="notice">MVP 是單機：錄製與調試在執行平台的同一台電腦上開啟有畫面的隔離瀏覽器（M4）。多用戶部署之後（M8 起）再考慮遠端瀏覽器畫面串流或瀏覽器擴充功能。測試網站（M2）先沿用 MVP 原型的本機測試頁，之後擴充成典型內部系統：登入、選單、iframe（M7a 的 <code>/frames</code>）、表格與檔案下載。</div>
+    <div class="notice">錄製、調試與人工登入的瀏覽器開在錄製者自己的電腦：M4 時是執行平台的那台，M10.2 起是透過錄製端 App 操作時的那台錄製端，伺服器可以沒有螢幕。遠端瀏覽器畫面串流不做（ADR 0014）。測試網站（M2）先沿用 MVP 原型的本機測試頁，之後擴充成典型內部系統：登入、選單、iframe（M7a 的 <code>/frames</code>）、表格與檔案下載。</div>
   </div>
 </main>
 </body>
