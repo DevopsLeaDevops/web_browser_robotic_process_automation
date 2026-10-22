@@ -754,6 +754,8 @@ class RecorderRecord:
     """這台正在執行的互動子程序（錄製、調試、人工登入）數量。"""
     features: tuple[str, ...] = ()
     """App 看得懂的 DSL 擴充（M7a；更舊的 App 沒有回報，是空的）。"""
+    menus: tuple[str, ...] = ()
+    """透過這台打開管理 Portal 時另外顯示的第一級選單（叢集管理、管理後台；預設都不顯示）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -774,4 +776,5 @@ class RecorderRecord:
             "display": self.display,
             "active": self.active,
             "features": list(self.features),
+            "menus": list(self.menus),
         }

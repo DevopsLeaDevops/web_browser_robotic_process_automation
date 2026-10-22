@@ -513,6 +513,21 @@ class Services:
         with self.sessions() as session:
             return self._domain_record(session, self._domain(session, domain_id))
 
+    def reorder_domains(self, ids: Sequence[str]) -> list[DomainRecord]:
+        """依 ``ids`` 重排全部領域（領域管理的上移、下移）；場景管理的領域選單照這個順序。
+
+        順序只存在資料庫（domains.position），不寫進領域資料夾與 git。``ids`` 要剛好是現在的
+        全部領域；有人在別處新增或刪除了領域時回 409，請重新整理再排。
+        """
+        with self.packs.lock, self.sessions() as session:
+            domains = {domain.id: domain for domain in session.scalars(select(Domain))}
+            if len(ids) != len(set(ids)) or set(ids) != set(domains):
+                raise _conflict("domain_order_changed", t("error.domain_order_changed"))
+            for position, domain_id in enumerate(ids):
+                domains[domain_id].position = position
+            session.commit()
+        return self.list_domains()
+
     def create_domain(
         self, domain_id: str, name: str, description: str | None = None
     ) -> DomainRecord:

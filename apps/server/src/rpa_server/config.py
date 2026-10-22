@@ -28,6 +28,7 @@ __all__ = [
     "COMPOSITES_DOMAIN",
     "DEFAULT_EXAMPLES",
     "EXAMPLES_DOMAIN",
+    "RECORDER_MENUS",
     "Settings",
     "has_display",
     "sqlite_url",
@@ -39,6 +40,9 @@ EXAMPLES_DOMAIN = "testsite"
 COMPOSITES_DOMAIN = "composites"
 """「組合場景」領域：只放組合場景的領域；遷移的與沒指定領域的新組合場景放這裡（M11 D1、D7）。
 左側選單不列它，組合場景在「組合場景自動化」管理。"""
+RECORDER_MENUS = ("cluster", "admin")
+"""透過錄製端打開管理 Portal 時預設不顯示的第一級選單：叢集管理、管理後台（三段分工，
+2026-10-22）。裝置頁可以替個別錄製端打開；伺服器本機（8080）全部顯示。"""
 
 
 def sqlite_url(path: Path) -> str:

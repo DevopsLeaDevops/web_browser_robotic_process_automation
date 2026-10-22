@@ -946,14 +946,93 @@ def test_design_system_assets_are_unchanged_copies(name: str) -> None:
     assert static.read_bytes() == original.read_bytes()
 
 
-def test_side_menu_lists_domains_then_domain_management() -> None:
+def _menu(html: str, menu: str) -> list[str]:
+    """選單（topnav、sidenav）裡的連結，依顯示的順序。"""
+    return re.findall(r'href="([^"]+)"', html.split(f'id="{menu}"')[1].split("</nav>")[0])
+
+
+def test_side_menu_lists_domains_then_composites_and_roles() -> None:
+    """2026-10-22：領域 ×N、組合場景自動化，登入與憑證放最後；領域管理搬到管理後台。"""
     with use_locale("zh-Hant"):
         html = _pages()["domain"]
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
-    assert labels == ["測試網站自動化", "谷歌自動化", "領域管理", "登入與憑證", "組合場景自動化"]
+    assert labels == ["測試網站自動化", "谷歌自動化", "組合場景自動化", "登入與憑證"]
     current = 'href="/domains/testsite" title="測試網站自動化" class="active" aria-current="page"'
     assert current in side
+
+
+def test_top_menu_has_five_groups_on_the_server() -> None:
+    """三段分工：伺服器本機看得到全部第一級選單；二級選單依調整後的分組。"""
+    with use_locale("zh-Hant"):
+        pages = _pages()
+    html = pages["domain"]
+    assert _menu(html, "topnav") == ["/scenes", "/recording", "/runs", "/devices", "/domains"]
+    top = html.split('id="topnav"')[1].split("</nav>")[0]
+    assert [part.split("</a>")[0].split(">")[-1] for part in top.split("<a ")[1:]] == [
+        "場景管理",
+        "場景生產",
+        "場景運行",
+        "叢集管理",
+        "管理後台",
+    ]
+    assert _menu(pages["recording"], "sidenav") == ["/recording", "/playground"]
+    assert _menu(pages["runs"], "sidenav") == ["/runs", "/replay"]
+    assert _menu(pages["workers"], "sidenav") == ["/devices"]
+    assert _menu(pages["domains"], "sidenav") == ["/domains"]
+    assert 'class="active" aria-current="true">場景運行' in pages["runs"]
+    assert 'class="active" aria-current="true">管理後台' in pages["domains"]
+    assert 'href="/domains">' in pages["domain"]  # 領域頁的「管理領域」
+
+
+def test_domain_management_orders_the_domains() -> None:
+    """領域管理（管理後台）：每一列上移、下移；第一列不能上移，最後一列不能下移。"""
+    with use_locale("zh-Hant"):
+        html = _pages()["domains"]
+    assert "場景管理左側的領域選單照這個順序" in html
+    rows = (
+        html.split('id="domain-order"')[1].split("<tbody>")[1].split("</tbody>")[0].split("</tr>")
+    )
+    first, last = rows[0], rows[-2]
+    assert '<span class="order-number" data-order-number>1</span>' in first
+    assert 'aria-label="上移「測試網站自動化」" disabled' in first
+    assert 'aria-label="下移「測試網站自動化」">' in first
+    assert 'data-direction="down"' in last
+    assert last.split('data-direction="down"')[1].split(">")[0].endswith(" disabled")
+
+
+def _waiting_run() -> str:
+    """排隊中、等待遠端 worker 的執行頁（有連到裝置頁的按鈕）。"""
+    queued = replace(RUN, status="queued", target="remote", finished_at=None)
+    return render(
+        "run.html",
+        page="runs",
+        title="執行",
+        run=queued,
+        revision=REVISIONS[0],
+        result=None,
+        files=[],
+        can_publish=False,
+        role=None,
+        worker_wait={"worker": None},
+    )
+
+
+def test_recorders_hide_cluster_and_admin_menus_by_default() -> None:
+    """三段分工：透過錄製端時，叢集管理與管理後台只在裝置頁替那台打開時顯示。"""
+    with use_locale("zh-Hant"), use_recorder(Via("mac-01", "Mac")):
+        hidden = {**_pages(), "run-waiting": _waiting_run()}
+    with use_locale("zh-Hant"), use_recorder(Via("mac-01", "Mac", ("cluster",))):
+        cluster = {**_pages(), "run-waiting": _waiting_run()}
+    assert _menu(hidden["domain"], "topnav") == ["/scenes", "/recording", "/runs"]
+    assert 'href="/domains"' not in hidden["domain"]  # 領域頁的「管理領域」也不顯示
+    assert "data-worker-wait" in hidden["run-waiting"]
+    assert 'href="/devices"' not in hidden["run-waiting"]  # 等待 worker 時不連到裝置頁
+    assert _menu(cluster["domain"], "topnav") == ["/scenes", "/recording", "/runs", "/devices"]
+    assert 'href="/domains"' not in cluster["domain"]
+    assert 'href="/devices"' in cluster["run-waiting"]
+    # 只是不顯示：直接打開時照樣渲染（M8 才有權限）
+    assert _menu(hidden["workers"], "sidenav") == ["/devices"]
 
 
 def test_scene_card_follows_the_design() -> None:
@@ -1478,9 +1557,9 @@ def test_remote_worker_pages() -> None:
     assert 'data-action="enable-worker" data-kind="worker" data-worker="mac"' in workers
     assert 'value="local" disabled' in workers  # --no-local-worker
     assert "rpa serve --worker-port 8081" in _text(pages["workers-empty"])
-    produce = pages["workers"].split('id="sidenav"')[1].split("</nav>")[0]
-    assert 'href="/devices"' in produce
-    assert "裝置" in _text(produce)
+    cluster = pages["workers"].split('id="sidenav"')[1].split("</nav>")[0]
+    assert 'href="/devices"' in cluster
+    assert "裝置" in _text(cluster)
     # M10.1：重新邀請取代重新產生權杖；停用的裝置與沒開對外埠時不能邀請
     assert 'data-action="invite-worker" data-kind="worker" data-worker="win-01"' in workers
     assert 'data-action="invite-worker" data-kind="worker" data-worker="mac"' not in workers

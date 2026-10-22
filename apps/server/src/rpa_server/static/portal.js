@@ -3,6 +3,7 @@
 // M6 加上自由試驗場（DAG 畫布、組合場景管理與執行）；M9a 加上遠端 worker 頁與執行位置。
 // M10.1：遠端 worker 頁改為裝置頁，新增與重新邀請都產生邀請（一次性、24 小時內有效）。
 // M10.2：裝置頁也登記錄製端（/api/recorders），邀請的用法依裝置種類不同。
+// 三段分工：領域管理的上移、下移；裝置頁替錄製端打開叢集管理、管理後台的選單。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -376,6 +377,39 @@
         });
       });
     });
+    // 領域的順序（三段分工）：上移、下移立刻儲存，場景管理的領域選單照這個順序；一次存一個，送出當下的整個順序
+    const order = qs('#domain-order');
+    if (order) {
+      const rows = () => qsa('tbody tr[data-domain]', order);
+      const refresh = () => rows().forEach((row, index, all) => {
+        qs('[data-order-number]', row).textContent = String(index + 1);
+        qs('[data-direction="up"]', row).disabled = index === 0;
+        qs('[data-direction="down"]', row).disabled = index === all.length - 1;
+      });
+      let saving = Promise.resolve();
+      order.addEventListener('click', event => {
+        const button = event.target.closest('[data-action="move-domain"]');
+        if (!button || button.disabled) return;
+        const row = button.closest('tr');
+        const up = button.dataset.direction === 'up';
+        const other = up ? row.previousElementSibling : row.nextElementSibling;
+        if (!other) return;
+        if (up) other.before(row); else other.after(row);
+        refresh();
+        // 移動後焦點會掉：留在同一個按鈕，到頂或到底時換到另一個
+        (button.disabled ? qs('[data-action="move-domain"]:not(:disabled)', row) : button).focus();
+        const ids = rows().map(item => item.dataset.domain);
+        saving = saving.then(async () => {
+          const result = await api('PUT', '/api/domains/order', {ids});
+          if (!result.ok) {
+            flash(errorMessage(result));
+            location.reload();
+            return;
+          }
+          toast(messages.saved);
+        });
+      });
+    }
   }
 
   // ---------------------------------------------------------------- 資料來源與同步（M11 PR 3）
@@ -2811,6 +2845,14 @@
     qsa('[name="default-target"]').forEach(input => {
       input.addEventListener('change', async () => {
         const result = await api('PUT', '/api/settings/default-target', {target: input.value});
+        toast(result.ok ? messages.saved : errorMessage(result));
+      });
+    });
+    // 透過錄製端時另外顯示的選單（三段分工；預設不顯示叢集管理與管理後台）：勾選立刻儲存
+    qsa('[data-recorder-menus]').forEach(group => {
+      group.addEventListener('change', async () => {
+        const menus = qsa('input[name="recorder-menu"]:checked', group).map(input => input.value);
+        const result = await api('PATCH', '/api/recorders/' + path(group.dataset.recorderMenus), {menus});
         toast(result.ok ? messages.saved : errorMessage(result));
       });
     });

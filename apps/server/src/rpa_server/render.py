@@ -2,7 +2,9 @@
 
 不依賴 FastAPI：頁面路由（pages.py）只負責取資料再呼叫 :func:`render`，樣板也能單獨測試。
 版面沿用設計系統 v1.1 與 MVP 原型：頂部第一級、左側第二級選單（ADR 0006、0011）。
-「場景管理」的二級選單是領域（資料庫裡的 domains），最後是「領域管理」與「登入與憑證」（M4）。
+「場景管理」的二級選單是領域（資料庫裡的 domains，依領域管理的順序），接著是「組合場景自動化」，
+最後是「登入與憑證」。第一級選單依三段分工：伺服器本機全部顯示；透過錄製端時，叢集管理與管理後台
+只在裝置頁替那台打開時才顯示（RECORDER_MENUS）；Worker App 不載入這些頁面。
 """
 
 import json
@@ -19,7 +21,7 @@ from markupsafe import Markup, escape
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_core.workflow import Workflow
 from rpa_server import __version__
-from rpa_server.config import COMPOSITES_DOMAIN
+from rpa_server.config import COMPOSITES_DOMAIN, RECORDER_MENUS
 from rpa_server.context import via_recorder
 from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, SceneRecord
 from rpa_server.i18n import page_t, t
@@ -34,9 +36,11 @@ __all__ = [
     "badge_color",
     "domain_page",
     "js_messages",
+    "menu_shown",
     "render",
     "replay_messages",
     "run_filters",
+    "visible_nav",
     "workflow_messages",
 ]
 
@@ -95,17 +99,19 @@ NAV: Final = (
     NavGroup(
         "produce",
         "PRODUCTION",
-        "/runs",
-        (
-            NavPage("recording", "/recording"),
-            NavPage("playground", "/playground"),
-            NavPage("runs", "/runs"),
-            NavPage("replay", "/replay"),
-            NavPage("workers", "/devices"),
-        ),
+        "/recording",
+        (NavPage("recording", "/recording"), NavPage("playground", "/playground")),
     ),
+    NavGroup(
+        "operate",
+        "OPERATIONS",
+        "/runs",
+        (NavPage("runs", "/runs"), NavPage("replay", "/replay")),
+    ),
+    NavGroup("cluster", "CLUSTER", "/devices", (NavPage("workers", "/devices"),)),
+    NavGroup("admin", "ADMIN", "/domains", (NavPage("domains", "/domains"),)),
 )
-"""選單：與 MVP 原型相同的分組。"""
+"""第一級選單（2026-10-22 使用者調整）：場景管理、場景生產、場景運行、叢集管理、管理後台。"""
 
 _BADGES: Final[Mapping[str, str]] = {
     "passed": "green",
@@ -202,13 +208,30 @@ def badge_color(status: str) -> str:
 
 
 def _group_of(page: str) -> NavGroup:
-    """頁面屬於哪個第一級選單；領域頁（domain:代號）與領域管理（domains）屬於場景管理。"""
+    """頁面屬於哪個第一級選單；領域頁（domain:代號）、場景頁、組合場景與登入與憑證屬於場景管理。"""
     return next((group for group in NAV if any(p.id == page for p in group.pages)), NAV[0])
 
 
+def visible_nav() -> tuple[NavGroup, ...]:
+    """目前的請求看得到的第一級選單（三段分工）。
+
+    伺服器本機全部顯示；透過錄製端時，RECORDER_MENUS（叢集管理、管理後台）只顯示裝置頁替那台
+    打開的。只是不顯示：錄製端的權杖照樣能打開這些網址（M8 才有使用者權限）。
+    """
+    via = via_recorder()
+    if via is None:
+        return NAV
+    return tuple(group for group in NAV if group.id not in RECORDER_MENUS or group.id in via.menus)
+
+
+def menu_shown(group_id: str) -> bool:
+    """這個第一級選單目前看得到嗎；看不到時，頁面上通往它的按鈕也不顯示。"""
+    return any(group.id == group_id for group in visible_nav())
+
+
 def domain_page(domain_id: str | None) -> str:
-    """場景相關頁面在左側選單上對應的項目：所屬領域；還沒分領域時是領域管理。"""
-    return f"domain:{domain_id}" if domain_id else "domains"
+    """場景相關頁面在左側選單上對應的項目：所屬領域；還沒分領域時停在場景管理、不標示任何一項。"""
+    return f"domain:{domain_id}" if domain_id else "scenes"
 
 
 def _side_items(group: NavGroup, domains: Sequence[DomainRecord]) -> list[SideItem]:
@@ -220,9 +243,8 @@ def _side_items(group: NavGroup, domains: Sequence[DomainRecord]) -> list[SideIt
         ]
         return [
             *items,
-            SideItem("domains", t("nav.domains"), "/domains"),
-            SideItem("roles", t("nav.roles"), "/roles"),
             SideItem("composites", t("nav.composites"), "/composites"),
+            SideItem("roles", t("nav.roles"), "/roles"),
         ]
     return [SideItem(p.id, t("nav." + p.id), p.href, p.milestone) for p in group.pages]
 
@@ -450,7 +472,9 @@ _env = Environment(
 cast("dict[str, object]", _env.globals).update(
     t=page_t,
     via_recorder=via_recorder,
-    nav=NAV,
+    menu_shown=menu_shown,
+    composites_domain=COMPOSITES_DOMAIN,
+    recorder_menus=RECORDER_MENUS,
     badge_color=badge_color,
     iso=_iso,
     display_time=_display_time,
@@ -484,6 +508,7 @@ def render(
     return _env.get_template(name).render(
         page=page,
         group=group,
+        nav=visible_nav(),
         side_items=_side_items(group, domains),
         domains=domains,
         title=title,

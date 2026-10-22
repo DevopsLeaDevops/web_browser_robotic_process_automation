@@ -463,6 +463,50 @@ def test_domains_crud(client: Client) -> None:
     assert client.get("/api/domains/microsoft").status_code == 404
 
 
+def test_domains_can_be_reordered(client: Client) -> None:
+    """領域管理調整順序：場景管理的領域選單與 /scenes 的第一個領域跟著改（2026-10-22）。"""
+    for domain_id, name in (("google", "谷歌自動化"), ("microsoft", "微軟自動化"), ("lab", "實驗")):
+        assert client.post("/api/domains", json={"id": domain_id, "name": name}).status_code == 201
+
+    def order() -> list[object]:
+        return [
+            item["id"]
+            for item in cast("list[JsonObject]", body(client.get("/api/domains"))["domains"])
+        ]
+
+    response = client.put("/api/domains/order", json={"ids": ["lab", "google", "microsoft"]})
+    assert response.status_code == 200, response.text
+    reordered = body(response)
+    domains = cast("list[JsonObject]", reordered["domains"])
+    assert [(item["id"], item["position"]) for item in domains] == [
+        ("lab", 0),
+        ("google", 1),
+        ("microsoft", 2),
+    ]
+    assert order() == ["lab", "google", "microsoft"]
+    assert client.get("/scenes", follow_redirects=False).headers["location"] == "/domains/lab"
+    side = client.get("/domains/google").text.split('id="sidenav"')[1].split("</nav>")[0]
+    links = ["/domains/lab", "/domains/google", "/domains/microsoft", "/composites", "/roles"]
+    assert [side.index(f'href="{link}"') for link in links] == sorted(
+        side.index(f'href="{link}"') for link in links
+    )
+    # 和伺服器的清單不同（少了、多了、重複）：409，順序不變
+    for ids in (
+        ["lab", "google"],
+        ["lab", "google", "microsoft", "nope"],
+        ["lab", "lab", "google"],
+    ):
+        response = client.put("/api/domains/order", json={"ids": ids})
+        assert (response.status_code, error_code(response)) == (409, "domain_order_changed")
+    assert order() == ["lab", "google", "microsoft"]
+    # 新增的領域排在最後
+    assert client.post("/api/domains", json={"id": "aws", "name": "AWS"}).status_code == 201
+    assert order() == ["lab", "google", "microsoft", "aws"]
+    page = client.get("/domains").text
+    assert 'id="domain-order"' in page
+    assert page.index('data-domain="lab"') < page.index('data-domain="aws"')
+
+
 def test_scenes_belong_to_domains(client: Client) -> None:
     client.post("/api/domains", json={"id": "google", "name": "谷歌自動化"})
     client.post("/api/domains", json={"id": "microsoft", "name": "微軟自動化"})
