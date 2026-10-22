@@ -33,8 +33,8 @@
             <tr><td>命令行</td><td>click</td><td>Typer、argparse</td><td>成熟稳定、子命令与测试工具完整</td><td>M0</td></tr>
             <tr><td>后端 API</td><td>FastAPI</td><td>Django</td><td>与 DSL 共用同一套 Pydantic 模型，自动产生 OpenAPI；同一个服务也渲染管理页面<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
             <tr><td>数据库</td><td>SQLite（开发、原型）与 PostgreSQL（正式环境），SQLAlchemy 2.0 + Alembic</td><td>只用 PostgreSQL</td><td>开发不必安装数据库；正式环境需要并发写入与多个 worker；CI 两种都测<small><a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a></small></td><td>M3</td></tr>
-            <tr><td>任务队列与调度</td><td>PostgreSQL 队列（Procrastinate）；SQLite 模式在 API 进程内运行</td><td>Celery + Redis</td><td>少一个组件，原生 asyncio，支持定时任务<small><a href="../adr/0003-postgres-queue.html">ADR 0003</a></small></td><td>M9</td></tr>
-            <tr><td>产物存储</td><td>S3 兼容的对象存储（产品在 M9 前选定）</td><td>共用磁盘</td><td>多个 worker 的截图、Trace、下载文件需要集中存放；程序只依赖 S3 界面，换产品不用改代码；本机开发用本地目录。原定的 MinIO 社区版已在 2026 年 4 月停止维护</td><td>M9</td></tr>
+            <tr><td>任务队列与调度</td><td>服务器自己的运行队列（数据库的运行记录）；远程 worker 经由 Worker API（HTTP＋权杖）长轮询领取；调度在 M9</td><td>PostgreSQL 队列 Procrastinate（原 ADR 0003）、Celery + Redis</td><td>只有服务器访问数据库：worker 机器不需要数据库帐密，也不必开放数据库的网络；SQLite 与 PostgreSQL 都适用，只多标准函数库的 HTTP<small><a href="../adr/0012-remote-workers.html">ADR 0012</a></small></td><td>M3、M9a</td></tr>
+            <tr><td>产物存储</td><td>目前存在服务器的数据目录（运行目录，远程 worker 上传）；M9 改用 S3 兼容的对象存储（产品在 M9 前选定）</td><td>共用磁盘</td><td>多个 worker 的截图、录像、Trace、下载文件需要集中存放；程序只依赖 S3 界面，换产品不用改代码；本机开发用本地目录。原定的 MinIO 社区版已在 2026 年 4 月停止维护</td><td>M9</td></tr>
             <tr><td>管理界面</td><td>Jinja2 服务器端渲染 + 设计系统的 CSS 与少量 JavaScript</td><td>React + TypeScript（原 ADR 0004）、Flask</td><td>MVP 原型的页面全是卡片、表单、筛选与编排，不需要框架；整个工程只有 Python<small><a href="../adr/0011-fastapi-jinja.html">ADR 0011</a></small></td><td>M3</td></tr>
             <tr><td>界面样式</td><td>界面设计系统 v1.1</td><td>—</td><td>同事交付的视觉契约，文档站、MVP 原型与管理界面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支持多包；ruff 一个工具处理 lint 与格式化</td><td>M0</td></tr>
@@ -42,7 +42,9 @@
             <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>仓库在 GitHub；Python 3.12 / 3.13 两个版本并行测试</td><td>M0</td></tr>
             <tr><td>桌面端壳</td><td>pywebview（macOS 的 WKWebView、Windows 的 WebView2）</td><td>Electron、Tauri</td><td>界面就是服务器渲染的页面，壳只要能加载网址；不多带一个 Chromium，也不引入 Node 或 Rust<small><a href="../adr/0014-desktop-apps.html">ADR 0014</a></small></td><td>M10</td></tr>
             <tr><td>桌面端打包</td><td>PyInstaller（文件夹模式）；macOS DMG、Windows Inno Setup</td><td>Briefcase、Nuitka</td><td>最成熟、有 Playwright 的打包设置；文件夹模式启动快、较少被杀毒误判</td><td>M10</td></tr>
-            <tr><td>部署</td><td>Docker Compose</td><td>Kubernetes</td><td>起步够用，之后可以迁移</td><td>M9</td></tr>
+            <tr><td>场景存放与同步</td><td>领域文件夹（YAML 说明档＋不可变版本＋验证记录）；数据库只是索引；与 git 仓库的一个目录同步（裸仓库＋git 底层命令，git 2.25 以上）</td><td>数据库之间同步、只存在数据库</td><td>可以用 git 审阅与回溯，任何一台服务器的验证都能当发布依据；新服务器只拉需要的领域<small><a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a></small></td><td>M11</td></tr>
+            <tr><td>运行录像</td><td>Playwright 的 BrowserContext 录像（WebM VP9，Playwright 自带的 ffmpeg）；步骤记下开始、结束的实际时间；缩略图在看视频的浏览器里产生</td><td>Playwright Trace、每步截图</td><td>视频可以播放、拖曳；和步骤用同一个时钟对上；Linux 服务器不需要浏览器与 ffmpeg<small><a href="../adr/0016-run-replay.html">ADR 0016</a></small></td><td>M12</td></tr>
+            <tr><td>部署</td><td>目前：服务器从源代码一键安装（Linux 用 <code>setup-linux.sh</code>，可用 systemd 开机启动），桌面端用安装档；之后 Docker Compose</td><td>Kubernetes</td><td>起步够用，之后可以迁移</td><td>M9</td></tr>
           </tbody>
         </table>
       </div>
@@ -54,6 +56,7 @@
         <dl class="spec-list">
           <dt>Python</dt><dd>3.12 以上（CI 测 3.12 与 3.13；本机默认 3.13，见 <code>.python-version</code>）</dd>
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
+          <dt>产品版本</dt><dd>服务器、Worker、录制端与所有包同一个版本（目前 0.4.0），<code>tools/release_version.py</code> 一次改全部；见<a href="desktop.html#release-flow">桌面端分发</a></dd>
           <dt>类型检查</dt><dd>pyright strict 模式，新代码一律完整标注类型</dd>
           <dt>依赖锁定</dt><dd><code>uv.lock</code> 记录每个包的确切版本并提交到仓库；CI 以 <code>uv sync --locked</code> 安装，锁文件与 <code>pyproject.toml</code> 不一致时失败</dd>
           <dt>依赖更新</dt><dd>Dependabot 每周检查 GitHub Actions；Python 依赖由每周的 <code>uv-upgrade</code> workflow 运行 <code>uv lock --upgrade</code>、推到 <code>deps/uv-upgrade</code> 分支并开 PR（Dependabot 还不支持 uv workspace）</dd>

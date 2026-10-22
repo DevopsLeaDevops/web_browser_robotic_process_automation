@@ -9,15 +9,32 @@
 <link rel="stylesheet" href="../../assets/docs.css">
 <script defer src="../../assets/nav.js"></script>
 <script defer src="../../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .note { fill: #eef6ff; stroke: #cfe1f5; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; fill: #315b89; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .link.back { stroke-dasharray: 5 4; }
+  .arch .life { stroke: #c9d6e5; stroke-dasharray: 4 4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+  .arch .step { font-size: 11px; font-weight: 650; fill: #147fe6; }
+</style>
 </head>
 <body data-page="desktop" data-root="../">
 <main id="main">
   <div class="heading">
     <div>
       <h1>桌面端分发</h1>
-      <p>M10：服务器与数据库部署在一台电脑，录制者与运行机各装一个桌面 App，粘贴邀请就能用。App 的窗口沿用服务器现有的页面；录制、逐步调试、人工登录的浏览器开在操作的那台电脑。决策见 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
+      <p>M10：服务器与数据库部署在一台电脑（可以是没有屏幕的 Linux），录制者与运行机各装一个桌面 App，粘贴邀请就能用。App 的窗口沿用服务器现有的页面；录制、逐步调试、人工登录的浏览器开在操作的那台电脑。决策见 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
     </div>
-    <span class="badge amber">M10 开发中</span>
+    <span class="badge green">M10.0～M10.2 已完成（v0.4.0）</span>
   </div>
 
   <div class="stack">
@@ -27,9 +44,9 @@
         <table class="wrap">
           <thead><tr><th>组件</th><th>macOS</th><th>Windows</th><th>说明</th></tr></thead>
           <tbody>
-            <tr><td>RPA 录制端</td><td><span class="badge blue">M10 交付</span></td><td><span class="badge">保留方案</span></td><td>录制、逐步调试、人工登录，以及 Portal 的其他功能；Apple 芯片（arm64）</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge blue">M10 交付</span></td><td>运行场景（含有头模式）；Windows x64</td></tr>
-            <tr><td>服务器（rpa serve）</td><td colspan="2"><span class="badge">保留方案</span>：维持 <code>uv run rpa serve</code></td><td>MVP 先放在用户自己的电脑，调试好后搬到正式环境</td></tr>
+            <tr><td>RPA 录制端</td><td><span class="badge green">已交付</span>（v0.3.0 起）</td><td><span class="badge">保留方案</span></td><td>录制、逐步调试、人工登录，以及 Portal 的其他功能；Apple 芯片（arm64）</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>运行场景（含有头模式、录像）；Windows x64</td></tr>
+            <tr><td>服务器（rpa serve）</td><td colspan="2"><span class="badge">不打包</span>：从源代码安装，一键安装脚本；Linux（RHEL 衍生版）用 <code>scripts/setup-linux.sh</code>，可用 systemd 开机启动</td><td>先在用户自己的电脑调试；现在也放在没有屏幕的 Linux 主机（见<a href="../develop/operations.html">部署与操作</a>）</td></tr>
             <tr><td>数据库</td><td colspan="2"><span class="badge">不另做二进位</span></td><td>SQLite 内嵌在服务器里；正式环境的 PostgreSQL 用官方安装包或 Docker（M8、M9）</td></tr>
           </tbody>
         </table>
@@ -73,26 +90,134 @@
     <section class="panel" id="architecture">
       <div class="panel-header"><h2>架构</h2><span class="muted">服务器只多了对外端口上的两种用途</span></div>
       <div class="panel-body">
-<pre class="source">服务器那台（MVP：用户自己的电脑，uv run rpa serve --worker-port 8081）
-┌──────────────────────────────────────────────────────────────┐
-│ 127.0.0.1:8080  Portal 页面＋/api（照旧，只限本机）                │
-│ 0.0.0.0:8081    对外端口                                            │
-│   /worker-api/v1  Worker API（照旧，worker 权杖）                  │
-│   /client-api/v1  新：配对、录制端的交互子进程通道                  │
-│   其他路径         新：Portal 页面＋/api，只接受录制端的设备权杖      │
-│ SQLite、data/（照旧）                                              │
-└──────────────────────────────────────────────────────────────┘
-          ▲ 设备权杖                                ▲ worker 权杖
-┌─────────┴──────────────────────┐   ┌─────────┴───────────────────┐
-│ RPA 录制端（macOS）               │   │ RPA Worker（Windows）          │
-│ 窗口：WKWebView                   │   │ 状态窗口：WebView2＋通知区图标   │
-│  → 本机闸道 127.0.0.1:随机端口       │   │ 内部就是现有的 RemoteWorker     │
-│    加上权杖转给服务器 8081          │   │ runner 子进程（照旧）           │
-│ 交互主机：录制／调试／人工登录的     │   │ 本机测试网站 127.0.0.1:8765     │
-│  子进程在这台以有头模式运行          │   └─────────────────────────────┘
-└────────────────────────────────┘</pre>
-        <p class="diagram-caption">只有服务器访问数据库（ADR 0008、ADR 0012 不变）。两个 App 都主动连服务器；服务器不需要连到它们。</p>
+      
+<div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 424" role="img" aria-labelledby="dep-title dep-desc">
+          <title id="dep-title">桌面端的部署与连接</title>
+          <desc id="dep-desc">录制端 App 的窗口只加载本机闸道，闸道加上设备权杖转给服务器的对外端口；交互主机以长轮询向 Client API 取指令，在这台启动录制、调试、人工登录与登录检查的子进程，先上传文件再传回输出。Worker App 的服务循环以 worker 权杖向 Worker API 长轮询领取任务、心跳、上传运行目录。服务器的对外端口依路径分流，127.0.0.1:8080 照旧只给本机。</desc>
+          <defs>
+            <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="frame" x="16" y="16" width="296" height="396" rx="10"/>
+          <text class="frame-label" x="28" y="34">录制者的 Mac：RPA 录制端 App</text>
+          <rect class="box" x="30" y="44" width="268" height="62" rx="8"/>
+          <text class="title" x="44" y="66">App 窗口（WKWebView）</text>
+          <text class="sub" x="44" y="86">只加载本机闸道的网址；看到的就是 Portal</text>
+          <rect class="box key" x="30" y="126" width="268" height="78" rx="8"/>
+          <text class="title" x="44" y="148">本机闸道 127.0.0.1:随机端口</text>
+          <text class="sub" x="44" y="168">要有启动时发的密语 Cookie 才转送</text>
+          <text class="sub" x="44" y="186">加上设备权杖（钥匙圈）转给服务器</text>
+          <rect class="box key" x="30" y="224" width="268" height="78" rx="8"/>
+          <text class="title" x="44" y="246">交互主机</text>
+          <text class="sub" x="44" y="266">长轮询 /control 取得启动、送一行、结束</text>
+          <text class="sub" x="44" y="284">先上传新文件，再传回那一行输出</text>
+          <rect class="box" x="30" y="322" width="268" height="76" rx="8"/>
+          <text class="title" x="44" y="344">子进程＋浏览器（在这台）</text>
+          <text class="sub" x="44" y="364">录制、逐步调试、人工登录、登录检查</text>
+          <text class="sub" x="44" y="382">暂存文件夹用完就删</text>
+          <path class="link" d="M164 108V124" marker-end="url(#dep-arrow)"/>
+          <path class="link" d="M164 304V320" marker-end="url(#dep-arrow)"/>
+          <rect class="frame" x="380" y="16" width="240" height="396" rx="10"/>
+          <text class="frame-label" x="392" y="34">服务器（rpa serve）</text>
+          <rect class="box" x="394" y="44" width="212" height="62" rx="8"/>
+          <text class="title" x="408" y="66">127.0.0.1:8080</text>
+          <text class="sub" x="408" y="86">Portal＋/api，只限本机（照旧）</text>
+          <rect class="box key" x="394" y="126" width="212" height="176" rx="8"/>
+          <text class="title" x="408" y="148">对外端口 0.0.0.0:8081</text>
+          <text class="sub" x="408" y="168">依路径分流、检查权杖</text>
+          <text class="mono" x="408" y="190">/client-api/v1/*</text>
+          <text class="sub" x="408" y="207">配对用邀请代码；其他用录制端权杖</text>
+          <text class="mono" x="408" y="224">/worker-api/v1/*</text>
+          <text class="sub" x="408" y="241">worker 权杖</text>
+          <text class="mono" x="408" y="258">其他路径</text>
+          <text class="sub" x="408" y="275">Portal 与 /api：录制端权杖，否则 401</text>
+          <rect class="box" x="394" y="322" width="212" height="76" rx="8"/>
+          <text class="title" x="408" y="344">RecorderHub、WorkerHub</text>
+          <text class="sub" x="408" y="364">交互子进程的指令队列与输出</text>
+          <text class="sub" x="408" y="382">任务的领取、租约与取消</text>
+          <path class="link" d="M500 304V320" marker-end="url(#dep-arrow)"/>
+          <rect class="frame" x="688" y="16" width="296" height="396" rx="10"/>
+          <text class="frame-label" x="700" y="34">运行机：RPA Worker App（Windows）</text>
+          <rect class="box" x="702" y="44" width="268" height="62" rx="8"/>
+          <text class="title" x="716" y="66">状态窗口（WebView2）＋通知区</text>
+          <text class="sub" x="716" y="86">配对、下载浏览器、目前运行、设置</text>
+          <rect class="box key" x="702" y="126" width="268" height="78" rx="8"/>
+          <text class="title" x="716" y="148">服务循环（同 rpa worker）</text>
+          <text class="sub" x="716" y="168">长轮询领取任务，每 5 秒心跳</text>
+          <text class="sub" x="716" y="186">结束后上传整个运行目录</text>
+          <rect class="box" x="702" y="224" width="268" height="78" rx="8"/>
+          <text class="title" x="716" y="246">runner 子进程＋浏览器</text>
+          <text class="sub" x="716" y="266">有头或无头；Chromium、Firefox</text>
+          <text class="sub" x="716" y="284">自动化阶段录像（M12）</text>
+          <rect class="box" x="702" y="322" width="268" height="76" rx="8"/>
+          <text class="title" x="716" y="344">本机测试网站 127.0.0.1:8765</text>
+          <text class="sub" x="716" y="364">示例场景用；--no-testsite 关掉</text>
+          <path class="link" d="M836 108V124" marker-start="url(#dep-arrow)"/>
+          <path class="link" d="M836 206V222" marker-end="url(#dep-arrow)"/>
+          <path class="link" d="M300 160H392" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="318" y="152">设备权杖</text>
+          <path class="link" d="M300 262H392" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="318" y="254">长轮询</text>
+          <path class="link" d="M700 160H608" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="626" y="152">worker 权杖</text>
+        </svg>
       </div>
+        <p class="diagram-caption">蓝框是 M10 添加或改动最多的部分。只有服务器访问数据库（ADR 0008、ADR 0012 不变）；两个 App 都主动连服务器，服务器不需要连到它们。闸道不转送 <code>/client-api/</code> 与 <code>/worker-api/</code>，网页拿不到权杖。服务器没有浏览器时，「检查」登录状态交给录制端，人工登录也在开窗口的那台确认（#50）。整体部署见<a href="architecture.html#current">系统架构</a>。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="pairing-flow">
+      <div class="panel-header"><h2>配对与上线</h2><span class="muted">两个 App 相同；邀请贴错 App 会被拒绝</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="pair-title pair-desc">
+          <title id="pair-title">配对与上线</title>
+          <desc id="pair-desc">在 Portal 的设备页产生一次性邀请，贴到 App；App 用邀请换到设备权杖并存进系统的钥匙圈或认证管理员，下载浏览器后上线并回报版本、浏览器与看得懂的 DSL 扩充。</desc>
+          <defs>
+            <marker id="pair-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="12" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="26" y="42">1</text>
+          <text class="title" x="40" y="42">产生邀请</text>
+          <text class="sub" x="26" y="64">Portal「设备」页</text>
+          <text class="sub" x="26" y="82">一次性、24 小时有效</text>
+          <text class="sub" x="26" y="100">限定 App 种类</text>
+          <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="223" y="42">2</text>
+          <text class="title" x="237" y="42">贴到 App</text>
+          <text class="mono" x="223" y="64">rpa://pair?server=…</text>
+          <text class="mono" x="223" y="82">&amp;app=…&amp;code=…</text>
+          <text class="sub" x="223" y="100">也可以分开填网址与代码</text>
+          <path class="link" d="M193 76H207" marker-end="url(#pair-arrow)"/>
+          <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="420" y="42">3</text>
+          <text class="title" x="434" y="42">换到权杖</text>
+          <text class="mono" x="420" y="64">POST …/pair</text>
+          <text class="sub" x="420" y="82">服务器只存哈希</text>
+          <text class="sub" x="420" y="100">App 种类不符就拒绝</text>
+          <path class="link" d="M390 76H404" marker-end="url(#pair-arrow)"/>
+          <rect class="box" x="603" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="617" y="42">4</text>
+          <text class="title" x="631" y="42">安全保存</text>
+          <text class="sub" x="617" y="64">macOS 钥匙圈</text>
+          <text class="sub" x="617" y="82">Windows 认证管理员</text>
+          <text class="sub" x="617" y="100">权杖不进网页</text>
+          <path class="link" d="M587 76H601" marker-end="url(#pair-arrow)"/>
+          <rect class="box" x="800" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="814" y="42">5</text>
+          <text class="title" x="828" y="42">下载浏览器、上线</text>
+          <text class="sub" x="814" y="64">App 内附的 driver 下载</text>
+          <text class="sub" x="814" y="82">hello 回报版本、浏览器</text>
+          <text class="sub" x="814" y="100">与看得懂的 DSL 扩充</text>
+          <path class="link" d="M784 76H798" marker-end="url(#pair-arrow)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">第 3 步换到权杖之后，App 每次启动直接用保存的权杖上线（第 5 步的 hello）。重新邀请、禁用或删除设备，旧权杖立刻失效。</div>
     </section>
 
     <div class="two-col">
@@ -123,7 +248,62 @@
     </div>
 
     <section class="panel" id="interactive">
-      <div class="panel-header"><h2>交互子进程：浏览器开在操作的那台</h2><span class="muted">M10.2；录制、逐步调试、人工登录</span></div>
+      <div class="panel-header"><h2>交互子进程：浏览器开在操作的那台</h2><span class="muted">M10.2；录制、逐步调试、人工登录、登录检查</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 452" role="img" aria-labelledby="seq-title seq-desc">
+          <title id="seq-title">录制时的一来一回</title>
+          <desc id="seq-desc">在录制端窗口按开始录制，请求经闸道加上权杖到服务器；服务器认出是这台录制端，把启动指令放进队列；交互主机长轮询取得指令，在本机启动子进程，浏览器开在这台；子进程每输出一行，交互主机先上传新文件再传回那一行；服务器解析事件，把录制稿转成 DSL 草稿；窗口轮询看到结果。</desc>
+          <defs>
+            <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="8" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="90" y="28" text-anchor="middle">录制端窗口</text>
+          <text class="sub" x="90" y="46" text-anchor="middle">WKWebView</text>
+          <path class="life" d="M90 56V444"/>
+          <rect class="box key" x="198" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="280" y="28" text-anchor="middle">本机闸道</text>
+          <text class="sub" x="280" y="46" text-anchor="middle">App 内</text>
+          <path class="life" d="M280 56V444"/>
+          <rect class="box" x="418" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="500" y="28" text-anchor="middle">服务器</text>
+          <text class="sub" x="500" y="46" text-anchor="middle">rpa serve</text>
+          <path class="life" d="M500 56V444"/>
+          <rect class="box key" x="638" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="720" y="28" text-anchor="middle">交互主机</text>
+          <text class="sub" x="720" y="46" text-anchor="middle">App 内</text>
+          <path class="life" d="M720 56V444"/>
+          <rect class="box ext" x="828" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="910" y="28" text-anchor="middle">子进程</text>
+          <text class="sub" x="910" y="46" text-anchor="middle">浏览器开在 Mac</text>
+          <path class="life" d="M910 56V444"/>
+          <path class="link" d="M92 86H278" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="100" y="80">按「开始录制」</text>
+          <path class="link" d="M282 118H498" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="290" y="112">加上设备权杖转送</text>
+          <rect class="note" x="404" y="128" width="192" height="26" rx="5"/>
+          <text class="sub" x="500" y="145" text-anchor="middle">认出录制端，把「启动」放进队列</text>
+          <path class="link" d="M718 184H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="178">POST /control（长轮询）</text>
+          <path class="link back" d="M502 214H718" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="208">启动 rpa_runner.record＋文件</text>
+          <path class="link" d="M722 246H908" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="730" y="240">写出文件、启动</text>
+          <path class="link back" d="M908 278H722" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="730" y="272">标准输出一行（事件）</text>
+          <path class="link" d="M718 310H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="304">PUT …/files：新文件先到</text>
+          <path class="link" d="M718 342H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="336">POST …/output：再送这一行</text>
+          <rect class="note" x="404" y="352" width="192" height="26" rx="5"/>
+          <text class="sub" x="500" y="369" text-anchor="middle">录制稿转 DSL、遮罩密码、存草稿</text>
+          <path class="link back" d="M92 416H498" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="100" y="410">轮询进度（经由闸道），看到新草稿</text>
+        </svg>
+      </div>
+      <div class="diagram-caption">以录制为例；逐步调试（送一行「运行第 3 步」）、人工登录、登录检查走同一条路。实线是请求，虚线是回应或经由闸道。</div>
       <div class="panel-body prose">
         <p><strong>「这台电脑」改成指「你正在操作的那台」。</strong>请求从录制端进来，子进程就交给那台录制端；从服务器本机的浏览器（8080）进来，照旧在服务器运行。页面不多一个选项。</p>
         <ul>
@@ -193,6 +373,57 @@
       </div>
     </section>
 
+    <section class="panel" id="release-flow">
+      <div class="panel-header"><h2>从源代码到安装档</h2><span class="muted">目前 v0.4.0（2026-10-21 06:10 PDT 发布）；之前 v0.3.0、v0.2.0</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="rel-title rel-desc">
+          <title id="rel-title">从源代码到安装档</title>
+          <desc id="rel-desc">在功能分支用 release_version.py 统一版本，PR 合并后在 main 打标签，发布流程确认版本、建置两个 App 并跑端到端，产生草稿 Release，由维护者确认后发布；App 的「下载新版」连到最新的 Release。</desc>
+          <defs>
+            <marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="12" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="26" y="42">1</text>
+          <text class="title" x="40" y="42">统一版本</text>
+          <text class="mono" x="26" y="64">release_version.py</text>
+          <text class="mono" x="26" y="82">bump 0.4.0</text>
+          <text class="sub" x="26" y="100">全部包与 uv.lock</text>
+          <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="223" y="42">2</text>
+          <text class="title" x="237" y="42">PR 合并</text>
+          <text class="sub" x="223" y="64">CI：测试、安装脚本</text>
+          <text class="sub" x="223" y="82">桌面端建置与自我测试</text>
+          <text class="sub" x="223" y="100">用户审阅、合并</text>
+          <path class="link" d="M193 76H207" marker-end="url(#rel-arrow)"/>
+          <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="420" y="42">3</text>
+          <text class="title" x="434" y="42">打标签</text>
+          <text class="mono" x="420" y="64">v0.4.0</text>
+          <text class="sub" x="420" y="82">必须在 main 上</text>
+          <text class="sub" x="420" y="100">和包版本一致</text>
+          <path class="link" d="M390 76H404" marker-end="url(#rel-arrow)"/>
+          <rect class="box key" x="603" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="617" y="42">4</text>
+          <text class="title" x="631" y="42">发布流程</text>
+          <text class="sub" x="617" y="64">建置 DMG、安装档、zip</text>
+          <text class="sub" x="617" y="82">安装→运行→升级→移除</text>
+          <text class="sub" x="617" y="100">产生草稿 Release</text>
+          <path class="link" d="M587 76H601" marker-end="url(#rel-arrow)"/>
+          <rect class="box" x="800" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="814" y="42">5</text>
+          <text class="title" x="828" y="42">维护者发布</text>
+          <text class="sub" x="814" y="64">确认文件与 SHA256SUMS</text>
+          <text class="sub" x="814" y="82">App 的「下载新版」</text>
+          <text class="sub" x="814" y="100">连到最新的 Release</text>
+          <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">服务器不打包，用同一个版本的源代码更新。v0.4.0 的已知问题（回看视频比例、录像对时）写在 Release 说明与任务记录。</div>
+    </section>
+
     <div class="two-col">
       <section class="panel" id="installer">
         <div class="panel-header"><h2>Worker 的安装档</h2><span class="muted">M10.1，Inno Setup 6.7</span></div>
@@ -253,15 +484,16 @@
       <div class="panel-header"><h2>分期与验收</h2><span class="muted">先 Worker 再录制端：Worker 几乎全是沿用，先把打包、安装、配对走通</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>阶段</th><th>内容</th><th>验收</th></tr></thead>
+          <thead><tr><th>阶段</th><th>内容</th><th>验收</th><th>状态（2026-10-21）</th></tr></thead>
           <tbody>
-            <tr><td><span class="milestone">M10.0</span></td><td>打包地基：子进程命令集中、建置信息、rpa-desktop 骨架与打包后的入口、两个 App 的 PyInstaller 设置、CI 建置与自我测试</td><td>macOS 的录制端与 Windows 的 Worker 打包版在 CI 跑通 BA-001；开发环境的测试全部照旧通过</td></tr>
-            <tr><td><span class="milestone">M10.1</span></td><td>Windows Worker：设备页与邀请、Client API 的配对、状态窗口、通知区、自动启动、下载浏览器、安装档；M9a 剩下的三项</td><td>在没装过开发工具的 Windows 上：安装 → 贴邀请 → 下载浏览器 → 以有头模式跑 BA-001 → BA-002，报告回到 Portal；重开机登录后自动上线</td></tr>
-            <tr><td><span class="milestone">M10.2</span></td><td>macOS 录制端：本机闸道、对外端口上的 Portal 与访问控制、DeviceHost（录制 → 人工登录 → 逐步调试）、DMG</td><td>在 Mac 上录一段（浏览器开在 Mac）→ 草稿 → 逐步调试 → 人工登录角色 → 交给 Windows Worker 验证 → 发布；没配对的电脑打开 8081 看不到管理页面</td></tr>
-            <tr><td><span class="milestone">M10.3</span></td><td>文档与验收：桌面端安装说明、管理 Portal 的手动验收、路线图</td><td>文档检查通过；两机手动验收记录</td></tr>
+            <tr><td><span class="milestone">M10.0</span></td><td>打包地基：子进程命令集中、建置信息、rpa-desktop 骨架与打包后的入口、两个 App 的 PyInstaller 设置、CI 建置与自我测试</td><td>macOS 的录制端与 Windows 的 Worker 打包版在 CI 跑通 BA-001；开发环境的测试全部照旧通过</td><td><span class="badge green">已完成</span> #30</td></tr>
+            <tr><td><span class="milestone">M10.1</span></td><td>Windows Worker：设备页与邀请、Client API 的配对、状态窗口、通知区、自动启动、下载浏览器、安装档；M9a 剩下的三项</td><td>在没装过开发工具的 Windows 上：安装 → 贴邀请 → 下载浏览器 → 以有头模式跑 BA-001 → BA-002，报告回到 Portal；重开机登录后自动上线</td><td><span class="badge green">已完成</span> #31～#34，v0.2.0；人工验收：整体流程通过，细节验收中</td></tr>
+            <tr><td><span class="milestone">M10.2</span></td><td>macOS 录制端：本机闸道、对外端口上的 Portal 与访问控制、DeviceHost（录制 → 人工登录 → 逐步调试）、DMG</td><td>在 Mac 上录一段（浏览器开在 Mac）→ 草稿 → 逐步调试 → 人工登录角色 → 交给 Windows Worker 验证 → 发布；没配对的电脑打开 8081 看不到管理页面</td><td><span class="badge green">已完成</span> #36～#39、#43，v0.3.0；人工验收：整体流程通过，细节验收中</td></tr>
+            <tr><td><span class="milestone">M10.3</span></td><td>文档与验收：桌面端安装说明、管理 Portal 的手动验收、路线图</td><td>文档检查通过；两机手动验收记录</td><td><span class="badge amber">进行中</span> 部署与操作（#41）已合并；手动验收记录未回填</td></tr>
           </tbody>
         </table>
       </div>
+      <div class="panel-body"><p class="muted">M10.2 之后和桌面端有关的修改：服务器没有浏览器时「检查」交给录制端、人工登录在开窗口的那台确认、看得懂的登录错误（#50）；人工登录的 Firefox 在背景不再停住（#51）；App 回报看得懂的 DSL 扩充，旧 App 拿不到用了新写法的场景（M7a，#62）；Worker 录像，Windows 上取消时先只结束浏览器，让视频写完（M12，#61）。</p></div>
     </section>
 
     <div class="two-col">
