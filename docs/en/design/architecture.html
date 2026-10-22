@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:b3c3348fd4c6c221">
+<meta name="translation-source" content="sha256:b4c6fa7844d0f093">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -20,6 +20,8 @@
   .arch .sub { font-size: 11.5px; fill: #64758b; }
   .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
   .arch .label { font-size: 11px; fill: #4776a2; }
+  .arch .link.opt { stroke-dasharray: 5 4; }
+  .arch .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; fill: #315b89; }
 </style>
 </head>
 <body data-page="architecture" data-root="../">
@@ -27,17 +29,124 @@
   <div class="heading">
     <div>
       <h1>Architecture</h1>
-      <p>Components, data flow and directory layout. The whole platform is deployed on the intranet, and workers connect directly to the target systems.</p>
+      <p>Components, data flow and directory layout. The whole platform is deployed on the intranet: the server keeps scenarios and records, the two desktop apps (Recorder and Worker) connect to the server, and the browsers on their computers drive the target systems directly. This page reflects v0.4.0 (2026-10-21).</p>
     </div>
   </div>
 
   <div class="stack">
-    <section class="panel">
-      <div class="panel-header"><h2>Components</h2><span class="muted">As it will look after M9</span></div>
+    <section class="panel" id="current">
+      <div class="panel-header"><h2>Current deployment</h2><span class="muted">v0.4.0: one server + Recorder (macOS) + Worker (Windows)</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 560" role="img" aria-labelledby="now-title now-desc">
+          <title id="now-title">Current deployment</title>
+          <desc id="now-desc">The server runs rpa serve: 127.0.0.1:8080 for the browser on the server itself, 0.0.0.0:8081 as the external port for paired devices. The API service reads and writes the data directory (domain folders, the SQLite index, run directories), and domains can sync with a git repository. The Recorder app on macOS and the Worker app on Windows both connect to the external port. Browsers for recording, step debugging, manual login and login checks open on the Recorder; browsers for runs open on the Worker; both drive the internal target systems directly. A server with a browser can also run jobs itself.</desc>
+          <defs>
+            <marker id="arrow-now" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <!-- Target systems -->
+          <rect class="box ext" x="16" y="12" width="968" height="48" rx="8"/>
+          <text class="title" x="32" y="34">Internal target systems (business websites)</text>
+          <text class="sub" x="32" y="52">Reached by the browsers on the Recorder, the Worker (or the server's local worker); the server's API never connects to them</text>
+
+          <!-- Recorder -->
+          <rect class="frame" x="16" y="92" width="212" height="308" rx="10"/>
+          <text class="frame-label" x="28" y="110">Recorder's computer (macOS)</text>
+          <rect class="box" x="30" y="120" width="184" height="96" rx="8"/>
+          <text class="title" x="44" y="144">Interactive processes</text>
+          <text class="sub" x="44" y="164">Recording (codegen)</text>
+          <text class="sub" x="44" y="182">Step debugging, manual login</text>
+          <text class="sub" x="44" y="200">Login checks; windows here</text>
+          <rect class="box key" x="30" y="256" width="184" height="124" rx="8"/>
+          <text class="title" x="44" y="280">RPA Recorder app</text>
+          <text class="sub" x="44" y="302">Window loads portal pages</text>
+          <text class="sub" x="44" y="320">Local gateway adds token</text>
+          <text class="sub" x="44" y="338">Starts processes for the</text>
+          <text class="sub" x="44" y="356">server, returns output, files</text>
+          <path class="link" d="M122 254V218" marker-end="url(#arrow-now)"/>
+          <path class="link" d="M206 118V62" marker-end="url(#arrow-now)"/>
+
+          <!-- Server -->
+          <rect class="frame" x="284" y="92" width="432" height="378" rx="10"/>
+          <text class="frame-label" x="296" y="110">Server (rpa serve)</text>
+          <rect class="box" x="300" y="120" width="192" height="80" rx="8"/>
+          <text class="title" x="314" y="144">Portal pages + /api</text>
+          <text class="mono" x="314" y="164">127.0.0.1:8080</text>
+          <text class="sub" x="314" y="184">For the server's own browser</text>
+          <rect class="box" x="508" y="120" width="192" height="80" rx="8"/>
+          <text class="title" x="522" y="144">Local worker (optional)</text>
+          <text class="sub" x="522" y="164">Only if it has a browser</text>
+          <text class="mono" x="522" y="184">--no-local-worker</text>
+          <path class="link opt" d="M604 118V62" marker-end="url(#arrow-now)"/>
+
+          <rect class="box key" x="300" y="218" width="400" height="84" rx="8"/>
+          <text class="title" x="314" y="240">External port 0.0.0.0:8081 (HTTP + tokens)</text>
+          <text class="mono" x="314" y="260">/client-api/v1</text>
+          <text class="sub" x="420" y="260">Pairing; commands, output, files</text>
+          <text class="mono" x="314" y="276">/worker-api/v1</text>
+          <text class="sub" x="420" y="276">Claim, heartbeat, cancel, upload</text>
+          <text class="mono" x="314" y="292">other paths</text>
+          <text class="sub" x="420" y="292">Portal and /api, paired Recorders only</text>
+
+          <rect class="box key" x="300" y="322" width="192" height="130" rx="8"/>
+          <text class="title" x="314" y="346">API service</text>
+          <text class="sub" x="314" y="366">FastAPI + Jinja pages</text>
+          <text class="sub" x="314" y="384">Revisions, gate, run queue</text>
+          <text class="sub" x="314" y="402">Devices, invitations (M10)</text>
+          <text class="sub" x="314" y="420">Domains, git sync (M11)</text>
+          <text class="sub" x="314" y="438">Replay, video retention (M12)</text>
+          <rect class="box" x="508" y="322" width="192" height="130" rx="8"/>
+          <text class="title" x="522" y="346">Data directory</text>
+          <text class="sub" x="522" y="366">domains/ (source of truth)</text>
+          <text class="sub" x="522" y="384">rpa.db: SQLite index, state</text>
+          <text class="sub" x="522" y="402">runs/ reports, videos</text>
+          <text class="sub" x="522" y="420">roles/ login states</text>
+          <text class="sub" x="522" y="438">secrets.json (never in git)</text>
+          <path class="link" d="M400 304V320" marker-end="url(#arrow-now)"/>
+          <path class="link" d="M494 387H506" marker-start="url(#arrow-now)" marker-end="url(#arrow-now)"/>
+
+          <!-- Worker -->
+          <rect class="frame" x="772" y="92" width="212" height="308" rx="10"/>
+          <text class="frame-label" x="784" y="110">Runner machine (Windows)</text>
+          <rect class="box" x="786" y="120" width="184" height="96" rx="8"/>
+          <text class="title" x="800" y="144">Runner process</text>
+          <text class="sub" x="800" y="164">Chromium or Firefox</text>
+          <text class="sub" x="800" y="182">Headed or headless</text>
+          <text class="sub" x="800" y="200">Records the run (M12)</text>
+          <rect class="box key" x="786" y="256" width="184" height="124" rx="8"/>
+          <text class="title" x="800" y="280">RPA Worker app</text>
+          <text class="sub" x="800" y="302">Long-polls for jobs</text>
+          <text class="sub" x="800" y="320">Heartbeat every 5 s, cancel</text>
+          <text class="sub" x="800" y="338">Uploads the run directory</text>
+          <text class="sub" x="800" y="356">Tray icon, starts at sign-in</text>
+          <path class="link" d="M878 254V218" marker-end="url(#arrow-now)"/>
+          <path class="link" d="M952 118V62" marker-end="url(#arrow-now)"/>
+
+          <!-- Both apps connect to the external port -->
+          <path class="link" d="M216 282H298" marker-end="url(#arrow-now)"/>
+          <text class="label" x="236" y="274">token</text>
+          <path class="link" d="M784 282H702" marker-end="url(#arrow-now)"/>
+          <text class="label" x="728" y="274">token</text>
+
+          <!-- git -->
+          <rect class="box ext" x="300" y="494" width="400" height="56" rx="8"/>
+          <text class="title" x="314" y="516">Git repository (one folder per domain)</text>
+          <text class="sub" x="314" y="536">Public, HTTPS token or an SSH deploy key made by the portal; never force-pushes</text>
+          <path class="link opt" d="M604 454V492" marker-start="url(#arrow-now)" marker-end="url(#arrow-now)"/>
+          <text class="label" x="612" y="478">pull, push (optional)</text>
+        </svg>
+      </div>
+      <div class="diagram-caption">Blue borders mark the core components; gray boxes are external systems; dashed lines are optional. Every connection is opened by an app, so the server never needs to reach them, and only the server touches the database and the data directory; the server can be Linux, macOS or Windows and needs no screen. The Recorder uses a device token and the Worker a worker token; over HTTP the tokens travel in plain text, so use a trusted network only. When the server has no browser (for example a Linux host), login checks run on the Recorder. Installation: <a href="../develop/operations.html">Deployment and operations</a>, <a href="desktop.html">Desktop distribution</a>.</div>
+    </section>
+
+    <section class="panel" id="target">
+      <div class="panel-header"><h2>Target picture</h2><span class="muted">After M5, M8 and M9; not built yet</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 400" role="img" aria-labelledby="arch-title arch-desc">
           <title id="arch-title">System components</title>
-          <desc id="arch-desc">Users call the API service through the management portal (rendered by the API service with Jinja) or the CLI; the API reads and writes PostgreSQL and calls an LLM to generate scenarios; the scheduler creates tasks; workers connect to PostgreSQL and fetch tasks themselves (the database never calls a worker), drive the internal target systems with Playwright, and store artifacts in object storage.</desc>
+          <desc id="arch-desc">Users call the API service through the management portal (rendered by the API service with Jinja, or shown in the Recorder app) or the CLI; the API reads and writes PostgreSQL and the domain folders and calls an LLM to generate scenario drafts; the scheduler creates tasks; workers claim tasks themselves through the Worker API (only the server touches the database), drive the internal target systems with Playwright, and store artifacts in object storage.</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -49,12 +158,12 @@
           <text class="frame-label" x="28" y="60">Clients</text>
           <rect class="box" x="32" y="76" width="160" height="60" rx="8"/>
           <text class="title" x="46" y="100">Management portal</text>
-          <text class="sub" x="46" y="120">FastAPI + Jinja pages</text>
+          <text class="sub" x="46" y="120">Browser or Recorder app</text>
           <rect class="box" x="32" y="160" width="160" height="92" rx="8"/>
           <text class="title" x="46" y="184">CLI (rpa)</text>
-          <text class="sub" x="46" y="204">Validate, run, push</text>
+          <text class="sub" x="46" y="204">validate, run, pack check</text>
           <text class="sub" x="46" y="224">rpa record (local)</text>
-          <text class="sub" x="46" y="242">rpa generate (AI)</text>
+          <text class="sub" x="46" y="242">rpa generate (AI, M5)</text>
 
           <!-- Platform -->
           <rect class="frame" x="240" y="24" width="536" height="356" rx="10"/>
@@ -62,11 +171,11 @@
 
           <rect class="box key" x="264" y="64" width="216" height="168" rx="8"/>
           <text class="title" x="280" y="90">API service (FastAPI)</text>
-          <text class="sub" x="280" y="116">Auth, permissions, auditing</text>
-          <text class="sub" x="280" y="140">Scenarios and versions</text>
-          <text class="sub" x="280" y="164">AI generation and validation</text>
-          <text class="sub" x="280" y="188">Runs and artifacts</text>
-          <text class="sub" x="280" y="212">Encrypted secrets</text>
+          <text class="sub" x="280" y="116">Auth, permissions, audit (M8)</text>
+          <text class="sub" x="280" y="140">Domains, revisions, gate</text>
+          <text class="sub" x="280" y="164">AI drafts (M5)</text>
+          <text class="sub" x="280" y="188">Worker API, Client API</text>
+          <text class="sub" x="280" y="212">Encrypted secrets (M8)</text>
 
           <rect class="box" x="264" y="272" width="216" height="72" rx="8"/>
           <text class="title" x="280" y="298">Scheduler</text>
@@ -74,16 +183,16 @@
 
           <rect class="box" x="520" y="64" width="232" height="96" rx="8"/>
           <text class="title" x="536" y="90">PostgreSQL</text>
-          <text class="sub" x="536" y="114">Scenarios, versions, users, runs</text>
-          <text class="sub" x="536" y="138">Task queue (Procrastinate)</text>
+          <text class="sub" x="536" y="114">Index of domain folders, users</text>
+          <text class="sub" x="536" y="138">Runs and the task queue</text>
 
           <rect class="box key" x="520" y="196" width="232" height="72" rx="8"/>
           <text class="title" x="536" y="222">Worker × N</text>
-          <text class="sub" x="536" y="244">Runner + Playwright (Chromium)</text>
+          <text class="sub" x="536" y="244">Desktop app; Chromium, Firefox</text>
 
           <rect class="box" x="520" y="304" width="232" height="56" rx="8"/>
           <text class="title" x="536" y="328">Object storage (S3)</text>
-          <text class="sub" x="536" y="346">Screenshots, traces, downloads</text>
+          <text class="sub" x="536" y="346">Screenshots, videos, downloads</text>
 
           <!-- External -->
           <rect class="box ext" x="808" y="64" width="176" height="72" rx="8"/>
@@ -99,8 +208,9 @@
           <path class="link" d="M192 206H262" marker-end="url(#arrow)"/>
           <path class="link" d="M482 112H518" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
           <path class="link" d="M480 308H500V144H518" marker-end="url(#arrow)"/>
-          <path class="link" d="M636 194V162" marker-end="url(#arrow)"/>
-          <text class="label" x="644" y="182">worker fetches tasks</text>
+          <path class="link" d="M518 214H484" marker-end="url(#arrow)"/>
+          <text class="label" x="488" y="186">via</text>
+          <text class="label" x="488" y="200">Worker API</text>
           <path class="link" d="M636 268V302" marker-end="url(#arrow)"/>
           <text class="label" x="644" y="290">upload artifacts</text>
           <path class="link" d="M752 232H806" marker-end="url(#arrow)"/>
@@ -109,21 +219,35 @@
           <text class="label" x="790" y="30">generation request</text>
         </svg>
       </div>
-      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. This is the picture after M9; the next section shows the MVP stage.</div>
+      <div class="diagram-caption">Blue borders mark the core components; gray boxes are systems outside the platform. The original task queue in which workers connected to PostgreSQL directly (ADR 0003) has been replaced by the Worker API (<a href="../adr/0012-remote-workers.html">ADR 0012</a>); the domain folders are the source of truth for scenarios and the database is only an index (<a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>).</div>
     </section>
 
     <section class="panel" id="mvp">
-      <div class="panel-header"><h2>The MVP stage</h2><span class="muted">M2–M6: single machine, single user, serial execution; from M9a runs can go to remote workers</span></div>
+      <div class="panel-header"><h2>How the parts work</h2><span class="muted">Single user (login and permissions come in M8); one server, any number of devices</span></div>
       <div class="panel-body">
         <div class="four-col">
-          <div class="notice"><strong>Management portal</strong><p>Opened in a browser; the API service renders the pages with Jinja, following the layout of the <a href="../../prototypes/mvp/index.html">MVP prototype</a> (from M3).</p></div>
-          <div class="notice"><strong>API service</strong><p>FastAPI: scenarios, revisions and the publishing gate, inputs and outputs, runs, reports, debugging sessions, playground sequences (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>).</p></div>
-          <div class="notice"><strong>Background worker</strong><p>On the same computer; every run starts the runner in a subprocess with an overall deadline and cancellation, and the whole process group is terminated on failure or timeout. From M9a it can also be a remote worker on another computer (<a href="../adr/0012-remote-workers.html">ADR 0012</a>).</p></div>
-          <div class="notice"><strong>Data and artifacts</strong><p>SQLite for metadata (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>); a file directory for scenario revision snapshots and one directory per run.</p></div>
+          <div class="notice"><strong>Management portal</strong><p>Pages rendered by the server with Jinja, following the layout of the <a href="../../prototypes/mvp/index.html">MVP prototype</a> (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>). Open 8080 in a browser on the server, or use the Recorder app window, which goes through the external port (<a href="../adr/0014-desktop-apps.html">ADR 0014</a>).</p></div>
+          <div class="notice"><strong>API service</strong><p>FastAPI: scenarios, revisions and the publishing gate, inputs and outputs, runs and cancellation, reports, debugging sessions, composite scenarios, devices and invitations, domains and git sync, replay. Interactive child processes run on the computer the user is operating: requests from a Recorder are handed to that Recorder.</p></div>
+          <div class="notice"><strong>Execution</strong><p>The local worker is a thread inside the server; remote ones are the Worker app or <code>rpa worker</code> (<a href="../adr/0012-remote-workers.html">ADR 0012</a>). One job per machine at a time; each run starts the runner in a subprocess with an overall deadline and cancellation. The run location can be local, remote or any; a composite scenario stays on one machine.</p></div>
+          <div class="notice"><strong>Data and artifacts</strong><p>Domain folders hold the immutable revisions of scenarios, roles and composite scenarios together with their validation and publishing records, and are the source of truth; SQLite is the index plus each server's own state (<a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>, <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>). Run directories, videos, login states and secrets stay on that server.</p></div>
         </div>
-        <p class="muted">Requests flow portal → API → worker. The worker writes run status and artifacts, and the portal reads progress by polling or server-sent events; long tasks never block web requests. Before M2 there are only the CLI and the runner, running directly on your machine.</p>
-        <p class="muted">Remote workers (M9a): the worker computer runs <code>rpa worker</code>, which connects to the Worker API on a second port of the management portal (<code>/worker-api/v1</code>, token), long-polls for jobs, sends a heartbeat every 5 seconds (learning whether to cancel), and uploads the whole run directory and reports the result when done. Only the portal touches the database; a worker silent for 60 seconds is considered lost and its run is marked failed, not retried. See <a href="../develop/remote-worker.html">Remote workers</a>.</p>
-        <p class="muted">Desktop apps (M10): recorders and execution machines install a desktop app and pair with an invitation; the recorder window loads the portal pages through the external port, and the browser for recording, debugging and manual login opens on the recorder's computer. See <a href="desktop.html">Desktop distribution</a>.</p>
+        <p class="muted">Requests flow portal → API → worker. Workers write back run status and artifacts and the portal polls for progress; long tasks never block web requests.</p>
+        <p class="muted">Remote execution (M9a, M10.1): the Worker connects to the Worker API on the external port and long-polls for jobs. A job carries the files of the scenario revision, the inputs, the secrets it uses and the login state. It sends a heartbeat every 5 seconds (learning whether to cancel), and uploads the whole run directory and reports the result when done. A worker silent for 60 seconds is considered lost and its run is marked failed, not retried. Apps report which DSL extensions they understand (for example <code>frame</code> for iframes), and the server does not give them a job that uses anything they do not understand. See <a href="../develop/remote-worker.html">Remote workers</a>.</p>
+        <p class="muted">Recorder (M10.2): the app pairs with an invitation and its window loads the portal pages through a local gateway. The server hands the child processes for recording, step debugging, manual login and login checks to this computer through the Client API, and their output and files come back; conversion, password masking, revisions and the publishing gate stay on the server. See <a href="desktop.html">Desktop distribution</a>.</p>
+        <p class="muted">Sync (M11): each domain can be tied to one folder in a git repository; pull and push merge file by file (three-way), and stop for a choice on conflicts. A passing record with a matching hash written by any server can back a publication. Files that look like secrets are blocked before a push.</p>
+<pre class="source">data directory/ (RPA_DATA_DIR)
+  rpa.db                 # SQLite: index, run state, devices, per-server settings
+  domains/&lt;domain&gt;/      # domain folders (can sync with git)
+    pack.yaml            # name, description, domains it depends on
+    scenes/, composites/ # descriptor + immutable revisions + validation records
+    roles/               # role definitions (login states live elsewhere)
+  runs/&lt;run-id&gt;/         # run directories (below)
+  workflow-runs/         # runs of composite scenarios
+  roles/&lt;role&gt;/          # login states (owner-only)
+  secrets.json           # secret values (plain text, owner-only; encrypted in M8)
+  recordings/, debug/    # raw recordings, debugging sessions
+  git/, work/, backups/  # git data, revision snapshots of running jobs, pre-migration backups
+</pre>
 <pre class="source">runs/&lt;run-id&gt;/
   input.json          # this run's validated inputs
   facts.json          # page facts extracted by the automation
@@ -143,14 +267,14 @@
         <table class="wrap">
           <thead><tr><th>Package</th><th>Responsibility</th><th>Depends on</th><th>Starts</th></tr></thead>
           <tbody>
-            <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs; definitions and checks of playground sequences (<code>rpa_core.workflow</code>, M6). No browser, no database.</td><td>Pydantic, PyYAML, Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>Execution engine: input validation, step handler registry, browser and context management, login checks and manual login, independent assertions, output publishing, run directory and report; also runs Python script scenarios and provides the subprocess used for step debugging. Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs; definitions and checks of composite scenarios (<code>rpa_core.workflow</code>, M6); the domain folder format and its validation (<code>rpa_core.pack</code>, M11); recording-to-DSL conversion (<code>rpa_core.recording</code>, M4). No browser, no database.</td><td>Pydantic, PyYAML, Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>Execution engine: input validation, step handler registry, browser and context management (including iframes, M7a), login checks and manual login, independent assertions, output publishing, run directory and report, video recording (M12); also runs Python script scenarios and provides the child processes for recording, step debugging and manual login (commands are built in <code>rpa_runner.commands</code>; packaged apps use their own entry point). Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
             <tr><td>Recording</td><td>Records user actions in an isolated browser, keeps the raw recording and turns it into a DSL draft. M4 does not add a separate package: recording uses Playwright codegen and the conversion is <code>rpa_core.recording</code> in rpa-core (no browser, testable on its own).</td><td>rpa-core, Playwright</td><td>M4</td></tr>
-            <tr><td><code>rpa-generator</code></td><td>AI assistant: conversational debugging, natural language → DSL, validation failures fed back for correction, self-healing selectors; it can only edit drafts.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
-            <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, run, record, generate, push.</td><td>The packages above, click</td><td>M0</td></tr>
-            <tr><td><code>rpa-server</code></td><td>API and management pages, database models, revisions and the publishing gate, debugging sessions, running playground sequences (M6); permissions (M8), scheduling (M9).</td><td>rpa-core, FastAPI, Jinja2, SQLAlchemy</td><td>M3</td></tr>
-            <tr><td><code>rpa-worker</code></td><td>Takes pending tasks, runs rpa-runner in a subprocess with an overall deadline and cancellation, and writes back results and artifacts. On the same computer in M3; from M9a it can also run on another computer and claim jobs through the Worker API (<code>rpa worker</code>, ADR 0012).</td><td>rpa-runner; HTTP from the standard library</td><td>M3</td></tr>
-            <tr><td><code>rpa-desktop</code></td><td>Two desktop apps: RPA Recorder (a pywebview window loading the portal pages; recording, debugging and manual-login child processes run on this computer) and RPA Worker (status window plus remote worker); pairing, browser download, the packaged entry point. From M10 (ADR 0014).</td><td>rpa-runner, rpa-worker, pywebview</td><td>M10</td></tr>
+            <tr><td><code>rpa-generator</code></td><td>AI assistant: conversational debugging, natural language → DSL, validation failures fed back for correction, self-healing selectors; it can only edit drafts. <strong>Not created yet</strong>: the model and where data may go must be decided first.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
+            <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, schema, run, record, serve, worker, recorder, pack check; generate comes in M5.</td><td>The packages above, click</td><td>M0</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API and management pages, database models and migrations, revisions and the publishing gate, debugging sessions, running composite scenarios (M6), the Worker API (M9a), devices, invitations and the Client API (M10), loading domain folders and git sync (M11), replay and video retention (M12); permissions (M8), scheduling (M9).</td><td>rpa-core, FastAPI, Jinja2, SQLAlchemy</td><td>M3</td></tr>
+            <tr><td><code>rpa-worker</code></td><td>Takes pending tasks, runs rpa-runner in a subprocess with an overall deadline and cancellation, and writes back results and artifacts. On the same computer in M3; from M9a it can also run on another computer and claim jobs through the Worker API (<code>rpa worker</code>, ADR 0012). From M10 it also holds pairing, the Recorder's local gateway and the interactive process host (<code>rpa_worker.pairing</code>, <code>gateway</code>, <code>recorder</code>), shared by both apps and <code>rpa recorder</code>.</td><td>rpa-runner; HTTP from the standard library</td><td>M3</td></tr>
+            <tr><td><code>rpa-desktop</code> (<code>apps/desktop</code>)</td><td>Two desktop apps: RPA Recorder (a pywebview window loading the portal pages; recording, debugging and manual-login child processes run on this computer) and RPA Worker (status window plus remote worker); pairing, browser download, the packaged entry point. From M10 (ADR 0014).</td><td>rpa-runner, rpa-worker, pywebview</td><td>M10</td></tr>
           </tbody>
         </table>
       </div>
@@ -163,18 +287,19 @@
 <pre class="source tree">web_browser_robotic_process_automation/
 ├── packages/            # Reusable libraries
 │   ├── rpa_core/        # M0
-│   ├── rpa_runner/      # M2
-│   └── rpa_generator/   # M5
+│   └── rpa_runner/      # M2 (rpa_generator arrives in M5)
 ├── apps/                # Executables
 │   ├── cli/             # M0
 │   ├── server/          # M3 (FastAPI + Jinja)
 │   ├── worker/          # M3
+│   ├── desktop/         # M10: the Recorder and Worker apps, packaging
 │   └── testsite/        # Test site that mimics internal systems (M2; started by rpa serve)
 ├── scenarios/           # Example scenarios: examples/, demo/ (BA-001 to BA-005 on the test site)
 ├── schema/              # JSON Schema of the scenario DSL (generated by rpa schema)
+├── scripts/             # One-step setup: setup.sh, setup.ps1, setup-linux.sh (server)
 ├── tests/               # Cross-package tests: smoke, docs checks
-├── deploy/              # Docker Compose and sample configuration (M9)
-├── tools/               # Dev tools: multilingual sync (i18n.py)
+├── tools/               # i18n, desktop builds, versions and releases, CI helpers
+├── handoff/             # Handoff and task records (shared by Claude and ChatGPT/Codex)
 └── docs/                # This docs site (Traditional Chinese) and the interface design system
     ├── prototypes/mvp/  # MVP prototype (kept as delivered)
     ├── en/              # English
@@ -185,12 +310,13 @@
         <div class="panel-header"><h2>Data flow of a run</h2></div>
         <div class="panel-body prose">
           <ol>
-            <li>A user triggers a run in the management portal or the CLI (from M9 the scheduler can create runs too).</li>
-            <li>The API checks the published revision, validates the inputs before any browser starts, and writes a run record and a task.</li>
-            <li>The worker takes the task and starts the runner in a subprocess with the scenario revision snapshot, the inputs and the secrets (kept in memory only), under an overall deadline.</li>
+            <li>A user triggers a run in the management portal, a composite scenario or the CLI (from M9 the scheduler can create runs too).</li>
+            <li>The API checks the revision: normal runs use published revisions only, and the files in the domain folder must match the hash. It validates the inputs before any browser starts and writes a run record (with its location) and a task.</li>
+            <li>The local worker or a remote Worker claims the task and starts the runner in a subprocess with the revision files, the inputs, the secrets and the login state (in memory and temporary files only, deleted afterwards), under an overall deadline.</li>
             <li>The runner opens an isolated browser context, executes step by step and records page facts, reporting the status and the start and end time of each step. The automation stage is recorded (M12, <a href="../adr/0016-run-replay.html">ADR 0016</a>); replay lines the video up with the steps because both use the same clock.</li>
             <li>The independent assertions compare the facts with the inputs; only after they pass are the outputs validated and output.json written.</li>
-            <li>Screenshots, recordings, logs and the report go into the run directory (object storage from M9); on failure the failing stage, step and screenshot are highlighted.</li>
+            <li>Screenshots, recordings, logs and the report go into the run directory, which a remote Worker uploads as a whole (object storage from M9); on failure the failing stage, step and screenshot are highlighted.</li>
+            <li>A validation run writes a validation record into the domain folder; a passing record with a matching hash is what allows publishing, and git can carry it to other servers.</li>
           </ol>
         </div>
       </section>
