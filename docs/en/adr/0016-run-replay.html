@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:d5a2cf4d789bbe56">
+<meta name="translation-source" content="sha256:0acedfb853615fc8">
 <title>ADR 0016 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -37,6 +37,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>Date</dt><dd class="mono">2026-10-20</dd>
+        <dt>Amended</dt><dd><span class="mono">2026-10-22</span>: every tab gets its own recording, replay switches recordings by each step's tab, and Chromium is timed by the first observed frame; this supersedes the assumptions that one video covers a run and that out-of-range steps stay on its final frame. See <a href="#multipage">Multi-page and timing correction</a>.</dd>
         <dt>Scope</dt><dd>rpa-runner, rpa-worker, rpa-server (from M12)</dd>
         <dt>Related</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a> (run folder), <a href="0012-remote-workers.html">ADR 0012</a> (remote workers upload the run folder); M11 decision D4 (run records stay out of git); <a href="../design/portal.html#video">Management portal › Runs › Recording</a></dd>
       </dl>

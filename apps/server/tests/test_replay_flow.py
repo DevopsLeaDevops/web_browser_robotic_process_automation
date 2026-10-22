@@ -225,3 +225,16 @@ def test_replay_switches_pages_and_returns_to_main(portal: str, page: Page, tmp_
         expect(page.locator("#replay-gap")).to_be_visible()
         expect(page.locator("#replay-beyond")).to_contain_text("部分分頁影片缺失")
         assert client.get(f"/api/runs/{run_id}").json()["status"] == "passed"
+
+        # 瀏覽器播不了影片（例如 Safari、錄製端 App）：顯示「播不了、請下載」，不當成缺片。
+        next((tmp_path / "data").rglob("video.webm")).write_bytes(b"not a webm")
+        browser = page.context.browser
+        assert browser is not None
+        fresh = browser.new_context(locale="zh-TW")  # 新的 context，不用快取裡的影片
+        try:
+            other = fresh.new_page()
+            other.goto(f"{portal}/runs/{run_id}/replay")
+            expect(other.locator("#replay-cannot-play")).to_be_visible()
+            expect(other.locator("#replay-gap")).to_be_hidden()
+        finally:
+            fresh.close()

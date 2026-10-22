@@ -41,6 +41,7 @@ class StepExecutor:
         self.record = True
         self.multiple_pages = False
         self.child_video = True
+        self.lost_video = False
 
     def __call__(
         self,
@@ -84,9 +85,10 @@ class StepExecutor:
         write_json(folder / FACTS, {"record": {"recordId": "DEMO-1", "title": "回看"}})
         if record_video and self.record:
             mark_page(folder, "page.webm", STARTED.timestamp())
-            (folder / VIDEO_TMP / "page.webm").write_bytes(
-                tiny_webm(duration_ms=6000, started_at=STARTED, width=1280, height=800)
-            )
+            if not self.lost_video:
+                (folder / VIDEO_TMP / "page.webm").write_bytes(
+                    tiny_webm(duration_ms=6000, started_at=STARTED, width=1280, height=800)
+                )
             if self.multiple_pages and self.child_video:
                 (folder / VIDEO_TMP / "popup.webm").write_bytes(
                     tiny_webm(duration_ms=2000, started_at=STARTED + timedelta(seconds=1))
@@ -267,6 +269,20 @@ def test_replay_without_video_explains_why(
     assert "已刪除" in client.get("/runs").text
     assert f"/runs/{recorded}/replay" not in client.get("/replay").text
     assert client.get("/api/runs/missing/replay").status_code == 404
+
+
+def test_replay_explains_a_recording_that_was_not_saved(
+    client: Client, worker: Worker, executor: StepExecutor
+) -> None:
+    # 開了錄影但影片沒存下來（video.json 只有 error）：回看頁說明原因，不是伺服器錯誤
+    executor.lost_video = True
+    run_id = run_once(client, worker)
+    data = body(client.get(f"/api/runs/{run_id}/replay"))
+    assert data["video"] == {"playable": False, "url": None, "error": "no_video"}
+    response = client.get(f"/runs/{run_id}/replay")
+    assert response.status_code == 200
+    assert "這次運行的錄影沒有存下來（no_video）" in response.text
+    assert 'id="replay-video"' not in response.text
 
 
 def test_video_settings_form_is_on_the_replay_page(client: Client) -> None:

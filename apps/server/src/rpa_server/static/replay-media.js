@@ -21,9 +21,18 @@ class ReplayMedia extends EventTarget {
     this.hold = null;
     this.tick = 0;
     this.lastTick = performance.now();
+    this.loaded = false;
     element.addEventListener('click', () => this.dispatchEvent(new Event('click')));
-    element.addEventListener('error', () => this.unavailable());
+    element.addEventListener('error', () => this.fail());
     this.seek(0);
+  }
+  // 一段都還沒播出來就失敗，多半是這個瀏覽器播不了 WebM（例如 Safari、錄製端 App）：
+  // 轉給頁面顯示「播不了、請下載」（ADR 0016），不顯示成缺片。
+  fail() {
+    this.unavailable();
+    if (this.loaded) return;
+    if (this.gap) this.gap.hidden = true;
+    this.dispatchEvent(new Event('error'));
   }
   get readyState() { return 1; }
   get videoWidth() { return this.element.videoWidth; }
@@ -99,12 +108,16 @@ class ReplayMedia extends EventTarget {
       this.element.currentTime = local;
       this.element.playbackRate = this.rate;
       this.pending = false;
+      this.loaded = true;
       this.lastTick = performance.now();
       this.showGap(false);
       if (this.playing) this.element.play().catch(() => this.pause());
       this.dispatchEvent(new Event('seeked'));
     };
-    if (changing || this.element.readyState < 1) {
+    if (!changing && this.element.error) {
+      // 樣板的 src 在這個腳本執行前就已經載入失敗：error 事件不會再來，等頁面接好事件再轉出去
+      setTimeout(() => { if (revision === this.revision) { ++this.revision; this.fail(); } });
+    } else if (changing || this.element.readyState < 1) {
       this.element.addEventListener('loadedmetadata', ready, {once: true});
       if (changing) this.element.src = clip.url;
     } else ready();

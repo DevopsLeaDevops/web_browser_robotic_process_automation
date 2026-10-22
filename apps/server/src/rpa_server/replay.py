@@ -251,7 +251,8 @@ def build_replay(
             "repaired": info.get("repaired"),
         }
     elif info:
-        video = {"playable": False, "error": info.get("error")}
+        # 有錄但沒存下來（例如還沒開瀏覽器就取消）：頁面照樣顯示原因，不能因為少了 url 出錯
+        video = {"playable": False, "url": None, "error": info.get("error")}
     steps = _steps(folder, result, start)
     if video is not None and playable:
         # 開頁步驟可能比第一格畫面更早；保留這段等待，不把它壓到零點。

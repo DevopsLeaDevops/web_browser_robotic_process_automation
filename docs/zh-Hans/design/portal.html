@@ -92,7 +92,7 @@
           <li><strong>不重复送出。</strong>表单每次加载产生一个 <code>idempotencyKey</code>，重复送出只会得到同一个运行。</li>
           <li><strong>重新运行。</strong>结束的运行都可以用同样的入参与选项再运行一次（验证用同一个版本，正式运行用目前发布的版本）。</li>
           <li><strong>服务器重启。</strong>启动时把上次运行到一半的任务标为失败；排队中的会继续运行。</li>
-          <li id="video"><strong>录像（M12）。</strong>DSL 场景的自动化阶段录像，有头、无头都录，存成运行目录的 <code>video.webm</code> 与 <code>video.json</code>；<code>steps.json</code> 记下每一步的开始、结束时间与步骤后的网址，回看时和视频对上。画面跟页面一样大，宽度最多 1280。取消、超时、失败的运行也有完整的视频（Windows 上取消时先只结束浏览器，让 Playwright 把视频写完；写坏的视频用 Playwright 自带的 ffmpeg 重新封装）。登录检查、逐步调试、录制与 Python 脚本场景不录。只录一开始的分页：步骤开出的新分页（M7b）不在视频里，回看时那几步看到的是一开始的分页，步骤列表、网址与截图照常。默认全部录；通过的运行保留 7 天，失败、超时、取消、需要登录的保留 30 天，全部最多 20 GB（超过时从最旧的删起），钉选的不删。清理只删视频，运行记录、报告、截图都留着。见 <a href="../adr/0016-run-replay.html">ADR 0016</a>。</li>
+          <li id="video"><strong>录像（M12）。</strong>DSL 场景的自动化阶段录像，有头、无头都录，存成运行目录的 <code>video.webm</code> 与 <code>video.json</code>；<code>steps.json</code> 记下每一步的开始、结束时间、步骤后的网址与所在分页（<code>pageId</code>），回看时和视频对上。画面跟页面一样大，宽度最多 1280。取消、超时、失败的运行也有完整的视频（Windows 上取消时先只结束浏览器，让 Playwright 把视频写完；写坏的视频用 Playwright 自带的 ffmpeg 重新封装）。登录检查、逐步调试、录制与 Python 脚本场景不录。步骤开出的新分页（M7b）各录一段，存成 <code>video-page-N.webm</code>；回看依步骤所在的分页换片段，回到一开始的分页时换回去。某段时间没有那个分页的录像时显示缺片，不沿用其他分页的画面；各分页的原始录像可分别下载。浏览器播不了 WebM 时提示改用 Chrome、Edge 或 Firefox，或下载录像。默认全部录；通过的运行保留 7 天，失败、超时、取消、需要登录的保留 30 天，全部最多 20 GB（超过时从最旧的删起；一次运行的所有分页合计），钉选的不删。清理只删视频（一次运行的所有片段一起删），运行记录、报告、截图都留着。见 <a href="../adr/0016-run-replay.html">ADR 0016</a>。</li>
         </ul>
       </div>
     </section>
@@ -318,7 +318,7 @@
           <dl class="spec-list">
             <dt><code>rpa.db</code></dt><dd>SQLite 数据库（各表见下方）</dd>
             <dt><code>domains/<wbr>&lt;领域&gt;/</code></dt><dd>领域文件夹（M11）：<code>pack.yaml</code>；<code>scenes/&lt;场景&gt;/</code> 里的 <code>scene.yaml</code>、<code>revisions/&lt;版本&gt;/</code>（scenario.yaml，脚本场景另有两支脚本）与版本说明档 <code>revisions/&lt;版本&gt;.yaml</code>、验证记录 <code>verifications/&lt;版本&gt;/</code>；角色定义 <code>roles/&lt;角色&gt;.yaml</code>；组合场景 <code>composites/&lt;代号&gt;/</code>（<code>composite.yaml</code>、<code>revisions/&lt;版本&gt;/workflow.json</code> 与版本说明档、验证记录）。格式见 <code>rpa_core.pack</code></dd>
-            <dt><code>runs/<wbr>&lt;运行编号&gt;/</code></dt><dd>M2 的运行目录（input.json、report.html…）；<code>run.json</code> 记下服务器、领域、场景、版本、哈希、时间与每个文件的 sha256；录像 <code>video.webm</code> 与 <code>video.json</code>（M12；依保留规则删除视频时，<code>run.json</code> 的 <code>removed</code> 记下删除的时间与原因）</dd>
+            <dt><code>runs/<wbr>&lt;运行编号&gt;/</code></dt><dd>M2 的运行目录（input.json、report.html…）；<code>run.json</code> 记下服务器、领域、场景、版本、哈希、时间与每个文件的 sha256；录像 <code>video.webm</code>、新分页的 <code>video-page-N.webm</code> 与 <code>video.json</code>（M12；依保留规则删除视频时，<code>run.json</code> 的 <code>removed</code> 记下删除的时间与原因）</dd>
             <dt><code>workflow-runs/<wbr>&lt;运行编号&gt;/</code></dt><dd>组合场景的运行（M11 PR 2）：<code>run.json</code> 记下定义快照、版本、目的、每个节点的状态与运行编号</dd>
             <dt><code>work/<wbr>&lt;运行编号&gt;/</code></dt><dd>本机运行中的版本文件快照（M11 收尾）：开始时从领域文件夹拷贝，运行中拉取或重新加载不影响；结束就删，服务器启动时清空</dd>
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登录状态（只有本人能读写）</dd>
