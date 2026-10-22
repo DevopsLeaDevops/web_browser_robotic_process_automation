@@ -307,8 +307,15 @@ def test_menu_target_class_is_registered_once(tmp_path: Path, fakes: Fakes) -> N
     assert type(second) is registered
 
 
-def test_menu_bar_without_appkit_does_not_break(tmp_path: Path) -> None:
-    """建立失敗（例如沒有 AppKit）只記日誌：接任務照常。"""
+def test_menu_bar_without_appkit_does_not_break(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """建立失敗（例如沒有 AppKit）只記日誌：接任務照常。macOS 上也模擬成沒有。"""
+
+    def missing() -> Any:
+        raise ModuleNotFoundError("No module named 'AppKit'")
+
+    monkeypatch.setattr(macos, "_appkit", missing)
     menu_bar = macos.MenuBar(controller(tmp_path), on_open=lambda: None, on_quit=lambda: None)
     assert not menu_bar.start().is_set()
     menu_bar.update()
