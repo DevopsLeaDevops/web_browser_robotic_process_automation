@@ -29,6 +29,7 @@ import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from itertools import product
 from typing import Final
 
 from rpa_core.dsl.fields import catalog
@@ -71,6 +72,9 @@ NAMES: Final = frozenset({"today", "now", "random"})
 
 MAX_OFFSET_DAYS: Final = 36500
 """today±N 的天數上限（一百年）；超過多半是寫錯。"""
+
+_MAX_CHECK_COMBINATIONS: Final = 1000
+"""enum／pattern 完整檢查的組合上限，避免多個 random 的組合拖住存檔或執行。"""
 
 _DEFAULT_FORMATS: Final = {"today": "yyyy-MM-dd", "now": "yyyy-MM-dd HH:mm:ss"}
 _TIME_TOKENS: Final = frozenset({"HH", "mm", "ss"})
@@ -297,15 +301,36 @@ def evaluate(
 
 
 def samples(
-    value: object, value_type: str = "string", *, now: datetime | None = None
+    value: object,
+    value_type: str = "string",
+    *,
+    now: datetime | None = None,
+    exhaustive: bool = False,
 ) -> list[object]:
     """校驗用的代表值：隨機數取最小、最大各一次（去掉重複）；沒有動態值時就是值本身。
 
-    限制（maxLength、minimum…）對這幾個值都成立，執行時的值多半也成立。
+    enum／pattern 不能只看兩端：exhaustive=True 時列出所有隨機組合，
+    超過安全上限就明確拒絕，不退回抽樣而漏掉不符合限制的值。
     """
     if not has_dynamic(value):
         return [value]
     moment = now or _local_now()
+    if exhaustive and isinstance(value, str):
+        parts = parse(value)
+        ranges: list[range] = []
+        combinations = 1
+        for part in parts:
+            if isinstance(part, RandomInteger):
+                combinations *= part.high - part.low + 1
+                if combinations > _MAX_CHECK_COMBINATIONS:
+                    raise DynamicValueError("random_checks_limit", limit=_MAX_CHECK_COMBINATIONS)
+                ranges.append(range(part.low, part.high + 1))
+        values: list[object] = []
+        for combination in product(*ranges):
+            draws = iter(combination)
+            text = _render(parts, moment, lambda _low, _high, draws=draws: next(draws))
+            values.append(_typed(text, value_type))
+        return values
     found: list[object] = []
     for pick in (_lowest, _highest):
         result = evaluate(value, value_type, now=moment, pick=pick)

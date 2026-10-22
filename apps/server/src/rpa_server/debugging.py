@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
 from rpa_core.dsl import Scenario, Step
+from rpa_core.dsl.dynamic import escape
 from rpa_core.dsl.features import scenario_features
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import Locale, use_locale
@@ -493,7 +494,9 @@ class DebugManager:
         files = self.services.revision_files(session.scene_id, revision)
         path = session.folder / f"scenario-{revision}.yaml"
         path.write_text(files[SCENARIO_FILE], encoding="utf-8")
-        resolved, problems = check_inputs(scenario, session.inputs)
+        # 既有入參已求值；只讓新版本新增的預設值求值，保留跳脫後的字面文字。
+        existing = {name: escape(value) for name, value in session.inputs.items()}
+        resolved, problems = check_inputs(scenario, existing)
         if problems:
             # 新版本的入參對不上時：新版本的預設值（動態值已求值），再蓋上原本的值
             defaults, _ = check_inputs(scenario, {})

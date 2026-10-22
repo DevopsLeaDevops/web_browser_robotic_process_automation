@@ -6,7 +6,7 @@ from typing import cast
 
 import pytest
 
-from rpa_core.dsl import format_issue, inputs_json_schema, validate_text
+from rpa_core.dsl import InputSpec, format_issue, inputs_json_schema, validate_text
 from rpa_core.dsl.dynamic import (
     DynamicValueError,
     dynamic_expression,
@@ -207,6 +207,49 @@ def test_samples_use_both_ends_of_random_ranges() -> None:
     assert samples("{{random:7:7}}", "integer", now=NOW) == [7]
     assert samples("{{today}}", now=NOW) == ["2026-10-21"]
     assert samples("固定", now=NOW) == ["固定"]
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "{ type: integer, enum: [1, 3], default: '{{random:1:3}}' }",
+        "{ enum: ['11', '22'], default: '{{random:1:2}}{{random:1:2}}' }",
+        "{ pattern: '^(1|3)$', default: '{{random:1:3}}' }",
+    ],
+)
+def test_random_defaults_check_values_between_endpoints(spec: str) -> None:
+    result = validate_text(HEADER + f"inputs:\n  q: {spec}\n" + GOTO)
+    assert [issue.code for issue in result.issues] == ["value.default_invalid"]
+
+
+def test_random_defaults_accept_complete_enum_and_pattern() -> None:
+    result = validate_text(
+        HEADER
+        + "inputs:\n"
+        + "  q: { type: integer, enum: [1, 2, 3], default: '{{random:1:3}}' }\n"
+        + "  s: { pattern: '^item-[1-3]$', default: 'item-{{random:1:3}}' }\n"
+        + GOTO
+    )
+    assert not result.issues
+
+
+def test_exhaustive_random_checks_are_bounded_without_restricting_plain_randoms() -> None:
+    spec = InputSpec(pattern="^[0-9]+$")
+    assert spec.check_value("{{random:1:1000}}") == []
+    assert spec.check_value("{{random:1:10}}{{random:1:100}}") == []
+    for text in ("{{random:1:1001}}", "{{random:1:100}}{{random:1:100}}"):
+        with pytest.raises(DynamicValueError, match="1000") as caught:
+            spec.check_value(text)
+        assert caught.value.code == "random_checks_limit"
+    assert InputSpec(type="integer").check_value("{{random:1:1000000}}") == []
+    assert InputSpec(pattern="^[0-9-]+$").check_value("{{today}}", now=NOW) == []
+
+
+def test_exhaustive_random_limit_is_reported_as_a_default_issue() -> None:
+    result = validate_text(
+        HEADER + "inputs:\n  q: { pattern: '^[0-9]+$', default: '{{random:1:1001}}' }\n" + GOTO
+    )
+    assert [issue.code for issue in result.issues] == ["dynamic.random_checks_limit"]
 
 
 def test_dynamic_expression() -> None:

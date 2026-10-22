@@ -158,11 +158,12 @@ class InputSpec(ValueSpec):
     def check_value(self, value: object, *, now: datetime | None = None) -> list[str]:
         """值（可以含動態值）不符合的限制，以 DSL 寫法表示；完全符合時是空的。
 
-        動態值以代表值檢查（隨機數的最小、最大，見 :func:`rpa_core.dsl.dynamic.samples`）；
-        寫錯時拋出 :class:`rpa_core.dsl.dynamic.DynamicValueError`。
+        動態值以代表值檢查；enum／pattern 另檢查所有隨機組合，不能只看最小、最大。
+        寫錯或組合過多時拋出 :class:`rpa_core.dsl.dynamic.DynamicValueError`。
         """
         rules: list[str] = []
-        for sample in samples(value, self.type, now=now):
+        exhaustive = self.enum is not None or self.pattern is not None
+        for sample in samples(value, self.type, now=now, exhaustive=exhaustive):
             rules.extend(rule for rule in self.violations(sample) if rule not in rules)
         return rules
 

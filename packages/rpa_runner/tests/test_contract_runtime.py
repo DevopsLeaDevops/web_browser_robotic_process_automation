@@ -159,6 +159,20 @@ def test_dynamic_values_are_evaluated_for_each_run() -> None:
     assert resolved["arrivalDate"] == datetime.now().astimezone().strftime("%Y-%m-%d")
 
 
+@pytest.mark.parametrize("picked", [1, 2, 3])
+def test_random_enum_validation_does_not_depend_on_the_draw(picked: int) -> None:
+    result = validate_text(
+        "schemaVersion: 1\nid: demo\nname: 示範\n"
+        "inputs:\n  q: { type: integer, enum: [1, 3] }\n"
+        "steps:\n  - { id: open, action: goto, url: https://example.test/ }\n"
+    )
+    assert result.scenario is not None
+    _, problems = check_inputs(
+        result.scenario, {"q": "{{random:1:3}}"}, pick=lambda _lo, _hi: picked
+    )
+    assert [problem.message for problem in problems] == ["入參 q 不符合限制：enum"]
+
+
 def test_dynamic_value_problems() -> None:
     result = validate_text(DYNAMIC)
     assert result.scenario is not None, result.issues
