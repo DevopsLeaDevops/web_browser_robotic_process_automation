@@ -1,6 +1,7 @@
 """打包版 RPA Worker 的端到端測試（M10.1）：用邀請配對、以「遠端 worker」執行範例場景。
 
-CI 的桌面端建置在 Windows 建好 RPA Worker、跑完自我測試之後執行（自我測試已經把 Chromium
+CI 的桌面端建置在 Windows（macOS 版 2026-10-22 起也一樣，不含安裝檔的步驟）建好 RPA Worker、
+跑完自我測試之後執行（自我測試已經把 Chromium
 下載到 ``PLAYWRIGHT_BROWSERS_PATH``，這裡沿用）::
 
     uv run python tools/desktop_e2e.py <App 執行檔> [--installer 安裝檔] [--report e2e.json]
@@ -9,7 +10,8 @@ CI 的桌面端建置在 Windows 建好 RPA Worker、跑完自我測試之後執
    不啟動測試網站（打包版自己在 127.0.0.1:8765 啟動）。
 2. 用管理 API 新增裝置、產生邀請。
 3. **打包版**以 ``--no-window --invite`` 配對並啟動：和視窗版同一個 controller（配對、權杖存進
-   Windows 認證管理員、下載瀏覽器、接任務），訊息寫到 ``--log``（視窗程式沒有標準輸出）。
+   Windows 認證管理員或 macOS 鑰匙圈、下載瀏覽器、接任務），訊息寫到 ``--log``（視窗程式沒有
+   標準輸出）。
 4. 等裝置上線，確認回報的是建置資訊的版本與程式指紋（和 Portal 相同）；建置資訊從同資料夾的
    ``rpa-child --version`` 讀（主控台程式）。記下權杖存在哪裡（認證管理員或退回的檔案）。
 5. 以「遠端 worker」無頭執行 BA-001，再用它的出參執行 BA-002：兩個都要通過、都由這台裝置執行，
@@ -425,12 +427,12 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
         if not pairing.is_file():
             raise StepFailedError("配對結果沒有存在 RPA_WORKER_HOME")
         saved = cast("JsonObject", json.loads(pairing.read_text(encoding="utf-8")))
-        if sys.platform == "win32" and "token" in saved:
-            # 打包時漏了 keyring 的 Windows 後端（或 pywin32-ctypes）時會退回存在檔案：要擋下來
-            raise StepFailedError(
-                "權杖沒有存進 Windows 認證管理員（退回存在配對檔），見 worker.log"
-            )
-        storage = "退回配對檔" if "token" in saved else "認證管理員"
+        store = {"win32": "Windows 認證管理員", "darwin": "macOS 鑰匙圈"}.get(sys.platform)
+        if store is not None and "token" in saved:
+            # 打包時漏了 keyring 的後端（Windows 的 pywin32-ctypes、macOS 的鑰匙圈模組）時
+            # 會退回存在檔案：要擋下來
+            raise StepFailedError(f"權杖沒有存進{store}（退回存在配對檔），見 worker.log")
+        storage = "退回配對檔" if "token" in saved else (store or "認證管理員")
         state["storage"] = storage
         return f"{record.get('os')}；瀏覽器 {record.get('browsers')}；權杖存在{storage}"
 

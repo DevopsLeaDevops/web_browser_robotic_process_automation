@@ -26,7 +26,7 @@ from rpa_desktop.autostart import AutoStart
 from rpa_desktop.build_info import load
 from rpa_desktop.controller import Services, WorkerController
 from rpa_desktop.credentials import Credentials, TokenStore
-from rpa_desktop.i18n import resolve_locale, t
+from rpa_desktop.i18n import platform_key, resolve_locale, t
 from rpa_desktop.logs import setup_logging
 from rpa_desktop.single_instance import InstanceLock
 from rpa_desktop.worker_app import data_dir, ensure_browsers_path
@@ -75,7 +75,7 @@ def main(
     logger.info("RPA Worker %s（--no-window）資料夾 %s，日誌 %s", build.version, home, path)
     lock = InstanceLock(home)
     if not lock.acquire():
-        logger.error("%s", t("worker.already_running", home=home))
+        logger.error("%s", t(platform_key("worker.already_running"), home=home))
         return 4
     try:
         override = env.get(ENV_VAR)

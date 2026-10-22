@@ -3,8 +3,8 @@
 #      而且標籤指向的提交已經在 main 上。
 #   2. 呼叫桌面端建置（desktop.yml）：建置、自我測試、Windows 上安裝 → 端到端 → 升級 → 解除安裝，
 #      macOS 上錄製端的視窗自我測試與端到端（M10.2）。
-#   3. 用它的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip，RPA 錄製端的 DMG（M10.2），
-#      以及 SHA256SUMS.txt。
+#   3. 用它的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip 與 macOS 的 DMG，
+#      RPA 錄製端的 DMG（M10.2），以及 SHA256SUMS.txt。
 # 草稿只有維護者看得到；確認內容後在 GitHub 上按「發布」才公開（docs/design/desktop.html#release）。
 # 已經有同一個標籤的草稿時（重新執行）換掉它的檔案；已經發布的不動，請改用新的版本。
 name: 發布
@@ -65,14 +65,18 @@ jobs:
         with:
           name: recorder-macos-14
           path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: worker-macos-14
+          path: release
       - name: 檔案與 SHA-256
         working-directory: release
         run: |
           ls -l
-          # Worker 的安裝檔與 zip、錄製端的 DMG 各一個；名稱裡要有這次的版本
+          # Worker 的安裝檔、zip 與 macOS 的 DMG，錄製端的 DMG 各一個；名稱裡要有這次的版本
           version="${TAG#v}"
           for pattern in "RPA-Worker-Setup-$version-windows-x64.exe" "RPA-Worker-$version-windows-x64.zip" \
-            "RPA-Recorder-$version-macos-arm64.dmg"; do
+            "RPA-Worker-$version-macos-arm64.dmg" "RPA-Recorder-$version-macos-arm64.dmg"; do
             if [ ! -f "$pattern" ]; then
               echo "::error title=發布::產物裡沒有 $pattern"
               exit 1
@@ -93,6 +97,13 @@ jobs:
           - 還沒有程式碼簽章：Windows SmartScreen 可能提醒，選「其他資訊」→「仍要執行」。
             可以用 `SHA256SUMS.txt` 核對下載的檔案。
 
+          ## RPA Worker（macOS，Apple 晶片）
+
+          - **DMG** `RPA-Worker-…-macos-arm64.dmg`：打開後把「RPA Worker」拖進「應用程式」。
+          - 和 Windows 版相同：貼上 Worker 邀請、下載瀏覽器、接任務；關掉視窗是縮到選單列，
+            可勾選「登入 macOS 時自動啟動」。
+          - 還沒有簽章與公證：第一次打開會被擋下，到「系統設定 › 隱私權與安全性」選擇允許打開。
+
           ## RPA 錄製端（macOS，Apple 晶片）
 
           - **DMG** `RPA-Recorder-…-macos-arm64.dmg`：打開後把「RPA 錄製端」拖進「應用程式」。
@@ -101,7 +112,8 @@ jobs:
           - 還沒有簽章與公證：第一次打開會被擋下，到「系統設定 › 隱私權與安全性」選擇允許打開。
 
           RPA Worker: installer for the current user (no administrator rights needed) and a
-          portable zip. RPA Recorder: a DMG for Apple silicon Macs; recording, step-by-step
+          portable zip for Windows, and a DMG for Apple silicon Macs (same features; it lives
+          in the menu bar). RPA Recorder: a DMG for Apple silicon Macs; recording, step-by-step
           debugging and manual login through it open their browsers on that Mac. Pair either
           with an invitation from the admin Portal's Devices page. Not code-signed or notarized
           yet (on macOS allow it under System Settings › Privacy & Security on first launch);

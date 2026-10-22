@@ -1,4 +1,4 @@
-# PyInstaller 設定：RPA 錄製端（macOS）與 RPA Worker（Windows）（M10，ADR 0014）。
+# PyInstaller 設定：RPA 錄製端（macOS）與 RPA Worker（Windows、macOS）（M10，ADR 0014）。
 #
 # 不直接執行，由 tools/build_desktop.py 寫好建置資訊、設定環境變數後呼叫：
 #   RPA_DESKTOP_APP      recorder 或 worker
@@ -7,7 +7,8 @@
 #   RPA_DESKTOP_ICON     執行檔的圖示（.ico，Windows；建置時由 rpa_desktop.icon 畫出，可省略）
 #
 # 資料夾模式（onedir），兩個執行檔共用同一份程式與資料：
-#   rpa-worker                RPA Worker（M10.1）：視窗程式（WebView2 狀態視窗＋通知區），沒有主控台
+#   rpa-worker                RPA Worker（M10.1；macOS 2026-10-22 起）：視窗程式（WebView2 或 WKWebView
+#                             的狀態視窗＋通知區／選單列），沒有主控台
 #   rpa-recorder              RPA 錄製端（M10.2）：視窗程式（WKWebView 視窗，連本機閘道）
 #   rpa-child                 子程序用的主控台程式：runner、登入檢查、錄製、調試、playwright
 #                             （rpa_runner.commands 依檔名找它）；也是 --version、--self-test、
@@ -38,12 +39,21 @@ NAMES = {
         "bundle": "RPA Recorder",
         "display": "RPA 錄製端",
         "id": "io.github.devopsleadevops.rpa.recorder",
+        "network": (
+            "RPA 錄製端要連到區網上的管理 Portal 與內部系統。"
+            " RPA Recorder connects to the management portal and internal sites on your network."
+        ),
     },
     "worker": {
         "exe": "rpa-worker",
         "bundle": "RPA Worker",
         "display": "RPA Worker",
         "id": "io.github.devopsleadevops.rpa.worker",
+        "network": (
+            "RPA Worker 要連到區網上的管理 Portal，並在內部系統上執行場景。"
+            " RPA Worker connects to the management portal and runs scenarios on internal sites"
+            " on your network."
+        ),
     },
 }[APP]
 
@@ -79,8 +89,9 @@ binaries = []
 _OTHER_GUIS = ("webview.platforms.gtk", "webview.platforms.qt", "webview.platforms.cocoa",
                "webview.platforms.android", "pystray._xorg", "pystray._gtk", "pystray._appindicator",
                "pystray._darwin")
-# macOS 的錄製端（M10.2）：pywebview 只要 cocoa 後端（WKWebView，經由 PyObjC）；keyring 用鑰匙圈。
-MAC_RECORDER = APP == "recorder" and sys.platform == "darwin"
+# macOS 的兩個 App（錄製端 M10.2、Worker 2026-10-22 起）：pywebview 只要 cocoa 後端（WKWebView，
+# 經由 PyObjC）；keyring 用鑰匙圈。Worker 的選單列圖示也直接用 PyObjC（rpa_desktop.macos）。
+MAC_APP = sys.platform == "darwin"
 _NOT_COCOA = ("webview.platforms.gtk", "webview.platforms.qt", "webview.platforms.android",
               "webview.platforms.winforms", "webview.platforms.edgechromium",
               "webview.platforms.mshtml", "webview.platforms.cef", "webview.platforms.win32")
@@ -102,7 +113,7 @@ if WINDOWS_WORKER:
     hiddenimports += ["clr"]
     for distribution in ("pywebview", "pystray", "keyring", "pythonnet", "clr_loader", "pillow"):
         datas += copy_metadata(distribution)
-if MAC_RECORDER:
+if MAC_APP:
     for package in ("webview", "keyring"):
         hiddenimports += collect_submodules(package, filter=_cocoa_only)
         datas += collect_data_files(package)
@@ -167,9 +178,6 @@ if sys.platform == "darwin":
             # 視窗只載入 127.0.0.1 上的本機閘道（HTTP）；轉送到管理 Portal 的是 Python，不受 ATS 管
             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
             # macOS 15 起連區網要使用者允許：管理 Portal 與內部網站都在區網上
-            "NSLocalNetworkUsageDescription": (
-                "RPA 錄製端要連到區網上的管理 Portal 與內部系統。"
-                " RPA Recorder connects to the management portal and internal sites on your network."
-            ),
+            "NSLocalNetworkUsageDescription": NAMES["network"],
         },
     )

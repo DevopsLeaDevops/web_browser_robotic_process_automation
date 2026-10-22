@@ -1,14 +1,18 @@
 """RPA Worker 的視窗版（M10.1，ADR 0014）：雙擊 ``rpa-worker.exe`` 開啟的就是這個。
 
-- 狀態視窗：pywebview（Windows 上是 WebView2），頁面見 :mod:`rpa_desktop.ui`；頁面透過 js_api
-  （:class:`Api`）讀狀態、呼叫動作，狀態與動作都在
+macOS（2026-10-22 起）：「RPA Worker」App，同一份程式，差別見下方與 :mod:`rpa_desktop.macos`。
+
+- 狀態視窗：pywebview（Windows 上是 WebView2，macOS 是 WKWebView），頁面見 :mod:`rpa_desktop.ui`；
+  頁面透過 js_api（:class:`Api`）讀狀態、呼叫動作，狀態與動作都在
   :class:`rpa_desktop.controller.WorkerController`。
-- 通知區：:class:`rpa_desktop.tray.Tray`。關閉視窗是縮到通知區（第一次提示一次）；
-  結束要從選單或視窗裡的按鈕。
-- 只執行一份：已經在執行時叫出那一份的視窗後結束（:mod:`rpa_desktop.single_instance`）。
-- ``--background``：登入 Windows 時自動啟動用，只出現在通知區；還沒配對時仍然打開視窗。
-- 沒有 WebView2：說明怎麼安裝，之後只靠通知區接任務。
-- Windows 登出或關機：立刻取消執行中的任務並回報（只等幾秒），不擋住關機。
+- 通知區：Windows 是 :class:`rpa_desktop.tray.Tray`，macOS 是選單列的
+  :class:`rpa_desktop.macos.MenuBar`（同樣的選單）。關閉視窗是縮到通知區（第一次提示一次；macOS
+  同時拿掉 Dock 圖示）；結束要從選單或視窗裡的按鈕，macOS 也可以按 ⌘Q。
+- 只執行一份：已經在執行時叫出那一份的視窗後結束（:mod:`rpa_desktop.single_instance`）；macOS 在
+  Finder 再打開或點 Dock 圖示時也叫出視窗（:func:`rpa_desktop.macos.on_reopen`）。
+- ``--background``：登入時自動啟動用，只出現在通知區；還沒配對時仍然打開視窗。
+- 沒有 WebView2（Windows）：說明怎麼安裝，之後只靠通知區接任務。
+- 登出或關機：立刻取消執行中的任務並回報（只等幾秒），不擋住關機。
 - ``--smoke-test``：CI 用，打開真的視窗與通知區圖示、確認頁面的腳本跑起來後結束。
 """
 
@@ -26,11 +30,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from rpa_core.i18n import ENV_VAR, Locale, parse_locale, set_locale, use_locale
+from rpa_desktop import macos
 from rpa_desktop.autostart import AutoStart
 from rpa_desktop.build_info import load
 from rpa_desktop.controller import QUICK_STOP_SECONDS, WorkerController
 from rpa_desktop.credentials import Credentials, TokenStoreError
-from rpa_desktop.i18n import resolve_locale, t
+from rpa_desktop.i18n import platform_key, resolve_locale, t
 from rpa_desktop.logs import setup_logging
 from rpa_desktop.release import RELEASES_URL
 from rpa_desktop.single_instance import InstanceLock
@@ -41,7 +46,15 @@ from rpa_desktop.worker_app import data_dir, ensure_browsers_path
 if TYPE_CHECKING:
     import webview
 
-__all__ = ["Api", "DesktopApp", "main", "smoke_test", "system_shutting_down", "webview2_version"]
+__all__ = [
+    "Api",
+    "DesktopApp",
+    "main",
+    "make_tray",
+    "smoke_test",
+    "system_shutting_down",
+    "webview2_version",
+]
 
 logger = logging.getLogger("rpa_desktop.gui")
 
@@ -81,7 +94,10 @@ def webview2_version() -> str | None:
 
 
 def _message_box(title: str, text: str) -> None:
-    """Windows 的訊息方塊（沒有視窗可以顯示時用）。"""
+    """訊息方塊（沒有視窗可以顯示時用）：Windows 的 MessageBox、macOS 的提示。"""
+    if sys.platform == "darwin":
+        macos.alert(title, text)
+        return
     if sys.platform != "win32":
         logger.warning("%s：%s", title, text)
         return
@@ -110,6 +126,23 @@ def _open_folder(path: Path) -> None:
         subprocess.Popen(["open", str(path)])
     else:
         subprocess.Popen(["xdg-open", str(path)])
+
+
+type Notifier = Tray | macos.MenuBar
+"""通知區（Windows）或選單列（macOS）的圖示；兩者的介面相同。"""
+
+
+def make_tray(
+    controller: WorkerController,
+    *,
+    on_open: Callable[[], object],
+    on_quit: Callable[[], object],
+    platform: str = sys.platform,
+) -> Notifier:
+    """這個系統的通知區圖示：macOS 用選單列（pystray 會和 pywebview 搶主執行緒）。"""
+    if platform == "darwin":
+        return macos.MenuBar(controller, on_open=on_open, on_quit=on_quit)
+    return Tray(controller, on_open=on_open, on_quit=on_quit)
 
 
 class Api:
@@ -184,12 +217,13 @@ class DesktopApp:
         self.invite = invite
         self.server = server
         self.window: webview.Window | None = None
-        self.tray = Tray(controller, on_open=self.show, on_quit=self.request_quit)
+        self.tray: Notifier = make_tray(controller, on_open=self.show, on_quit=self.request_quit)
         self._quitting = False
         self._session_ending = False
         self._finished = threading.Event()
         self._push = threading.Event()
         self._shown_for_pairing = False
+        self._started_hidden = False
 
     # ------------------------------------------------------------ 執行
 
@@ -203,6 +237,7 @@ class DesktopApp:
         # 自動啟動時只開通知區；還沒配對（或讀不到配對）時一開始就打開視窗讓人貼邀請
         hidden = self.background and self.invite is None and self._paired()
         self._shown_for_pairing = not hidden
+        self._started_hidden = hidden
         self.window = webview.create_window(
             title,
             html=render_page(self.controller.locale),
@@ -215,7 +250,9 @@ class DesktopApp:
         )
         self.window.events.closing += self._on_closing
         try:
-            self.tray.start()
+            if sys.platform != "darwin":
+                # macOS 的選單列圖示要等 pywebview 建好 NSApplication、開始迴圈後（_on_started）
+                self.tray.start()
             self.controller.subscribe(self._on_change)
             self.lock.watch(self.show, self._finished, on_stop=lambda: self.request_quit(True))
             threading.Thread(target=self._pusher, name="rpa-window-push", daemon=True).start()
@@ -260,6 +297,11 @@ class DesktopApp:
         這時才開始配對與連線：狀態一改變就可能要叫出視窗，視窗必須已經建好。
         """
         self._watch_session_end()
+        if sys.platform == "darwin":
+            self.tray.start()
+            macos.on_reopen(self.show)
+            if self._started_hidden:
+                macos.set_dock_visible(False)  # 自動啟動：只在選單列
         self.controller.start(self.invite, self.server)
 
     def _finish(self) -> None:
@@ -279,6 +321,7 @@ class DesktopApp:
         if window is None:
             return False
         try:
+            macos.set_dock_visible(True)
             window.show()
             window.restore()
         except Exception:
@@ -292,17 +335,26 @@ class DesktopApp:
         if window is None:
             return
         window.hide()
+        macos.set_dock_visible(False)
         if self.controller.mark_tray_hint_shown():
             with use_locale(self.controller.locale):
-                self.tray.notify(t("window.close_hint_title"), t("window.close_hint"))
+                hint = t(platform_key("window.close_hint"))
+                self.tray.notify(t("window.close_hint_title"), hint)
 
     def _on_closing(self) -> bool:
-        """按視窗的關閉鈕：縮到通知區（回傳 False 取消關閉）；結束或關機時才真的關。"""
+        """按視窗的關閉鈕：縮到通知區（回傳 False 取消關閉）；結束或關機時才真的關。
+
+        macOS 的 ⌘Q（或選單的「結束」）也走到這裡：當成「結束」，先取消 AppKit 的結束（它會立刻結束
+        程序，來不及回報執行中的任務），再由 :meth:`request_quit` 確認後自己關。
+        """
         if self._quitting or self._session_ending:
             return True
         if system_shutting_down():  # 關機的通知可能比關閉視窗的要求晚到
             self._session_ending_now()
             return True
+        if macos.terminating():
+            threading.Thread(target=self.request_quit, daemon=True).start()
+            return False
         threading.Thread(target=self._hide_with_hint, daemon=True).start()
         return False
 
@@ -362,16 +414,23 @@ class DesktopApp:
             self.tray.stop()
 
     def _session_ending_now(self, sender: object = None, args: object = None) -> None:
-        logger.info("Windows 正在登出或關機：取消執行中的任務並回報")
+        logger.info("系統正在登出或關機：取消執行中的任務並回報")
         self._session_ending = True
         self._quitting = True
         self.controller.stop(fast=True)
+        if sys.platform == "darwin":
+            # 接著 AppKit 會要 App 結束、立刻結束程序：在這裡（主執行緒）先等任務取消並回報
+            self.controller.wait(QUICK_STOP_SECONDS + 1)
 
     def _watch_session_end(self) -> None:
-        """Windows 登出或關機時通知。
+        """登出或關機時通知。
 
-        用 .NET 的 ``SystemEvents.SessionEnding``（經由 pywebview 在 Windows 上用的 pythonnet）。
+        Windows 用 .NET 的 ``SystemEvents.SessionEnding``（經由 pywebview 在 Windows 上用的
+        pythonnet）；macOS 用 ``NSWorkspaceWillPowerOffNotification``（:mod:`rpa_desktop.macos`）。
         """
+        if sys.platform == "darwin":
+            macos.on_power_off(self._session_ending_now)
+            return
         if sys.platform != "win32":
             return
         try:
@@ -427,7 +486,7 @@ def smoke_test(
         window = webview.create_window(
             "RPA Worker", html=render_page(controller.locale), js_api=api, width=WINDOW_SIZE[0]
         )
-        tray = Tray(controller, on_open=lambda: None, on_quit=lambda: None)
+        tray = make_tray(controller, on_open=lambda: None, on_quit=lambda: None)
 
         def check() -> None:
             tray_ready = tray.start()
@@ -441,9 +500,9 @@ def smoke_test(
                     "detail": user_agent or "page script did not report",
                 }
             )
-            steps.append(
-                {"step": "tray", "ok": shown, "detail": "icon shown" if shown else "no icon"}
-            )
+            place = "menu bar" if sys.platform == "darwin" else "notification area"
+            detail = f"icon shown in the {place}" if shown else f"no icon in the {place}"
+            steps.append({"step": "tray", "ok": shown, "detail": detail})
             tray.stop()
             window.destroy()
 
@@ -472,11 +531,21 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] = (), *, environ: MutableMapping[str, str] | None = None) -> int:
-    """視窗版的入口；回傳結束碼。"""
+def main(
+    argv: Sequence[str] = (),
+    *,
+    environ: MutableMapping[str, str] | None = None,
+    exit_process: bool = True,
+) -> int:
+    """視窗版的入口；回傳結束碼。
+
+    macOS 上開過視窗後（``exit_process`` 時）直接結束程序，不會回來：pywebview 留下的執行緒
+    不是 daemon，一般的結束會一直等它們（同 RPA 錄製端）。
+    """
     env: MutableMapping[str, str] = os.environ if environ is None else environ
     set_locale(resolve_locale(env))
-    args = _parser().parse_args(list(argv))
+    # macOS 的 App 啟動時可能帶著 -psn_… 之類系統給的參數：不認得的參數略過
+    args, _ = _parser().parse_known_args(list(argv))
     ensure_browsers_path(env)
     home = data_dir(env)
     setup_logging(home / "logs")
@@ -494,8 +563,13 @@ def main(argv: Sequence[str] = (), *, environ: MutableMapping[str, str] | None =
             language=parse_locale(override) if override else None,
         )
 
+    def finish(code: int) -> int:
+        if exit_process and sys.platform == "darwin":
+            return macos.exit_process(code)
+        return code
+
     if args.smoke_test:
-        return smoke_test(controller(AutoStart(None, Path(sys.executable))), args.report)
+        return finish(smoke_test(controller(AutoStart(None, Path(sys.executable))), args.report))
     lock = InstanceLock(home)
     if not lock.acquire():
         logger.info("已經有一份在執行：請它叫出視窗")
@@ -507,12 +581,13 @@ def main(argv: Sequence[str] = (), *, environ: MutableMapping[str, str] | None =
         app = DesktopApp(
             worker, lock, background=bool(args.background), invite=args.invite, server=args.server
         )
-        return app.run()
+        code = app.run()
     except Exception as error:
         # 視窗程式沒有主控台：記在日誌並用訊息方塊說明，不讓 PyInstaller 跳出原始的錯誤對話框
         logger.exception("RPA Worker 視窗版停止了")
         with use_locale(resolve_locale(env)):
             _message_box(t("window.title"), t("window.crashed", error=error))
-        return 1
+        code = 1
     finally:
         lock.release()
+    return finish(code)
