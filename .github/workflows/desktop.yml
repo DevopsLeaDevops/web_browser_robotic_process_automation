@@ -31,6 +31,8 @@ on:
       - "packages/**"
       # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
       - "!apps/server/tests/**"
+      # 伺服器的分發包（server-package.yml）不進桌面 App
+      - "!apps/server/packaging/**"
       - "!apps/cli/tests/**"
       - "!apps/testsite/tests/**"
       - "!packages/rpa_core/tests/**"
@@ -55,6 +57,8 @@ on:
       - "packages/**"
       # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
       - "!apps/server/tests/**"
+      # 伺服器的分發包（server-package.yml）不進桌面 App
+      - "!apps/server/packaging/**"
       - "!apps/cli/tests/**"
       - "!apps/testsite/tests/**"
       - "!packages/rpa_core/tests/**"

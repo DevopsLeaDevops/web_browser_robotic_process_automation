@@ -3,8 +3,10 @@
 #      而且標籤指向的提交已經在 main 上。
 #   2. 呼叫桌面端建置（desktop.yml）：建置、自我測試、Windows 上安裝 → 端到端 → 升級 → 解除安裝，
 #      macOS 上錄製端的視窗自我測試與端到端（M10.2）。
-#   3. 用它的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip，RPA 錄製端的 DMG（M10.2），
-#      以及 SHA256SUMS.txt。
+#   3. 呼叫伺服器分發包的建置（server-package.yml）：x64、arm64 的 tar.gz，在 Rocky 8 容器裡安裝、
+#      啟動、重裝與升級。
+#   4. 用它們的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip，RPA 錄製端的 DMG（M10.2），
+#      伺服器的分發包（Linux x64、arm64），以及 SHA256SUMS.txt。
 # 草稿只有維護者看得到；確認內容後在 GitHub 上按「發布」才公開（docs/design/desktop.html#release）。
 # 已經有同一個標籤的草稿時（重新執行）換掉它的檔案；已經發布的不動，請改用新的版本。
 name: 發布
@@ -46,9 +48,17 @@ jobs:
       contents: read
       actions: read
 
+  server:
+    name: 伺服器分發包
+    needs: check
+    uses: ./.github/workflows/server-package.yml
+    permissions:
+      contents: read
+      actions: read
+
   release:
     name: 草稿 Release
-    needs: build
+    needs: [build, server]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -65,20 +75,29 @@ jobs:
         with:
           name: recorder-macos-14
           path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: server-linux-x64
+          path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: server-linux-arm64
+          path: release
       - name: 檔案與 SHA-256
         working-directory: release
         run: |
           ls -l
-          # Worker 的安裝檔與 zip、錄製端的 DMG 各一個；名稱裡要有這次的版本
+          # Worker 的安裝檔與 zip、錄製端的 DMG、伺服器的兩個分發包各一個；名稱裡要有這次的版本
           version="${TAG#v}"
           for pattern in "RPA-Worker-Setup-$version-windows-x64.exe" "RPA-Worker-$version-windows-x64.zip" \
-            "RPA-Recorder-$version-macos-arm64.dmg"; do
+            "RPA-Recorder-$version-macos-arm64.dmg" \
+            "RPA-Server-$version-linux-x64.tar.gz" "RPA-Server-$version-linux-arm64.tar.gz"; do
             if [ ! -f "$pattern" ]; then
               echo "::error title=發布::產物裡沒有 $pattern"
               exit 1
             fi
           done
-          sha256sum -- *.exe *.zip *.dmg > SHA256SUMS.txt
+          sha256sum -- *.exe *.zip *.dmg *.tar.gz > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: 建立或更新草稿
         working-directory: release
@@ -100,14 +119,23 @@ jobs:
           - 用管理 Portal「裝置」頁產生的**錄製端**邀請配對。
           - 還沒有簽章與公證：第一次打開會被擋下，到「系統設定 › 隱私權與安全性」選擇允許打開。
 
+          ## RPA 伺服器（Linux x64、arm64）
+
+          - **分發包** `RPA-Server-…-linux-x64.tar.gz`（aarch64 用 `linux-arm64`）：RHEL／CentOS 衍生版、
+            glibc 2.28 以上。內含 Python 與所有套件，伺服器不需要 git、uv 或連到 PyPI。
+          - 解壓後執行 `bash RPA-Server-…/install.sh --install-service`；升級時解壓新版再執行一次，
+            設定、資料與服務沿用。之前用 `setup-linux.sh` 安裝的，自動沿用那份設定與資料。
+
           RPA Worker: installer for the current user (no administrator rights needed) and a
           portable zip. RPA Recorder: a DMG for Apple silicon Macs; recording, step-by-step
           debugging and manual login through it open their browsers on that Mac. Pair either
-          with an invitation from the admin Portal's Devices page. Not code-signed or notarized
+          with an invitation from the admin Portal's Devices page. RPA Server: self-contained
+          Linux packages (x64, arm64; RHEL family, glibc 2.28+) with Python and all packages
+          inside; extract and run `install.sh`, again for upgrades. Not code-signed or notarized
           yet (on macOS allow it under System Settings › Privacy & Security on first launch);
           verify downloads with `SHA256SUMS.txt`.
           EOF
-          files=(*.exe *.zip *.dmg SHA256SUMS.txt)
+          files=(*.exe *.zip *.dmg *.tar.gz SHA256SUMS.txt)
           if draft="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
             if [ "$draft" != "true" ]; then
               echo "::error title=發布::$TAG 已經發布過了，不換它的檔案：請用新的版本"

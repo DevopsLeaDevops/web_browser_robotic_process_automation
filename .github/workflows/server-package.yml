@@ -1,0 +1,184 @@
+# Linux 伺服器的分發包：建自帶 Python 的 tar.gz（x64、arm64），在同架構的 Rocky 8 容器裡實際安裝。
+#   建置（tools/build_server.py）：uv 管理的 CPython ＋ 照 uv.lock 裝好的套件，限定 manylinux_2_28，
+#   用包內的 Python 執行 rpa --version、載入伺服器的程式。
+#   安裝（包內的 install.sh）：glibc 2.28、公司映像的 os-release（ID 空白）、一般帳號＋sudo，
+#   沒有 git 時用真實 yum 補裝；沿用 setup-linux.sh（clone）留下的設定；冒煙（HTTP、埠隔離、
+#   配對、重新啟動）；啟動器以設定檔的埠號啟動、第一次啟動匯入範例場景；重裝保留設定與資料；
+#   新版本切換 current、舊版本保留；systemd unit 語法。容器沒有 systemd，服務啟停由公司主機驗收。
+# 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
+name: 伺服器分發包
+
+on:
+  pull_request:
+    paths:
+      - "apps/server/**"
+      - "apps/cli/**"
+      - "apps/worker/**"
+      - "apps/testsite/**"
+      - "packages/**"
+      # 只改這些套件的測試不影響分發包
+      - "!apps/*/tests/**"
+      - "!packages/*/tests/**"
+      - "scenarios/demo/**"
+      - "tools/build_server.py"
+      - "tools/linux_server_smoke.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".github/workflows/server-package.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/server/**"
+      - "apps/cli/**"
+      - "apps/worker/**"
+      - "apps/testsite/**"
+      - "packages/**"
+      - "!apps/*/tests/**"
+      - "!packages/*/tests/**"
+      - "scenarios/demo/**"
+      - "tools/build_server.py"
+      - "tools/linux_server_smoke.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".github/workflows/server-package.yml"
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: server-package-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read # changes 查詢上一次運行的結果；release.yml 呼叫時也要給
+
+jobs:
+  # 只改文件且上一次推送已通過時略過、沿用結果（tools/ci_changes.py）；推版本標籤時一律建置
+  changes:
+    name: 執行範圍
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci_changes.py --workflow server-package.yml
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.mode != 'docs'
+    name: 分發包（${{ matrix.label }}）
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: x64
+            os: ubuntu-latest
+          - label: arm64
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - name: 建置（系統的 python3 執行，只用標準函式庫）
+        id: build
+        run: python3 tools/build_server.py
+      - name: Rocky 8：安裝、沿用舊設定、冒煙、啟動器、重裝、升級
+        env:
+          ARTIFACT: ${{ steps.build.outputs.artifact }}
+        run: |
+          docker run --rm -i -v "$GITHUB_WORKSPACE:/source:ro" -e ARTIFACT="/source/${ARTIFACT#"$GITHUB_WORKSPACE"/}" \
+            rockylinux:8 bash -s <<'BASH'
+          set -Eeuo pipefail
+          # Rocky 8 的 glibc 2.28 是下限。git 不預先安裝：install.sh 要自己用 yum 補上。
+          yum install -y sudo shadow-utils systemd tar gzip curl >/dev/null
+          if command -v git >/dev/null; then echo "映像已經有 git，無法驗證補裝"; exit 1; fi
+          useradd --create-home --shell /bin/bash rpa-test
+          echo 'rpa-test ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/rpa-test
+          chmod 440 /etc/sudoers.d/rpa-test
+          # 公司映像可能沒有 ID／名稱；VERSION_ID=3 不是 CentOS 3。
+          printf 'NAME=""\nVERSION=""\nID=""\nID_LIKE="rhel fedora centos "\nVERSION_ID="3"\nPRETTY_NAME=""\n' > /etc/os-release
+          cp "$ARTIFACT" /home/rpa-test/
+          chown rpa-test:rpa-test /home/rpa-test/*.tar.gz
+          sudo -H -u rpa-test bash -s <<'CHECK'
+          set -Eeuo pipefail
+          cd "$HOME"
+          # 之前用 setup-linux.sh（clone）裝過：設定要沿用
+          legacy="$HOME/code/web_browser_robotic_process_automation"
+          mkdir -p "$legacy"
+          printf 'export RPA_DATA_DIR=%q\nexport RPA_PORT=8090\nexport RPA_WORKER_PORT=8091\nexport RPA_WORKER_HOST=127.0.0.1\nexport RPA_TESTSITE_HOST=\n' \
+            "$HOME/legacy-data" > "$legacy/.rpa-server.env"
+          mkdir download
+          tar -xzf RPA-Server-*.tar.gz -C download
+          bundle="$(echo download/RPA-Server-*)"
+          version="$(sed -n 's/^version=//p' "$bundle/BUILD_INFO")"
+          commit="$(sed -n 's/^commit=//p' "$bundle/BUILD_INFO")"
+          cat "$bundle/BUILD_INFO"
+          du -sh "$bundle"
+
+          bash "$bundle/install.sh"
+          command -v git
+          test "$(readlink rpa-server/current)" = "releases/$version-$commit"
+          grep -q 'RPA_PORT=8090' rpa-server/rpa-server.env
+          rpa-server/bin/rpa --version
+          rpa-server/current/python/bin/python3 -c 'import platform; print(platform.python_version(), platform.libc_ver())'
+
+          # 冒煙：暫存資料、隨機埠（HTTP、埠隔離、配對、重新啟動）
+          rpa-server/current/python/bin/python3 /source/tools/linux_server_smoke.py \
+            --rpa "$HOME/rpa-server/bin/rpa" --cwd "$HOME/rpa-server/current"
+
+          # 啟動器：設定檔的埠號與資料目錄，第一次啟動匯入範例場景
+          rpa-server/bin/rpa-server > server.log 2>&1 &
+          pid=$!
+          for _ in $(seq 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8090/api/openapi.json; then break; fi
+            sleep 1
+          done
+          if ! curl -fsS 'http://127.0.0.1:8090/api/scenes?domain=testsite' | grep -qi 'ba-001'; then
+            cat server.log
+            exit 1
+          fi
+          kill "$pid"
+          wait "$pid" || true
+          test -f legacy-data/rpa.db
+
+          # 重裝：設定與資料不變
+          echo '# retain this setting' >> rpa-server/rpa-server.env
+          cp rpa-server/rpa-server.env env.before
+          echo keep > legacy-data/keep.txt
+          bash "$bundle/install.sh"
+          cmp rpa-server/rpa-server.env env.before
+          test "$(cat legacy-data/keep.txt)" = keep
+
+          # 升級：模擬下一個提交的分發包，current 換過去、上一版保留，新版本照樣能啟動
+          cp -a "$bundle" next
+          sed -i 's/^commit=.*/commit=0000001/' next/BUILD_INFO
+          bash next/install.sh
+          test "$(readlink rpa-server/current)" = "releases/$version-0000001"
+          test -d "rpa-server/releases/$version-$commit"
+          rpa-server/current/python/bin/python3 /source/tools/linux_server_smoke.py \
+            --rpa "$HOME/rpa-server/bin/rpa" --cwd "$HOME/rpa-server/current"
+          cmp rpa-server/rpa-server.env env.before
+          CHECK
+          # 容器沒有 systemd PID 1，只驗證 unit；真實服務啟停另由公司主機驗收。
+          systemd-analyze verify /home/rpa-test/rpa-server/rpa-server.service
+          BASH
+      - name: 大小
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          size="$(du -h "${{ steps.build.outputs.artifact }}" | cut -f1)"
+          echo "::notice title=伺服器分發包（${{ matrix.label }}）::$(basename "${{ steps.build.outputs.artifact }}")：$size"
+          echo "### ${{ matrix.label }}：$size" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: server-linux-${{ matrix.label }}
+          path: ${{ steps.build.outputs.artifact }}
+          retention-days: 14
+          if-no-files-found: error
