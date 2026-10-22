@@ -20,6 +20,19 @@
   </div>
 
   <div class="stack">
+    <section class="panel" id="multipage">
+      <div class="panel-header"><h2>多分頁與對時修正（2026-10-22）</h2></div>
+      <div class="panel-body prose">
+        <p>更新：2026-10-22 00:35 America/Los_Angeles（PDT，UTC−07:00）。本節取代前述「單一影片即可覆蓋運行」與「超界步驟接在最後一格」的假設。</p>
+        <p><strong>原因：</strong>Playwright 為每個分頁各錄一支影片；原整理程序只留下主要影片，其餘檔案隨暫存目錄清除。步驟成功只代表操作成功，不代表主要影片包含新分頁畫面。播放器又將超出單一影片長度的步驟一律解釋為運行中斷，因而誤導診斷。</p>
+        <p><strong>保存：</strong>video.json v2 增加 clips，每個片段具有 pageId、file、startedAt、startedAtSource、durationMs、畫面尺寸與完整性資訊。起始分頁使用 video.webm，其他分頁使用 video-page-N.webm；主要片段缺失時以第一支可用影片保留 video.webm 相容入口。原頂層欄位仍描述這支主要影片，timelineStartedAt／timelineDurationMs 描述影片覆蓋範圍。steps.json 增加 pageId、createdPageId。遠端 Worker 仍上傳整個執行目錄，容量與刪除以所有片段計算。</p>
+        <p><strong>回看：</strong>步驟與片段依 UTC 轉為共用時間軸，播放、跳轉與縮圖均依分頁識別選片。返回起始分頁時切回該影片；重疊錄影不直接串接。載入時暫停時鐘；缺失、損壞或超出覆蓋範圍時顯示缺片提示。舊版單影片仍可讀取；已刪除的新分頁片段不能由主要影片重建。下載提供各分頁的原始檔，沒有宣稱單一下載即全程合成影片。</p>
+        <p><strong>Chromium 對時：</strong>在本機 Playwright 1.64 的純色測試中，影片首格時間歸零，但 DateUTC 與實際畫面起點不同。執行端立即訂閱公開 Screencast API，記下第一個觀測畫面的時間；讀到首格 PTS 為零時使用此時間，來源標為 first-observed-frame，取得後即停止訂閱。這是觀測基準，不是逐格精確同步保證；測試驗證點擊前後各 0.3 秒的顏色。取得失敗時保留 file／page 回退來源，舊錄影不套用固定秒數修正。最低 Playwright 版本調整為 1.64。</p>
+        <p><strong>驗證界線：</strong>測試使用白／藍／紅合成頁，涵蓋 headed、headless、新分頁關閉與返回、連續播放、跳步、缺片、取消／逾時及清理。此變更不處理 Firefox 畫面大小或閃屏，也不重跑業務交易；Windows、Linux 與產品環境結果以 CI 及部署後驗收為準。</p>
+        <p>公開依據：<a href="https://playwright.dev/python/docs/videos">Playwright 錄影保存與多分頁說明</a>；實作證據與測試紀錄見 <a href="../../handoff/tasks/20261022-replay-multipage.html">本任務交接</a>。</p>
+      </div>
+    </section>
+
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-20</dd>

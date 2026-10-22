@@ -29,7 +29,7 @@ from rpa_runner.contexts import Engine, open_context
 from rpa_runner.files import DIAGNOSTIC, FACTS, SCREENSHOT, STEPS, VIDEO_TMP, write_json
 from rpa_runner.i18n import t
 from rpa_runner.secrets import mask, read_secrets
-from rpa_runner.video import mark_page, video_size
+from rpa_runner.video import PageVideos, mark_page, video_size
 
 __all__ = ["EXIT_DEADLINE", "EXIT_FAILED", "main"]
 
@@ -125,7 +125,8 @@ def run(args: argparse.Namespace) -> int:
                 storage_state=Path(args.storage_state) if args.storage_state else None,
                 video=out if args.video else None,
             )
-            tabs = Tabs(page)
+            videos = PageVideos(out, page, engine=engine) if args.video else None
+            tabs = Tabs(page, identify=videos.identify if videos is not None else None)
             facts = run_steps(
                 page,
                 scenario,

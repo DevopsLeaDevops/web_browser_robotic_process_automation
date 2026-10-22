@@ -112,8 +112,6 @@ def _recorded(folder: Path, content: bytes, *, name: str = "page1.webm") -> None
 
 def test_finalize_moves_the_video_and_describes_it(tmp_path: Path) -> None:
     _recorded(tmp_path, tiny_webm(duration_ms=3200, started_at=STARTED, width=1280, height=720))
-    # 其他頁面（彈出視窗）的影片不留
-    (tmp_path / VIDEO_TMP / "popup.webm").write_bytes(tiny_webm())
 
     details = finalize(tmp_path, engine="chromium")
 
@@ -254,3 +252,76 @@ def test_descendants_skip_children_of_a_reused_pid() -> None:
     found = descendants(100, processes)
 
     assert [item.pid for item in found] == [101, 160, 102]
+
+
+def test_finalize_keeps_popup_recording(tmp_path: Path) -> None:
+    mark_page(tmp_path, "primary.webm", STARTED.timestamp())
+    (tmp_path / VIDEO_TMP / "primary.webm").write_bytes(tiny_webm(started_at=STARTED))
+    (tmp_path / VIDEO_TMP / "popup.webm").write_bytes(tiny_webm(started_at=STARTED))
+    finalize(tmp_path)
+    assert len(list(tmp_path.glob("*.webm"))) == 2
+
+
+def test_clip_files_reject_paths_outside_the_recording_names() -> None:
+    assert video.video_files(
+        {
+            "clips": [
+                {"file": "../video.webm"},
+                {"file": "/video.webm"},
+                {"file": "screenshot.png"},
+                {"file": "video-page-2.webm"},
+                {"file": "video.webm"},
+            ]
+        }
+    ) == {"video.webm", "video-page-2.webm"}
+
+
+@pytest.mark.parametrize("first_frame_ms", [0, 40])
+def test_observed_origin_only_applies_to_zero_based_video(
+    tmp_path: Path, first_frame_ms: int
+) -> None:
+    mark_page(tmp_path, "main.webm", STARTED.timestamp())
+    write_json(
+        tmp_path / VIDEO_TMP / "pages.json",
+        [
+            {
+                "file": "main.webm",
+                "pageId": "page-1",
+                "openedAt": STARTED.timestamp(),
+                "firstObservedAt": STARTED.timestamp() + 0.8,
+            }
+        ],
+    )
+    (tmp_path / VIDEO_TMP / "main.webm").write_bytes(
+        tiny_webm(started_at=STARTED, first_frame_ms=first_frame_ms)
+    )
+    details = finalize(tmp_path)
+    assert details is not None
+    if first_frame_ms == 0:
+        assert details["startedAtSource"] == "first-observed-frame"
+        assert details["startedAt"] == "2026-10-21T03:30:12.841Z"
+        assert details["fileStartedAt"] == "2026-10-21T03:30:12.041Z"
+    else:
+        assert details["startedAtSource"] == "file"
+        assert details["startedAt"] == "2026-10-21T03:30:12.041Z"
+
+
+def test_broken_primary_does_not_discard_usable_popup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mark_page(tmp_path, "main.webm", STARTED.timestamp())
+    write_json(
+        tmp_path / VIDEO_TMP / "pages.json",
+        [{"file": "main.webm", "pageId": "page-1"}, {"file": "popup.webm", "pageId": "page-2"}],
+    )
+    (tmp_path / VIDEO_TMP / "main.webm").write_bytes(b"broken")
+    (tmp_path / VIDEO_TMP / "popup.webm").write_bytes(tiny_webm(started_at=STARTED))
+    monkeypatch.setattr(video, "repair", _cannot_repair)
+    details = finalize(tmp_path, wait_seconds=0)
+    assert details is not None
+    assert details["file"] == VIDEO
+    recordings = details["clips"]
+    assert isinstance(recordings, list)
+    assert recordings[0]["error"] == "unreadable"
+    assert recordings[1]["pageId"] == "page-2"
+    assert recordings[1]["file"] == VIDEO

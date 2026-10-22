@@ -15,8 +15,9 @@
   const FPS = 25;
   const PREROLL = 0.4;
   const runId = root.dataset.run;
-  const video = $('replay-video');
-  const playable = Boolean(video && data.video && data.video.playable);
+  const element = $('replay-video');
+  const playable = Boolean(element && data.video && data.video.playable);
+  const video = playable ? new ReplayMedia(element, data.video, data.steps, $('replay-gap')) : null;
 
   const steps = data.steps.map(step => ({
     ...step,
@@ -67,7 +68,7 @@
       if (!entry.isIntersecting || !duration) continue;
       thumbObserver.unobserve(entry.target);
       const step = steps[Number(entry.target.dataset.thumb) - 1];
-      if (step && step.end != null) grab(clamp(step.end + 0.15)).then(frame => draw(entry.target, frame));
+      if (step && step.end != null) grab(clamp(step.end), step.pageId).then(frame => draw(entry.target, frame));
     }
   }) : null;
 
@@ -141,7 +142,7 @@
   function choose(index, {seekTo = true} = {}) {
     selected = index;
     const step = steps[index - 1];
-    if (seekTo && playable && step.start != null) seek(step.start - PREROLL);
+    if (seekTo && playable && step.start != null) seek(step.start - PREROLL, step);
     renderSteps();
     const target = list.querySelector('.replay-row[data-index="' + index + '"]');
     if (target) target.focus({preventScroll: true});
@@ -152,7 +153,7 @@
     if (action) {
       const step = steps[selected - 1];
       if (action.dataset.act === 'play') {
-        seek(step.start - PREROLL);
+        seek(step.start - PREROLL, step);
         video.play();
       } else if (action.dataset.act === 'link') {
         const url = new URL(location.href);
@@ -243,37 +244,39 @@
   const grabber = document.createElement('video');
   grabber.muted = true;
   grabber.preload = 'auto';
-  grabber.src = video.currentSrc || video.src;
   const frames = new Map();
   let queue = Promise.resolve();
-  const seekVideo = (target, seconds) => new Promise(resolve => {
-    const done = () => { clearTimeout(timer); resolve(); };
-    const timer = setTimeout(done, 3000);
-    target.addEventListener('seeked', done, {once: true});
-    target.currentTime = seconds;
+  const waitMedia = (target, event, action) => new Promise((resolve, reject) => {
+    const cleanup = () => { clearTimeout(timer); target.removeEventListener(event, done); target.removeEventListener('error', fail); };
+    const done = () => { cleanup(); resolve(); };
+    const fail = () => { cleanup(); reject(new Error('media')); };
+    const timer = setTimeout(fail, 5000);
+    target.addEventListener(event, done, {once: true});
+    target.addEventListener('error', fail, {once: true});
+    try { action(); } catch { fail(); }
   });
-  function grab(seconds) {
-    const key = Math.round(seconds * 10) / 10;
+  function grab(seconds, pageId) {
+    const clip = video.clipAt(seconds, pageId);
+    const local = clip ? Math.max(0, seconds - clip.start) : 0;
+    const key = (clip ? clip.pageId : 'gap') + ':' + Math.round(local * 10);
     if (frames.has(key)) return Promise.resolve(frames.get(key));
     queue = queue.then(async () => {
       if (frames.has(key)) return frames.get(key);
-      if (grabber.readyState < 2) {
-        await new Promise(resolve => {
-          grabber.addEventListener('loadeddata', resolve, {once: true});
-          grabber.addEventListener('error', resolve, {once: true});
-        });
-      }
       const canvas = document.createElement('canvas');
       canvas.width = 384;
-      canvas.height = Math.round(384 * (video.videoHeight || 9) / (video.videoWidth || 16));
-      try {
-        await seekVideo(grabber, Math.min(key, Math.max(0, (grabber.duration || duration) - 0.04)));
-        // 跳到之後那一格可能還沒解碼好（畫出來是黑的）：等到可以畫
-        for (let wait = 0; grabber.readyState < 2 && wait < 50; wait += 1) {
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        canvas.getContext('2d').drawImage(grabber, 0, 0, canvas.width, canvas.height);
-      } catch { /* 畫不出來就留空白 */ }
+      canvas.height = Math.round(384 * ((clip && clip.height) || 9) / ((clip && clip.width) || 16));
+      if (clip) {
+        try {
+          if (grabber.getAttribute('src') !== clip.url) {
+            await waitMedia(grabber, 'loadeddata', () => { grabber.src = clip.url; });
+          }
+          const position = Math.min(local, Math.max(0, grabber.duration - 0.04));
+          if (Math.abs(grabber.currentTime - position) > 0.001) {
+            await waitMedia(grabber, 'seeked', () => { grabber.currentTime = position; });
+          }
+          canvas.getContext('2d').drawImage(grabber, 0, 0, canvas.width, canvas.height);
+        } catch { /* 缺片或讀取失敗留空白，不借用其他分頁的縮圖 */ }
+      }
       frames.set(key, canvas);
       return canvas;
     });
@@ -283,10 +286,14 @@
     if (canvas.isConnected) canvas.getContext('2d').drawImage(frame, 0, 0, canvas.width, canvas.height);
   };
   const nearest = seconds => {
+    const clip = video.clipAt(seconds);
+    if (!clip) return null;
     let best = null;
     let distance = Infinity;
     for (const [key, canvas] of frames) {
-      const gap = Math.abs(key - seconds);
+      const [pageId, tick] = key.split(':');
+      if (pageId !== clip.pageId) continue;
+      const gap = Math.abs(Number(tick) / 10 - (seconds - clip.start));
       if (gap < distance) { distance = gap; best = canvas; }
     }
     return best;
@@ -419,8 +426,10 @@
 
   // ---------------------------------------------------------------- 播放與同步
 
-  function seek(seconds) {
-    video.currentTime = clamp(seconds);
+  function seek(seconds, step = null) {
+    const clip = step && video.clips.find(item => item.pageId === step.pageId);
+    const start = clip ? Math.max(seconds, clip.start) : seconds;
+    video.seek(clamp(start), step ? {pageId: step.pageId, until: step.start} : null);
     sync();
   }
 
@@ -516,7 +525,7 @@
     else target = position > 0 ? timed[position - 1] : null;
     if (target) {
       selected = target.index;
-      seek(target.start - PREROLL);
+      seek(target.start - PREROLL, target);
       renderSteps();
     } else if (direction < 0) {
       seek(0);
@@ -592,9 +601,9 @@
     duration = Number.isFinite(video.duration) ? video.duration : (data.video.durationMs || 0) / 1000;
     $('replay-duration').textContent = fmt(duration);
     const last = timed.length ? Math.max(...timed.map(each => each.end != null ? each.end : each.start)) : 0;
-    if (last > duration + 0.5) {
+    if (data.video.missingPages || last > duration + 0.5) {
       const note = $('replay-beyond');
-      note.textContent = fill(messages.beyond_video, {time: fmt(duration)});
+      note.textContent = data.video.missingPages ? messages.missing_pages : fill(messages.beyond_video, {time: fmt(duration)});
       note.hidden = false;
     }
     renderSteps();
@@ -603,12 +612,12 @@
     const asked = steps.find(each => each.id === params.get('step'));
     if (params.has('t')) {
       if (asked) selected = asked.index;
-      seek(Number(params.get('t')) || 0);
+      seek(Number(params.get('t')) || 0, asked);
       renderSteps();
     } else if (asked && asked.start != null) {
       choose(asked.index);
     } else if (failedStep && failedStep.start != null) {
-      seek(failedStep.start - 1);
+      seek(failedStep.start - 1, failedStep);
       const located = $('replay-located');
       located.textContent = fill(messages.located_failed, {n: failedStep.index});
       located.hidden = false;
@@ -616,6 +625,12 @@
     }
     setPlaying();
   };
+  video.addEventListener('durationchange', () => {
+    duration = video.duration;
+    $('replay-duration').textContent = fmt(duration);
+    renderSteps();
+    layout();
+  });
   let resizeTimer = 0;
   if ('ResizeObserver' in window) {
     new ResizeObserver(() => {

@@ -4,6 +4,7 @@ Portal 用 uvicorn 在背景執行緒啟動（含背景 worker）；場景與操
 （CI 的網站測試只跑 Chromium；錄影本身在兩種瀏覽器的測試在 rpa_runner 的 test_video_browser.py）。
 """
 
+import json
 import socket
 import threading
 import time
@@ -20,6 +21,7 @@ from rpa_server.app import create_app
 from rpa_server.config import Settings, sqlite_url
 from testsite.browsers import require_engine
 from testsite.server import running
+from testsite.video import PAGES_SCENARIO, recording_site
 
 pytestmark = pytest.mark.browser
 
@@ -145,3 +147,81 @@ def test_replay_follows_steps_and_seeks(portal: str, page: Page) -> None:
         # 運行報告與運行回看的清單都連到回看
         page.goto(f"{portal}/replay")
         expect(page.locator(f'a[href="/runs/{failed["id"]}/replay"]')).to_be_visible()
+
+
+def test_replay_switches_pages_and_returns_to_main(portal: str, page: Page, tmp_path: Path) -> None:
+    with recording_site(tmp_path) as site, httpx2.Client(base_url=portal, timeout=30) as client:
+        assert (
+            client.post("/api/scenes", json={"id": "video-pages", "name": "純色分頁"}).status_code
+            == 201
+        )
+        response = client.post(
+            "/api/scenes/video-pages/revisions",
+            json={
+                "baseRevision": 1,
+                "files": {"scenario.yaml": PAGES_SCENARIO.replace("http://localhost", site)},
+            },
+        )
+        assert response.status_code == 201, response.text
+        response = client.post(
+            "/api/scenes/video-pages/revisions/2/validate",
+            json={"inputs": {}, "engine": "chromium", "headless": True},
+        )
+        assert response.status_code == 202, response.text
+        run = finished(client, cast("JsonObject", response.json()))
+        assert run["status"] == "passed", run["error"]
+        run_id = str(run["id"])
+        replay = client.get(f"/api/runs/{run_id}/replay").json()
+        assert len(replay["video"]["clips"]) == 2
+        errors: list[str] = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(f"{portal}/runs/{run_id}/replay")
+        media = page.locator("#replay-video")
+        page.wait_for_function("document.querySelectorAll('.replay-tile.ready').length >= 2")
+        for index, page_id in ((5, "page-2"), (8, "page-1"), (5, "page-2")):
+            page.locator(f'.replay-row[data-index="{index}"]').click()
+            expect(media).to_have_attribute("data-page-id", page_id)
+            expect(page.locator("#replay-gap")).to_be_hidden()
+            # 真的解碼到目標分頁的畫面，不能只驗證 src 或分頁標籤。
+            page.wait_for_function(
+                """id => {
+                const v = document.getElementById('replay-video');
+                if (v.readyState < 2 || v.seeking) return false;
+                const c = document.createElement('canvas'); c.width = 64; c.height = 36;
+                const x = c.getContext('2d'); x.drawImage(v, 0, 0, 64, 36);
+                const [r,g,b] = x.getImageData(56,30,1,1).data;
+                return id === 'page-2' ? b > 200 && r < 80 && g < 80 : Math.min(r,g,b) > 200;
+            }""",
+                arg=page_id,
+            )
+        # 連續播放必須在共用時間軸上自動切回起始頁，最後停在全程末尾。
+        page.keyboard.press("Home")
+        page.locator("#replay-play").click()
+        expect(media).to_have_attribute("data-page-id", "page-2", timeout=20_000)
+        expect(media).to_have_attribute("data-page-id", "page-1", timeout=20_000)
+        expect(page.locator("#replay-play")).to_have_attribute(
+            "aria-label", "播放（空白鍵）", timeout=20_000
+        )
+        expect(page.locator("#replay-now")).to_have_text(
+            page.locator("#replay-duration").inner_text()
+        )
+        assert not errors, errors
+        # 每一頁可獨立下載；片段分開保存，不把同時錄下的背景頁重複串接。
+        assert page.locator(".replay-downloads a").all_text_contents() == ["分頁 1", "分頁 2"]
+
+        # 片段缺少長度時由媒體中繼資料補足，仍可播放；不能直接當成零長度缺片。
+        manifest = next((tmp_path / "data").rglob("video.json"))
+        info = json.loads(manifest.read_text())
+        info["clips"][1]["durationMs"] = None
+        manifest.write_text(json.dumps(info))
+        page.reload()
+        page.locator('.replay-row[data-index="5"]').click()
+        expect(media).to_have_attribute("data-page-id", "page-2")
+        expect(page.locator("#replay-gap")).to_be_hidden()
+        # 舊錄影遺失新分頁：保留步驟與正確結果，不播放上一頁假裝有畫面。
+        next((tmp_path / "data").rglob("video-page-2.webm")).unlink()
+        page.reload()
+        page.locator('.replay-row[data-index="5"]').click()
+        expect(page.locator("#replay-gap")).to_be_visible()
+        expect(page.locator("#replay-beyond")).to_contain_text("部分分頁影片缺失")
+        assert client.get(f"/api/runs/{run_id}").json()["status"] == "passed"

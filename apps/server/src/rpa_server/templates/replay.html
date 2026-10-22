@@ -30,6 +30,7 @@
         <div class="replay-stage" id="replay-stage"{% if video.width and video.height %} style="aspect-ratio: {{ video.width }} / {{ video.height }}"{% endif %}>
           <video id="replay-video" src="{{ video.url }}" playsinline muted preload="auto"></video>
           <div class="replay-chip" aria-live="polite"><span class="replay-chip-n" id="replay-chip-n">—</span><span class="replay-chip-state" id="replay-chip-state"></span><span id="replay-chip-text"></span></div>
+          <div class="replay-gap" id="replay-gap" role="status" hidden>{{ t("replay.missing_clip") }}</div>
           <div class="replay-located" id="replay-located" hidden></div>
           <button class="replay-bigplay" id="replay-bigplay" type="button" aria-label="{{ t('replay.play') }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
           {% if data.failedStep %}
@@ -42,6 +43,11 @@
           {% endif %}
           <div class="replay-cannot-play" id="replay-cannot-play" hidden>{{ t("replay.cannot_play") }} <a href="{{ video.url }}" download="{{ run.id }}.webm">{{ t("replay.download") }}</a></div>
         </div>
+        {% if video.clips|length > 1 %}
+        <div class="replay-downloads">{{ t("replay.page_recordings") }}
+          {% for clip in video.clips %}{% if clip.url %}<a href="{{ clip.url }}" download>{{ t("replay.page_number", n=loop.index) }}</a>{% endif %}{% endfor %}
+        </div>
+        {% endif %}
         <div class="replay-controls">
           <button class="replay-icon primary" id="replay-play" type="button" aria-label="{{ t('replay.play') }}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" id="replay-play-icon"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
           <button class="replay-icon" id="replay-prev" type="button" aria-label="{{ t('replay.prev_step') }}" title="{{ t('replay.prev_step') }}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5.5v13L9.5 12z"/></svg></button>
@@ -130,5 +136,6 @@
 </div>
 <script type="application/json" id="replay-data">{{ data_json | safe }}</script>
 <script type="application/json" id="replay-messages">{{ replay_messages | tojson }}</script>
+<script defer src="/static/replay-media.js"></script>
 <script defer src="/static/replay.js"></script>
 {% endblock %}

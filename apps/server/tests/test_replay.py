@@ -39,6 +39,8 @@ class StepExecutor:
     def __init__(self) -> None:
         self.fail_at: int | None = None
         self.record = True
+        self.multiple_pages = False
+        self.child_video = True
 
     def __call__(
         self,
@@ -72,6 +74,8 @@ class StepExecutor:
             record.ended_at = record.started_at + 0.4
             record.url = f"{base_url or 'http://site'}/page{index}"
             record.status = "passed"
+            if self.multiple_pages:
+                record.page_id = "page-2" if 1 <= index <= 2 else "page-1"
             if index == self.fail_at:
                 record.status = "failed"
                 record.error = "TimeoutError: 找不到元素"
@@ -83,6 +87,10 @@ class StepExecutor:
             (folder / VIDEO_TMP / "page.webm").write_bytes(
                 tiny_webm(duration_ms=6000, started_at=STARTED, width=1280, height=800)
             )
+            if self.multiple_pages and self.child_video:
+                (folder / VIDEO_TMP / "popup.webm").write_bytes(
+                    tiny_webm(duration_ms=2000, started_at=STARTED + timedelta(seconds=1))
+                )
             finalize(folder, engine="chromium")
         return RunResult(
             run_id=run_id,
@@ -271,3 +279,23 @@ def test_video_settings_form_is_on_the_replay_page(client: Client) -> None:
 def test_edit_page_can_jump_to_a_line(client: Client) -> None:
     html = client.get("/scenes/ba-001/edit?revision=1&file=scenario.yaml&line=42").text
     assert 'data-line="42"' in html
+
+
+@pytest.mark.parametrize("child_video", [False, True])
+def test_replay_resolves_steps_to_their_page_recordings(
+    client: Client, worker: Worker, executor: StepExecutor, child_video: bool
+) -> None:
+    executor.multiple_pages = True
+    executor.child_video = child_video
+    run_id = run_once(client, worker)
+    data = body(client.get(f"/api/runs/{run_id}/replay"))
+    video = cast("JsonObject", data["video"])
+    recordings = cast("list[JsonObject]", video["clips"])
+    steps = cast("list[JsonObject]", data["steps"])
+    assert [step["pageId"] for step in steps[:4]] == ["page-1", "page-2", "page-2", "page-1"]
+    assert video["missingPages"] is (not child_video)
+    assert recordings[0]["startMs"] == 0
+    if child_video:
+        assert recordings[1]["startMs"] == 1000
+        assert str(recordings[1]["url"]).endswith("video-page-2.webm")
+        assert recordings[1]["pageId"] == steps[1]["pageId"]

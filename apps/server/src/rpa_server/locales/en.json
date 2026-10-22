@@ -1295,7 +1295,7 @@
   "replay.previous": "Previous",
   "replay.next": "Next",
   "replay.run_details": "Run details",
-  "replay.download": "Download video",
+  "replay.download": "Download initial page video",
   "replay.workflow_node": "Node {node} of the composite run",
   "replay.not_finished": "The run has not finished yet; it can be replayed when it ends.",
   "replay.video": "Recording",
@@ -1363,7 +1363,7 @@
   "replayjs.open_in_scene": "Open in the scenario (line {{line}})",
   "replayjs.copied": "Link copied",
   "replayjs.copy_failed": "Could not copy; select it yourself: {{link}}",
-  "replayjs.beyond_video": "The video has no new frames after {{time}}: when the run was interrupted, the final wait was not recorded.",
+  "replayjs.beyond_video": "Video coverage ends at {{time}}. Later steps have no recorded frames; this does not imply an execution failure.",
   "replayjs.no_steps": "This run has no step records.",
   "replayjs.pin": "Pin so it is not deleted",
   "replayjs.pinned": "Pinned (not deleted automatically)",
@@ -1377,5 +1377,9 @@
   "replayjs.action_waitFor": "Wait for {{id}}",
   "replayjs.action_expect": "Expect {{id}}",
   "replayjs.action_extract": "Extract {{id}}",
-  "replayjs.action_screenshot": "Screenshot {{id}}"
+  "replayjs.action_screenshot": "Screenshot {{id}}",
+  "replay.page_recordings": "Original page recordings:",
+  "replay.page_number": "Page {n}",
+  "replay.missing_clip": "No recording for this page at this time. Check the step records for execution results.",
+  "replayjs.missing_pages": "Some page recordings are missing. All steps remain on the timeline; missing intervals are marked."
 }

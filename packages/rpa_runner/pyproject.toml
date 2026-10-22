@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
   "rpa-core",
   # 瀏覽器自動化；Chromium 與 Firefox 都在 CI 測試（ADR 0010）
-  "playwright>=1.63.0",
+  "playwright>=1.64.0",
 ]
 
 [tool.uv.sources]

@@ -22,7 +22,7 @@ from rpa_core.dsl import validate_file
 from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.dsl.yaml_writer import flow
 from rpa_runner.files import FACTS, RESULT, SCENARIO_DIR, STEPS, read_json_or
-from rpa_runner.video import read_info
+from rpa_runner.video import clips, read_info
 from rpa_server.models import Run
 from rpa_server.storage import Storage
 from rpa_server.videos import VideoSettings, video_details
@@ -37,7 +37,8 @@ def _moment(value: object) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo is not None else None
     except ValueError:
         return None
 
@@ -144,6 +145,9 @@ def _steps(
                 "durationMs": record.get("durationMs"),
                 "error": record.get("error"),
                 "url": record.get("url"),
+                "pageId": record.get("pageId")
+                or ("missing:" + str(definition["page"]) if definition.get("page") else "page-1"),
+                "createdPageId": record.get("createdPageId"),
                 "startedAt": record.get("startedAt"),
                 "endedAt": record.get("endedAt"),
                 "startMs": _offset(_moment(record.get("startedAt")), start),
@@ -215,13 +219,31 @@ def build_replay(
     info = read_info(folder) or {}
     state = video_details(run, settings)
     playable = state is not None and state.get("url") is not None and info.get("file") is not None
-    start = _moment(info.get("startedAt")) if playable else None
+    recordings = clips(info)
+    origins = [
+        value for clip in recordings if (value := _moment(clip.get("startedAt"))) is not None
+    ]
+    start = min(origins) if origins and playable else None
+    entries: list[dict[str, object]] = []
+    for clip in recordings:
+        entries.append(
+            {
+                **clip,
+                "startMs": _offset(_moment(clip.get("startedAt")), start),
+                "url": f"/runs/{run.id}/files/{clip['file']}"
+                if playable and (folder / str(clip["file"])).is_file()
+                else None,
+            }
+        )
     video: dict[str, object] | None = None
     if state is not None:
         video = {
             **state,
             "playable": playable,
-            "startedAt": info.get("startedAt"),
+            "startedAt": start.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            if start
+            else None,
+            "clips": entries,
             "durationMs": info.get("durationMs"),
             "width": info.get("width"),
             "height": info.get("height"),
@@ -231,6 +253,37 @@ def build_replay(
     elif info:
         video = {"playable": False, "error": info.get("error")}
     steps = _steps(folder, result, start)
+    if video is not None and playable:
+        # 開頁步驟可能比第一格畫面更早；保留這段等待，不把它壓到零點。
+        moments = [
+            moment for step in steps if (moment := _moment(step.get("startedAt"))) is not None
+        ]
+        if start is not None and moments and min(moments) < start:
+            earlier = min(moments)
+            shift = round((start - earlier).total_seconds() * 1000)
+            video["startedAt"] = earlier.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            for item in entries:
+                if isinstance(item.get("startMs"), int):
+                    item["startMs"] = cast("int", item["startMs"]) + shift
+            for step in steps:
+                for key in ("startMs", "endMs"):
+                    if isinstance(step.get(key), int):
+                        step[key] = cast("int", step[key]) + shift
+        ends = [
+            float(cast("int", c["startMs"])) + float(cast("int | float", c["durationMs"]))
+            for c in entries
+            if isinstance(c.get("startMs"), int) and isinstance(c.get("durationMs"), int | float)
+        ]
+        ends.extend(
+            float(cast("int", s["endMs"])) for s in steps if isinstance(s.get("endMs"), int)
+        )
+        video["durationMs"] = round(max(ends, default=0))
+        page_ids = {
+            c.get("pageId") for c in entries if c.get("url") and c.get("startMs") is not None
+        }
+        video["missingPages"] = any(
+            s.get("pageId") not in page_ids for s in steps if s.get("startedAt")
+        )
     failed = next((step["index"] for step in steps if step["status"] == "failed"), None)
     return {
         "video": video,
