@@ -7,6 +7,7 @@ from typing import cast
 import pytest
 
 from rpa_core.dsl import validate_text
+from rpa_core.dsl.dynamic import evaluate
 from rpa_core.i18n import use_locale
 from rpa_core.recording import Conversion, ConversionError, convert_recording, mask_source
 
@@ -71,6 +72,16 @@ def convert(
 
 def steps_of(data: dict[str, object]) -> list[dict[str, object]]:
     return cast("list[dict[str, object]]", data["steps"])
+
+
+@pytest.mark.parametrize("text", ["{{today}}", "{{customer.name}}", "{{", '{{"{{"}}today}}'])
+def test_recorded_input_text_is_preserved_literally(text: str) -> None:
+    source = f'page.goto("https://example.test/")\npage.get_by_label("Template").fill({text!r})'
+    data, result = convert(source)
+    assert not result.warnings
+    inputs = cast("dict[str, dict[str, object]]", data["inputs"])
+    spec = next(iter(inputs.values()))
+    assert evaluate(spec["default"], now=NOW) == text
 
 
 def test_sync_recording_becomes_a_valid_draft() -> None:

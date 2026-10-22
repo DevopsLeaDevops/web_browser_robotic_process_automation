@@ -2005,14 +2005,17 @@
     function valueField(name, spec, binding) {
       const current = binding && 'value' in binding ? binding.value : '';
       const attrs = ' data-value="' + esc(name) + '" aria-label="' + esc(fill(text.value_label, {name})) + '"';
-      if (spec.type === 'boolean' || Array.isArray(spec.enum)) {
-        const values = spec.type === 'boolean' ? [true, false] : spec.enum;
+      if (spec.type === 'boolean') {
+        const values = [true, false];
         return '<select' + attrs + '>' + values.map((value, index) =>
           '<option value="' + index + '"' + (json(value) === json(current) ? ' selected' : '') + '>' + esc(json(value)) + '</option>').join('') + '</select>';
       }
-      const type = spec.type === 'integer' || spec.type === 'number' ? 'number' : 'text';
-      const step = spec.type === 'number' ? ' step="any"' : '';
-      return '<input type="' + type + '"' + step + attrs + ' value="' + esc(current === '' ? '' : String(current)) + '">';
+      // 數字與枚舉也能填動態值；普通數字在 input 事件中按契約轉型。
+      const listId = 'fixed-options-' + name;
+      const options = Array.isArray(spec.enum) ? '<datalist id="' + esc(listId) + '">' +
+        spec.enum.map(value => '<option value="' + esc(String(value)) + '"></option>').join('') + '</datalist>' : '';
+      return '<input type="text"' + attrs + (options ? ' list="' + esc(listId) + '"' : '') +
+        ' value="' + esc(current === '' ? '' : String(current)) + '">' + options;
     }
 
     function inputRow(node, name, spec) {

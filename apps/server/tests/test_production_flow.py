@@ -317,7 +317,11 @@ def test_step_debugging(app: FastAPI, client: Client, site: str, engine: str) ->
     started = body(
         client.post(
             "/api/scenes/ba-001/debug",
-            json={"engine": engine, "baseUrl": site, "inputs": {"title": "調試", "quantity": 2}},
+            json={
+                "engine": engine,
+                "baseUrl": site,
+                "inputs": {"title": '{{"{{"}}today}}', "quantity": 2},
+            },
         ),
         202,
     )
@@ -350,7 +354,7 @@ def test_step_debugging(app: FastAPI, client: Client, site: str, engine: str) ->
     # 「執行到這裡」只執行還沒執行的步驟
     state = body(client.post(f"/api/debug/{session}/run-to/5"))
     record = cast("JsonObject", cast("JsonObject", state["facts"])["record"])
-    assert record["title"] == "調試"
+    assert record["title"] == "{{today}}"
     assert client.post(f"/api/debug/{session}/run-to/2").status_code == 409
 
     located = body(
@@ -363,6 +367,9 @@ def test_step_debugging(app: FastAPI, client: Client, site: str, engine: str) ->
     # 改 YAML 存成新版本，換到新版本繼續：執行過的步驟依 id 保留
     files = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/1"))["files"])
     text = files["scenario.yaml"].replace("name: 讀取畫面上的紀錄詳情", "name: 讀取紀錄")
+    text = text.replace(
+        "inputs:\n", "inputs:\n  added: { type: integer, default: '{{random:7:7}}' }\n"
+    )
     saved = body(
         client.post(
             "/api/scenes/ba-001/revisions",
@@ -372,6 +379,10 @@ def test_step_debugging(app: FastAPI, client: Client, site: str, engine: str) ->
     )
     state = body(client.post(f"/api/debug/{session}/reload", json={"revision": saved["number"]}))
     assert state["revision"] == 2
+    assert state["inputs"] == {"title": "{{today}}", "quantity": 2, "added": 7}
+    # 再次重載也不重複求值，新增入參的動態預設值仍有補上。
+    state = body(client.post(f"/api/debug/{session}/reload", json={"revision": saved["number"]}))
+    assert state["inputs"] == {"title": "{{today}}", "quantity": 2, "added": 7}
     steps = cast("list[JsonObject]", state["steps"])
     assert steps[5]["name"] == "讀取紀錄"
     assert steps[5]["status"] == "passed"
@@ -379,6 +390,9 @@ def test_step_debugging(app: FastAPI, client: Client, site: str, engine: str) ->
 
     reset = body(client.post(f"/api/debug/{session}/reset"))
     assert reset["nextIndex"] == 0
+    state = body(client.post(f"/api/debug/{session}/run-to/5"))
+    record = cast("JsonObject", cast("JsonObject", state["facts"])["record"])
+    assert record["title"] == "{{today}}"
     assert body(client.delete(f"/api/debug/{session}"))["closed"] == session
     assert client.get(f"/api/debug/{session}").status_code == 404
     assert not services(app).storage.debug_dir(session).exists()

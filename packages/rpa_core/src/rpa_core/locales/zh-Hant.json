@@ -190,5 +190,19 @@
   "pack.requires_hash": "領域 {domain} 的場景 {scene} 第 {revision} 版的內容和組合場景存檔時不同",
   "pack.composite_requires": "組合場景 {composite} 第 {number} 版：{problem}",
   "pack.requires_not_checked": "依賴的領域 {domain} 沒有一起檢查；把它的資料夾也加進命令才會檢查依賴",
-  "pack.composite_unpinned": "第 {number} 版的節點用到 {scene} 第 {revision} 版，但存檔時找不到它，沒有記在 requires；補上場景後重新存檔才能執行"
+  "pack.composite_unpinned": "第 {number} 版的節點用到 {scene} 第 {revision} 版，但存檔時找不到它，沒有記在 requires；補上場景後重新存檔才能執行",
+  "dsl.dynamic.unclosed": "{text} 的 {{{{ 沒有對應的 }}}}",
+  "dsl.dynamic.quote": "{text} 的引號沒有成對",
+  "dsl.dynamic.empty": "{{{{ }}}} 中沒有內容；動態值可以用 today、now、random",
+  "dsl.dynamic.unknown": "看不懂動態值 {text}；可以用 {{{{today}}}}、{{{{today+1}}}}、{{{{now}}}}、{{{{random:10:30}}}}",
+  "dsl.dynamic.date_syntax": "看不懂 {text}；日期寫成 today、today+1、today-1，要指定格式時加在冒號後面，例如 today:YYYY/MM/DD",
+  "dsl.dynamic.offset_range": "{text} 的天數超過 {limit}",
+  "dsl.dynamic.format_no_token": "{text} 的格式裡沒有日期或時間的代號；可以用 YYYY、MM、DD、HH、mm、ss",
+  "dsl.dynamic.format_time": "{text}：today 只有日期，月份是大寫 MM（小寫 mm 是分鐘）；要時間請用 now",
+  "dsl.dynamic.random_syntax": "看不懂 {text}；隨機整數寫成 random:最小:最大，例如 random:10:30",
+  "dsl.dynamic.random_range": "{text} 的最小值 {low} 大於最大值 {high}",
+  "dsl.template.dynamic_in_step": "{name} 是入參值用的動態值，步驟裡不能直接用；請在 inputs 加一個入參、預設值寫 {{{{{name}}}}}，步驟再引用 {{{{ inputs.名稱 }}}}",
+  "dsl.workflow.value_dynamic": "節點 {node}：入參 {input} 的固定值：{detail}",
+  "dsl.yaml.unquoted_template": "以 {{{{ 開頭的值要加上引號，例如 \"{{{{today}}}}\"、\"{{{{ inputs.title }}}}\"",
+  "dsl.dynamic.number_range": "{text} 的數字太長，無法轉成數值；請縮短數字"
 }

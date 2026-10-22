@@ -39,6 +39,7 @@ from rpa_core.dsl import Locator, Scenario, validate_file
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
 from rpa_runner.browser import Deadline, Tabs, resolve, run_step
 from rpa_runner.contexts import Engine, open_context
+from rpa_runner.contract import check_inputs
 from rpa_runner.i18n import t
 from rpa_runner.secrets import mask, read_secrets
 
@@ -92,12 +93,18 @@ class _Session:
         """整個工作階段的分頁（M7b）：步驟開出的新分頁在步驟之間一直都在。"""
 
     @staticmethod
-    def _load(scenario_path: Path, input_path: Path) -> tuple[Scenario, dict[str, object]]:
+    def _load(
+        scenario_path: Path, input_path: Path, *, preserved: frozenset[str] = frozenset()
+    ) -> tuple[Scenario, dict[str, object]]:
         validated = validate_file(scenario_path)
         if validated.scenario is None:
             raise ValueError(t("child.invalid_scenario"))
         inputs = cast("dict[str, object]", json.loads(input_path.read_text(encoding="utf-8")))
-        return validated.scenario, inputs
+        resolved, problems = check_inputs(validated.scenario, inputs)
+        problems = [problem for problem in problems if problem.name not in preserved]
+        if problems:
+            raise ValueError("; ".join(problem.message for problem in problems))
+        return validated.scenario, resolved
 
     # ------------------------------------------------------------ 瀏覽器
 
@@ -214,9 +221,12 @@ class _Session:
         return {"count": count, "matches": matches, **state}
 
     def load(self, scenario: str, input_file: str) -> dict[str, object]:
-        self.scenario, self.inputs = self._load(Path(scenario), Path(input_file))
+        # 保留已求值的舊值（允許與新約束暫時不一致）；新增預設值仍須通過運行態校驗。
+        self.scenario, self.inputs = self._load(
+            Path(scenario), Path(input_file), preserved=frozenset(self.inputs)
+        )
         self.secrets = read_secrets(self.scenario)
-        return {"steps": len(self.scenario.steps or [])}
+        return {"steps": len(self.scenario.steps or []), "inputs": self.inputs}
 
     def handle(self, command: dict[str, object]) -> dict[str, object] | None:
         name = command.get("cmd")
@@ -248,7 +258,9 @@ def serve(args: argparse.Namespace) -> int:
         except Exception as error:
             _reply({"event": "error", "error": f"{type(error).__name__}: {error}".splitlines()[0]})
             return 1
-        _reply({"event": "ready", "steps": len(session.scenario.steps or [])})
+        _reply(
+            {"event": "ready", "steps": len(session.scenario.steps or []), "inputs": session.inputs}
+        )
         try:
             for line in sys.stdin:
                 if not line.strip():

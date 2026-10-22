@@ -6,7 +6,8 @@
 - goto 的網址以 / 開頭時，要有 browser.baseUrl
 - 新分頁（M7b）：page 要是「之前」某一步的 popup 開出來的分頁；popup 的名稱不能重複
 - ``{{ }}``：以 Jinja2 解析，語法要正確；只能用 inputs、secrets、facts、env；
-  inputs、secrets 要宣告，facts 要由「之前」的 extract 產生
+  inputs、secrets 要宣告，facts 要由「之前」的 extract 產生；
+  寫了入參值的動態值（today、now、random）時，說明要改寫在入參
 
 ``{{ }}`` 的求值在 M2 的執行引擎；這裡只做不需要執行就能發現的檢查。
 """
@@ -19,6 +20,8 @@ from jinja2 import TemplateError, nodes
 from jinja2.meta import find_undeclared_variables
 from jinja2.sandbox import SandboxedEnvironment
 
+from rpa_core.dsl.dynamic import NAMES as DYNAMIC_NAMES
+from rpa_core.dsl.dynamic import dynamic_expression
 from rpa_core.dsl.yaml_loader import DataPath
 
 if TYPE_CHECKING:
@@ -199,11 +202,19 @@ def _check_template(path: DataPath, text: str, scope: _Scope) -> Iterator[CrossI
         tree = _JINJA.parse(text)
         _JINJA.compile(text)
     except TemplateError as error:
-        yield _syntax_issue(path, text, error)
+        # 入參值的動態值（例如 {{random:10:30}}）寫在步驟裡：Jinja 讀不懂，說明要改寫在入參
+        expression = dynamic_expression(text)
+        if expression is not None:
+            yield CrossIssue(path, "template.dynamic_in_step", {"name": expression})
+        else:
+            yield _syntax_issue(path, text, error)
         return
     for name in sorted(find_undeclared_variables(tree)):
         if name in RENAMED:
             yield CrossIssue(path, "template.renamed", {"old": name, "new": RENAMED[name]})
+        elif name.lower() in DYNAMIC_NAMES:
+            expression = dynamic_expression(text) or name
+            yield CrossIssue(path, "template.dynamic_in_step", {"name": expression})
         elif name not in VARIABLES:
             yield CrossIssue(
                 path, "template.unknown_variable", {"name": name, "choices": ", ".join(VARIABLES)}

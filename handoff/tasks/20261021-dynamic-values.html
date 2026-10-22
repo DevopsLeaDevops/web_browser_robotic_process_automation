@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>入參的動態值（今天、隨機數） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>入參的動態值（今天、隨機數）</h1><p>錄製出來的場景，入參的值可以寫 <code>{{today}}</code>、<code>{{today+1}}</code>、<code>{{random:10:30}}</code>，每次執行開始時換成當下的值。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-22 04:29 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-21 07:30 America/Los_Angeles（PDT，UTC−07:00）：「場景錄製支持可變參數」，例如 arrivalDate 是當前日期、expiryDate 是當前日期＋1、purchaseQuantity 是 10～30 之間的隨機數，附上入參 JSON（<code>"arrivalDate": "{{today}}"</code>、<code>"expiryDate": "{{today+1}}"</code>、<code>"purchaseQuantity": "{{random:10:30}}"</code>、<code>"remark": "CG-001脚本创建{{today}}日期"</code> 等）。<br>驗收：(1) 入參的預設值、執行表單的入參 JSON、試驗場節點的固定值、命令列 <code>-i</code>／<code>--input</code> 都能寫這些動態值；(2) 每次執行開始時求值，<code>input.json</code> 與報告是實際用到的值，重新執行時重新求值；(3) 寫錯（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）時在存檔或啟動瀏覽器之前就說明哪裡錯；(4) 整數入參寫 <code>{{random:10:30}}</code> 得到整數。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：rpa_core 的動態值語法與校驗、Runner 求值、伺服器與 Portal 的提示、遠端裝置的擴充檢查、DSL 文檔。<br>不包含（待使用者決定）：錄製轉換時自動把「錄製當天的日期」改成 <code>{{today}}</code>；步驟裡直接寫動態值；引用其他入參。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原實作 Claude；本輪修復主責 ChatGPT／Codex（使用者本次授權）；合併：使用者</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/</code>（新增 <code>dynamic.py</code>；<code>contract.py</code>、<code>checks.py</code>、<code>features.py</code>、<code>yaml_loader.py</code>）、<code>rpa_core/workflow.py</code>、rpa_core／rpa_runner／rpa_server 的訊息目錄、<code>rpa_runner/contract.py</code>、伺服器的 <code>dispatch.py</code>、<code>debugging.py</code>、樣板與 <code>portal.js</code>、<code>docs/design/dsl.html</code>（含英文）、本任務卡與任務索引。<br><strong>整合結果</strong>：使用者已合併 PR #66；本輪以 merge 整合 main <code>588e6a4</code>，解決 5 個檔案衝突，保留多分頁與動態值能力。</dd>
+        <dt>狀態</dt><dd>修復與 main 整合已推送 <code>1b8e049</code>；GitHub 已確認無衝突。該程式提交的完整 CI 及 Windows Worker 安裝包／端到端通過；macOS 錄製端構建仍在等待 Runner，尚不能標示全部 CI 通過。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/dynamic-values</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/67">PR #67</a>（base main）；本輪起點 <code>62bc7ad</code>，整合 main <code>e63559a</code>；原始起點 <code>fcb8e8f</code></dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送 <code>1b8e049</code>（父提交 <code>62bc7ad</code> 與 main <code>e63559a</code>）；本次後續提交只更新交接紀錄，程式內容不變。最新 head 與流水線狀態以 PR #67 為準。</dd>
+        <dt>工作區／環境</dt><dd>本輪：本機 macOS、Python 3.13.16、uv 0.12.24、鎖定依賴，Chromium／Firefox 皆可用；CI 另驗證 Linux、Windows、macOS。原實作雲端環境限制見歷史驗證紀錄。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>設計（含使用者確認的執行語義）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>寫在哪裡</strong>：入參的值裡（場景的預設值、執行表單與 API、命令列、試驗場的固定值、逐步調試）。不是步驟裡的 <code>{{ }}</code>（那是 Jinja，引用 inputs、facts…）；步驟裡寫了 today、now、random 時，校驗提示改寫在入參。</li>
+        <li><strong>語法</strong>（<code>{{ }}</code> 內可以有空白）：<code>today</code>、<code>today+N</code>、<code>today-N</code>（天）；<code>now</code>（日期與時間）；兩者都可以加 <code>:格式</code>（<code>yyyy</code>／<code>YYYY</code>、<code>MM</code>、<code>dd</code>／<code>DD</code>、<code>HH</code>、<code>mm</code>、<code>ss</code>，其他字元照寫，例如 <code>{{today:YYYY/MM/DD}}</code>、<code>{{today:yyyy年MM月dd日}}</code>）；<code>random:A:B</code>（A 到 B 之間、含兩端的整數）；<code>"文字"</code>（原樣的文字，用來寫出 <code>{{</code> 本身）。預設格式：today 是 <code>2026-10-21</code>，now 是 <code>2026-10-21 07:30:00</code>。</li>
+        <li><strong>何時、以哪裡的時間求值</strong>：每次執行開始（Runner 的入參階段，啟動瀏覽器之前），用執行那台電腦的本地時區；同一次執行的所有入參用同一個「現在」。執行紀錄保存原本的寫法，所以重新執行會重新求值；<code>input.json</code>、報告是實際的值。</li>
+        <li><strong>型別</strong>：整個值只有一個 <code>random</code> 時，整數／數字入參得到數字；求值結果是整數形式的文字時，整數／數字入參也轉成數字；其他都是文字。</li>
+        <li><strong>配置態校驗</strong>：存檔與排隊前只檢查動態值語法，普通值仍檢查型別與限制；不讀時鐘、不抽樣。未知名稱、反向隨機範圍與未閉合括號仍會立即報錯。</li>
+        <li><strong>上游出參</strong>：試驗場把上游的出參交給下游時，文字裡的 <code>{{</code> 先跳脫，出參永遠照原樣使用。</li>
+        <li><strong>運行態校驗（使用者本次確認）</strong>：執行開始時每個 random 只抽一次，全部日期共用執行裝置當下時間；針對這份運行態入參檢查約束，失敗就停止本次執行，不重抽。保存、排隊與試驗場檢查不枚舉、不檢查代表值。腳本、斷言、input.json 與報告共用實際值。</li>
+        <li><strong>附帶</strong>：YAML 裡沒加引號的 <code>{{ … }}</code>（例如 <code>default: {{today}}</code>、<code>value: {{ inputs.x }}</code>）原本只報「鍵必須是字串」，改成提示加引號；步驟裡寫了 today、now、random 時提示改寫在入參；入參表格的預設值是動態值時標示「動態值」；JSON Schema 匯出用 <code>x-dynamicDefault</code>。</li>
+        <li><strong>舊的 App</strong>：用到動態值（場景的預設值或這次的入參）時需要 DSL 擴充 <code>dynamicValues</code>；沒回報的 Worker／錄製端 App 照 M7a 的做法說明要更新。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>rpa_core.dsl.dynamic</code>（語法、單次求值、跳脫）；<code>InputSpec</code> 預設值與 <code>check_value</code>；Runner <code>check_inputs</code> 求值（<code>input.json</code>、報告是實際值）；試驗場固定值檢查與上游出參跳脫；DSL 擴充 <code>dynamicValues</code>（場景預設值、這次的入參；遠端 worker 與錄製端裝置）；調試換版本時預設值求值；Portal 提示與「動態值」標示；三種語言訊息（簡中待 bootstrap）；<code>docs/design/dsl.html</code>「入參的動態值」一節與英文版（stamp）。</li>
+        <li><strong>未完成／阻礙：</strong>審閱與合併（使用者）；人工驗收（實際業務系統的採購單場景；遠端執行要用這個版本以後的 Worker App）；錄製時自動改成 <code>{{today}}</code> 待使用者決定。</li>
+        <li><strong>決定：</strong>運行態單次求值與腳本共用已由使用者確認，取代先前的完整枚舉／代表值檢查選擇；錄製時要不要自動把錄製當天的日期改成 <code>{{today}}</code>：待使用者決定。</li>
+        <li><strong>下一個具體動作：</strong>修復與解衝突已交付；等待最終 head 的 macOS 錄製端建置及其餘 CI 完成，通過後由使用者決定合併；實際採購場景人工驗收尚未執行。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>基準 <code>fcb8e8f</code>＋本任務工作區差異；Claude 雲端 Linux，系統 Python 3.13、pydantic 2.13.5、Playwright 1.56（只有 Chromium）、fastapi 0.148.0 等 clone</td><td><code>ruff check .</code>、<code>ruff format --check .</code>（ruff 0.17.1，與 uv.lock 相同，GitHub release 下載）、<code>git diff --check</code></td><td>通過</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pyright</code>（1.1.414）</td><td>本任務的檔案沒有錯誤；剩下 42 個錯誤都是環境造成（本機 Playwright 1.56 的型別、沒有 keyring、webview、pystray）</td><td>CI 用 uv.lock 的依賴重跑</td></tr>
+          <tr><td>同上</td><td><code>pytest -m "not browser" packages apps/worker apps/cli tests</code></td><td>1106 通過；2 失敗是預期的：簡中文檔缺新錨點（bootstrap 產生）、本機沒有 OpenCC</td><td>簡中待 bootstrap 後由 CI 檢查</td></tr>
+          <tr><td>同上</td><td><code>pytest -m "not browser" apps/server/tests</code></td><td>268 通過、1 略過（沒有 ssh-keygen）；之後改動再跑 render、api、remote worker、workflow 113 通過</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pytest packages/rpa_runner/tests/test_run.py -k "dynamic or chain"</code>（真實瀏覽器）</td><td>Chromium 2 通過；Firefox 未安裝而略過</td><td>Firefox 與其他瀏覽器測試交給 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>bootstrap：<code>ed0c4cd</code> 的 bootstrap 運行成功，產生 <code>33b1676</code>（簡中訊息與 <code>docs/zh-Hans/design/dsl.html</code>）；取回後 <code>pytest tests/docs</code> 278 通過。機器人提交觸發的 CI 是 action_required（未執行），所以再推送本紀錄的更新，讓 CI 在使用者身分的 head 上執行。</p>
+        <p>CI（<code>a17706b</code>，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39622125851">CI 運行 39622125851</a>）：第 1 次「Worker 測試（Windows）」失敗——Firefox 的登入、設定檔、Python 腳本、錄影取消與 Chromium 的 BA-001 鏈路多個逾時，都是本 PR 沒有改到的測試，新增的動態值測試兩種瀏覽器都通過；重跑失敗的工作（第 2 次）後靜態檢查、Python 3.12／3.13 測試、Worker 測試（Windows，61 個）全部通過。桌面端建置（Windows Worker、macOS 錄製端）通過。舊 head <code>ed0c4cd</code> 的 CI 只有簡中未產生的兩個預期失敗。人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-22 00:07 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：已取得並審閱 <code>f2ebf8f</code>；使用者要求以小範圍修改修復 PR #67 的隨機值校驗與調試重載兩項問題。沿用 <code>feat/dynamic-values</code> 與 PR #67，未改動 main。</p></div>
+    </section>
+    <section class="panel" id="review-fixes"><div class="panel-header"><h2>PR #67 審閱修復</h2></div><div class="panel-body"><p>2026-10-22 00:07 America/Los_Angeles（PDT，UTC−07:00）：使用者本次要求在不大幅改動邏輯的前提下修復兩項審閱問題。基準 <code>f2ebf8f</code>；本機 macOS、Python 3.13.16、uv 0.12.24，<code>uv sync --locked</code> 通過。修復範圍：core 的 enum／pattern 隨機組合校驗、debug reload 的既有值跳脫、相關測試與說明。先補回歸測試，已重現 enum／pattern 漏判及 Chromium 調試重載把字面 <code>{{today}}</code> 改成日期。驗證結果見下；人工業務驗收未執行。</p><ul class="points">
+<li>2026-10-22 00:11 America/Los_Angeles（PDT，UTC−07:00）：本次業務程式只改 <code>dynamic.samples</code>、<code>InputSpec.check_value</code> 與 <code>DebugManager.reload</code>；不改語法、抽樣分布、派發與儲存格式。enum／pattern 完整檢查上限 1000 組，超限明確回報，不退回端點抽樣。重載對已解析輸入使用既有 <code>escape</code>，新輸入的動態預設值仍會求值。</li>
+<li><code>ruff check .</code>、<code>ruff format --check .</code>、<code>git diff --check</code>、i18n stamp／sync／check 通過。修改的 6 個 Python 檔案 Pyright strict：0 errors；全倉庫原生 macOS 檢查有既有 <code>Foundation</code> 缺型別宣告（1 error、3 個 pystray warnings），在原始 <code>f2ebf8f</code> 快照重現；提交時只略過這個已執行且確認為既有環境問題的 pyright hook，Linux 目標全倉庫 Pyright：0 errors、3 warnings；CI 完整靜態檢查已通過。</li>
+<li><code>pytest -q -m "not browser"</code>：1525 passed、2 skipped（Windows 專用）、1 failed。失敗是 <code>test_frozen_commands_use_the_app_entry</code> 受本機已安裝 App 的 <code>rpa-child</code> 影響；相同命令在原始 <code>f2ebf8f</code> 快照也失敗，未改動此無關測試或使用者 App。</li>
+<li>核心動態值與 Runner 契約測試：100 passed。真實瀏覽器 <code>test_step_debugging</code> 與 <code>test_dynamic_input_values_reach_the_page</code>：Chromium／Firefox 共 4 passed，覆蓋重複重載、保留字面輸入、新增動態預設值及重載後再次執行。</li>
+<li>2026-10-22 00:17 America/Los_Angeles（PDT，UTC−07:00）：<code>7a51dd8</code> 已推送；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39738902629">CI 39738902629</a>（完整靜態檢查、Python 3.12／3.13、Windows Worker）全部通過；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39738902647">桌面端 39738902647</a> 的 Windows Worker／macOS 錄製端建置與端到端驗證全部通過。本次收尾提交只改此交接紀錄，程式與該通過版本相同。實際業務系統與跨機人工驗收未執行。</li>
+</ul></div></section>
+    <section class="panel" id="system-review"><div class="panel-header"><h2>系統檢查與整合 PR #66</h2></div><div class="panel-body"><p>2026-10-22 00:32 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：依使用者本次指示接續 PR #67；起點 <code>5ad3f99</code>，main 已合併 PR #66（<code>588e6a4</code>）。範圍：隨機長度／拼接數值約束、動態值解析與呼叫鏈路、裝置相容性、相關回歸測試；沿用本分支，以 merge 保留兩邊提交歷史。本輪新增發現與修復：隨機長度／拼接數值端點漏判；錄製稿的字面大括號被誤解為動態值；遠端調試與接著錄製在伺服器提前求值、未使用錄製端時區；臨時動態入參未檢查舊錄製端能力。只調整現有函式與互動子程序的輸入回傳，保留原有語法、隨機分布與重載時保留舊值的行為。</p><ul class="points">
+<li>本地 macOS／Python 3.13.16／uv 0.12.24，使用既有 uv.lock。非瀏覽器全倉庫：1558 passed、2 skipped（Windows 專用）、1 failed；唯一失敗仍為前輪已在原始快照重現的 test_frozen_commands_use_the_app_entry，受本機已安裝 App 的 rpa-child 影響。</li>
+<li>最終核心動態值、契約、錄製轉換、能力聲明與互動子程序測試：148 passed；遠端 API／生產 API／互動子程序先前針對性驗證 48 passed，亦包含於全倉庫測試。</li>
+<li>Chromium／Firefox：動態入參、多分頁整合、逐步調試與重載 22 passed；經真實 HTTP、本機閘道及錄製端子程序的動態入參與重載 2 passed。另以完整枚舉對照 49 組含正負數、跨零及拼接的字串長度邊界，結果一致。</li>
+<li>Ruff、格式、diff、i18n stamp／sync／check 通過；修改檔案 Pyright strict：0 errors、0 warnings。全倉庫 Linux 目標：0 errors、3 個既有 pystray warnings；macOS 目標仍有既有 Foundation 型別宣告缺失（1 error）。提交時僅略過此已確認的本機 pyright hook 問題，CI 照常執行完整檢查。</li>
+<li>遠端調試在子程序回覆 ready／load 後回填實際入參；舊 App 的非動態入參仍帶齊預設值。遠端與本機的重複重載保留字面 {{today}}，新增預設值在錄製端求值。</li>
+<li>2026-10-22 00:52 America/Los_Angeles（PDT，UTC−07:00）：已推送 <code>d254670</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39742896430">CI 39742896430</a>（靜態檢查、Python 3.12／3.13、Windows Worker）與<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39742896419">桌面端 39742896419</a>（Windows Worker／macOS 錄製端建置、端到端）全部通過。收尾提交只更新本紀錄，程式與此版本一致；未執行人工業務驗收，合併由使用者決定。</li>
+</ul></div></section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-21 07:38 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，分支 <code>feat/dynamic-values</code> 從 main <code>fcb8e8f</code> 建立；發現並行的 <code>m7b/popup</code>，記下重疊的檔案。</li>
+        <li>2026-10-21 07:58 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試、文檔完成，本地檢查見「驗證與審閱」；準備提交與推送。</li>
+        <li>2026-10-21 08:05 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>ed0c4cd</code>、開 PR #67；bootstrap 產生 <code>33b1676</code> 並取回；發現並行的 PR #66（<code>m7b/popup</code>）已開。</li>
+        <li>2026-10-21 08:45 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>a17706b</code> 的 CI 第 1 次 Windows Worker 測試逾時，重跑後全部通過；桌面端建置通過。取消了被取代的舊 head 桌面端建置。交給使用者審閱。</li>
+        <li>2026-10-22 00:17 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：依本次使用者授權接手修復 PR #67 兩項審閱問題；提交 <code>7a51dd8</code>，本地驗證與既有環境問題已記錄，完整 CI 與桌面端驗證通過。已更新原 PR 說明，保留由使用者合併。</li>
+        <li>2026-10-22 02:17 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者要求審閱 ChatGPT／Codex 的 <code>7a51dd8</code>、<code>d254670</code>（以 <code>git show --remerge-diff</code> 只看手動改動）。結論：enum／pattern 與拼接數值的完整檢查、跳脫錄到的大括號、調試重載保留字面值、錄製端與調試在開瀏覽器的裝置求值、<code>FEATURES</code> 合併 M7b 名稱都正確；<code>a53231c</code> 本地 <code>pytest -m "not browser" packages apps/server/tests apps/worker</code> 892 通過、1 略過（沒有 ssh-keygen）。<strong>發現一個問題並修正</strong>：入參有 <code>pattern</code> 或 <code>enum</code> 時，隨機範圍超過 1000 種組合就直接拒絕，連 BA-001 的 title（<code>pattern: '\S'</code>）寫 <code>單號{{random:1000:9999}}</code>、或 <code>PO-{{random:10000:99999}}</code> 配 pattern 都無法存檔。改成範圍大時以代表值檢查（兩端、0、正負數每種位數的最小與最大值，<code>dynamic._representatives</code>），其餘的值本來就會在執行時以實際值再檢查（啟動瀏覽器之前）；只有連代表值都超過 1000 種組合才拒絕。更新訊息與文檔（繁中、英文；簡中由 bootstrap 產生）、測試。<code>ruff 0.17.1</code> 通過；<code>pytest packages/rpa_core packages/rpa_runner/tests/test_contract_runtime.py</code> 410 通過。提交 <code>1f92c2d</code>，bootstrap 產生簡中 <code>70c12f4</code> 並取回；機器人提交的 CI 不會自動執行，以本紀錄的更新讓 CI 在最新 head 執行。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="runtime-once">
+      <div class="panel-header"><h2>依確認的執行語義修復與整合 main</h2></div>
+      <div class="panel-body"><p>2026-10-22 04:14 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：使用者本次明確確認「配置態入參在實際執行時展開一次，腳本、斷言與報告共用這份運行態入參」，並授權修復、解決衝突。接續遠端 head <code>62bc7ad</code>，整合 main <code>e63559a</code>；沿用 <code>feat/dynamic-values</code>／PR #67。此確認取代先前要求預先完整枚舉或以代表值檢查所有隨機結果的實作選擇。</p><p>本輪主責 ChatGPT／Codex，範圍：core 靜態語法校驗、Runner 執行求值、Portal 排隊與調試／接著錄製的準備階段、試驗場固定值編輯、回歸測試、三語說明與本紀錄。已重現提前抽樣導致同一請求 202／422、超大範圍保存 500、數值固定值無法輸入表達式。本機實作及驗證完成，準備提交推送；合併仍由使用者決定。</p><ul class="points">
+<li>結果：prepare_inputs 只做配置態校驗，Runner／調試／接著錄製的執行端展開並校驗一次；移除所有範圍枚舉、代表值與 1000 組限制。超出 Python 數字解析能力時回傳動態值錯誤，不讓例外變成 HTTP 500。調試重載保留舊值；新增預設值必須通過本次運行態校驗。</li>
+<li>試驗場數字及枚舉固定值改用文字輸入（枚舉保留候選清單），可以編輯、保存並重開動態表達式，普通數字仍轉回契約型別。main 的三語回看訊息與新任務索引全部保留，無未解決衝突。</li>
+<li>版本：62bc7ad＋main e63559a＋本輪工作區；macOS、Python 3.13.16、uv 0.12.24、uv sync --locked。pytest -q -m "not browser" -n 4：1574 passed、2 skipped（Windows 專用）。真實 Chromium／Firefox：試驗場編輯、單次求值到頁面與斷言／出參、調試重載、HTTP／閘道／錄製端子程序 7 passed。現有測試中不再要求預先枚舉所有可能結果，改為驗證實際抽到的值、提交零求值與每次執行只抽一次。</li>
+<li>Ruff、格式、i18n stamp／sync／check、diff、31 個 handoff 連結與錨點通過；全倉庫非瀏覽器測試包含 docs／i18n。修改 Python 檔案 Pyright strict：0 errors、0 warnings；全倉庫 Linux 目標：0 errors、3 個既有 pystray warnings。原生 macOS 全倉庫仍有原先已確認的 Foundation 缺型別宣告（recorder_gui.py:130，1 error），本輪未改該檔；提交僅略過此 pyright hook，CI 照常完整檢查。</li>
+<li>尚未完成：最終 head 的 macOS 錄製端 CI；實際採購場景及跨機人工業務驗收未執行。不得沿用舊 PR 說明中的 a53231c 可合併結論。</li>
+</ul><p>2026-10-22 04:29 America/Los_Angeles（PDT，UTC−07:00）：<code>1b8e049</code> 已推送，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39770306226">程式提交 CI</a>的靜態、Python 3.12／3.13、Windows Worker 全部通過；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39770306210">桌面端建置</a>的 Windows 安裝、邀請配對、執行、升級及解除安裝通過，macOS 工作仍在排隊。GitHub mergeable=true；未替使用者合併。本次只更新紀錄；後續最終 head 的執行範圍與檢查狀態以 PR 為準。</p></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -39,13 +39,16 @@ def _zh_hant() -> Iterator[None]:
         yield
 
 
-def test_example_scenario_runs_across_tabs(site: str, engine: str, tmp_path: Path) -> None:
-    result = execute(
-        EXAMPLE, {"item": "455590002"}, out_root=tmp_path, base_url=site, engine=engine
-    )
+@pytest.mark.parametrize(
+    ("item", "expected"), [("455590002", "455590002"), ("SKU-{{random:7:7}}", "SKU-7")]
+)
+def test_example_scenario_runs_across_tabs(
+    site: str, engine: str, tmp_path: Path, item: str, expected: str
+) -> None:
+    result = execute(EXAMPLE, {"item": item}, out_root=tmp_path, base_url=site, engine=engine)
 
     assert result.status == "passed", (result.error, result.problems, result.steps)
-    assert result.output == {"status": "已儲存：455590002"}
+    assert result.output == {"status": f"已儲存：{expected}"}
     urls = [step.get("url") for step in result.steps]
     # 開出新分頁的那一步之後到儲存，都在新分頁；最後一步回到一開始的分頁
     assert str(urls[1]).endswith("/popup/items")

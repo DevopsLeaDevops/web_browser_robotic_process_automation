@@ -1,6 +1,7 @@
 """執行時的契約：{{ }} 求值、入參、獨立斷言、出參、Secrets 遮罩。不需要瀏覽器。"""
 
 from collections.abc import Iterator
+from datetime import datetime
 
 import pytest
 
@@ -11,6 +12,7 @@ from rpa_runner.contract import (
     check_candidate_outputs,
     check_inputs,
     parse_cli_value,
+    prepare_inputs,
     run_verify,
 )
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
@@ -116,6 +118,131 @@ def test_input_problems(scenario: Scenario) -> None:
         "缺少入參 title",
         "入參 quantity 不符合限制：maximum: 30",
     ]
+
+
+DYNAMIC = """\
+schemaVersion: 1
+id: purchase
+name: 採購單
+inputs:
+  arrivalDate: { default: '{{today}}' }
+  expiryDate: { default: '{{today+1}}' }
+  purchaseQuantity: { type: integer, minimum: 10, maximum: 30, default: '{{random:10:30}}' }
+  remark: { default: 'CG-001脚本创建{{today}}日期' }
+  skuCode: { default: '455590002' }
+steps:
+  - { id: open, action: goto, url: https://example.test/ }
+"""
+
+
+def test_dynamic_values_are_evaluated_for_each_run() -> None:
+    result = validate_text(DYNAMIC)
+    assert result.scenario is not None, result.issues
+    now = datetime(2026, 12, 31, 23, 59, 59)
+
+    resolved, problems = check_inputs(result.scenario, {}, now=now, pick=lambda lo, hi: hi)
+
+    assert problems == []
+    assert resolved == {
+        "arrivalDate": "2026-12-31",
+        "expiryDate": "2027-01-01",
+        "purchaseQuantity": 30,
+        "remark": "CG-001脚本创建2026-12-31日期",
+        "skuCode": "455590002",
+    }
+    # 執行時給的入參也可以是動態值；沒給 now 時用這台電腦的本地時間
+    resolved, problems = check_inputs(
+        result.scenario, {"skuCode": "SKU-{{random:1:1}}", "purchaseQuantity": "{{random:12:12}}"}
+    )
+    assert problems == []
+    assert resolved["skuCode"] == "SKU-1"
+    assert resolved["purchaseQuantity"] == 12
+    assert resolved["arrivalDate"] == datetime.now().astimezone().strftime("%Y-%m-%d")
+
+
+def test_preparation_keeps_expressions_and_each_run_draws_once() -> None:
+    result = validate_text(DYNAMIC)
+    assert result.scenario is not None
+    raw, problems = prepare_inputs(result.scenario, {})
+    assert problems == []
+    assert raw["purchaseQuantity"] == "{{random:10:30}}"
+    assert raw["arrivalDate"] == "{{today}}"
+    draws = iter([26, 18])
+    calls: list[tuple[int, int]] = []
+
+    def pick(low: int, high: int) -> int:
+        calls.append((low, high))
+        return next(draws)
+
+    now = datetime(2026, 10, 22, 23, 59, 59)
+    for quantity in (26, 18):
+        resolved, problems = check_inputs(result.scenario, raw, now=now, pick=pick)
+        assert problems == []
+        assert resolved["arrivalDate"] == "2026-10-22"
+        assert resolved["expiryDate"] == "2026-10-23"
+        assert resolved["remark"] == "CG-001脚本创建2026-10-22日期"
+        assert resolved["skuCode"] == "455590002"
+        assert resolved["purchaseQuantity"] == quantity
+        # 後續引用與斷言讀取運行態值，不再抽樣。
+        assert render("{{ inputs.purchaseQuantity }}", {"inputs": resolved}) == str(quantity)
+        assert render("{{ inputs.purchaseQuantity }}", {"inputs": resolved}) == str(quantity)
+    assert calls == [(10, 30), (10, 30)]
+
+
+@pytest.mark.parametrize("picked", [1, 2, 3])
+def test_random_enum_validation_uses_only_the_actual_draw(picked: int) -> None:
+    result = validate_text(
+        "schemaVersion: 1\nid: demo\nname: 示範\n"
+        "inputs:\n  q: { type: integer, enum: [1, 3] }\n"
+        "steps:\n  - { id: open, action: goto, url: https://example.test/ }\n"
+    )
+    assert result.scenario is not None
+    _, problems = check_inputs(
+        result.scenario, {"q": "{{random:1:3}}"}, pick=lambda _lo, _hi: picked
+    )
+    expected = ["入參 q 不符合限制：enum"] if picked == 2 else []
+    assert [problem.message for problem in problems] == expected
+
+
+def test_dynamic_value_problems() -> None:
+    result = validate_text(DYNAMIC)
+    assert result.scenario is not None, result.issues
+
+    _, problems = check_inputs(
+        result.scenario,
+        {"arrivalDate": "{{tody}}", "purchaseQuantity": "{{random:31:40}}", "remark": "{{today"},
+    )
+
+    assert [problem.message for problem in problems] == [
+        "入參 arrivalDate 的動態值寫錯：看不懂動態值 {{tody}}；"
+        "可以用 {{today}}、{{today+1}}、{{now}}、{{random:10:30}}",
+        "入參 purchaseQuantity 不符合限制：maximum: 30",
+        "入參 remark 的動態值寫錯：{{today 的 {{ 沒有對應的 }}",
+    ]
+
+
+@pytest.mark.parametrize("pick_index", [0, 1, 2])
+@pytest.mark.parametrize(
+    ("spec", "expression", "draws", "rule"),
+    [
+        ("{minLength: 2}", "{{random:-10:10}}", (-10, 0, 10), "minLength: 2"),
+        ("{type: number, maximum: 0.5}", "0.{{random:1:10}}", (1, 9, 10), "maximum: 0.5"),
+    ],
+)
+def test_random_constraints_validate_the_actual_value(
+    spec: str, expression: str, draws: tuple[int, int, int], rule: str, pick_index: int
+) -> None:
+    result = validate_text(
+        "schemaVersion: 1\nid: demo\nname: 示範\n"
+        f"inputs:\n  q: {spec}\n"
+        "steps:\n  - { id: open, action: goto, url: https://example.test/ }\n"
+    )
+    assert result.scenario is not None
+    _, problems = check_inputs(
+        result.scenario, {"q": expression}, pick=lambda _lo, _hi: draws[pick_index]
+    )
+    expected = [f"入參 q 不符合限制：{rule}"] if pick_index == 1 else []
+    assert [problem.message for problem in problems] == expected
 
 
 @pytest.mark.parametrize(

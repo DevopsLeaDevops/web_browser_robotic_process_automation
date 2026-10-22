@@ -15,6 +15,7 @@ from typing import Annotated, Final, Literal, Self
 
 from pydantic import AfterValidator, Field, model_validator
 
+from rpa_core.dsl.dynamic import DynamicValueError, has_dynamic, parse
 from rpa_core.dsl.fields import DslModel, NonEmptyStr, dsl_error
 
 __all__ = [
@@ -136,14 +137,32 @@ class InputSpec(ValueSpec):
 
     type: InputType = "string"  # pyright: ignore[reportIncompatibleVariableOverride]
     default: object = None
-    """預設值，要符合型別與限制；沒有預設值代表執行時必須提供。"""
+    """預設值，要符合型別與限制；沒有預設值代表執行時必須提供。
+
+    可以是動態值（例如 ``{{today}}``、``{{random:10:30}}``，見 :mod:`rpa_core.dsl.dynamic`），
+    每次執行開始時求值。
+    """
 
     @model_validator(mode="after")
     def _check_default(self) -> Self:
         if self.default is not None:
-            for rule in self.violations(self.default):
+            try:
+                rules = self.check_value(self.default)
+            except DynamicValueError as error:
+                raise dsl_error(f"dynamic.{error.code}", at=["default"], **error.params) from error
+            for rule in rules:
                 raise dsl_error("value.default_invalid", at=["default"], rule=rule)
         return self
+
+    def check_value(self, value: object) -> list[str]:
+        """存檔與排隊前的校驗：動態值只檢查語法，普通值檢查型別與限制。
+
+        不讀時鐘、不抽隨機數，也不推測所有可能的結果；動態值的約束在實際執行開始時校驗。
+        """
+        if isinstance(value, str) and has_dynamic(value):
+            parse(value)
+            return []
+        return list(self.violations(value))
 
 
 class OutputSpec(ValueSpec):
@@ -237,5 +256,9 @@ def spec_json_schema(spec: ValueSpec) -> dict[str, object]:
     if spec.maximum is not None:
         schema["maximum"] = _number(spec.maximum)
     if isinstance(spec, InputSpec) and spec.default is not None:
-        schema["default"] = spec.default
+        if has_dynamic(spec.default):
+            # 動態值每次執行才求值，不是 JSON Schema 的 default（整數入參的寫法還是文字）
+            schema["x-dynamicDefault"] = spec.default
+        else:
+            schema["default"] = spec.default
     return schema

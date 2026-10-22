@@ -1281,6 +1281,43 @@ def test_run_form_offers_headed_mode_when_a_window_can_be_shown(display: bool) -
         assert "沒有圖形介面" in text
 
 
+def test_dynamic_defaults_are_marked_and_kept_as_written() -> None:
+    """入參的動態值：入參表格標示「動態值」，執行表單的 JSON 照原本的寫法帶入。"""
+    text = (
+        "schemaVersion: 1\nid: ba-001\nname: 採購\ninputs:\n"
+        "  arrivalDate: { default: '{{today}}' }\n"
+        "  department: { default: 測試部 }\n"
+        "steps:\n  - { id: open, action: goto, url: https://example.test/ }\n"
+    )
+    scenario = validate_text(text).scenario
+    assert scenario is not None
+    pages: dict[str, str] = {}
+    for locale in ("zh-Hant", "en"):
+        with use_locale(locale):
+            pages[locale] = render(
+                "run_form.html",
+                page="domains",
+                title="驗證",
+                domains=DOMAINS,
+                domain=None,
+                scene=SCENE,
+                revision=REVISIONS[0],
+                scenario=scenario,
+                purpose="validation",
+                defaults={"arrivalDate": "{{today}}", "department": "測試部"},
+                engines=ENGINES,
+                base_url=None,
+                display=True,
+                locations=LOCATIONS,
+            )
+    html = pages["zh-Hant"]
+    assert html.count('class="badge blue"') == 1
+    assert "動態值" in _text(html)
+    assert '"arrivalDate": "{{today}}"' in _text(html)
+    assert "{{today}}、{{today+1}}、{{random:10:30}}" in _text(html)
+    assert "dynamic" in _text(pages["en"])
+
+
 def test_run_page_shows_the_browser_window_mode() -> None:
     with use_locale("en"):
         headless = _text(_pages()["run"])

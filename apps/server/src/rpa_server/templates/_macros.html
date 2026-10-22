@@ -74,7 +74,7 @@
       {% for name, spec in scenario.inputs.items() %}
         <tr><td><code>{{ name }}</code>{% if spec.default is none %} <span class="tag">{{ t("spec.required") }}</span>{% endif %}{% if spec.description %}<span class="cell-sub">{{ spec.description }}</span>{% endif %}</td>
           <td>{{ spec.type }}</td>
-          <td>{% if spec.default is not none %}<code>{{ spec.default | compact_json }}</code>{% else %}—{% endif %}</td>
+          <td>{% if spec.default is not none %}<code>{{ spec.default | compact_json }}</code>{% if spec.default is string and "{{" in spec.default %} <span class="badge blue" title="{{ t('spec.dynamic_title') }}">{{ t("spec.dynamic") }}</span>{% endif %}{% else %}—{% endif %}</td>
           <td class="rules">{{ rules(spec) }}</td></tr>
       {% endfor %}
       </tbody>

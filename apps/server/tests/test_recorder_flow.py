@@ -168,7 +168,11 @@ def test_debug_session_runs_on_the_recorder(
         session = body(
             browser.post(
                 "/api/scenes/ba-001/debug",
-                json={"engine": engine, "headless": True},
+                json={
+                    "engine": engine,
+                    "headless": True,
+                    "inputs": {"title": '{{"{{"}}today}}', "quantity": "{{random:7:7}}"},
+                },
                 headers={"Origin": gateway.origin},
             ),
             202,
@@ -176,6 +180,7 @@ def test_debug_session_runs_on_the_recorder(
         assert session["deviceId"] == "mac-01"
         state = wait_debug(browser, session["id"], {"ready", "failed"})
         assert state["status"] == "ready", state["message"]
+        assert state["inputs"] == {"title": "{{today}}", "quantity": 7}
         assert recorder.host.active() == 1  # 子程序在錄製端
         folders = list(recorder.host.work_dir.glob("rpa-*"))
         assert len(folders) == 1
@@ -189,6 +194,21 @@ def test_debug_session_runs_on_the_recorder(
         image = browser.get(shot)
         assert image.status_code == 200
         assert image.content.startswith(b"\x89PNG")  # 錄製端截的圖傳回管理 Portal
+
+        reloaded = body(
+            browser.post(
+                f"/api/debug/{session['id']}/reload",
+                json={"revision": 1},
+                headers={"Origin": gateway.origin},
+            )
+        )
+        assert reloaded["inputs"] == state["inputs"]
+        finished = body(
+            browser.post(f"/api/debug/{session['id']}/run-to/5", headers={"Origin": gateway.origin})
+        )
+        record = cast("JsonObject", cast("JsonObject", finished["facts"])["record"])
+        assert record["title"] == "{{today}}"
+        assert record["quantity"] == "7"  # DOM 抽取是文字；調試入參仍是上面確認的整數
 
         closed = browser.delete(f"/api/debug/{session['id']}", headers={"Origin": gateway.origin})
         assert closed.status_code == 200

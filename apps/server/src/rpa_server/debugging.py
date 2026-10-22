@@ -23,12 +23,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
 from rpa_core.dsl import Scenario, Step
-from rpa_core.dsl.features import scenario_features
+from rpa_core.dsl.dynamic import escape
+from rpa_core.dsl.features import input_features, scenario_features
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.browser import DEFAULT_STEP_TIMEOUT_MS
 from rpa_runner.commands import module_command
-from rpa_runner.contract import check_inputs
+from rpa_runner.contract import prepare_inputs
 from rpa_runner.run import ENV_STORAGE_STATE
 from rpa_server.context import Via
 from rpa_server.domain import now
@@ -253,12 +254,15 @@ class DebugManager:
         launcher = self.launcher
         if via is not None and self.hosts is not None:
             self.hosts.check(
-                via, engine=engine, headed=not headless, features=scenario_features(scenario)
+                via,
+                engine=engine,
+                headed=not headless,
+                features=scenario_features(scenario) | input_features(inputs),
             )
             launcher = self.hosts.launcher(via)
         if inputs is None:
             inputs = {n: s.default for n, s in scenario.inputs.items() if s.default is not None}
-        resolved, problems = check_inputs(scenario, inputs)
+        resolved, problems = prepare_inputs(scenario, inputs)
         if problems:
             raise invalid(
                 "inputs_invalid",
@@ -272,9 +276,11 @@ class DebugManager:
         folder.mkdir(parents=True)
         files = self.services.revision_files(scene_id, number)
         (folder / SCENARIO_FILE).write_text(files[SCENARIO_FILE], encoding="utf-8")
-        (folder / "input.json").write_text(
-            json.dumps(resolved, ensure_ascii=False), encoding="utf-8"
-        )
+        raw = {
+            name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
+        }
+        raw.update(inputs)
+        (folder / "input.json").write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
         session = DebugSession(
             id=session_id,
             scene_id=scene_id,
@@ -341,6 +347,12 @@ class DebugManager:
                 line = None
             event = _parse(line)
             if event.get("event") == "ready":
+                resolved = event.get("inputs")
+                if isinstance(resolved, dict):
+                    session.inputs = cast("dict[str, object]", resolved)
+                    (session.folder / "input.json").write_text(
+                        json.dumps(resolved, ensure_ascii=False), encoding="utf-8"
+                    )
                 session.status = "ready"
                 session.last_used = time.monotonic()
                 return
@@ -485,24 +497,42 @@ class DebugManager:
         scenario = self.services.revision_scenario(session.scene_id, revision)
         if scenario.script is not None:
             raise invalid("debug_script", t("error.debug_script"))
+        # 已求值的舊值跳脫；新增預設值保留寫法，交給開瀏覽器的裝置依當地時間求值。
+        raw = {
+            name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
+        }
+        raw.update(
+            {
+                name: escape(value)
+                for name, value in session.inputs.items()
+                if name in scenario.inputs
+            }
+        )
         if session.device is not None and self.hosts is not None:
             via = self.hosts.current()
             if via is None or via.id != session.device:
                 via = Via(session.device, session.device)
-            self.hosts.check(via, headed=False, features=scenario_features(scenario))
+            self.hosts.check(
+                via, headed=False, features=scenario_features(scenario) | input_features(raw)
+            )
         files = self.services.revision_files(session.scene_id, revision)
         path = session.folder / f"scenario-{revision}.yaml"
         path.write_text(files[SCENARIO_FILE], encoding="utf-8")
-        resolved, problems = check_inputs(scenario, session.inputs)
+        # 既有入參已求值；只讓新版本新增的預設值求值，保留跳脫後的字面文字。
+        resolved, problems = prepare_inputs(scenario, raw)
         if problems:
-            resolved = {
-                n: s.default for n, s in scenario.inputs.items() if s.default is not None
-            } | {k: v for k, v in session.inputs.items() if k in scenario.inputs}
+            # 新版本的入參對不上時保留舊值；新增動態值仍交給子程序求值
+            defaults, _ = prepare_inputs(scenario, {})
+            resolved = defaults | {k: v for k, v in session.inputs.items() if k in scenario.inputs}
         inputs = session.folder / f"input-{revision}.json"
-        inputs.write_text(json.dumps(resolved, ensure_ascii=False), encoding="utf-8")
+        inputs.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
         reply = self._command(session, 60, cmd="load", scenario=str(path), input=str(inputs))
         if not reply.get("ok"):
             raise invalid("revision_invalid", str(reply.get("error") or ""))
+        actual = reply.get("inputs")
+        if isinstance(actual, dict):
+            resolved = cast("dict[str, object]", actual)
+        inputs.write_text(json.dumps(resolved, ensure_ascii=False), encoding="utf-8")
         previous = {state.id: state for state in session.steps}
         session.scenario = scenario
         session.revision = revision

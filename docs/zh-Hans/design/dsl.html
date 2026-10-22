@@ -114,13 +114,47 @@ verify:
       <div class="panel-header"><h2>场景契约</h2><span class="muted">入参 → 步骤 → 页面事实 → 独立断言 → 出参</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean，默认 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制。</dd>
+          <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean，默认 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制；可以是<a href="#dynamic">动态值</a>（例如 <code>{{today}}</code>），每次运行时求值。</dd>
           <dt><code>facts</code></dt><dd>页面事实：<code>extract</code> 以 <code>as: 名称</code> 存成 <code>facts.名称</code>。步骤只能引用前面步骤产生的事实；verify 与 outputs 可以引用全部。</dd>
           <dt><code>verify</code></dt><dd>每一条有 <code>value</code>（必须含 <code>{{ }}</code>）与 <code>equals</code>、<code>contains</code>、<code>matches</code>（正则表达式）、<code>notEmpty: true</code> 其中一种比较；<code>name</code> 会出现在报告。比较时两边都以代入后的文字比较。</dd>
           <dt><code>outputs</code></dt><dd>类型多了 array、object，限制同入参；<code>from</code> 指定取值，例如 <code>{{ facts.record.recordId }}</code>。只有一个 <code>{{ }}</code> 时保留原本的类型（例如列表），否则依 type 转换文字。</dd>
           <dt><code>script</code></dt><dd><code>automation</code> 与 <code>assertion</code> 两个 Python 文件，路径相对于场景文件所在的文件夹、不能用 <code>..</code>。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令行契约）。脚本场景不写 verify，出参也不写 from。</dd>
         </dl>
         <p class="muted">运行顺序与失败时的处理见 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>；运行引擎在 M2 实现。<code>rpa schema 场景文件 --part inputs</code> 或 <code>--part outputs</code> 输出单一场景的入参或出参 JSON Schema。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="dynamic">
+      <div class="panel-header"><h2>入参的动态值</h2><span class="muted">每次运行开始时换成当下的日期、随机数</span></div>
+      <div class="panel-body stack">
+        <p>入参的值里可以写 <code>{{ … }}</code> 动态值：场景的 <code>default</code>、管理 Portal 运行表单的入参 JSON 与 API、<code>rpa run -i</code>／<code>--input</code>、试验场节点的固定值、逐步调试的入参都可以。<code>{{ }}</code> 里可以有空白，名称不分大小写；可以夹在文字中，例如 <code>CG-001 创建于 {{today}}</code>。</p>
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr><th>写法</th><th>结果（以 2026-10-21 07:30:05 运行为例）</th></tr></thead>
+          <tbody>
+            <tr><td><code>{{today}}</code></td><td>2026-10-21</td></tr>
+            <tr><td><code>{{today+1}}</code>、<code>{{today-7}}</code></td><td>2026-10-22、2026-10-14（往后、往前几天）</td></tr>
+            <tr><td><code>{{today:YYYY/MM/DD}}</code>、<code>{{today+1:yyyyMMdd}}</code>、<code>{{today:yyyy年MM月dd日}}</code></td><td>2026/10/21、20261022、2026年10月21日</td></tr>
+            <tr><td><code>{{now}}</code>、<code>{{now:HH:mm}}</code>、<code>{{now:yyyyMMddHHmmss}}</code></td><td>2026-10-21 07:30:05、07:30、20261021073005</td></tr>
+            <tr><td><code>{{random:10:30}}</code></td><td>10 到 30 之间（含两端）的随机整数，每个 random 各自抽</td></tr>
+            <tr><td><code>{{"{{"}}</code></td><td>引号里的文字原样保留，用来写出 <code>{{</code> 本身</td></tr>
+          </tbody>
+        </table></div>
+        <dl class="spec-list">
+          <dt>格式</dt><dd><code>yyyy</code>／<code>YYYY</code> 年、<code>MM</code> 月、<code>dd</code>／<code>DD</code> 日、<code>HH</code> 时、<code>mm</code> 分、<code>ss</code> 秒（都补零），其他字符照写。<code>today</code> 只有日期，格式里写了时、分、秒会报错（最常见的是把月份写成小写 <code>mm</code>）。</dd>
+          <dt>求值的时间</dt><dd>每次运行开始时（入参阶段，启动浏览器之前），用<strong>运行那台电脑</strong>的本地时区；同一次运行的所有入参用同一个「现在」，所以 <code>{{today}}</code> 在每个入参都是同一天。运行记录保存原本的写法，重新运行会重新求值；<code>input.json</code> 与报告是实际用到的值。脚本、后续步骤、断言与报告共用这份运行态入参，每次引用不会重新抽样。</dd>
+          <dt>类型</dt><dd>求值的结果是数字的文字时（例如整个值是 <code>{{random:10:30}}</code>），integer、number 入参得到数字；其他都是文字，再照入参的 type 与限制校验。</dd>
+          <dt>校验</dt><dd>值里任何 <code>{{ … }}</code> 都当成动态值，看不懂（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）就报错。保存与排入队列时保留配置态写法：动态值只检查语法，不读取日期、不抽样、不枚举可能结果；普通值仍检查类型与限制。实际运行开始时才展开一次，针对这份运行态入参检查 <code>type</code>、<code>enum</code>、<code>pattern</code>、长度及数值范围。不符合时本次运行在启动浏览器前失败，不会重新抽到合格为止。例如 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 可以保存，当次抽到 26 就回报超过上限；抽到 18 则继续运行。</dd>
+          <dt>录制的文字</dt><dd>录制稿中的填写内容照原样保留；即使文字含有 <code>{{today}}</code> 或其他大括号，也会自动跳脱。需要动态值时再编辑入参的默认值。</dd>
+          <dt>上游的出参</dt><dd>试验场把上游节点的出参交给下游时永远照原样，出参的文字里刚好有 <code>{{</code> 也不会被求值。</dd>
+          <dt>步骤里</dt><dd>步骤的 <code>{{ }}</code> 是<a href="#templates">表达式</a>，不能直接写 today、now、random；请在 <code>inputs</code> 加一个入参、默认值写动态值，步骤再引用 <code>{{ inputs.名称 }}</code>。</dd>
+          <dt>远程运行</dt><dd>动态值在运行的那台设备上求值，包含逐步调试与接著录制。调试重载保留已求值的入参，只对添加默认值求值；Portal 显示录制端实际用到的值。用到动态值的运行只交给回报看得懂 <code>dynamicValues</code> 的 Worker／录制端 App；旧的 App 会看到要更新的说明（同 M7a 的做法）。</dd>
+        </dl>
+<pre class="source">inputs:
+  arrivalDate: { default: "{{today}}" }
+  expiryDate: { default: "{{today+1}}" }
+  purchaseQuantity: { type: integer, minimum: 10, maximum: 30, default: "{{random:10:30}}" }
+  remark: { default: "CG-001脚本创建{{today}}日期" }</pre>
+        <p class="muted">YAML 里以 <code>{</code> 开头的值要加引号。也可以在管理 Portal 场景页的「入参」按「编辑」，把默认值改成 <code>{{today}}</code>，保存时会自动加引号。</p>
       </div>
     </section>
 
@@ -222,6 +256,7 @@ verify:
           <ul class="points">
             <li><strong>只用 YAML 1.2 core 规则。</strong><code>yes</code>、<code>no</code>、<code>on</code> 是字符串，不是布尔；<code>2026-09-01</code> 是字符串，不是日期；<code>12:30</code> 是字符串，不是六十进位数字。</li>
             <li><strong>不自动转型。</strong>字符串字段写了数字或 true/false 会报错，请加引号，例如 <code>value: "0123"</code>。</li>
+            <li><strong>以 <code>{{</code> 开头的值要加引号。</strong>例如 <code>value: "{{ inputs.title }}"</code>、<code>default: "{{today}}"</code>；没加引号时 YAML 会读成对象，校验会提示加引号。</li>
             <li><strong>键不能重复。</strong>同一层出现两次的键会报错并指出第一次出现的行号。</li>
             <li><strong>无法识别的字段会报错。</strong>名称相近时提示正确写法，例如 fullpage → fullPage。</li>
             <li><strong>只接受一般的标签。</strong><code>!!python/…</code>、<code>!!binary</code> 与自订标签一律拒绝；锚点与别名可以用，不支持 <code>&lt;&lt;</code> 合并。</li>
@@ -237,6 +272,7 @@ verify:
             <li><strong>可用的变量</strong>只有 <code>inputs</code>、<code>secrets</code>、<code>facts</code>、<code>env</code>；可以用 Jinja2 的过滤器，例如 <code>{{ inputs.title | upper }}</code>。</li>
             <li><strong>校验时就会检查</strong>语法、未知的变量与过滤器、没有声明的 inputs 与 secrets、没有 extract 产生或还没产生的 facts。</li>
             <li><strong>facts 不能用在 browser 设置</strong>，因为那时还没开始操作页面。</li>
+            <li><strong>today、now、random 是入参值的<a href="#dynamic">动态值</a></strong>，不是这里的变量；写在步骤里时校验会提示改写在入参。</li>
             <li>场景、步骤与断言的 <code>name</code>、<code>description</code> 是给人看的文字，不检查也不代入。</li>
           </ul>
         </div>

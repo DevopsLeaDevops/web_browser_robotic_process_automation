@@ -122,6 +122,81 @@ def drag_to(
         source.page.mouse.up()
 
 
+def test_workflow_edits_numeric_and_enum_dynamic_values(portal: str, page: Page, site: str) -> None:
+    """數值與枚舉可填表達式；保存、重開仍保留原文，普通數字維持原型別。"""
+    api = page.request
+    assert api.post(f"{portal}/api/scenes", data={"id": "dynamic-ui", "name": "動態值"}).ok
+    source = (
+        "schemaVersion: 1\nid: dynamic-ui\nname: 動態值\ninputs:\n"
+        "  quantity: {type: integer, enum: [10, 26, 30], default: 26}\n"
+        "  rate: {type: number, default: 0.5}\n"
+        "  code: {enum: [A, B], default: A}\n"
+        f"steps:\n  - {{id: open, action: goto, url: '{site}'}}\n"
+    )
+    assert api.post(
+        f"{portal}/api/scenes/dynamic-ui/revisions",
+        data={"baseRevision": 1, "files": {"scenario.yaml": source}},
+    ).ok
+    queued = api.post(
+        f"{portal}/api/scenes/dynamic-ui/revisions/2/validate",
+        data={"engine": "chromium", "headless": True},
+    )
+    assert queued.ok, queued.text()
+    deadline = time.monotonic() + RUN_TIMEOUT_MS / 1000
+    while True:
+        run = api.get(f"{portal}/api/runs/{queued.json()['id']}").json()
+        if run["finished"]:
+            break
+        assert time.monotonic() < deadline
+        time.sleep(0.1)
+    assert run["status"] == "passed", run["error"]
+    assert api.post(f"{portal}/api/scenes/dynamic-ui/revisions/2/publish").ok
+    initial = {"quantity": {"value": 26}, "rate": {"value": 0.5}, "code": {"value": "A"}}
+    created = api.post(
+        f"{portal}/api/workflows",
+        data={
+            "name": "動態值",
+            "definition": {
+                "nodes": [
+                    {"id": "n1", "sceneId": "dynamic-ui", "revision": 2, "inputs": initial},
+                ]
+            },
+        },
+    )
+    assert created.ok, created.text()
+    workflow_id = created.json()["id"]
+    page.goto(f"{portal}/playground/{workflow_id}")
+    page.locator('#flow-stage [data-index="0"]').click()
+    expressions = {
+        "quantity": "{{random:10:30}}",
+        "rate": "0.{{random:1:9}}",
+        "code": '{{"A"}}',
+    }
+    for name, value in expressions.items():
+        page.locator(f'input[data-value="{name}"]').fill(value)
+    expect(page.locator("#workflow-problems")).to_be_hidden()
+    with page.expect_response(lambda r: r.request.method == "PUT" and "/api/workflows/" in r.url):
+        page.locator('[data-action="workflow-save"]').click()
+    saved = api.get(f"{portal}/api/workflows/{workflow_id}").json()
+    assert saved["definition"]["nodes"][0]["inputs"] == {
+        name: {"value": value} for name, value in expressions.items()
+    }
+    page.reload()
+    page.locator('#flow-stage [data-index="0"]').click()
+    for name, value in expressions.items():
+        expect(page.locator(f'input[data-value="{name}"]')).to_have_value(value)
+    page.locator('input[data-value="quantity"]').fill("{{random:30:10}}")
+    expect(page.locator("#workflow-problems")).to_be_visible()
+    page.locator('input[data-value="quantity"]').fill("26")
+    page.locator('input[data-value="rate"]').fill("0.5")
+    expect(page.locator("#workflow-problems")).to_be_hidden()
+    with page.expect_response(lambda r: r.request.method == "PUT" and "/api/workflows/" in r.url):
+        page.locator('[data-action="workflow-save"]').click()
+    saved = api.get(f"{portal}/api/workflows/{workflow_id}").json()
+    assert saved["definition"]["nodes"][0]["inputs"]["quantity"] == {"value": 26}
+    assert saved["definition"]["nodes"][0]["inputs"]["rate"] == {"value": 0.5}
+
+
 def test_rpa_serve_recognizes_a_running_portal(portal: str) -> None:
     """rpa serve 遇到已經在執行的 Portal 時，直接告訴使用者網址，不再開第二個。"""
     port = int(portal.rsplit(":", 1)[1])

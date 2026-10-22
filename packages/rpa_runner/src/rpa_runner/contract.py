@@ -7,9 +7,11 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Final, Literal
 
 from rpa_core.dsl import InputSpec, OutputSpec, Scenario
+from rpa_core.dsl.dynamic import DynamicValueError, Pick, evaluate
 from rpa_runner.i18n import t
 from rpa_runner.templates import Context, TemplateEvaluationError, render, render_native
 
@@ -19,6 +21,7 @@ __all__ = [
     "build_outputs",
     "check_inputs",
     "parse_cli_value",
+    "prepare_inputs",
     "run_verify",
 ]
 
@@ -62,12 +65,39 @@ def parse_cli_value(spec: InputSpec, text: str) -> object:
             return text
 
 
-def check_inputs(
+def prepare_inputs(
     scenario: Scenario, values: Mapping[str, object]
 ) -> tuple[dict[str, object], list[Problem]]:
-    """補上預設值並校驗入參；回傳 (完整入參, 問題)。"""
+    """補上配置態預設值，檢查語法與普通值；不讀時鐘、不抽樣、不展開表達式。"""
+    return _check_inputs(scenario, values, resolve=False)
+
+
+def check_inputs(
+    scenario: Scenario,
+    values: Mapping[str, object],
+    *,
+    now: datetime | None = None,
+    pick: Pick | None = None,
+) -> tuple[dict[str, object], list[Problem]]:
+    """實際執行開始時展開一次、校驗這次的結果；腳本與報告共用回傳的運行態入參。
+
+    同一次執行的所有日期共用同一個現在，每個 random 只抽一次；重新執行才重新求值。
+    存檔、排隊與互動子程序啟動前使用 prepare_inputs，保留原始寫法給執行裝置。
+    """
+    return _check_inputs(scenario, values, resolve=True, now=now, pick=pick)
+
+
+def _check_inputs(
+    scenario: Scenario,
+    values: Mapping[str, object],
+    *,
+    resolve: bool,
+    now: datetime | None = None,
+    pick: Pick | None = None,
+) -> tuple[dict[str, object], list[Problem]]:
     problems: list[Problem] = []
     resolved: dict[str, object] = {}
+    moment = (now or datetime.now().astimezone()) if resolve else None
     for name in values:
         if name not in scenario.inputs:
             problems.append(Problem(name, t("contract.input_unknown", name=name)))
@@ -79,8 +109,20 @@ def check_inputs(
         else:
             problems.append(Problem(name, t("contract.input_missing", name=name)))
             continue
-        for rule in spec.violations(value):
-            problems.append(Problem(name, t("contract.input_invalid", name=name, rule=rule)))
+        try:
+            if resolve:
+                value = evaluate(value, spec.type, now=moment, pick=pick)
+                rules = list(spec.violations(value))
+            else:
+                rules = spec.check_value(value)
+        except DynamicValueError as error:
+            problems.append(
+                Problem(name, t("contract.input_dynamic", name=name, detail=error.message))
+            )
+            continue
+        problems += [
+            Problem(name, t("contract.input_invalid", name=name, rule=rule)) for rule in rules
+        ]
         resolved[name] = value
     return resolved, problems
 

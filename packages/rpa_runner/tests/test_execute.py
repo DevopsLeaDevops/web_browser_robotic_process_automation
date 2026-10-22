@@ -2,6 +2,7 @@
 
 import threading
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,7 @@ from rpa_core.dsl import validate_file
 from rpa_core.i18n import ENV_VAR, Locale, use_locale
 from rpa_runner import child
 from rpa_runner import run as run_module
-from rpa_runner.files import OUTPUT, REPORT, RESULT, read_json, read_json_or, write_json
+from rpa_runner.files import INPUT, OUTPUT, REPORT, RESULT, read_json, read_json_or, write_json
 from rpa_runner.run import execute, new_run_id, scenario_digest, scenario_sources
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -38,6 +39,19 @@ def test_run_id_stage_callback_and_digest(tmp_path: Path) -> None:
     assert (result.directory / RESULT).is_file()
     assert stages == ["input"]
     assert result.scenario_hash == scenario_digest(BA_001, scenario)
+
+
+def test_input_json_has_the_evaluated_dynamic_values(tmp_path: Path) -> None:
+    # 數量超過上限：入參階段就失敗、不啟動瀏覽器，但 input.json 已經是求值後的值
+    result = execute(
+        BA_001, {"title": "建立於 {{today}}", "quantity": "{{random:31:31}}"}, out_root=tmp_path
+    )
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
+
+    assert result.stage("input").status == "failed"
+    assert read_json(result.directory / INPUT) == {"title": f"建立於 {today}", "quantity": 31}
+    assert result.input == {"title": f"建立於 {today}", "quantity": 31}
+    assert result.problems == ["入參 quantity 不符合限制：maximum: 30"]
 
 
 def test_cancel_before_start(tmp_path: Path) -> None:

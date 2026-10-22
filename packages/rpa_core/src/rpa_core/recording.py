@@ -40,6 +40,7 @@ from datetime import UTC, datetime
 from typing import Final, cast
 from urllib.parse import urlsplit
 
+from rpa_core.dsl.dynamic import escape
 from rpa_core.dsl.editing import append_items
 from rpa_core.dsl.fields import catalog
 from rpa_core.dsl.scenario import Scenario
@@ -876,7 +877,12 @@ def _fill(state: _State, target: dict[str, object], text: str, described: str) -
         state.add("fill", {"target": target, "value": ""}, described)
         return
     name = _input_name(target, state.used_inputs)
-    spec: dict[str, object] = {"type": "string", "description": _describe(target), "default": text}
+    # 錄製稿保存使用者當時輸入的文字，不自動把其中的大括號變成動態值。
+    spec: dict[str, object] = {
+        "type": "string",
+        "description": _describe(target),
+        "default": escape(text),
+    }
     if target.get("role") == "spinbutton" and _INTEGER.fullmatch(text):
         spec = {**spec, "type": "integer", "default": int(text)}
     state.inputs[name] = spec
