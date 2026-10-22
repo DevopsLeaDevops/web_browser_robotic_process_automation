@@ -334,6 +334,7 @@
             <li><strong>不开 App 窗口（M10.2 PR 3）。</strong><code>rpa-recorder --no-window</code>：同一个 controller 与闸道，只是没有 WKWebView 窗口——管理 Portal 用默认浏览器打开（<code>--open</code>），或把经由闸道打开的网址写到 <code>--url-file</code>（只有本人能读，结束时删除）。<strong>有头模式照样可以用</strong>：录制、有头模式的逐步调试、人工登录的浏览器窗口照样开在这台，少的只是 App 的窗口；所以要在登录中的桌面（例如「终端」）启动，不要从 SSH 或背景服务。已经在运行时再双击 App，这一份改用默认浏览器打开管理 Portal。结束用文件夹的 <code>stop.request</code> 或 SIGINT、SIGTERM、SIGHUP（关掉终端）：信号只设旗标，主线程先结束子进程、回报、删暂存（同窗口版）；结束码和 Worker 的 <code>--no-window</code> 相同（4：同一个文件夹已经有一份在运行）。<code>--open</code> 用一般的浏览器时，闸道的 Cookie 绑在 <code>127.0.0.1</code>（Cookie 不分端口），同一个浏览器打开的其他本机服务也收得到；在意时改用 <code>--url-file</code> 搭配独立的浏览器设置档（<code>rpa recorder</code> 也一样）。CI 的端到端（<code>tools/recorder_e2e.py</code>）：从源代码启动管理 Portal，打包版以 <code>--no-window</code> 用邀请配对（权杖要存进钥匙串），经由闸道在录制端逐步调试 BA-001，<strong>无头与有头各一次</strong>，截图经由闸道传回；最后用 <code>stop.request</code> 结束（结束码 0）。</li>
             <li><strong>开发环境的 <code>rpa recorder</code>。</strong>同一套闸道（<code>rpa_worker.gateway</code>）与子进程主机（<code>rpa_worker.recorder</code>），改在默认浏览器打开；给有开发环境的人与端到端测试用（<a href="../develop/remote-worker.html#recorder">用法</a>）。</li>
             <li><strong>运行位置的用词。</strong>通过录制端看页面时，「本机」显示为「服务器」，避免误会成录制端这台。</li>
+            <li><strong>菜单（2026-10-22）。</strong>通过录制端看页面时，集群管理与管理后台默认不显示，只有场景管理、场景生产、场景运行；「集群管理 › 设备」可以替个别录制端打开（见<a href="portal.html#menus">管理 Portal › 菜单与三段分工</a>）。只是菜单，不是权限。</li>
             <li><strong>本地网络权限。</strong>macOS 15 起连区网要用户允许；Info.plist 写用途说明（<code>NSLocalNetworkUsageDescription</code>）。</li>
           </ul>
         </div>

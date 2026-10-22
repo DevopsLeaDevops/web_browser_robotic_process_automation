@@ -5,6 +5,7 @@
   共用命名空間。權杖只存雜湊。
 - **Portal**：對外埠上的頁面與 API 要錄製端的權杖（:class:`rpa_server.middleware.PortGateMiddleware`
   用 :meth:`RecorderHub.authenticate` 驗證），驗過的請求記在 :mod:`rpa_server.context`。
+  叢集管理與管理後台的選單預設不顯示，裝置頁可以替個別錄製端打開（``menus``，三段分工）。
 - **互動子程序**：錄製、逐步調試、人工登入在請求透過錄製端進來時，改用 :meth:`RecorderHub.launcher`
   啟動。它和本機的 :func:`rpa_server.processes.launch` 介面相同，回傳的 :class:`RemoteProcess`
   也像 ``subprocess.Popen``，所以三個服務讀輸出、送命令、等結束的程式都不用改。
@@ -40,6 +41,7 @@ from rpa_core.dsl.features import missing_features
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.commands import FROZEN_MODULE
 from rpa_runner.run import ENV_STORAGE_STATE
+from rpa_server.config import RECORDER_MENUS
 from rpa_server.context import Via, via_recorder
 from rpa_server.dispatch import hash_token, reported_names
 from rpa_server.domain import DOMAIN_ID, LOCAL_WORKER, RecorderRecord, RecorderStatus, now
@@ -293,6 +295,12 @@ class _Translator:
         return f"{WORK}/{relative}"
 
 
+def _menus(value: Collection[str] | None) -> tuple[str, ...]:
+    """另外顯示的選單：只留 RECORDER_MENUS 裡有的，依它的順序（資料庫裡可能是空的或舊的值）。"""
+    chosen = set(value or ())
+    return tuple(menu for menu in RECORDER_MENUS if menu in chosen)
+
+
 class RecorderHub:
     def __init__(
         self,
@@ -413,6 +421,7 @@ class RecorderHub:
             display=info.get("display") is not False,
             active=active,
             features=reported_names(info.get("features")),
+            menus=_menus(row.menus),
         )
 
     def list_recorders(self) -> list[RecorderRecord]:
@@ -451,14 +460,28 @@ class RecorderHub:
             return self._record(row)
 
     def update_recorder(
-        self, recorder_id: str, *, name: str | None = None, disabled: bool | None = None
+        self,
+        recorder_id: str,
+        *,
+        name: str | None = None,
+        disabled: bool | None = None,
+        menus: Collection[str] | None = None,
     ) -> RecorderRecord:
+        """改名稱、停用，或設定透過這台時另外顯示的選單（RECORDER_MENUS 中的哪些）。"""
         with self.sessions() as session:
             row = self._row(session, recorder_id)
             if name is not None and name.strip():
                 row.name = name.strip()[:100]
             if disabled is not None:
                 row.disabled = disabled
+            if menus is not None:
+                unknown = sorted(set(menus) - set(RECORDER_MENUS))
+                if unknown:
+                    raise invalid(
+                        "recorder_menu_invalid",
+                        t("error.recorder_menu_invalid", menus=", ".join(unknown)),
+                    )
+                row.menus = list(_menus(menus))
             session.commit()
             record = self._record(row)
         if disabled:
@@ -527,7 +550,7 @@ class RecorderHub:
                     select(Recorder).where(Recorder.token_hash == hash_token(token))
                 ).first()
                 if row is not None and not row.disabled:
-                    return Via(row.id, row.name)
+                    return Via(row.id, row.name, _menus(row.menus))
         raise ServiceError(401, "recorder_unauthorized", t("error.recorder_unauthorized"))
 
     def online(self, recorder_id: str) -> bool:

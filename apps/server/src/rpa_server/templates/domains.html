@@ -5,14 +5,17 @@
 {% block content %}
 <div class="stack">
   <section class="panel">
-    <div class="panel-header"><h2>{{ t("domains.list") }} <span class="count">{{ domains | length }}</span></h2></div>
+    <div class="panel-header"><h2>{{ t("domains.list") }} <span class="count">{{ domains | length }}</span></h2>{% if domains | length > 1 %}<span class="muted">{{ t("domains.order_hint") }}</span>{% endif %}</div>
     {% if domains %}
-    <div class="table-scroll"><table class="wrap">
-      <thead><tr><th>{{ t("domains.col_name") }}</th><th>{{ t("domains.col_id") }}</th><th>{{ t("domains.col_description") }}</th><th class="numeric">{{ t("domains.col_scenes") }}</th><th>{{ t("domains.col_source") }}</th><th>{{ t("domains.col_actions") }}</th></tr></thead>
+    <div class="table-scroll"><table class="wrap" id="domain-order">
+      <thead><tr><th class="numeric">{{ t("domains.col_order") }}</th><th>{{ t("domains.col_name") }}</th><th>{{ t("domains.col_id") }}</th><th>{{ t("domains.col_description") }}</th><th class="numeric">{{ t("domains.col_scenes") }}</th><th>{{ t("domains.col_source") }}</th><th>{{ t("domains.col_actions") }}</th></tr></thead>
       <tbody>
       {% for domain in domains %}
         <tr data-domain="{{ domain.id }}">
-          <td class="nowrap"><a href="/domains/{{ domain.id }}">{{ domain.name }}</a>{% if dependents.get(domain.id) %}<span class="cell-sub" data-dependents>{{ t("domains.used_by", count=dependents[domain.id] | length) }}{% for item in dependents[domain.id] %} <a href="/playground/{{ item.id }}#composite-dependencies" class="mono">{{ item.code }}</a>{% endfor %}</span>{% endif %}</td>
+          <td class="row-actions nowrap"><span class="order-number" data-order-number>{{ loop.index }}</span>
+            <button class="icon-btn" type="button" data-action="move-domain" data-direction="up" title="{{ t('domains.move_up') }}" aria-label="{{ t('domains.move_up_named', name=domain.name) }}"{% if loop.first %} disabled{% endif %}>↑</button>
+            <button class="icon-btn" type="button" data-action="move-domain" data-direction="down" title="{{ t('domains.move_down') }}" aria-label="{{ t('domains.move_down_named', name=domain.name) }}"{% if loop.last %} disabled{% endif %}>↓</button></td>
+          <td class="nowrap"><a href="/domains/{{ domain.id }}">{{ domain.name }}</a>{% if domain.id == composites_domain %}<span class="cell-sub">{{ t("domains.composites_hint") }}</span>{% endif %}{% if dependents.get(domain.id) %}<span class="cell-sub" data-dependents>{{ t("domains.used_by", count=dependents[domain.id] | length) }}{% for item in dependents[domain.id] %} <a href="/playground/{{ item.id }}#composite-dependencies" class="mono">{{ item.code }}</a>{% endfor %}</span>{% endif %}</td>
           <td><span class="tag">{{ domain.id }}</span></td>
           <td>{{ domain.description or "—" }}</td>
           <td class="numeric">{{ domain.scene_count }}</td>

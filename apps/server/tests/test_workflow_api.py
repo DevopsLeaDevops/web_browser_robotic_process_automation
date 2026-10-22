@@ -605,9 +605,8 @@ def test_composite_management_and_navigation(client: Client, chain: int) -> None
     assert 'class="preview-edge"' in html
     assert 'href="/playground/' + str(chain) + '"' in html
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
-    assert side.index("/roles") < side.index("/composites")
+    assert side.index("/composites") < side.index("/roles")  # 登入與憑證放最後（2026-10-22）
     production = client.get("/playground").text.split('id="sidenav"')[1].split("</nav>")[0]
-    assert (
-        production.index("/recording") < production.index("/playground") < production.index("/runs")
-    )
+    assert production.index("/recording") < production.index("/playground")
+    assert "/runs" not in production  # 運行報告在「場景運行」
     assert 'data-action="delete-workflow"' not in client.get("/playground").text

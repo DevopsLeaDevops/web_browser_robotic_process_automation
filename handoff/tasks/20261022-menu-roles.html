@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>選單結構與三段分工 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>選單結構與三段分工</h1><p>UI 任務一：管理 Portal 的第一級選單改成五個；領域管理搬到管理後台並可以調整領域的順序；錄製端預設不顯示叢集管理與管理後台。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261022-menu-roles；2026-10-22 07:31 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-22 06:23 America/Los_Angeles（PDT，UTC−07:00）於 Claude 專案對話（UI 任務一，菜單管理）：
+          <ol>
+            <li>調整選單：「場景管理」一級選單，登入與憑證放到最後一個；領域管理支援調整不同領域的擺放順序。「場景生產」包含自主腳本錄製、自由試驗場。新增一級選單「場景運行」，把運行報告、運行回看挪過來。「叢集管理」（原文也寫作群集管理），把場景生產中的「設備」（Portal 上叫「裝置」）挪過來。「管理後台」，領域管理挪到這裡。</li>
+            <li>三段分工，以調整後的選單為準。錄製端：場景管理（領域的選單 ×N、組合場景自動化、登入與憑證）、場景生產（自主腳本錄製、自由試驗場）、場景運行（運行報告、運行回看）；叢集管理、管理後台預設不展示。伺服器：選單都在。Worker 端：維持現狀。</li>
+          </ol>
+          驗收：(1) 從伺服器本機（8080）打開時五個第一級選單依上述順序，二級選單內容與順序相符；(2) 領域管理可以調整順序，場景管理左側的領域選單與 /scenes 的第一個領域跟著改；(3) 透過錄製端打開時看不到叢集管理與管理後台，在裝置頁替那台打開後才看得到；(4) Worker App 不變。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：Portal 的選單定義（render.py）、領域排序（服務、API、領域管理頁）、錄製端要顯示的選單（裝置頁的設定、資料庫欄位與遷移 0014）、三語訊息、桌面端配對說明裡的選單路徑、設計文件（管理 Portal、桌面端分發）與本任務卡。<br>不包含：權限控制。依 2026-10-18 的決定，錄製端的權杖能看、改所有東西（M8 才有使用者權限），所以「不展示」只是選單不顯示，直接打開網址或呼叫 API 照樣可以用。Worker App 不載入 Portal 的頁面，不需要改。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原實作 Claude；本次依使用者要求由 ChatGPT／Codex 接手衝突整合；審閱未指定；合併：使用者</dd>
+        <dt>修改檔案／整合者</dt><dd>apps/server（render.py、config.py、context.py、models.py、遷移 0014、devices.py、domain.py、services.py、api.py、樣板 base／domains／domain／workers／_macros、portal.js、portal-app.css、訊息目錄）、apps/desktop 的訊息目錄（配對說明的選單路徑）、docs/design/portal.html、docs/design/desktop.html（含英文、簡中）、handoff（本卡、任務索引、決定）。<br>共用檔案：遷移編號 0014（開工時 main 最新是 0013，開啟中的 #70、#71 沒有遷移）；#70、#71 也改 docs/design/desktop.html、handoff/decisions.html、handoff/tasks/index.html，後合併的一方整合；#71 也改桌面端訊息目錄。</dd>
+        <dt>狀態</dt><dd>衝突已解決：以 567dd4f 為起點合入 main ca0bc93（含 #70、#71），相關本地檢查通過；本合併提交交付至原 PR 分支，遠端同步與最新 CI 以 PR 為準。人工驗收、審閱與合併仍待使用者。</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-ab62tv（這次會話指定的分支；倉庫慣例是 feat/…，名稱不影響合併）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/72">PR #72</a>；原 base main df47b14（#67 合併後），本次合入 ca0bc93</dd>
+        <dt>交接版本／同步狀態</dt><dd>接收版本 567dd4f；本次合併提交整合 main ca0bc93，交付目標仍為 claude/project-thread-ab62tv／PR #72，採一般推送保留歷史；最新遠端 head 以 PR 為準</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.16、uv 0.11.32、鎖定依賴；Playwright 1.64.0 搭配容器預裝的 Chromium（版本與鎖定的不同，只用於手動確認，pytest 的瀏覽器測試沒有在這裡跑）</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>設計</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>第一級選單（左到右）：</strong>場景管理（/scenes）→ 場景生產（/recording）→ 場景運行（/runs）→ 叢集管理（/devices）→ 管理後台（/domains）。</li>
+        <li><strong>第二級選單：</strong>場景管理＝領域 ×N（依領域管理的順序，不列「組合場景」領域）、組合場景自動化、登入與憑證；場景生產＝自主腳本錄製、自由試驗場；場景運行＝運行報告、運行回看；叢集管理＝裝置；管理後台＝領域管理。網址都不變。</li>
+        <li><strong>領域的順序：</strong>領域管理的表格每一列有「上移」「下移」，按了立刻存（PUT /api/domains/order，送出全部領域的代號；清單和伺服器的不同時回 409，請重新整理）。順序只存在這台伺服器的資料庫（domains.position，原本就有的欄位），不寫進領域資料夾與 git；新增、從 git 新增、載入的領域排在最後。</li>
+        <li><strong>錄製端：</strong>透過錄製端打開時，叢集管理與管理後台預設不顯示；裝置頁的錄製端清單每台有「另外顯示的選單」兩個勾選（叢集管理、管理後台），勾了那台就看得到（recorders.menus，遷移 0014；PATCH /api/recorders/{代號} 的 menus）。只影響選單與頁面上通往它們的按鈕（領域頁的「領域管理」、等待 worker 時的「裝置」），不是權限。</li>
+        <li><strong>伺服器本機（8080）：</strong>五個都顯示。<strong>Worker：</strong>Worker App 的視窗不載入 Portal，維持現狀。</li>
+        <li><strong>沒有領域的場景：</strong>場景頁原本在左側選單標示「領域管理」；領域管理搬走後改為停在場景管理、不標示任何一項。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>五個第一級選單與二級分組（render.py 的 NAV、_side_items、visible_nav、menu_shown）；領域排序（Services.reorder_domains、PUT /api/domains/order、領域管理的 ↑ ↓）；錄製端另外顯示的選單（config.RECORDER_MENUS、recorders.menus 與遷移 0014、Via.menus、PATCH /api/recorders 的 menus、裝置頁的勾選）；看不到的選單，通往它的按鈕也不顯示（領域頁「管理領域」、等待 worker 時「查看裝置」）；三語訊息；桌面端配對說明的選單路徑；設計文件（管理 Portal 新增「選單與三段分工」、桌面端分發、維運、遠端 Worker）與英文、簡中；決定紀錄。</li>
+        <li><strong>未完成／阻礙：</strong>CI、審閱與合併；人工驗收（真的 RPA 錄製端 App 透過對外埠打開時的選單、裝置頁勾選後重新整理）。</li>
+        <li><strong>決定：</strong>選單結構與三段分工：使用者 2026-10-22 指定（已確認）。「預設不展示」做成逐台的勾選，在叢集管理 › 裝置設定：實作選擇（使用者也可以改成全部錄製端一起設定）。不加權限控制：沿用 2026-10-18 的決定。</li>
+        <li><strong>下一個具體動作：</strong>確認 PR 最新 head 的 CI；使用者審閱與人工驗收。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無（手動確認用的腳本、截圖與資料夾在會話的暫存區，不進倉庫）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>基準 df47b14＋本任務差異；雲端容器</td><td><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run pyright</code></td><td>通過；pyright 0 錯誤（11 個警告都是桌面端在 Linux 上沒有的平台套件，既有）</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -m "not browser" -n 4</code></td><td>1578 通過、3 略過（Windows 登錄檔、Windows mutex、ssh-keygen）</td><td>需要瀏覽器的測試沒有跑（容器的 Chromium 版本和鎖定的 Playwright 不同），交給 CI</td></tr>
+          <tr><td>同上</td><td><code>uv run python tools/i18n.py sync</code>、<code>stamp</code>（英文四頁）、<code>check</code>；<code>uv run pytest tests/docs tests/i18n</code>；<code>git diff --check</code>；handoff 相對連結</td><td>通過（304 個文檔與多語言測試）</td><td>—</td></tr>
+          <tr><td>同上；<code>rpa serve --port 18080 --worker-port 18081</code></td><td>Playwright 腳本（容器的 Chromium）：伺服器本機看選單；領域管理把「微軟自動化」上移兩次；登記錄製端、配對，帶權杖從對外埠看；裝置頁勾選</td><td>伺服器：五個第一級、各組二級正確；上移立刻儲存、焦點留在按鈕，重新整理後順序保留，場景管理的領域選單與 /scenes 跟著改；錄製端預設只有三個第一級、沒有「管理領域」按鈕；勾叢集管理後多一個，兩個都勾後五個都在</td><td>不是真的 RPA 錄製端 App（用權杖模擬經由閘道的請求）</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：推送後確認；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-22 07:29 America/Los_Angeles（PDT，UTC−07:00）：ChatGPT／Codex 依使用者「幫我處理 PR72 的衝突」接收 567dd4f；fetch 後核對 main ca0bc93，於獨立 worktree 整合，保留原有功能。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-22 06:30 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，從 main df47b14 建立任務卡。</li>
+        <li>2026-10-22 06:45 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試與文件完成，本地檢查通過（見驗證）；提交並推送，開 PR。</li>
+        <li>2026-10-22 07:31 America/Los_Angeles（PDT，UTC−07:00）（ChatGPT／Codex）：依使用者要求整合 PR #72 衝突。從 567dd4f 合入 main ca0bc93；3 份英文文件的衝突只有 translation-source 雜湊，重新以合併後的繁中來源 stamp，簡中 sync 確認沒有差異；任務索引保留選單、macOS Worker、Linux 分發包全部紀錄。自動合併的桌面端三語目錄已核對：保留 main 的所有鍵，只變更本 PR 的兩個配對選單路徑。伺服器程式與測試內容和接收版本完全相同，發布 workflow 與 main 完全相同。遷移仍為 0014 → 0013，無編號碰撞。</li>
+        <li>本次驗證：567dd4f＋ca0bc93 合併後的工作區；macOS 26.3.1 arm64、Python 3.13.16、uv 0.12.24、Ruff 0.17.1、Pyright 1.1.414、pytest 9.1.1。<code>uv sync --locked</code>、<code>ruff check .</code>、<code>ruff format --check .</code>、<code>pyright --pythonplatform Linux</code>（0 錯誤、3 個 pystray 來源警告）、<code>python tools/i18n.py check</code>、<code>git diff --check</code> 通過。<code>pytest -q -n 4 -m 'not browser' tests/docs tests/i18n apps/desktop/tests apps/server/tests/test_api.py apps/server/tests/test_recorder_api.py apps/server/tests/test_render.py apps/server/tests/test_workflow_api.py apps/server/tests/test_migrations.py</code>：589 通過、2 個 Windows 專用項目略過；涵蓋選單分組、領域排序、錄製端設定與遷移升降版。3 份交接頁的 99 個相對連結／錨點與三語桌面端鍵值整合檢查通過。首次測試命令誤指定不存在的 test_db.py，未執行測試；更正為 test_migrations.py 後取得上述結果。未在本機重跑全部瀏覽器與 Linux 安裝測試，也未執行人工驗收。</li>
+        <li>接收時的 CI：567dd4f 的 Windows Worker 工作失敗，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39789364904/job/119861043727">日誌</a>顯示 <code>test_firefox_run_uses_a_copy_of_the_template</code> 導航超時（1 失敗、72 通過），不在本次衝突修改範圍。其他已執行工作通過；不將舊失敗計為通過，推送後需核對新 head 的 CI。合併仍由使用者決定。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

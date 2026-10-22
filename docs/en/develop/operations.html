@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:ad57f391acbf0685">
+<meta name="translation-source" content="sha256:2c5f1dc7d18dbbc3">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -142,7 +142,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
     </section>
 
     <section class="panel" id="git-sync">
-      <div class="panel-header"><h2>Domains and git sync</h2><span class="muted">M11; Scenes › Domains › Sync</span></div>
+      <div class="panel-header"><h2>Domains and git sync</h2><span class="muted">M11; Admin › Domains › Sync</span></div>
       <div class="panel-body prose">
         <p>Each domain can be synced with a directory in a git repository, so several servers (different people) share the same scenarios, composite scenarios and validation and publication records. Only the server runs git; recorders and workers still get the files they need from the server. The server needs git 2.25 or later (the setup script installs it). Design in <a href="../design/portal.html">Management portal</a> and <a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>.</p>
         <h3>Setting up</h3>
@@ -172,7 +172,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
     </section>
 
     <section class="panel" id="devices">
-      <div class="panel-header"><h2>Managing devices</h2><span class="muted">Management portal › Production › Devices</span></div>
+      <div class="panel-header"><h2>Managing devices</h2><span class="muted">Management portal › Cluster › Devices</span></div>
       <div class="panel-body prose">
         <ul>
           <li><strong>Add.</strong> “Add device”, choose the kind (RPA Worker or RPA Recorder) and create a one-time invitation (valid for 24 hours) to paste into that computer's app or command line. Steps in <a href="remote-worker.html#register">Remote workers › Add the device</a>.</li>

@@ -195,12 +195,12 @@
 {% endif %}
 {%- endmacro %}
 
-{# 排隊中、沒有線上的遠端 worker 可以接：說明在等什麼，連到裝置頁（M9a） #}
+{# 排隊中、沒有線上的遠端 worker 可以接：說明在等什麼，連到裝置頁（M9a；看不到叢集管理時不連） #}
 {% macro worker_wait_notice(wait) -%}
 {% if wait %}
 <div class="notice warn" role="status" data-worker-wait>
   {% if wait.worker %}{{ t("run.waiting_worker_named", name=wait.worker) }}{% else %}{{ t("run.waiting_worker") }}{% endif %}
-  <span class="actions"><a class="button" href="/devices">{{ t("run.waiting_worker_devices") }}</a></span>
+  {% if menu_shown("cluster") %}<span class="actions"><a class="button" href="/devices">{{ t("run.waiting_worker_devices") }}</a></span>{% endif %}
 </div>
 {% endif %}
 {%- endmacro %}

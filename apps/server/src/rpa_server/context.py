@@ -6,6 +6,7 @@
 
 - 錄製、逐步調試、人工登入的子程序交給這台錄製端執行（瀏覽器開在操作的人面前）。
 - 頁面上的「本機」改稱「伺服器」，頁首顯示透過哪台錄製端操作。
+- 叢集管理與管理後台的選單只在裝置頁替這台打開時顯示（三段分工）。
 
 背景執行緒（佇列、租約、子程序的輸出）不在任何請求裡，看到的永遠是 None。
 """
@@ -24,6 +25,8 @@ class Via:
 
     id: str
     name: str
+    menus: tuple[str, ...] = ()
+    """這台另外顯示的第一級選單（rpa_server.config.RECORDER_MENUS 中的哪些）。"""
 
 
 _CURRENT: ContextVar[Via | None] = ContextVar("rpa_recorder", default=None)

@@ -1,7 +1,8 @@
 """資料庫模型：場景 scenes、版本 revisions、執行 runs；M4 加上登入角色 roles 與錄製 recordings；
 M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs；
 M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與由哪台 worker 執行；
-M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄製的 device_id。
+M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄製的 device_id；
+錄製端另外顯示的選單 recorders.menus（三段分工，2026-10-22）。
 
 M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資料夾（rpa_server.packs）；這幾張表是
 資料夾的**索引**，載入時依資料夾重建。只在資料庫的欄位（網址覆寫、排序、登入檢查的結果）
@@ -352,6 +353,8 @@ class Recorder(Base):
     """上線時回報的資訊：協定版本、程式指紋、App 版本、作業系統、瀏覽器、能不能顯示視窗。"""
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
     last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    menus: Mapped[list[str] | None] = mapped_column(JsonType)
+    """透過這台打開管理 Portal 時另外顯示的第一級選單（叢集管理、管理後台；預設都不顯示）。"""
 
 
 class DeviceInvite(Base):

@@ -8,6 +8,7 @@
 import io
 import json
 import os
+import re
 import threading
 import time
 import zipfile
@@ -221,6 +222,44 @@ def test_portal_on_the_external_port_needs_a_recorder_token(client: Client, remo
     assert remote.get("/devices", headers=auth(device.token)).status_code == 200
     body(client.post("/api/recorders/mac-01/invite"))
     assert remote.get("/devices", headers=auth(device.token)).status_code == 401
+
+
+def test_recorders_hide_cluster_and_admin_menus(client: Client, remote: Client) -> None:
+    """三段分工：伺服器本機五個第一級選單都在；錄製端預設不顯示叢集管理與管理後台，
+    裝置頁替那台打開後才顯示。只是選單，不是權限。"""
+    body(client.post("/api/domains", json={"id": "lab", "name": "實驗"}), 201)
+    device = paired(client, remote)
+    headers = auth(device.token)
+
+    def top(via: Client, headers: dict[str, str] | None = None) -> list[str]:
+        html = via.get("/domains/lab", headers=headers).text
+        return re.findall(r'href="([^"]+)"', html.split('id="topnav"')[1].split("</nav>")[0])
+
+    everything = ["/scenes", "/recording", "/runs", "/devices", "/domains"]
+    assert top(client) == everything
+    assert top(remote, headers=headers) == ["/scenes", "/recording", "/runs"]
+    assert 'href="/domains"' not in remote.get("/domains/lab", headers=headers).text
+    assert remote.get("/devices", headers=headers).status_code == 200
+    assert body(client.get("/api/recorders/mac-01"))["menus"] == []
+
+    # 依 RECORDER_MENUS 的順序存，重複的只留一個
+    menus = body(
+        client.patch("/api/recorders/mac-01", json={"menus": ["admin", "cluster", "admin"]})
+    )
+    assert menus["menus"] == ["cluster", "admin"]
+    assert top(remote, headers=headers) == everything
+    body(client.patch("/api/recorders/mac-01", json={"menus": ["cluster"]}))
+    assert top(remote, headers=headers) == ["/scenes", "/recording", "/runs", "/devices"]
+    bad = error(client.patch("/api/recorders/mac-01", json={"menus": ["produce"]}), 422)
+    assert bad["code"] == "recorder_menu_invalid"
+    assert body(client.get("/api/recorders/mac-01"))["menus"] == ["cluster"]
+    # 改名稱、停用不動到選單
+    body(client.patch("/api/recorders/mac-01", json={"name": "Amy 的 Mac"}))
+    assert body(client.get("/api/recorders/mac-01"))["menus"] == ["cluster"]
+    page = client.get("/devices").text
+    assert 'data-recorder-menus="mac-01"' in page
+    assert 'value="cluster" checked' in page
+    assert 'value="admin">' in page
 
 
 def test_pages_follow_the_recorder_display(client: Client, remote: Client) -> None:

@@ -15,6 +15,9 @@ Worker 自己用的 API 在 /worker-api/v1（worker_api.py）。
 
 M10.2：錄製端的登記與邀請（/api/recorders）。錄製端自己用的 API 在 /client-api/v1（client_api.py）。
 透過錄製端呼叫這裡時，錄製、調試、人工登入的瀏覽器開在那台（rpa_server.devices）。
+
+三段分工（2026-10-22）：領域的順序（PUT /api/domains/order）；錄製端另外顯示的選單
+（PATCH /api/recorders/{代號} 的 menus）。
 """
 
 from typing import Annotated, Literal, cast
@@ -50,6 +53,12 @@ class DomainCreate(_Body):
 class DomainUpdate(_Body):
     name: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=2000)
+
+
+class DomainOrder(_Body):
+    """領域的排列順序：全部領域的代號，依新的順序（場景管理的領域選單照這個順序）。"""
+
+    ids: list[str] = Field(max_length=1000)
 
 
 class GitSourceBody(_Body):
@@ -290,6 +299,11 @@ class WorkerUpdate(_Body):
     disabled: bool | None = None
 
 
+class RecorderUpdate(WorkerUpdate):
+    menus: list[str] | None = Field(default=None, max_length=10)
+    """透過這台時另外顯示的第一級選單（cluster、admin）；預設都不顯示（三段分工）。"""
+
+
 class TargetSetting(_Body):
     target: Target
 
@@ -335,6 +349,11 @@ def api_router(services: Services) -> APIRouter:
     @router.post("/domains", status_code=201)
     def create_domain(body: DomainCreate) -> dict[str, object]:
         return services.create_domain(body.id, body.name, body.description).to_json()
+
+    @router.put("/domains/order")
+    def order_domains(body: DomainOrder) -> dict[str, object]:
+        """調整領域的順序：送出全部領域的代號；和伺服器上的清單不同時回 409。"""
+        return {"domains": [domain.to_json() for domain in services.reorder_domains(body.ids)]}
 
     @router.get("/domains/{domain_id}")
     def get_domain(domain_id: str) -> dict[str, object]:
@@ -990,8 +1009,10 @@ def api_router(services: Services) -> APIRouter:
         return recorders.get_recorder(recorder_id).to_json()
 
     @router.patch("/recorders/{recorder_id}")
-    def update_recorder(recorder_id: str, body: WorkerUpdate) -> dict[str, object]:
-        record = recorders.update_recorder(recorder_id, name=body.name, disabled=body.disabled)
+    def update_recorder(recorder_id: str, body: RecorderUpdate) -> dict[str, object]:
+        record = recorders.update_recorder(
+            recorder_id, name=body.name, disabled=body.disabled, menus=body.menus
+        )
         return record.to_json()
 
     @router.post("/recorders/{recorder_id}/invite")
