@@ -24,9 +24,10 @@
   別處來的資料（例如上游場景的出參）要原樣使用時，先用 :func:`escape`。
 """
 
+import math
 import random
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from itertools import product
@@ -74,7 +75,7 @@ MAX_OFFSET_DAYS: Final = 36500
 """today±N 的天數上限（一百年）；超過多半是寫錯。"""
 
 _MAX_CHECK_COMBINATIONS: Final = 1000
-"""完整檢查的組合上限，避免多個 random 的組合拖住存檔或執行。"""
+"""全部組合（或代表值組合）的檢查上限，避免多個 random 的組合拖住存檔或執行。"""
 
 _DEFAULT_FORMATS: Final = {"today": "yyyy-MM-dd", "now": "yyyy-MM-dd HH:mm:ss"}
 _TIME_TOKENS: Final = frozenset({"HH", "mm", "ss"})
@@ -309,8 +310,11 @@ def samples(
 ) -> list[object]:
     """校驗用的代表值：純隨機數檢查數值兩端，字串另檢查最短與最長的組合。
 
-    enum／pattern（exhaustive=True）與拼接成數字的文字不能只看兩端，需檢查全部組合；
-    超過安全上限就明確拒絕。單一 random 的數值上下限及字串長度不受組合數限制。
+    enum／pattern（exhaustive=True）與拼接成數字的文字不能只看兩端：組合不超過上限時
+    檢查全部組合；範圍大時每個隨機數改用 :func:`_representatives`（兩端、0、每種位數的
+    最小與最大值），例如 ``PO-{{random:10000:99999}}`` 配 ``pattern`` 仍可使用。
+    代表值以外的值在執行時以實際抽到的值再檢查一次（啟動瀏覽器之前），不會打進頁面。
+    連代表值的組合都超過上限（一個值裡有很多大範圍的隨機數）時明確拒絕。
     """
     if not isinstance(value, str) or not has_dynamic(value):
         return [value]
@@ -324,14 +328,12 @@ def samples(
         and any(isinstance(part, RandomInteger) for part in parts)
     )
     if exhaustive or numeric_composition:
-        ranges: list[range] = []
-        combinations = 1
-        for part in parts:
-            if isinstance(part, RandomInteger):
-                combinations *= part.high - part.low + 1
-                if combinations > _MAX_CHECK_COMBINATIONS:
-                    raise DynamicValueError("random_checks_limit", limit=_MAX_CHECK_COMBINATIONS)
-                ranges.append(range(part.low, part.high + 1))
+        randoms = [part for part in parts if isinstance(part, RandomInteger)]
+        ranges: list[Sequence[int]] = [range(part.low, part.high + 1) for part in randoms]
+        if math.prod(len(choices) for choices in ranges) > _MAX_CHECK_COMBINATIONS:
+            ranges = [_representatives(part.low, part.high) for part in randoms]
+            if math.prod(len(choices) for choices in ranges) > _MAX_CHECK_COMBINATIONS:
+                raise DynamicValueError("random_checks_limit", limit=_MAX_CHECK_COMBINATIONS)
         values: list[object] = []
         for combination in product(*ranges):
             draws = iter(combination)
@@ -357,6 +359,24 @@ def _lowest(low: int, high: int) -> int:
 def _highest(low: int, high: int) -> int:
     del low
     return high
+
+
+def _representatives(low: int, high: int) -> list[int]:
+    """大範圍隨機數的代表值：兩端、0，以及正負數每種位數的最小與最大值（排序、不重複）。
+
+    pattern 多半限制格式（位數、正負號），這些值涵蓋了每一種位數與正負號。
+    """
+    found = {low, high}
+    if low <= 0 <= high:
+        found.add(0)
+    # 正數的絕對值範圍、負數的絕對值範圍
+    for sign, smallest, largest in ((1, max(low, 1), high), (-1, max(-high, 1), -low)):
+        if smallest > largest:
+            continue
+        for digits in range(len(str(smallest)), len(str(largest)) + 1):
+            found.add(sign * max(smallest, 10 ** (digits - 1)))
+            found.add(sign * min(largest, 10**digits - 1))
+    return sorted(found)
 
 
 def _shortest(low: int, high: int) -> int:

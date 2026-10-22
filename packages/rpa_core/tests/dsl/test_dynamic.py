@@ -9,6 +9,7 @@ import pytest
 from rpa_core.dsl import InputSpec, format_issue, inputs_json_schema, validate_text
 from rpa_core.dsl.dynamic import (
     DynamicValueError,
+    _representatives,  # pyright: ignore[reportPrivateUsage]
     dynamic_expression,
     escape,
     evaluate,
@@ -241,17 +242,40 @@ def test_exhaustive_random_checks_are_bounded_without_restricting_plain_randoms(
     spec = InputSpec(pattern="^[0-9]+$")
     assert spec.check_value("{{random:1:1000}}") == []
     assert spec.check_value("{{random:1:10}}{{random:1:100}}") == []
-    for text in ("{{random:1:1001}}", "{{random:1:100}}{{random:1:100}}"):
-        with pytest.raises(DynamicValueError, match="1000") as caught:
-            spec.check_value(text)
-        assert caught.value.code == "random_checks_limit"
+    # 範圍大時改用代表值（兩端、0、每種位數的最小與最大值），常見的單號寫法仍可使用
+    assert spec.check_value("{{random:1:1001}}") == []
+    assert spec.check_value("{{random:1:100}}{{random:1:100}}") == []
+    assert InputSpec(pattern="^PO-\\d{5}$").check_value("PO-{{random:10000:99999}}") == []
+    assert InputSpec(pattern="\\S").check_value("單號{{random:1000:9999}}") == []
+    # 代表值涵蓋每一種位數與正負號
+    assert InputSpec(pattern="^\\d{1,3}$").check_value("{{random:1:5000}}") == ["pattern"]
+    assert InputSpec(pattern="^\\d+$").check_value("{{random:-3:5000}}") == ["pattern"]
+    assert InputSpec(enum=["1", "2"]).check_value("{{random:1:5000}}") == ["enum"]
+    many = "{{random:1:999999999}}" * 4
+    with pytest.raises(DynamicValueError, match="1000") as caught:
+        spec.check_value(many)
+    assert caught.value.code == "random_checks_limit"
     assert InputSpec(type="integer").check_value("{{random:1:1000000}}") == []
     assert InputSpec(pattern="^[0-9-]+$").check_value("{{today}}", now=NOW) == []
 
 
+@pytest.mark.parametrize(
+    ("low", "high", "expected"),
+    [
+        (1, 1001, [1, 9, 10, 99, 100, 999, 1000, 1001]),
+        (-12, 5, [-12, -10, -9, -1, 0, 1, 5]),
+        (-300, -20, [-300, -100, -99, -20]),
+        (7, 7, [7]),
+    ],
+)
+def test_representatives_cover_every_digit_count(low: int, high: int, expected: list[int]) -> None:
+    assert _representatives(low, high) == expected
+
+
 def test_exhaustive_random_limit_is_reported_as_a_default_issue() -> None:
+    default = "{{random:1:999999999}}" * 4
     result = validate_text(
-        HEADER + "inputs:\n  q: { pattern: '^[0-9]+$', default: '{{random:1:1001}}' }\n" + GOTO
+        HEADER + f"inputs:\n  q: {{ pattern: '^[0-9]+$', default: '{default}' }}\n" + GOTO
     )
     assert [issue.code for issue in result.issues] == ["dynamic.random_checks_limit"]
 
@@ -270,8 +294,11 @@ def test_large_random_ranges_keep_exact_length_and_numeric_checks() -> None:
         "maxLength: 14",
     ]
     assert InputSpec(type="number", maximum=0.9).check_value("0.{{random:1:10}}") == []
-    with pytest.raises(DynamicValueError, match="1000"):
-        InputSpec(type="number").check_value("0.{{random:1:1001}}")
+    # 範圍大時以代表值檢查：每種位數的最大值（0.99）也會檢查到
+    assert InputSpec(type="number").check_value("0.{{random:1:1001}}") == []
+    assert InputSpec(type="number", maximum=0.95).check_value("0.{{random:1:1001}}") == [
+        "maximum: 0.95"
+    ]
 
 
 def test_composed_random_types_are_checked_across_independent_draws() -> None:

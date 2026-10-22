@@ -200,7 +200,7 @@
   "dsl.dynamic.format_time": "{text}：today 只有日期，月份是大寫 MM（小寫 mm 是分鐘）；要時間請用 now",
   "dsl.dynamic.random_syntax": "看不懂 {text}；隨機整數寫成 random:最小:最大，例如 random:10:30",
   "dsl.dynamic.random_range": "{text} 的最小值 {low} 大於最大值 {high}",
-  "dsl.dynamic.random_checks_limit": "enum、pattern 或拼接數值需要檢查全部隨機組合；請縮小隨機範圍，使組合不超過 {limit} 種",
+  "dsl.dynamic.random_checks_limit": "一個值裡大範圍的隨機數太多，enum、pattern 或拼接數值的檢查會超過 {limit} 種組合；請減少隨機數或縮小範圍",
   "dsl.template.dynamic_in_step": "{name} 是入參值用的動態值，步驟裡不能直接用；請在 inputs 加一個入參、預設值寫 {{{{{name}}}}}，步驟再引用 {{{{ inputs.名稱 }}}}",
   "dsl.workflow.value_dynamic": "節點 {node}：入參 {input} 的固定值：{detail}",
   "dsl.yaml.unquoted_template": "以 {{{{ 開頭的值要加上引號，例如 \"{{{{today}}}}\"、\"{{{{ inputs.title }}}}\""

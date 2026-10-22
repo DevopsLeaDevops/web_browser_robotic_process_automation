@@ -200,7 +200,7 @@
   "dsl.dynamic.format_time": "{text}: today has no time of day; the month is upper-case MM (lower-case mm is minutes); use now for times",
   "dsl.dynamic.random_syntax": "Cannot read {text}; write random integers as random:min:max, e.g. random:10:30",
   "dsl.dynamic.random_range": "In {text} the minimum {low} is greater than the maximum {high}",
-  "dsl.dynamic.random_checks_limit": "Checking enum, pattern or a composed number requires all random combinations; narrow the ranges to at most {limit} combinations",
+  "dsl.dynamic.random_checks_limit": "Too many wide random ranges in one value: checking enum, pattern or composed numbers would take more than {limit} combinations; use fewer random values or narrower ranges",
   "dsl.template.dynamic_in_step": "{name} is a dynamic value for input values and cannot be used in a step directly; add an input whose default is {{{{{name}}}}} and refer to it with {{{{ inputs.NAME }}}}",
   "dsl.workflow.value_dynamic": "Node {node}: the fixed value of input {input}: {detail}",
   "dsl.yaml.unquoted_template": "Values that start with {{{{ need quotes, e.g. \"{{{{today}}}}\" or \"{{{{ inputs.title }}}}\""
