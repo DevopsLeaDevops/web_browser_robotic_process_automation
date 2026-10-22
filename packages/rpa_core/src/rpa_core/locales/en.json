@@ -101,6 +101,7 @@
   "recording.loose_filter": "\"{text}\" originally had to match the whole text; it now only has to contain it. Check during debugging that a single element is found",
   "recording.dropped_position": "The click position was dropped; the element is clicked in its center",
   "recording.frame_click": "This clicks the iframe element itself ({target}); when run it clicks the middle of the iframe, not a particular field or button inside it. Check whether the step is needed",
+  "recording.typed_as_fill": "{name} types one key at a time; it becomes fill (the whole text at once), so per-key events are not fired. If the field reacts to key presses (for example search as you type), check it when debugging",
   "recording.unsupported.arguments": "The arguments of {name} are not fixed text or a list",
   "recording.unsupported.regex": "{name} uses a regular expression",
   "recording.unsupported.selector": "Selector {value} is Playwright-specific syntax",
