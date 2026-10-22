@@ -8,15 +8,32 @@
 <link rel="stylesheet" href="../assets/docs.css">
 <script defer src="../assets/nav.js"></script>
 <script defer src="../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .note { fill: #eef6ff; stroke: #cfe1f5; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; fill: #315b89; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .link.back { stroke-dasharray: 5 4; }
+  .arch .life { stroke: #c9d6e5; stroke-dasharray: 4 4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+  .arch .step { font-size: 11px; font-weight: 650; fill: #147fe6; }
+</style>
 </head>
 <body data-page="desktop" data-root="../">
 <main id="main">
   <div class="heading">
     <div>
       <h1>桌面端分發</h1>
-      <p>M10：伺服器與資料庫部署在一台電腦，錄製者與執行機各裝一個桌面 App，貼上邀請就能用。App 的視窗沿用伺服器現有的頁面；錄製、逐步調試、人工登入的瀏覽器開在操作的那台電腦。決策見 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
+      <p>M10：伺服器與資料庫部署在一台電腦（可以是沒有螢幕的 Linux），錄製者與執行機各裝一個桌面 App，貼上邀請就能用。App 的視窗沿用伺服器現有的頁面；錄製、逐步調試、人工登入的瀏覽器開在操作的那台電腦。決策見 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
     </div>
-    <span class="badge amber">M10 開發中</span>
+    <span class="badge green">M10.0～M10.2 已完成（v0.4.0）</span>
   </div>
 
   <div class="stack">
@@ -26,9 +43,9 @@
         <table class="wrap">
           <thead><tr><th>元件</th><th>macOS</th><th>Windows</th><th>說明</th></tr></thead>
           <tbody>
-            <tr><td>RPA 錄製端</td><td><span class="badge blue">M10 交付</span></td><td><span class="badge">保留方案</span></td><td>錄製、逐步調試、人工登入，以及 Portal 的其他功能；Apple 晶片（arm64）</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge blue">M10 交付</span></td><td>執行場景（含有頭模式）；Windows x64</td></tr>
-            <tr><td>伺服器（rpa serve）</td><td colspan="2"><span class="badge">保留方案</span>：維持 <code>uv run rpa serve</code></td><td>MVP 先放在使用者自己的電腦，調試好後搬到正式環境</td></tr>
+            <tr><td>RPA 錄製端</td><td><span class="badge green">已交付</span>（v0.3.0 起）</td><td><span class="badge">保留方案</span></td><td>錄製、逐步調試、人工登入，以及 Portal 的其他功能；Apple 晶片（arm64）</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>執行場景（含有頭模式、錄影）；Windows x64</td></tr>
+            <tr><td>伺服器（rpa serve）</td><td colspan="2"><span class="badge">不打包</span>：從原始碼安裝，一鍵安裝腳本；Linux（RHEL 衍生版）用 <code>scripts/setup-linux.sh</code>，可用 systemd 開機啟動</td><td>先在使用者自己的電腦調試；現在也放在沒有螢幕的 Linux 主機（見<a href="../develop/operations.html">部署與操作</a>）</td></tr>
             <tr><td>資料庫</td><td colspan="2"><span class="badge">不另做二進位</span></td><td>SQLite 內嵌在伺服器裡；正式環境的 PostgreSQL 用官方安裝包或 Docker（M8、M9）</td></tr>
           </tbody>
         </table>
@@ -72,26 +89,134 @@
     <section class="panel" id="architecture">
       <div class="panel-header"><h2>架構</h2><span class="muted">伺服器只多了對外埠上的兩種用途</span></div>
       <div class="panel-body">
-<pre class="source">伺服器那台（MVP：使用者自己的電腦，uv run rpa serve --worker-port 8081）
-┌──────────────────────────────────────────────────────────────┐
-│ 127.0.0.1:8080  Portal 頁面＋/api（照舊，只限本機）                │
-│ 0.0.0.0:8081    對外埠                                            │
-│   /worker-api/v1  Worker API（照舊，worker 權杖）                  │
-│   /client-api/v1  新：配對、錄製端的互動子程序通道                  │
-│   其他路徑         新：Portal 頁面＋/api，只接受錄製端的裝置權杖      │
-│ SQLite、data/（照舊）                                              │
-└──────────────────────────────────────────────────────────────┘
-          ▲ 裝置權杖                                ▲ worker 權杖
-┌─────────┴──────────────────────┐   ┌─────────┴───────────────────┐
-│ RPA 錄製端（macOS）               │   │ RPA Worker（Windows）          │
-│ 視窗：WKWebView                   │   │ 狀態視窗：WebView2＋通知區圖示   │
-│  → 本機閘道 127.0.0.1:隨機埠       │   │ 內部就是現有的 RemoteWorker     │
-│    加上權杖轉給伺服器 8081          │   │ runner 子程序（照舊）           │
-│ 互動主機：錄製／調試／人工登入的     │   │ 本機測試網站 127.0.0.1:8765     │
-│  子程序在這台以有頭模式執行          │   └─────────────────────────────┘
-└────────────────────────────────┘</pre>
-        <p class="diagram-caption">只有伺服器存取資料庫（ADR 0008、ADR 0012 不變）。兩個 App 都主動連伺服器；伺服器不需要連到它們。</p>
+
+<div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 424" role="img" aria-labelledby="dep-title dep-desc">
+          <title id="dep-title">桌面端的部署與連線</title>
+          <desc id="dep-desc">錄製端 App 的視窗只載入本機閘道，閘道加上裝置權杖轉給伺服器的對外埠；互動主機以長輪詢向 Client API 取指令，在這台啟動錄製、調試、人工登入與登入檢查的子程序，先上傳檔案再傳回輸出。Worker App 的服務迴圈以 worker 權杖向 Worker API 長輪詢領取任務、心跳、上傳執行目錄。伺服器的對外埠依路徑分流，127.0.0.1:8080 照舊只給本機。</desc>
+          <defs>
+            <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="frame" x="16" y="16" width="296" height="396" rx="10"/>
+          <text class="frame-label" x="28" y="34">錄製者的 Mac：RPA 錄製端 App</text>
+          <rect class="box" x="30" y="44" width="268" height="62" rx="8"/>
+          <text class="title" x="44" y="66">App 視窗（WKWebView）</text>
+          <text class="sub" x="44" y="86">只載入本機閘道的網址；看到的就是 Portal</text>
+          <rect class="box key" x="30" y="126" width="268" height="78" rx="8"/>
+          <text class="title" x="44" y="148">本機閘道 127.0.0.1:隨機埠</text>
+          <text class="sub" x="44" y="168">要有啟動時發的密語 Cookie 才轉送</text>
+          <text class="sub" x="44" y="186">加上裝置權杖（鑰匙圈）轉給伺服器</text>
+          <rect class="box key" x="30" y="224" width="268" height="78" rx="8"/>
+          <text class="title" x="44" y="246">互動主機</text>
+          <text class="sub" x="44" y="266">長輪詢 /control 取得啟動、送一行、結束</text>
+          <text class="sub" x="44" y="284">先上傳新檔案，再傳回那一行輸出</text>
+          <rect class="box" x="30" y="322" width="268" height="76" rx="8"/>
+          <text class="title" x="44" y="344">子程序＋瀏覽器（在這台）</text>
+          <text class="sub" x="44" y="364">錄製、逐步調試、人工登入、登入檢查</text>
+          <text class="sub" x="44" y="382">暫存資料夾用完就刪</text>
+          <path class="link" d="M164 108V124" marker-end="url(#dep-arrow)"/>
+          <path class="link" d="M164 304V320" marker-end="url(#dep-arrow)"/>
+          <rect class="frame" x="380" y="16" width="240" height="396" rx="10"/>
+          <text class="frame-label" x="392" y="34">伺服器（rpa serve）</text>
+          <rect class="box" x="394" y="44" width="212" height="62" rx="8"/>
+          <text class="title" x="408" y="66">127.0.0.1:8080</text>
+          <text class="sub" x="408" y="86">Portal＋/api，只限本機（照舊）</text>
+          <rect class="box key" x="394" y="126" width="212" height="176" rx="8"/>
+          <text class="title" x="408" y="148">對外埠 0.0.0.0:8081</text>
+          <text class="sub" x="408" y="168">依路徑分流、檢查權杖</text>
+          <text class="mono" x="408" y="190">/client-api/v1/*</text>
+          <text class="sub" x="408" y="207">配對用邀請代碼；其他用錄製端權杖</text>
+          <text class="mono" x="408" y="224">/worker-api/v1/*</text>
+          <text class="sub" x="408" y="241">worker 權杖</text>
+          <text class="mono" x="408" y="258">其他路徑</text>
+          <text class="sub" x="408" y="275">Portal 與 /api：錄製端權杖，否則 401</text>
+          <rect class="box" x="394" y="322" width="212" height="76" rx="8"/>
+          <text class="title" x="408" y="344">RecorderHub、WorkerHub</text>
+          <text class="sub" x="408" y="364">互動子程序的指令佇列與輸出</text>
+          <text class="sub" x="408" y="382">任務的領取、租約與取消</text>
+          <path class="link" d="M500 304V320" marker-end="url(#dep-arrow)"/>
+          <rect class="frame" x="688" y="16" width="296" height="396" rx="10"/>
+          <text class="frame-label" x="700" y="34">執行機：RPA Worker App（Windows）</text>
+          <rect class="box" x="702" y="44" width="268" height="62" rx="8"/>
+          <text class="title" x="716" y="66">狀態視窗（WebView2）＋通知區</text>
+          <text class="sub" x="716" y="86">配對、下載瀏覽器、目前執行、設定</text>
+          <rect class="box key" x="702" y="126" width="268" height="78" rx="8"/>
+          <text class="title" x="716" y="148">服務迴圈（同 rpa worker）</text>
+          <text class="sub" x="716" y="168">長輪詢領取任務，每 5 秒心跳</text>
+          <text class="sub" x="716" y="186">結束後上傳整個執行目錄</text>
+          <rect class="box" x="702" y="224" width="268" height="78" rx="8"/>
+          <text class="title" x="716" y="246">runner 子程序＋瀏覽器</text>
+          <text class="sub" x="716" y="266">有頭或無頭；Chromium、Firefox</text>
+          <text class="sub" x="716" y="284">自動化階段錄影（M12）</text>
+          <rect class="box" x="702" y="322" width="268" height="76" rx="8"/>
+          <text class="title" x="716" y="344">本機測試網站 127.0.0.1:8765</text>
+          <text class="sub" x="716" y="364">範例場景用；--no-testsite 關掉</text>
+          <path class="link" d="M836 108V124" marker-start="url(#dep-arrow)"/>
+          <path class="link" d="M836 206V222" marker-end="url(#dep-arrow)"/>
+          <path class="link" d="M300 160H392" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="318" y="152">裝置權杖</text>
+          <path class="link" d="M300 262H392" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="318" y="254">長輪詢</text>
+          <path class="link" d="M700 160H608" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="626" y="152">worker 權杖</text>
+        </svg>
       </div>
+        <p class="diagram-caption">藍框是 M10 新增或改動最多的部分。只有伺服器存取資料庫（ADR 0008、ADR 0012 不變）；兩個 App 都主動連伺服器，伺服器不需要連到它們。閘道不轉送 <code>/client-api/</code> 與 <code>/worker-api/</code>，網頁拿不到權杖。伺服器沒有瀏覽器時，「檢查」登入狀態交給錄製端，人工登入也在開視窗的那台確認（#50）。整體部署見<a href="architecture.html#current">系統架構</a>。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="pairing-flow">
+      <div class="panel-header"><h2>配對與上線</h2><span class="muted">兩個 App 相同；邀請貼錯 App 會被拒絕</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="pair-title pair-desc">
+          <title id="pair-title">配對與上線</title>
+          <desc id="pair-desc">在 Portal 的裝置頁產生一次性邀請，貼到 App；App 用邀請換到裝置權杖並存進系統的鑰匙圈或認證管理員，下載瀏覽器後上線並回報版本、瀏覽器與看得懂的 DSL 擴充。</desc>
+          <defs>
+            <marker id="pair-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="12" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="26" y="42">1</text>
+          <text class="title" x="40" y="42">產生邀請</text>
+          <text class="sub" x="26" y="64">Portal「裝置」頁</text>
+          <text class="sub" x="26" y="82">一次性、24 小時有效</text>
+          <text class="sub" x="26" y="100">限定 App 種類</text>
+          <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="223" y="42">2</text>
+          <text class="title" x="237" y="42">貼到 App</text>
+          <text class="mono" x="223" y="64">rpa://pair?server=…</text>
+          <text class="mono" x="223" y="82">&amp;app=…&amp;code=…</text>
+          <text class="sub" x="223" y="100">也可以分開填網址與代碼</text>
+          <path class="link" d="M193 76H207" marker-end="url(#pair-arrow)"/>
+          <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="420" y="42">3</text>
+          <text class="title" x="434" y="42">換到權杖</text>
+          <text class="mono" x="420" y="64">POST …/pair</text>
+          <text class="sub" x="420" y="82">伺服器只存雜湊</text>
+          <text class="sub" x="420" y="100">App 種類不符就拒絕</text>
+          <path class="link" d="M390 76H404" marker-end="url(#pair-arrow)"/>
+          <rect class="box" x="603" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="617" y="42">4</text>
+          <text class="title" x="631" y="42">安全保存</text>
+          <text class="sub" x="617" y="64">macOS 鑰匙圈</text>
+          <text class="sub" x="617" y="82">Windows 認證管理員</text>
+          <text class="sub" x="617" y="100">權杖不進網頁</text>
+          <path class="link" d="M587 76H601" marker-end="url(#pair-arrow)"/>
+          <rect class="box" x="800" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="814" y="42">5</text>
+          <text class="title" x="828" y="42">下載瀏覽器、上線</text>
+          <text class="sub" x="814" y="64">App 內附的 driver 下載</text>
+          <text class="sub" x="814" y="82">hello 回報版本、瀏覽器</text>
+          <text class="sub" x="814" y="100">與看得懂的 DSL 擴充</text>
+          <path class="link" d="M784 76H798" marker-end="url(#pair-arrow)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">第 3 步換到權杖之後，App 每次啟動直接用保存的權杖上線（第 5 步的 hello）。重新邀請、停用或刪除裝置，舊權杖立刻失效。</div>
     </section>
 
     <div class="two-col">
@@ -122,7 +247,62 @@
     </div>
 
     <section class="panel" id="interactive">
-      <div class="panel-header"><h2>互動子程序：瀏覽器開在操作的那台</h2><span class="muted">M10.2；錄製、逐步調試、人工登入</span></div>
+      <div class="panel-header"><h2>互動子程序：瀏覽器開在操作的那台</h2><span class="muted">M10.2；錄製、逐步調試、人工登入、登入檢查</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 452" role="img" aria-labelledby="seq-title seq-desc">
+          <title id="seq-title">錄製時的一來一回</title>
+          <desc id="seq-desc">在錄製端視窗按開始錄製，請求經閘道加上權杖到伺服器；伺服器認出是這台錄製端，把啟動指令放進佇列；互動主機長輪詢取得指令，在本機啟動子程序，瀏覽器開在這台；子程序每輸出一行，互動主機先上傳新檔案再傳回那一行；伺服器解析事件，把錄製稿轉成 DSL 草稿；視窗輪詢看到結果。</desc>
+          <defs>
+            <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="8" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="90" y="28" text-anchor="middle">錄製端視窗</text>
+          <text class="sub" x="90" y="46" text-anchor="middle">WKWebView</text>
+          <path class="life" d="M90 56V444"/>
+          <rect class="box key" x="198" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="280" y="28" text-anchor="middle">本機閘道</text>
+          <text class="sub" x="280" y="46" text-anchor="middle">App 內</text>
+          <path class="life" d="M280 56V444"/>
+          <rect class="box" x="418" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="500" y="28" text-anchor="middle">伺服器</text>
+          <text class="sub" x="500" y="46" text-anchor="middle">rpa serve</text>
+          <path class="life" d="M500 56V444"/>
+          <rect class="box key" x="638" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="720" y="28" text-anchor="middle">互動主機</text>
+          <text class="sub" x="720" y="46" text-anchor="middle">App 內</text>
+          <path class="life" d="M720 56V444"/>
+          <rect class="box ext" x="828" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="910" y="28" text-anchor="middle">子程序</text>
+          <text class="sub" x="910" y="46" text-anchor="middle">瀏覽器開在 Mac</text>
+          <path class="life" d="M910 56V444"/>
+          <path class="link" d="M92 86H278" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="100" y="80">按「開始錄製」</text>
+          <path class="link" d="M282 118H498" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="290" y="112">加上裝置權杖轉送</text>
+          <rect class="note" x="404" y="128" width="192" height="26" rx="5"/>
+          <text class="sub" x="500" y="145" text-anchor="middle">認出錄製端，把「啟動」放進佇列</text>
+          <path class="link" d="M718 184H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="178">POST /control（長輪詢）</text>
+          <path class="link back" d="M502 214H718" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="208">啟動 rpa_runner.record＋檔案</text>
+          <path class="link" d="M722 246H908" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="730" y="240">寫出檔案、啟動</text>
+          <path class="link back" d="M908 278H722" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="730" y="272">標準輸出一行（事件）</text>
+          <path class="link" d="M718 310H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="304">PUT …/files：新檔案先到</text>
+          <path class="link" d="M718 342H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="336">POST …/output：再送這一行</text>
+          <rect class="note" x="404" y="352" width="192" height="26" rx="5"/>
+          <text class="sub" x="500" y="369" text-anchor="middle">錄製稿轉 DSL、遮罩密碼、存草稿</text>
+          <path class="link back" d="M92 416H498" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="100" y="410">輪詢進度（經由閘道），看到新草稿</text>
+        </svg>
+      </div>
+      <div class="diagram-caption">以錄製為例；逐步調試（送一行「執行第 3 步」）、人工登入、登入檢查走同一條路。實線是請求，虛線是回應或經由閘道。</div>
       <div class="panel-body prose">
         <p><strong>「這台電腦」改成指「你正在操作的那台」。</strong>請求從錄製端進來，子程序就交給那台錄製端；從伺服器本機的瀏覽器（8080）進來，照舊在伺服器執行。頁面不多一個選項。</p>
         <ul>
@@ -192,6 +372,57 @@
       </div>
     </section>
 
+    <section class="panel" id="release-flow">
+      <div class="panel-header"><h2>從原始碼到安裝檔</h2><span class="muted">目前 v0.4.0（2026-10-21 06:10 PDT 發布）；之前 v0.3.0、v0.2.0</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="rel-title rel-desc">
+          <title id="rel-title">從原始碼到安裝檔</title>
+          <desc id="rel-desc">在功能分支用 release_version.py 統一版本，PR 合併後在 main 打標籤，發布流程確認版本、建置兩個 App 並跑端到端，產生草稿 Release，由維護者確認後發布；App 的「下載新版」連到最新的 Release。</desc>
+          <defs>
+            <marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="12" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="26" y="42">1</text>
+          <text class="title" x="40" y="42">統一版本</text>
+          <text class="mono" x="26" y="64">release_version.py</text>
+          <text class="mono" x="26" y="82">bump 0.4.0</text>
+          <text class="sub" x="26" y="100">全部套件與 uv.lock</text>
+          <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="223" y="42">2</text>
+          <text class="title" x="237" y="42">PR 合併</text>
+          <text class="sub" x="223" y="64">CI：測試、安裝腳本</text>
+          <text class="sub" x="223" y="82">桌面端建置與自我測試</text>
+          <text class="sub" x="223" y="100">使用者審閱、合併</text>
+          <path class="link" d="M193 76H207" marker-end="url(#rel-arrow)"/>
+          <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="420" y="42">3</text>
+          <text class="title" x="434" y="42">打標籤</text>
+          <text class="mono" x="420" y="64">v0.4.0</text>
+          <text class="sub" x="420" y="82">必須在 main 上</text>
+          <text class="sub" x="420" y="100">和套件版本一致</text>
+          <path class="link" d="M390 76H404" marker-end="url(#rel-arrow)"/>
+          <rect class="box key" x="603" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="617" y="42">4</text>
+          <text class="title" x="631" y="42">發布流程</text>
+          <text class="sub" x="617" y="64">建置 DMG、安裝檔、zip</text>
+          <text class="sub" x="617" y="82">安裝→執行→升級→移除</text>
+          <text class="sub" x="617" y="100">產生草稿 Release</text>
+          <path class="link" d="M587 76H601" marker-end="url(#rel-arrow)"/>
+          <rect class="box" x="800" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="814" y="42">5</text>
+          <text class="title" x="828" y="42">維護者發布</text>
+          <text class="sub" x="814" y="64">確認檔案與 SHA256SUMS</text>
+          <text class="sub" x="814" y="82">App 的「下載新版」</text>
+          <text class="sub" x="814" y="100">連到最新的 Release</text>
+          <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">伺服器不打包，用同一個版本的原始碼更新。v0.4.0 的已知問題（回看影片比例、錄影對時）寫在 Release 說明與任務紀錄。</div>
+    </section>
+
     <div class="two-col">
       <section class="panel" id="installer">
         <div class="panel-header"><h2>Worker 的安裝檔</h2><span class="muted">M10.1，Inno Setup 6.7</span></div>
@@ -252,15 +483,16 @@
       <div class="panel-header"><h2>分期與驗收</h2><span class="muted">先 Worker 再錄製端：Worker 幾乎全是沿用，先把打包、安裝、配對走通</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>階段</th><th>內容</th><th>驗收</th></tr></thead>
+          <thead><tr><th>階段</th><th>內容</th><th>驗收</th><th>狀態（2026-10-21）</th></tr></thead>
           <tbody>
-            <tr><td><span class="milestone">M10.0</span></td><td>打包地基：子程序命令集中、建置資訊、rpa-desktop 骨架與打包後的入口、兩個 App 的 PyInstaller 設定、CI 建置與自我測試</td><td>macOS 的錄製端與 Windows 的 Worker 打包版在 CI 跑通 BA-001；開發環境的測試全部照舊通過</td></tr>
-            <tr><td><span class="milestone">M10.1</span></td><td>Windows Worker：裝置頁與邀請、Client API 的配對、狀態視窗、通知區、自動啟動、下載瀏覽器、安裝檔；M9a 剩下的三項</td><td>在沒裝過開發工具的 Windows 上：安裝 → 貼邀請 → 下載瀏覽器 → 以有頭模式跑 BA-001 → BA-002，報告回到 Portal；重開機登入後自動上線</td></tr>
-            <tr><td><span class="milestone">M10.2</span></td><td>macOS 錄製端：本機閘道、對外埠上的 Portal 與存取控制、DeviceHost（錄製 → 人工登入 → 逐步調試）、DMG</td><td>在 Mac 上錄一段（瀏覽器開在 Mac）→ 草稿 → 逐步調試 → 人工登入角色 → 交給 Windows Worker 驗證 → 發布；沒配對的電腦打開 8081 看不到管理頁面</td></tr>
-            <tr><td><span class="milestone">M10.3</span></td><td>文件與驗收：桌面端安裝說明、管理 Portal 的手動驗收、路線圖</td><td>文檔檢查通過；兩機手動驗收紀錄</td></tr>
+            <tr><td><span class="milestone">M10.0</span></td><td>打包地基：子程序命令集中、建置資訊、rpa-desktop 骨架與打包後的入口、兩個 App 的 PyInstaller 設定、CI 建置與自我測試</td><td>macOS 的錄製端與 Windows 的 Worker 打包版在 CI 跑通 BA-001；開發環境的測試全部照舊通過</td><td><span class="badge green">已完成</span> #30</td></tr>
+            <tr><td><span class="milestone">M10.1</span></td><td>Windows Worker：裝置頁與邀請、Client API 的配對、狀態視窗、通知區、自動啟動、下載瀏覽器、安裝檔；M9a 剩下的三項</td><td>在沒裝過開發工具的 Windows 上：安裝 → 貼邀請 → 下載瀏覽器 → 以有頭模式跑 BA-001 → BA-002，報告回到 Portal；重開機登入後自動上線</td><td><span class="badge green">已完成</span> #31～#34，v0.2.0；人工驗收：整體流程通過，細節驗收中</td></tr>
+            <tr><td><span class="milestone">M10.2</span></td><td>macOS 錄製端：本機閘道、對外埠上的 Portal 與存取控制、DeviceHost（錄製 → 人工登入 → 逐步調試）、DMG</td><td>在 Mac 上錄一段（瀏覽器開在 Mac）→ 草稿 → 逐步調試 → 人工登入角色 → 交給 Windows Worker 驗證 → 發布；沒配對的電腦打開 8081 看不到管理頁面</td><td><span class="badge green">已完成</span> #36～#39、#43，v0.3.0；人工驗收：整體流程通過，細節驗收中</td></tr>
+            <tr><td><span class="milestone">M10.3</span></td><td>文件與驗收：桌面端安裝說明、管理 Portal 的手動驗收、路線圖</td><td>文檔檢查通過；兩機手動驗收紀錄</td><td><span class="badge amber">進行中</span> 部署與操作（#41）已合併；手動驗收紀錄未回填</td></tr>
           </tbody>
         </table>
       </div>
+      <div class="panel-body"><p class="muted">M10.2 之後和桌面端有關的修改：伺服器沒有瀏覽器時「檢查」交給錄製端、人工登入在開視窗的那台確認、看得懂的登入錯誤（#50）；人工登入的 Firefox 在背景不再停住（#51）；App 回報看得懂的 DSL 擴充，舊 App 拿不到用了新寫法的場景（M7a，#62）；Worker 錄影，Windows 上取消時先只結束瀏覽器，讓影片寫完（M12，#61）。</p></div>
     </section>
 
     <div class="two-col">

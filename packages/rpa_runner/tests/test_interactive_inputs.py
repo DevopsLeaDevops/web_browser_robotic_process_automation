@@ -54,6 +54,8 @@ def test_debug_reload_preserves_literals_and_existing_values(files: tuple[Path, 
     scenario, inputs = files
     inputs.write_text(json.dumps({"title": escape("{{today}}"), "quantity": 9}), encoding="utf-8")
     session = object.__new__(debug._Session)  # pyright: ignore[reportPrivateUsage]
+    existing: dict[str, object] = {"title": "{{today}}", "quantity": 9}
+    session.inputs = existing
     first = session.load(str(scenario), str(inputs))
     expected = {"title": "{{today}}", "tomorrow": "2035-01-03", "quantity": 9}
     assert first["inputs"] == expected
@@ -61,6 +63,23 @@ def test_debug_reload_preserves_literals_and_existing_values(files: tuple[Path, 
         json.dumps({name: escape(value) for name, value in expected.items()}), encoding="utf-8"
     )
     assert session.load(str(scenario), str(inputs))["inputs"] == expected
+
+
+def test_debug_reload_checks_new_dynamic_defaults(files: tuple[Path, Path]) -> None:
+    scenario, inputs = files
+    scenario.write_text(
+        scenario.read_text().replace(
+            "type: integer, default: '{{random:7:7}}'",
+            "type: integer, minimum: 10, default: '{{random:7:7}}'",
+        ),
+        encoding="utf-8",
+    )
+    session = object.__new__(debug._Session)  # pyright: ignore[reportPrivateUsage]
+    existing: dict[str, object] = {"title": "原本的值"}
+    session.inputs = existing
+    with pytest.raises(ValueError, match="minimum: 10"):
+        session.load(str(scenario), str(inputs))
+    assert session.inputs == {"title": "原本的值"}
 
 
 @pytest.mark.parametrize("module", ["debug", "record"])

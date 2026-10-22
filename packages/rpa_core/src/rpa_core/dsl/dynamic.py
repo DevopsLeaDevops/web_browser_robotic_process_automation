@@ -24,13 +24,11 @@
   別處來的資料（例如上游場景的出參）要原樣使用時，先用 :func:`escape`。
 """
 
-import math
 import random
 import re
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from itertools import product
 from typing import Final
 
 from rpa_core.dsl.fields import catalog
@@ -46,7 +44,6 @@ __all__ = [
     "evaluate",
     "has_dynamic",
     "parse",
-    "samples",
     "uses_dynamic",
 ]
 
@@ -73,9 +70,6 @@ NAMES: Final = frozenset({"today", "now", "random"})
 
 MAX_OFFSET_DAYS: Final = 36500
 """today±N 的天數上限（一百年）；超過多半是寫錯。"""
-
-_MAX_CHECK_COMBINATIONS: Final = 1000
-"""全部組合（或代表值組合）的檢查上限，避免多個 random 的組合拖住存檔或執行。"""
 
 _DEFAULT_FORMATS: Final = {"today": "yyyy-MM-dd", "now": "yyyy-MM-dd HH:mm:ss"}
 _TIME_TOKENS: Final = frozenset({"HH", "mm", "ss"})
@@ -222,7 +216,10 @@ def _expression(inner: str, source: str) -> Part:
         found = _RANDOM_REST.fullmatch(rest)
         if found is None:
             raise DynamicValueError("random_syntax", text=source)
-        low, high = int(found.group(1)), int(found.group(2))
+        try:
+            low, high = int(found.group(1)), int(found.group(2))
+        except ValueError as error:
+            raise DynamicValueError("random_syntax", text=_excerpt(source)) from error
         if low > high:
             raise DynamicValueError("random_range", text=source, low=low, high=high)
         return RandomInteger(low, high)
@@ -234,7 +231,12 @@ def _moment(name: str, rest: str, source: str) -> Moment:
     if found is None:
         raise DynamicValueError("date_syntax", text=source)
     sign, digits, written = found.groups()
-    days = int(digits) if digits else 0
+    try:
+        days = int(digits) if digits else 0
+    except ValueError as error:
+        raise DynamicValueError(
+            "offset_range", text=_excerpt(source), limit=MAX_OFFSET_DAYS
+        ) from error
     if days > MAX_OFFSET_DAYS:
         raise DynamicValueError("offset_range", text=source, limit=MAX_OFFSET_DAYS)
     if sign == "-":
@@ -270,11 +272,13 @@ def _render(parts: Iterable[Part], now: datetime, pick: Pick) -> str:
 def _typed(text: str, value_type: str) -> object:
     """整數、數字入參：結果是數字的文字時轉成數字。"""
     stripped = text.strip()
-    if value_type == "integer" and _INTEGER.fullmatch(stripped):
-        return int(stripped)
-    if value_type == "number" and _NUMBER.fullmatch(stripped):
-        number = float(stripped)
-        return int(stripped) if _INTEGER.fullmatch(stripped) else number
+    try:
+        if value_type == "integer" and _INTEGER.fullmatch(stripped):
+            return int(stripped)
+        if value_type == "number" and _NUMBER.fullmatch(stripped):
+            return int(stripped) if _INTEGER.fullmatch(stripped) else float(stripped)
+    except ValueError as error:
+        raise DynamicValueError("number_range", text=_excerpt(text)) from error
     return text
 
 
@@ -299,90 +303,3 @@ def evaluate(
     parts = parse(value)
     text = _render(parts, now or _local_now(), pick or random.randint)
     return _typed(text, value_type)
-
-
-def samples(
-    value: object,
-    value_type: str = "string",
-    *,
-    now: datetime | None = None,
-    exhaustive: bool = False,
-) -> list[object]:
-    """校驗用的代表值：純隨機數檢查數值兩端，字串另檢查最短與最長的組合。
-
-    enum／pattern（exhaustive=True）與拼接成數字的文字不能只看兩端：組合不超過上限時
-    檢查全部組合；範圍大時每個隨機數改用 :func:`_representatives`（兩端、0、每種位數的
-    最小與最大值），例如 ``PO-{{random:10000:99999}}`` 配 ``pattern`` 仍可使用。
-    代表值以外的值在執行時以實際抽到的值再檢查一次（啟動瀏覽器之前），不會打進頁面。
-    連代表值的組合都超過上限（一個值裡有很多大範圍的隨機數）時明確拒絕。
-    """
-    if not isinstance(value, str) or not has_dynamic(value):
-        return [value]
-    moment = now or _local_now()
-    parts = parse(value)
-    significant = [part for part in parts if not isinstance(part, Text) or part.text.strip()]
-    plain_random = len(significant) == 1 and isinstance(significant[0], RandomInteger)
-    numeric_composition = (
-        value_type in ("integer", "number")
-        and not plain_random
-        and any(isinstance(part, RandomInteger) for part in parts)
-    )
-    if exhaustive or numeric_composition:
-        randoms = [part for part in parts if isinstance(part, RandomInteger)]
-        ranges: list[Sequence[int]] = [range(part.low, part.high + 1) for part in randoms]
-        if math.prod(len(choices) for choices in ranges) > _MAX_CHECK_COMBINATIONS:
-            ranges = [_representatives(part.low, part.high) for part in randoms]
-            if math.prod(len(choices) for choices in ranges) > _MAX_CHECK_COMBINATIONS:
-                raise DynamicValueError("random_checks_limit", limit=_MAX_CHECK_COMBINATIONS)
-        values: list[object] = []
-        for combination in product(*ranges):
-            draws = iter(combination)
-            text = _render(parts, moment, lambda _low, _high, draws=draws: next(draws))
-            values.append(_typed(text, value_type))
-        return values
-    found: list[object] = []
-    picks = (
-        (_lowest, _highest, _shortest, _longest) if value_type == "string" else (_lowest, _highest)
-    )
-    for pick in picks:
-        result = _typed(_render(parts, moment, pick), value_type)
-        if result not in found:
-            found.append(result)
-    return found
-
-
-def _lowest(low: int, high: int) -> int:
-    del high
-    return low
-
-
-def _highest(low: int, high: int) -> int:
-    del low
-    return high
-
-
-def _representatives(low: int, high: int) -> list[int]:
-    """大範圍隨機數的代表值：兩端、0，以及正負數每種位數的最小與最大值（排序、不重複）。
-
-    pattern 多半限制格式（位數、正負號），這些值涵蓋了每一種位數與正負號。
-    """
-    found = {low, high}
-    if low <= 0 <= high:
-        found.add(0)
-    # 正數的絕對值範圍、負數的絕對值範圍
-    for sign, smallest, largest in ((1, max(low, 1), high), (-1, max(-high, 1), -low)):
-        if smallest > largest:
-            continue
-        for digits in range(len(str(smallest)), len(str(largest)) + 1):
-            found.add(sign * max(smallest, 10 ** (digits - 1)))
-            found.add(sign * min(largest, 10**digits - 1))
-    return sorted(found)
-
-
-def _shortest(low: int, high: int) -> int:
-    # 範圍跨零時，端點不一定是最短的文字，例如 -10～10 的 0。
-    return min((low, high, max(low, min(0, high))), key=lambda value: len(str(value)))
-
-
-def _longest(low: int, high: int) -> int:
-    return max((low, high), key=lambda value: len(str(value)))

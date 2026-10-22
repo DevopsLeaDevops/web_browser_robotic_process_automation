@@ -201,13 +201,11 @@ def test_fixed_values_can_be_dynamic() -> None:
     problems = check_workflow(node("{{tody}}", "{{random:20:40}}"), scenes)
     assert [(p.code, p.input) for p in problems] == [
         ("workflow.value_dynamic", "title"),
-        ("workflow.value_invalid", "quantity"),
     ]
     assert problems[0].message == (
         "節點 n1：入參 title 的固定值：看不懂動態值 {{tody}}；"
         "可以用 {{today}}、{{today+1}}、{{now}}、{{random:10:30}}"
     )
-    assert problems[1].message == "節點 n1：入參 quantity 的固定值不符合 maximum: 30"
     # 固定值原樣交給執行，執行開始時才求值
     assert resolve_inputs(node("試驗 {{today}}", 3).nodes[0], {}) == (
         {"title": "試驗 {{today}}", "quantity": 3},

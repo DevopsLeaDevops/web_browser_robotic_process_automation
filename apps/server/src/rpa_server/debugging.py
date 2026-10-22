@@ -29,7 +29,7 @@ from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.browser import DEFAULT_STEP_TIMEOUT_MS
 from rpa_runner.commands import module_command
-from rpa_runner.contract import check_inputs
+from rpa_runner.contract import prepare_inputs
 from rpa_runner.run import ENV_STORAGE_STATE
 from rpa_server.context import Via
 from rpa_server.domain import now
@@ -262,7 +262,7 @@ class DebugManager:
             launcher = self.hosts.launcher(via)
         if inputs is None:
             inputs = {n: s.default for n, s in scenario.inputs.items() if s.default is not None}
-        resolved, problems = check_inputs(scenario, inputs)
+        resolved, problems = prepare_inputs(scenario, inputs)
         if problems:
             raise invalid(
                 "inputs_invalid",
@@ -519,10 +519,10 @@ class DebugManager:
         path = session.folder / f"scenario-{revision}.yaml"
         path.write_text(files[SCENARIO_FILE], encoding="utf-8")
         # 既有入參已求值；只讓新版本新增的預設值求值，保留跳脫後的字面文字。
-        resolved, problems = check_inputs(scenario, raw)
+        resolved, problems = prepare_inputs(scenario, raw)
         if problems:
-            # 新版本的入參對不上時：新版本的預設值（動態值已求值），再蓋上原本的值
-            defaults, _ = check_inputs(scenario, {})
+            # 新版本的入參對不上時保留舊值；新增動態值仍交給子程序求值
+            defaults, _ = prepare_inputs(scenario, {})
             resolved = defaults | {k: v for k, v in session.inputs.items() if k in scenario.inputs}
         inputs = session.folder / f"input-{revision}.json"
         inputs.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")

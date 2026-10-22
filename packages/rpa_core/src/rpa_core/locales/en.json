@@ -101,6 +101,7 @@
   "recording.loose_filter": "\"{text}\" originally had to match the whole text; it now only has to contain it. Check during debugging that a single element is found",
   "recording.dropped_position": "The click position was dropped; the element is clicked in its center",
   "recording.frame_click": "This clicks the iframe element itself ({target}); when run it clicks the middle of the iframe, not a particular field or button inside it. Check whether the step is needed",
+  "recording.typed_as_fill": "{name} types one key at a time; it becomes fill (the whole text at once), so per-key events are not fired. If the field reacts to key presses (for example search as you type), check it when debugging",
   "recording.unsupported.arguments": "The arguments of {name} are not fixed text or a list",
   "recording.unsupported.regex": "{name} uses a regular expression",
   "recording.unsupported.selector": "Selector {value} is Playwright-specific syntax",
@@ -200,8 +201,8 @@
   "dsl.dynamic.format_time": "{text}: today has no time of day; the month is upper-case MM (lower-case mm is minutes); use now for times",
   "dsl.dynamic.random_syntax": "Cannot read {text}; write random integers as random:min:max, e.g. random:10:30",
   "dsl.dynamic.random_range": "In {text} the minimum {low} is greater than the maximum {high}",
-  "dsl.dynamic.random_checks_limit": "Too many wide random ranges in one value: checking enum, pattern or composed numbers would take more than {limit} combinations; use fewer random values or narrower ranges",
   "dsl.template.dynamic_in_step": "{name} is a dynamic value for input values and cannot be used in a step directly; add an input whose default is {{{{{name}}}}} and refer to it with {{{{ inputs.NAME }}}}",
   "dsl.workflow.value_dynamic": "Node {node}: the fixed value of input {input}: {detail}",
-  "dsl.yaml.unquoted_template": "Values that start with {{{{ need quotes, e.g. \"{{{{today}}}}\" or \"{{{{ inputs.title }}}}\""
+  "dsl.yaml.unquoted_template": "Values that start with {{{{ need quotes, e.g. \"{{{{today}}}}\" or \"{{{{ inputs.title }}}}\"",
+  "dsl.dynamic.number_range": "The number in {text} is too long to convert; use fewer digits"
 }

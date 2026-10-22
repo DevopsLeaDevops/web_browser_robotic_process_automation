@@ -101,6 +101,7 @@
   "recording.loose_filter": "「{text}」原本要求整段文字完全相同，转换后改成包含这段文字；调试时请确认只找到一个元素",
   "recording.dropped_position": "点击位置（position）没有保留，改成点击元素中央",
   "recording.frame_click": "点击的是 iframe 元素本身（{target}），运行时会点在 iframe 的正中央，不是里面某个字段或按钮；请确认这一步是否需要",
+  "recording.typed_as_fill": "{name} 是逐字输入，转成 fill（一次填入整段文字），不会触发每个按键的事件；字段要靠按键才有反应（例如边打边搜索）时，调试时请确认",
   "recording.unsupported.arguments": "{name} 的参数不是固定的文字或清单",
   "recording.unsupported.regex": "{name} 用了正则表达式",
   "recording.unsupported.selector": "选择器 {value} 是 Playwright 专用的写法",
@@ -200,8 +201,8 @@
   "dsl.dynamic.format_time": "{text}：today 只有日期，月份是大写 MM（小写 mm 是分钟）；要时间请用 now",
   "dsl.dynamic.random_syntax": "看不懂 {text}；随机整数写成 random:最小:最大，例如 random:10:30",
   "dsl.dynamic.random_range": "{text} 的最小值 {low} 大于最大值 {high}",
-  "dsl.dynamic.random_checks_limit": "一个值里大范围的随机数太多，enum、pattern 或拼接数值的检查会超过 {limit} 种组合；请减少随机数或缩小范围",
   "dsl.template.dynamic_in_step": "{name} 是入参值用的动态值，步骤里不能直接用；请在 inputs 加一个入参、默认值写 {{{{{name}}}}}，步骤再引用 {{{{ inputs.名称 }}}}",
   "dsl.workflow.value_dynamic": "节点 {node}：入参 {input} 的固定值：{detail}",
-  "dsl.yaml.unquoted_template": "以 {{{{ 开头的值要加上引号，例如 \"{{{{today}}}}\"、\"{{{{ inputs.title }}}}\""
+  "dsl.yaml.unquoted_template": "以 {{{{ 开头的值要加上引号，例如 \"{{{{today}}}}\"、\"{{{{ inputs.title }}}}\"",
+  "dsl.dynamic.number_range": "{text} 的数字太长，无法转成数值；请缩短数字"
 }

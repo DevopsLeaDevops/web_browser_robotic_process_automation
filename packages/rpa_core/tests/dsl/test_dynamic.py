@@ -6,16 +6,14 @@ from typing import cast
 
 import pytest
 
-from rpa_core.dsl import InputSpec, format_issue, inputs_json_schema, validate_text
+from rpa_core.dsl import InputSpec, dynamic, format_issue, inputs_json_schema, validate_text
 from rpa_core.dsl.dynamic import (
     DynamicValueError,
-    _representatives,  # pyright: ignore[reportPrivateUsage]
     dynamic_expression,
     escape,
     evaluate,
     has_dynamic,
     parse,
-    samples,
 )
 from rpa_core.dsl.features import input_features, scenario_features
 from rpa_core.i18n import use_locale
@@ -191,7 +189,7 @@ def test_mistake_messages() -> None:
         )
 
 
-# ---------------------------------------------------------------- 跳脫、代表值、提示
+# ---------------------------------------------------------------- 跳脫、配置態校驗、提示
 
 
 @pytest.mark.parametrize(
@@ -203,112 +201,49 @@ def test_escape_keeps_text_as_is(text: str) -> None:
     assert escape(5) == 5
 
 
-def test_samples_use_both_ends_of_random_ranges() -> None:
-    assert samples("{{random:10:30}}", "integer", now=NOW) == [10, 30]
-    assert samples("{{random:7:7}}", "integer", now=NOW) == [7]
-    assert samples("{{today}}", now=NOW) == ["2026-10-21"]
-    assert samples("固定", now=NOW) == ["固定"]
-
-
 @pytest.mark.parametrize(
     "spec",
     [
-        "{ type: integer, enum: [1, 3], default: '{{random:1:3}}' }",
-        "{ enum: ['11', '22'], default: '{{random:1:2}}{{random:1:2}}' }",
-        "{ pattern: '^(1|3)$', default: '{{random:1:3}}' }",
-        "{ minLength: 2, default: '{{random:-10:10}}' }",
-        "{ maxLength: 4, default: '{{random:-10:0}}{{random:0:10}}' }",
-        "{ type: number, maximum: 0.5, default: '0.{{random:1:10}}' }",
-        "{ type: number, minimum: -0.5, default: '-0.{{random:1:10}}' }",
+        "{type: integer, enum: [1, 3], default: '{{random:1:1001}}'}",
+        "{pattern: '^(1|3)$', default: '{{random:1:1001}}'}",
+        "{minLength: 2, default: '{{random:-10:10}}'}",
+        "{type: number, maximum: 0.5, default: '0.{{random:1:10}}'}",
+        "{pattern: '^2035-', default: '{{today}}'}",
+        "{type: integer, default: '{{today}}'}",
+        "{pattern: '^[0-9]+$', default: '{{random:1:99999999999999999999}}'}",
+        "{default: '{{random:1:999999999}}{{random:1:999999999}}{{random:1:999999999}}'}",
     ],
 )
-def test_random_defaults_check_values_between_endpoints(spec: str) -> None:
+def test_dynamic_defaults_are_checked_without_evaluation(
+    spec: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(*args: object) -> None:
+        pytest.fail("存檔不應讀取時間或抽隨機數")
+
+    monkeypatch.setattr(dynamic, "_local_now", forbidden)
+    monkeypatch.setattr("rpa_core.dsl.dynamic.random.randint", forbidden)
     result = validate_text(HEADER + f"inputs:\n  q: {spec}\n" + GOTO)
-    assert [issue.code for issue in result.issues] == ["value.default_invalid"]
+    assert result.ok, result.issues
 
 
-def test_random_defaults_accept_complete_enum_and_pattern() -> None:
-    result = validate_text(
-        HEADER
-        + "inputs:\n"
-        + "  q: { type: integer, enum: [1, 2, 3], default: '{{random:1:3}}' }\n"
-        + "  s: { pattern: '^item-[1-3]$', default: 'item-{{random:1:3}}' }\n"
-        + GOTO
-    )
-    assert not result.issues
-
-
-def test_exhaustive_random_checks_are_bounded_without_restricting_plain_randoms() -> None:
-    spec = InputSpec(pattern="^[0-9]+$")
-    assert spec.check_value("{{random:1:1000}}") == []
-    assert spec.check_value("{{random:1:10}}{{random:1:100}}") == []
-    # 範圍大時改用代表值（兩端、0、每種位數的最小與最大值），常見的單號寫法仍可使用
-    assert spec.check_value("{{random:1:1001}}") == []
-    assert spec.check_value("{{random:1:100}}{{random:1:100}}") == []
-    assert InputSpec(pattern="^PO-\\d{5}$").check_value("PO-{{random:10000:99999}}") == []
-    assert InputSpec(pattern="\\S").check_value("單號{{random:1000:9999}}") == []
-    # 代表值涵蓋每一種位數與正負號
-    assert InputSpec(pattern="^\\d{1,3}$").check_value("{{random:1:5000}}") == ["pattern"]
-    assert InputSpec(pattern="^\\d+$").check_value("{{random:-3:5000}}") == ["pattern"]
-    assert InputSpec(enum=["1", "2"]).check_value("{{random:1:5000}}") == ["enum"]
-    many = "{{random:1:999999999}}" * 4
-    with pytest.raises(DynamicValueError, match="1000") as caught:
-        spec.check_value(many)
-    assert caught.value.code == "random_checks_limit"
-    assert InputSpec(type="integer").check_value("{{random:1:1000000}}") == []
-    assert InputSpec(pattern="^[0-9-]+$").check_value("{{today}}", now=NOW) == []
+def test_plain_values_still_validate_constraints() -> None:
+    assert InputSpec(type="integer", maximum=20).check_value(21) == ["maximum: 20"]
+    assert InputSpec(enum=["a", "b"]).check_value("c") == ["enum"]
+    assert InputSpec(pattern="^x").check_value("abc") == ["pattern"]
 
 
 @pytest.mark.parametrize(
-    ("low", "high", "expected"),
-    [
-        (1, 1001, [1, 9, 10, 99, 100, 999, 1000, 1001]),
-        (-12, 5, [-12, -10, -9, -1, 0, 1, 5]),
-        (-300, -20, [-300, -100, -99, -20]),
-        (7, 7, [7]),
-    ],
+    "expression", ["{{random:1:" + "9" * 5000 + "}}", "{{today+" + "9" * 5000 + "}}"]
 )
-def test_representatives_cover_every_digit_count(low: int, high: int, expected: list[int]) -> None:
-    assert _representatives(low, high) == expected
+def test_numbers_beyond_parser_limits_are_validation_errors(expression: str) -> None:
+    with pytest.raises(DynamicValueError):
+        parse(expression)
 
 
-def test_exhaustive_random_limit_is_reported_as_a_default_issue() -> None:
-    default = "{{random:1:999999999}}" * 4
-    result = validate_text(
-        HEADER + f"inputs:\n  q: {{ pattern: '^[0-9]+$', default: '{default}' }}\n" + GOTO
-    )
-    assert [issue.code for issue in result.issues] == ["dynamic.random_checks_limit"]
-
-
-def test_large_random_ranges_keep_exact_length_and_numeric_checks() -> None:
-    assert (
-        InputSpec(type="integer", minimum=-1000000, maximum=1000000).check_value(
-            " {{random:-1000000:1000000}} "
-        )
-        == []
-    )
-    text = "{{random:-1000000:0}}{{random:0:1000000}}"
-    assert InputSpec.model_validate({"minLength": 2, "maxLength": 15}).check_value(text) == []
-    assert InputSpec.model_validate({"minLength": 3, "maxLength": 14}).check_value(text) == [
-        "minLength: 3",
-        "maxLength: 14",
-    ]
-    assert InputSpec(type="number", maximum=0.9).check_value("0.{{random:1:10}}") == []
-    # 範圍大時以代表值檢查：每種位數的最大值（0.99）也會檢查到
-    assert InputSpec(type="number").check_value("0.{{random:1:1001}}") == []
-    assert InputSpec(type="number", maximum=0.95).check_value("0.{{random:1:1001}}") == [
-        "maximum: 0.95"
-    ]
-
-
-def test_composed_random_types_are_checked_across_independent_draws() -> None:
-    # 兩端是 -10 與 11，都能轉整數；中間的 00／01 也應該合法。
-    assert InputSpec(type="integer").check_value("{{random:-1:1}}{{random:0:1}}") == []
-    # 小數與指數拼接後，範圍中間的 0.9e-1 也不能漏掉。
-    assert InputSpec(type="number", maximum=0.1).check_value("0.{{random:1:10}}e-1") == []
-    assert InputSpec(type="number", maximum=0.05).check_value("0.{{random:1:10}}e-1") == [
-        "maximum: 0.05"
-    ]
+def test_composed_number_overflow_is_a_validation_error() -> None:
+    with pytest.raises(DynamicValueError) as caught:
+        evaluate("9" * 5000 + "{{random:1:1}}", "integer", now=NOW)
+    assert caught.value.code == "number_range"
 
 
 def test_dynamic_expression() -> None:
@@ -358,17 +293,17 @@ def test_defaults_can_be_dynamic() -> None:
             "可以用 {{today}}、{{today+1}}、{{now}}、{{random:10:30}}",
         ),
         (
-            "  q: { type: integer, minimum: 10, maximum: 20, default: '{{random:10:30}}' }\n",
+            "  q: { type: integer, minimum: 10, maximum: 20, default: 30 }\n",
             "value.default_invalid",
             "入參 q › default：預設值不符合限制：maximum: 20",
         ),
         (
-            "  q: { type: integer, default: '{{today}}' }\n",
+            "  q: { type: integer, default: abc }\n",
             "value.default_invalid",
             "入參 q › default：預設值不符合限制：type: integer",
         ),
         (
-            "  r: { maxLength: 5, default: '單號{{random:1:1000}}' }\n",
+            "  r: { maxLength: 5, default: '單號1000' }\n",
             "value.default_invalid",
             "入參 r › default：預設值不符合限制：maxLength: 5",
         ),

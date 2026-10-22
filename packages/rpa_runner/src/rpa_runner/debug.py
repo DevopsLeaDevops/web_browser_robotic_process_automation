@@ -94,14 +94,15 @@ class _Session:
 
     @staticmethod
     def _load(
-        scenario_path: Path, input_path: Path, *, strict: bool = True
+        scenario_path: Path, input_path: Path, *, preserved: frozenset[str] = frozenset()
     ) -> tuple[Scenario, dict[str, object]]:
         validated = validate_file(scenario_path)
         if validated.scenario is None:
             raise ValueError(t("child.invalid_scenario"))
         inputs = cast("dict[str, object]", json.loads(input_path.read_text(encoding="utf-8")))
         resolved, problems = check_inputs(validated.scenario, inputs)
-        if strict and problems:
+        problems = [problem for problem in problems if problem.name not in preserved]
+        if problems:
             raise ValueError("; ".join(problem.message for problem in problems))
         return validated.scenario, resolved
 
@@ -220,8 +221,10 @@ class _Session:
         return {"count": count, "matches": matches, **state}
 
     def load(self, scenario: str, input_file: str) -> dict[str, object]:
-        # 重載沿用既有行為：允許新版本的限制與舊值暫時不一致，仍保留已求值的舊值。
-        self.scenario, self.inputs = self._load(Path(scenario), Path(input_file), strict=False)
+        # 保留已求值的舊值（允許與新約束暫時不一致）；新增預設值仍須通過運行態校驗。
+        self.scenario, self.inputs = self._load(
+            Path(scenario), Path(input_file), preserved=frozenset(self.inputs)
+        )
         self.secrets = read_secrets(self.scenario)
         return {"steps": len(self.scenario.steps or []), "inputs": self.inputs}
 

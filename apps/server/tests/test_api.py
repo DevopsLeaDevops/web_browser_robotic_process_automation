@@ -11,6 +11,7 @@ import pytest
 from fastapi import FastAPI
 from httpx2 import Client, Response
 
+from rpa_core.dsl import dynamic
 from rpa_server.services import Services
 from rpa_worker import Worker
 
@@ -65,6 +66,49 @@ def create(client: Client, scene_id: str, yaml_text: str) -> None:
         f"/api/scenes/{scene_id}/revisions", json={"baseRevision": 1, "files": files}
     )
     assert response.status_code == 201, response.text
+
+
+@pytest.mark.parametrize("picked", [1, 2])
+def test_queue_preserves_dynamic_inputs_until_execution(
+    app: FastAPI, client: Client, monkeypatch: pytest.MonkeyPatch, picked: int
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("儲存與排隊不應求值")
+
+    expression = "{{random:1:1001}}"
+    source = NEEDS_SECRET.replace(
+        "type: integer, minimum: 1, default: 1",
+        "type: integer, enum: [1, 3], default: '" + expression + "'",
+    )
+    with monkeypatch.context() as patch:
+        patch.setattr(dynamic, "_local_now", forbidden)
+        patch.setattr("rpa_runner.contract.evaluate", forbidden)
+        create(client, "needs-secret", source)
+        queued = client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}})
+        assert queued.status_code == 202, queued.text
+    calls: list[tuple[int, int]] = []
+
+    def pick(low: int, high: int) -> int:
+        calls.append((low, high))
+        return picked
+
+    monkeypatch.setattr("rpa_core.dsl.dynamic.random.randint", pick)
+    assert worker(app).run_once()
+    detail = body(client.get(f"/api/runs/{queued.json()['id']}"))
+    result = cast("JsonObject", detail["result"])
+    assert result["input"] == {"count": picked}
+    assert ("入參 count 不符合限制：enum" in cast("list[str]", result["problems"])) is (picked == 2)
+    assert calls == [(1, 1001)]
+
+
+def test_large_dynamic_range_can_be_saved_and_queued(client: Client) -> None:
+    source = NEEDS_SECRET.replace(
+        "type: integer, minimum: 1, default: 1",
+        "pattern: '^[0-9]+$', default: '{{random:1:99999999999999999999}}'",
+    )
+    create(client, "needs-secret", source)
+    queued = client.post("/api/scenes/needs-secret/revisions/2/validate", json={"inputs": {}})
+    assert queued.status_code == 202, queued.text
 
 
 # ---------------------------------------------------------------- 場景與版本
@@ -201,7 +245,7 @@ def test_run_requests_are_checked_before_queueing(client: Client) -> None:
 
 
 def test_dynamic_inputs_are_checked_but_kept_as_written(client: Client) -> None:
-    """動態值：排入前先檢查寫法與限制；執行紀錄保存原本的寫法，每次執行時才求值。"""
+    """動態值：排入前只檢查寫法；執行紀錄保存原本的寫法，每次執行時才求值。"""
     client.post("/api/scenes/import")
     url = "/api/scenes/ba-001/revisions/1/validate"
 
@@ -212,7 +256,7 @@ def test_dynamic_inputs_are_checked_but_kept_as_written(client: Client) -> None:
 
     assert (wrong.status_code, error_code(wrong)) == (422, "inputs_invalid")
     problems = cast("list[JsonObject]", cast("JsonObject", body(wrong)["error"])["problems"])
-    assert [problem["name"] for problem in problems] == ["title", "quantity"]
+    assert [problem["name"] for problem in problems] == ["title"]
     assert "{{tody}}" in str(problems[0]["message"])
     assert queued.status_code == 202
     run = body(client.get(f"/api/runs/{body(queued)['id']}"))

@@ -37,7 +37,7 @@ from rpa_core.dsl.editing import (
 from rpa_core.dsl.sources import scenario_sources
 from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_core.pack import PackSource, PublishedRef, SceneManifest, parse_timestamp, timestamp
-from rpa_runner.contract import check_inputs
+from rpa_runner.contract import prepare_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
@@ -1203,7 +1203,7 @@ class Services:
                     t("error.revision_unpublished", id=scene_id, number=revision.number),
                 )
             scenario = self._load_scenario(scene_id, revision.number)
-            _, problems = check_inputs(scenario, inputs)
+            _, problems = prepare_inputs(scenario, inputs)
             if problems:
                 raise _invalid(
                     "inputs_invalid",

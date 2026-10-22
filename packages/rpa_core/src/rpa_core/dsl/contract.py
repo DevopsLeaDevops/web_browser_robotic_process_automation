@@ -11,12 +11,11 @@
 import math
 import re
 from collections.abc import Iterator
-from datetime import datetime
 from typing import Annotated, Final, Literal, Self
 
 from pydantic import AfterValidator, Field, model_validator
 
-from rpa_core.dsl.dynamic import DynamicValueError, has_dynamic, samples
+from rpa_core.dsl.dynamic import DynamicValueError, has_dynamic, parse
 from rpa_core.dsl.fields import DslModel, NonEmptyStr, dsl_error
 
 __all__ = [
@@ -155,17 +154,15 @@ class InputSpec(ValueSpec):
                 raise dsl_error("value.default_invalid", at=["default"], rule=rule)
         return self
 
-    def check_value(self, value: object, *, now: datetime | None = None) -> list[str]:
-        """值（可以含動態值）不符合的限制，以 DSL 寫法表示；完全符合時是空的。
+    def check_value(self, value: object) -> list[str]:
+        """存檔與排隊前的校驗：動態值只檢查語法，普通值檢查型別與限制。
 
-        動態值檢查數值／長度邊界；enum／pattern 與拼接數值檢查所有隨機組合。
-        寫錯或組合過多時拋出 :class:`rpa_core.dsl.dynamic.DynamicValueError`。
+        不讀時鐘、不抽隨機數，也不推測所有可能的結果；動態值的約束在實際執行開始時校驗。
         """
-        rules: list[str] = []
-        exhaustive = self.enum is not None or self.pattern is not None
-        for sample in samples(value, self.type, now=now, exhaustive=exhaustive):
-            rules.extend(rule for rule in self.violations(sample) if rule not in rules)
-        return rules
+        if isinstance(value, str) and has_dynamic(value):
+            parse(value)
+            return []
+        return list(self.violations(value))
 
 
 class OutputSpec(ValueSpec):

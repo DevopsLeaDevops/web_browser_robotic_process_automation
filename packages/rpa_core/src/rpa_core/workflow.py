@@ -345,7 +345,7 @@ def _check_node(
             if spec.default is None:
                 problems.append(_problem("workflow.input_missing", node.id, name))
         elif isinstance(binding, ValueBinding):
-            # 固定值可以是動態值（例如 {{today}}），執行時才求值；這裡檢查寫法與代表值
+            # 固定值可以是動態值（例如 {{today}}），執行時才求值；這裡只檢查寫法，不提前求值
             try:
                 rules = spec.check_value(binding.value)
             except DynamicValueError as error:

@@ -141,9 +141,9 @@ verify:
         </table></div>
         <dl class="spec-list">
           <dt>格式</dt><dd><code>yyyy</code>／<code>YYYY</code> 年、<code>MM</code> 月、<code>dd</code>／<code>DD</code> 日、<code>HH</code> 时、<code>mm</code> 分、<code>ss</code> 秒（都补零），其他字符照写。<code>today</code> 只有日期，格式里写了时、分、秒会报错（最常见的是把月份写成小写 <code>mm</code>）。</dd>
-          <dt>求值的时间</dt><dd>每次运行开始时（入参阶段，启动浏览器之前），用<strong>运行那台电脑</strong>的本地时区；同一次运行的所有入参用同一个「现在」，所以 <code>{{today}}</code> 在每个入参都是同一天。运行记录保存原本的写法，重新运行会重新求值；<code>input.json</code> 与报告是实际用到的值。</dd>
+          <dt>求值的时间</dt><dd>每次运行开始时（入参阶段，启动浏览器之前），用<strong>运行那台电脑</strong>的本地时区；同一次运行的所有入参用同一个「现在」，所以 <code>{{today}}</code> 在每个入参都是同一天。运行记录保存原本的写法，重新运行会重新求值；<code>input.json</code> 与报告是实际用到的值。脚本、后续步骤、断言与报告共用这份运行态入参，每次引用不会重新抽样。</dd>
           <dt>类型</dt><dd>求值的结果是数字的文字时（例如整个值是 <code>{{random:10:30}}</code>），integer、number 入参得到数字；其他都是文字，再照入参的 type 与限制校验。</dd>
-          <dt>校验</dt><dd>值里任何 <code>{{ … }}</code> 都当成动态值，看不懂（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）就报错，不会原样打进页面。默认值在保存时就检查：单一随机整数的数值上下限检查范围两端，例如 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 会报错。字符串长度另检查最短、最长组合（含跨零与多个随机数）。若有 <code>enum</code>、<code>pattern</code>，或把随机数与其他文字拼成数值（如 <code>0.{{random:1:10}}</code>），组合不超过 1000 种时检查全部组合；范围更大时改用代表值（两端、0、每种位数的最小与最大值），所以 <code>PO-{{random:10000:99999}}</code> 配 <code>pattern</code> 也能用，其余的值在运行时以实际抽到的值再检查一次（启动浏览器之前）。只有一个值里有很多大范围的随机数、连代表值都超过 1000 种组合时才提示缩小范围。</dd>
+          <dt>校验</dt><dd>值里任何 <code>{{ … }}</code> 都当成动态值，看不懂（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）就报错。保存与排入队列时保留配置态写法：动态值只检查语法，不读取日期、不抽样、不枚举可能结果；普通值仍检查类型与限制。实际运行开始时才展开一次，针对这份运行态入参检查 <code>type</code>、<code>enum</code>、<code>pattern</code>、长度及数值范围。不符合时本次运行在启动浏览器前失败，不会重新抽到合格为止。例如 <code>maximum: 20</code> 配 <code>{{random:10:30}}</code> 可以保存，当次抽到 26 就回报超过上限；抽到 18 则继续运行。</dd>
           <dt>录制的文字</dt><dd>录制稿中的填写内容照原样保留；即使文字含有 <code>{{today}}</code> 或其他大括号，也会自动跳脱。需要动态值时再编辑入参的默认值。</dd>
           <dt>上游的出参</dt><dd>试验场把上游节点的出参交给下游时永远照原样，出参的文字里刚好有 <code>{{</code> 也不会被求值。</dd>
           <dt>步骤里</dt><dd>步骤的 <code>{{ }}</code> 是<a href="#templates">表达式</a>，不能直接写 today、now、random；请在 <code>inputs</code> 加一个入参、默认值写动态值，步骤再引用 <code>{{ inputs.名称 }}</code>。</dd>

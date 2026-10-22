@@ -90,6 +90,7 @@ def test_sync_recording_becomes_a_valid_draft() -> None:
     steps = steps_of(data)
     assert [step["action"] for step in steps] == [
         "goto",
+        "click",
         "fill",
         "fill",
         "click",
@@ -105,20 +106,20 @@ def test_sync_recording_becomes_a_valid_draft() -> None:
         "headless": True,
         "baseUrl": "http://127.0.0.1:8765",
     }
-    # 先點擊再填寫同一個欄位：點擊沒有意義，不保留
-    assert steps[1]["target"] == {"label": "標題"}
-    assert steps[3]["target"] == {"role": "button", "name": "建立紀錄"}
+    # 先點擊再填寫同一個欄位：兩步都保留（點擊可能展開選單或載入候選，見 _fill）
+    assert steps[1]["target"] == steps[2]["target"] == {"label": "標題"}
+    assert steps[4]["target"] == {"role": "button", "name": "建立紀錄"}
     # assert text：等內容出現、讀成頁面事實，成為出參，並在獨立斷言檢查有取得內容
-    assert steps[4] == {
-        "id": "expect-5",
+    assert steps[5] == {
+        "id": "expect-6",
         "name": "確認「#record-status」",
         "action": "expect",
         "target": {"css": "#record-status"},
         "state": "visible",
         "match": "contains",
     }
-    assert steps[5] == {
-        "id": "extract-6",
+    assert steps[6] == {
+        "id": "extract-7",
         "name": "讀取「#record-status」",
         "action": "extract",
         "target": {"css": "#record-status"},
@@ -153,8 +154,35 @@ def test_fill_values_become_inputs_with_recorded_defaults() -> None:
         "field_2": {"type": "string", "description": "數量", "default": "3"},
         "lookup_id": {"type": "string", "description": "#lookup-id", "default": "DEMO-1"},
     }
-    assert steps_of(data)[1]["value"] == "{{ inputs.field }}"
+    assert steps_of(data)[2]["value"] == "{{ inputs.field }}"
     assert result.inputs == ("field", "field_2", "lookup_id")
+
+
+def test_typing_key_by_key_becomes_fill_with_a_warning() -> None:
+    source = dedent(
+        """\
+        page.goto("https://erp.example.com/")
+        page.get_by_placeholder("搜尋").press_sequentially("455590002")
+        page.get_by_label("備註").type("急件")
+        page.get_by_label("數量").fill("3")
+        """
+    )
+    data, result = convert(source)
+
+    assert [step["action"] for step in steps_of(data)] == ["goto", "fill", "fill", "fill"]
+    # 逐鍵的事件不會重現：兩行都列警告，直接 fill 的不列
+    assert [(warning.line, warning.message) for warning in result.warnings] == [
+        (
+            2,
+            "press_sequentially 是逐字輸入，轉成 fill（一次填入整段文字），不會觸發每個按鍵的事件；"
+            "欄位要靠按鍵才有反應（例如邊打邊搜尋）時，調試時請確認",
+        ),
+        (
+            3,
+            "type 是逐字輸入，轉成 fill（一次填入整段文字），不會觸發每個按鍵的事件；"
+            "欄位要靠按鍵才有反應（例如邊打邊搜尋）時，調試時請確認",
+        ),
+    ]
 
 
 def test_password_fields_become_secrets_and_are_masked() -> None:
@@ -334,19 +362,18 @@ def test_actions_on_a_popup_tab_get_page() -> None:
         ("goto", None, None),
         ("click", None, "page1"),
         ("click", "page1", None),
-        # 先點再填同一個欄位：點擊省略，fill 在 page1
+        # 先點「请选择」再填：點擊會展開選單、載入候選，保留；兩步都在 page1
+        ("click", "page1", None),
         ("fill", "page1", None),
         ("expect", "page1", None),
         ("extract", "page1", None),
         ("expect", "page1", None),
         ("click", None, None),
     ]
-    assert steps[3]["target"] == {
-        "placeholder": "请选择",
-        "within": {"role": "row", "name": "  -- --", "exact": True},
-    }
-    assert steps[3]["value"] == "{{ inputs.field }}"
-    assert steps[6]["url"] == "/orders/1/items"
+    choose = {"placeholder": "请选择", "within": {"role": "row", "name": "  -- --", "exact": True}}
+    assert steps[3]["target"] == steps[4]["target"] == choose
+    assert steps[4]["value"] == "{{ inputs.field }}"
+    assert steps[7]["url"] == "/orders/1/items"
     # YAML 裡 page 緊接在 action 後面，popup 在最後
     assert "    action: click\n    page: page1\n" in result.scenario
     assert "    popup: page1\n" in result.scenario

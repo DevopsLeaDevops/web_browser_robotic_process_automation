@@ -121,6 +121,8 @@ class StepRecord:
     started_at: float | None = None
     ended_at: float | None = None
     url: str | None = None
+    page_id: str | None = None
+    created_page_id: str | None = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -134,6 +136,8 @@ class StepRecord:
             "startedAt": _utc(self.started_at),
             "endedAt": _utc(self.ended_at),
             "url": self.url,
+            "pageId": self.page_id,
+            "createdPageId": self.created_page_id,
         }
 
 
@@ -318,6 +322,7 @@ class Tabs:
     main: Page
     named: dict[str, Page] = field(default_factory=dict[str, Page])
     last: Page | None = None
+    identify: Callable[[Page], str] | None = None
 
     def get(self, name: str | None) -> Page:
         """步驟的 page 指的分頁；沒寫是一開始的分頁。"""
@@ -348,6 +353,8 @@ class _Run:
     def execute(self, step: Step, timeout: int, record: StepRecord) -> None:
         page = self.tabs.get(step.page)
         self.tabs.last = page
+        if self.tabs.identify is not None:
+            record.page_id = self.tabs.identify(page)
         popup = getattr(step, "popup", None)
         if not isinstance(popup, str):
             self._act(page, step, timeout, record)
@@ -355,6 +362,8 @@ class _Run:
         with page.expect_popup(timeout=timeout) as opened:
             self._act(page, step, timeout, record)
         tab = opened.value
+        if self.tabs.identify is not None:
+            record.created_page_id = self.tabs.identify(tab)
         tab.wait_for_load_state("domcontentloaded", timeout=timeout)
         self.tabs.named[popup] = tab
         self.tabs.last = tab

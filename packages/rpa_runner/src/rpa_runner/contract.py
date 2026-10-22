@@ -21,6 +21,7 @@ __all__ = [
     "build_outputs",
     "check_inputs",
     "parse_cli_value",
+    "prepare_inputs",
     "run_verify",
 ]
 
@@ -64,6 +65,13 @@ def parse_cli_value(spec: InputSpec, text: str) -> object:
             return text
 
 
+def prepare_inputs(
+    scenario: Scenario, values: Mapping[str, object]
+) -> tuple[dict[str, object], list[Problem]]:
+    """補上配置態預設值，檢查語法與普通值；不讀時鐘、不抽樣、不展開表達式。"""
+    return _check_inputs(scenario, values, resolve=False)
+
+
 def check_inputs(
     scenario: Scenario,
     values: Mapping[str, object],
@@ -71,15 +79,25 @@ def check_inputs(
     now: datetime | None = None,
     pick: Pick | None = None,
 ) -> tuple[dict[str, object], list[Problem]]:
-    """補上預設值、動態值求值並校驗入參；回傳 (完整入參, 問題)。
+    """實際執行開始時展開一次、校驗這次的結果；腳本與報告共用回傳的運行態入參。
 
-    動態值（例如 ``{{today}}``、``{{random:10:30}}``）每次呼叫都重新求值，所有入參用同一個
-    ``now``（預設是這台電腦的本地時間）；回傳的是實際要用的值。隨機數檢查邊界或全部組合，
-    所以同樣的入參每次的檢查結果都一樣（管理 Portal 排入佇列前的檢查也靠這一點）。
+    同一次執行的所有日期共用同一個現在，每個 random 只抽一次；重新執行才重新求值。
+    存檔、排隊與互動子程序啟動前使用 prepare_inputs，保留原始寫法給執行裝置。
     """
+    return _check_inputs(scenario, values, resolve=True, now=now, pick=pick)
+
+
+def _check_inputs(
+    scenario: Scenario,
+    values: Mapping[str, object],
+    *,
+    resolve: bool,
+    now: datetime | None = None,
+    pick: Pick | None = None,
+) -> tuple[dict[str, object], list[Problem]]:
     problems: list[Problem] = []
     resolved: dict[str, object] = {}
-    moment = now or datetime.now().astimezone()
+    moment = (now or datetime.now().astimezone()) if resolve else None
     for name in values:
         if name not in scenario.inputs:
             problems.append(Problem(name, t("contract.input_unknown", name=name)))
@@ -92,15 +110,16 @@ def check_inputs(
             problems.append(Problem(name, t("contract.input_missing", name=name)))
             continue
         try:
-            # 隨機數的整個範圍都要符合限制，結果才不會時好時壞
-            rules = spec.check_value(value, now=moment)
-            value = evaluate(value, spec.type, now=moment, pick=pick)
+            if resolve:
+                value = evaluate(value, spec.type, now=moment, pick=pick)
+                rules = list(spec.violations(value))
+            else:
+                rules = spec.check_value(value)
         except DynamicValueError as error:
             problems.append(
                 Problem(name, t("contract.input_dynamic", name=name, detail=error.message))
             )
             continue
-        rules += [rule for rule in spec.violations(value) if rule not in rules]
         problems += [
             Problem(name, t("contract.input_invalid", name=name, rule=rule)) for rule in rules
         ]

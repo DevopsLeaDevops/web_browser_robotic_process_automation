@@ -1295,7 +1295,7 @@
   "replay.previous": "上一次",
   "replay.next": "下一次",
   "replay.run_details": "運行詳情",
-  "replay.download": "下載錄影",
+  "replay.download": "下載主要錄影片段",
   "replay.workflow_node": "組合場景的節點 {node}，序列執行",
   "replay.not_finished": "運行還沒結束，結束後才能回看。",
   "replay.video": "錄影",
@@ -1363,7 +1363,7 @@
   "replayjs.open_in_scene": "在場景中開啟（第 {{line}} 行）",
   "replayjs.copied": "已複製連結",
   "replayjs.copy_failed": "沒辦法複製，請手動選取：{{link}}",
-  "replayjs.beyond_video": "影片在 {{time}} 之後沒有新的畫面：運行被中斷時，最後的等待沒有錄到。",
+  "replayjs.beyond_video": "影片只涵蓋到 {{time}}，其餘步驟沒有對應畫面；這不代表執行失敗。",
   "replayjs.no_steps": "這次運行沒有步驟紀錄。",
   "replayjs.pin": "釘選，不自動刪除",
   "replayjs.pinned": "已釘選（不會自動刪除）",
@@ -1379,5 +1379,9 @@
   "replayjs.action_extract": "讀取 {{id}}",
   "replayjs.action_screenshot": "截圖 {{id}}",
   "spec.dynamic": "動態值",
-  "spec.dynamic_title": "每次執行開始時換成當下的值（今天的日期、隨機數…）"
+  "spec.dynamic_title": "每次執行開始時換成當下的值（今天的日期、隨機數…）",
+  "replay.page_recordings": "各分頁原始錄影：",
+  "replay.page_number": "分頁 {n}",
+  "replay.missing_clip": "此時段沒有對應分頁的錄影。執行結果請以步驟紀錄為準。",
+  "replayjs.missing_pages": "部分分頁影片缺失；時間軸保留完整步驟，缺片時段會顯示提示。"
 }

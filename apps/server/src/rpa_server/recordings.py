@@ -33,7 +33,7 @@ from rpa_core.dsl.features import scenario_features
 from rpa_core.i18n import Locale, use_locale
 from rpa_core.recording import Conversion, ConversionError, convert_recording, merge_recording
 from rpa_runner.commands import module_command, playwright_command
-from rpa_runner.contract import check_inputs
+from rpa_runner.contract import prepare_inputs
 from rpa_runner.record import EXIT_REPLAY_FAILED
 from rpa_server.addresses import PortalAddress, points_to_portal
 from rpa_server.domain import DOMAIN_ID, RecordingRecord, now
@@ -323,7 +323,7 @@ class RecordingService:
         defaults = {
             name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
         }
-        _, problems = check_inputs(scenario, defaults)
+        _, problems = prepare_inputs(scenario, defaults)
         if problems:
             names = ", ".join(problem.name for problem in problems)
             raise invalid("recording_continue_needs", t("recording.continue_needs", names=names))

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>設計文件對齊 v0.4.0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>設計文件對齊 v0.4.0</h1><p>把文檔站「設計」部分改成和 main（v0.4.0）一致：先系統架構，再桌面端分發（用圖說明），再其他頁。每完成一頁就提交、推送，避免用量用完時白做。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261021-design-docs-refresh；2026-10-22 03:33 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-21 23:45 PDT：「文檔中，設計部分是最新的嗎？不是就更新；週用量快到上限，依優先級一頁一頁做完、一頁一頁更新。優先：系統架構、桌面端分發（用圖直觀說明）、其他。」完成＝各頁的內容和 main 的實作一致，繁中、英文同步並 stamp，簡中由 bootstrap 產生，文檔測試通過。</dd>
+        <dt>範圍／不包含</dt><dd>docs/design/ 下的頁面（繁中、英文）。不改程式。<code>dsl.html</code> 正被 PR #66（M7b）、#67（動態值）修改，本任務不動，避免衝突；路線圖不在「設計」部分，不在本任務。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原實作 Claude；本輪衝突整合 OpenAI Codex（使用者本次要求）；使用者審閱與合併</dd>
+        <dt>修改檔案／整合者</dt><dd>docs/design/ 的 architecture、desktop、tech-stack、positioning、multi-user 與英文版；本頁與任務索引。本輪 Codex 整合衝突及產生簡中。</dd>
+        <dt>狀態</dt><dd>本輪整合完成：保留設計文件更新，合併 main 62598a6（含 #66、#69）；衝突與本地驗證已完成；提交、推送與最新 CI 狀態見 PR #68。管理 Portal 未逐段核對（見下一步）</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/design-refresh</code>；PR #68；原基準 main fcb8e8f；本輪合併 main 62598a6（#69 合併後）</dd>
+        <dt>交接版本／同步狀態</dt><dd>見追加紀錄；每頁一個提交，已推送</dd>
+        <dt>工作區／環境</dt><dd>雲端 Linux、系統 Python 3.13；沒有 OpenCC（簡中靠提交訊息的 <code>[bootstrap]</code>）；Playwright 1.56 的 Chromium 用來截圖檢查新圖</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>盤點（main fcb8e8f）：</strong>系統架構只畫了 M9 的目標樣貌，而且 worker 還是直接連 PostgreSQL 的佇列（ADR 0012 已取代）；「MVP 階段」只寫到 M10，資料仍寫「SQLite＋檔案目錄」（M11 已改成領域資料夾）；目錄結構有不存在的 <code>deploy/</code>、<code>rpa_generator/</code>，缺 <code>apps/desktop</code>、<code>scripts/</code>、<code>handoff/</code>；CLI 命令還寫 push。桌面端分發標示「開發中」、伺服器寫成「使用者自己的電腦」、架構是 ASCII 圖，沒有 Linux 伺服器、登入檢查交給錄製端、v0.4.0。</li>
+        <li><strong>已完成：</strong>系統架構：新增「目前的部署」圖（伺服器、錄製端、Worker、目標系統、git 倉庫，兩個埠與權杖）；目標圖改成經由 Worker API 領取、資料庫是索引；「各部分怎麼運作」與資料目錄結構；套件職責、目錄結構、資料流更新。</li>
+        <li><strong>決定：</strong>實作選擇：以 v0.4.0 的 main 為準描述；尚未做的（M5、M8、M9）明確標「尚未實作」。</li>
+        <li><strong>已完成（桌面端分發）：</strong>ASCII 架構圖換成 SVG，另加三張圖：配對與上線、錄製時的一來一回（循序圖）、從原始碼到安裝檔；狀態改為 M10.0～M10.2 已完成（v0.4.0），分期表加狀態欄（人工驗收：整體流程通過、細節驗收中）；伺服器一列改成從原始碼安裝、Linux 用 setup-linux.sh；補 M10.2 之後的相關修改（#50、#51、#62、#61）。</li>
+        <li><strong>已完成（其他頁）：</strong>技術選型：任務佇列改成伺服器的執行佇列＋Worker API（原 ADR 0003 的 Procrastinate 不再用）、產物存儲寫目前的資料目錄、新增「場景存放與同步」「運行錄影」兩列、部署寫目前的安裝方式、版本基準加產品版本 0.4.0。產品定位：「編排」改成組合場景（DAG），新增領域、角色、裝置三個概念，回饋改成錄影回看。多用戶：Secrets 的現況、版本進領域資料夾、Runner 用在 Worker App、錄製的瀏覽器開在錄製端。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併 PR #68。未做：管理 Portal（portal.html，74 KB，10-21 隨 M7a、M12 更新過）沒有逐段核對；<code>dsl.html</code> 等 #66、#67 合併後再看；路線圖（不在「設計」）仍寫 M7a、M11、M12「進行中」，實際已合併，可另開任務更新。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。截圖只在雲端暫存目錄。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>本分支、雲端 Linux</td><td><code>python3 tools/i18n.py stamp docs/en/design/architecture.html</code>；<code>pytest tests/docs -k "not zh-Hans"</code></td><td>175 通過；SVG 以 XML 解析通過；Chromium 截圖確認新圖文字不重疊（繁中、英文）。架構頁的簡中由 bootstrap 產生（45e1273）</td><td>桌面端分發的簡中等 bootstrap；CI 未執行</td></tr>
+          <tr><td>420b229（bootstrap 產生簡中後）、雲端 Linux</td><td><code>pytest tests/docs</code>（含簡中）</td><td>278 通過</td><td>只跑文檔測試</td></tr>
+          <tr><td>8f7ae51、GitHub Actions</td><td>CI（Python 3.12、3.13）</td><td>失敗，只因簡中還沒產生：<code>tests/i18n/test_generated.py</code> 與簡中頁的錨點檢查；其他測試通過。bootstrap 隨後產生簡中（420b229）</td><td>420b229 是機器人的提交，CI 停在等待核准；推一個自己的提交讓 CI 在最新 head 上跑</td></tr>
+          <tr><td>PR head 2739aef＋main 62598a6 的合併工作區；macOS、Python 3.13.16、uv 0.12.24</td><td><code>uv sync --locked</code>；英文 stamp、i18n sync／check；<code>pytest -q tests/docs tests/i18n</code>；handoff 相對連結與錨點；<code>git diff --check</code></td><td>304 項測試通過，30 個 handoff 連結與錨點通過；衝突標記清除；相對 main 的程式檔案差異為空，保留 #66、#69 的實作與文件。</td><td>只處理文件整合，未重跑業務瀏覽器驗收；最新 head 的 CI 以 PR 檢查結果為準。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：以 PR #68 最新 head 的檢查結果為準；本輪本地文檔驗證通過。審閱：Codex 已核對衝突區塊及相對 main 的文件差異，使用者負責合併；本輪沒有產品人工驗收。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-22 03:33 America/Los_Angeles（PDT，UTC−07:00），OpenAI Codex 依使用者「處理 PR #68 衝突」的要求接收 2739aeffc020082308fb104103d3b72096403768；已核對遠端 head 與乾淨的獨立工作區。本輪只負責與最新 main 的文檔整合、驗證及推送，保留原任務範圍。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-21 23:53 PDT（UTC−07:00），Claude：開工；系統架構（繁中、英文）更新並推送（5362a93），開 PR #68。</li>
+        <li>2026-10-22 00:00 PDT（UTC−07:00），Claude：桌面端分發（繁中、英文）加四張圖並對齊 v0.4.0，推送（14c2f73）。</li>
+        <li>2026-10-22 00:02 PDT（UTC−07:00），Claude：技術選型、產品定位、多用戶（繁中、英文）對齊並推送。</li>
+        <li>2026-10-22 00:08 PDT（UTC−07:00），Claude：回填驗證：8f7ae51 的 CI 失敗只因簡中未產生；420b229 本機文檔測試 278 通過；推送本提交讓 CI 在最新 head 上跑。</li>
+        <li>2026-10-22 03:33 America/Los_Angeles（PDT，UTC−07:00），OpenAI Codex：接收 PR #68 head <code>2739aef</code>，以 merge 整合 main <code>62598a6</code>，不重寫歷史。解決六個檔案的衝突：多用戶文檔保留已合併的 M7b <code>popup</code>／<code>page</code> 說明與 PR 原有的 Secrets、領域版本、錄製端更新；架構與桌面端英文重新 stamp；簡中由工具重新產生；任務索引保留設計更新、M7b 及多分頁回看三份任務。既有架構圖及 main 錄製說明均保留。只做文件整合，程式檔案維持最新 main。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

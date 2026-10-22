@@ -1295,7 +1295,7 @@
   "replay.previous": "上一次",
   "replay.next": "下一次",
   "replay.run_details": "运行详情",
-  "replay.download": "下载录像",
+  "replay.download": "下载主要录像片段",
   "replay.workflow_node": "组合场景的节点 {node}，串行运行",
   "replay.not_finished": "运行还没结束，结束后才能回看。",
   "replay.video": "录像",
@@ -1363,7 +1363,7 @@
   "replayjs.open_in_scene": "在场景中打开（第 {{line}} 行）",
   "replayjs.copied": "已拷贝链接",
   "replayjs.copy_failed": "没办法拷贝，请手动选取：{{link}}",
-  "replayjs.beyond_video": "视频在 {{time}} 之后没有新的画面：运行被中断时，最后的等待没有录到。",
+  "replayjs.beyond_video": "视频只涵盖到 {{time}}，其余步骤没有对应画面；这不代表运行失败。",
   "replayjs.no_steps": "这次运行没有步骤记录。",
   "replayjs.pin": "钉选，不自动删除",
   "replayjs.pinned": "已钉选（不会自动删除）",
@@ -1379,5 +1379,9 @@
   "replayjs.action_extract": "读取 {{id}}",
   "replayjs.action_screenshot": "截图 {{id}}",
   "spec.dynamic": "动态值",
-  "spec.dynamic_title": "每次运行开始时换成当下的值（今天的日期、随机数…）"
+  "spec.dynamic_title": "每次运行开始时换成当下的值（今天的日期、随机数…）",
+  "replay.page_recordings": "各分页原始录像：",
+  "replay.page_number": "分页 {n}",
+  "replay.missing_clip": "此时段没有对应分页的录像。运行结果请以步骤记录为准。",
+  "replayjs.missing_pages": "部分分页视频缺失；时间轴保留完整步骤，缺片时段会显示提示。"
 }

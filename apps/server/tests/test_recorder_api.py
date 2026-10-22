@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Client, Response
 
+from rpa_core.dsl import dynamic
 from rpa_server.config import Settings
 from rpa_server.context import Via, use_recorder
 from rpa_server.devices import LOST_EXIT
@@ -446,8 +447,12 @@ def test_outdated_recorder_is_told_to_update_for_iframes(
 
 
 def test_dynamic_debug_inputs_are_evaluated_and_returned_by_the_recorder(
-    app: FastAPI, client: Client, remote: Client
+    app: FastAPI, client: Client, remote: Client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("伺服器不應替錄製端求值")
+
+    monkeypatch.setattr("rpa_runner.contract.evaluate", forbidden)
     body(client.post("/api/scenes/import"))
     device = paired(client, remote)
     device.hello()
@@ -473,8 +478,13 @@ def test_dynamic_debug_inputs_are_evaluated_and_returned_by_the_recorder(
 
 
 def test_continue_recording_sends_dynamic_defaults_without_server_evaluation(
-    app: FastAPI, client: Client
+    app: FastAPI, client: Client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("伺服器不應替接著錄製的子程序求值")
+
+    monkeypatch.setattr(dynamic, "_local_now", forbidden)
+    monkeypatch.setattr("rpa_runner.contract.evaluate", forbidden)
     create_scene(
         client,
         "dynamic-replay",
