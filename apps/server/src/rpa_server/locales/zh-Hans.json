@@ -1295,7 +1295,7 @@
   "replay.previous": "上一次",
   "replay.next": "下一次",
   "replay.run_details": "运行详情",
-  "replay.download": "下载起始分页录像",
+  "replay.download": "下载主要录像片段",
   "replay.workflow_node": "组合场景的节点 {node}，串行运行",
   "replay.not_finished": "运行还没结束，结束后才能回看。",
   "replay.video": "录像",

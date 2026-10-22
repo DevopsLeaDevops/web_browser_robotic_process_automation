@@ -1295,7 +1295,7 @@
   "replay.previous": "上一次",
   "replay.next": "下一次",
   "replay.run_details": "運行詳情",
-  "replay.download": "下載起始分頁錄影",
+  "replay.download": "下載主要錄影片段",
   "replay.workflow_node": "組合場景的節點 {node}，序列執行",
   "replay.not_finished": "運行還沒結束，結束後才能回看。",
   "replay.video": "錄影",

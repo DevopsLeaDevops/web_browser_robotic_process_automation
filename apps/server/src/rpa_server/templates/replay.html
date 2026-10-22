@@ -45,7 +45,7 @@
         </div>
         {% if video.clips|length > 1 %}
         <div class="replay-downloads">{{ t("replay.page_recordings") }}
-          {% for clip in video.clips %}{% if clip.url %}<a href="{{ clip.url }}" download>{{ t("replay.page_number", n=loop.index) }}</a>{% endif %}{% endfor %}
+          {% for clip in video.clips %}{% if clip.url %}<a href="{{ clip.url }}" download>{{ t("replay.page_number", n=clip.pageId|replace("page-", "")) }}</a>{% endif %}{% endfor %}
         </div>
         {% endif %}
         <div class="replay-controls">

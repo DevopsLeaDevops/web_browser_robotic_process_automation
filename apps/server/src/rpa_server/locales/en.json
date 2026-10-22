@@ -1295,7 +1295,7 @@
   "replay.previous": "Previous",
   "replay.next": "Next",
   "replay.run_details": "Run details",
-  "replay.download": "Download initial page video",
+  "replay.download": "Download primary video clip",
   "replay.workflow_node": "Node {node} of the composite run",
   "replay.not_finished": "The run has not finished yet; it can be replayed when it ends.",
   "replay.video": "Recording",
