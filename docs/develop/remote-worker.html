@@ -125,7 +125,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
       <div class="panel-header"><h2>macOS：RPA 錄製端 App</h2><span class="muted">M10.2：不需要 uv、git、Python；Apple 晶片</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>從 GitHub 倉庫的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下載和管理 Portal 同一個版本的 <code>RPA-Recorder-版本-macos-arm64.dmg</code>（v0.3.0 起）。測試還沒發布的版本時，改從 PR 或 <code>main</code> 的「桌面端建置」執行紀錄的 <strong>Artifacts</strong> 下載 <code>recorder-macos-14</code>（裡面是 DMG）。打開 DMG，把「RPA 錄製端」拖進「應用程式」。</li>
+          <li>從 GitHub 倉庫的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下載和管理 Portal 同一個版本的 <code>RPA-Recorder-版本-macos-arm64.dmg</code>（v0.3.0 起）。測試還沒發布的版本時，改從 PR 或 <code>main</code> 的「桌面端建置」執行紀錄的 <strong>Artifacts</strong> 下載 <code>recorder-macos-15</code>（裡面是 DMG）。打開 DMG，把「RPA 錄製端」拖進「應用程式」。</li>
           <li>沒有簽章：第一次打開會被擋下。到「系統設定 › 隱私權與安全性」，在下方找到 RPA 錄製端，選擇允許打開並輸入密碼（熟悉終端機的人也可以執行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>）。macOS 15 起會詢問是否允許連到區網上的裝置，請按「允許」。</li>
           <li>視窗打開後，把裝置頁產生的<strong>錄製端</strong>邀請貼在「邀請」欄（只貼代碼時另外填管理 Portal 的網址），需要 Firefox 就勾選，按「配對」。第一次會下載 Chromium，視窗顯示進度；連上後自動打開管理 Portal，頁首顯示「透過錄製端「名稱」」。</li>
         </ol>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:d216d2d89dd3c211">
+<meta name="translation-source" content="sha256:fb37f141f9f02e07">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -126,7 +126,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
       <div class="panel-header"><h2>macOS: the RPA Recorder app</h2><span class="muted">M10.2: no uv, git or Python needed; Apple silicon</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>Download <code>RPA-Recorder-version-macos-arm64.dmg</code> for the same version as the portal from the repository's <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> (from v0.3.0). To test an unreleased version, download <code>recorder-macos-14</code> (it contains the DMG) from the <strong>Artifacts</strong> of a “Desktop build” run for a PR or <code>main</code> instead. Open the DMG and drag “RPA Recorder” into Applications.</li>
+          <li>Download <code>RPA-Recorder-version-macos-arm64.dmg</code> for the same version as the portal from the repository's <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> (from v0.3.0). To test an unreleased version, download <code>recorder-macos-15</code> (it contains the DMG) from the <strong>Artifacts</strong> of a “Desktop build” run for a PR or <code>main</code> instead. Open the DMG and drag “RPA Recorder” into Applications.</li>
           <li>It is not signed, so the first launch is blocked. Open “System Settings › Privacy &amp; Security”, find RPA Recorder near the bottom, allow it to open and enter your password (if you are comfortable with Terminal, <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code> also works). From macOS 15 you are asked whether it may connect to devices on your local network; choose “Allow”.</li>
           <li>When the window opens, paste the <strong>recorder</strong> invitation from the Devices page into “Invitation” (enter the portal URL separately when pasting just the code), tick Firefox if you need it, and choose “Pair”. The first time it downloads Chromium and shows the progress; once connected it opens the portal, whose header shows “Via recorder “name””.</li>
         </ol>

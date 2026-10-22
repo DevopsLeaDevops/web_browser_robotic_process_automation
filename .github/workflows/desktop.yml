@@ -1,4 +1,6 @@
 # 桌面端建置（M10，ADR 0014）：建 RPA 錄製端（macOS，Apple 晶片）與 RPA Worker（Windows x64），
+# macOS 用 macos-15（arm64）：macos-14 在 2026-11-02 停用，10 月起已經分配不到機器
+# （https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement）；
 # 再用打包後的 App 跑自我測試（rpa_desktop.selftest）：
 #   App 用內附的 Playwright driver 把 Chromium 下載到全新的資料夾 → 啟動測試網站 →
 #   無頭執行 BA-001（子程序走 --rpa-module）與它的 Python 腳本版（走 --rpa-script）。
@@ -31,6 +33,8 @@ on:
       - "packages/**"
       # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
       - "!apps/server/tests/**"
+      # 伺服器的分發包（server-package.yml）不進桌面 App
+      - "!apps/server/packaging/**"
       - "!apps/cli/tests/**"
       - "!apps/testsite/tests/**"
       - "!packages/rpa_core/tests/**"
@@ -55,6 +59,8 @@ on:
       - "packages/**"
       # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
       - "!apps/server/tests/**"
+      # 伺服器的分發包（server-package.yml）不進桌面 App
+      - "!apps/server/packaging/**"
       - "!apps/cli/tests/**"
       - "!apps/testsite/tests/**"
       - "!packages/rpa_core/tests/**"
@@ -104,7 +110,7 @@ jobs:
       matrix:
         include:
           - app: recorder
-            os: macos-14
+            os: macos-15
             name: RPA 錄製端（macOS）
           - app: worker
             os: windows-latest

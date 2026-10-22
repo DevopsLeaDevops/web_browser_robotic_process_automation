@@ -45,7 +45,7 @@
         <table class="wrap">
           <thead><tr><th>節點</th><th>跑哪些流程</th><th>大約多久</th></tr></thead>
           <tbody>
-            <tr><td>往 PR 推送、合併到 main</td><td>CI（Linux）每次都跑；整個 PR 改到 Worker 的路徑時加跑 Windows 的 Worker 測試；改到 <code>apps/</code>、<code>packages/</code> 時加跑桌面端建置；改到腳本或依賴時加跑一鍵安裝腳本（只驗證腳本與冒煙測試）</td><td>約 4 分（桌面端建置是下限）；不觸發桌面端建置時約 2.5 分</td></tr>
+            <tr><td>往 PR 推送、合併到 main</td><td>CI（Linux）每次都跑；整個 PR 改到 Worker 的路徑時加跑 Windows 的 Worker 測試；改到 <code>apps/</code>、<code>packages/</code> 時加跑桌面端建置；改到伺服器用到的套件或依賴時加跑伺服器分發包（建置 x64、arm64，在 Rocky 8 容器裡安裝、啟動、升級）；改到腳本或依賴時加跑一鍵安裝腳本（只驗證腳本與冒煙測試）</td><td>約 4 分（桌面端建置是下限）；不觸發桌面端建置時約 2.5 分</td></tr>
             <tr><td>只改 <code>handoff/</code>、<code>docs/</code> 的推送</td><td>見<a href="#docs-only">下一節</a></td><td>約 1 分</td></tr>
             <tr><td>推版本標籤 <code>v*</code></td><td>發布：確認版本、建兩個桌面 App、草稿 Release</td><td>約 4 分</td></tr>
             <tr><td>每天 20:17 UTC</td><td>每晚完整測試：三個系統、兩種瀏覽器、Python 3.12 與 3.13 的全部測試，瀏覽器測試連跑三遍</td><td>約 30 分</td></tr>
@@ -80,7 +80,9 @@ gh workflow run ci.yml --ref 分支名稱 -f scope=full
 # 一鍵安裝腳本：full（預設）＝全部測試加從零開始；role＝同 PR
 gh workflow run setup-scripts.yml --ref 分支名稱
 # 桌面端建置
-gh workflow run desktop.yml --ref 分支名稱</pre>
+gh workflow run desktop.yml --ref 分支名稱
+# 伺服器分發包（Linux x64、arm64）
+gh workflow run server-package.yml --ref 分支名稱</pre>
       <div class="panel-body prose">
         <p>本機照角色跑：<code>uv run pytest -m "browser and (role_worker or smoke)"</code>（Worker）、<code>uv run pytest -m "not browser or ((smoke or role_server or role_recorder) and not firefox)"</code>（同 CI 的 Linux）。</p>
       </div>
@@ -89,7 +91,7 @@ gh workflow run desktop.yml --ref 分支名稱</pre>
     <section class="panel" id="metrics">
       <div class="panel-header"><h2>運行耗時紀錄</h2></div>
       <div class="panel-body prose">
-        <p>每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，「運行耗時紀錄」流程（<code>tools/ci_metrics.py</code>）把結果追加到倉庫的 <code>ci-metrics</code> 分支，不碰 main，也不觸發其他流程。在 GitHub 切到 <code>ci-metrics</code> 分支就看得到總覽 <code>README.md</code>：各流程近 7 天與前 7 天的比較、每天各系統的機器時間、最慢的測試檔案、最近的運行。</p>
+        <p>每次 CI、桌面端建置、伺服器分發包、一鍵安裝腳本、每晚完整測試、發布結束後，「運行耗時紀錄」流程（<code>tools/ci_metrics.py</code>）把結果追加到倉庫的 <code>ci-metrics</code> 分支，不碰 main，也不觸發其他流程。在 GitHub 切到 <code>ci-metrics</code> 分支就看得到總覽 <code>README.md</code>：各流程近 7 天與前 7 天的比較、每天各系統的機器時間、最慢的測試檔案、最近的運行。</p>
         <dl class="spec-list">
           <dt><code>data/runs.jsonl</code></dt><dd>每次運行（重跑各一行）：觸發方式、分支、結果、耗時（含排隊）、最長排隊、各系統的機器時間</dd>
           <dt><code>data/jobs.jsonl</code></dt><dd>每個工作的排隊與執行時間</dd>

@@ -34,7 +34,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Final, cast
 
-TRACKED: Final = ("CI", "桌面端建置", "一鍵安裝腳本", "每晚完整測試", "發布")
+TRACKED: Final = ("CI", "桌面端建置", "伺服器分發包", "一鍵安裝腳本", "每晚完整測試", "發布")
 """要記錄的 workflow（name）；ci-metrics.yml 的 workflow_run 也列同一份。"""
 
 REPORTS: Final = ("pytest-report-", "test-results-")

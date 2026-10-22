@@ -46,7 +46,7 @@
           <tbody>
             <tr><td>RPA 录制端</td><td><span class="badge green">已交付</span>（v0.3.0 起）</td><td><span class="badge">保留方案</span></td><td>录制、逐步调试、人工登录，以及 Portal 的其他功能；Apple 芯片（arm64）</td></tr>
             <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>运行场景（含有头模式、录像）；Windows x64</td></tr>
-            <tr><td>服务器（rpa serve）</td><td colspan="2"><span class="badge">不打包</span>：从源代码安装，一键安装脚本；Linux（RHEL 衍生版）用 <code>scripts/setup-linux.sh</code>，可用 systemd 开机启动</td><td>先在用户自己的电脑调试；现在也放在没有屏幕的 Linux 主机（见<a href="../develop/operations.html">部署与操作</a>）</td></tr>
+            <tr><td>服务器（rpa serve）</td><td colspan="2"><span class="badge blue">Linux 分发包</span>：Linux（RHEL 衍生版）用自带 Python 的 tar.gz（x64、arm64），解压后运行 <code>install.sh</code>，可用 systemd 开机启动（<a href="../develop/setup.html#linux-package">分发包</a>）；也可以从源代码安装（<code>scripts/setup-linux.sh</code>）。macOS、Windows 照旧从源代码安装，一键安装脚本</td><td>先在用户自己的电脑调试；现在也放在没有屏幕的 Linux 主机（见<a href="../develop/operations.html">部署与操作</a>）</td></tr>
             <tr><td>数据库</td><td colspan="2"><span class="badge">不另做二进位</span></td><td>SQLite 内嵌在服务器里；正式环境的 PostgreSQL 用官方安装包或 Docker（M8、M9）</td></tr>
           </tbody>
         </table>
@@ -421,7 +421,7 @@
           <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
         </svg>
       </div>
-      <div class="diagram-caption">服务器不打包，用同一个版本的源代码更新。v0.4.0 的已知问题（回看视频比例、录像对时）写在 Release 说明与任务记录。</div>
+      <div class="diagram-caption">服务器：Linux 用同一个版本的分发包（「服务器分发包」流程建置，发布时一起附上）；其他系统用同一个版本的源代码更新。v0.4.0 的已知问题（回看视频比例、录像对时）写在 Release 说明与任务记录。</div>
     </section>
 
     <div class="two-col">
@@ -444,7 +444,7 @@
         <div class="panel-body prose">
           <ul>
             <li><strong>同一个版本。</strong>服务器、Worker、录制端与所有包用同一个版本（<code>主.次.修</code>，数字），标签是 <code>v0.2.0</code> 这种格式（2026-10-18 决定）。<code>python3 tools/release_version.py bump 0.2.0</code> 一次改全部包与 <code>uv.lock</code>。</li>
-            <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合并 → 在 <code>main</code> 上打标签并推送 → 「发布」流程（<code>.github/workflows/release.yml</code>）确认标签和包版本一致、标签在 <code>main</code> 上，调用桌面端建置（含安装、升级、卸载的端到端），创建<strong>草稿</strong> Release：Worker 的安装档与免安装 zip、录制端的 DMG（M10.2 起）、<code>SHA256SUMS.txt</code>。</li>
+            <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合并 → 在 <code>main</code> 上打标签并推送 → 「发布」流程（<code>.github/workflows/release.yml</code>）确认标签和包版本一致、标签在 <code>main</code> 上，调用桌面端建置（含安装、升级、卸载的端到端）与服务器分发包的建置（在 Rocky 8 容器里安装、启动、升级），创建<strong>草稿</strong> Release：Worker 的安装档与免安装 zip、录制端的 DMG（M10.2 起）、服务器的分发包（Linux x64、arm64）、<code>SHA256SUMS.txt</code>。</li>
             <li><strong>草稿。</strong>仓库是公开的，发布后任何人都下载得到（没有邀请连不上 Portal）；所以由维护者确认草稿的内容后才按「发布」。重新运行时换掉同一个草稿的文件；已经发布的版本不换，改用新的版本。</li>
             <li><strong>下载新版。</strong>App 的版本和服务器不同时，窗口的「下载新版」打开最新的 Release（<code>…/releases/latest</code>，只算已发布的）。</li>
           </ul>
@@ -505,7 +505,7 @@
             <tbody>
               <tr><td>录制端 Windows 版</td><td>同一份代码，多一个建置组合与验收</td></tr>
               <tr><td>Worker macOS 版</td><td>同上，加上「登录时启动」（登录项目）</td></tr>
-              <tr><td>服务器</td><td>同一套打包工具打出 <code>rpa serve</code>（macOS、Windows、Linux）；M9 的 Docker Compose 另做</td></tr>
+              <tr><td>macOS、Windows 的服务器</td><td>Linux 已有自带 Python 的分发包（<a href="../develop/setup.html#linux-package">分发包</a>）；其他系统需要时用同样的方式另建；M9 的 Docker Compose 另做</td></tr>
               <tr><td>自动更新</td><td>MVP 只提醒并连到下载页；之后用 Sparkle、WinSparkle</td></tr>
               <tr><td>HTTPS</td><td>服务器产生自签凭证，邀请里带凭证指纹，闸道与 worker 钉选；不必购买凭证</td></tr>
               <tr><td>脱机安装档</td><td>安装档内含 Chromium，给连不到下载站的内网</td></tr>

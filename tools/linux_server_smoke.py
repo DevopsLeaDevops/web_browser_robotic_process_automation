@@ -1,5 +1,15 @@
-"""用獨立暫存資料與隨機埠，驗證 .venv-server 的 HTTP 啟動、配對及重新啟動。"""
+"""用獨立暫存資料與隨機埠，驗證伺服器的 HTTP 啟動、配對及重新啟動。
 
+setup-linux.sh 裝的 .venv-server::
+
+    .venv-server/bin/python tools/linux_server_smoke.py
+
+分發包（tools/build_server.py）::
+
+    python3 tools/linux_server_smoke.py --rpa ~/rpa-server/bin/rpa --cwd ~/rpa-server/current
+"""
+
+import argparse
 import json
 import os
 import signal
@@ -39,7 +49,7 @@ def request(
     return cast("dict[str, object]", value)
 
 
-def smoke() -> None:
+def smoke(rpa: Path = ROOT / ".venv-server/bin/rpa", cwd: Path = ROOT) -> None:
     # 同時保留兩個 socket，確保選到不同的埠；真正的 serve 仍需自行 bind。
     with socket.socket() as admin_socket, socket.socket() as worker_socket:
         admin_socket.bind(("127.0.0.1", 0))
@@ -53,7 +63,7 @@ def smoke() -> None:
         env = {key: value for key, value in os.environ.items() if not key.startswith("RPA_")}
         env["RPA_LANG"] = "en"
         command = [
-            str(ROOT / ".venv-server/bin/rpa"),
+            str(rpa),
             "serve",
             "--host",
             "127.0.0.1",
@@ -70,7 +80,7 @@ def smoke() -> None:
         ]
         for restart in (False, True):
             with log_path.open("w", encoding="utf-8") as log:
-                process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=log, stderr=log)
+                process = subprocess.Popen(command, cwd=cwd, env=env, stdout=log, stderr=log)
                 try:
                     deadline = time.monotonic() + 40
                     while True:
@@ -125,5 +135,13 @@ def smoke() -> None:
         print("Linux 伺服器冒煙通過：HTTP、埠隔離、裝置配對、重新啟動保留資料。")
 
 
+def main() -> None:
+    parser = argparse.ArgumentParser(description="驗證伺服器的 HTTP 啟動、配對及重新啟動")
+    parser.add_argument("--rpa", type=Path, default=ROOT / ".venv-server/bin/rpa")
+    parser.add_argument("--cwd", type=Path, default=ROOT, help="伺服器的工作目錄")
+    args = parser.parse_args()
+    smoke(args.rpa.expanduser(), args.cwd.expanduser())
+
+
 if __name__ == "__main__":
-    smoke()
+    main()

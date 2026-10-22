@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:d7e91d9ac4f27ed8">
+<meta name="translation-source" content="sha256:7150a592e24fb42e">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -129,7 +129,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
         <ol>
           <li>Check “Run reports” for jobs still running, and make sure no recording or debugging is in progress on a recorder.</li>
           <li>Stop the server (Ctrl+C or <code>sudo systemctl stop rpa-portal</code>); a <a href="#backup">backup</a> first is a good idea.</li>
-          <li><code>git pull</code>, then run <code>./scripts/setup.sh</code> (it installs only what changed; use <code>uv sync</code> to update just the dependencies).</li>
+          <li><code>git pull</code>, then run <code>./scripts/setup.sh</code> (it installs only what changed; use <code>uv sync</code> to update just the dependencies). A Linux server installed from the <a href="setup.html#linux-package">package</a> instead: extract the new package and run its <code>install.sh</code>; it puts the new version in place before switching and restarts a running service (this step and the next in one go).</li>
           <li>Start the server. The database is upgraded on start, and existing scenes and history are kept. The first upgrade to M11 moves the old <code>scenes/</code> and the database's validations, publications and composite scenarios into <code>domains/</code>, after a backup to <code>backups/&lt;time&gt;-before-domains/</code> (composite scenarios also <code>-before-composites/</code>); the log prints where the backup is.</li>
           <li>Bring workers and recorders to the same version: the apps take the installer or DMG of that version, and command-line machines <code>git pull</code> and restart.</li>
         </ol>

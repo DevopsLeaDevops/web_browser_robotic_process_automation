@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# 分發包裡的 rpa 命令（tools/build_server.py 放到 bin/rpa）：用包內的 Python 執行 rpa_cli。
+# 不讀使用者或系統的 Python 設定（PYTHONPATH、使用者的 site-packages），伺服器啟動的子程序
+# （sys.executable -m …）也繼承同樣的環境。
+set -euo pipefail
+root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONUSERBASE
+export PYTHONNOUSERSITE=1 PYTHONUTF8=1
+# 包內的 Python 自帶 OpenSSL，憑證預設找 Debian 的位置；RHEL 系統的憑證在 /etc/pki。
+if [ -z "${SSL_CERT_FILE:-}" ] && [ -z "${SSL_CERT_DIR:-}" ]; then
+  for bundle in /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem; do
+    if [ -r "$bundle" ]; then
+      export SSL_CERT_FILE="$bundle"
+      break
+    fi
+  done
+fi
+exec "$root/python/bin/python3" -m rpa_cli "$@"

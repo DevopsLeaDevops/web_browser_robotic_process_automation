@@ -36,7 +36,17 @@ uv run rpa serve --data data-m4      # 另用一份全新的資料夾（例如�
 
 完整說明見 `docs/develop/setup.html`；在 Mac 上從零開始的逐步說明見 `docs/develop/macos.html`。
 
-Linux 伺服器（RHEL／CentOS 衍生版、yum／dnf，無桌面）使用獨立腳本：
+Linux 伺服器（RHEL／CentOS 衍生版、yum／dnf，無桌面）用分發包：GitHub Release 的
+`RPA-Server-<版本>-linux-x64.tar.gz`（aarch64 用 `linux-arm64`）內含 Python 與所有套件，
+伺服器不需要 git、uv 或連到 PyPI。升級時解壓新版再執行一次 `install.sh`，設定、資料與服務沿用。
+
+```bash
+tar -xzf RPA-Server-<版本>-linux-x64.tar.gz
+bash RPA-Server-<版本>-linux-x64/install.sh --install-service   # 裝到 ~/rpa-server，啟動 systemd 服務
+~/rpa-server/bin/rpa-server                                      # 或前景啟動
+```
+
+也可以從原始碼安裝（要在伺服器上跑還沒發布的程式碼時）：
 
 ```bash
 bash scripts/setup-linux.sh                    # 安裝 .venv-server
@@ -48,7 +58,7 @@ bash scripts/setup-linux.sh --install-service
 支援 `ID` 空白、`ID_LIKE="rhel fedora centos "`、`VERSION_ID="3"` 的公司系統；
 x86_64／aarch64、glibc 2.28 以上（提供的 x86_64、glibc 2.32 符合檢查）。
 伺服器負責管理與調度，瀏覽器執行交給遠端 Worker／錄製端；不下載瀏覽器或安裝桌面 App。
-設定、SSH 轉發、配對、升級與公司網路見 [Linux 伺服器安裝](docs/develop/setup.html#linux-server)。
+分發包見 [Linux 伺服器：分發包](docs/develop/setup.html#linux-package)；設定、SSH 轉發、配對、升級與公司網路見 [Linux 伺服器安裝](docs/develop/setup.html#linux-server)。
 
 ## 目前進度
 
