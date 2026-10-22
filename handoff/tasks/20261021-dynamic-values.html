@@ -15,14 +15,14 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-22 04:23 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261021-dynamic-values；2026-10-22 04:29 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-21 07:30 America/Los_Angeles（PDT，UTC−07:00）：「場景錄製支持可變參數」，例如 arrivalDate 是當前日期、expiryDate 是當前日期＋1、purchaseQuantity 是 10～30 之間的隨機數，附上入參 JSON（<code>"arrivalDate": "{{today}}"</code>、<code>"expiryDate": "{{today+1}}"</code>、<code>"purchaseQuantity": "{{random:10:30}}"</code>、<code>"remark": "CG-001脚本创建{{today}}日期"</code> 等）。<br>驗收：(1) 入參的預設值、執行表單的入參 JSON、試驗場節點的固定值、命令列 <code>-i</code>／<code>--input</code> 都能寫這些動態值；(2) 每次執行開始時求值，<code>input.json</code> 與報告是實際用到的值，重新執行時重新求值；(3) 寫錯（例如 <code>{{tody}}</code>、<code>{{random:30:10}}</code>）時在存檔或啟動瀏覽器之前就說明哪裡錯；(4) 整數入參寫 <code>{{random:10:30}}</code> 得到整數。</dd>
         <dt>範圍／不包含</dt><dd>範圍：rpa_core 的動態值語法與校驗、Runner 求值、伺服器與 Portal 的提示、遠端裝置的擴充檢查、DSL 文檔。<br>不包含（待使用者決定）：錄製轉換時自動把「錄製當天的日期」改成 <code>{{today}}</code>；步驟裡直接寫動態值；引用其他入參。</dd>
         <dt>主責／審閱／接收方</dt><dd>原實作 Claude；本輪修復主責 ChatGPT／Codex（使用者本次授權）；合併：使用者</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/</code>（新增 <code>dynamic.py</code>；<code>contract.py</code>、<code>checks.py</code>、<code>features.py</code>、<code>yaml_loader.py</code>）、<code>rpa_core/workflow.py</code>、rpa_core／rpa_runner／rpa_server 的訊息目錄、<code>rpa_runner/contract.py</code>、伺服器的 <code>dispatch.py</code>、<code>debugging.py</code>、樣板與 <code>portal.js</code>、<code>docs/design/dsl.html</code>（含英文）、本任務卡與任務索引。<br><strong>整合結果</strong>：使用者已合併 PR #66；本輪以 merge 整合 main <code>588e6a4</code>，解決 5 個檔案衝突，保留多分頁與動態值能力。</dd>
-        <dt>狀態</dt><dd>本輪實作與本地驗證完成，已解決與 main e63559a 的 4 個衝突，準備推送；CI 尚待本輪提交執行，合併由使用者決定</dd>
+        <dt>狀態</dt><dd>修復與 main 整合已推送 <code>1b8e049</code>；GitHub 已確認無衝突。該程式提交的完整 CI 及 Windows Worker 安裝包／端到端通過；macOS 錄製端構建仍在等待 Runner，尚不能標示全部 CI 通過。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>feat/dynamic-values</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/67">PR #67</a>（base main）；本輪起點 <code>62bc7ad</code>，整合 main <code>e63559a</code>；原始起點 <code>fcb8e8f</code></dd>
-        <dt>交接版本／同步狀態</dt><dd>原始實作及歷次修復見下方歷史紀錄；本輪接續遠端 <code>62bc7ad</code>，工作區修改與 main merge 尚待提交推送。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送 <code>1b8e049</code>（父提交 <code>62bc7ad</code> 與 main <code>e63559a</code>）；本次後續提交只更新交接紀錄，程式內容不變。最新 head 與流水線狀態以 PR #67 為準。</dd>
         <dt>工作區／環境</dt><dd>本輪：本機 macOS、Python 3.13.16、uv 0.12.24、鎖定依賴，Chromium／Firefox 皆可用；CI 另驗證 Linux、Windows、macOS。原實作雲端環境限制見歷史驗證紀錄。</dd>
       </dl></div>
     </section>
@@ -46,7 +46,7 @@
         <li><strong>已完成：</strong><code>rpa_core.dsl.dynamic</code>（語法、單次求值、跳脫）；<code>InputSpec</code> 預設值與 <code>check_value</code>；Runner <code>check_inputs</code> 求值（<code>input.json</code>、報告是實際值）；試驗場固定值檢查與上游出參跳脫；DSL 擴充 <code>dynamicValues</code>（場景預設值、這次的入參；遠端 worker 與錄製端裝置）；調試換版本時預設值求值；Portal 提示與「動態值」標示；三種語言訊息（簡中待 bootstrap）；<code>docs/design/dsl.html</code>「入參的動態值」一節與英文版（stamp）。</li>
         <li><strong>未完成／阻礙：</strong>審閱與合併（使用者）；人工驗收（實際業務系統的採購單場景；遠端執行要用這個版本以後的 Worker App）；錄製時自動改成 <code>{{today}}</code> 待使用者決定。</li>
         <li><strong>決定：</strong>運行態單次求值與腳本共用已由使用者確認，取代先前的完整枚舉／代表值檢查選擇；錄製時要不要自動把錄製當天的日期改成 <code>{{today}}</code>：待使用者決定。</li>
-        <li><strong>下一個具體動作：</strong>完成本輪修復、main 整合、回歸驗證與推送，核對最終 head 的 CI；合併與實際採購場景人工驗收由使用者進行。</li>
+        <li><strong>下一個具體動作：</strong>修復與解衝突已交付；等待最終 head 的 macOS 錄製端建置及其餘 CI 完成，通過後由使用者決定合併；實際採購場景人工驗收尚未執行。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -102,8 +102,8 @@
 <li>試驗場數字及枚舉固定值改用文字輸入（枚舉保留候選清單），可以編輯、保存並重開動態表達式，普通數字仍轉回契約型別。main 的三語回看訊息與新任務索引全部保留，無未解決衝突。</li>
 <li>版本：62bc7ad＋main e63559a＋本輪工作區；macOS、Python 3.13.16、uv 0.12.24、uv sync --locked。pytest -q -m "not browser" -n 4：1574 passed、2 skipped（Windows 專用）。真實 Chromium／Firefox：試驗場編輯、單次求值到頁面與斷言／出參、調試重載、HTTP／閘道／錄製端子程序 7 passed。現有測試中不再要求預先枚舉所有可能結果，改為驗證實際抽到的值、提交零求值與每次執行只抽一次。</li>
 <li>Ruff、格式、i18n stamp／sync／check、diff、31 個 handoff 連結與錨點通過；全倉庫非瀏覽器測試包含 docs／i18n。修改 Python 檔案 Pyright strict：0 errors、0 warnings；全倉庫 Linux 目標：0 errors、3 個既有 pystray warnings。原生 macOS 全倉庫仍有原先已確認的 Foundation 缺型別宣告（recorder_gui.py:130，1 error），本輪未改該檔；提交僅略過此 pyright hook，CI 照常完整檢查。</li>
-<li>尚未完成：推送後核對最終 head 的 CI；實際採購場景及跨機人工業務驗收未執行。不得沿用舊 PR 說明中的 a53231c 可合併結論。</li>
-</ul></div>
+<li>尚未完成：最終 head 的 macOS 錄製端 CI；實際採購場景及跨機人工業務驗收未執行。不得沿用舊 PR 說明中的 a53231c 可合併結論。</li>
+</ul><p>2026-10-22 04:29 America/Los_Angeles（PDT，UTC−07:00）：<code>1b8e049</code> 已推送，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39770306226">程式提交 CI</a>的靜態、Python 3.12／3.13、Windows Worker 全部通過；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39770306210">桌面端建置</a>的 Windows 安裝、邀請配對、執行、升級及解除安裝通過，macOS 工作仍在排隊。GitHub mergeable=true；未替使用者合併。本次只更新紀錄；後續最終 head 的執行範圍與檢查狀態以 PR 為準。</p></div>
     </section>
   </div>
 </main>
