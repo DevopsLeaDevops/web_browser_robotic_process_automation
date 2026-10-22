@@ -83,7 +83,7 @@
             <li>下载浏览器，状态变成「在线」。</li>
             <li>关掉窗口是缩到通知区；可勾选「登录 Windows 时自动启动」。</li>
           </ol>
-          <p>macOS：打开 DMG，把「RPA Worker」拖进「应用程序」；第一次打开到「隐私权与安全性」允许（同录制端）。之后同上，关掉窗口是缩到菜单列，可勾选「登录 macOS 时自动启动」。</p>
+          <p>macOS：打开 DMG，把「RPA Worker」拖进「应用程序」；第一次打开到「隐私权与安全性」允许（同录制端）。之后同上，关掉窗口是缩到菜单栏，可勾选「登录 macOS 时自动启动」。</p>
         </div>
       </section>
     </div>
@@ -110,7 +110,7 @@
           <rect class="box key" x="30" y="126" width="268" height="78" rx="8"/>
           <text class="title" x="44" y="148">本机闸道 127.0.0.1:随机端口</text>
           <text class="sub" x="44" y="168">要有启动时发的密语 Cookie 才转送</text>
-          <text class="sub" x="44" y="186">加上设备权杖（钥匙圈）转给服务器</text>
+          <text class="sub" x="44" y="186">加上设备权杖（钥匙串）转给服务器</text>
           <rect class="box key" x="30" y="224" width="268" height="78" rx="8"/>
           <text class="title" x="44" y="246">交互主机</text>
           <text class="sub" x="44" y="266">长轮询 /control 取得启动、送一行、结束</text>
@@ -175,7 +175,7 @@
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="pair-title pair-desc">
           <title id="pair-title">配对与上线</title>
-          <desc id="pair-desc">在 Portal 的设备页产生一次性邀请，贴到 App；App 用邀请换到设备权杖并存进系统的钥匙圈或认证管理员，下载浏览器后上线并回报版本、浏览器与看得懂的 DSL 扩充。</desc>
+          <desc id="pair-desc">在 Portal 的设备页产生一次性邀请，贴到 App；App 用邀请换到设备权杖并存进系统的钥匙串或认证管理员，下载浏览器后上线并回报版本、浏览器与看得懂的 DSL 扩充。</desc>
           <defs>
             <marker id="pair-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -205,7 +205,7 @@
           <rect class="box" x="603" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="617" y="42">4</text>
           <text class="title" x="631" y="42">安全保存</text>
-          <text class="sub" x="617" y="64">macOS 钥匙圈</text>
+          <text class="sub" x="617" y="64">macOS 钥匙串</text>
           <text class="sub" x="617" y="82">Windows 认证管理员</text>
           <text class="sub" x="617" y="100">权杖不进网页</text>
           <path class="link" d="M587 76H601" marker-end="url(#pair-arrow)"/>
@@ -228,7 +228,7 @@
           <ul>
             <li><strong>「远程 Worker」页改成「设备」页。</strong>列出 Worker 与录制端两种设备；添加时选种类与名称，产生<strong>邀请</strong>，取代现在「拷贝权杖＋启动命令」。</li>
             <li><strong>邀请。</strong>一行文字：<code>rpa://pair?server=http://192.168.1.10:8081&amp;app=worker&amp;code=…</code>。代码一次性、24 小时内有效、限定 App 种类；数据库只存哈希。App 也接受分开填写的服务器网址与代码。</li>
-            <li><strong>配对。</strong>App 用邀请调用 <code>POST /client-api/v1/pair</code> 换到设备权杖，存进 macOS 钥匙圈或 Windows 认证管理员。Worker 邀请贴到录制端（或反过来）会被拒绝并说明。</li>
+            <li><strong>配对。</strong>App 用邀请调用 <code>POST /client-api/v1/pair</code> 换到设备权杖，存进 macOS 钥匙串或 Windows 认证管理员。Worker 邀请贴到录制端（或反过来）会被拒绝并说明。</li>
             <li><strong>Worker 设备</strong>就是现有的 worker 记录：拿到的权杖直接用在 Worker API。命令行也能用邀请配对：<code>uv run rpa worker --invite …</code>，权杖存在工作文件夹，之后直接 <code>uv run rpa worker</code>；用环境变量或 <code>--token-file</code> 给权杖的方式照旧可用。</li>
             <li><strong>管理。</strong>禁用、重新邀请（旧权杖立刻失效）、删除；页面显示在线状态、App 版本、操作系统、浏览器。</li>
           </ul>
@@ -330,8 +330,8 @@
             <li><strong>App 自己的页面</strong>（配对、下载浏览器、脱机提示、设置）放在闸道的 <code>/__desktop/</code> 下，用设计系统的 CSS。</li>
             <li><strong>新窗口与下载。</strong><code>target="_blank"</code> 的链接（报告、截图）在 App 内开新窗口；导出文件存到「下载项目」。</li>
             <li><strong>服务器在同一台时</strong>（MVP 的情况）：一样配对 <code>http://127.0.0.1:8081</code>，走同一条路。</li>
-            <li><strong>App（M10.2 PR 2）。</strong>pywebview（WKWebView）的窗口只加载闸道的网址；状态、配对、下载浏览器、设置是闸道<strong>另一个端口</strong>的 <code>/__desktop/</code> 页面（<code>rpa_desktop.recorder_pages</code>，用 fetch 调用，不用 pywebview 的 js_api）：和 Portal 不同来源、各有自己的密语与 Cookie，写入的请求一定要带这个端口的 Origin，所以 Portal 的页面（或塞进去的脚本）读不到 App 的状态，也叫不动配对、重新配对、镜像这些动作（2026-10-18 审阅后改的）。还没配对、或 Portal 回 401 时，Portal 那个端口只回说明页（不放 App 页面带着密语的网址），主窗口在配对失效时自己回到 App 的页面。菜单「RPA 录制端」：状态与设置、管理 Portal、刷新。<code>target="_blank"</code> 经由自订的 <code>webbrowser</code> 处理器：闸道的网址在另一个线程开 App 的新窗口（pywebview 在主线程调用，那里建不出窗口；新窗口共用 Cookie），其他网站只接受 http(s)、用默认浏览器；下载不能显示的文件时 pywebview 改用 <code>NSURLSession</code>，所以闸道的 Cookie 也放进 App 的 <code>NSHTTPCookieStorage</code>。关掉主窗口或 ⌘Q 都先拦下、确认后由 App 自己关（⌘Q 直接放行时 AppKit 会立刻结束进程、来不及收拾），结束时不等长轮询、直接结束子进程与删暂存；只运行一份；权杖在钥匙圈的「RPA Recorder」；数据在 <code>~/Library/Application Support/rpa/recorder</code>。CI：macOS 跑录制端 App、闸道与录制端程序的单元测试，<code>--smoke-test</code> 打开真的 WKWebView 窗口确认页面经由闸道加载。</li>
-            <li><strong>不开 App 窗口（M10.2 PR 3）。</strong><code>rpa-recorder --no-window</code>：同一个 controller 与闸道，只是没有 WKWebView 窗口——管理 Portal 用默认浏览器打开（<code>--open</code>），或把经由闸道打开的网址写到 <code>--url-file</code>（只有本人能读，结束时删除）。<strong>有头模式照样可以用</strong>：录制、有头模式的逐步调试、人工登录的浏览器窗口照样开在这台，少的只是 App 的窗口；所以要在登录中的桌面（例如「终端」）启动，不要从 SSH 或背景服务。已经在运行时再双击 App，这一份改用默认浏览器打开管理 Portal。结束用文件夹的 <code>stop.request</code> 或 SIGINT、SIGTERM、SIGHUP（关掉终端）：信号只设旗标，主线程先结束子进程、回报、删暂存（同窗口版）；结束码和 Worker 的 <code>--no-window</code> 相同（4：同一个文件夹已经有一份在运行）。<code>--open</code> 用一般的浏览器时，闸道的 Cookie 绑在 <code>127.0.0.1</code>（Cookie 不分端口），同一个浏览器打开的其他本机服务也收得到；在意时改用 <code>--url-file</code> 搭配独立的浏览器设置档（<code>rpa recorder</code> 也一样）。CI 的端到端（<code>tools/recorder_e2e.py</code>）：从源代码启动管理 Portal，打包版以 <code>--no-window</code> 用邀请配对（权杖要存进钥匙圈），经由闸道在录制端逐步调试 BA-001，<strong>无头与有头各一次</strong>，截图经由闸道传回；最后用 <code>stop.request</code> 结束（结束码 0）。</li>
+            <li><strong>App（M10.2 PR 2）。</strong>pywebview（WKWebView）的窗口只加载闸道的网址；状态、配对、下载浏览器、设置是闸道<strong>另一个端口</strong>的 <code>/__desktop/</code> 页面（<code>rpa_desktop.recorder_pages</code>，用 fetch 调用，不用 pywebview 的 js_api）：和 Portal 不同来源、各有自己的密语与 Cookie，写入的请求一定要带这个端口的 Origin，所以 Portal 的页面（或塞进去的脚本）读不到 App 的状态，也叫不动配对、重新配对、镜像这些动作（2026-10-18 审阅后改的）。还没配对、或 Portal 回 401 时，Portal 那个端口只回说明页（不放 App 页面带着密语的网址），主窗口在配对失效时自己回到 App 的页面。菜单「RPA 录制端」：状态与设置、管理 Portal、刷新。<code>target="_blank"</code> 经由自订的 <code>webbrowser</code> 处理器：闸道的网址在另一个线程开 App 的新窗口（pywebview 在主线程调用，那里建不出窗口；新窗口共用 Cookie），其他网站只接受 http(s)、用默认浏览器；下载不能显示的文件时 pywebview 改用 <code>NSURLSession</code>，所以闸道的 Cookie 也放进 App 的 <code>NSHTTPCookieStorage</code>。关掉主窗口或 ⌘Q 都先拦下、确认后由 App 自己关（⌘Q 直接放行时 AppKit 会立刻结束进程、来不及收拾），结束时不等长轮询、直接结束子进程与删暂存；只运行一份；权杖在钥匙串的「RPA Recorder」；数据在 <code>~/Library/Application Support/rpa/recorder</code>。CI：macOS 跑录制端 App、闸道与录制端程序的单元测试，<code>--smoke-test</code> 打开真的 WKWebView 窗口确认页面经由闸道加载。</li>
+            <li><strong>不开 App 窗口（M10.2 PR 3）。</strong><code>rpa-recorder --no-window</code>：同一个 controller 与闸道，只是没有 WKWebView 窗口——管理 Portal 用默认浏览器打开（<code>--open</code>），或把经由闸道打开的网址写到 <code>--url-file</code>（只有本人能读，结束时删除）。<strong>有头模式照样可以用</strong>：录制、有头模式的逐步调试、人工登录的浏览器窗口照样开在这台，少的只是 App 的窗口；所以要在登录中的桌面（例如「终端」）启动，不要从 SSH 或背景服务。已经在运行时再双击 App，这一份改用默认浏览器打开管理 Portal。结束用文件夹的 <code>stop.request</code> 或 SIGINT、SIGTERM、SIGHUP（关掉终端）：信号只设旗标，主线程先结束子进程、回报、删暂存（同窗口版）；结束码和 Worker 的 <code>--no-window</code> 相同（4：同一个文件夹已经有一份在运行）。<code>--open</code> 用一般的浏览器时，闸道的 Cookie 绑在 <code>127.0.0.1</code>（Cookie 不分端口），同一个浏览器打开的其他本机服务也收得到；在意时改用 <code>--url-file</code> 搭配独立的浏览器设置档（<code>rpa recorder</code> 也一样）。CI 的端到端（<code>tools/recorder_e2e.py</code>）：从源代码启动管理 Portal，打包版以 <code>--no-window</code> 用邀请配对（权杖要存进钥匙串），经由闸道在录制端逐步调试 BA-001，<strong>无头与有头各一次</strong>，截图经由闸道传回；最后用 <code>stop.request</code> 结束（结束码 0）。</li>
             <li><strong>开发环境的 <code>rpa recorder</code>。</strong>同一套闸道（<code>rpa_worker.gateway</code>）与子进程主机（<code>rpa_worker.recorder</code>），改在默认浏览器打开；给有开发环境的人与端到端测试用（<a href="../develop/remote-worker.html#recorder">用法</a>）。</li>
             <li><strong>运行位置的用词。</strong>通过录制端看页面时，「本机」显示为「服务器」，避免误会成录制端这台。</li>
             <li><strong>本地网络权限。</strong>macOS 15 起连区网要用户允许；Info.plist 写用途说明（<code>NSLocalNetworkUsageDescription</code>）。</li>
@@ -356,13 +356,13 @@
             <li><strong>M9a 剩下的三项并入 M10.1：</strong>运行报告的「运行位置」筛选、场景网址是本机地址时的提醒、等待 worker 的提示。</li>
             <li><strong>macOS 版（2026-10-22，ADR 0014 的保留方案）。</strong>同一份程序（<code>rpa_desktop.gui</code>），Apple 芯片，DMG 拖进「应用程序」，没有安装档；功能和上面相同，差别在系统的部分（<code>rpa_desktop.macos</code>）：
               <ul>
-                <li>通知区换成菜单列图标（<code>NSStatusItem</code>，菜单与圆点相同）。不用 pystray：它和 pywebview 都要在主线程跑 NSApplication 的循环；改用 PyObjC 挂在 pywebview 的循环里，AppKit 的调用一律排到主线程，菜单动作在另一个线程运行。</li>
-                <li>关掉窗口是缩到菜单列，同时拿掉 Dock 图标（<code>Accessory</code>），叫出窗口时恢复；⌘Q 当成「结束」（有任务先确认）：pywebview 把 ⌘Q 和关闭钮都变成同一个 closing 事件，看主线程是不是在 <code>applicationShouldTerminate_</code> 里来区分，先取消 AppKit 的结束（它会立刻结束进程，来不及回报），确认后由 App 自己关。</li>
+                <li>通知区换成菜单栏图标（<code>NSStatusItem</code>，菜单与圆点相同）。不用 pystray：它和 pywebview 都要在主线程跑 NSApplication 的循环；改用 PyObjC 挂在 pywebview 的循环里，AppKit 的调用一律排到主线程，菜单动作在另一个线程运行。</li>
+                <li>关掉窗口是缩到菜单栏，同时拿掉 Dock 图标（<code>Accessory</code>），叫出窗口时恢复；⌘Q 当成「结束」（有任务先确认）：pywebview 把 ⌘Q 和关闭钮都变成同一个 closing 事件，看主线程是不是在 <code>applicationShouldTerminate_</code> 里来区分，先取消 AppKit 的结束（它会立刻结束进程，来不及回报），确认后由 App 自己关。</li>
                 <li>在 Finder 再打开或点 Dock 图标时（<code>rapp</code>），叫出窗口：LaunchServices 不会启动第二份，所以在 pywebview 的 App 委派补上 <code>applicationShouldHandleReopen:hasVisibleWindows:</code>。直接运行第二份（例如 <code>open -n</code>）照旧走 <code>show.request</code>。</li>
                 <li>自动启动是目前用户的 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>，<code>--background</code>，只在登录的桌面工作阶段）；macOS 13 起列在「登录项目」。</li>
-                <li>权杖在钥匙圈（<code>RPA Worker</code>，和录制端的 <code>RPA Recorder</code> 分开）；数据在 <code>~/Library/Application Support/rpa/worker</code>。注销、关机前（<code>NSWorkspaceWillPowerOffNotification</code>）取消任务并回报，最多等几秒。窗口关掉、收拾完后直接结束进程（同录制端，pywebview 留下的线程不是 daemon）。</li>
-                <li>画面上的「通知区、认证管理员、登录 Windows」在 macOS 上换成「菜单列、钥匙圈、登录 macOS」：消息目录的 <code>window.darwin.*</code>。</li>
-                <li>CI：macOS 的 Worker 建置先跑桌面端的单元测试（钥匙圈用真的）；<code>open RPA Worker.app --args --smoke-test</code> 打开 WKWebView 窗口与菜单列图标；端到端和 Windows 相同（不含安装档），权杖要存进钥匙圈。</li>
+                <li>权杖在钥匙串（<code>RPA Worker</code>，和录制端的 <code>RPA Recorder</code> 分开）；数据在 <code>~/Library/Application Support/rpa/worker</code>。注销、关机前（<code>NSWorkspaceWillPowerOffNotification</code>）取消任务并回报，最多等几秒。窗口关掉、收拾完后直接结束进程（同录制端，pywebview 留下的线程不是 daemon）。</li>
+                <li>画面上的「通知区、认证管理员、登录 Windows」在 macOS 上换成「菜单栏、钥匙串、登录 macOS」：消息目录的 <code>window.darwin.*</code>。</li>
+                <li>CI：macOS 的 Worker 建置先跑桌面端的单元测试（钥匙串用真的）；<code>open RPA Worker.app --args --smoke-test</code> 打开 WKWebView 窗口与菜单栏图标；端到端和 Windows 相同（不含安装档），权杖要存进钥匙串。</li>
               </ul>
             </li>
           </ul>
