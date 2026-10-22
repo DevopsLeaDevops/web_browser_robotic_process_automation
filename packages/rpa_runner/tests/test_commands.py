@@ -49,9 +49,10 @@ def test_development_commands_are_unchanged(tmp_path: Path) -> None:
 
 def test_frozen_commands_use_the_app_entry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", "/Applications/RPA Recorder.app/Contents/MacOS/rpa")
+    # 使用隔離目錄：本機可能真的裝有 rpa-child，不能讓它改變此測試的前提。
+    app = str(tmp_path / "RPA Recorder.app" / "Contents" / "MacOS" / "rpa")
+    monkeypatch.setattr(sys, "executable", app)
     script = tmp_path / "assertion.py"
-    app = "/Applications/RPA Recorder.app/Contents/MacOS/rpa"
     assert is_frozen()
     assert module_command("rpa_runner.login", ["check"]) == [
         app,

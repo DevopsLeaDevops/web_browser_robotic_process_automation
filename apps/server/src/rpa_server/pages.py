@@ -13,8 +13,9 @@ from rpa_core.dsl import ExtractStep, Scenario, validate_text
 from rpa_core.dsl.editing import contract_section, section_text
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
-from rpa_runner.files import REPORT, VIDEO
+from rpa_runner.files import REPORT
 from rpa_runner.installed import DISPLAY_NAMES
+from rpa_runner.video import video_files
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
 from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord
@@ -501,7 +502,9 @@ def page_router(services: Services) -> APIRouter:
             media_type=media_type,
             headers={
                 # 錄影寫完就不會再變（M12）：讓瀏覽器拖曳時不必重抓同一段
-                "Cache-Control": "private, max-age=86400" if relative == VIDEO else "no-store",
+                "Cache-Control": "private, max-age=86400"
+                if relative in video_files({"file": relative})
+                else "no-store",
                 "X-Content-Type-Options": "nosniff",
                 # 報告是單一 HTML 檔，只有內嵌樣式與同目錄的截圖
                 "Content-Security-Policy": _REPORT_CSP,

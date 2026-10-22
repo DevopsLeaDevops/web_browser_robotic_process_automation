@@ -1,4 +1,6 @@
 {
+  "browser.tab_missing": "Tab {name} is not open yet: run the step that opens it first (popup: {name})",
+  "browser.tab_closed": "Tab {name} has been closed",
   "browser.any_frame_scope": "anyFrame searches from the page; it cannot be relative to another element (such as extract fields)",
   "status.passed": "Passed",
   "status.failed": "Failed",

@@ -5,16 +5,17 @@
   結束時先關 context：Playwright 這時才把影片寫完。
 - 父程序（run.py）在執行結束後呼叫 :func:`finalize`：等影片寫完；沒有長度與索引（Cues）時——
   例如 Windows 上連 ffmpeg 一起被強制結束——用 Playwright 自帶的 ffmpeg 重新封裝（不重新編碼）；
-  改名成 ``video.webm``，寫出 ``video.json``，刪掉 ``.video/``。
-- 對時：Playwright 依每一格畫面的實際時間編碼，影片的第 t 秒 = 錄影開始時間 + t。開始時間在
-  WebM 標頭（ffmpeg 的 creation_time → Segment Info 的 DateUTC），由 :func:`read_webm` 讀出；
-  步驟在 steps.json 記下開始、結束的時間（UTC、毫秒），相減就是在影片裡的位置。
-  舊版 Playwright 沒寫 DateUTC，就用開頁面的時間（誤差約幾十毫秒）。
+  主要影片改名成 ``video.webm``，其他分頁存為 ``video-page-N.webm``；
+  寫出 ``video.json`` 後刪掉 ``.video/``。
+- 對時：各分頁分別記錄時間基準；Chromium 首格時間歸零時使用立即訂閱取得的畫面時間
+  （first-observed-frame，觀測精度），其餘使用 WebM DateUTC，沒有標頭才退回開頁時間。
+  steps.json 的 pageId 決定畫面來源，UTC 開始／結束時間用於共用時間軸，不能用影片長度累加。
 - 畫面大小跟頁面一樣，寬度最多 1280（:func:`video_size`，使用者 2026-10-20 的決定 D2）。
 """
 
 import contextlib
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -27,7 +28,7 @@ from pathlib import Path
 from typing import BinaryIO, Final, cast
 
 import playwright
-from playwright.sync_api import ViewportSize
+from playwright.sync_api import Page, ScreencastFrame, ViewportSize
 
 from rpa_runner.commands import no_window_flags
 from rpa_runner.files import VIDEO, VIDEO_INFO, VIDEO_TMP, read_json_or, write_json
@@ -36,23 +37,27 @@ __all__ = [
     "MAX_WIDTH",
     "VIDEO_INFO_VERSION",
     "VIDEO_STOP",
+    "PageVideos",
     "WebmInfo",
     "browsers_dir",
+    "clips",
     "finalize",
     "find_ffmpeg",
     "mark_page",
     "read_info",
     "read_webm",
     "repair",
+    "video_files",
     "video_size",
 ]
 
-VIDEO_INFO_VERSION: Final = 1
+VIDEO_INFO_VERSION: Final = 2
 MAX_WIDTH: Final = 1280
 """錄影畫面的最大寬度；頁面更寬時等比例縮小。"""
 _DEFAULT_VIEWPORT: Final[ViewportSize] = {"width": 1280, "height": 720}
 """場景沒有指定視窗大小時，Playwright 用的大小。"""
 _PAGE_MARK: Final = "page.json"
+_PAGES_MARK: Final = "pages.json"
 VIDEO_STOP: Final = "stop.json"
 """錄影時被終止（取消、超過收尾時間）的經過：父程序寫在 ``.video/``，整理時放進 video.json。"""
 _SETTLE_SECONDS: Final = 0.5
@@ -77,6 +82,67 @@ def mark_page(folder: Path, video: str | None, opened_at: float) -> None:
         folder / VIDEO_TMP / _PAGE_MARK,
         {"file": Path(video).name if video else None, "openedAt": opened_at},
     )
+
+
+class PageVideos:
+    """將實際 Page 與影片綁定；事件到達時立即存檔，取消執行也能整理已錄下的分頁。"""
+
+    def __init__(self, folder: Path, main: Page, *, engine: str) -> None:
+        self.folder = folder
+        self.engine = engine
+        self.pages: dict[Page, str] = {}
+        self.marks: list[dict[str, object]] = []
+        self.identify(main)
+        main.context.on("page", self._opened)
+
+    def _opened(self, page: Page) -> None:
+        self.identify(page)
+
+    def identify(self, page: Page) -> str:
+        if page in self.pages:
+            return self.pages[page]
+        page_id = f"page-{len(self.pages) + 1}"
+        self.pages[page] = page_id
+        mark: dict[str, object] = {"pageId": page_id, "file": None, "openedAt": time.time()}
+        self.marks.append(mark)
+        with contextlib.suppress(Exception):  # 記錄失敗不能中斷業務步驟
+            if page.video is not None:
+                mark["file"] = page.video.path().name
+
+        def frame_seen(frame: ScreencastFrame) -> None:
+            if "firstObservedAt" in mark:
+                return
+            # Chromium 的編碼器可能把首格時間歸零，DateUTC 仍是編碼器啟動時間。
+            # 記下立即訂閱時觀測到的首格；保留來源標記，不宣稱逐格精確同步。
+            mark["firstObservedAt"] = frame["timestamp"] / 1000
+            write_json(self.folder / VIDEO_TMP / _PAGES_MARK, self.marks)
+            with contextlib.suppress(Exception):
+                page.screencast.stop()
+
+        if self.engine == "chromium":
+            with contextlib.suppress(Exception):  # 舊版引擎或已關閉的分頁仍保留檔案時間
+                page.screencast.start(on_frame=frame_seen)
+        write_json(self.folder / VIDEO_TMP / _PAGES_MARK, self.marks)
+        return page_id
+
+
+def clips(info: Mapping[str, object]) -> list[dict[str, object]]:
+    """相容單影片；僅接受本模組產生的檔名，避免清理或下載越界。"""
+    raw = info.get("clips")
+    items = cast("list[object]", raw) if isinstance(raw, list) else [{**info, "pageId": "page-1"}]
+    result: list[dict[str, object]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        clip = cast("dict[str, object]", item)
+        name = clip.get("file")
+        if isinstance(name, str) and re.fullmatch(r"video(?:-page-[1-9][0-9]*)?\.webm", name):
+            result.append(clip)
+    return result
+
+
+def video_files(info: Mapping[str, object]) -> set[str]:
+    return {str(clip["file"]) for clip in clips(info)}
 
 
 # ---------------------------------------------------------------- WebM 標頭
@@ -396,64 +462,118 @@ def _chosen(temp: Path, mark: Mapping[str, object]) -> Path | None:
     return max(videos, key=lambda path: path.stat().st_size) if videos else None
 
 
+def _finalize_clip(
+    folder: Path, source: Path | None, mark: Mapping[str, object], target: str, wait_seconds: float
+) -> dict[str, object]:
+    details: dict[str, object] = {"file": None}
+    if source is None or not source.is_file():
+        return {**details, "error": "no_video"}
+    info = read_webm(source)
+    if info is None or not info.complete:
+        _settle(source, wait_seconds)
+        info = read_webm(source)
+    original_start = info.started_at if info is not None else None
+    repaired = False
+    if info is None or not info.complete:
+        repaired = repair(source)
+        if repaired:
+            info = read_webm(source)
+    if info is None:
+        return {**details, "error": "unreadable", "bytes": source.stat().st_size}
+    if not _move(source, folder / target, timeout=wait_seconds):
+        return {**details, "error": "locked"}
+    opened = mark.get("openedAt")
+    fallback = (
+        datetime.fromtimestamp(opened, UTC)
+        if isinstance(opened, int | float) and not isinstance(opened, bool)
+        else None
+    )
+    file_start = original_start or info.started_at
+    observed = mark.get("firstObservedAt")
+    origin = file_start or fallback
+    origin_source = "file" if file_start is not None else "page"
+    if isinstance(observed, int | float) and observed > 0 and info.first_frame_ms == 0:
+        origin = datetime.fromtimestamp(observed, UTC)
+        origin_source = "first-observed-frame"
+        details["fileStartedAt"] = _iso(file_start)
+    details.update(
+        file=target,
+        startedAt=_iso(origin),
+        startedAtSource=origin_source,
+        durationMs=round(info.duration_ms) if info.duration_ms else None,
+        firstFrameMs=round(info.first_frame_ms) if info.first_frame_ms is not None else None,
+        width=info.width,
+        height=info.height,
+        bytes=(folder / target).stat().st_size,
+        complete=info.complete,
+        repaired=repaired,
+    )
+    return details
+
+
 def finalize(
     folder: Path, *, engine: str | None = None, wait_seconds: float = 10.0
 ) -> dict[str, object] | None:
-    """整理錄影：``.video/`` → ``video.webm`` 與 ``video.json``；沒有錄影時回傳 None。
-
-    回傳 video.json 的內容。影片讀不到或是空的（例如瀏覽器還沒開就被取消）時，
-    video.json 只記下 ``error``，沒有 ``file``。
-    """
+    """保留所有執行分頁；舊單影片欄位仍描述主要影片，clips 描述各分頁。"""
     temp = folder / VIDEO_TMP
     if not temp.is_dir():
         return None
     try:
         raw = read_json_or(temp / _PAGE_MARK, {})
         mark = cast("dict[str, object]", raw) if isinstance(raw, dict) else {}
-        details: dict[str, object] = {"version": VIDEO_INFO_VERSION, "file": None, "engine": engine}
+        registered = read_json_or(temp / _PAGES_MARK, None)
+        marks: list[dict[str, object]] = []
+        if isinstance(registered, list):
+            marks = [
+                cast("dict[str, object]", item)
+                for item in cast("list[object]", registered)
+                if isinstance(item, dict)
+            ]
+        else:
+            source = _chosen(temp, mark)
+            if source is not None:
+                marks = [{**mark, "file": source.name, "pageId": "page-1"}]
+                # 舊子程序沒有分頁清單，也不能把其他片段刪掉。
+                for path in sorted(temp.glob("*.webm")):
+                    if path != source:
+                        marks.append({"file": path.name, "pageId": f"page-{len(marks) + 1}"})
+        finalized: list[dict[str, object]] = []
+        for entry in marks:
+            name = entry.get("file")
+            source = temp / name if isinstance(name, str) and Path(name).name == name else None
+            target = (
+                VIDEO
+                if not any(c.get("file") for c in finalized)
+                else f"video-page-{len(finalized) + 1}.webm"
+            )
+            clip = _finalize_clip(folder, source, entry, target, wait_seconds)
+            finalized.append({**clip, "pageId": entry.get("pageId")})
+        primary = next(
+            (c for c in finalized if c.get("file")),
+            finalized[0] if finalized else {"file": None, "error": "no_video"},
+        )
+        details: dict[str, object] = {
+            "version": 1,
+            "engine": engine,
+            **{k: v for k, v in primary.items() if k != "pageId"},
+        }
+        if isinstance(registered, list) or len(finalized) > 1:
+            details.update(version=VIDEO_INFO_VERSION, clips=finalized)
+            spans: list[tuple[datetime, datetime]] = []
+            for clip in finalized:
+                started, duration = clip.get("startedAt"), clip.get("durationMs")
+                if isinstance(started, str) and isinstance(duration, int | float):
+                    origin = datetime.fromisoformat(started.replace("Z", "+00:00"))
+                    spans.append((origin, origin + timedelta(milliseconds=duration)))
+            if spans:
+                start = min(span[0] for span in spans)
+                details["timelineStartedAt"] = _iso(start)
+                details["timelineDurationMs"] = round(
+                    (max(span[1] for span in spans) - start).total_seconds() * 1000
+                )
         stop = read_json_or(temp / VIDEO_STOP, None)
         if isinstance(stop, dict):
             details["stop"] = stop
-        source = _chosen(temp, mark)
-        if source is None:
-            details["error"] = "no_video"
-        else:
-            info = read_webm(source)
-            if info is None or not info.complete:
-                _settle(source, wait_seconds)
-                info = read_webm(source)
-            repaired = False
-            if info is None or not info.complete:
-                repaired = repair(source)
-                if repaired:
-                    info = read_webm(source)
-            if info is None:
-                details["error"] = "unreadable"
-                with contextlib.suppress(OSError):
-                    details["bytes"] = source.stat().st_size
-            elif not _move(source, folder / VIDEO, timeout=wait_seconds):
-                details["error"] = "locked"
-            else:
-                opened = mark.get("openedAt")
-                fallback = (
-                    datetime.fromtimestamp(opened, UTC)
-                    if isinstance(opened, int | float) and not isinstance(opened, bool)
-                    else None
-                )
-                details.update(
-                    file=VIDEO,
-                    startedAt=_iso(info.started_at or fallback),
-                    startedAtSource="file" if info.started_at is not None else "page",
-                    durationMs=round(info.duration_ms) if info.duration_ms else None,
-                    firstFrameMs=round(info.first_frame_ms)
-                    if info.first_frame_ms is not None
-                    else None,
-                    width=info.width,
-                    height=info.height,
-                    bytes=(folder / VIDEO).stat().st_size,
-                    complete=info.complete,
-                    repaired=repaired,
-                )
         write_json(folder / VIDEO_INFO, details)
         return details
     finally:

@@ -21,6 +21,8 @@ CI 的桌面端建置在 macOS 建好 RPA 錄製端、跑完自我測試之後�
    再逐步調試 iframe 的範例（M7a，``scenarios/examples/iframe-form.yaml``，無頭）：打包版回報看得懂
    ``frame``、``anyFrame``，每一步都通過（打包版自己的測試網站 ``/frames``，巢狀 iframe），
    最後抽到送出後的狀態；定位器測試用 ``anyFrame`` 找到內層 iframe 的勾選框。
+   新分頁的範例（M7b，``scenarios/examples/popup-form.yaml``，無頭）同樣逐步調試到最後一步：
+   開出新分頁之後，目前頁面是新分頁（網址 ``/popup/items``），最後一步回到一開始的分頁。
 7. 在資料夾寫 ``stop.request`` 請打包版結束（結束碼 0），網址檔刪掉；等管理 Portal 判定離線
    （30 秒沒消息），下一步看到的「上線」才是新啟動的那份。
 8. 不給邀請再啟動一次（用鑰匙圈裡存下的配對），上線後送 SIGTERM，結束碼 0；最後結束管理 Portal。
@@ -47,6 +49,8 @@ from urllib.parse import parse_qs, urlsplit
 from desktop_e2e import (
     IFRAME_EXAMPLE,
     IFRAME_STATUS,
+    POPUP_EXAMPLE,
+    POPUP_STATUS,
     ROOT,
     Api,
     JsonObject,
@@ -316,18 +320,19 @@ def run(app: Path, folder: Path) -> JsonObject:
         mode = "無頭" if headless else "有頭（瀏覽器視窗開在這台）"
         return f"{mode}：第一步通過，截圖 {len(image)} bytes；瀏覽器 {seen}"
 
-    def debug_iframe() -> str:
-        """M7a：iframe 的場景在打包版逐步調試到最後一步；定位器測試 anyFrame。"""
+    def debug_all(scene: str, path: Path, needs: set[str]) -> tuple[str, list[JsonObject]]:
+        """打包版回報看得懂場景用到的擴充；在錄製端無頭逐步調試範例場景到最後一步。
+
+        回傳工作階段代號與每一步之後的工作階段（目前網址、facts）；工作階段還開著。
+        """
         record = api.call("GET", f"/api/recorders/{DEVICE}")
         features = record.get("features")
-        if not isinstance(features, list) or not {"frame", "anyFrame"} <= set(
-            cast("list[object]", features)
-        ):
-            raise StepFailedError(f"打包版沒有回報看得懂 frame、anyFrame：features={features}")
-        revision = create_scene(api, "iframe-form", IFRAME_EXAMPLE)
+        if not isinstance(features, list) or not needs <= set(cast("list[object]", features)):
+            raise StepFailedError(f"打包版沒有回報看得懂 {sorted(needs)}：features={features}")
+        revision = create_scene(api, scene, path)
         gateway = cast("Gateway", state["gateway"])
         payload = {"engine": "chromium", "headless": True, "restart": True, "revision": revision}
-        session = gateway.json("POST", "/api/scenes/iframe-form/debug", payload)
+        session = gateway.json("POST", f"/api/scenes/{scene}/debug", payload)
         session_id = str(session.get("id"))
         if session.get("deviceId") != DEVICE:
             raise StepFailedError(f"調試沒有交給錄製端（deviceId {session.get('deviceId')}）")
@@ -340,7 +345,7 @@ def run(app: Path, folder: Path) -> JsonObject:
         if ready.get("status") != "ready":
             raise StepFailedError(f"調試沒有啟動：{ready.get('message')}")
         count = len(cast("list[object]", ready.get("steps") or []))
-        result: JsonObject = ready
+        after: list[JsonObject] = []
         for index in range(count):
             result = gateway.json("POST", f"/api/debug/{session_id}/steps/{index}")
             item = cast("list[JsonObject]", result.get("steps") or [])[index]
@@ -348,14 +353,11 @@ def run(app: Path, folder: Path) -> JsonObject:
                 raise StepFailedError(
                     f"第 {index + 1} 步（{item.get('id')}）沒有通過：{item.get('error')}"
                 )
-        facts = cast("JsonObject", result.get("facts") or {})
-        if facts.get("status") != IFRAME_STATUS:
-            raise StepFailedError(f"抽到的狀態是 {facts}，應該是「{IFRAME_STATUS}」")
-        locator = {"label": "我已確認", "anyFrame": True}
-        located = gateway.json("POST", f"/api/debug/{session_id}/locate", {"locator": locator})
-        found = cast("JsonObject", located.get("located") or {})
-        if found.get("count") != 1:
-            raise StepFailedError(f"anyFrame 的定位器測試找到 {found.get('count')} 個：{found}")
+            after.append(result)
+        return session_id, after
+
+    def close_debug(session_id: str) -> None:
+        gateway = cast("Gateway", state["gateway"])
         gateway.json("DELETE", f"/api/debug/{session_id}")
 
         def cleaned() -> JsonObject | None:
@@ -364,7 +366,33 @@ def run(app: Path, folder: Path) -> JsonObject:
             return {} if idle and not left else None
 
         wait_until("錄製端的子程序結束、暫存資料夾刪掉", cleaned, 60)
-        return f"{count} 步都通過，{facts.get('status')}；anyFrame 找到 1 個"
+
+    def debug_iframe() -> str:
+        """M7a：iframe 的場景在打包版逐步調試到最後一步；定位器測試 anyFrame。"""
+        session_id, after = debug_all("iframe-form", IFRAME_EXAMPLE, {"frame", "anyFrame"})
+        gateway = cast("Gateway", state["gateway"])
+        facts = cast("JsonObject", after[-1].get("facts") or {})
+        if facts.get("status") != IFRAME_STATUS:
+            raise StepFailedError(f"抽到的狀態是 {facts}，應該是「{IFRAME_STATUS}」")
+        locator = {"label": "我已確認", "anyFrame": True}
+        located = gateway.json("POST", f"/api/debug/{session_id}/locate", {"locator": locator})
+        found = cast("JsonObject", located.get("located") or {})
+        if found.get("count") != 1:
+            raise StepFailedError(f"anyFrame 的定位器測試找到 {found.get('count')} 個：{found}")
+        close_debug(session_id)
+        return f"{len(after)} 步都通過，{facts.get('status')}；anyFrame 找到 1 個"
+
+    def debug_popup() -> str:
+        """M7b：新分頁的場景在打包版逐步調試到最後一步；目前頁面跟著換到新分頁、再回來。"""
+        session_id, after = debug_all("popup-form", POPUP_EXAMPLE, {"page", "popup"})
+        urls = [str(item.get("url")) for item in after]
+        if not urls[1].endswith("/popup/items") or not urls[-1].endswith("/popup"):
+            raise StepFailedError(f"每一步之後的網址不對：{urls}")
+        facts = cast("JsonObject", after[-1].get("facts") or {})
+        if facts.get("status") != POPUP_STATUS:
+            raise StepFailedError(f"抽到的狀態是 {facts}，應該是「{POPUP_STATUS}」")
+        close_debug(session_id)
+        return f"{len(after)} 步都通過，{facts.get('status')}；新分頁 {urls[1]}"
 
     def restart() -> str:
         """再啟動一次（不給邀請：用鑰匙圈裡存下的配對），用 SIGTERM 結束（Ctrl+C 同理）。"""
@@ -410,6 +438,7 @@ def run(app: Path, folder: Path) -> JsonObject:
         ("debug-headless", lambda: debug(True)),
         ("debug-headed", lambda: debug(False)),
         ("debug-iframe", debug_iframe),
+        ("debug-popup", debug_popup),
         ("stop", stop),
         ("restart", restart),
     ]

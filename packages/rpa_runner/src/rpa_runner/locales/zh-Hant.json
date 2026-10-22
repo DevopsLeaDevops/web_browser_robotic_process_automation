@@ -1,4 +1,6 @@
 {
+  "browser.tab_missing": "分頁 {name} 還沒開：先執行開出它的那一步（popup: {name}）",
+  "browser.tab_closed": "分頁 {name} 已經關閉",
   "browser.any_frame_scope": "anyFrame 只能從頁面開始找，不能相對於另一個元素（例如 extract 的 fields）",
   "status.passed": "通過",
   "status.failed": "失敗",

@@ -7,8 +7,6 @@ CI 的 Worker 測試在 Windows 上跑這些測試（取消時要留下 ffmpeg �
 """
 
 import base64
-import functools
-import http.server
 import json
 import threading
 import time
@@ -24,6 +22,7 @@ from rpa_core.i18n import use_locale
 from rpa_runner.files import STEPS, VIDEO, VIDEO_INFO, VIDEO_TMP
 from rpa_runner.run import execute
 from testsite.browsers import ENGINES, require_engine
+from testsite.video import PAGES_SCENARIO, recording_site
 
 pytestmark = pytest.mark.browser
 
@@ -32,21 +31,6 @@ BA_001_SCRIPT = ROOT / "scenarios" / "demo" / "ba-001-script" / "scenario.yaml"
 TOLERANCE = 0.3
 """對時允許的誤差（秒）。"""
 
-PAGE = """<!doctype html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;background:rgb(255,255,255);height:100vh">
-<button id="go" style="position:fixed;left:16px;top:16px">變紅</button>
-<script>
-setTimeout(() => { const p = document.createElement('p'); p.id = 'ready';
-  p.textContent = 'ready'; p.style.cssText = 'position:fixed;left:16px;top:48px;margin:0';
-  document.body.appendChild(p); }, 1200);
-document.getElementById('go').onclick = () => {
-  document.body.style.background = 'rgb(255,0,0)';
-  setTimeout(() => { const p = document.createElement('p'); p.id = 'done';
-    p.textContent = 'done'; p.style.cssText = 'position:fixed;left:16px;top:80px;margin:0';
-    document.body.appendChild(p); }, 1500);
-};
-</script></body></html>
-"""
 
 SCENARIO = """\
 schemaVersion: 1
@@ -118,21 +102,8 @@ def _zh_hant() -> Iterator[None]:
 
 @pytest.fixture(scope="module")
 def site(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
-    folder = tmp_path_factory.mktemp("site")
-    (folder / "page.html").write_text(PAGE, encoding="utf-8")
-
-    class Quiet(http.server.SimpleHTTPRequestHandler):
-        def log_message(self, format: str, *args: object) -> None:
-            pass
-
-    handler = functools.partial(Quiet, directory=str(folder))
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    try:
-        yield f"http://127.0.0.1:{server.server_address[1]}"
-    finally:
-        server.shutdown()
-        server.server_close()
+    with recording_site(tmp_path_factory.mktemp("site")) as url:
+        yield url
 
 
 def _scenario(tmp: Path, site: str, *, last: str = "#done", timeout: int = 10000) -> Path:
@@ -313,3 +284,51 @@ def test_python_script_scenarios_are_not_recorded(tmp_path: Path) -> None:
     assert result.status == "passed", result.error
     assert not (result.directory / VIDEO).exists()
     assert not (result.directory / VIDEO_INFO).exists()
+
+
+@pytest.mark.parametrize("close_child", [False, True], ids=["open-popup", "closed-popup"])
+@pytest.mark.parametrize("headed", [False, True], ids=["headless", "headed"])
+def test_chromium_keeps_popup_and_return_to_main(
+    site: str, tmp_path: Path, headed: bool, close_child: bool
+) -> None:
+    require_engine("chromium")
+    path = tmp_path / "pages.yaml"
+    scenario = (
+        PAGES_SCENARIO
+        if close_child
+        else "\n".join(line for line in PAGES_SCENARIO.splitlines() if "id: close," not in line)
+    )
+    path.write_text(scenario, encoding="utf-8")
+    result = execute(
+        path,
+        {},
+        out_root=tmp_path / "runs",
+        base_url=site,
+        engine="chromium",
+        headed=headed,
+        record_video=True,
+    )
+    assert result.status == "passed", result.error
+    info = json.loads((result.directory / VIDEO_INFO).read_text())
+    steps = json.loads((result.directory / STEPS).read_text())
+    clips = info["clips"]
+    assert len(clips) == 2
+    assert {clip["pageId"] for clip in clips} == {"page-1", "page-2"}
+    assert steps[2]["createdPageId"] == "page-2"
+    assert [step["pageId"] for step in steps] == ["page-1"] * 3 + ["page-2"] * (
+        4 if close_child else 3
+    ) + ["page-1"] * 2
+    assert all(clip["complete"] for clip in clips)
+    for clip, index in ((clips[1], 4), (clips[0], 7 if close_child else 6)):
+        click = steps[index]
+        start = _moment(clip["startedAt"])
+        _, colors = _sample(
+            result.directory / clip["file"],
+            [
+                _moment(click["startedAt"]) - start - TOLERANCE,
+                _moment(click["endedAt"]) - start + TOLERANCE,
+            ],
+        )
+        assert not _red(colors[0]), (clip, colors, click)
+        assert _red(colors[1]), (clip, colors, click)
+    assert not (result.directory / VIDEO_TMP).exists()

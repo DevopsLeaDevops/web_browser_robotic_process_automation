@@ -11,7 +11,13 @@
   ``frame``（iframe 的定位器）；iframe 裡還有 iframe 時，frame 裡再有 frame。
   兩層以上的 iframe，codegen 1.63 起常錄成開頭不帶引數的 ``frame_locator()``
   （在任何一個 iframe 裡找），轉成最外層定位器的 ``anyFrame: true``。
-- 轉不了的行（例如 hover、上傳檔案、新分頁）以註解留在草稿裡，並列在警告中。
+- 新分頁（M7b）：``with page.expect_popup() as page1_info:`` 區塊裡的第一個點擊（或填寫、選擇、
+  勾選、按鍵）加上 ``popup: page1``，之後 ``page1 = page1_info.value`` 與 ``page1.…`` 的操作、斷言
+  加上 ``page: page1``；``page1.close()`` 略過。開出新分頁的那一步轉不了時，那個分頁上的操作也跟著
+  略過並列在警告中（不然草稿會引用沒開的分頁）。
+- 填寫前點同一個欄位的那一步保留（可能是展開選單、載入候選）；逐字輸入的 ``type``、
+  ``press_sequentially`` 轉成 fill（DSL 沒有逐鍵輸入）並列在警告中。
+- 轉不了的行（例如 hover、上傳檔案、自己開的新分頁）以註解留在草稿裡，並列在警告中。
 - **自動參數化**：每個 fill 的值變成一個入參，預設值是錄到的值，名稱取自欄位的英數名稱
   （test id、CSS 的 #id 等），沒有英數名稱時依欄位種類叫 text、number…，欄位的標籤寫在入參說明；
   數字欄位（spinbutton）填的是整數時入參是 integer。
@@ -64,6 +70,10 @@ _REGEX_META: Final = re.compile(r"[.^$*+?{}\[\]\\|()]")
 _SIMPLE_KWARGS: Final = frozenset({"name", "exact"})
 _PAGE_EXPECTS: Final = {"to_have_url": "url", "to_have_title": "title"}
 _TYPING: Final = frozenset({"fill", "type", "press_sequentially"})
+_POPUP_ACTIONS: Final = frozenset({"click", "fill", "select", "check", "press"})
+"""可以寫 popup（開出新分頁）的動作。"""
+_PAGE_ALIAS: Final = re.compile(r"page\d+")
+"""codegen 給其他分頁的變數名稱（page1、page2…）。"""
 _IGNORED_PAGE_CALLS: Final = frozenset(
     {"close", "once", "on", "set_default_timeout", "set_default_navigation_timeout", "pause"}
 )
@@ -523,6 +533,17 @@ class _State:
     first_number: int = 1
     """步驟 id 的編號從這裡開始（接在既有步驟後面時不重複）。"""
     other_pages: set[str] = field(default_factory=set[str])
+    """轉不了的分頁變數（例如 ``context.new_page()`` 自己開的）：上面的操作列為警告。"""
+    tabs: dict[str, str] = field(default_factory=dict[str, str])
+    """可以轉換的分頁變數 → DSL 的分頁名稱（步驟的 page）。"""
+    tab_names: set[str] = field(default_factory=set[str])
+    """用過的分頁名稱（接在既有場景後面時含既有的）。"""
+    opened: dict[str, str] = field(default_factory=dict[str, str])
+    """``expect_popup`` 的 ``as`` 變數 → 開出的分頁名稱（已經加在某一步的 popup 上）。"""
+    pending: "_Popup | None" = None
+    """``with …expect_popup()`` 區塊裡，還在等第一個可以加上 popup 的步驟。"""
+    page: str | None = None
+    """目前這一行在哪個分頁（DSL 的分頁名稱）；None 是一開始的分頁。"""
 
     def warn(self, node: ast.AST, message: str) -> None:
         line = cast("int", getattr(node, "lineno", 0))
@@ -535,7 +556,33 @@ class _State:
     def add(self, action: str, fields: dict[str, object], target: str = "") -> None:
         params = {"target": target, "url": fields.get("url", ""), "key": fields.get("key", "")}
         key = "uncheck" if action == "check" and fields.get("checked") is False else action
-        self.entries.append(_Step(action, fields, catalog(f"recording.step.{key}", **params)))
+        if self.page is not None:
+            fields = {"page": self.page, **fields}
+        step = _Step(action, fields, catalog(f"recording.step.{key}", **params))
+        pending = self.pending
+        if pending is not None and action in _POPUP_ACTIONS:
+            step.fields["popup"] = pending.name
+            self.opened[pending.info] = pending.name
+            self.pending = None
+        self.entries.append(step)
+
+    def tab_name(self, info: str | None) -> str:
+        """新分頁的名稱：codegen 的 ``page1_info`` → ``page1``；避開用過的名稱。"""
+        base = info.removesuffix("_info") if info else "popup"
+        if not _IDENTIFIER.fullmatch(base) or base == "page":
+            base = "popup"
+        name = _unique(base, self.tab_names)
+        return name
+
+    def expire(self, statement: ast.stmt | None = None) -> None:
+        """``with`` 區塊結束了還沒有步驟可以加上 popup：開出新分頁的那一步轉不了。"""
+        pending = self.pending
+        if pending is None:
+            return
+        if statement is not None and statement.lineno <= pending.end:
+            return
+        self.pending = None
+        self.warn(pending.node, catalog("recording.unsupported.popup"))
 
     def relative(self, url: str) -> str:
         if self.origin is None:
@@ -553,6 +600,19 @@ class _State:
     @property
     def steps(self) -> list[_Step]:
         return [entry for entry in self.entries if isinstance(entry, _Step)]
+
+
+@dataclass(frozen=True, slots=True)
+class _Popup:
+    """``with page.expect_popup() as page1_info:``：等著加在區塊裡第一個動作上的新分頁。"""
+
+    info: str
+    """``as`` 的變數名稱（例如 page1_info）。"""
+    name: str
+    """DSL 的分頁名稱（例如 page1）。"""
+    end: int
+    """區塊的最後一行。"""
+    node: ast.stmt
 
 
 def _span(node: ast.expr) -> Span:
@@ -594,28 +654,43 @@ def _first_goto(tree: ast.Module) -> str | None:
 
 
 def _assignment(state: _State, statement: ast.Assign | ast.AnnAssign) -> None:
-    """記下其他分頁的變數名稱：``page1 = context.new_page()``、``page1 = page1_info.value``。"""
+    """記下其他分頁的變數名稱：``page1 = page1_info.value``（錄到的新分頁，可以轉換）、
+    ``page1 = context.new_page()``（自己開的，轉不了）。"""
     targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
     found = _chain(statement.value) if statement.value is not None else None
     if found is None:
         return
-    method = found[1][-1].name
+    subject, segments = found
+    method = segments[-1].name
     for target in targets:
         if not isinstance(target, ast.Name) or target.id == "page":
             continue
-        if method in ("new_page", "value"):
+        info = subject.id if isinstance(subject, ast.Name) else None
+        if method == "value" and info is not None and info in state.opened:
+            state.tabs[target.id] = state.opened[info]
+            state.other_pages.discard(target.id)
+        elif method in ("new_page", "value"):
             state.other_pages.add(target.id)
 
 
 def _with(state: _State, statement: ast.With | ast.AsyncWith) -> None:
-    """``with page.expect_popup() as page1_info:`` 這類區塊：裡面的操作照常轉換，新分頁轉不了。"""
+    """``with page.expect_popup() as page1_info:``：區塊裡第一個動作開出新分頁（M7b）。
+    ``expect_download`` 還不支援：裡面的操作照常轉換，下載的檔案不保存。"""
     for item in statement.items:
         found = _chain(item.context_expr)
         if found is None:
             continue
-        method = found[1][-1].name
+        subject, segments = found
+        method = segments[-1].name
         if method == "expect_popup":
-            state.warn(statement, catalog("recording.unsupported.popup"))
+            owner = subject.id if isinstance(subject, ast.Name) else None
+            if owner != "page" and owner not in state.tabs:
+                state.warn(statement, catalog("recording.unsupported.popup"))
+                continue
+            info = item.optional_vars.id if isinstance(item.optional_vars, ast.Name) else None
+            name = state.tab_name(info)
+            end = statement.end_lineno or statement.lineno
+            state.pending = _Popup(info or name, name, end, statement)
         elif method == "expect_download":
             state.warn(statement, catalog("recording.unsupported.download"))
 
@@ -659,10 +734,15 @@ def _expression(state: _State, statement: ast.Expr) -> None:
     if not isinstance(subject, ast.Name) or subject.id in ("context", "browser", "playwright"):
         return
     _mask_typing(state, segments)
-    if subject.id in state.other_pages:
+    if subject.id == "page" or subject.id in state.tabs:
+        state.page = state.tabs.get(subject.id)
+        try:
+            _action(state, statement, segments)
+        finally:
+            state.page = None
+    elif subject.id in state.other_pages or _PAGE_ALIAS.fullmatch(subject.id):
+        # 自己開的分頁，或接著錄製時既有步驟開過的分頁（codegen 不知道它在場景裡叫什麼）
         state.warn(statement, catalog("recording.unsupported.other_page", page=subject.id))
-    elif subject.id == "page":
-        _action(state, statement, segments)
 
 
 def _page_action(state: _State, statement: ast.Expr, segments: Sequence[_Segment]) -> None:
@@ -720,6 +800,9 @@ def _action(state: _State, statement: ast.Expr, segments: list[_Segment]) -> Non
             if text is None:
                 state.warn(statement, catalog("recording.unsupported.arguments", name=name))
                 return
+            if name in ("type", "press_sequentially"):
+                # DSL 只有一次填入：逐鍵的事件不會重現，不能默默換掉
+                state.warn(statement, catalog("recording.typed_as_fill", name=name))
             _fill(state, target, text, described)
         case "press":
             key = _string(first)
@@ -782,10 +865,8 @@ def _click(
 
 
 def _fill(state: _State, target: dict[str, object], text: str, described: str) -> None:
-    # codegen 常常先錄一次點擊、再錄 fill；點的是同一個欄位而且沒有其他選項時，點擊沒有意義
-    last = state.entries[-1] if state.entries else None
-    if isinstance(last, _Step) and last.action == "click" and last.fields == {"target": target}:
-        state.entries.pop()
+    # 填寫前點同一個欄位的那一步保留：點擊可能是展開下拉選單、載入候選或移動焦點，
+    # fill 只會聚焦，刪掉就和錄製時不一樣（例如「請選擇」的選單）
     if _is_password(target) and text:
         secret = _secret_name(state.scene_id, state.used_secrets)
         state.secrets.append(secret)
@@ -812,11 +893,27 @@ def _assertion(state: _State, statement: ast.Expr, node: ast.Call, inner: ast.Ca
     subject = inner.args[0] if found is None else found[0]
     if not isinstance(subject, ast.Name):
         return
-    if subject.id in state.other_pages:
+    known = subject.id == "page" or subject.id in state.tabs
+    if not known and (subject.id in state.other_pages or _PAGE_ALIAS.fullmatch(subject.id)):
         state.warn(statement, catalog("recording.unsupported.other_page", page=subject.id))
         return
-    if subject.id != "page":
+    if not known:
         return
+    state.page = state.tabs.get(subject.id)
+    try:
+        _expectation(state, statement, node, method, found)
+    finally:
+        state.page = None
+
+
+def _expectation(
+    state: _State,
+    statement: ast.Expr,
+    node: ast.Call,
+    method: str,
+    found: tuple[ast.expr, list[_Segment]] | None,
+) -> None:
+    """``expect(page…)`` 的內容：頁面的網址、標題，或元素（state.page 是它所在的分頁）。"""
     value = _string(node.args[0]) if node.args else None
     if found is None:
         field_name = _PAGE_EXPECTS.get(method)
@@ -914,6 +1011,9 @@ def _seed(state: _State, existing: Scenario) -> None:
     state.used_facts.update(existing.outputs)
     for step in existing.steps or []:
         state.used_ids.add(step.id)
+        popup = getattr(step, "popup", None)
+        if isinstance(popup, str):
+            state.tab_names.add(popup)
         fact = getattr(step, "as_", None)
         if isinstance(fact, str):
             state.used_facts.add(fact)
@@ -952,12 +1052,14 @@ def convert_recording(
     if existing is not None:
         _seed(state, existing)
     for statement in _statements(tree.body):
+        state.expire(statement)
         if isinstance(statement, ast.Assign | ast.AnnAssign):
             _assignment(state, statement)
         elif isinstance(statement, ast.With | ast.AsyncWith):
             _with(state, statement)
         elif isinstance(statement, ast.Expr):
             _expression(state, statement)
+    state.expire()
     steps = state.steps
     if prepend_goto and (not steps or steps[0].action != "goto"):
         if start is None:

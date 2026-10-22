@@ -64,7 +64,8 @@
             <tr><td>每次執行都要登入</td><td>每個角色保存並重用自己的登入狀態（Playwright storage state），減少登入次數、降低帳號鎖定的風險；登入失效時回報 needs_login，引導人工重新登入後續跑</td><td>M4</td></tr>
             <tr><td>老系統缺少語意化標籤</td><td>定位器更依賴 css、xpath 與文字；錄製器避開自動生成的 id，產出穩定的選擇器</td><td>M1、M4</td></tr>
             <tr><td>iframe</td><td>定位器以 <code>frame</code> 指定元素所在的 iframe（可巢狀），見 <a href="dsl.html#locators">DSL</a></td><td>M7a</td></tr>
-            <tr><td>彈出視窗、多分頁</td><td>DSL 提供切換分頁的步驟；點擊開出的新分頁提前為 M7b（審閱中）</td><td>M7</td></tr>
+            <tr><td>點擊開出的新分頁（彈出視窗）</td><td>開出新分頁的步驟寫 <code>popup</code>，在新分頁上的步驟寫 <code>page</code>，見 <a href="dsl.html#tabs">DSL</a></td><td>M7b</td></tr>
+            <tr><td>自己開的新分頁</td><td>DSL 提供開新分頁的步驟</td><td>M7</td></tr>
             <tr><td>檔案上傳與下載</td><td>upload、download 動作；下載檔作為產物保存</td><td>M7</td></tr>
             <tr><td>表格資料抽取</td><td>extract 支援表格轉成結構化資料</td><td>M1</td></tr>
             <tr><td>自簽憑證</td><td>場景層級可設定忽略 HTTPS 錯誤，預設關閉並在審核時標示</td><td>M2</td></tr>

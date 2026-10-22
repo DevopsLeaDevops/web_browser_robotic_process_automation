@@ -96,6 +96,18 @@
           "default": null,
           "title": "Timeout"
         },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
         "action": {
           "const": "check",
           "title": "Action",
@@ -108,6 +120,18 @@
           "default": true,
           "title": "Checked",
           "type": "boolean"
+        },
+        "popup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Popup"
         }
       },
       "required": [
@@ -152,6 +176,18 @@
           ],
           "default": null,
           "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
         },
         "action": {
           "const": "click",
@@ -199,6 +235,18 @@
           ],
           "default": null,
           "title": "Modifiers"
+        },
+        "popup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Popup"
         }
       },
       "required": [
@@ -265,6 +313,18 @@
           ],
           "default": null,
           "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
         },
         "action": {
           "const": "expect",
@@ -460,6 +520,18 @@
           "default": null,
           "title": "Timeout"
         },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
         "action": {
           "const": "extract",
           "title": "Action",
@@ -563,6 +635,18 @@
           "default": null,
           "title": "Timeout"
         },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
         "action": {
           "const": "fill",
           "title": "Action",
@@ -574,6 +658,18 @@
         "value": {
           "title": "Value",
           "type": "string"
+        },
+        "popup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Popup"
         }
       },
       "required": [
@@ -619,6 +715,18 @@
           ],
           "default": null,
           "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
         },
         "action": {
           "const": "goto",
@@ -1245,6 +1353,18 @@
           "default": null,
           "title": "Timeout"
         },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
         "action": {
           "const": "press",
           "title": "Action",
@@ -1265,6 +1385,18 @@
             }
           ],
           "default": null
+        },
+        "popup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Popup"
         }
       },
       "required": [
@@ -1309,6 +1441,18 @@
           ],
           "default": null,
           "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
         },
         "action": {
           "const": "screenshot",
@@ -1406,6 +1550,18 @@
           "default": null,
           "title": "Timeout"
         },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
         "action": {
           "const": "select",
           "title": "Action",
@@ -1428,6 +1584,18 @@
           ],
           "minItems": 1,
           "title": "Option"
+        },
+        "popup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Popup"
         }
       },
       "required": [
@@ -1576,6 +1744,18 @@
           ],
           "default": null,
           "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
         },
         "action": {
           "const": "waitFor",

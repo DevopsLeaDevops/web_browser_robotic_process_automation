@@ -1389,7 +1389,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "playwright", specifier = ">=1.63.0" },
+    { name = "playwright", specifier = ">=1.64.0" },
     { name = "rpa-core", editable = "packages/rpa_core" },
 ]
 

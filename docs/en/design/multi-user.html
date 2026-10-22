@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:8b06b26684e6856d">
+<meta name="translation-source" content="sha256:3e27297719d4a1cc">
 <title>Multi-user and internal systems · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -65,7 +65,8 @@
             <tr><td>Every run has to log in</td><td>Each role saves and reuses its own login state (Playwright storage state) to log in less often and lower the risk of account lockouts; when the login expires the run reports needs_login and guides a manual re-login before continuing</td><td>M4</td></tr>
             <tr><td>Legacy systems lack semantic markup</td><td>Locators rely more on css, xpath and text; the recorder avoids auto-generated ids and produces stable selectors</td><td>M1, M4</td></tr>
             <tr><td>iframes</td><td>A locator names the iframe that holds the element with <code>frame</code> (can be nested); see <a href="dsl.html#locators">DSL</a></td><td>M7a</td></tr>
-            <tr><td>pop-up windows, multiple tabs</td><td>The DSL provides steps to switch tabs; tabs opened by a click are brought forward as M7b (in review)</td><td>M7</td></tr>
+            <tr><td>tabs opened by a click (pop-ups)</td><td>The step that opens the tab has <code>popup</code>; steps on that tab have <code>page</code>; see <a href="dsl.html#tabs">DSL</a></td><td>M7b</td></tr>
+            <tr><td>tabs you open yourself</td><td>The DSL provides a step to open a new tab</td><td>M7</td></tr>
             <tr><td>File uploads and downloads</td><td>upload and download actions; downloaded files are kept as artifacts</td><td>M7</td></tr>
             <tr><td>Extracting table data</td><td>extract can turn tables into structured data</td><td>M1</td></tr>
             <tr><td>Self-signed certificates</td><td>A scenario can choose to ignore HTTPS errors; off by default and flagged during review</td><td>M2</td></tr>

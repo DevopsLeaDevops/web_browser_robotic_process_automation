@@ -37,6 +37,7 @@ on:
       - "scenarios/demo/**"
       # 端到端在打包版執行 iframe 的範例（M7a）
       - "scenarios/examples/iframe-form.yaml"
+      - "scenarios/examples/popup-form.yaml"
       - "tools/build_desktop.py"
       - "tools/desktop_e2e.py"
       - "tools/recorder_e2e.py"
@@ -60,6 +61,7 @@ on:
       - "scenarios/demo/**"
       # 端到端在打包版執行 iframe 的範例（M7a）
       - "scenarios/examples/iframe-form.yaml"
+      - "scenarios/examples/popup-form.yaml"
       - "tools/build_desktop.py"
       - "tools/desktop_e2e.py"
       - "tools/recorder_e2e.py"

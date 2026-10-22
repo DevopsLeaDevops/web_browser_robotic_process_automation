@@ -24,12 +24,12 @@ from playwright.sync_api import Page, Playwright, ViewportSize, sync_playwright
 
 from rpa_core.dsl import Scenario, validate_file
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
-from rpa_runner.browser import Deadline, DeadlineExceeded, plan_records, run_steps
+from rpa_runner.browser import Deadline, DeadlineExceeded, Tabs, plan_records, run_steps
 from rpa_runner.contexts import Engine, open_context
 from rpa_runner.files import DIAGNOSTIC, FACTS, SCREENSHOT, STEPS, VIDEO_TMP, write_json
 from rpa_runner.i18n import t
 from rpa_runner.secrets import mask, read_secrets
-from rpa_runner.video import mark_page, video_size
+from rpa_runner.video import PageVideos, mark_page, video_size
 
 __all__ = ["EXIT_DEADLINE", "EXIT_FAILED", "main"]
 
@@ -112,6 +112,7 @@ def run(args: argparse.Namespace) -> int:
 
     save_steps()
     page: Page | None = None
+    tabs: Tabs | None = None
     with sync_playwright() as playwright, contextlib.ExitStack() as stack:
         try:
             page = _open_page(
@@ -124,6 +125,8 @@ def run(args: argparse.Namespace) -> int:
                 storage_state=Path(args.storage_state) if args.storage_state else None,
                 video=out if args.video else None,
             )
+            videos = PageVideos(out, page, engine=engine) if args.video else None
+            tabs = Tabs(page, identify=videos.identify if videos is not None else None)
             facts = run_steps(
                 page,
                 scenario,
@@ -133,13 +136,19 @@ def run(args: argparse.Namespace) -> int:
                 artifacts=out,
                 deadline=deadline,
                 on_progress=save_steps,
+                tabs=tabs,
             )
             write_json(out / FACTS, facts)
-            page.screenshot(path=out / SCREENSHOT, full_page=True, timeout=deadline.budget(10_000))
+            # 最後一步所在的分頁（M7b：可能是新分頁）
+            tabs.active.screenshot(
+                path=out / SCREENSHOT, full_page=True, timeout=deadline.budget(10_000)
+            )
             sys.stdout.write(t("child.done") + "\n")
             return 0
         except BaseException as error:
             timed_out = isinstance(error, DeadlineExceeded) or deadline.remaining_ms() <= 0
+            if tabs is not None:
+                page = tabs.active  # 失敗在新分頁上時，網址與截圖都是那個分頁的
             write_json(
                 out / DIAGNOSTIC,
                 {

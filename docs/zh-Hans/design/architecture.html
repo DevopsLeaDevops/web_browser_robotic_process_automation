@@ -252,9 +252,10 @@
   input.json          # 校验后的本次入参
   facts.json          # 自动化抽取的页面事实
   output.json         # 只有独立断言与出参校验都通过才产生
-  steps.json          # 每一步的结果、开始与结束时间、步骤后的网址
+  steps.json          # 每一步的结果、开始与结束时间、步骤后的网址与所在分页
   screenshot.png、diagnostic.json
   video.webm、video.json  # 自动化阶段的录像与说明（M12，ADR 0016）
+  video-page-N.webm       # 步骤开出的新分页各自的录像
   automation.log、assertion.log
   scenario/           # 本次使用的场景版本快照（含 Python 脚本）
   result.json、report.html、run.json</pre>

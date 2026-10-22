@@ -256,10 +256,27 @@ def test_worker_info_to_json() -> None:
         "display": True,
         "version": "0.1.0",
         # 看得懂的 DSL 擴充（M7a）：管理 Portal 交出用到 iframe 的場景之前比對
-        "features": ["anyFrame", "frame"],
+        "features": ["anyFrame", "frame", "page", "popup"],
     }
 
 
 def test_worker_info_reports_the_package_version() -> None:
     assert WorkerInfo.detect("box").version == package_version() != ""
     assert package_version("no-such-distribution") == ""
+
+
+def test_all_page_recordings_survive_worker_upload_archive(tmp_path: Path) -> None:
+    source = tmp_path / "run"
+    source.mkdir()
+    expected = {
+        "video.webm": b"main",
+        "video-page-2.webm": b"popup",
+        "video.json": b'{"version":2}',
+    }
+    for name, content in expected.items():
+        (source / name).write_bytes(content)
+    archive = tmp_path / "run.zip"
+    assert pack_directory(source, archive) == len(expected)
+    target = tmp_path / "unpacked"
+    assert set(unpack_directory(archive, target)) == set(expected)
+    assert {name: (target / name).read_bytes() for name in expected} == expected
