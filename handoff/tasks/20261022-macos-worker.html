@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>macOS 版 RPA Worker · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>macOS 版 RPA Worker</h1><p>Worker App 支援 Mac（Apple 晶片），功能和 Windows 版一致：狀態視窗、選單列圖示、登入時自動啟動、只執行一份、鑰匙圈、DMG。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261022-macos-worker；2026-10-22 06:03 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求：「Worker 支持 Mac 端，功能和 Windows 保持一致。」驗收：發布時附上 macOS 的 Worker（DMG）；在 Mac 上不需要開發工具就能配對、下載瀏覽器、接任務（含有頭模式與錄影），報告回到 Portal；關掉視窗後仍在背景接任務、可以從選單列叫出或結束、登入時自動啟動、只執行一份、權杖存在系統的安全儲存；登出時取消並回報。</dd>
+        <dt>範圍／不包含</dt><dd>桌面端程式（選單列、Dock、再次打開、⌘Q、登出、自動啟動、平台用詞）、打包設定、CI（macOS 的 Worker 建置、單元測試、視窗自我測試、端到端）、發布、三語文件。不包含：Intel Mac（x86_64）、Developer ID 簽章與公證、安裝檔（.pkg）與自動更新、錄製端兼執行機；不改伺服器與 Worker API。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude；未指定審閱者與接收方。</dd>
+        <dt>修改檔案／整合者</dt><dd>新增 <code>apps/desktop/src/rpa_desktop/macos.py</code>、<code>apps/desktop/tests/test_macos.py</code>；修改 <code>gui.py</code>、<code>autostart.py</code>（<code>LaunchAgent</code>）、<code>i18n.py</code>（<code>platform_key</code>）、<code>ui.py</code>、<code>worker_app.py</code>、<code>headless.py</code>、<code>recorder_gui.py</code>（提示與結束改用共用的 <code>macos</code> 函式）、桌面端訊息目錄（繁中、英文；簡中由 bootstrap 產生）、<code>apps/desktop/packaging/rpa_desktop.spec</code>、<code>tools/build_desktop.py</code>（說明）、<code>tools/desktop_e2e.py</code>（鑰匙圈的檢查）、<code>.github/workflows/desktop.yml</code>、<code>release.yml</code>、測試（autostart、gui、ui）、文件（遠端 Worker、桌面端分發、部署與操作、路線圖、README）、決定紀錄、本紀錄與任務索引。同時進行的 Linux 伺服器分發包（任務 20261022-linux-server-package，PR #70）也改 <code>release.yml</code>、<code>desktop.yml</code>、決定紀錄與任務索引：先合併的不動，後合併的 rebase 後整合（發布清單兩邊的產物都要留）。沒有改 <code>uv.lock</code>（用的 PyObjC 已經是 pywebview 在 macOS 上的相依）。</dd>
+        <dt>狀態</dt><dd>實作中：程式、測試與文件完成，本地檢查見下方；待推送與 CI。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/macos-worker</code>；PR 未建立；從 <code>origin/main</code> df47b14（#67 合併）建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 df47b14＋本分支的未提交差異（只在本機）。</dd>
+        <dt>工作區／環境</dt><dd>Claude 的雲端工作區（Ubuntu 24.04 x86_64、系統 Python 3.13、ruff 0.16.9、pyright 1.1.414、pytest 9.1.1）。連不到 PyPI，<code>uv sync</code> 做不到；本機的 Playwright 是 1.56（鎖檔 1.64），測試時用暫存的 sitecustomize 補一個型別名稱（不進倉庫）。<strong>沒有 Mac</strong>：AppKit 的部分只能由 CI 的 macOS 與人工驗收確認。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>做法</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>同一份程式：</strong><code>rpa_desktop.gui</code> 照舊是 Worker 的視窗版，系統的差別集中在 <code>rpa_desktop.macos</code>；打包設定的 macOS 部分（pywebview 的 cocoa 後端、鑰匙圈、PyObjC）改成兩個 App 共用；DMG 和錄製端一樣由 <code>tools/build_desktop.py</code> 產生（<code>RPA-Worker-版本-macos-arm64.dmg</code>）。</li>
+        <li><strong>選單列（實作選擇）：</strong>Windows 用 pystray；在 macOS 上 pystray 與 pywebview 都要在主執行緒跑 NSApplication 的迴圈，所以直接用 PyObjC 的 <code>NSStatusItem</code> 掛在 pywebview 的迴圈裡（介面和 <code>Tray</code> 相同）。AppKit 的呼叫一律經由 <code>AppHelper.callAfter</code> 排到主執行緒；選單動作在另一個執行緒執行（pywebview 的視窗操作在主執行緒呼叫會等不到自己）。沒有新增相依。</li>
+        <li><strong>視窗與結束：</strong>關掉視窗是縮到選單列並拿掉 Dock 圖示，叫出時恢復。⌘Q 當成「結束」：pywebview 把 ⌘Q 與關閉鈕都變成 closing 事件，用「主執行緒是不是在 <code>applicationShouldTerminate_</code> 裡」區分；先取消 AppKit 的結束（否則程序立刻結束、來不及回報任務），確認後自己關。Finder 再打開或點 Dock 圖示時，在 pywebview 的 App 委派補上 <code>applicationShouldHandleReopen:hasVisibleWindows:</code> 叫出視窗。登出、關機前（<code>NSWorkspaceWillPowerOffNotification</code>）取消任務並在主執行緒等幾秒回報。開過視窗後直接結束程序（同錄製端）。</li>
+        <li><strong>自動啟動：</strong>目前使用者的 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>，<code>RunAtLoad</code>、只在 Aqua 工作階段）；介面和 Windows 的「登入時執行」相同，搬家後更新路徑。不用 <code>SMAppService</code>：需要 macOS 13 且對沒有簽章的 App 行為不確定，plist 可以在 Linux 的 CI 測。</li>
+        <li><strong>用詞：</strong>訊息目錄新增 <code>window.darwin.*</code>、<code>worker.darwin.already_running</code>（選單列、鑰匙圈、登入 macOS），<code>platform_key</code> 與頁面的訊息在 macOS 上選用；三個說明文字改成兩個系統通用。順便修正錄製端的提示：<code>osascript</code> 的字串原本用 <code>json.dumps</code> 的 ASCII 跳脫，中文會顯示成 <code>\uXXXX</code>。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>上述程式、測試、CI 與文件（遠端 Worker 新增「macOS：RPA Worker App」，桌面端分發的範圍表、使用者流程、RPA Worker 面板、保留方案、簽章；部署與操作、路線圖、README）。</li>
+        <li><strong>未完成／阻礙：</strong>CI 尚未執行。下列只能人工在 Mac 上確認（CI 的自我測試只開視窗與選單列圖示）：選單列圖示的外觀與選單、縮到選單列與 Dock 圖示的切換、⌘Q 與關閉鈕的區分、Finder 再打開叫出視窗、登入後自動上線與「登入項目」的顯示、登出時的回報、macOS 15 的本地網路權限、Gatekeeper 第一次打開。</li>
+        <li><strong>決定：</strong>做 Mac 版 Worker 是使用者明確要求；Apple 晶片、DMG、選單列用 PyObjC、LaunchAgent 是 Claude 的實作選擇（記在<a href="../decisions.html">決定紀錄</a>），和錄製端一致。</li>
+        <li><strong>下一個具體動作：</strong>提交、推送、開 PR；看「桌面端建置」的 RPA Worker（macOS）工作；有失敗就修。合併後在真的 Mac 上照<a href="../../docs/develop/remote-worker.html#packaged-mac">遠端 Worker › macOS</a>走一次。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無 stash；本機測試用的套件資訊與 sitecustomize 在 Claude 的暫存資料夾，不在倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>df47b14＋工作區差異；Ubuntu 24.04、系統 Python 3.13（套件從原始碼路徑載入）</td><td><code>pytest apps/desktop/tests</code></td><td>161 通過、3 略過（Windows 專用、keyring 沒裝）、1 失敗：簡中訊息目錄還沒有新的鍵（產生的檔案，交給 bootstrap）。新增：選單列的選單、動作、語言與暫停、跨執行緒排到主執行緒、沒有 AppKit 時不影響、Dock、再次打開、登出通知、⌘Q 的判斷（主執行緒與其他執行緒）、AppleScript 字串、LaunchAgent 的內容與搬家、macOS 的頁面用詞、⌘Q 在視窗版的結束與確認</td><td>AppKit 是替身；真的 AppKit 只有 CI 的 macOS 與人工</td></tr>
+          <tr><td>同上</td><td><code>ruff check</code>、<code>ruff format --check</code>；<code>pyright --pythonplatform Linux</code> 與 <code>Darwin</code>（改到的檔案）</td><td>通過；只剩既有的 webview stub 警告</td><td>整個專案的 pyright 與測試交給 bootstrap 與 CI</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/docs</code>；<code>tools/i18n.py stamp</code> 四個英文頁</td><td>277 通過，1 失敗：簡中 <code>remote-worker.html</code> 少了新錨點（交給 bootstrap）</td><td>簡中產生與 <code>i18n.py check</code> 需要 opencc</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收；未指定接收方。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-22 05:24 America/Los_Angeles（PDT，UTC−07:00）：使用者提出兩個功能（本任務與 Linux 伺服器分發包）。Claude 讀共用流程、任務紀錄（M10.1、M10.2）與桌面端設計；確認沒有開啟的 PR，在獨立 worktree 從 <code>origin/main</code> df47b14 建立本分支。</li>
+        <li>2026-10-22 06:03 America/Los_Angeles（PDT，UTC−07:00）：完成實作、測試與文件，本地檢查如上；準備提交並推送。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
