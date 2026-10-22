@@ -1116,3 +1116,8 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 131.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 2.0, "run_id": 39782965442, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 39782965442, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39782965442, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 7.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 39782965444, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 25.0, "job": "靜態檢查", "os": "linux", "queue_s": 2.0, "run_id": 39782965444, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 72.0, "job": "測試（Python 3.12）", "os": "linux", "queue_s": 1.0, "run_id": 39782965444, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 154.0, "job": "測試（Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 39782965444, "workflow": "CI"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "Worker 測試（Windows）", "os": "windows", "queue_s": 0.0, "run_id": 39782965444, "workflow": "CI"}
