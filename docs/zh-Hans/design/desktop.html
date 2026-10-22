@@ -45,7 +45,7 @@
           <thead><tr><th>组件</th><th>macOS</th><th>Windows</th><th>说明</th></tr></thead>
           <tbody>
             <tr><td>RPA 录制端</td><td><span class="badge green">已交付</span>（v0.3.0 起）</td><td><span class="badge">保留方案</span></td><td>录制、逐步调试、人工登录，以及 Portal 的其他功能；Apple 芯片（arm64）</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge">保留方案</span></td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>运行场景（含有头模式、录像）；Windows x64</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge blue">已实现</span>（2026-10-22，下一个发布起）</td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>运行场景（含有头模式、录像）；Windows x64、macOS（Apple 芯片）</td></tr>
             <tr><td>服务器（rpa serve）</td><td colspan="2"><span class="badge">不打包</span>：从源代码安装，一键安装脚本；Linux（RHEL 衍生版）用 <code>scripts/setup-linux.sh</code>，可用 systemd 开机启动</td><td>先在用户自己的电脑调试；现在也放在没有屏幕的 Linux 主机（见<a href="../develop/operations.html">部署与操作</a>）</td></tr>
             <tr><td>数据库</td><td colspan="2"><span class="badge">不另做二进位</span></td><td>SQLite 内嵌在服务器里；正式环境的 PostgreSQL 用官方安装包或 Docker（M8、M9）</td></tr>
           </tbody>
@@ -74,7 +74,7 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>Worker：用户的流程</h2><span class="muted">Windows</span></div>
+        <div class="panel-header"><h2>Worker：用户的流程</h2><span class="muted">Windows、macOS</span></div>
         <div class="panel-body prose">
           <ol>
             <li>取得 <code>RPA-Worker-Setup.exe</code>，安装到用户目录；不需要管理员、uv、git、Python。</li>
@@ -83,6 +83,7 @@
             <li>下载浏览器，状态变成「在线」。</li>
             <li>关掉窗口是缩到通知区；可勾选「登录 Windows 时自动启动」。</li>
           </ol>
+          <p>macOS：打开 DMG，把「RPA Worker」拖进「应用程序」；第一次打开到「隐私权与安全性」允许（同录制端）。之后同上，关掉窗口是缩到菜单列，可勾选「登录 macOS 时自动启动」。</p>
         </div>
       </section>
     </div>
@@ -140,7 +141,7 @@
           <text class="sub" x="408" y="382">任务的领取、租约与取消</text>
           <path class="link" d="M500 304V320" marker-end="url(#dep-arrow)"/>
           <rect class="frame" x="688" y="16" width="296" height="396" rx="10"/>
-          <text class="frame-label" x="700" y="34">运行机：RPA Worker App（Windows）</text>
+          <text class="frame-label" x="700" y="34">运行机：RPA Worker App（Windows、macOS）</text>
           <rect class="box" x="702" y="44" width="268" height="62" rx="8"/>
           <text class="title" x="716" y="66">状态窗口（WebView2）＋通知区</text>
           <text class="sub" x="716" y="86">配对、下载浏览器、目前运行、设置</text>
@@ -338,7 +339,7 @@
         </div>
       </section>
       <section class="panel" id="worker">
-        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1，Windows</span></div>
+        <div class="panel-header"><h2>RPA Worker</h2><span class="muted">M10.1，Windows；macOS 2026-10-22</span></div>
         <div class="panel-body prose">
           <ul>
             <li><strong>内部就是现有的 RemoteWorker。</strong>权杖改从配对取得；领取、心跳、上传、测试网站的行为都和 <code>rpa worker</code> 一样（运行循环在 <code>rpa_worker.service</code>，两边共用）。</li>
@@ -353,6 +354,17 @@
             <li><strong>数据位置。</strong>工作数据、设置与日志在 <code>%LOCALAPPDATA%\rpa\worker</code>（日志会轮替，不记权杖与邀请代码），Firefox 预热模板照旧在 <code>%LOCALAPPDATA%\rpa\cache</code>，浏览器在 Playwright 默认的 <code>%LOCALAPPDATA%\ms-playwright</code>。</li>
             <li><strong>CI。</strong>Windows 的建置工作先跑桌面端的单元测试（注册表、单一运行、认证管理员用真的）；<code>--smoke-test</code> 打开真的 WebView2 窗口与通知区图标；端到端先静默安装，用装好的 App 以 <code>--no-window</code> 配对并运行 BA-001 → BA-002，再在 App 运行中升级、卸载（<a href="#installer">安装档</a>）。窗口程序没有标准输出，<code>--version</code>、<code>--self-test</code> 改用 <code>rpa-child</code>。</li>
             <li><strong>M9a 剩下的三项并入 M10.1：</strong>运行报告的「运行位置」筛选、场景网址是本机地址时的提醒、等待 worker 的提示。</li>
+            <li><strong>macOS 版（2026-10-22，ADR 0014 的保留方案）。</strong>同一份程序（<code>rpa_desktop.gui</code>），Apple 芯片，DMG 拖进「应用程序」，没有安装档；功能和上面相同，差别在系统的部分（<code>rpa_desktop.macos</code>）：
+              <ul>
+                <li>通知区换成菜单列图标（<code>NSStatusItem</code>，菜单与圆点相同）。不用 pystray：它和 pywebview 都要在主线程跑 NSApplication 的循环；改用 PyObjC 挂在 pywebview 的循环里，AppKit 的调用一律排到主线程，菜单动作在另一个线程运行。</li>
+                <li>关掉窗口是缩到菜单列，同时拿掉 Dock 图标（<code>Accessory</code>），叫出窗口时恢复；⌘Q 当成「结束」（有任务先确认）：pywebview 把 ⌘Q 和关闭钮都变成同一个 closing 事件，看主线程是不是在 <code>applicationShouldTerminate_</code> 里来区分，先取消 AppKit 的结束（它会立刻结束进程，来不及回报），确认后由 App 自己关。</li>
+                <li>在 Finder 再打开或点 Dock 图标时（<code>rapp</code>），叫出窗口：LaunchServices 不会启动第二份，所以在 pywebview 的 App 委派补上 <code>applicationShouldHandleReopen:hasVisibleWindows:</code>。直接运行第二份（例如 <code>open -n</code>）照旧走 <code>show.request</code>。</li>
+                <li>自动启动是目前用户的 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>，<code>--background</code>，只在登录的桌面工作阶段）；macOS 13 起列在「登录项目」。</li>
+                <li>权杖在钥匙圈（<code>RPA Worker</code>，和录制端的 <code>RPA Recorder</code> 分开）；数据在 <code>~/Library/Application Support/rpa/worker</code>。注销、关机前（<code>NSWorkspaceWillPowerOffNotification</code>）取消任务并回报，最多等几秒。窗口关掉、收拾完后直接结束进程（同录制端，pywebview 留下的线程不是 daemon）。</li>
+                <li>画面上的「通知区、认证管理员、登录 Windows」在 macOS 上换成「菜单列、钥匙圈、登录 macOS」：消息目录的 <code>window.darwin.*</code>。</li>
+                <li>CI：macOS 的 Worker 建置先跑桌面端的单元测试（钥匙圈用真的）；<code>open RPA Worker.app --args --smoke-test</code> 打开 WKWebView 窗口与菜单列图标；端到端和 Windows 相同（不含安装档），权杖要存进钥匙圈。</li>
+              </ul>
+            </li>
           </ul>
         </div>
       </section>
@@ -457,7 +469,7 @@
         <div class="panel-header"><h2>签章与第一次打开</h2><span class="muted">MVP 不签章</span></div>
         <div class="panel-body prose">
           <ul>
-            <li><strong>macOS。</strong>只有 ad-hoc 签章（Apple 芯片必需，PyInstaller 自动处理），没有公证。从浏览器下载后第一次打开会被挡下：到「系统设置 › 隐私权与安全性」，在下方找到这个 App，选择允许打开并输入密码。macOS 15 起，按住 Control 点「打开」已经不能略过这一步。熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>。</li>
+            <li><strong>macOS。</strong>只有 ad-hoc 签章（Apple 芯片必需，PyInstaller 自动处理），没有公证。从浏览器下载后第一次打开会被挡下：到「系统设置 › 隐私权与安全性」，在下方找到这个 App，选择允许打开并输入密码。macOS 15 起，按住 Control 点「打开」已经不能略过这一步。熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>（Worker 是 <code>RPA Worker.app</code>）。</li>
             <li><strong>Windows。</strong>没有代码签章：SmartScreen 显示「Windows 已保护您的电脑」时按「其他信息 › 仍要运行」；浏览器下载时也可能要确认保留文件。</li>
             <li><strong>之后。</strong>有 Apple Developer 账号后加上 Developer ID 签章与公证；Windows 加代码签章凭证。只改 CI 的建置步骤。</li>
           </ul>
@@ -493,7 +505,7 @@
           </tbody>
         </table>
       </div>
-      <div class="panel-body"><p class="muted">M10.2 之后和桌面端有关的修改：服务器没有浏览器时「检查」交给录制端、人工登录在开窗口的那台确认、看得懂的登录错误（#50）；人工登录的 Firefox 在背景不再停住（#51）；App 回报看得懂的 DSL 扩充，旧 App 拿不到用了新写法的场景（M7a，#62）；Worker 录像，Windows 上取消时先只结束浏览器，让视频写完（M12，#61）。</p></div>
+      <div class="panel-body"><p class="muted">M10.2 之后和桌面端有关的修改：服务器没有浏览器时「检查」交给录制端、人工登录在开窗口的那台确认、看得懂的登录错误（#50）；人工登录的 Firefox 在背景不再停住（#51）；App 回报看得懂的 DSL 扩充，旧 App 拿不到用了新写法的场景（M7a，#62）；Worker 录像，Windows 上取消时先只结束浏览器，让视频写完（M12，#61）。2026-10-22：macOS 版 Worker（保留方案提前做，见<a href="#worker">RPA Worker</a>）。</p></div>
     </section>
 
     <div class="two-col">
@@ -504,7 +516,6 @@
             <thead><tr><th>项目</th><th>方案</th></tr></thead>
             <tbody>
               <tr><td>录制端 Windows 版</td><td>同一份代码，多一个建置组合与验收</td></tr>
-              <tr><td>Worker macOS 版</td><td>同上，加上「登录时启动」（登录项目）</td></tr>
               <tr><td>服务器</td><td>同一套打包工具打出 <code>rpa serve</code>（macOS、Windows、Linux）；M9 的 Docker Compose 另做</td></tr>
               <tr><td>自动更新</td><td>MVP 只提醒并连到下载页；之后用 Sparkle、WinSparkle</td></tr>
               <tr><td>HTTPS</td><td>服务器产生自签凭证，邀请里带凭证指纹，闸道与 worker 钉选；不必购买凭证</td></tr>

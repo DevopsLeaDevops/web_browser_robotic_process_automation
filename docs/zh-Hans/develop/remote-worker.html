@@ -69,7 +69,7 @@ uv run rpa worker --invite 'rpa://pair?server=…&amp;app=worker&amp;code=…'
 # 服务器地址要改时：代码分开给
 uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <p>看到「已配对」与「已连上管理 Portal」就好了；设备页的状态变成「在线」。换到的权杖存在工作文件夹的 <code>worker-data\pairing.json</code>（只有你能读写，不要提交到 git），<strong>之后只要运行 <code>uv run rpa worker</code></strong>。按 Ctrl+C 停止：运行中的任务会被取消并回报。</p>
-          <p>以前的方式照样可用：用 API（<code>POST /api/workers/{代号}/token</code>）重新产生权杖后，放在环境变量 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，并加上 <code>--server</code>。Windows 上也可以改用 <a href="#packaged">RPA Worker App</a> 粘贴邀请，不必安装开发环境。</p>
+          <p>以前的方式照样可用：用 API（<code>POST /api/workers/{代号}/token</code>）重新产生权杖后，放在环境变量 <code>RPA_WORKER_TOKEN</code> 或 <code>--token-file token.txt</code>，并加上 <code>--server</code>。Windows 与 macOS（Apple 芯片）上也可以改用 RPA Worker App（<a href="#packaged">Windows</a>、<a href="#packaged-mac">macOS</a>）粘贴邀请，不必安装开发环境。</p>
         </div>
       </section>
     </div>
@@ -96,6 +96,29 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 内置，Windows 10 大多已随 Edge 更新装好；安装档在没有时会安装。还是没有时（例如免安装版、安装时没有网络），RPA Worker 会说明怎么安装，在那之前只靠通知区接任务。</li>
           <li><strong>Windows 注销或关机</strong>：运行中的任务立刻被取消并回报；来不及回报时，管理 Portal 约一分钟后判定失联。</li>
           <li><strong>排查问题</strong>：同文件夹的 <code>rpa-child.exe --worker</code> 是主控台版（和第一步的预览版相同，每一行消息都看得到）；<code>rpa-worker.exe --no-window --invite … --log 文件</code> 不开窗口（自动化用；要它结束时在文件夹放一个 <code>stop.request</code> 文件，运行中的任务会被取消并回报）。两者和窗口版用同一份配对，同一时间只能开一份。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="packaged-mac">
+      <div class="panel-header"><h2>macOS：RPA Worker App</h2><span class="muted">Apple 芯片；功能和 Windows 版相同</span></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>从 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-版本-macos-arm64.dmg</code>（加入 macOS 版之后的第一个发布才有）。测试还没发布的版本时，改从「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-macos-14</code>。</li>
+          <li>打开 DMG，把「RPA Worker」拖进「应用程序」。没有签章与公证，第一次打开会被挡下：到「系统设置 › 隐私权与安全性」，在下方找到 RPA Worker，选择允许打开并输入密码（和<a href="../design/desktop.html#signing">录制端</a>相同）。熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Worker.app"</code>。</li>
+          <li>和 Windows 相同：粘贴 Worker 邀请、按「配对」，第一次下载 Chromium，状态变成「在线」就好了。macOS 15 起第一次连到区网时会问是否允许 RPA Worker 连到区网上的设备，请选「允许」。</li>
+        </ol>
+        <ul>
+          <li><strong>关闭窗口不会停止。</strong>RPA Worker 缩到菜单列（屏幕右上角的图标）继续接任务，Dock 上的图标也收起来；第一次会用通知提示。菜单列图标的菜单与圆点的颜色和 Windows 的通知区相同。要结束：菜单列图标 › 结束，或在窗口按 ⌘Q；有任务在运行时先确认，取消后回报给管理 Portal。</li>
+          <li><strong>叫出窗口</strong>：菜单列图标 › 打开窗口，或在 Finder、Launchpad 再打开一次 RPA Worker。</li>
+          <li><strong>登录 macOS 时自动启动</strong>：第一次配对成功后默认打开，只出现在菜单列；在窗口的「设置」可以关闭。做法是放一个 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>）：macOS 13 起会通知「已加入背景项目」，也列在「系统设置 › 一般 › 登录项目」；在那里关掉时，系统另外记录禁用，App 的设置不会把它改回来。App 搬到别的位置后开一次，自动启动就会改成新的位置。</li>
+          <li><strong>升级</strong>：先从菜单列结束 RPA Worker（运行中的任务被取消并回报），再把新版的 App 拖进「应用程序」取代。配对、设置与自动启动都保留。窗口的「下载新版」打开最新的 Release。</li>
+          <li><strong>卸载</strong>：先在「设置」关掉自动启动并结束 RPA Worker，再把 App 拖到垃圾桶。要一并删除配对：先运行 <code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --forget-pairing</code>（删除钥匙圈里的权杖），再删除文件夹 <code>~/Library/Application Support/rpa/worker</code>。浏览器（<code>~/Library/Caches/ms-playwright</code>）录制端也可能在用，不要删。</li>
+          <li><strong>数据位置</strong>：<code>~/Library/Application Support/rpa/worker</code>（<code>pairing.json</code>、<code>settings.json</code>、日志 <code>logs/</code>、任务的暂存）。<strong>权杖存在钥匙圈</strong>（登录钥匙圈里的 <code>RPA Worker</code>）；钥匙圈不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。日志不记权杖与邀请代码。</li>
+          <li><strong>注销、重新开机或关机</strong>：运行中的任务立刻被取消并回报（只等几秒，不挡住注销）；来不及回报时，管理 Portal 约一分钟后判定失联。</li>
+          <li><strong>同一台 Mac 也装了录制端</strong>：两个 App 各自配对（Worker 邀请、录制端邀请），文件夹与钥匙圈项目分开，可以同时运行；下载的浏览器共用。</li>
+          <li><strong>排查问题</strong>：<code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --worker</code> 是主控台版；同文件夹的 <code>rpa-worker --no-window --invite … --log 文件</code> 不开窗口。两者都要在登录中的桌面（例如「终端」）运行，有头模式才开得了浏览器；和 App 用同一份配对，同一时间只能开一份。</li>
+          <li><strong>只支持 Apple 芯片</strong>（和录制端相同）。Intel Mac 用开发环境的 <code>rpa worker</code>（<a href="#start">启动 worker</a>）。</li>
         </ul>
       </div>
     </section>
