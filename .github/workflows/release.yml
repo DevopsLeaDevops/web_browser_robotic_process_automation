@@ -63,11 +63,11 @@ jobs:
           path: release
       - uses: actions/download-artifact@v8
         with:
-          name: recorder-macos-14
+          name: recorder-macos-15
           path: release
       - uses: actions/download-artifact@v8
         with:
-          name: worker-macos-14
+          name: worker-macos-15
           path: release
       - name: 檔案與 SHA-256
         working-directory: release
