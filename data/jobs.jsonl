@@ -1352,3 +1352,9 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 1844.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 3.0, "run_id": 39855480410, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "failure", "duration_s": 8.0, "job": "從零開始（windows-latest）", "os": "windows", "queue_s": 3.0, "run_id": 39855480410, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "success", "duration_s": 6.0, "job": "失敗時開 issue", "os": "linux", "queue_s": 3.0, "run_id": 39855480410, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 6.0, "job": "執行範圍", "os": "linux", "queue_s": 1.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "完整測試（macos-latest，Python 3.13）", "os": "macos", "queue_s": 0.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 3605.0, "job": "完整測試（windows-latest，Python 3.13）", "os": "windows", "queue_s": 2.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 2193.0, "job": "完整測試（ubuntu-latest，Python 3.12）", "os": "linux", "queue_s": 2.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 2448.0, "job": "完整測試（ubuntu-latest，Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
