@@ -128,7 +128,7 @@ sudo systemctl restart rpa-portal          # 更新後重新啟動</pre>
         <ol>
           <li>到「運行報告」確認沒有執行中的任務，錄製端那邊也沒有進行中的錄製或調試。</li>
           <li>停止伺服器（Ctrl+C 或 <code>sudo systemctl stop rpa-portal</code>），建議先<a href="#backup">備份</a>。</li>
-          <li><code>git pull</code>，再執行 <code>./scripts/setup.sh</code>（依賴與瀏覽器有變動才安裝；只想更新依賴用 <code>uv sync</code>）。</li>
+          <li><code>git pull</code>，再執行 <code>./scripts/setup.sh</code>（依賴與瀏覽器有變動才安裝；只想更新依賴用 <code>uv sync</code>）。用<a href="setup.html#linux-package">分發包</a>安裝的 Linux 伺服器改成：解壓新版的分發包，執行其中的 <code>install.sh</code>；它把新版本放好後才切換，服務正在執行時自動重新啟動（這一步和下一步一起完成）。</li>
           <li>啟動伺服器。資料庫在啟動時自動升級，原有的場景與紀錄都保留。第一次升級到 M11 時，舊的 <code>scenes/</code> 與資料庫裡的驗證、發布、組合場景會搬進 <code>domains/</code>，搬之前先備份到 <code>backups/&lt;時間&gt;-before-domains/</code>（組合場景另有 <code>-before-composites/</code>），日誌會印出備份位置。</li>
           <li>把運行端與錄製端更新到同一個版本：App 下載同版本的安裝檔或 DMG，命令列的那台 <code>git pull</code> 後重新啟動。</li>
         </ol>

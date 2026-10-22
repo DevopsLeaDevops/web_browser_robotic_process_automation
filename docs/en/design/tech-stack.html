@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:cb97e52b96ae4bf5">
+<meta name="translation-source" content="sha256:0c76f27013bd9e36">
 <title>Tech stack · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -44,7 +44,7 @@
             <tr><td>Desktop packaging</td><td>PyInstaller (folder mode); macOS DMG, Windows Inno Setup</td><td>Briefcase, Nuitka</td><td>The most mature option with packaging support for Playwright; folder mode starts fast and is flagged by antivirus less often</td><td>M10</td></tr>
             <tr><td>Scenario storage and sync</td><td>Domain folders (YAML descriptors + immutable revisions + validation records); the database is only an index; sync with one folder of a git repository (bare repository + git plumbing commands, git 2.25 or later)</td><td>Syncing databases, database only</td><td>Reviewable and traceable in git, a validation on any server can back a publication, a new server pulls only the domains it needs<small><a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a></small></td><td>M11</td></tr>
             <tr><td>Run recording</td><td>Playwright BrowserContext video (WebM VP9 with Playwright's bundled ffmpeg); steps record their actual start and end times; thumbnails are made in the viewer's browser</td><td>Playwright Trace, a screenshot per step</td><td>Videos can be played and scrubbed and line up with the steps on the same clock; the Linux server needs neither a browser nor ffmpeg<small><a href="../adr/0016-run-replay.html">ADR 0016</a></small></td><td>M12</td></tr>
-            <tr><td>Deployment</td><td>Now: the server is installed from source with the setup scripts (<code>setup-linux.sh</code> on Linux, optional systemd service) and the desktop apps with installers; Docker Compose later</td><td>Kubernetes</td><td>Enough to start with; can be migrated later</td><td>M9</td></tr>
+            <tr><td>Deployment</td><td>Now: a Linux server uses the package with its own Python (or <code>setup-linux.sh</code> from source), with an optional systemd service; on other systems the server is installed from source with the setup scripts, and the desktop apps with installers; Docker Compose later</td><td>Kubernetes</td><td>Enough to start with; can be migrated later</td><td>M9</td></tr>
           </tbody>
         </table>
       </div>

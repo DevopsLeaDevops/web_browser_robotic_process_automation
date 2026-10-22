@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Linux 伺服器分發包 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>Linux 伺服器分發包</h1><p>伺服器不再需要 clone 程式碼與 setup：下載一個自帶 Python 的 tar.gz，解壓後 <code>install.sh</code> 安裝與升級。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261022-linux-server-package；2026-10-22 05:44 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求：「Linux 伺服器支持分發包，支持分發包安裝，目前我是 clone 代碼 setup 的形式，效率不高。」驗收：發布時附上可下載的伺服器分發包；在 RHEL／CentOS 衍生版（glibc 2.28、yum）上不需要 git、uv、PyPI 就能安裝、啟動、配對裝置；升級保留設定與資料並能接續 systemd 服務；已用 clone 安裝的伺服器能改用分發包。</dd>
+        <dt>範圍／不包含</dt><dd>建置工具、包內的安裝程式與 <code>rpa</code> 命令、CI（x64、arm64，Rocky 8 容器）、發布流程、三語文件。不包含：RPM／yum 套件庫、macOS／Windows 的伺服器分發包、Docker 映像（M9）、自動更新、程式碼簽章；不改資料庫與伺服器的程式行為；<code>scripts/setup-linux.sh</code> 照舊保留給從原始碼安裝。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude；未指定審閱者與接收方。</dd>
+        <dt>修改檔案／整合者</dt><dd>新增 <code>tools/build_server.py</code>、<code>apps/server/packaging/install.sh</code>、<code>apps/server/packaging/rpa</code>、<code>tests/ci/test_server_package.py</code>、<code>.github/workflows/server-package.yml</code>；修改 <code>tools/linux_server_smoke.py</code>（<code>--rpa</code>、<code>--cwd</code>）、<code>.github/workflows/release.yml</code>、<code>desktop.yml</code>（觸發路徑排除 <code>apps/server/packaging/</code>）、<code>ci-metrics.yml</code> 與 <code>tools/ci_metrics.py</code>（記錄新流程）、README、文件（setup、quickstart、operations、ci、desktop、tech-stack 的繁中與英文，簡中由 bootstrap 產生）、決定紀錄、本紀錄與任務索引。同時進行的 Mac 版 Worker（任務 20261022-macos-worker，分支 <code>feat/macos-worker</code>）也改 <code>release.yml</code>、<code>desktop.yml</code>、決定紀錄與任務索引：先合併的不動，後合併的 rebase 後整合（兩邊的產物都留在發布清單）。沒有改 <code>uv.lock</code>。</dd>
+        <dt>狀態</dt><dd>實作中：程式、測試與文件完成，本地檢查見下方；待推送與 CI。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/linux-server-package</code>；PR 未建立；從 <code>origin/main</code> df47b14（#67 合併）建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 df47b14＋本分支的未提交差異（只在本機）。</dd>
+        <dt>工作區／環境</dt><dd>Claude 的雲端工作區（Ubuntu 24.04 x86_64、glibc 2.39、系統 Python 3.13、uv 0.11.32、ruff 0.16.9、pyright 1.1.414、pytest 9.1.1）。<strong>連不到 PyPI</strong>（直連 DNS 失敗、代理拒絕），<code>uv sync</code> 做不到，也沒有 Docker daemon：真正的分發包建置、安裝與 Rocky 8 驗證只能在 CI 執行。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>做法</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>分發包的內容（實作選擇）：</strong><code>RPA-Server-版本-linux-x64.tar.gz</code>／<code>linux-arm64</code>，內含 uv 管理的 CPython（python-build-standalone，<code>.python-version</code> 的 3.13，glibc 2.17 以上就能跑、可以搬家）、照 <code>uv.lock</code> 匯出（含 sha256）並直接裝進這份 Python 的第三方套件、工作區六個套件的 wheel（不含 rpa-desktop）、<code>bin/rpa</code>、<code>install.sh</code>、範例場景 <code>scenarios/demo</code>、<code>BUILD_INFO</code>（KEY=值）。不用 PyInstaller：伺服器以 <code>sys.executable -m …</code> 啟動子程序、alembic 要讀遷移檔，真的 Python 最單純。不做 RPM：一般帳號就能裝、不挑發行版，和現有 setup-linux.sh 的使用方式一致。</li>
+        <li><strong>glibc 2.28：</strong>建置機器（Ubuntu）比公司伺服器新，<code>uv pip install --python-platform &lt;arch&gt;-manylinux_2_28</code> 限定 wheel；裝好後逐一讀 <code>*.dist-info/WHEEL</code> 的平台標籤，需要更新 glibc 的就停止建置（例如 cryptography 有 manylinux_2_34 的版本）。最後由 Rocky 8（glibc 2.28）容器實際執行驗證。</li>
+        <li><strong>安裝與升級：</strong>預設 <code>~/rpa-server</code>；版本並排在 <code>releases/版本-提交/</code>，新版本先複製到暫存資料夾、用包內的 Python 載入伺服器程式確認能執行，才改名、再原子地把 <code>current</code> 換過去；保留最近 3 個版本（使用中與上一版一定保留）。設定 <code>rpa-server.env</code>、資料目錄（預設 <code>~/.local/share/rpa-server</code>，和 setup-linux.sh 相同）都不動。服務的 unit 指向固定的 <code>bin/rpa-server</code>，所以升級只要重新啟動；重新啟動後約 60 秒內管理埠沒有回應就停下並說明怎麼退回上一版。</li>
+        <li><strong>從 clone 改過來：</strong>第一次安裝時找 systemd 服務啟動的 <code>.venv-server/bin/rpa-server</code> 所在的 clone，再找預設的 clone 位置，沿用那份 <code>.rpa-server.env</code>（變數相同）；<code>--import-env</code> 可以指定。現有服務仍指向 clone 時不動它，加 <code>--install-service</code> 才換過去。</li>
+        <li><strong>系統套件：</strong>只補裝缺少的 <code>libstdc++</code>（必要）與 <code>git</code>（只有 git 同步要用）；所以升級通常不需要 sudo 裝套件。<code>bin/rpa</code> 清掉 <code>PYTHONPATH</code> 等設定、加 <code>PYTHONUTF8</code>；包內 OpenSSL 預設找 Debian 的憑證位置，沒有設定時改用 RHEL 的 <code>/etc/pki/tls/certs/ca-bundle.crt</code>。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>上述檔案；文件新增「Linux 伺服器：分發包（建議）」（<code>docs/develop/setup.html#linux-package</code>），原本的段落改稱「從原始碼安裝」；桌面端分發、技術選型、部署與操作、本機從零開始、CI 頁同步；發布流程附上兩個分發包與 SHA-256。</li>
+        <li><strong>未完成／阻礙：</strong>CI 尚未執行（本機做不到真正的建置）；公司主機（glibc 2.32、真的 systemd 啟停與開機自動啟動、aarch64 實機）未人工驗收；第一個附上分發包的 Release 要等下一次發布。</li>
+        <li><strong>決定：</strong>要分發包是使用者明確要求；tar.gz＋自帶 Python、並排版本、預設位置與沿用 clone 設定是 Claude 的實作選擇（已記在<a href="../decisions.html">決定紀錄</a>），使用者可要求改成 RPM 等其他形式。</li>
+        <li><strong>下一個具體動作：</strong>提交、推送、開 PR；看「伺服器分發包」兩個架構的工作與 CI；有失敗就修。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>本機無 stash；<code>dist/</code>、<code>build/</code> 沒有產物（本機沒有建置）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>df47b14＋工作區差異；Ubuntu 24.04、系統 Python 3.13</td><td><code>pytest -q tests/ci/test_server_package.py tests/ci/test_linux_setup.py</code></td><td>80 通過（新增 48：系統辨識與 os-release 不蓋掉版本、壞的 BUILD_INFO、只裝缺少的套件、首次安裝的檔案與啟動器參數、重裝保留設定、升級切換、保留版本數、Python 不能執行時不切換、沿用 setup-linux.sh 服務與預設 clone 的設定、<code>--import-env</code>、安裝服務、升級時重新啟動、重新啟動失敗的說明、unit 的特殊路徑、<code>bin/rpa</code> 的環境、wheel 平台標籤）</td><td>假的分發包（python3、rpa 是小腳本）；真正的 Python 與套件只有 CI 驗</td></tr>
+          <tr><td>同上</td><td><code>ruff check</code>、<code>ruff format --check</code>（本機 ruff 0.16.9，鎖檔是較新版）；<code>pyright --pythonpath /usr/bin/python3</code> 新的 Python 檔；<code>bash -n</code>；工作流程 YAML 解析</td><td>通過；pyright 只剩本機找不到 pytest 的錯誤（環境缺少，CI 的 strict 檢查為準）</td><td>完整專案的 pyright 與 <code>pytest -m "not browser"</code> 需要 <code>uv sync</code>，交給 CI</td></tr>
+          <tr><td>同上</td><td><code>pytest -q tests/docs</code>；<code>tools/i18n.py stamp</code> 六個英文頁</td><td>277 通過，1 失敗：簡中 <code>zh-Hans/develop/setup.html</code> 少了新錨點（產生的檔案，提交時用 <code>[bootstrap]</code> 由 CI 重新產生）</td><td><code>tools/i18n.py sync／check</code> 需要 opencc，交給 bootstrap 與 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收；未指定接收方。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-22 05:24 America/Los_Angeles（PDT，UTC−07:00）：使用者提出兩個功能（本任務與 Mac 版 Worker）。Claude 讀 AGENTS.md、共用流程、任務索引、相關任務紀錄與設計；fetch 後確認沒有開啟的 PR、<code>main</code> 在 df47b14；在獨立 worktree 從 <code>origin/main</code> 建立本分支。</li>
+        <li>2026-10-22 05:44 America/Los_Angeles（PDT，UTC−07:00）：完成實作、測試與文件，本地檢查如上；準備提交並推送。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

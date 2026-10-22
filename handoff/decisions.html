@@ -96,6 +96,7 @@
           <tr><td class="mono">10-13</td><td>M9a：預設執行位置是本機；兩個埠分開；60 秒租約、失聯不重跑；序列固定在第一個節點的 worker；程式版本不同只提醒、協定版本不同才拒絕；worker 也啟動自己的測試網站</td><td><span class="kind rec">推薦</span></td><td>m9a 提案、ADR 0012、#23</td></tr>
           <tr><td class="mono">10-13</td><td>Worker API 先用 HTTP（不做 HTTPS）</td><td><span class="kind tentative">暫定</span>：你選了 HTTP，適用於信任的區網；網路環境改變時再加 HTTPS</td><td>ADR 0012「代價」</td></tr>
           <tr><td class="mono">10-13</td><td>安裝腳本在受限語言模式下：下載官方 uv 壓縮包並校驗 SHA-256、裝到使用者目錄；不執行遠端腳本、不修改永久 PATH，只提示當前視窗怎麼加 PATH</td><td><span class="kind user">你明確決定</span>（你寫的 PR）</td><td><a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/25">#25</a></td></tr>
+          <tr><td class="mono">10-22</td><td>Linux 伺服器改用分發包：自帶 Python 的 tar.gz（x64、arm64），包內 <code>install.sh</code> 安裝與升級（版本並排、<code>current</code> 切換、沿用 clone 安裝的設定）；<code>setup-linux.sh</code> 保留給從原始碼安裝</td><td><span class="kind user">你明確決定</span>（要分發包）；格式與安裝方式是 Claude 的實作選擇</td><td><a href="tasks/20261022-linux-server-package.html">任務紀錄</a>；<a href="../docs/develop/setup.html#linux-package">分發包</a></td></tr>
         </tbody>
       </table></div>
     </section>
