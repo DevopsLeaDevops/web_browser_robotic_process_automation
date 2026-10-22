@@ -19,9 +19,9 @@
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-21 23:45 PDT：「文檔中，設計部分是最新的嗎？不是就更新；週用量快到上限，依優先級一頁一頁做完、一頁一頁更新。優先：系統架構、桌面端分發（用圖直觀說明）、其他。」完成＝各頁的內容和 main 的實作一致，繁中、英文同步並 stamp，簡中由 bootstrap 產生，文檔測試通過。</dd>
         <dt>範圍／不包含</dt><dd>docs/design/ 下的頁面（繁中、英文）。不改程式。<code>dsl.html</code> 正被 PR #66（M7b）、#67（動態值）修改，本任務不動，避免衝突；路線圖不在「設計」部分，不在本任務。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude；使用者審閱與合併；接收方未指定</dd>
-        <dt>修改檔案／整合者</dt><dd>docs/design/architecture.html、docs/en/design/architecture.html（之後 desktop.html 與其他頁）；本頁與任務索引。Claude 整合。</dd>
-        <dt>狀態</dt><dd>實作中：系統架構已完成並推送；桌面端分發進行中</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>docs/design-refresh</code>；PR 待建立；基準 main fcb8e8f（#65 合併後）</dd>
+        <dt>修改檔案／整合者</dt><dd>docs/design/architecture.html、desktop.html 與英文版（之後其他頁）；本頁與任務索引。Claude 整合。</dd>
+        <dt>狀態</dt><dd>實作中：系統架構、桌面端分發已完成並推送；其他頁檢查中</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/design-refresh</code>；PR #68；基準 main fcb8e8f（#65 合併後）</dd>
         <dt>交接版本／同步狀態</dt><dd>見追加紀錄；每頁一個提交，已推送</dd>
         <dt>工作區／環境</dt><dd>雲端 Linux、系統 Python 3.13；沒有 OpenCC（簡中靠提交訊息的 <code>[bootstrap]</code>）；Playwright 1.56 的 Chromium 用來截圖檢查新圖</dd>
       </dl></div>
@@ -32,7 +32,8 @@
         <li><strong>盤點（main fcb8e8f）：</strong>系統架構只畫了 M9 的目標樣貌，而且 worker 還是直接連 PostgreSQL 的佇列（ADR 0012 已取代）；「MVP 階段」只寫到 M10，資料仍寫「SQLite＋檔案目錄」（M11 已改成領域資料夾）；目錄結構有不存在的 <code>deploy/</code>、<code>rpa_generator/</code>，缺 <code>apps/desktop</code>、<code>scripts/</code>、<code>handoff/</code>；CLI 命令還寫 push。桌面端分發標示「開發中」、伺服器寫成「使用者自己的電腦」、架構是 ASCII 圖，沒有 Linux 伺服器、登入檢查交給錄製端、v0.4.0。</li>
         <li><strong>已完成：</strong>系統架構：新增「目前的部署」圖（伺服器、錄製端、Worker、目標系統、git 倉庫，兩個埠與權杖）；目標圖改成經由 Worker API 領取、資料庫是索引；「各部分怎麼運作」與資料目錄結構；套件職責、目錄結構、資料流更新。</li>
         <li><strong>決定：</strong>實作選擇：以 v0.4.0 的 main 為準描述；尚未做的（M5、M8、M9）明確標「尚未實作」。</li>
-        <li><strong>下一個具體動作：</strong>桌面端分發：ASCII 圖換成 SVG（部署、配對、互動子程序、發布流程），狀態改為 M10.0～M10.2 完成（v0.4.0），補 Linux 伺服器與登入檢查。之後檢查 tech-stack、positioning、multi-user、portal。</li>
+        <li><strong>已完成（桌面端分發）：</strong>ASCII 架構圖換成 SVG，另加三張圖：配對與上線、錄製時的一來一回（循序圖）、從原始碼到安裝檔；狀態改為 M10.0～M10.2 已完成（v0.4.0），分期表加狀態欄（人工驗收：整體流程通過、細節驗收中）；伺服器一列改成從原始碼安裝、Linux 用 setup-linux.sh；補 M10.2 之後的相關修改（#50、#51、#62、#61）。</li>
+        <li><strong>下一個具體動作：</strong>檢查 tech-stack、positioning、multi-user、portal 是否和 main 一致，有落差就更新。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。截圖只在雲端暫存目錄。</li>
       </ul></div>
     </section>
@@ -41,7 +42,7 @@
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
-          <tr><td>本分支、雲端 Linux</td><td><code>python3 tools/i18n.py stamp docs/en/design/architecture.html</code>；<code>pytest tests/docs -k "not zh-Hans"</code></td><td>175 通過；SVG 以 XML 解析通過；Chromium 截圖確認新圖文字不重疊（繁中、英文）</td><td>簡中尚未產生（等 bootstrap）；CI 未執行</td></tr>
+          <tr><td>本分支、雲端 Linux</td><td><code>python3 tools/i18n.py stamp docs/en/design/architecture.html</code>；<code>pytest tests/docs -k "not zh-Hans"</code></td><td>175 通過；SVG 以 XML 解析通過；Chromium 截圖確認新圖文字不重疊（繁中、英文）。架構頁的簡中由 bootstrap 產生（45e1273）</td><td>桌面端分發的簡中等 bootstrap；CI 未執行</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p>CI：未執行；人工驗收：不適用（只改文件）；審閱：未審閱。</p></div>
@@ -53,7 +54,8 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-10-21 23:53 PDT（UTC−07:00），Claude：開工；系統架構（繁中、英文）更新並推送。</li>
+        <li>2026-10-21 23:53 PDT（UTC−07:00），Claude：開工；系統架構（繁中、英文）更新並推送（5362a93），開 PR #68。</li>
+        <li>2026-10-22 00:00 PDT（UTC−07:00），Claude：桌面端分發（繁中、英文）加四張圖並對齊 v0.4.0，推送。</li>
       </ul></div>
     </section>
   </div>
