@@ -50,8 +50,8 @@
         <div class="four-col">
           <div><h3>1　生成</h3><ul class="points"><li>錄製使用者操作</li><li>用自然語言讓 AI 產生</li><li>由範本或子場景組合</li></ul></div>
           <div><h3>2　管理</h3><ul class="points"><li>版本與發布門檻</li><li>入參、出參與分類</li><li>權限與稽核</li></ul></div>
-          <div><h3>3　執行</h3><ul class="points"><li>手動、排程或 API 觸發</li><li>多 worker 併發</li><li>重試與逾時控制</li></ul></div>
-          <div><h3>4　回饋</h3><ul class="points"><li>每一步的截圖與日誌</li><li>Playwright Trace 回放</li><li>失敗定位與選擇器自癒</li></ul></div>
+          <div><h3>3　執行</h3><ul class="points"><li>手動、排程或 API 觸發</li><li>交給遠端 Worker，多台同時執行</li><li>重試與逾時控制</li></ul></div>
+          <div><h3>4　回饋</h3><ul class="points"><li>每一步的截圖與日誌</li><li>運行錄影回看，影片和步驟對上（M12）</li><li>失敗定位與選擇器自癒</li></ul></div>
         </div>
       </div>
     </section>
@@ -70,9 +70,12 @@
           <dt>出參 Output</dt><dd>獨立斷言通過後才發布的結果，可以串到下一個場景的入參。</dd>
           <dt>Secret</dt><dd>帳號密碼等機密，場景只引用名稱，明文不會出現在場景、日誌或截圖說明中。</dd>
           <dt>執行 Run</dt><dd>某個版本的一次執行，記錄觸發者、入參、每一步的結果與耗時；狀態為排隊、執行中、通過、失敗、逾時、已取消或需要登入。</dd>
-          <dt>產物 Artifact</dt><dd>執行產生的截圖、Trace、下載檔與抽取的資料。</dd>
-          <dt>編排 Workflow</dt><dd>把已發布的場景排成序列，上游的出參綁到下游的入參，失敗就停止（M6）。</dd>
-          <dt>調試工作階段 Debug session</dt><dd>錄製稿或草稿在隔離的瀏覽器中調試；AI 助手只能修改草稿，發布要使用者確認（M4、M5）。</dd>
+          <dt>產物 Artifact</dt><dd>執行產生的截圖、錄影、報告、日誌、下載檔與抽取的資料，存在伺服器的執行目錄。</dd>
+          <dt>組合場景 Composite</dt><dd>把已發布場景的固定版本排成 DAG（可分叉、可匯合），上游的出參綁到下游的入參，依序執行、失敗就停止（M6，原稱編排）；本身也有版本、驗證與發布，可以依賴其他領域的場景（M11）。</dd>
+          <dt>領域 Domain</dt><dd>場景、角色與組合場景的歸屬與存放單位：一個領域一個資料夾，保存不可變版本與驗證、發布紀錄，可以和 git 倉庫的一個目錄同步（M11）。</dd>
+          <dt>角色 Role</dt><dd>目標系統的一個登入身分；每個角色一份登入狀態，場景以 <code>login: { role }</code> 宣告要用哪個角色，失效時執行停在「需要登入」（M4）。</dd>
+          <dt>裝置 Device</dt><dd>用邀請配對的錄製端或 Worker：錄製端讓瀏覽器開在錄製者的電腦，Worker 執行場景（M10）。</dd>
+          <dt>調試工作階段 Debug session</dt><dd>錄製稿或草稿在隔離的瀏覽器中逐步調試，瀏覽器開在操作的那台錄製端（M4、M10.2）；AI 助手只能修改草稿，發布要使用者確認（M5）。</dd>
           <dt>專案 Project</dt><dd>權限隔離的單位。場景、Secrets、執行紀錄都屬於某個專案（M8；MVP 是單使用者）。</dd>
         </dl>
       </div>

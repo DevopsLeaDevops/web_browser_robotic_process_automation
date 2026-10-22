@@ -3,21 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:6bb638fbfe52c8a1">
+<meta name="translation-source" content="sha256:1908e1884d63db41">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
 <script defer src="../../assets/nav.js"></script>
 <script defer src="../../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .note { fill: #eef6ff; stroke: #cfe1f5; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; fill: #315b89; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .link.back { stroke-dasharray: 5 4; }
+  .arch .life { stroke: #c9d6e5; stroke-dasharray: 4 4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+  .arch .step { font-size: 11px; font-weight: 650; fill: #147fe6; }
+</style>
 </head>
 <body data-page="desktop" data-root="../">
 <main id="main">
   <div class="heading">
     <div>
       <h1>Desktop distribution</h1>
-      <p>M10: the server and database are deployed on one computer; recorders and execution machines each install a desktop app and paste an invitation. The app window reuses the server's existing pages; the browser for recording, step-by-step debugging and manual login opens on the computer the person is using. Decision in <a href="../adr/0014-desktop-apps.html">ADR 0014</a>.</p>
+      <p>M10: the server and database are deployed on one computer (it can be a Linux host without a screen); recorders and execution machines each install a desktop app and paste an invitation. The app window reuses the server's existing pages; the browser for recording, step-by-step debugging and manual login opens on the computer the person is using. Decision in <a href="../adr/0014-desktop-apps.html">ADR 0014</a>.</p>
     </div>
-    <span class="badge amber">M10 in development</span>
+    <span class="badge green">M10.0–M10.2 done (v0.4.0)</span>
   </div>
 
   <div class="stack">
@@ -27,9 +44,9 @@
         <table class="wrap">
           <thead><tr><th>Component</th><th>macOS</th><th>Windows</th><th>Notes</th></tr></thead>
           <tbody>
-            <tr><td>RPA Recorder</td><td><span class="badge blue">Delivered in M10</span></td><td><span class="badge">Planned option</span></td><td>Recording, step-by-step debugging, manual login and the rest of the portal; Apple silicon (arm64)</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge">Planned option</span></td><td><span class="badge blue">Delivered in M10</span></td><td>Runs scenarios (headed mode included); Windows x64</td></tr>
-            <tr><td>Server (rpa serve)</td><td colspan="2"><span class="badge">Planned option</span>: stays <code>uv run rpa serve</code></td><td>Runs on the user's own computer for the MVP; moves to production once tuned</td></tr>
+            <tr><td>RPA Recorder</td><td><span class="badge green">Delivered</span> (from v0.3.0)</td><td><span class="badge">Planned option</span></td><td>Recording, step-by-step debugging, manual login and the rest of the portal; Apple silicon (arm64)</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge">Planned option</span></td><td><span class="badge green">Delivered</span> (from v0.2.0)</td><td>Runs scenarios (headed mode and video included); Windows x64</td></tr>
+            <tr><td>Server (rpa serve)</td><td colspan="2"><span class="badge">Not packaged</span>: installed from source with the setup scripts; on Linux (RHEL-compatible) <code>scripts/setup-linux.sh</code>, with an optional systemd service</td><td>First tuned on the user's own computer; now also runs on a Linux host without a screen (see <a href="../develop/operations.html">Deployment and operations</a>)</td></tr>
             <tr><td>Database</td><td colspan="2"><span class="badge">No separate binary</span></td><td>SQLite is embedded in the server; production PostgreSQL uses the official installers or Docker (M8, M9)</td></tr>
           </tbody>
         </table>
@@ -73,28 +90,133 @@
     <section class="panel" id="architecture">
       <div class="panel-header"><h2>Architecture</h2><span class="muted">The server only gains two uses on the external port</span></div>
       <div class="panel-body">
-<pre class="source">Server machine (MVP: the user's own computer, uv run rpa serve --worker-port 8081)
-┌──────────────────────────────────────────────────────────────┐
-│ 127.0.0.1:8080  Portal pages + /api (unchanged, local only)       │
-│ 0.0.0.0:8081    External port                                     │
-│   /worker-api/v1  Worker API (unchanged, worker token)            │
-│   /client-api/v1  New: pairing, recorder interactive processes    │
-│   all other paths New: portal pages + /api, recorder token only   │
-│ SQLite, data/ (unchanged)                                         │
-└──────────────────────────────────────────────────────────────┘
-          ▲ device token                            ▲ worker token
-┌─────────┴──────────────────────┐   ┌─────────┴───────────────────┐
-│ RPA Recorder (macOS)             │   │ RPA Worker (Windows)          │
-│ Window: WKWebView                │   │ Status window: WebView2 + tray│
-│  → local gateway 127.0.0.1:rand  │   │ Inside: the existing          │
-│    adds the token, forwards to   │   │  RemoteWorker                 │
-│    the server's port 8081        │   │ runner child processes        │
-│ Interactive host: recording,     │   │ Local test site               │
-│  debugging, manual-login child   │   │  127.0.0.1:8765               │
-│  processes run here, headed      │   └─────────────────────────────┘
-└────────────────────────────────┘</pre>
-        <p class="diagram-caption">Only the server touches the database (ADR 0008 and ADR 0012 unchanged). Both apps connect to the server; the server never needs to reach them.</p>
+<div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 424" role="img" aria-labelledby="dep-title dep-desc">
+          <title id="dep-title">Desktop deployment and connections</title>
+          <desc id="dep-desc">The Recorder app window loads only the local gateway, which adds the device token and forwards to the server's external port. The interactive host long-polls the Client API for commands, starts the recording, debugging, manual-login and login-check child processes on this computer, and uploads files before returning each output line. The Worker app's service loop uses its worker token to long-poll the Worker API for jobs, send heartbeats and upload run directories. The server routes the external port by path; 127.0.0.1:8080 stays local only.</desc>
+          <defs>
+            <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="frame" x="16" y="16" width="296" height="396" rx="10"/>
+          <text class="frame-label" x="28" y="34">Recorder's Mac: RPA Recorder app</text>
+          <rect class="box" x="30" y="44" width="268" height="62" rx="8"/>
+          <text class="title" x="44" y="66">App window (WKWebView)</text>
+          <text class="sub" x="44" y="86">Loads only the local gateway: the portal</text>
+          <rect class="box key" x="30" y="126" width="268" height="78" rx="8"/>
+          <text class="title" x="44" y="148">Local gateway 127.0.0.1:random</text>
+          <text class="sub" x="44" y="168">Forwards only with the per-launch cookie</text>
+          <text class="sub" x="44" y="186">Adds the device token (from Keychain)</text>
+          <rect class="box key" x="30" y="224" width="268" height="78" rx="8"/>
+          <text class="title" x="44" y="246">Interactive host</text>
+          <text class="sub" x="44" y="266">Long-polls /control: start, line, stop</text>
+          <text class="sub" x="44" y="284">Uploads new files, then the output line</text>
+          <rect class="box" x="30" y="322" width="268" height="76" rx="8"/>
+          <text class="title" x="44" y="344">Child process + browser (here)</text>
+          <text class="sub" x="44" y="364">Recording, step debugging, manual login,</text>
+          <text class="sub" x="44" y="382">login checks; temp folder deleted after</text>
+          <path class="link" d="M164 108V124" marker-end="url(#dep-arrow)"/>
+          <path class="link" d="M164 304V320" marker-end="url(#dep-arrow)"/>
+          <rect class="frame" x="380" y="16" width="240" height="396" rx="10"/>
+          <text class="frame-label" x="392" y="34">Server (rpa serve)</text>
+          <rect class="box" x="394" y="44" width="212" height="62" rx="8"/>
+          <text class="title" x="408" y="66">127.0.0.1:8080</text>
+          <text class="sub" x="408" y="86">Portal + /api, local only (as before)</text>
+          <rect class="box key" x="394" y="126" width="212" height="176" rx="8"/>
+          <text class="title" x="408" y="148">External port 0.0.0.0:8081</text>
+          <text class="sub" x="408" y="168">Routes by path, checks tokens</text>
+          <text class="mono" x="408" y="190">/client-api/v1/*</text>
+          <text class="sub" x="408" y="207">Invitation code to pair; then device</text>
+          <text class="mono" x="408" y="224">/worker-api/v1/*</text>
+          <text class="sub" x="408" y="241">Worker token</text>
+          <text class="mono" x="408" y="258">other paths</text>
+          <text class="sub" x="408" y="275">Portal, /api: Recorders only, else 401</text>
+          <rect class="box" x="394" y="322" width="212" height="76" rx="8"/>
+          <text class="title" x="408" y="344">RecorderHub, WorkerHub</text>
+          <text class="sub" x="408" y="364">Command queues, process output</text>
+          <text class="sub" x="408" y="382">Job claims, leases, cancellation</text>
+          <path class="link" d="M500 304V320" marker-end="url(#dep-arrow)"/>
+          <rect class="frame" x="688" y="16" width="296" height="396" rx="10"/>
+          <text class="frame-label" x="700" y="34">Runner machine: RPA Worker app (Windows)</text>
+          <rect class="box" x="702" y="44" width="268" height="62" rx="8"/>
+          <text class="title" x="716" y="66">Status window (WebView2) + tray</text>
+          <text class="sub" x="716" y="86">Pairing, browser download, runs, settings</text>
+          <rect class="box key" x="702" y="126" width="268" height="78" rx="8"/>
+          <text class="title" x="716" y="148">Service loop (same as rpa worker)</text>
+          <text class="sub" x="716" y="168">Long-polls for jobs, heartbeat every 5 s</text>
+          <text class="sub" x="716" y="186">Uploads the whole run directory</text>
+          <rect class="box" x="702" y="224" width="268" height="78" rx="8"/>
+          <text class="title" x="716" y="246">Runner process + browser</text>
+          <text class="sub" x="716" y="266">Headed or headless; Chromium, Firefox</text>
+          <text class="sub" x="716" y="284">Records the automation stage (M12)</text>
+          <rect class="box" x="702" y="322" width="268" height="76" rx="8"/>
+          <text class="title" x="716" y="344">Local test site 127.0.0.1:8765</text>
+          <text class="sub" x="716" y="364">For the samples; --no-testsite turns it off</text>
+          <path class="link" d="M836 108V124" marker-start="url(#dep-arrow)"/>
+          <path class="link" d="M836 206V222" marker-end="url(#dep-arrow)"/>
+          <path class="link" d="M300 160H392" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="318" y="152">device token</text>
+          <path class="link" d="M300 262H392" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="318" y="254">long poll</text>
+          <path class="link" d="M700 160H608" marker-end="url(#dep-arrow)"/>
+          <text class="label" x="626" y="152">worker token</text>
+        </svg>
       </div>
+        <p class="diagram-caption">Blue borders mark what M10 added or changed most. Only the server touches the database (ADR 0008 and ADR 0012 unchanged); both apps connect to the server and the server never needs to reach them. The gateway does not forward <code>/client-api/</code> or <code>/worker-api/</code>, so web pages never get the token. When the server has no browser, login checks go to the Recorder and manual logins are confirmed on the computer that opened the window (#50). For the whole deployment see <a href="architecture.html#current">Architecture</a>.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="pairing-flow">
+      <div class="panel-header"><h2>Pairing and going online</h2><span class="muted">Same for both apps; an invitation pasted into the wrong app is refused</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="pair-title pair-desc">
+          <title id="pair-title">Pairing and going online</title>
+          <desc id="pair-desc">Create a one-time invitation on the portal's Devices page and paste it into the app; the app exchanges it for a device token, stores it in the system keychain or Credential Manager, downloads browsers, and goes online, reporting its version, browsers and the DSL extensions it understands.</desc>
+          <defs>
+            <marker id="pair-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="12" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="26" y="42">1</text>
+          <text class="title" x="40" y="42">Invite</text>
+          <text class="sub" x="26" y="64">Portal Devices page</text>
+          <text class="sub" x="26" y="82">One-time, valid 24 hours</text>
+          <text class="sub" x="26" y="100">Bound to one app type</text>
+          <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="223" y="42">2</text>
+          <text class="title" x="237" y="42">Paste into app</text>
+          <text class="mono" x="223" y="64">rpa://pair?server=…</text>
+          <text class="mono" x="223" y="82">&amp;app=…&amp;code=…</text>
+          <text class="sub" x="223" y="100">Or URL and code apart</text>
+          <path class="link" d="M193 76H207" marker-end="url(#pair-arrow)"/>
+          <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="420" y="42">3</text>
+          <text class="title" x="434" y="42">Get a token</text>
+          <text class="mono" x="420" y="64">POST …/pair</text>
+          <text class="sub" x="420" y="82">Server keeps only a hash</text>
+          <text class="sub" x="420" y="100">Wrong app type: refused</text>
+          <path class="link" d="M390 76H404" marker-end="url(#pair-arrow)"/>
+          <rect class="box" x="603" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="617" y="42">4</text>
+          <text class="title" x="631" y="42">Store safely</text>
+          <text class="sub" x="617" y="64">macOS Keychain</text>
+          <text class="sub" x="617" y="82">Windows Credential Mgr</text>
+          <text class="sub" x="617" y="100">Never in web pages</text>
+          <path class="link" d="M587 76H601" marker-end="url(#pair-arrow)"/>
+          <rect class="box" x="800" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="814" y="42">5</text>
+          <text class="title" x="828" y="42">Browsers, online</text>
+          <text class="sub" x="814" y="64">Bundled driver downloads</text>
+          <text class="sub" x="814" y="82">hello: version, browsers</text>
+          <text class="sub" x="814" y="100">and DSL extensions</text>
+          <path class="link" d="M784 76H798" marker-end="url(#pair-arrow)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">After step 3 the app goes online with the stored token every time it starts (the hello in step 5). Re-inviting, disabling or deleting a device revokes the old token immediately.</div>
     </section>
 
     <div class="two-col">
@@ -125,7 +247,62 @@
     </div>
 
     <section class="panel" id="interactive">
-      <div class="panel-header"><h2>Interactive child processes: the browser opens where the person is</h2><span class="muted">M10.2; recording, step-by-step debugging, manual login</span></div>
+      <div class="panel-header"><h2>Interactive child processes: the browser opens where the person is</h2><span class="muted">M10.2; recording, step-by-step debugging, manual login, login checks</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 452" role="img" aria-labelledby="seq-title seq-desc">
+          <title id="seq-title">One round trip while recording</title>
+          <desc id="seq-desc">Pressing Start recording in the Recorder window goes through the gateway with the token to the server; the server recognises the Recorder and queues a start command; the interactive host long-polls for it and starts the child process here, with the browser on this Mac; for every output line the host uploads new files first and then the line; the server parses the events and turns the recording into a DSL draft; the window polls and shows the result.</desc>
+          <defs>
+            <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="8" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="90" y="28" text-anchor="middle">Recorder window</text>
+          <text class="sub" x="90" y="46" text-anchor="middle">WKWebView</text>
+          <path class="life" d="M90 56V444"/>
+          <rect class="box key" x="198" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="280" y="28" text-anchor="middle">Local gateway</text>
+          <text class="sub" x="280" y="46" text-anchor="middle">in the app</text>
+          <path class="life" d="M280 56V444"/>
+          <rect class="box" x="418" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="500" y="28" text-anchor="middle">Server</text>
+          <text class="sub" x="500" y="46" text-anchor="middle">rpa serve</text>
+          <path class="life" d="M500 56V444"/>
+          <rect class="box key" x="638" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="720" y="28" text-anchor="middle">Interactive host</text>
+          <text class="sub" x="720" y="46" text-anchor="middle">in the app</text>
+          <path class="life" d="M720 56V444"/>
+          <rect class="box ext" x="828" y="8" width="164" height="46" rx="8"/>
+          <text class="title" x="910" y="28" text-anchor="middle">Child process</text>
+          <text class="sub" x="910" y="46" text-anchor="middle">browser on the Mac</text>
+          <path class="life" d="M910 56V444"/>
+          <path class="link" d="M92 86H278" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="100" y="80">Start recording</text>
+          <path class="link" d="M282 118H498" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="290" y="112">Forward with device token</text>
+          <rect class="note" x="404" y="128" width="192" height="26" rx="5"/>
+          <text class="sub" x="500" y="145" text-anchor="middle">Recognise Recorder, queue start</text>
+          <path class="link" d="M718 184H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="178">POST /control (long poll)</text>
+          <path class="link back" d="M502 214H718" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="208">Start rpa_runner.record + files</text>
+          <path class="link" d="M722 246H908" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="730" y="240">Write files, start</text>
+          <path class="link back" d="M908 278H722" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="730" y="272">One stdout line (event)</text>
+          <path class="link" d="M718 310H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="304">PUT …/files: new files first</text>
+          <path class="link" d="M718 342H502" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="510" y="336">POST …/output: then the line</text>
+          <rect class="note" x="404" y="352" width="192" height="26" rx="5"/>
+          <text class="sub" x="500" y="369" text-anchor="middle">Recording → DSL, mask, save draft</text>
+          <path class="link back" d="M92 416H498" marker-end="url(#seq-arrow)"/>
+          <text class="label" x="100" y="410">Poll progress (via gateway), see the new draft</text>
+        </svg>
+      </div>
+      <div class="diagram-caption">Recording as the example; step debugging (sending a line such as "run step 3"), manual login and login checks take the same path. Solid lines are requests; dashed lines are responses or go through the gateway.</div>
       <div class="panel-body prose">
         <p><strong>"This computer" now means "the computer you are using".</strong> A request from a recorder hands the child process to that recorder; a request from a browser on the server machine (8080) still runs it on the server. The pages get no extra option.</p>
         <ul>
@@ -195,6 +372,57 @@
       </div>
     </section>
 
+    <section class="panel" id="release-flow">
+      <div class="panel-header"><h2>From source to installers</h2><span class="muted">Currently v0.4.0 (published 2026-10-21 06:10 PDT); earlier v0.3.0, v0.2.0</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="rel-title rel-desc">
+          <title id="rel-title">From source to installers</title>
+          <desc id="rel-desc">Bump the version with release_version.py on a feature branch; after the PR is merged, tag main; the release workflow checks the version, builds both apps and runs end-to-end tests, and creates a draft release that a maintainer publishes; the apps' Download new version opens the latest release.</desc>
+          <defs>
+            <marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <rect class="box" x="12" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="26" y="42">1</text>
+          <text class="title" x="40" y="42">Bump version</text>
+          <text class="mono" x="26" y="64">release_version.py</text>
+          <text class="mono" x="26" y="82">bump 0.4.0</text>
+          <text class="sub" x="26" y="100">All packages, uv.lock</text>
+          <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="223" y="42">2</text>
+          <text class="title" x="237" y="42">Merge the PR</text>
+          <text class="sub" x="223" y="64">CI: tests, setup scripts</text>
+          <text class="sub" x="223" y="82">Desktop builds, self-test</text>
+          <text class="sub" x="223" y="100">User reviews and merges</text>
+          <path class="link" d="M193 76H207" marker-end="url(#rel-arrow)"/>
+          <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="420" y="42">3</text>
+          <text class="title" x="434" y="42">Tag</text>
+          <text class="mono" x="420" y="64">v0.4.0</text>
+          <text class="sub" x="420" y="82">Must be on main</text>
+          <text class="sub" x="420" y="100">Matches package versions</text>
+          <path class="link" d="M390 76H404" marker-end="url(#rel-arrow)"/>
+          <rect class="box key" x="603" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="617" y="42">4</text>
+          <text class="title" x="631" y="42">Release workflow</text>
+          <text class="sub" x="617" y="64">Builds DMG, installer, zip</text>
+          <text class="sub" x="617" y="82">Install, run, upgrade,</text>
+          <text class="sub" x="617" y="100">remove; draft release</text>
+          <path class="link" d="M587 76H601" marker-end="url(#rel-arrow)"/>
+          <rect class="box" x="800" y="24" width="180" height="104" rx="8"/>
+          <text class="step" x="814" y="42">5</text>
+          <text class="title" x="828" y="42">Maintainer publishes</text>
+          <text class="sub" x="814" y="64">Checks files, SHA256SUMS</text>
+          <text class="sub" x="814" y="82">Apps' Download new version</text>
+          <text class="sub" x="814" y="100">opens the latest release</text>
+          <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">The server is not packaged; update it from the source of the same version. Known issues of v0.4.0 (replay video aspect ratio, video timing) are listed in the release notes and the task record.</div>
+    </section>
+
     <div class="two-col">
       <section class="panel" id="installer">
         <div class="panel-header"><h2>The worker installer</h2><span class="muted">M10.1, Inno Setup 6.7</span></div>
@@ -255,15 +483,16 @@
       <div class="panel-header"><h2>Phases and acceptance</h2><span class="muted">Worker before recorder: the worker is almost all reuse, so it proves packaging, installation and pairing first</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>Phase</th><th>Content</th><th>Acceptance</th></tr></thead>
+          <thead><tr><th>Phase</th><th>Content</th><th>Acceptance</th><th>Status (2026-10-21)</th></tr></thead>
           <tbody>
-            <tr><td><span class="milestone">M10.0</span></td><td>Packaging groundwork: child-process commands in one place, build info, the rpa-desktop skeleton and packaged entry point, PyInstaller configuration for both apps, CI builds and self-test</td><td>The packaged macOS recorder and Windows worker run BA-001 in CI; every development-environment test still passes</td></tr>
-            <tr><td><span class="milestone">M10.1</span></td><td>Windows worker: devices page and invitations, Client API pairing, status window, notification area, start at sign-in, browser download, installer; the three remaining M9a items</td><td>On a Windows machine with no development tools: install → paste the invitation → download browsers → run BA-001 → BA-002 headed, reports back in the portal; online again automatically after a restart and sign-in</td></tr>
-            <tr><td><span class="milestone">M10.2</span></td><td>macOS recorder: local gateway, portal and access control on the external port, DeviceHost (recording → manual login → step-by-step debugging), DMG</td><td>Record on the Mac (browser opens on the Mac) → draft → step-by-step debugging → manual sign-in for a role → validate on the Windows worker → publish; an unpaired computer opening 8081 sees no management pages</td></tr>
-            <tr><td><span class="milestone">M10.3</span></td><td>Docs and acceptance: desktop installation guide, portal manual checks, roadmap</td><td>Docs checks pass; manual two-machine acceptance recorded</td></tr>
+            <tr><td><span class="milestone">M10.0</span></td><td>Packaging groundwork: child-process commands in one place, build info, the rpa-desktop skeleton and packaged entry point, PyInstaller configuration for both apps, CI builds and self-test</td><td>The packaged macOS recorder and Windows worker run BA-001 in CI; every development-environment test still passes</td><td><span class="badge green">Done</span> #30</td></tr>
+            <tr><td><span class="milestone">M10.1</span></td><td>Windows worker: devices page and invitations, Client API pairing, status window, notification area, start at sign-in, browser download, installer; the three remaining M9a items</td><td>On a Windows machine with no development tools: install → paste the invitation → download browsers → run BA-001 → BA-002 headed, reports back in the portal; online again automatically after a restart and sign-in</td><td><span class="badge green">Done</span> #31–#34, v0.2.0; manual acceptance: overall flow passed, details in progress</td></tr>
+            <tr><td><span class="milestone">M10.2</span></td><td>macOS recorder: local gateway, portal and access control on the external port, DeviceHost (recording → manual login → step-by-step debugging), DMG</td><td>Record on the Mac (browser opens on the Mac) → draft → step-by-step debugging → manual sign-in for a role → validate on the Windows worker → publish; an unpaired computer opening 8081 sees no management pages</td><td><span class="badge green">Done</span> #36–#39, #43, v0.3.0; manual acceptance: overall flow passed, details in progress</td></tr>
+            <tr><td><span class="milestone">M10.3</span></td><td>Docs and acceptance: desktop installation guide, portal manual checks, roadmap</td><td>Docs checks pass; manual two-machine acceptance recorded</td><td><span class="badge amber">In progress</span> Deployment and operations (#41) merged; manual acceptance records not filled in</td></tr>
           </tbody>
         </table>
       </div>
+      <div class="panel-body"><p class="muted">Desktop-related changes after M10.2: with no browser on the server, login checks go to the Recorder, manual logins are confirmed on the computer that opened the window, and login errors are readable (#50); Firefox no longer stalls in the background during manual login (#51); apps report the DSL extensions they understand and older apps are not given scenarios that use newer syntax (M7a, #62); the Worker records video, and on Windows cancelling ends only the browser first so the video is finished (M12, #61).</p></div>
     </section>
 
     <div class="two-col">
