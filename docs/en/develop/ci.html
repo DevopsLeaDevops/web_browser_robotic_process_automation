@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:658c44bdefae1b5f">
+<meta name="translation-source" content="sha256:984af5227f7e3b8e">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -46,7 +46,7 @@
         <table class="wrap">
           <thead><tr><th>Trigger</th><th>Workflows</th><th>Roughly</th></tr></thead>
           <tbody>
-            <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the Windows worker tests when the PR touches worker paths; the desktop builds when it touches <code>apps/</code> or <code>packages/</code>; the setup scripts when it touches scripts or dependencies (the scripts and smoke tests only)</td><td>About 4 min (the desktop builds are the floor); about 2.5 min when the desktop builds do not run</td></tr>
+            <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the Windows worker tests when the PR touches worker paths; the desktop builds when it touches <code>apps/</code> or <code>packages/</code>; the server packages when it touches packages the server uses or dependencies (x64 and arm64 builds, installed, started and upgraded in a Rocky 8 container); the setup scripts when it touches scripts or dependencies (the scripts and smoke tests only)</td><td>About 4 min (the desktop builds are the floor); about 2.5 min when the desktop builds do not run</td></tr>
             <tr><td>Pushes that only change <code>handoff/</code> or <code>docs/</code></td><td>See <a href="#docs-only">the next section</a></td><td>About 1 min</td></tr>
             <tr><td>Version tag <code>v*</code></td><td>Release: check the version, build both desktop apps, draft release</td><td>About 4 min</td></tr>
             <tr><td>Daily 20:17 UTC</td><td>Nightly full tests: all tests on three systems, both browsers, Python 3.12 and 3.13, with the browser tests run three times</td><td>About 30 min</td></tr>
@@ -81,7 +81,9 @@ gh workflow run ci.yml --ref branch-name -f scope=full
 # Setup scripts: full (default) = all tests plus from scratch; role = same as PRs
 gh workflow run setup-scripts.yml --ref branch-name
 # Desktop builds
-gh workflow run desktop.yml --ref branch-name</pre>
+gh workflow run desktop.yml --ref branch-name
+# Server packages (Linux x64, arm64)
+gh workflow run server-package.yml --ref branch-name</pre>
       <div class="panel-body prose">
         <p>Run a role locally: <code>uv run pytest -m "browser and (role_worker or smoke)"</code> (worker), <code>uv run pytest -m "not browser or ((smoke or role_server or role_recorder) and not firefox)"</code> (same as CI on Linux).</p>
       </div>
@@ -90,7 +92,7 @@ gh workflow run desktop.yml --ref branch-name</pre>
     <section class="panel" id="metrics">
       <div class="panel-header"><h2>Run duration records</h2></div>
       <div class="panel-body prose">
-        <p>After every CI, desktop build, setup-script, nightly and release run, the "Run duration records" workflow (<code>tools/ci_metrics.py</code>) appends the results to the repository's <code>ci-metrics</code> branch. It does not touch main or trigger other workflows. Switch to the <code>ci-metrics</code> branch on GitHub to see the overview in <code>README.md</code>: each workflow over the last 7 days compared with the 7 before, daily runner time per system, the slowest test files and the latest runs.</p>
+        <p>After every CI, desktop build, server package, setup-script, nightly and release run, the "Run duration records" workflow (<code>tools/ci_metrics.py</code>) appends the results to the repository's <code>ci-metrics</code> branch. It does not touch main or trigger other workflows. Switch to the <code>ci-metrics</code> branch on GitHub to see the overview in <code>README.md</code>: each workflow over the last 7 days compared with the 7 before, daily runner time per system, the slowest test files and the latest runs.</p>
         <dl class="spec-list">
           <dt><code>data/runs.jsonl</code></dt><dd>One line per run (and per re-run): trigger, branch, result, duration including queueing, longest queue, runner time per system</dd>
           <dt><code>data/jobs.jsonl</code></dt><dd>Queue and run time of each job</dd>

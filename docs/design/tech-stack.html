@@ -43,7 +43,7 @@
             <tr><td>桌面端打包</td><td>PyInstaller（資料夾模式）；macOS DMG、Windows Inno Setup</td><td>Briefcase、Nuitka</td><td>最成熟、有 Playwright 的打包設定；資料夾模式啟動快、較少被防毒誤判</td><td>M10</td></tr>
             <tr><td>場景存放與同步</td><td>領域資料夾（YAML 說明檔＋不可變版本＋驗證紀錄）；資料庫只是索引；與 git 倉庫的一個目錄同步（裸倉庫＋git 底層命令，git 2.25 以上）</td><td>資料庫之間同步、只存在資料庫</td><td>可以用 git 審閱與回溯，任何一台伺服器的驗證都能當發布依據；新伺服器只拉需要的領域<small><a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a></small></td><td>M11</td></tr>
             <tr><td>運行錄影</td><td>Playwright 的 BrowserContext 錄影（WebM VP9，Playwright 自帶的 ffmpeg）；步驟記下開始、結束的實際時間；縮圖在看影片的瀏覽器裡產生</td><td>Playwright Trace、每步截圖</td><td>影片可以播放、拖曳；和步驟用同一個時鐘對上；Linux 伺服器不需要瀏覽器與 ffmpeg<small><a href="../adr/0016-run-replay.html">ADR 0016</a></small></td><td>M12</td></tr>
-            <tr><td>部署</td><td>目前：伺服器從原始碼一鍵安裝（Linux 用 <code>setup-linux.sh</code>，可用 systemd 開機啟動），桌面端用安裝檔；之後 Docker Compose</td><td>Kubernetes</td><td>起步夠用，之後可以遷移</td><td>M9</td></tr>
+            <tr><td>部署</td><td>目前：Linux 伺服器用自帶 Python 的分發包（也可以從原始碼用 <code>setup-linux.sh</code>），可用 systemd 開機啟動；其他系統的伺服器從原始碼一鍵安裝，桌面端用安裝檔；之後 Docker Compose</td><td>Kubernetes</td><td>起步夠用，之後可以遷移</td><td>M9</td></tr>
           </tbody>
         </table>
       </div>
