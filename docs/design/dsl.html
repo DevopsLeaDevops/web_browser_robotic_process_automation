@@ -132,6 +132,8 @@ verify:
             <dt><code>action</code></dt><dd>必填，動作名稱，見下方動作表。</dd>
             <dt><code>name</code></dt><dd>給人看的步驟說明。</dd>
             <dt><code>timeout</code></dt><dd>這一步的逾時，<strong>毫秒整數</strong>，大於 0、最多 3,600,000（一小時）。沒寫就用 <code>defaults.timeout</code>；不會超過總期限剩下的時間。</dd>
+            <dt id="tabs"><code>page</code></dt><dd>在哪個分頁執行（M7b）：前面某一步用 <code>popup</code> 開出來的分頁名稱；沒寫是一開始的分頁。名稱要在「之前」的步驟開過，不然校驗時指出這一步。</dd>
+            <dt><code>popup</code></dt><dd>只有 click、fill、select、check、press 可以寫（M7b）：這一步會開出新分頁（彈出視窗，例如連結的 <code>target="_blank"</code> 或 <code>window.open</code>），執行時等它開好並取這個名稱，之後的步驟用 <code>page</code> 指定它；同一個名稱只能開一次。沒有開出新分頁時這一步逾時失敗。例如 <code>{ action: click, target: { role: link, name: 開啟商品明細 }, popup: items }</code>，之後 <code>{ action: fill, page: items, target: { placeholder: 請選擇 }, value: … }</code>。</dd>
           </dl>
           <p class="muted">retry 與 onError 在 M7 加入；重試只用於沒有副作用的步驟，送出表單之類的動作不會自動重試。</p>
         </div>
@@ -209,7 +211,7 @@ verify:
           <dt>extract 的 fields</dt><dd>每個元素抽成一筆記錄，鍵是欄位名稱，值可寫 target（相對於該元素）、get、attribute。有 fields 時不寫外層的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。download、upload、多分頁、條件與迴圈等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a）。</div>
+      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。download、upload、條件與迴圈等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分頁用步驟的 <a href="#tabs">popup 與 page</a>（M7b）。</div>
     </section>
 
     <div class="two-col">

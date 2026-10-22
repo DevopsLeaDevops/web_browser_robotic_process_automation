@@ -459,6 +459,46 @@ def test_duplicate_step_id_points_at_second() -> None:
     assert format_issue(issue) == "步驟 2（open） › id：步驟 id open 重複，第一次出現在步驟 1"
 
 
+# ---------------------------------------------------------------- 新分頁（M7b）
+
+OPEN_ITEMS = "  - id: a\n    action: click\n    target: { text: 明細 }\n    popup: items\n"
+ON_ITEMS = "  - id: b\n    action: click\n    page: items\n    target: { text: 儲存 }\n"
+
+
+def test_steps_on_a_tab_opened_earlier_are_valid() -> None:
+    result = validate_text(scenario(OPEN_ITEMS + ON_ITEMS))
+    assert result.scenario is not None, [format_issue(i) for i in result.issues]
+    steps = result.scenario.steps or []
+    assert getattr(steps[0], "popup", None) == "items"
+    assert steps[1].page == "items"
+
+
+def test_page_must_be_opened_by_an_earlier_step() -> None:
+    issue = only_issue(scenario(ON_ITEMS + OPEN_ITEMS.replace("id: a", "id: c")))
+    assert (issue.code, issue.field) == ("page.undefined", "page")
+    assert format_issue(issue) == (
+        "步驟 1（b） › page：分頁 items 還沒開：要先有一步用 popup: items 開出這個分頁"
+    )
+    # 開分頁的那一步自己不在那個分頁上
+    same = (
+        "  - id: a\n    action: click\n    page: items\n    target: { text: x }\n    popup: items\n"
+    )
+    assert only_issue(scenario(same)).code == "page.undefined"
+
+
+def test_tab_names_do_not_repeat() -> None:
+    issue = only_issue(scenario(OPEN_ITEMS + OPEN_ITEMS.replace("id: a", "id: c")))
+    assert (issue.code, issue.field) == ("popup.duplicate", "popup")
+    assert "第 1 步" in format_issue(issue)
+
+
+def test_popup_only_on_actions_that_click_or_type() -> None:
+    issue = only_issue(
+        scenario("  - id: a\n    action: goto\n    url: https://example.test/\n    popup: x\n")
+    )
+    assert issue.code.startswith("unknown_field")
+
+
 def test_duplicate_secret() -> None:
     steps = "  - { id: a, action: goto, url: https://example.test/ }\n"
     issue = only_issue(scenario(steps, "secrets: [A, A]\n"))

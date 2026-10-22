@@ -256,7 +256,7 @@ def test_worker_info_to_json() -> None:
         "display": True,
         "version": "0.1.0",
         # 看得懂的 DSL 擴充（M7a）：管理 Portal 交出用到 iframe 的場景之前比對
-        "features": ["anyFrame", "frame"],
+        "features": ["anyFrame", "frame", "page", "popup"],
     }
 
 

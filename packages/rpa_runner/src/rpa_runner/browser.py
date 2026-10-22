@@ -4,6 +4,8 @@
 - 每一步的逾時 = min(步驟 timeout 或 defaults.timeout 或 30 秒, 總期限剩下的時間)。
 - 步驟欄位中的 ``{{ }}`` 在執行該步驟前才代入，所以可以用前面步驟抽到的 facts。
 - 有副作用的動作（點擊、填寫、勾選、按鍵）不會因為逾時自動重試。
+- 新分頁（M7b）：步驟有 ``popup`` 時，執行動作時等它開出新分頁，以這個名稱記在 :class:`Tabs`；
+  步驟有 ``page`` 時在那個分頁執行。逐步調試整個工作階段用同一個 Tabs。
 """
 
 import contextlib
@@ -43,6 +45,7 @@ __all__ = [
     "Deadline",
     "DeadlineExceeded",
     "StepRecord",
+    "Tabs",
     "plan_records",
     "resolve",
     "run_step",
@@ -309,15 +312,54 @@ def _url(base_url: str | None, url: str) -> str:
 
 
 @dataclass(slots=True)
+class Tabs:
+    """場景的分頁（M7b）：一開始的分頁，加上步驟的 popup 開出來的；記得最後用到哪個分頁。"""
+
+    main: Page
+    named: dict[str, Page] = field(default_factory=dict[str, Page])
+    last: Page | None = None
+
+    def get(self, name: str | None) -> Page:
+        """步驟的 page 指的分頁；沒寫是一開始的分頁。"""
+        if name is None:
+            return self.main
+        page = self.named.get(name)
+        if page is None:
+            raise LookupError(t("browser.tab_missing", name=name))
+        if page.is_closed():
+            raise LookupError(t("browser.tab_closed", name=name))
+        return page
+
+    @property
+    def active(self) -> Page:
+        """最後用到的分頁（剛開出的新分頁也算）；它關掉了或還沒執行過時，是一開始的分頁。"""
+        page = self.last
+        return self.main if page is None or page.is_closed() else page
+
+
+@dataclass(slots=True)
 class _Run:
-    page: Page
+    tabs: Tabs
     scenario: Scenario
     base_url: str | None
     artifacts: Path
     facts: dict[str, object]
 
     def execute(self, step: Step, timeout: int, record: StepRecord) -> None:
-        page = self.page
+        page = self.tabs.get(step.page)
+        self.tabs.last = page
+        popup = getattr(step, "popup", None)
+        if not isinstance(popup, str):
+            self._act(page, step, timeout, record)
+            return
+        with page.expect_popup(timeout=timeout) as opened:
+            self._act(page, step, timeout, record)
+        tab = opened.value
+        tab.wait_for_load_state("domcontentloaded", timeout=timeout)
+        self.tabs.named[popup] = tab
+        self.tabs.last = tab
+
+    def _act(self, page: Page, step: Step, timeout: int, record: StepRecord) -> None:
         match step:
             case GotoStep():
                 page.goto(
@@ -377,10 +419,14 @@ def run_steps(
     artifacts: Path,
     deadline: Deadline,
     on_progress: Callable[[], None] = lambda: None,
+    tabs: Tabs | None = None,
 ) -> dict[str, object]:
-    """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。"""
+    """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。
+
+    ``tabs`` 給了時用它（呼叫的人之後要知道最後在哪個分頁，例如失敗截圖）；``page`` 是一開始的分頁。
+    """
     facts: dict[str, object] = {}
-    run = _Run(page, scenario, base_url, artifacts, facts)
+    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts)
     for step, record in zip(scenario.steps or [], records, strict=True):
         try:
             _execute_step(run, step, record, context, deadline)
@@ -411,7 +457,7 @@ def _execute_step(
         record.duration_ms = int((time.monotonic() - started) * 1000)
         record.ended_at = time.time()
         with contextlib.suppress(Exception):  # 頁面已經關閉時沒有網址
-            record.url = run.page.url
+            record.url = run.tabs.active.url
 
 
 def run_step(
@@ -424,10 +470,14 @@ def run_step(
     base_url: str | None,
     artifacts: Path,
     deadline: Deadline,
+    tabs: Tabs | None = None,
 ) -> StepRecord:
-    """只執行一步（調試工作階段用）：facts 就地更新；失敗不拋出，記在回傳的紀錄裡。"""
+    """只執行一步（調試工作階段用）：facts 就地更新；失敗不拋出，記在回傳的紀錄裡。
+
+    ``tabs`` 是整個工作階段的分頁（M7b），新分頁在步驟之間一直都在。
+    """
     record = StepRecord(step.id, step.action, step.name)
-    run = _Run(page, scenario, base_url, artifacts, facts)
+    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts)
     with contextlib.suppress(Exception):
         _execute_step(run, step, record, context, deadline)
     return record

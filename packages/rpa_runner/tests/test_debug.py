@@ -135,3 +135,52 @@ def test_reset_and_unknown_command(session: tuple[Session, Path]) -> None:
     assert reset["facts"] == {}
     assert debug.send("dance")["ok"] is False
     assert debug.send("step", index=99)["ok"] is False
+
+
+POPUP_FORM = ROOT / "scenarios" / "examples" / "popup-form.yaml"
+
+
+def test_tabs_stay_open_between_steps(engine: str, tmp_path: Path) -> None:
+    """新分頁（M7b）：開出的新分頁在步驟之間都在；截圖、網址與定位器測試在目前的分頁。"""
+    inputs = tmp_path / "input.json"
+    inputs.write_text(json.dumps({"item": "A-1"}), encoding="utf-8")
+    with running() as site:
+        command = [
+            sys.executable, "-m", "rpa_runner.debug",
+            "--scenario", str(POPUP_FORM), "--input", str(inputs),
+            "--out", str(tmp_path / "debug"), "--engine", engine, "--base-url", site,
+        ]  # fmt: skip
+        process = subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8"
+        )
+        try:
+            debug = Session(process)
+            assert debug.read()["event"] == "ready"
+            first = debug.send("step", index=0)
+            assert str(first["url"]).endswith("/popup")
+            opened = debug.send("step", index=1)  # 點連結：開出新分頁，目前分頁換成它
+            assert cast("dict[str, object]", opened["record"])["status"] == "passed", opened
+            assert str(opened["url"]).endswith("/popup/items")
+            found = debug.send("locate", locator={"role": "button", "name": "新增商品行"})
+            assert found["count"] == 1
+            replies = [debug.send("step", index=index) for index in range(2, 6)]
+            for reply in replies:
+                record = cast("dict[str, object]", reply["record"])
+                assert record["status"] == "passed", reply
+            facts = cast("dict[str, object]", replies[-1]["facts"])
+            assert facts["status"] == "已儲存：A-1"
+            last = debug.send("step", index=6)  # 回到一開始的分頁
+            assert cast("dict[str, object]", last["record"])["status"] == "passed", last
+            assert str(last["url"]).endswith("/popup")
+            # 從頭開始：新分頁不在了，在新分頁上的步驟說明要先開它
+            debug.send("reset")
+            missing = debug.send("step", index=2)
+            record = cast("dict[str, object]", missing["record"])
+            assert record["status"] == "failed"
+            assert "items" in str(record["error"])
+        finally:
+            if process.poll() is None:
+                assert process.stdin is not None
+                process.stdin.write(json.dumps({"cmd": "close"}) + "\n")
+                process.stdin.flush()
+                process.wait(timeout=30)

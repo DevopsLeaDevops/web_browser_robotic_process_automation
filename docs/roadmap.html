@@ -26,6 +26,7 @@
     <div class="notice"><strong>新增 M11（2026-10-19）：</strong>M10.2 之後做 M11 資料存放升級（D11）：場景與組合場景放進領域資料夾、驗證與發布紀錄跟著資料夾、經由 git 在伺服器之間同步；M5 仍往後。決策見 <a href="adr/0015-domain-folders-and-git.html">ADR 0015</a>。</div>
     <div class="notice"><strong>新增 M12（2026-10-20）：</strong>M11 之後做 M12 運行回看：驗證與執行時錄影，運行結束後在 Portal 回看，影片和步驟對得上，方便還原執行現場；M5 仍往後。決策見 <a href="adr/0016-run-replay.html">ADR 0016</a>。</div>
     <div class="notice"><strong>插入 M7a（2026-10-21）：</strong>把 M7 的 iframe 提前、在 M5 之前做：驗證時錄製稿裡 iframe 的元素轉不了，真實系統的表單常在 iframe 裡。定位器加上 <code>frame</code>（元素所在的 iframe，可巢狀）；M7 的其餘部分不變。</div>
+    <div class="notice"><strong>插入 M7b（2026-10-21）：</strong>接著把 M7 的多分頁（點擊開出的新分頁）提前：驗證時錄製稿裡 <code>expect_popup</code> 與新分頁上的操作轉不了。步驟加上 <code>popup</code>（這一步開出新分頁）與 <code>page</code>（在哪個分頁執行）；M7 的其餘部分不變。</div>
 
     <section class="panel">
       <div class="panel-header"><h2>里程碑</h2><span class="muted">狀態隨每個 PR 更新</span></div>
@@ -46,7 +47,8 @@
             <tr class="current"><td><span class="milestone">M12</span></td><td>運行回看</td><td>驗證與執行時錄影（DSL 場景的自動化階段，有頭、無頭；失敗、逾時、取消的影片也完整）；步驟記下開始、結束的實際時間，和影片同一個時鐘；錄影設定與保留規則（通過 7 天、其他 30 天、總量上限、釘選）；回看頁：播放、拖曳、逐格、變速，縮圖時間軸與步驟軌，步驟清單跟著影片走，失敗的運行打開就停在失敗步驟之前（<a href="adr/0016-run-replay.html">ADR 0016</a>、<a href="design/portal.html">管理 Portal</a>）</td><td>Windows Worker 有頭、無頭各執行一次，執行中取消一次，三段影片都能播放與拖曳；失敗的運行打開就停在失敗的步驟；運行報告、運行頁、試驗場節點都能進入回看；Mac 錄製端 App 裡能播放</td><td><span class="badge blue">進行中</span><br><span class="muted">設計已確認；錄影與資料（#61）、播放器與入口審閱中</span></td></tr>
             <tr><td><span class="milestone">M5</span></td><td>AI 助手</td><td>對話調試、受限的工具、自然語言生成 DSL、校驗失敗自動修正、選擇器自癒</td><td>助手只改草稿、發布要使用者確認；一句話描述生成可通過驗證的場景。<strong>MVP 完成</strong></td><td><span class="badge">未開始</span></td></tr>
             <tr><td><span class="milestone">M7a</span></td><td>iframe（M7 提前的一部分）</td><td>定位器的 <code>frame</code>：元素在哪個 iframe 裡（iframe 裡還有 iframe 時再寫一層），within、備用定位器、定位器測試都在那個 iframe 裡找；錄製稿的 <code>frame_locator(…)</code> 與 <code>locator(…).content_frame</code> 轉成 frame，不帶引數的 <code>frame_locator()</code> 轉成 <code>anyFrame</code>（在任何一個 iframe 裡找）；測試網站的 iframe 頁（<a href="design/dsl.html#locators">DSL</a>）</td><td>錄製 iframe 裡的表單後轉換沒有警告，驗證、發布並執行成功；Chromium 與 Firefox 在巢狀 iframe 裡執行範例場景</td><td><span class="badge blue">進行中</span><br><span class="muted">實作與自動測試在 PR #62 中；人工驗收：本機通過；Linux 伺服器＋macOS 錄製端＋Windows Worker 待用新建置的 App 重新驗收（舊 App 看不懂 frame，現在會直接提示更新）</span></td></tr>
-            <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、多分頁、上傳與下載、子場景、資料驅動（iframe 已提前到 M7a）</td><td>複雜範例場景通過</td><td><span class="badge">未開始</span></td></tr>
+            <tr><td><span class="milestone">M7b</span></td><td>新分頁（M7 提前的一部分）</td><td>步驟的 <code>popup</code>（等它開出新分頁並取名）與 <code>page</code>（在哪個分頁執行），校驗分頁要先開過；逐步調試與定位器測試在目前的分頁；錄製稿的 <code>expect_popup</code> 與 <code>page1.…</code> 轉成這兩個欄位；舊的錄製端與 Worker 看不懂時提示更新；測試網站的新分頁頁面（<a href="design/dsl.html#tabs">DSL</a>）</td><td>錄製點擊後開出新分頁的操作，轉換沒有警告，在錄製端調試、以 Worker 驗證、發布並執行成功；Chromium 與 Firefox 執行跨分頁的範例場景</td><td><span class="badge blue">進行中</span><br><span class="muted">實作中；人工驗收：未執行</span></td></tr>
+            <tr><td><span class="milestone">M7</span></td><td>流程能力</td><td>條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、自己開的新分頁、上傳與下載、子場景、資料驅動（iframe 已提前到 M7a，點擊開出的新分頁提前到 M7b）</td><td>複雜範例場景通過</td><td><span class="badge">未開始</span></td></tr>
             <tr><td><span class="milestone">M8</span></td><td>多用戶與治理</td><td>認證（OIDC 或 LDAP）、專案權限、Secrets 加密、稽核；正式環境 PostgreSQL</td><td>API 測試在 SQLite 與 PostgreSQL 上都通過</td><td><span class="badge">未開始</span></td></tr>
             <tr><td><span class="milestone">M9</span></td><td>營運能力</td><td>排程（定時執行）、併發與 worker 標籤、通知、S3 相容物件儲存、Docker Compose 部署；遠端 worker 已在 M9a 提前完成</td><td><code>docker compose up</code> 一鍵啟動</td><td><span class="badge">未開始</span></td></tr>
           </tbody>
@@ -67,6 +69,7 @@
             <li><strong>先把執行搬離自己的電腦（M9a 插在 M5 前）。</strong>測試大多用有頭模式，瀏覽器視窗會占住執行 Portal 的電腦；有一台專門執行的電腦，就先把 M9 的遠端 worker 做出來。只動執行的位置，不改場景、契約與發布門檻。</li>
             <li><strong>先讓別人裝得起來（M10 插在 M5 前）。</strong>伺服器之後要放到正式環境；錄製者與執行機要能不裝開發工具就用，錄製的瀏覽器也要開在錄製者自己的電腦。只動安裝與「子程序在哪台執行」，不改場景、契約與發布門檻。</li>
             <li><strong>先解掉擋住錄製的 iframe（M7a 插在 M5 前）。</strong>真實系統的表單常在 iframe 裡，錄製稿轉不了就無法驗證。只多一個定位器欄位，不改場景契約與發布門檻；M7 的其他流程能力仍照原順序。</li>
+            <li><strong>接著解掉新分頁（M7b 插在 M5 前）。</strong>真實系統常在新分頁打開明細，錄製稿轉不了一樣無法驗證。只多兩個步驟欄位，不改場景契約與發布門檻。</li>
             <li><strong>生成只產生草稿。</strong>錄製與 AI 的輸出都要經過真實驗證與人工發布，驗證的版本必須就是發布的版本。</li>
             <li><strong>Runner 從一開始就無狀態。</strong>只吃場景、入參與 Secrets，輸出結果與產物；M3 的背景 worker 與 M9a 的遠端 worker 直接沿用。</li>
           </ul>
