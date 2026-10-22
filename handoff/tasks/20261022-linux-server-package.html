@@ -15,14 +15,14 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261022-linux-server-package；2026-10-22 05:44 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261022-linux-server-package；2026-10-22 06:26 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求：「Linux 伺服器支持分發包，支持分發包安裝，目前我是 clone 代碼 setup 的形式，效率不高。」驗收：發布時附上可下載的伺服器分發包；在 RHEL／CentOS 衍生版（glibc 2.28、yum）上不需要 git、uv、PyPI 就能安裝、啟動、配對裝置；升級保留設定與資料並能接續 systemd 服務；已用 clone 安裝的伺服器能改用分發包。</dd>
         <dt>範圍／不包含</dt><dd>建置工具、包內的安裝程式與 <code>rpa</code> 命令、CI（x64、arm64，Rocky 8 容器）、發布流程、三語文件。不包含：RPM／yum 套件庫、macOS／Windows 的伺服器分發包、Docker 映像（M9）、自動更新、程式碼簽章；不改資料庫與伺服器的程式行為；<code>scripts/setup-linux.sh</code> 照舊保留給從原始碼安裝。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude；未指定審閱者與接收方。</dd>
         <dt>修改檔案／整合者</dt><dd>新增 <code>tools/build_server.py</code>、<code>apps/server/packaging/install.sh</code>、<code>apps/server/packaging/rpa</code>、<code>tests/ci/test_server_package.py</code>、<code>.github/workflows/server-package.yml</code>；修改 <code>tools/linux_server_smoke.py</code>（<code>--rpa</code>、<code>--cwd</code>）、<code>.github/workflows/release.yml</code>、<code>desktop.yml</code>（觸發路徑排除 <code>apps/server/packaging/</code>）、<code>ci-metrics.yml</code> 與 <code>tools/ci_metrics.py</code>（記錄新流程）、README、文件（setup、quickstart、operations、ci、desktop、tech-stack 的繁中與英文，簡中由 bootstrap 產生）、決定紀錄、本紀錄與任務索引。同時進行的 Mac 版 Worker（任務 20261022-macos-worker，分支 <code>feat/macos-worker</code>）也改 <code>release.yml</code>、<code>desktop.yml</code>、決定紀錄與任務索引：先合併的不動，後合併的 rebase 後整合（兩邊的產物都留在發布清單）。沒有改 <code>uv.lock</code>。</dd>
-        <dt>狀態</dt><dd>實作中：程式、測試與文件完成，本地檢查見下方；待推送與 CI。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>feat/linux-server-package</code>；PR 未建立；從 <code>origin/main</code> df47b14（#67 合併）建立。</dd>
-        <dt>交接版本／同步狀態</dt><dd>基準 df47b14＋本分支的未提交差異（只在本機）。</dd>
+        <dt>狀態</dt><dd>待審閱：實作完成、自動測試通過（PR #70 最新 head 的 CI 全部通過，見下方）；人工驗收未執行；合併由使用者決定。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/linux-server-package</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/70">PR #70</a>（對 <code>main</code>）；從 <code>origin/main</code> df47b14（#67 合併）建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：程式驗證的 head 是 4130250（之後只追加本紀錄）。</dd>
         <dt>工作區／環境</dt><dd>Claude 的雲端工作區（Ubuntu 24.04 x86_64、glibc 2.39、系統 Python 3.13、uv 0.11.32、ruff 0.16.9、pyright 1.1.414、pytest 9.1.1）。<strong>連不到 PyPI</strong>（直連 DNS 失敗、代理拒絕），<code>uv sync</code> 做不到，也沒有 Docker daemon：真正的分發包建置、安裝與 Rocky 8 驗證只能在 CI 執行。</dd>
       </dl></div>
     </section>
@@ -40,9 +40,10 @@
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>上述檔案；文件新增「Linux 伺服器：分發包（建議）」（<code>docs/develop/setup.html#linux-package</code>），原本的段落改稱「從原始碼安裝」；桌面端分發、技術選型、部署與操作、本機從零開始、CI 頁同步；發布流程附上兩個分發包與 SHA-256。</li>
-        <li><strong>未完成／阻礙：</strong>CI 尚未執行（本機做不到真正的建置）；公司主機（glibc 2.32、真的 systemd 啟停與開機自動啟動、aarch64 實機）未人工驗收；第一個附上分發包的 Release 要等下一次發布。</li>
+        <li><strong>未完成／阻礙：</strong>公司主機（glibc 2.32、真的 systemd 啟停與開機自動啟動、aarch64 實機）未人工驗收；第一個附上分發包的 Release 要等下一次發布。</li>
+        <li><strong>另外修的 CI 問題：</strong>桌面端建置的 macOS 工作分配不到機器（main 的 #67 建置也是：等 15 分鐘後被取消）。GitHub 的 macos-14 在 2026-11-02 停用（<a href="https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement">公告</a>），10-23 起還有停機演練；改用建議的 macos-15（arm64，固定版本），產物名稱跟著變成 <code>recorder-macos-15</code>，<code>release.yml</code> 與遠端 Worker 文件同步。#71 有同樣的修改（內容相同，合併不衝突）。</li>
         <li><strong>決定：</strong>要分發包是使用者明確要求；tar.gz＋自帶 Python、並排版本、預設位置與沿用 clone 設定是 Claude 的實作選擇（已記在<a href="../decisions.html">決定紀錄</a>），使用者可要求改成 RPM 等其他形式。</li>
-        <li><strong>下一個具體動作：</strong>提交、推送、開 PR；看「伺服器分發包」兩個架構的工作與 CI；有失敗就修。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併 #70。之後在公司主機照 <code>docs/develop/setup.html#linux-package</code> 安裝（或從 clone 改過來）、確認 systemd 服務啟停與開機自動啟動，結果記在驗收紀錄。和 #71 衝突時由後合併的那個 rebase 整合（<code>release.yml</code> 兩邊的產物都要留，英文頁的翻譯雜湊重新 stamp）。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>本機無 stash；<code>dist/</code>、<code>build/</code> 沒有產物（本機沒有建置）。</li>
       </ul></div>
     </section>
@@ -56,7 +57,7 @@
           <tr><td>同上</td><td><code>pytest -q tests/docs</code>；<code>tools/i18n.py stamp</code> 六個英文頁</td><td>277 通過，1 失敗：簡中 <code>zh-Hans/develop/setup.html</code> 少了新錨點（產生的檔案，提交時用 <code>[bootstrap]</code> 由 CI 重新產生）</td><td><code>tools/i18n.py sync／check</code> 需要 opencc，交給 bootstrap 與 CI</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI（PR #70，head 4130250，2026-10-22 06:13～06:26 America/Los_Angeles（PDT，UTC−07:00））：CI、一鍵安裝腳本（含 Rocky 8 的 setup-linux.sh）、桌面端建置（錄製端 macos-15、Worker Windows）、伺服器分發包、運行耗時紀錄全部通過。第一次的 head 8d30e07 上「伺服器分發包」兩個架構也都通過：x64 建置 18 秒、Rocky 8 安裝到升級 65 秒，分發包 99 MB；arm64 93 MB。人工驗收：未執行。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -67,6 +68,9 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-22 05:24 America/Los_Angeles（PDT，UTC−07:00）：使用者提出兩個功能（本任務與 Mac 版 Worker）。Claude 讀 AGENTS.md、共用流程、任務索引、相關任務紀錄與設計；fetch 後確認沒有開啟的 PR、<code>main</code> 在 df47b14；在獨立 worktree 從 <code>origin/main</code> 建立本分支。</li>
         <li>2026-10-22 05:44 America/Los_Angeles（PDT，UTC−07:00）：完成實作、測試與文件，本地檢查如上；準備提交並推送。</li>
+        <li>2026-10-22 05:46 America/Los_Angeles（PDT，UTC−07:00）：推送 7a8967f、ae2e40d（<code>[bootstrap]</code>）；bootstrap 產生簡中（8d30e07）並在 CI 環境跑過 ruff、pyright、<code>pytest -m "not browser"</code>。05:59 建立 PR #70。</li>
+        <li>2026-10-22 06:01 America/Los_Angeles（PDT，UTC−07:00）：8d30e07 的 CI、一鍵安裝腳本、伺服器分發包（x64、arm64）通過；桌面端建置的錄製端（macos-14）分配不到機器。</li>
+        <li>2026-10-22 06:13 America/Los_Angeles（PDT，UTC−07:00）：4130250 把桌面端建置的 macOS 改成 macos-15（理由見上）；06:26 這個 head 的所有流程通過。狀態改為待審閱。</li>
       </ul></div>
     </section>
   </div>
