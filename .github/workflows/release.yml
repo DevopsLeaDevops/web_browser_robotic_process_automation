@@ -73,7 +73,7 @@ jobs:
           path: release
       - uses: actions/download-artifact@v8
         with:
-          name: recorder-macos-14
+          name: recorder-macos-15
           path: release
       - uses: actions/download-artifact@v8
         with:
