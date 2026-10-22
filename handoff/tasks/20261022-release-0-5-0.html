@@ -20,8 +20,8 @@
         <dt>範圍／不包含</dt><dd>範圍：版本號（tools/release_version.py bump 0.5.0）、本任務卡、任務索引；順帶把<a href="20261022-menu-roles.html">選單結構與三段分工</a>的狀態改成已合併（PR #72）。<br>不包含：程式與依賴的修改；打標籤與發布 Release（使用者合併後操作，或另外要求 Claude 推標籤）；設計文件裡「目前 v0.4.0」的字樣（docs/design/desktop.html、architecture.html、tech-stack.html）在 0.5.0 真正發布後再改，現在改會寫成還沒發生的事。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude；審閱未指定；合併、標籤與發布：使用者</dd>
         <dt>修改檔案／整合者</dt><dd>七個套件的 pyproject.toml（apps/cli、apps/desktop、apps/server、apps/testsite、apps/worker、packages/rpa_core、packages/rpa_runner）、uv.lock、本頁、任務索引、20261022-menu-roles.html；Claude 整合。開工時沒有其他開啟中的 PR。</dd>
-        <dt>狀態</dt><dd>待審閱：版本與本地檢查完成，推送後開 PR；等 CI、桌面端建置與使用者合併。尚未建立標籤或 Release。</dd>
-        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-ab62tv（這次會話指定的分支，PR #72 合併後從 main 重建；倉庫慣例是 chore/release-…，名稱不影響合併）；PR 尚未建立；base main 748cba8（#72 合併後）</dd>
+        <dt>狀態</dt><dd>待審閱：版本與本地檢查完成，已推送並開 PR #73；等 CI、桌面端建置與使用者合併。尚未建立標籤或 Release。</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-ab62tv（這次會話指定的分支，PR #72 合併後從 main 重建；倉庫慣例是 chore/release-…，名稱不影響合併）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/73">PR #73</a>；base main 748cba8（#72 合併後）</dd>
         <dt>交接版本／同步狀態</dt><dd>提交於 claude/project-thread-ab62tv（基準 748cba8）並推送；最新 head 以 PR 為準</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.16、uv 0.11.32、鎖定依賴</dd>
       </dl></div>
