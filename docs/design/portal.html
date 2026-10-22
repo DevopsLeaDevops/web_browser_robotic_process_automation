@@ -32,7 +32,7 @@
           <li><strong>全新的資料夾。</strong>第一次啟動（還沒有任何領域）時，自動建立「測試網站自動化」，放進 <code>scenarios/demo</code> 的範例與登入角色。適合驗收新版本，又不動到平常用的資料。</li>
           <li><strong>舊的資料夾。</strong>新版本第一次打開時自動升級資料庫，原有的場景與紀錄都保留；新版本新增的範例要到「測試網站自動化」按「匯入範例」。</li>
           <li><strong>領域資料夾（M11）。</strong>場景、版本、角色與驗證、發布紀錄放在 <code>domains/&lt;領域&gt;/</code>，一個領域一個資料夾，可以單獨校驗（<code>rpa pack check</code>）。M11 之前的資料夾第一次打開時自動把舊的 <code>scenes/</code> 搬進去，搬之前先把資料庫與 <code>scenes/</code> 備份到 <code>backups/&lt;時間&gt;-before-domains/</code>；沒有領域的場景與沒有場景用到的角色放進「未分類」。資料庫裡的組合場景（M11 PR 2）搬進「組合場景」領域，代號是 <code>wf-&lt;原編號&gt;</code>、現在的定義成為第 1 版；搬之前先把資料庫備份到 <code>backups/&lt;時間&gt;-before-composites/</code>。</li>
-          <li><strong>git 同步（M11 PR 3）。</strong>領域可以和 git 倉庫裡的一個目錄同步：「領域管理 › 同步」設定倉庫網址、分支、目錄與認證方式（公開倉庫免認證只能拉取；HTTPS 用使用者名稱＋存取權杖；SSH 用 Portal 產生的部署金鑰），也可以「從 git 新增」領域。只有伺服器做拉取與推送，錄製端與 worker 照舊由伺服器送來需要的檔案。本機變更＝資料夾和上次同步的提交的差異，存檔不必每次提交；拉取與推送都以檔案為單位合併，同一個檔案兩邊改成不同內容就停下來三選一（版本說明檔的內容雜湊相同時視為同一個版本、用遠端的那份，所以各自自動匯入範例的兩台第一次拉取不會衝突）（取消、推送到新分支 <code>rpa/&lt;領域&gt;-&lt;時間&gt;</code>、以遠端為準並先備份到 <code>backups/</code>），永遠不強推。推送前擋下登入狀態、Secrets、私鑰之類的檔名、非定義檔、超過 1 MB 的檔案，以及內容含有已保存的 Secret 值的檔案；組合場景依賴的其他領域的版本還沒推送時提醒。伺服器啟動時在背景拉取設定了「自動拉取」的領域，連不上時用本機上一次的資料。</li>
+          <li><strong>git 同步（M11 PR 3）。</strong>領域可以和 git 倉庫裡的一個目錄同步：「管理後台 › 領域管理」的「同步」設定倉庫網址、分支、目錄與認證方式（公開倉庫免認證只能拉取；HTTPS 用使用者名稱＋存取權杖；SSH 用 Portal 產生的部署金鑰），也可以「從 git 新增」領域。只有伺服器做拉取與推送，錄製端與 worker 照舊由伺服器送來需要的檔案。本機變更＝資料夾和上次同步的提交的差異，存檔不必每次提交；拉取與推送都以檔案為單位合併，同一個檔案兩邊改成不同內容就停下來三選一（版本說明檔的內容雜湊相同時視為同一個版本、用遠端的那份，所以各自自動匯入範例的兩台第一次拉取不會衝突）（取消、推送到新分支 <code>rpa/&lt;領域&gt;-&lt;時間&gt;</code>、以遠端為準並先備份到 <code>backups/</code>），永遠不強推。推送前擋下登入狀態、Secrets、私鑰之類的檔名、非定義檔、超過 1 MB 的檔案，以及內容含有已保存的 Secret 值的檔案；組合場景依賴的其他領域的版本還沒推送時提醒。伺服器啟動時在背景拉取設定了「自動拉取」的領域，連不上時用本機上一次的資料。</li>
           <li><strong>從頭開始與備份。</strong>先停止管理 Portal（終端機按 Ctrl+C）：刪掉資料夾就是從頭開始，複製整個資料夾就是備份。</li>
           <li><strong>不要提交或分享。</strong>裡面有登入狀態與 Secrets 的值（只有本人能讀寫）。Git 已經忽略專案裡的 <code>data/</code> 與 <code>data-*/</code>；用其他名稱或放在別處時請自己留意。</li>
         </ul>
@@ -43,9 +43,10 @@
       <div class="panel-header"><h2>領域</h2><span class="muted">場景管理的二級選單</span></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>依目標系統或業務劃分場景。</strong>例如「測試網站自動化」「谷歌自動化」「微軟自動化」。每個領域是「場景管理」左側的一個選單，最後一項是「領域管理」。</li>
+          <li><strong>依目標系統或業務劃分場景。</strong>例如「測試網站自動化」「谷歌自動化」「微軟自動化」。每個領域是「場景管理」左側的一個選單，順序在「管理後台 › 領域管理」調整；領域之後是「組合場景自動化」，最後是「登入與憑證」。</li>
           <li><strong>領域頁是場景卡片。</strong>1440 寬一列 4 張（每張至少 272px）。每張卡片有名稱與分類（沒有分類時顯示 DSL 場景或 Python 腳本）、最近一次執行的截圖、說明，「自動化腳本、斷言腳本、執行報告、入參設定、出參設定」五個連結，以及場景編號、最近一次結果、「調試」（DSL 場景打開逐步調試，在那裡可以接著驗證；Python 腳本場景直接驗證最新版本）與「運行」（執行已發布版本；還沒發布時顯示「待發布」）。</li>
-          <li><strong>領域管理。</strong>新增領域（代號用在網址，建立後不能改）、改名稱與說明、刪除沒有場景的領域。場景頁的「執行設定」可以把場景移到其他領域。</li>
+          <li><strong>領域管理（管理後台）。</strong>新增領域（代號用在網址，建立後不能改）、改名稱與說明、刪除沒有場景的領域。場景頁的「執行設定」可以把場景移到其他領域。</li>
+          <li><strong>領域的順序。</strong>領域管理的每一列有「上移」「下移」（↑ ↓），按了立刻儲存；「場景管理」的領域選單與 <code>/scenes</code> 轉到的第一個領域都照這個順序。順序只存在這台伺服器的資料庫（<code>domains</code> 的排列順序），不寫進領域資料夾與 git，所以每台伺服器各自排；新增、從 git 新增或從資料夾載入的領域排在最後。「組合場景」領域也在清單裡，但不在場景管理的領域選單（組合場景在「組合場景自動化」）。</li>
           <li><strong>測試網站自動化。</strong>第一次啟動時自動建立，放進對測試網站執行的真實案例：建立紀錄（BA-001）、查詢紀錄（BA-002，入參是 BA-001 的出參）、查詢不存在的紀錄（BA-003）、Python 腳本版的建立紀錄，以及兩個登入範例（BA-004 一般使用者、BA-005 主管）。它的名稱與說明跟著介面語言顯示，改過之後就照改的內容；場景的名稱與說明是場景檔的內容，不會翻譯。</li>
         </ul>
       </div>
@@ -158,7 +159,7 @@
     <section class="panel" id="playground">
       <div class="panel-header"><h2>自由試驗場與組合場景</h2><span class="muted">DAG：可分叉、可匯合，成功出參傳給下游，失敗即停</span></div>
       <div class="panel-body prose"><ul>
-        <li><strong>管理與生產。</strong>「場景管理 › 組合場景自動化」沿用測試網站自動化的卡片風格，以真實節點座標和依賴產生 DAG 縮圖，管理名稱、節點、問題與最近執行；卡片的「執行組合場景」可直接選引擎、執行位置與視窗模式；「場景生產 › 自由試驗場」建立、開啟與編輯畫布。場景生產選單依序為自主腳本錄製、自由試驗場、運行報告、裝置（M10.1 前叫「遠端 Worker」）。</li>
+        <li><strong>管理與生產。</strong>「場景管理 › 組合場景自動化」沿用測試網站自動化的卡片風格，以真實節點座標和依賴產生 DAG 縮圖，管理名稱、節點、問題與最近執行；卡片的「執行組合場景」可直接選引擎、執行位置與視窗模式；「場景生產 › 自由試驗場」建立、開啟與編輯畫布。場景生產選單依序為自主腳本錄製、自由試驗場；運行報告與運行回看在「場景運行」，裝置（M10.1 前叫「遠端 Worker」）在「叢集管理」（2026-10-22 調整，見<a href="#menus">選單與三段分工</a>）。</li>
         <li><strong>依賴畫布。</strong>場景庫可點選加入或拖入畫布。拖動節點或用方向鍵微調位置；點上游右側圓點，再點下游左側圓點建立連線。點連線設定下游入參，也可以從右側加入上游。縮放與適應只改視角，不改座標。節點座標隨組合場景保存；畫布位置和節點陣列順序不代表執行順序。頂部名稱與操作合併成一列，說明收在「說明」，執行歷史預設折疊。畫布下方的全寬參數區獨立捲動，並列上游出參、下游入參、匹配方式、取值／來源；點選 DAG 連線會切到該組上游與下游。多上游可切換來源節點。</li>
         <li><strong>四種入參來源。</strong>同名匹配僅搜尋直接連線的上游，唯一同名且型別相容時取其出參，沒有命中則用場景預設，多個命中必須指定來源；場景預設強制忽略上游同名值；人工指定只覆蓋此節點；指定上游出參可以跨欄位綁定。選擇出參會建立依賴；一個出參可供多個下游，一個入參只有一個來源。整數可以傳給數字，其他型別必須相同。</li>
         <li><strong>參數連線。</strong>拖動出參圓點到入參，或依次用滑鼠／鍵盤選取兩端，建立顯式綁定；型別不符不修改原值。四種模式以按鈕同列呈現，仍可用出參選單精確選擇。唯一同名匹配與顯式來源畫出對應連線；歧義、預設值及人工值不畫假連線。契約按鈕原地顯示該固定版本的唯讀原文；編輯場景明示另開分頁，並提示驗證、發布後回畫布選新版本。</li>
@@ -181,7 +182,7 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>兩個埠。</strong><code>rpa serve --worker-port 8081</code> 另外開一個<strong>對外埠</strong>（M10 起的稱呼），只有 Worker API（<code>/worker-api/v1</code>）與桌面 App 的 Client API（<code>/client-api/v1</code>，M10.1 只有配對），預設聽所有網路介面；管理頁面與 <code>/api</code> 仍然只在 <code>--host</code>（預設 127.0.0.1）。兩邊的路徑互相擋掉：從對外埠看不到管理頁面，從管理頁面的埠也呼叫不到 Worker API 與 Client API。</li>
-          <li><strong>裝置與邀請（M10.1）。</strong>「場景生產 › 裝置」（原「遠端 Worker」頁，舊網址 <code>/workers</code> 轉到 <code>/devices</code>）新增裝置（代號、名稱；目前種類只有 Worker），產生一份<strong>邀請</strong>：一行 <code>rpa://pair?server=…&amp;app=worker&amp;code=…</code>，代碼一次性、24 小時內有效、限定 App 種類，資料庫只存雜湊；也分開顯示伺服器與代碼。在那台電腦的 RPA Worker（或 <code>rpa worker --invite</code>）貼上，經由 Client API 的 <code>/pair</code> 換到權杖。「重新邀請」讓舊權杖與之前的邀請立刻失效。邀請要先開對外埠；沒開時「新增裝置」不能按。可以停用、刪除（執行中不能刪；指定給它而還在排隊的執行標為失敗）。頁面列出每台的狀態（線上、執行中、離線、停用）、最後回報、作業系統、瀏覽器、能不能有頭模式、App 版本，以及程式版本是否和 Portal 相同。</li>
+          <li><strong>裝置與邀請（M10.1）。</strong>「叢集管理 › 裝置」（原「遠端 Worker」頁，舊網址 <code>/workers</code> 轉到 <code>/devices</code>）新增裝置（代號、名稱；目前種類只有 Worker），產生一份<strong>邀請</strong>：一行 <code>rpa://pair?server=…&amp;app=worker&amp;code=…</code>，代碼一次性、24 小時內有效、限定 App 種類，資料庫只存雜湊；也分開顯示伺服器與代碼。在那台電腦的 RPA Worker（或 <code>rpa worker --invite</code>）貼上，經由 Client API 的 <code>/pair</code> 換到權杖。「重新邀請」讓舊權杖與之前的邀請立刻失效。邀請要先開對外埠；沒開時「新增裝置」不能按。可以停用、刪除（執行中不能刪；指定給它而還在排隊的執行標為失敗）。頁面列出每台的狀態（線上、執行中、離線、停用）、最後回報、作業系統、瀏覽器、能不能有頭模式、App 版本，以及程式版本是否和 Portal 相同。</li>
           <li><strong>領取。</strong>worker 執行 <code>rpa worker --server …</code>，上線時回報協定版本（不同就拒絕）、程式指紋（不同只提醒）、瀏覽器與能不能顯示視窗；之後長輪詢（最多 25 秒）領取任務。只給它能跑的：執行位置是遠端或任一、瀏覽器有下載、有頭模式要能顯示視窗、指定給它的。依建立順序先進先出。</li>
           <li><strong>任務的內容。</strong>場景版本的檔案（照位元組傳送，雜湊和 Portal 一致）、入參、瀏覽器、網址、視窗模式、語言；場景有登入角色時加上登入設定與目前的登入狀態，以及用到的 Secrets 的值。worker 只放在記憶體與執行期間的暫存檔，執行完刪除。</li>
           <li><strong>心跳、取消、失聯。</strong>執行中每 5 秒心跳，同時回報階段；在 Portal 取消時，下一次心跳就終止瀏覽器。領取時給 60 秒租約、心跳延長；過期就把執行標為失敗「worker 失聯」，<strong>不自動重跑</strong>（可能已經有副作用），之後 worker 才回報的結果一律拒絕。Portal 重新啟動時，遠端執行中的任務給一次租約的時間重新報到；本機的照舊標為中斷。</li>
@@ -206,15 +207,39 @@
           <li><strong>兩個角色。</strong>「場景管理 › 登入與憑證」對 <code>testsite-user</code> 按「登入」，在跳出的視窗用 user / user-pass 登入後按「完成登入」；<code>testsite-manager</code> 用 manager / manager-pass。再分別運行 BA-004、BA-005：兩份報告看到的待辦不同。</li>
           <li><strong>需要登入與重新執行。</strong>對 <code>testsite-user</code> 按「登出」，再運行 BA-004：停在「需要登入」，沒有執行任何步驟；點執行頁的登入角色回到「登入與憑證」再登入一次，回到執行頁按「重新執行」，結果是「通過」。</li>
           <li><strong>自由試驗場。</strong>先驗證並發布 BA-001、BA-002。建立組合場景，加入一個 BA-001、兩個 BA-002 及另一個 BA-001 作為匯合節點；連接「建立 → 兩次查詢 → 匯合」，讓兩個查詢的 recordId 同名匹配上游，匯合的 title 與 quantity 分別取自兩個查詢。拖動節點、儲存並重載，確認位置保留。執行後四個節點都通過且實際入參相符；反向連線應被拒絕。從場景管理的組合場景卡片打開最近執行，確認報告可追溯。</li>
-          <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「場景生產 › 裝置」新增 <code>win-01</code>，在另一台電腦用對話框裡的邀請啟動 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付後改在 App 貼上；步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），裝置頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的組合場景，四個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
+          <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「叢集管理 › 裝置」新增 <code>win-01</code>，在另一台電腦用對話框裡的邀請啟動 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付後改在 App 貼上；步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），裝置頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的組合場景，四個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
           <li><strong>運行回看（M12）。</strong>運行報告的「回看」欄有 ▶ 與影片長度；打開第 3 步的驗證：影片可以播放、暫停、拖曳，滑過時間軸有預覽，步驟清單跟著影片走，點一步跳到那一步。執行 BA-002 查詢不存在的編號（失敗）：打開回看就停在失敗步驟之前，結束時有「回到失敗的步驟」。在 win-01 用有頭、無頭各執行一次，執行中取消一次：三段影片都能播放與拖曳。在 Mac 錄製端 App 裡打開同一頁也能播放。</li>
         </ol>
         <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可；worker 機器上的 <code>worker-data</code> 資料夾也可以刪掉。</p>
       </div>
     </section>
 
+    <section class="panel" id="menus">
+      <div class="panel-header"><h2>選單與三段分工</h2><span class="muted">2026-10-22 使用者調整</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>第一級選單</th><th>左側第二級</th><th>伺服器本機（8080）</th><th>透過錄製端</th></tr></thead>
+          <tbody>
+            <tr><td>場景管理（<code>/scenes</code>）</td><td>領域 ×N（依領域管理的順序）、組合場景自動化、登入與憑證</td><td>顯示</td><td>顯示</td></tr>
+            <tr><td>場景生產（<code>/recording</code>）</td><td>自主腳本錄製、自由試驗場</td><td>顯示</td><td>顯示</td></tr>
+            <tr><td>場景運行（<code>/runs</code>）</td><td>運行報告、運行回看</td><td>顯示</td><td>顯示</td></tr>
+            <tr><td>叢集管理（<code>/devices</code>）</td><td>裝置</td><td>顯示</td><td>預設不顯示</td></tr>
+            <tr><td>管理後台（<code>/domains</code>）</td><td>領域管理</td><td>顯示</td><td>預設不顯示</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>三段。</strong>伺服器（直接打開 8080，例如伺服器那台或 SSH 通道）看得到全部選單；錄製端（RPA 錄製端 App 經由對外埠打開的 Portal）預設只有場景管理、場景生產、場景運行；Worker 端的 RPA Worker App 不載入 Portal 的頁面，維持原樣。</li>
+          <li><strong>替個別錄製端打開。</strong>「叢集管理 › 裝置」的錄製端清單每台有「另外顯示的選單」：勾「叢集管理」「管理後台」，透過那台就看得到（立刻儲存，那台重新整理頁面就生效）。例如伺服器是沒有桌面的 Linux、管理者用自己的 Mac 錄製端管理時。</li>
+          <li><strong>只是選單，不是權限。</strong>錄製端的權杖照舊能打開所有頁面與 API（2026-10-18 的決定，使用者權限在 M8）。看不到的選單，頁面上通往它的按鈕也不顯示（領域頁的「管理領域」、等待 worker 時的「查看裝置」）；組合場景依賴提示的「從 git 新增」之類的動作連結照舊。</li>
+          <li><strong>網址不變。</strong>只換分組；<code>/runs</code>、<code>/replay</code>、<code>/devices</code>、<code>/domains</code> 等網址與 API 都和之前一樣。還沒分到領域的場景頁停在場景管理、左側不標示任何一項。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="pages">
-      <div class="panel-header"><h2>頁面</h2><span class="muted">頂部第一級、左側第二級，與 MVP 原型相同</span></div>
+      <div class="panel-header"><h2>頁面</h2><span class="muted">頂部第一級、左側第二級（版面與 MVP 原型相同，分組見<a href="#menus">選單與三段分工</a>）</span></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>路徑</th><th>內容</th></tr></thead>
@@ -222,7 +247,7 @@
             <tr><td><code>/scenes</code></td><td>轉到第一個領域；還沒有領域時轉到領域管理</td></tr>
             <tr><td><code>/domains/{代號}</code></td><td>領域頁：場景卡片；新增場景、匯入範例（測試網站自動化）</td></tr>
             <tr><td><code>/domains/{代號}/sync</code></td><td>資料來源與同步（M11 PR 3）：設定倉庫、目錄與認證，同步狀態與變更清單，測試連線、拉取、推送，衝突時三選一</td></tr>
-            <tr><td><code>/domains</code></td><td>領域管理：新增（也可以從 git 新增）、改名、刪除；每個領域的資料來源與同步狀態；這台伺服器的名稱；還沒分到領域的場景</td></tr>
+            <tr><td><code>/domains</code></td><td>領域管理（管理後台）：新增（也可以從 git 新增）、改名、刪除、調整順序；每個領域的資料來源與同步狀態；這台伺服器的名稱；還沒分到領域的場景</td></tr>
             <tr><td><code>/scenes/{id}</code></td><td>版本清單與狀態、發布、執行前要準備的角色與 Secrets、入參與出參（可以直接編輯）、所屬領域與預設網址、最近執行</td></tr>
             <tr><td><code>/scenes/{id}/debug</code></td><td>逐步調試：步驟清單、截圖、定位器測試、頁面事實、修改 YAML</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上</td></tr>
@@ -238,7 +263,7 @@
             <tr><td><code>/playground</code></td><td>自由試驗場：建立、匯入組合場景與繼續編輯畫布</td></tr>
             <tr><td><code>/playground/{序列}</code></td><td>編輯組合場景：場景庫、DAG 畫布、入參與節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
             <tr><td><code>/playground/runs/{序列執行}</code></td><td>序列的執行：每個節點的狀態、入參的值與來源、出參、報告；取消、從頭再執行、從停下的節點繼續</td></tr>
-            <tr><td><code>/devices</code></td><td>裝置（M10.1；<code>/workers</code> 轉到這裡）：新增並產生邀請、狀態、停用、重新邀請、刪除；預設執行位置</td></tr>
+            <tr><td><code>/devices</code></td><td>裝置（叢集管理；M10.1；<code>/workers</code> 轉到這裡）：新增並產生邀請、狀態、停用、重新邀請、刪除；錄製端另外顯示的選單；預設執行位置</td></tr>
           </tbody>
         </table>
       </div>
@@ -251,6 +276,7 @@
           <thead><tr><th>介面</th><th>用途</th></tr></thead>
           <tbody>
             <tr><td><code>GET</code>、<code>POST /api/domains</code></td><td>領域清單；新增領域（<code>id</code>、<code>name</code>、<code>description</code>）</td></tr>
+            <tr><td><code>PUT /api/domains/order</code></td><td>調整領域的順序：<code>ids</code> 是全部領域的代號，依新的順序；回應排好的領域清單。和伺服器上的清單不同（少了、多了、重複）時 409 <code>domain_order_changed</code>，順序不變</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代號}</code></td><td>領域與它的場景卡片（最近一次執行、截圖）、載入問題；改名稱與說明（寫進 <code>pack.yaml</code>）；刪除沒有場景與角色的領域（連同領域資料夾）</td></tr>
             <tr><td><code>POST /api/domains/{代號}/reload</code></td><td>重新載入領域資料夾（在資料夾外面改了檔案之後）；回傳載入問題</td></tr>
             <tr><td><code>GET /api/domains/{代號}/sync</code></td><td>同步狀態（M11 PR 3，不連網路）：<code>state</code>（local、unchecked、synced、ahead、behind、diverged、empty、no_directory、conflict、error）、資料來源（不含權杖）、上次同步的提交、本機變更與分類計數、遠端新提交數、錯誤、衝突的檔案、部署金鑰的公鑰</td></tr>
@@ -298,6 +324,7 @@
             <tr><td><code>GET</code>、<code>POST /api/workers</code></td><td>遠端 worker 清單（含預設執行位置、本機執不執行、Portal 的程式指紋）；登記（<code>id</code>、<code>name</code>），回應的 <code>token</code> 只有這一次拿得到</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代號}</code>；<code>POST …/token</code></td><td>狀態（含 App 版本）；改名稱、停用（<code>disabled</code>）；刪除（執行中 409）；重新產生權杖（命令列與腳本用）</td></tr>
             <tr><td><code>POST /api/workers/{代號}/invite</code></td><td>產生邀請（M10.1）：舊權杖與之前的邀請立刻失效；回應的 <code>invite</code>（<code>line</code>、<code>server</code>、<code>code</code>、<code>app</code>、<code>expiresAt</code>）只有這一次拿得到；沒開對外埠時 409 <code>invite_needs_port</code>，停用中 409 <code>worker_disabled</code></td></tr>
+            <tr><td><code>PATCH /api/recorders/{代號}</code></td><td>錄製端（M10.2）：改名稱、停用（<code>disabled</code>）；<code>menus</code> 是透過這台時另外顯示的第一級選單（<code>cluster</code>、<code>admin</code>，預設空的），其他值 422 <code>recorder_menu_invalid</code></td></tr>
             <tr><td><code>PUT /api/settings/default-target</code></td><td>預設執行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/server</code></td><td>這台伺服器的代號與名稱（<code>name</code>）；寫進版本、驗證、發布的紀錄</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/video</code></td><td>錄影設定（M12）：<code>enabled</code>、<code>keepPassedDays</code>、<code>keepOtherDays</code>（0～3650）、<code>maxTotalGb</code>；回應另有 <code>usage</code>（幾段、多大、釘選幾段）。改了之後新的任務照新設定，保留規則立刻套用</td></tr>
@@ -339,6 +366,7 @@
             <dt>workflow_revisions</dt><dd>組合場景的版本（資料夾的索引）：版本號碼、雜湊、狀態、有沒有雜湊相符的通過驗證紀錄、不能執行的問題、說明、發布時間</dd>
             <dt>workflow_runs</dt><dd>序列的執行：序列與當時的名稱、代號、版本與目的、定義的快照、狀態、停在哪個節點與原因、沿用的節點（從停下的節點繼續時）、瀏覽器與視窗模式、時間；執行位置與固定的 worker</dd>
             <dt>workers</dt><dd>遠端 worker：代號、名稱、權杖的雜湊、停用、上線時回報的資訊（M10.1 加上 App 版本）、目前的執行、最後回報時間</dd>
+            <dt>recorders</dt><dd>錄製端（M10.2）：代號、名稱、權杖的雜湊、停用、上線時回報的資訊、最後回報時間；透過這台時另外顯示的選單（2026-10-22）</dd>
             <dt>device_invites</dt><dd>裝置邀請（M10.1）：代碼的雜湊、App 種類、裝置代號、產生時間、期限、使用時間</dd>
             <dt>settings</dt><dd>設定（預設執行位置、伺服器代號與名稱、資料夾的格式、錄影）</dd>
           </dl>

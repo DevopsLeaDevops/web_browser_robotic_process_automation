@@ -141,7 +141,7 @@ sudo systemctl restart rpa-portal          # 更新後重新啟動</pre>
     </section>
 
     <section class="panel" id="git-sync">
-      <div class="panel-header"><h2>領域與 git 同步</h2><span class="muted">M11；場景管理 › 領域管理 › 同步</span></div>
+      <div class="panel-header"><h2>領域與 git 同步</h2><span class="muted">M11；管理後台 › 領域管理 › 同步</span></div>
       <div class="panel-body prose">
         <p>每個領域可以和 git 倉庫裡的一個目錄同步，多台伺服器（不同的人）共用同一份場景、組合場景與驗證、發布紀錄。只有伺服器做 git；錄製端與運行端照舊由伺服器送來需要的檔案。伺服器要有 git 2.25 以上（一鍵腳本已經安裝）。設計見<a href="../design/portal.html">管理 Portal</a> 與 <a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>。</p>
         <h3>設定</h3>
@@ -171,7 +171,7 @@ sudo systemctl restart rpa-portal          # 更新後重新啟動</pre>
     </section>
 
     <section class="panel" id="devices">
-      <div class="panel-header"><h2>管理裝置</h2><span class="muted">管理 Portal › 場景生產 › 裝置</span></div>
+      <div class="panel-header"><h2>管理裝置</h2><span class="muted">管理 Portal › 叢集管理 › 裝置</span></div>
       <div class="panel-body prose">
         <ul>
           <li><strong>新增。</strong>「新增裝置」選種類（RPA Worker 或 RPA 錄製端），產生一次性的邀請（24 小時內有效），貼到那台的 App 或命令列。步驟見<a href="remote-worker.html#register">遠端 worker › 新增裝置</a>。</li>

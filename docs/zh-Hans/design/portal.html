@@ -33,7 +33,7 @@
           <li><strong>全新的文件夹。</strong>第一次启动（还没有任何领域）时，自动创建「测试网站自动化」，放进 <code>scenarios/demo</code> 的示例与登录角色。适合验收新版本，又不动到平常用的数据。</li>
           <li><strong>旧的文件夹。</strong>新版本第一次打开时自动升级数据库，原有的场景与记录都保留；新版本添加的示例要到「测试网站自动化」按「导入示例」。</li>
           <li><strong>领域文件夹（M11）。</strong>场景、版本、角色与验证、发布记录放在 <code>domains/&lt;领域&gt;/</code>，一个领域一个文件夹，可以单独校验（<code>rpa pack check</code>）。M11 之前的文件夹第一次打开时自动把旧的 <code>scenes/</code> 搬进去，搬之前先把数据库与 <code>scenes/</code> 备份到 <code>backups/&lt;时间&gt;-before-domains/</code>；没有领域的场景与没有场景用到的角色放进「未分类」。数据库里的组合场景（M11 PR 2）搬进「组合场景」领域，代号是 <code>wf-&lt;原编号&gt;</code>、现在的定义成为第 1 版；搬之前先把数据库备份到 <code>backups/&lt;时间&gt;-before-composites/</code>。</li>
-          <li><strong>git 同步（M11 PR 3）。</strong>领域可以和 git 仓库里的一个目录同步：「领域管理 › 同步」设置仓库网址、分支、目录与认证方式（公开仓库免认证只能拉取；HTTPS 用用户名＋访问权杖；SSH 用 Portal 产生的部署密钥），也可以「从 git 添加」领域。只有服务器做拉取与推送，录制端与 worker 照旧由服务器送来需要的文件。本机变更＝文件夹和上次同步的提交的差异，保存不必每次提交；拉取与推送都以文件为单位合并，同一个文件两边改成不同内容就停下来三选一（版本说明档的内容哈希相同时视为同一个版本、用远程的那份，所以各自自动导入示例的两台第一次拉取不会冲突）（取消、推送到新分支 <code>rpa/&lt;领域&gt;-&lt;时间&gt;</code>、以远程为准并先备份到 <code>backups/</code>），永远不强推。推送前挡下登录状态、Secrets、私钥之类的文件名、非定义档、超过 1 MB 的文件，以及内容含有已保存的 Secret 值的文件；组合场景依赖的其他领域的版本还没推送时提醒。服务器启动时在背景拉取设置了「自动拉取」的领域，连不上时用本机上一次的数据。</li>
+          <li><strong>git 同步（M11 PR 3）。</strong>领域可以和 git 仓库里的一个目录同步：「管理后台 › 领域管理」的「同步」设置仓库网址、分支、目录与认证方式（公开仓库免认证只能拉取；HTTPS 用用户名＋访问权杖；SSH 用 Portal 产生的部署密钥），也可以「从 git 添加」领域。只有服务器做拉取与推送，录制端与 worker 照旧由服务器送来需要的文件。本机变更＝文件夹和上次同步的提交的差异，保存不必每次提交；拉取与推送都以文件为单位合并，同一个文件两边改成不同内容就停下来三选一（版本说明档的内容哈希相同时视为同一个版本、用远程的那份，所以各自自动导入示例的两台第一次拉取不会冲突）（取消、推送到新分支 <code>rpa/&lt;领域&gt;-&lt;时间&gt;</code>、以远程为准并先备份到 <code>backups/</code>），永远不强推。推送前挡下登录状态、Secrets、私钥之类的文件名、非定义档、超过 1 MB 的文件，以及内容含有已保存的 Secret 值的文件；组合场景依赖的其他领域的版本还没推送时提醒。服务器启动时在背景拉取设置了「自动拉取」的领域，连不上时用本机上一次的数据。</li>
           <li><strong>从头开始与备份。</strong>先停止管理 Portal（终端按 Ctrl+C）：删掉文件夹就是从头开始，拷贝整个文件夹就是备份。</li>
           <li><strong>不要提交或分享。</strong>里面有登录状态与 Secrets 的值（只有本人能读写）。Git 已经忽略项目里的 <code>data/</code> 与 <code>data-*/</code>；用其他名称或放在别处时请自己留意。</li>
         </ul>
@@ -44,9 +44,10 @@
       <div class="panel-header"><h2>领域</h2><span class="muted">场景管理的二级菜单</span></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>依目标系统或业务划分场景。</strong>例如「测试网站自动化」「谷歌自动化」「微软自动化」。每个领域是「场景管理」左侧的一个菜单，最后一项是「领域管理」。</li>
+          <li><strong>依目标系统或业务划分场景。</strong>例如「测试网站自动化」「谷歌自动化」「微软自动化」。每个领域是「场景管理」左侧的一个菜单，顺序在「管理后台 › 领域管理」调整；领域之后是「组合场景自动化」，最后是「登录与凭证」。</li>
           <li><strong>领域页是场景卡片。</strong>1440 宽一列 4 张（每张至少 272px）。每张卡片有名称与分类（没有分类时显示 DSL 场景或 Python 脚本）、最近一次运行的截图、说明，「自动化脚本、断言脚本、运行报告、入参设置、出参设置」五个链接，以及场景编号、最近一次结果、「调试」（DSL 场景打开逐步调试，在那里可以接着验证；Python 脚本场景直接验证最新版本）与「运行」（运行已发布版本；还没发布时显示「待发布」）。</li>
-          <li><strong>领域管理。</strong>添加领域（代号用在网址，创建后不能改）、改名称与说明、删除没有场景的领域。场景页的「运行设置」可以把场景移到其他领域。</li>
+          <li><strong>领域管理（管理后台）。</strong>添加领域（代号用在网址，创建后不能改）、改名称与说明、删除没有场景的领域。场景页的「运行设置」可以把场景移到其他领域。</li>
+          <li><strong>领域的顺序。</strong>领域管理的每一列有「上移」「下移」（↑ ↓），按了立刻保存；「场景管理」的领域菜单与 <code>/scenes</code> 转到的第一个领域都照这个顺序。顺序只存在这台服务器的数据库（<code>domains</code> 的排列顺序），不写进领域文件夹与 git，所以每台服务器各自排；添加、从 git 添加或从文件夹加载的领域排在最后。「组合场景」领域也在清单里，但不在场景管理的领域菜单（组合场景在「组合场景自动化」）。</li>
           <li><strong>测试网站自动化。</strong>第一次启动时自动创建，放进对测试网站运行的真实案例：创建记录（BA-001）、查询记录（BA-002，入参是 BA-001 的出参）、查询不存在的记录（BA-003）、Python 脚本版的创建记录，以及两个登录示例（BA-004 一般用户、BA-005 主管）。它的名称与说明跟着界面语言显示，改过之后就照改的内容；场景的名称与说明是场景文件的内容，不会翻译。</li>
         </ul>
       </div>
@@ -159,7 +160,7 @@
     <section class="panel" id="playground">
       <div class="panel-header"><h2>自由试验场与组合场景</h2><span class="muted">DAG：可分叉、可汇合，成功出参传给下游，失败即停</span></div>
       <div class="panel-body prose"><ul>
-        <li><strong>管理与生产。</strong>「场景管理 › 组合场景自动化」沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场、运行报告、设备（M10.1 前叫「远程 Worker」）。</li>
+        <li><strong>管理与生产。</strong>「场景管理 › 组合场景自动化」沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场；运行报告与运行回看在「场景运行」，设备（M10.1 前叫「远程 Worker」）在「集群管理」（2026-10-22 调整，见<a href="#menus">菜单与三段分工</a>）。</li>
         <li><strong>依赖画布。</strong>场景库可点击加入或拖入画布。拖动节点或用方向键微调位置；点上游右侧圆点，再点下游左侧圆点创建连接。点连接设置下游入参，也可以从右侧加入上游。缩放与适应只改视角，不改座标。节点座标随组合场景保存；画布位置和节点数组顺序不代表运行顺序。顶部名称与操作合并成一列，说明收在「说明」，运行历史默认折叠。画布下方的全宽参数区独立卷动，并列上游出参、下游入参、匹配方式、取值／来源；点击 DAG 连接会切到该组上游与下游。多上游可切换来源节点。</li>
         <li><strong>四种入参来源。</strong>同名匹配仅搜索直接连接的上游，唯一同名且类型兼容时取其出参，没有命中则用场景默认，多个命中必须指定来源；场景默认强制忽略上游同名值；人工指定只覆盖此节点；指定上游出参可以跨字段绑定。选择出参会创建依赖；一个出参可供多个下游，一个入参只有一个来源。整数可以传给数字，其他类型必须相同。</li>
         <li><strong>参数连接。</strong>拖动出参圆点到入参，或依次用鼠标／键盘选取两端，创建显式绑定；类型不符不修改原值。四种模式以按钮同列呈现，仍可用出参选单精确选择。唯一同名匹配与显式来源画出对应连接；歧义、默认值及人工值不画假连接。契约按钮原地显示该固定版本的唯读原文；编辑场景明示另开分页，并提示验证、发布后回画布选新版本。</li>
@@ -182,7 +183,7 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>两个端口。</strong><code>rpa serve --worker-port 8081</code> 另外开一个<strong>对外端口</strong>（M10 起的称呼），只有 Worker API（<code>/worker-api/v1</code>）与桌面 App 的 Client API（<code>/client-api/v1</code>，M10.1 只有配对），默认听所有网络界面；管理页面与 <code>/api</code> 仍然只在 <code>--host</code>（默认 127.0.0.1）。两边的路径互相挡掉：从对外端口看不到管理页面，从管理页面的端口也调用不到 Worker API 与 Client API。</li>
-          <li><strong>设备与邀请（M10.1）。</strong>「场景生产 › 设备」（原「远程 Worker」页，旧网址 <code>/workers</code> 转到 <code>/devices</code>）添加设备（代号、名称；目前种类只有 Worker），产生一份<strong>邀请</strong>：一行 <code>rpa://pair?server=…&amp;app=worker&amp;code=…</code>，代码一次性、24 小时内有效、限定 App 种类，数据库只存哈希；也分开显示服务器与代码。在那台电脑的 RPA Worker（或 <code>rpa worker --invite</code>）粘贴，经由 Client API 的 <code>/pair</code> 换到权杖。「重新邀请」让旧权杖与之前的邀请立刻失效。邀请要先开对外端口；没开时「添加设备」不能按。可以禁用、删除（运行中不能删；指定给它而还在排队的运行标为失败）。页面列出每台的状态（在线、运行中、脱机、禁用）、最后回报、操作系统、浏览器、能不能有头模式、App 版本，以及程序版本是否和 Portal 相同。</li>
+          <li><strong>设备与邀请（M10.1）。</strong>「集群管理 › 设备」（原「远程 Worker」页，旧网址 <code>/workers</code> 转到 <code>/devices</code>）添加设备（代号、名称；目前种类只有 Worker），产生一份<strong>邀请</strong>：一行 <code>rpa://pair?server=…&amp;app=worker&amp;code=…</code>，代码一次性、24 小时内有效、限定 App 种类，数据库只存哈希；也分开显示服务器与代码。在那台电脑的 RPA Worker（或 <code>rpa worker --invite</code>）粘贴，经由 Client API 的 <code>/pair</code> 换到权杖。「重新邀请」让旧权杖与之前的邀请立刻失效。邀请要先开对外端口；没开时「添加设备」不能按。可以禁用、删除（运行中不能删；指定给它而还在排队的运行标为失败）。页面列出每台的状态（在线、运行中、脱机、禁用）、最后回报、操作系统、浏览器、能不能有头模式、App 版本，以及程序版本是否和 Portal 相同。</li>
           <li><strong>领取。</strong>worker 运行 <code>rpa worker --server …</code>，上线时回报协定版本（不同就拒绝）、程序指纹（不同只提醒）、浏览器与能不能显示窗口；之后长轮询（最多 25 秒）领取任务。只给它能跑的：运行位置是远程或任一、浏览器有下载、有头模式要能显示窗口、指定给它的。依创建顺序先进先出。</li>
           <li><strong>任务的内容。</strong>场景版本的文件（照字节发送，哈希和 Portal 一致）、入参、浏览器、网址、窗口模式、语言；场景有登录角色时加上登录设置与目前的登录状态，以及用到的 Secrets 的值。worker 只放在内存与运行期间的暂保存，运行完删除。</li>
           <li><strong>心跳、取消、失联。</strong>运行中每 5 秒心跳，同时回报阶段；在 Portal 取消时，下一次心跳就终止浏览器。领取时给 60 秒租约、心跳延长；过期就把运行标为失败「worker 失联」，<strong>不自动重跑</strong>（可能已经有副作用），之后 worker 才回报的结果一律拒绝。Portal 重新启动时，远程运行中的任务给一次租约的时间重新报到；本机的照旧标为中断。</li>
@@ -207,15 +208,39 @@
           <li><strong>两个角色。</strong>「场景管理 › 登录与凭证」对 <code>testsite-user</code> 按「登录」，在跳出的窗口用 user / user-pass 登录后按「完成登录」；<code>testsite-manager</code> 用 manager / manager-pass。再分别运行 BA-004、BA-005：两份报告看到的待办不同。</li>
           <li><strong>需要登录与重新运行。</strong>对 <code>testsite-user</code> 按「注销」，再运行 BA-004：停在「需要登录」，没有运行任何步骤；点运行页的登录角色回到「登录与凭证」再登录一次，回到运行页按「重新运行」，结果是「通过」。</li>
           <li><strong>自由试验场。</strong>先验证并发布 BA-001、BA-002。创建组合场景，加入一个 BA-001、两个 BA-002 及另一个 BA-001 作为汇合节点；连接「创建 → 两次查询 → 汇合」，让两个查询的 recordId 同名匹配上游，汇合的 title 与 quantity 分别取自两个查询。拖动节点、保存并重载，确认位置保留。运行后四个节点都通过且实际入参相符；反向连接应被拒绝。从场景管理的组合场景卡片打开最近运行，确认报告可追溯。</li>
-          <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「场景生产 › 设备」添加 <code>win-01</code>，在另一台电脑用对话框里的邀请启动 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付后改在 App 粘贴；步骤见<a href="../develop/remote-worker.html">远程 worker</a>），设备页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
+          <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「集群管理 › 设备」添加 <code>win-01</code>，在另一台电脑用对话框里的邀请启动 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付后改在 App 粘贴；步骤见<a href="../develop/remote-worker.html">远程 worker</a>），设备页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
           <li><strong>运行回看（M12）。</strong>运行报告的「回看」栏有 ▶ 与视频长度；打开第 3 步的验证：视频可以播放、暂停、拖曳，滑过时间轴有预览，步骤列表跟着视频走，点一步跳到那一步。运行 BA-002 查询不存在的编号（失败）：打开回看就停在失败步骤之前，结束时有「回到失败的步骤」。在 win-01 用有头、无头各运行一次，运行中取消一次：三段视频都能播放与拖曳。在 Mac 录制端 App 里打开同一页也能播放。</li>
         </ol>
         <p>结束后停止管理 Portal，删掉 <code>data-check</code> 文件夹即可；worker 机器上的 <code>worker-data</code> 文件夹也可以删掉。</p>
       </div>
     </section>
 
+    <section class="panel" id="menus">
+      <div class="panel-header"><h2>菜单与三段分工</h2><span class="muted">2026-10-22 用户调整</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>第一级菜单</th><th>左侧第二级</th><th>服务器本机（8080）</th><th>通过录制端</th></tr></thead>
+          <tbody>
+            <tr><td>场景管理（<code>/scenes</code>）</td><td>领域 ×N（依领域管理的顺序）、组合场景自动化、登录与凭证</td><td>显示</td><td>显示</td></tr>
+            <tr><td>场景生产（<code>/recording</code>）</td><td>自主脚本录制、自由试验场</td><td>显示</td><td>显示</td></tr>
+            <tr><td>场景运行（<code>/runs</code>）</td><td>运行报告、运行回看</td><td>显示</td><td>显示</td></tr>
+            <tr><td>集群管理（<code>/devices</code>）</td><td>设备</td><td>显示</td><td>默认不显示</td></tr>
+            <tr><td>管理后台（<code>/domains</code>）</td><td>领域管理</td><td>显示</td><td>默认不显示</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>三段。</strong>服务器（直接打开 8080，例如服务器那台或 SSH 通道）看得到全部菜单；录制端（RPA 录制端 App 经由对外端口打开的 Portal）默认只有场景管理、场景生产、场景运行；Worker 端的 RPA Worker App 不加载 Portal 的页面，维持原样。</li>
+          <li><strong>替个别录制端打开。</strong>「集群管理 › 设备」的录制端清单每台有「另外显示的菜单」：勾「集群管理」「管理后台」，通过那台就看得到（立刻保存，那台刷新页面就生效）。例如服务器是没有桌面的 Linux、管理者用自己的 Mac 录制端管理时。</li>
+          <li><strong>只是菜单，不是权限。</strong>录制端的权杖照旧能打开所有页面与 API（2026-10-18 的决定，用户权限在 M8）。看不到的菜单，页面上通往它的按钮也不显示（领域页的「管理领域」、等待 worker 时的「查看设备」）；组合场景依赖提示的「从 git 添加」之类的动作链接照旧。</li>
+          <li><strong>网址不变。</strong>只换分组；<code>/runs</code>、<code>/replay</code>、<code>/devices</code>、<code>/domains</code> 等网址与 API 都和之前一样。还没分到领域的场景页停在场景管理、左侧不标示任何一项。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="pages">
-      <div class="panel-header"><h2>页面</h2><span class="muted">顶部第一级、左侧第二级，与 MVP 原型相同</span></div>
+      <div class="panel-header"><h2>页面</h2><span class="muted">顶部第一级、左侧第二级（版面与 MVP 原型相同，分组见<a href="#menus">菜单与三段分工</a>）</span></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>路径</th><th>内容</th></tr></thead>
@@ -223,7 +248,7 @@
             <tr><td><code>/scenes</code></td><td>转到第一个领域；还没有领域时转到领域管理</td></tr>
             <tr><td><code>/domains/{代号}</code></td><td>领域页：场景卡片；添加场景、导入示例（测试网站自动化）</td></tr>
             <tr><td><code>/domains/{代号}/sync</code></td><td>数据源与同步（M11 PR 3）：设置仓库、目录与认证，同步状态与变更清单，测试连接、拉取、推送，冲突时三选一</td></tr>
-            <tr><td><code>/domains</code></td><td>领域管理：添加（也可以从 git 添加）、改名、删除；每个领域的数据源与同步状态；这台服务器的名称；还没分到领域的场景</td></tr>
+            <tr><td><code>/domains</code></td><td>领域管理（管理后台）：添加（也可以从 git 添加）、改名、删除、调整顺序；每个领域的数据源与同步状态；这台服务器的名称；还没分到领域的场景</td></tr>
             <tr><td><code>/scenes/{id}</code></td><td>版本清单与状态、发布、运行前要准备的角色与 Secrets、入参与出参（可以直接编辑）、所属领域与默认网址、最近运行</td></tr>
             <tr><td><code>/scenes/{id}/debug</code></td><td>逐步调试：步骤列表、截图、定位器测试、页面事实、修改 YAML</td></tr>
             <tr><td><code>/scenes/{id}/edit</code></td><td>编辑 YAML 与脚本，存成新版本；校验问题列在页面上</td></tr>
@@ -239,7 +264,7 @@
             <tr><td><code>/playground</code></td><td>自由试验场：创建、导入组合场景与继续编辑画布</td></tr>
             <tr><td><code>/playground/{串行}</code></td><td>编辑组合场景：场景库、DAG 画布、入参与节点设置（固定版本、入参的来源）；保存、运行、导出</td></tr>
             <tr><td><code>/playground/runs/{串行运行}</code></td><td>串行的运行：每个节点的状态、入参的值与来源、出参、报告；取消、从头再运行、从停下的节点继续</td></tr>
-            <tr><td><code>/devices</code></td><td>设备（M10.1；<code>/workers</code> 转到这里）：添加并产生邀请、状态、禁用、重新邀请、删除；默认运行位置</td></tr>
+            <tr><td><code>/devices</code></td><td>设备（集群管理；M10.1；<code>/workers</code> 转到这里）：添加并产生邀请、状态、禁用、重新邀请、删除；录制端另外显示的菜单；默认运行位置</td></tr>
           </tbody>
         </table>
       </div>
@@ -252,6 +277,7 @@
           <thead><tr><th>界面</th><th>用途</th></tr></thead>
           <tbody>
             <tr><td><code>GET</code>、<code>POST /api/domains</code></td><td>领域清单；添加领域（<code>id</code>、<code>name</code>、<code>description</code>）</td></tr>
+            <tr><td><code>PUT /api/domains/order</code></td><td>调整领域的顺序：<code>ids</code> 是全部领域的代号，依新的顺序；回应排好的领域清单。和服务器上的清单不同（少了、多了、重复）时 409 <code>domain_order_changed</code>，顺序不变</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代号}</code></td><td>领域与它的场景卡片（最近一次运行、截图）、加载问题；改名称与说明（写进 <code>pack.yaml</code>）；删除没有场景与角色的领域（连同领域文件夹）</td></tr>
             <tr><td><code>POST /api/domains/{代号}/reload</code></td><td>重新加载领域文件夹（在文件夹外面改了文件之后）；回传加载问题</td></tr>
             <tr><td><code>GET /api/domains/{代号}/sync</code></td><td>同步状态（M11 PR 3，不连网络）：<code>state</code>（local、unchecked、synced、ahead、behind、diverged、empty、no_directory、conflict、error）、数据源（不含权杖）、上次同步的提交、本机变更与分类计数、远程新提交数、错误、冲突的文件、部署密钥的公钥</td></tr>
@@ -299,6 +325,7 @@
             <tr><td><code>GET</code>、<code>POST /api/workers</code></td><td>远程 worker 清单（含默认运行位置、本机执不运行、Portal 的程序指纹）；登记（<code>id</code>、<code>name</code>），回应的 <code>token</code> 只有这一次拿得到</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代号}</code>；<code>POST …/token</code></td><td>状态（含 App 版本）；改名称、禁用（<code>disabled</code>）；删除（运行中 409）；重新产生权杖（命令行与脚本用）</td></tr>
             <tr><td><code>POST /api/workers/{代号}/invite</code></td><td>产生邀请（M10.1）：旧权杖与之前的邀请立刻失效；回应的 <code>invite</code>（<code>line</code>、<code>server</code>、<code>code</code>、<code>app</code>、<code>expiresAt</code>）只有这一次拿得到；没开对外端口时 409 <code>invite_needs_port</code>，禁用中 409 <code>worker_disabled</code></td></tr>
+            <tr><td><code>PATCH /api/recorders/{代号}</code></td><td>录制端（M10.2）：改名称、禁用（<code>disabled</code>）；<code>menus</code> 是通过这台时另外显示的第一级菜单（<code>cluster</code>、<code>admin</code>，默认空的），其他值 422 <code>recorder_menu_invalid</code></td></tr>
             <tr><td><code>PUT /api/settings/default-target</code></td><td>默认运行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/server</code></td><td>这台服务器的代号与名称（<code>name</code>）；写进版本、验证、发布的记录</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/video</code></td><td>录像设置（M12）：<code>enabled</code>、<code>keepPassedDays</code>、<code>keepOtherDays</code>（0～3650）、<code>maxTotalGb</code>；回应另有 <code>usage</code>（几段、多大、钉选几段）。改了之后新的任务照新设置，保留规则立刻应用</td></tr>
@@ -340,6 +367,7 @@
             <dt>workflow_revisions</dt><dd>组合场景的版本（文件夹的索引）：版本号码、哈希、状态、有没有哈希相符的通过验证记录、不能运行的问题、说明、发布时间</dd>
             <dt>workflow_runs</dt><dd>串行的运行：串行与当时的名称、代号、版本与目的、定义的快照、状态、停在哪个节点与原因、沿用的节点（从停下的节点继续时）、浏览器与窗口模式、时间；运行位置与固定的 worker</dd>
             <dt>workers</dt><dd>远程 worker：代号、名称、权杖的哈希、禁用、上线时回报的信息（M10.1 加上 App 版本）、目前的运行、最后回报时间</dd>
+            <dt>recorders</dt><dd>录制端（M10.2）：代号、名称、权杖的哈希、禁用、上线时回报的信息、最后回报时间；通过这台时另外显示的菜单（2026-10-22）</dd>
             <dt>device_invites</dt><dd>设备邀请（M10.1）：代码的哈希、App 种类、设备代号、产生时间、期限、使用时间</dd>
             <dt>settings</dt><dd>设置（默认运行位置、服务器代号与名称、文件夹的格式、录像）</dd>
           </dl>

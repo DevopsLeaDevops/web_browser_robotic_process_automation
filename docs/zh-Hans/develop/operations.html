@@ -142,7 +142,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
     </section>
 
     <section class="panel" id="git-sync">
-      <div class="panel-header"><h2>领域与 git 同步</h2><span class="muted">M11；场景管理 › 领域管理 › 同步</span></div>
+      <div class="panel-header"><h2>领域与 git 同步</h2><span class="muted">M11；管理后台 › 领域管理 › 同步</span></div>
       <div class="panel-body prose">
         <p>每个领域可以和 git 仓库里的一个目录同步，多台服务器（不同的人）共用同一份场景、组合场景与验证、发布记录。只有服务器做 git；录制端与运行端照旧由服务器送来需要的文件。服务器要有 git 2.25 以上（一键脚本已经安装）。设计见<a href="../design/portal.html">管理 Portal</a> 与 <a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>。</p>
         <h3>设置</h3>
@@ -172,7 +172,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
     </section>
 
     <section class="panel" id="devices">
-      <div class="panel-header"><h2>管理设备</h2><span class="muted">管理 Portal › 场景生产 › 设备</span></div>
+      <div class="panel-header"><h2>管理设备</h2><span class="muted">管理 Portal › 集群管理 › 设备</span></div>
       <div class="panel-body prose">
         <ul>
           <li><strong>添加。</strong>「添加设备」选种类（RPA Worker 或 RPA 录制端），产生一次性的邀请（24 小时内有效），贴到那台的 App 或命令行。步骤见<a href="remote-worker.html#register">远程 worker › 添加设备</a>。</li>
