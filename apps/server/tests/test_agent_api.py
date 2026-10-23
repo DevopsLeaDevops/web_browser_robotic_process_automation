@@ -611,3 +611,41 @@ def test_debug_runs_on_an_allowed_recorder(app: FastAPI, client: Client, remote:
     assert ("DELETE", "/debug/{session_id}", 200) in [
         (item["method"], item["action"], item["status"]) for item in audit
     ]
+
+
+# ---------------------------------------------------------------- 管理後台
+
+
+def test_admin_pages_show_clients_audit_and_recorder_switches(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    body(client.post("/api/domains", json={"id": "sales", "name": "業務"}), 201)
+    paired(client, remote)
+    agent = register(client, remote, scopes=EVERYTHING, recorders=["agent-mac"])
+    body(
+        agent.post("/scenes", {"id": "order-create", "name": "建立訂單", "domainId": "sales"}), 201
+    )
+    body(
+        agent.post(
+            "/scenes/order-create/revisions",
+            {"baseRevision": 1, "files": {"scenario.yaml": scene_yaml("order-create")}},
+        ),
+        201,
+    )
+    run = body(agent.post("/scenes/order-create/revisions/2/validate"), 202)
+
+    page = client.get("/agents").text
+    assert 'id="agent-agent-erp"' in page
+    assert "ERP 助理" in page
+    assert 'href="/agents"' in page  # 管理後台的二級選單
+    assert "POST /scenes/{scene_id}/revisions/{number}/validate" in page
+    assert "rpa_ak_" in page  # 金鑰開頭
+    filtered = client.get("/agents", params={"client": "nobody"}).text
+    assert "POST /scenes" not in filtered
+    devices = client.get("/devices").text
+    assert 'data-recorder-agent="agent-mac"' in devices
+    assert "允許 Agent 調試" in devices
+    assert "由 Agent〈ERP 助理〉觸發" in client.get("/runs").text
+    assert "觸發的 Agent" in client.get(f"/runs/{run['id']}").text
+    # 錄製端看到的管理頁面：沒有打開管理後台時沒有這個選單（只是選單，不是權限）
+    assert body(client.get("/api/agents/agent-erp"))["recorders"] == ["agent-mac"]

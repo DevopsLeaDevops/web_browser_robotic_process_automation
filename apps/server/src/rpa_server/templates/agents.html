@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block description %}{{ t("agents.description") }}{% endblock %}
+{% block actions %}<button class="button primary" data-action="new-agent"{% if not worker_port %} disabled title="{{ t('agents.api_off') }}"{% endif %}>{{ t("agents.new") }}</button>{% endblock %}
+{% block content %}
+<div class="stack" id="agents" data-api-url="{{ api_url or '' }}">
+  <div class="notice">{{ t("agents.notice") }}</div>
+  {% if worker_port %}
+  <div class="notice success">{{ t("agents.api_on", url=(api_url or "") ~ "/agent-api/v1") }}</div>
+  {% else %}
+  <div class="notice warn">{{ t("agents.api_off") }}</div>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("agents.list") }} <span class="count">{{ agents | length }}</span></h2></div>
+    {% if agents %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr>
+        <th>{{ t("agents.col_client") }}</th><th>{{ t("agents.col_status") }}</th><th>{{ t("agents.col_scopes") }}</th>
+        <th>{{ t("agents.col_limits") }}</th><th>{{ t("agents.col_actions") }}</th>
+      </tr></thead>
+      <tbody>
+      {% for agent in agents %}
+      {% set policy = agent.policy %}
+      {% set expired = policy.expires_at is not none and policy.expires_at <= now %}
+      <tr id="agent-{{ agent.id }}" data-agent="{{ agent.to_json() | tojson | forceescape }}">
+        <td><strong>{{ agent.name }}</strong> <span class="tag">{{ agent.id }}</span>
+          {% if agent.description %}<span class="cell-sub">{{ agent.description }}</span>{% endif %}
+          <span class="cell-sub">{{ t("agents.key_prefix") }} <code class="mono">{{ agent.key_prefix }}…</code></span></td>
+        <td>{% if agent.disabled %}{{ m.badge("disabled", t("agents.status_disabled")) }}{% elif expired %}{{ m.badge("failed", t("agents.status_expired")) }}{% else %}{{ m.badge("online", t("agents.status_active")) }}{% endif %}
+          <span class="cell-sub">{{ t("agents.last_used") }} {{ m.time(agent.last_used_at) }}</span>
+          {% if policy.expires_at %}<span class="cell-sub">{{ t("agents.expires") }} {{ m.time(policy.expires_at) }}</span>{% endif %}</td>
+        <td>{% for scope in policy.scopes %}<code class="mono">{{ scope }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+          <span class="cell-sub">{{ t("agents.domains_all") if policy.domains is none else t("agents.domains_some", names=(policy.domains | join(t("js.list_separator"))) or "—") }}</span>
+          <span class="cell-sub">{{ t("agents.recorders_some", names=policy.recorders | join(t("js.list_separator"))) if policy.recorders else t("agents.recorders_none") }}</span></td>
+        <td>{{ t("agents.limits", debug=policy.max_debug_sessions, queued=policy.max_queued_runs) }}
+          <span class="cell-sub">{{ t("agents.page_content_on") if policy.page_content else t("agents.page_content_off") }}</span>
+          <span class="cell-sub">{{ t("target." + policy.target) if policy.target else t("agents.target_default") }}{% if policy.workers is not none %} · {{ t("agents.workers_some", names=(policy.workers | join(t("js.list_separator"))) or "—") }}{% endif %}</span>
+          {% if policy.allowed_ips is not none %}<span class="cell-sub">{{ t("agents.ips_some", ips=policy.allowed_ips | join(", ")) }}</span>{% endif %}</td>
+        <td class="role-actions">
+          <button class="text-btn" data-action="edit-agent">{{ t("agents.edit") }}</button>
+          {% if agent.disabled %}
+          <button class="text-btn" data-action="enable-agent">{{ t("agents.enable") }}</button>
+          {% else %}
+          <button class="text-btn" data-action="disable-agent">{{ t("agents.disable") }}</button>
+          {% endif %}
+          <button class="text-btn" data-action="rotate-agent">{{ t("agents.rotate") }}</button>
+          <a class="text-btn" href="/agents?client={{ agent.id }}#agent-audit">{{ t("agents.audit_link") }}</a>
+          <button class="text-btn" data-action="delete-agent">{{ t("agents.delete") }}</button>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("agents.empty") }}</div>{% endif %}
+  </section>
+
+  <section class="panel" id="agent-audit">
+    <div class="panel-header"><h2>{{ t("agents.audit") }}{% if audit_client %} · <span class="tag">{{ audit_client }}</span>{% endif %}</h2>
+      {% if audit_client %}<a class="text-btn" href="/agents#agent-audit">{{ t("agents.audit_all") }}</a>{% else %}<span class="muted">{{ t("agents.audit_hint") }}</span>{% endif %}</div>
+    {% if audit %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("agents.col_time") }}</th><th>{{ t("agents.col_client") }}</th><th>{{ t("agents.col_action") }}</th><th>{{ t("agents.col_result") }}</th><th>{{ t("agents.col_ip") }}</th></tr></thead>
+      <tbody>
+      {% for item in audit %}
+      <tr>
+        <td class="nowrap">{{ m.time(item.at) }}</td>
+        <td>{{ item.client_name }} <span class="tag">{{ item.client_id }}</span></td>
+        <td><code class="mono">{{ item.method }} {{ item.action }}</code>{% if item.target %}<span class="cell-sub mono">{{ item.target }}</span>{% endif %}</td>
+        <td>{{ m.badge("passed" if item.status < 400 else "failed", item.status | string) }}{% if item.code %} <code class="mono">{{ item.code }}</code>{% endif %}</td>
+        <td class="mono">{{ item.ip or "—" }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("agents.audit_empty") }}</div>{% endif %}
+  </section>
+</div>
+<template id="agent-form">
+  <div class="notice">{{ t("agents.form_notice") }}</div>
+  <div class="field-pair">
+    <label>{{ t("agents.form_id") }}<input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="agent-erp" autocomplete="off"><span class="cell-sub">{{ t("agents.form_id_hint") }}</span></label>
+    <label>{{ t("agents.form_name") }}<input name="name" maxlength="100" placeholder="{{ t('agents.form_name_placeholder') }}"></label>
+  </div>
+  <label>{{ t("agents.form_description") }}<input name="description" maxlength="2000"></label>
+  <fieldset class="field choice">
+    <legend>{{ t("agents.scopes") }}</legend>
+    {% for scope in scopes %}<label><input type="checkbox" name="scope" value="{{ scope }}"> <code class="mono">{{ scope }}</code> {{ t("agents.scope_" ~ scope | replace(":", "_")) }}</label>{% endfor %}
+  </fieldset>
+  <fieldset class="field choice inline">
+    <legend>{{ t("agents.domains") }}</legend>
+    <label><input type="checkbox" name="all-domains"> {{ t("agents.domains_all") }}</label>
+    {% for domain in domains %}<label><input type="checkbox" name="domain" value="{{ domain.id }}"> {{ domain.name }}</label>{% endfor %}
+  </fieldset>
+  <fieldset class="field choice inline">
+    <legend>{{ t("agents.recorders") }}</legend>
+    {% for recorder in recorders %}<label><input type="checkbox" name="recorder" value="{{ recorder.id }}"> {{ recorder.name }}{% if not recorder.allow_agent %} <span class="muted">{{ t("agents.recorder_closed") }}</span>{% endif %}</label>{% else %}<span class="muted">{{ t("recorders.empty") }}</span>{% endfor %}
+    <span class="cell-sub">{{ t("agents.recorders_hint") }}</span>
+  </fieldset>
+  <div class="field-pair">
+    <label>{{ t("agents.target") }}<select name="target"><option value="">{{ t("agents.target_default") }}</option>{% for target in targets %}<option value="{{ target }}">{{ t("target." + target) }}</option>{% endfor %}</select></label>
+    <label>{{ t("agents.expires_at") }}<input type="date" name="expires"><span class="cell-sub">{{ t("agents.expires_hint") }}</span></label>
+  </div>
+  <fieldset class="field choice inline">
+    <legend>{{ t("agents.workers") }}</legend>
+    <label><input type="checkbox" name="all-workers"> {{ t("agents.workers_all") }}</label>
+    {% if local_worker %}<label><input type="checkbox" name="worker" value="local"> {{ t("worker.local") }}</label>{% endif %}
+    {% for worker in workers %}<label><input type="checkbox" name="worker" value="{{ worker.id }}"> {{ worker.name }}</label>{% endfor %}
+  </fieldset>
+  <div class="field-pair">
+    <label>{{ t("agents.max_debug") }}<input type="number" name="max-debug" min="0" max="50" required></label>
+    <label>{{ t("agents.max_queued") }}<input type="number" name="max-queued" min="0" max="1000" required></label>
+  </div>
+  <fieldset class="field choice">
+    <legend>{{ t("agents.page_content") }}</legend>
+    <label><input type="checkbox" name="page-content"> {{ t("agents.page_content_label") }}</label>
+    <span class="cell-sub">{{ t("agents.page_content_hint") }}</span>
+  </fieldset>
+  <label>{{ t("agents.allowed_ips") }}<input name="allowed-ips" class="mono" placeholder="192.168.1.0/24, 10.0.0.5"><span class="cell-sub">{{ t("agents.allowed_ips_hint") }}</span></label>
+  <ul class="checklist form-issues"></ul>
+  <p class="form-error" role="alert"></p>
+</template>
+<template id="agent-key">
+  <div class="notice warn">{{ t("agents.key_notice") }}</div>
+  <label>{{ t("agents.key") }}<input name="key" readonly class="mono"></label>
+  <label>{{ t("agents.api_base") }}<input name="base" readonly class="mono"></label>
+  <h3>{{ t("agents.example") }}</h3>
+  <pre class="source" data-command="curl"></pre>
+  <p class="cell-sub">{{ t("agents.example_hint") }}</p>
+</template>
+{% endblock %}

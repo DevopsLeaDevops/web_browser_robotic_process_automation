@@ -12,6 +12,7 @@ import pytest
 from rpa_core.dsl import Scenario, validate_file, validate_text
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, Locale, use_locale
 from rpa_core.workflow import Workflow, WorkflowProblem
+from rpa_server.agents import SCOPES, ApiClientRecord, AuditRecord, ClientPolicy
 from rpa_server.context import Via, use_recorder
 from rpa_server.debugging import DebugSession
 from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
@@ -184,6 +185,35 @@ WORKER = WorkerRecord(
     version="0.1.0",
 )
 WORKER_NAMES = {"local": "本機", "win-01": "Windows <測試機>"}
+AGENT = ApiClientRecord(
+    id="agent-erp",
+    name="ERP 助理",
+    description="訂單助理",
+    key_prefix="rpa_ak_AbCd",
+    policy=ClientPolicy(
+        scopes=("scenes:read", "scenes:write", "debug", "runs:validate", "runs:read"),
+        domains=("sales",),
+        recorders=("mac-01",),
+        target="remote",
+        workers=("local",),
+        page_content=True,
+    ),
+    disabled=False,
+    created_at=MOMENT,
+    last_used_at=MOMENT,
+)
+AUDIT = AuditRecord(
+    id=1,
+    at=MOMENT,
+    client_id="agent-erp",
+    client_name="ERP 助理",
+    method="POST",
+    action="/scenes/{scene_id}/revisions",
+    target="order-create",
+    status=201,
+    code=None,
+    ip="192.168.1.30",
+)
 RECORDER = RecorderRecord(
     id="mac-01",
     name="Amy 的 Mac",
@@ -832,6 +862,47 @@ def _pages() -> dict[str, str]:
             api_url="http://192.168.1.10:8081",
             fingerprint="fedcba9876543210",
         ),
+        "agents": render(
+            "agents.html",
+            page="agents",
+            title="API 用戶端",
+            agents=[
+                AGENT,
+                replace(
+                    AGENT,
+                    id="agent-old",
+                    name="舊系統 <b>",
+                    disabled=True,
+                    policy=ClientPolicy(domains=(), expires_at=MOMENT, allowed_ips=("10.0.0.0/8",)),
+                ),
+            ],
+            audit=[AUDIT, replace(AUDIT, id=2, status=403, code="scope_missing", target=None)],
+            audit_client=None,
+            scopes=SCOPES,
+            targets=("local", "remote", "any"),
+            recorders=[RECORDER],
+            workers=[WORKER],
+            local_worker=True,
+            worker_port=8081,
+            api_url="http://192.168.1.10:8081",
+            now=MOMENT,
+        ),
+        "agents-empty": render(
+            "agents.html",
+            page="agents",
+            title="API 用戶端",
+            agents=[],
+            audit=[],
+            audit_client="agent-erp",
+            scopes=SCOPES,
+            targets=("local", "remote", "any"),
+            recorders=[],
+            workers=[],
+            local_worker=False,
+            worker_port=None,
+            api_url=None,
+            now=MOMENT,
+        ),
         "workers-empty": render(
             "workers.html",
             page="workers",
@@ -915,6 +986,7 @@ def test_user_content_is_escaped() -> None:
     assert "說明 &lt;b&gt;不是 HTML&lt;/b&gt;" in pages["scene"]
     assert "&lt;/textarea&gt;&lt;script&gt;" in pages["edit"]
     assert "<script>" not in pages["edit"].split('id="messages"')[0].split("</head>")[1]
+    assert "舊系統 &lt;b&gt;" in pages["agents"]
 
 
 def test_scene_page_shows_versions_and_contract() -> None:
@@ -979,7 +1051,7 @@ def test_top_menu_has_five_groups_on_the_server() -> None:
     assert _menu(pages["recording"], "sidenav") == ["/recording", "/playground"]
     assert _menu(pages["runs"], "sidenav") == ["/runs", "/replay"]
     assert _menu(pages["workers"], "sidenav") == ["/devices"]
-    assert _menu(pages["domains"], "sidenav") == ["/domains"]
+    assert _menu(pages["domains"], "sidenav") == ["/domains", "/agents"]
     assert 'class="active" aria-current="true">場景運行' in pages["runs"]
     assert 'class="active" aria-current="true">管理後台' in pages["domains"]
     assert 'href="/domains">' in pages["domain"]  # 領域頁的「管理領域」

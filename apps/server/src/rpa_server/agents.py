@@ -257,6 +257,13 @@ class AgentService:
             rows = session.scalars(select(ApiClient).order_by(ApiClient.created_at, ApiClient.id))
             return [_record(row) for row in rows]
 
+    def names(self) -> dict[str, str]:
+        """用戶端代號 → 名稱（運行列表顯示由哪個 Agent 觸發）。"""
+        with self.sessions() as session:
+            return {
+                row.id: row.name for row in session.execute(select(ApiClient.id, ApiClient.name))
+            }
+
     def get_client(self, client_id: str) -> ApiClientRecord:
         with self.sessions() as session:
             return _record(self._row(session, client_id))

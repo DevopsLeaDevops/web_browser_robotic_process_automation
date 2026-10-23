@@ -16,9 +16,10 @@ from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
 from rpa_runner.installed import DISPLAY_NAMES
 from rpa_runner.video import video_files
+from rpa_server.agents import SCOPES
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
-from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord
+from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord, now
 from rpa_server.errors import ServiceError
 from rpa_server.gitsync import GitSource
 from rpa_server.i18n import t
@@ -190,6 +191,7 @@ def page_router(services: Services) -> APIRouter:
         滑鼠移上去提示改用錄製端。
         """
         context.setdefault("worker_names", services.workers.names())
+        context.setdefault("agent_names", services.agents.names())
         context.setdefault("here_display", services.display_here())
         return _html(
             render(name, page=page, title=title, domains=services.list_domains(), **context)
@@ -650,6 +652,26 @@ def page_router(services: Services) -> APIRouter:
             worker_port=port,
             api_url=api_url,
             fingerprint=services.workers.fingerprint,
+        )
+
+    @router.get("/agents", include_in_schema=False)
+    def agents_page(client: str | None = None) -> HTMLResponse:
+        """API 用戶端（M14）：登記、權限範圍與限制、停用、重新產生金鑰、稽核紀錄。"""
+        return page(
+            "agents.html",
+            page="agents",
+            title=t("nav.agents"),
+            agents=services.agents.list_clients(),
+            audit=services.agents.list_audit(client_id=client or None, limit=100),
+            audit_client=client or None,
+            scopes=SCOPES,
+            targets=TARGETS,
+            recorders=services.recorders.list_recorders(),
+            workers=services.workers.list_workers(),
+            local_worker=services.local_worker,
+            worker_port=services.worker_port,
+            api_url=services.external_url(),
+            now=now(),
         )
 
     @router.get("/composites", include_in_schema=False)
