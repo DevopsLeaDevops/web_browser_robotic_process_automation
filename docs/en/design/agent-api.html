@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:e0d93a10dedd3c98">
+<title>Agent API · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+  .arch .link.opt { stroke-dasharray: 5 4; }
+  .arch .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; fill: #315b89; }
+</style>
+</head>
+<body data-page="agent-api" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Agent API</h1>
+      <p>A third-party agent system works only through the server's <code>/agent-api/v1</code>: it writes scenarios and their inputs and outputs, opens a browser on a chosen recorder to debug step by step, has Workers validate and run them, and follows run progress. The new layer only adds authentication, permissions and auditing; business rules and the publishing gate stay in the existing services.</p>
+    </div>
+    <span class="badge amber">Design confirmed, not built</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice">The decision and the options not chosen are in <a href="../adr/0017-agent-api.html">ADR 0017</a>; how an agent calls the API is in the <a href="../develop/agent-api-guide.html">Agent API guide</a>. The user confirmed the design on 2026-10-23; once phase 1 is built, the server's <code>/agent-api/v1/openapi.json</code> is the reference for endpoints.</div>
+
+    <section class="panel" id="scope">
+      <div class="panel-header"><h2>Scope</h2><span class="muted">From nothing to a scenario that runs in production</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Capability</th><th>What the agent does</th><th>Where it runs</th></tr></thead>
+          <tbody>
+            <tr><td>Scenarios and parameters</td><td>Creates scenarios; reads and writes the whole script or one section (steps, independent verification, inputs, outputs); imports a Playwright script as a draft</td><td>Server</td></tr>
+            <tr><td>Debugging</td><td>Opens a browser on a chosen recorder, reads the page structure, takes screenshots, tests locators, runs step by step; saves a new revision and carries on in place</td><td>Recorder</td></tr>
+            <tr><td>Validation</td><td>Has a Worker run a revision once for validation; a passing record is what publishing relies on</td><td>Worker</td></tr>
+            <tr><td>Publishing</td><td>An agent with the <code>scenes:publish</code> scope publishes itself; otherwise a person publishes in the Portal</td><td>Server</td></tr>
+            <tr><td>Execution</td><td>Runs the published revision with inputs, optionally on a chosen Worker</td><td>Worker</td></tr>
+            <tr><td>Run progress</td><td>Status, current stage and step, each step's result and error, outputs, screenshots, report, video</td><td>Server</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p><strong>Out of scope:</strong> recording (Playwright codegen needs a person; the agent writes DSL or imports a Playwright script it generated); remote screen streaming (ruled out by <a href="../adr/0014-desktop-apps.html">ADR 0014</a>); reading secret values, managing devices and invitations, git sync of domains, server settings; manual login (still done by a person on a recorder); full user and project permissions (M8, which will absorb API clients); an MCP adapter (the user decided against it on 2026-10-23).</p>
+      </div>
+    </section>
+
+    <section class="panel" id="architecture">
+      <div class="panel-header"><h2>Architecture</h2><span class="muted">The agent only talks to the server</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 760 520" role="img" aria-labelledby="agent-title agent-desc">
+          <title id="agent-title">Connections of the Agent API</title>
+          <desc id="agent-desc">The third-party agent system calls the Agent API on the server's external port with an API key; the Agent API forwards to the existing service layer, which hands debugging to a recorder through the Client API and validation and execution to a Worker through the Worker API. The recorder and the Worker still connect to the server themselves by long polling, and their browsers work on the internal target system directly. The webhook at the end of a run comes in phase 2 and goes from the server to the agent.</desc>
+          <defs>
+            <marker id="arrow-agent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <!-- Agent system -->
+          <rect class="box ext" x="16" y="48" width="200" height="88" rx="8"/>
+          <text class="title" x="30" y="72">Third-party agent system</text>
+          <text class="sub" x="30" y="94">Writes scenarios, debugs</text>
+          <text class="sub" x="30" y="112">Validates, publishes, runs</text>
+
+          <!-- Server -->
+          <rect class="frame" x="284" y="16" width="460" height="300" rx="10"/>
+          <text class="frame-label" x="296" y="34">SERVER (rpa serve) · EXTERNAL PORT 8081</text>
+          <rect class="box key" x="300" y="48" width="428" height="60" rx="8"/>
+          <text class="title" x="314" y="72">Agent API (new)</text>
+          <text class="mono" x="314" y="92">/agent-api/v1 · API keys, scopes, audit log</text>
+          <rect class="box" x="300" y="128" width="428" height="60" rx="8"/>
+          <text class="title" x="314" y="152">Service layer (existing)</text>
+          <text class="sub" x="314" y="172">Scenarios, revisions, publishing gate, debug sessions, run queue</text>
+          <rect class="box" x="300" y="208" width="206" height="88" rx="8"/>
+          <text class="title" x="314" y="232">Client API</text>
+          <text class="mono" x="314" y="252">/client-api/v1</text>
+          <text class="sub" x="314" y="272">Hands debugging to a recorder</text>
+          <rect class="box" x="522" y="208" width="206" height="88" rx="8"/>
+          <text class="title" x="536" y="232">Worker API</text>
+          <text class="mono" x="536" y="252">/worker-api/v1</text>
+          <text class="sub" x="536" y="272">Hands runs to a Worker</text>
+
+          <!-- Devices -->
+          <rect class="box" x="300" y="360" width="206" height="72" rx="8"/>
+          <text class="title" x="314" y="384">RPA recorder app</text>
+          <text class="sub" x="314" y="404">Debug browser opens here</text>
+          <text class="sub" x="314" y="422">Page snapshots, screenshots</text>
+          <rect class="box" x="522" y="360" width="206" height="72" rx="8"/>
+          <text class="title" x="536" y="384">RPA Worker app</text>
+          <text class="sub" x="536" y="404">Validation and execution</text>
+          <text class="sub" x="536" y="422">Reports stages and steps</text>
+
+          <!-- Target system -->
+          <rect class="box ext" x="300" y="456" width="428" height="48" rx="8"/>
+          <text class="title" x="314" y="485">Internal target system (business website)</text>
+
+          <!-- Links -->
+          <path class="link" d="M216 78H298" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="226" y="70">API key</text>
+          <path class="link opt" d="M300 102H218" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="226" y="120">Webhook</text>
+          <path class="link" d="M514 108V126" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M403 188V206" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M625 188V206" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M403 358V298" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="411" y="340">Long polling (app connects)</text>
+          <path class="link" d="M625 358V298" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="633" y="340">Long polling</text>
+          <path class="link" d="M403 432V454" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M625 432V454" marker-end="url(#arrow-agent)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">The blue box is the new layer; grey boxes are outside the platform; the dashed webhook comes in phase 2. The recorder and the Worker connect exactly as before: they open no ports, and the agent never needs to know where they are. <code>/api</code> is not opened up as is: it has no authentication and changes with the Portal's pages, whereas a separate <code>/agent-api/v1</code> can stay stable and be versioned on its own.</div>
+    </section>
+
+    <section class="panel" id="clients">
+      <div class="panel-header"><h2>API clients, permissions and auditing</h2></div>
+      <div class="panel-body">
+        <p>Each agent system is an "API client", registered in the admin area, which receives an API key shown only once; the server stores only its hash, as it does for device tokens. Requests carry <code>Authorization: Bearer &lt;API key&gt;</code>.</p>
+        <dl class="spec-list">
+          <dt>Scopes</dt><dd>Ticked from the table below; a new client has only <code>scenes:read</code> and <code>runs:read</code></dd>
+          <dt>Allowed domains</dt><dd>Which domains' scenarios it can read and write; all by default</dd>
+          <dt>Allowed recorders</dt><dd>Which recorders it may open a debug browser on; none by default. The recorder itself must also have "Allow agent debugging" switched on in the Devices page, optionally "Headless only"</dd>
+          <dt>Run location</dt><dd>local, remote or any, and which Workers it may choose; remote and any Worker by default</dd>
+          <dt>Limits</dt><dd>Concurrent debug sessions and queued runs; suggested defaults 2 and 20, with 429 above them</dd>
+          <dt>Page content</dt><dd>Whether screenshots, page snapshots and videos may go to this client; off by default, switched on once an administrator has confirmed the agent's model may receive internal pages; while off those endpoints return 403</dd>
+          <dt>Expiry, enabled, source IPs</dt><dd>An expired, disabled or out-of-list key stops working at once; by default no expiry, enabled, any source</dd>
+        </dl>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Scope</th><th>What it allows</th></tr></thead>
+          <tbody>
+            <tr><td><code>scenes:read</code></td><td>Read domains, scenarios, revisions, roles' login state and secret names</td></tr>
+            <tr><td><code>scenes:write</code></td><td>Create scenarios, save revisions, change inputs and outputs, import Playwright scripts</td></tr>
+            <tr><td><code>debug</code></td><td>Open debug sessions on allowed recorders</td></tr>
+            <tr><td><code>runs:validate</code></td><td>Validate any revision</td></tr>
+            <tr><td><code>scenes:publish</code></td><td>Publish a revision that passed validation with a matching hash; not granted by default</td></tr>
+            <tr><td><code>runs:execute</code></td><td>Run published revisions, cancel and rerun</td></tr>
+            <tr><td><code>runs:read</code></td><td>Read run status and artifacts</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>No taking over a person's session:</strong> if someone is already debugging the scenario, the API returns 409 <code>debug_busy</code> instead of closing their session; an agent can only close sessions it opened (the Portal still closes the old session when a person starts on another device).</li>
+          <li><strong>Audit log:</strong> every write request is recorded (time, client, action, target, result code); administrators can filter it in the admin area but cannot edit or delete it. Revisions saved by an agent are noted "Created by agent ‹name›", and runs record the client that started them.</li>
+          <li><strong>Transport:</strong> the external port speaks HTTP, so keys travel in clear text. When the agent system is not on the same trusted network, put a reverse proxy with HTTPS in front of the server; the program itself does not do TLS.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="endpoints">
+      <div class="panel-header"><h2>Endpoints</h2><span class="muted">All under /agent-api/v1, on the external port only</span></div>
+      <div class="panel-body">
+        <p>Fields are camelCase and errors are <code>{"error": {"code", "message"}}</code>, as in <code>/api</code>. Every POST that creates something accepts <code>idempotencyKey</code>, so resending after a timeout never creates or runs anything twice. "Existing" means the endpoint forwards to the same service method as <code>/api</code>.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Endpoint</th><th>Purpose</th><th>Scope</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /meta</code></td><td>Server and API versions, this key's scopes and limits, supported DSL extensions</td><td>Any</td><td>New</td></tr>
+            <tr><td><code>GET /openapi.json</code></td><td>OpenAPI for this API</td><td>Any</td><td>New</td></tr>
+            <tr><td><code>GET /dsl/schema</code></td><td>JSON Schema of the scenario DSL (as <code>rpa schema</code>)</td><td>Any</td><td>New</td></tr>
+            <tr><td><code>POST /dsl/check</code></td><td>Checks YAML without saving and returns the line, step and field of each problem</td><td>Any</td><td>New</td></tr>
+            <tr><td><code>GET /domains</code>, <code>/roles</code>, <code>/secrets</code></td><td>Domains; roles and login state; secret names only</td><td>scenes:read</td><td>Existing</td></tr>
+            <tr><td><code>GET /recorders</code></td><td>Allowed recorders: online or not, display, browsers, app version and supported features</td><td>debug</td><td>New</td></tr>
+            <tr><td><code>GET /workers</code></td><td>Allowed Workers: online or not, platform, busy or not</td><td>runs:validate or runs:execute</td><td>Existing (filtered)</td></tr>
+            <tr><td><code>GET /scenes</code>, <code>GET /scenes/{id}</code></td><td>Scenarios, revision lists, publishing state, the roles and secrets they need</td><td>scenes:read</td><td>Existing</td></tr>
+            <tr><td><code>POST /scenes</code></td><td>Create a scenario (ID, name, category, domain)</td><td>scenes:write</td><td>Existing</td></tr>
+            <tr><td><code>GET /scenes/{id}/revisions/{n}</code></td><td>Files of a revision</td><td>scenes:read</td><td>Existing</td></tr>
+            <tr><td><code>POST /scenes/{id}/revisions</code></td><td>Save a new revision; 409 when <code>baseRevision</code> is not the latest, so a person's change is never overwritten</td><td>scenes:write</td><td>Existing</td></tr>
+            <tr><td><code>GET</code>, <code>PUT /scenes/{id}/sections/{key}</code></td><td>Read or write one section: steps, verify, inputs, outputs</td><td>scenes:read / write</td><td>Existing</td></tr>
+            <tr><td><code>PUT /scenes/{id}/contract</code></td><td>Change inputs and outputs as a table</td><td>scenes:write</td><td>Existing</td></tr>
+            <tr><td><code>POST /scenes/{id}/import</code></td><td>Import a Playwright script as a DSL draft, with warnings for what could not be converted</td><td>scenes:write</td><td>Existing recording import</td></tr>
+            <tr><td><code>POST /scenes/{id}/debug</code></td><td>Open a debug session on the <code>recorderId</code> device; optional revision, inputs, browser, headed or headless, URL</td><td>debug</td><td>Existing + new field</td></tr>
+            <tr><td><code>GET /debug/{sid}</code></td><td>Status, each step's result, current URL and title, page facts</td><td>debug</td><td>Existing</td></tr>
+            <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>Structure of the current page: accessibility tree, form fields, iframes and tabs</td><td>debug + page content</td><td>New (recorder app update)</td></tr>
+            <tr><td><code>POST /debug/{sid}/screenshot</code></td><td>Screenshot the current page and return its download path</td><td>debug + page content</td><td>Existing</td></tr>
+            <tr><td><code>POST /debug/{sid}/locate</code></td><td>Test a locator: how many match and the first few texts</td><td>debug</td><td>Existing</td></tr>
+            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>Run one step; a step with side effects that already ran needs <code>force</code></td><td>debug</td><td>Existing</td></tr>
+            <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>Run from the next unexecuted step up to a step, stopping at a failure</td><td>debug</td><td>Existing</td></tr>
+            <tr><td><code>POST /debug/{sid}/reload</code></td><td>Switch to the revision just saved, keeping the browser and the steps already run</td><td>debug</td><td>Existing</td></tr>
+            <tr><td><code>POST /debug/{sid}/reset</code>, <code>DELETE /debug/{sid}</code></td><td>Start over; end the session</td><td>debug</td><td>Existing</td></tr>
+            <tr><td><code>POST /scenes/{id}/revisions/{n}/validate</code></td><td>Have a Worker validate; optional <code>workerId</code>, run location, inputs</td><td>runs:validate</td><td>Existing + <code>workerId</code></td></tr>
+            <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>Publish a revision that passed validation with a matching hash</td><td>scenes:publish</td><td>Existing</td></tr>
+            <tr><td><code>POST /scenes/{id}/runs</code></td><td>Run the published revision</td><td>runs:execute</td><td>Existing + <code>workerId</code></td></tr>
+            <tr><td><code>POST /runs/{id}/cancel</code>, <code>/rerun</code></td><td>Cancel; run again with the same inputs</td><td>runs:execute</td><td>Existing</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>Run progress</h2><span class="muted">Polling in phase 1, live in phase 2</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Endpoint</th><th>Content</th><th>Phase</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /runs/{id}</code></td><td>Status (queued, running, passed, failed, timed out, cancelled, needs login), current stage, which Worker, inputs, outputs (only when passed), error, start and end times</td><td>1</td></tr>
+            <tr><td><code>GET /runs?scene=&amp;status=&amp;since=</code></td><td>Runs this client can see</td><td>1</td></tr>
+            <tr><td><code>GET /runs/{id}/steps</code></td><td>Each step's status, start and end time, error and URL afterwards; updated live while running from phase 2</td><td>1, 2</td></tr>
+            <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>Artifacts such as screenshots, report.html, result.json and videos (subject to page content)</td><td>1</td></tr>
+            <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>Event long polling: returns as soon as there is a new event, otherwise waits up to <code>wait</code> seconds</td><td>2</td></tr>
+            <tr><td>Webhook</td><td>POSTed to the client's registered URL when a run ends, signed with HMAC and retried on failure</td><td>2</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Events:</strong> <code>queued</code>, <code>claimed</code> (which Worker), <code>stage</code> (inputs, login, automation, verification, outputs), <code>step</code> (a step started or ended, its result and duration), <code>finished</code> (final status, outputs, error summary). Sequence numbers increase, so <code>after</code> resumes without gaps after a disconnect.</li>
+          <li><strong>Where step progress comes from:</strong> the runner's child process already writes <code>steps.json</code> after every step. The local worker reads the file and updates the database; a remote Worker adds the current step to its heartbeat and sends one extra heartbeat when the step changes. Older Workers without these fields keep working and only show stages.</li>
+          <li><strong>Long polling first:</strong> Workers and recorders already work this way, it passes through proxies, and the server never has to connect to the agent. Webhooks need the server to reach the agent system and wait until the network direction is confirmed.</li>
+          <li><strong>Debugging needs no events:</strong> each debug command answers only when it has finished, with the result of that step.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>Typical flow</h2></div>
+      <div class="panel-body">
+        <ol>
+          <li>Read <code>/meta</code>, <code>/dsl/schema</code>, the available recorders and roles.</li>
+          <li>Create the scenario and save the first revision (open the URL, declare the login role if needed).</li>
+          <li>Open a debug session on the chosen recorder.</li>
+          <li>Read the page structure, take screenshots, test locators.</li>
+          <li>Write the next few steps and save a new revision.</li>
+          <li>Switch to the new revision and run to the last step; if a step fails, go back to step 4.</li>
+          <li>Complete inputs, outputs and independent verification, checking with <code>/dsl/check</code>.</li>
+          <li>Have a Worker validate; if it fails, go back to debugging.</li>
+          <li>Publish (an agent with the scope publishes itself; otherwise ask a person to publish in the Portal).</li>
+          <li>Run it and read the status and outputs. When a run stops at "needs login", ask a person to log in manually on a recorder, then call <code>rerun</code>.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="snapshot">
+      <div class="panel-header"><h2>Page snapshots</h2><span class="muted">Phase 1, needs a recorder app update</span></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>How:</strong> the debug process <code>rpa_runner.debug</code> gets a <code>snapshot</code> command returning the current tab's accessibility tree (Playwright's ARIA snapshot), form fields (label, name, type, required), the iframe hierarchy and the open tabs. The agent writes <code>role</code> / <code>label</code> / <code>text</code> locators from it.</li>
+          <li><strong>Masking:</strong> values of fields filled with a secret and of password fields are always masked, using the runner's existing masking.</li>
+          <li><strong>Size:</strong> above a limit the snapshot is truncated and marked so; the agent can pass <code>within</code> to look at part of the page only.</li>
+          <li><strong>Compatibility:</strong> the recorder reports <code>snapshot</code> support when it comes online; an older app gets 409 <code>recorder_outdated</code> with a message to update the RPA recorder (as in M7a).</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="security">
+      <div class="panel-header"><h2>Security and data leaving the network</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Page content leaves the server:</strong> screenshots, page snapshots, page facts and outputs all go to the agent; if the agent uses an external model, that content goes outside. This is the same open question as M5's data destination, so "page content" is off by default.</li>
+          <li><strong>Secrets:</strong> referenced by name only; values are never returned.</li>
+          <li><strong>The publishing gate is unchanged:</strong> scenarios written by an agent go through real validation just like a person's, and the published revision must be the one that passed.</li>
+          <li><strong>Debugging has side effects:</strong> it really clicks and types in the target system; give agents a recorder of their own and a role with a test account.</li>
+          <li><strong>Runaway protection:</strong> limits keep the queue and the recorders from being swamped; a key can be disabled in one click.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="data">
+      <div class="panel-header"><h2>Database and compatibility</h2></div>
+      <div class="panel-body"><p>The new migration follows the projects migration (0015) and uses only generic types that run on both SQLite and PostgreSQL (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>). <code>/api</code>, the Client API and the Worker API do not change; older apps keep working.</p></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Table or column</th><th>Content</th><th>Phase</th></tr></thead>
+          <tbody>
+            <tr><td><code>api_clients</code></td><td>Name, key hash, scopes, allowed domains and recorders, run location, limits, page content, expiry, enabled, last used</td><td>1</td></tr>
+            <tr><td><code>api_audit</code></td><td>Time, client, action, target, result code, summary; append only</td><td>1</td></tr>
+            <tr><td><code>runs.client_id</code></td><td>The client that started the run</td><td>1</td></tr>
+            <tr><td><code>recorders.allow_agent</code>, <code>agent_headless_only</code></td><td>Whether agents may debug here, and only headless</td><td>1</td></tr>
+            <tr><td><code>run_events</code></td><td>Run ID, sequence, time, kind, content; cleaned up with the run's retention</td><td>2</td></tr>
+            <tr><td><code>runs.step_index</code>, <code>step_count</code></td><td>Current step and number of steps</td><td>2</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Portal:</strong> a new "API clients" page in the admin area (key shown once on creation, scopes, disable, regenerate key, last used, audit log); "Allow agent debugging" and "Headless only" on recorders in the Devices page; run lists and reports show the agent that started a run.</li>
+          <li><strong>Code:</strong> a new router <code>rpa_server/agent_api.py</code> only forwards to the service layer; the chosen recorder is set with the existing <code>use_recorder(…)</code>; <code>PortGateMiddleware</code> adds <code>/agent-api/</code> to the external paths and the router checks the key itself; messages go into locales per <a href="../adr/0007-i18n.html">ADR 0007</a> and programs decide by <code>code</code>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="phases">
+      <div class="panel-header"><h2>Phases</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Phase</th><th>Content</th><th>Apps to update</th><th>Done when</th></tr></thead>
+          <tbody>
+            <tr><td>Phase 1</td><td>API clients, keys, scopes, audit log; discovery, scenarios and parameters, debugging (chosen recorder, page snapshots), validation, publishing, execution, cancel, rerun; run status, stage, step results and artifacts after the run; OpenAPI and the Agent API guide</td><td>Recorder (page snapshots)</td><td>A script builds a test-site scenario from scratch: writes steps from page snapshots, debugs on a recorder, validates on a Worker, publishes, runs and gets the outputs</td></tr>
+            <tr><td>Phase 2</td><td>Live step progress, event long polling, webhooks; agent notice and stop button on the recorder</td><td>Recorder, Worker</td><td>Each step's event is readable within seconds while running; older Workers still run</td></tr>
+            <tr><td>Phase 3</td><td>Running projects (composite scenarios) with progress; asking a person to log in</td><td>None</td><td>Decided after phase 2</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="testing">
+      <div class="panel-header"><h2>Testing and acceptance</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Automated tests:</strong> keys and scopes (403 for a missing scope, 401 for disabled or expired keys, 429 above limits), forwarding of every endpoint, not taking over a person's debug session, idempotency keys, the audit log; recorders and Workers simulated with the existing test helpers.</li>
+          <li><strong>Browser tests:</strong> the whole flow on the test site (create → page snapshot → debug → validate → publish → run → read results), registered in <code>tools/ci_roles.py</code>.</li>
+          <li><strong>Manual acceptance:</strong> Linux server + macOS recorder + Windows Worker, with a script on another computer going through the whole flow; requests are refused after "Allow agent debugging" is switched off.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

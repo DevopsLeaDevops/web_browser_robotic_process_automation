@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent 使用指南 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="agent-api-guide" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Agent 使用指南</h1>
+      <p>寫給接入平台的 Agent 系統（以及替它寫整合的人）：怎麼用 <code>/agent-api/v1</code> 從空白建立場景、在錄製端調試、交給 Worker 驗證、發布並正式執行，遇到錯誤時怎麼處理。</p>
+    </div>
+    <span class="badge amber">設計已確認，未實作</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice warn">本指南依 2026-10-23 確認的<a href="../design/agent-api.html">設計</a>撰寫，第一期尚未實作。實作後欄位以伺服器的 <code>GET /agent-api/v1/openapi.json</code> 為準，本頁會同步更新。</div>
+
+    <section class="panel" id="basics">
+      <div class="panel-header"><h2>基本約定</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>位址</dt><dd><code>http://&lt;伺服器&gt;:8081/agent-api/v1</code>；伺服器前有 HTTPS 反向代理時用代理的位址。</dd>
+          <dt>認證</dt><dd>每個請求帶 <code>Authorization: Bearer &lt;API 金鑰&gt;</code>。金鑰由管理員在管理後台的「API 用戶端」建立，只顯示一次；不要寫進日誌或場景。</dd>
+          <dt>格式</dt><dd>JSON，欄位 camelCase；時間是 ISO 8601（UTC）。</dd>
+          <dt>錯誤</dt><dd><code>{"error": {"code": "…", "message": "…", …}}</code>。程式依 <code>code</code> 判斷，<code>message</code> 給人看；有些錯誤另帶細節，例如 <code>issues</code>、<code>problems</code>、<code>latest</code>。</dd>
+          <dt>語言</dt><dd><code>?lang=zh-Hant</code>、<code>zh-Hans</code> 或 <code>en</code> 決定 <code>message</code> 的語言；沒給時用伺服器預設。</dd>
+          <dt>冪等</dt><dd>會建立東西的 POST（建立場景、存版本、驗證、執行、重跑）接受 <code>idempotencyKey</code>。逾時或斷線後用同一個值重送，不會重複建立或重複執行。</dd>
+          <dt>輪詢</dt><dd>查運行狀態每 2～5 秒一次即可；第二期改用事件長輪詢。</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="before">
+      <div class="panel-header"><h2>開始之前</h2></div>
+      <div class="panel-body">
+        <p>先呼叫 <code>GET /meta</code>，確認這把金鑰能做什麼，缺的請管理員補，不要用試錯的方式找出權限。</p>
+<pre class="source">GET /agent-api/v1/meta
+
+{
+  "apiVersion": "1",
+  "serverVersion": "0.6.0",
+  "client": {"id": "agent-erp", "name": "ERP 助理"},
+  "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read"],
+  "pageContent": true,
+  "limits": {"debugSessions": 2, "queuedRuns": 20},
+  "dslFeatures": ["frame", "popup"]
+}</pre>
+        <ul class="points">
+          <li><code>scopes</code> 沒有 <code>scenes:publish</code>：做到驗證通過為止，再請人在 Portal 發布。</li>
+          <li><code>pageContent</code> 是 <code>false</code>：截圖、頁面結構、錄影都拿不到，只能靠定位器測試與步驟結果寫場景。</li>
+          <li>接著讀 <code>GET /dsl/schema</code>（場景 YAML 的 JSON Schema）、<code>GET /recorders</code>（可用的錄製端）、<code>GET /roles</code>（登入角色與狀態）、<code>GET /secrets</code>（只有名稱）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="scenario">
+      <div class="panel-header"><h2>場景長什麼樣</h2></div>
+      <div class="panel-body">
+        <p>一個場景是一份 YAML（<code>scenario.yaml</code>）。步驟只負責操作頁面、抽取「頁面事實」；成功與否由 <code>verify</code> 獨立判斷，全部通過才發布出參。完整規格見<a href="../design/dsl.html">場景 DSL</a>。</p>
+<pre class="source">schemaVersion: 1
+id: order-create
+name: 建立訂單
+category: 訂單
+inputs:
+  customer: { type: string, minLength: 1 }
+  quantity: { type: integer, minimum: 1, maximum: 99, default: 1 }
+outputs:
+  orderId: { type: string, pattern: '^SO-\d+$', from: '{{ facts.order.orderId }}' }
+login: { role: sales }
+browser:
+  engine: chromium
+  baseUrl: https://erp.example.internal
+defaults:
+  timeout: 10000
+steps:
+  - id: open
+    action: goto
+    url: /orders/new
+  - id: fill-customer
+    action: fill
+    target: { label: 客戶, exact: true }
+    value: '{{ inputs.customer }}'
+  - id: fill-quantity
+    action: fill
+    target: { label: 數量, exact: true }
+    value: '{{ inputs.quantity }}'
+  - id: submit
+    action: click
+    target: { role: button, name: 建立, exact: true }
+  - id: read-order
+    action: extract
+    target: { css: '#order-summary' }
+    as: order
+    fields:
+      orderId: { target: { testId: order-id } }
+      customer: { target: { testId: order-customer } }
+verify:
+  - name: 取得訂單編號
+    value: '{{ facts.order.orderId }}'
+    matches: '^SO-\d+$'
+  - name: 客戶與入參相同
+    value: '{{ facts.order.customer }}'
+    equals: '{{ inputs.customer }}'</pre>
+        <ul class="points">
+          <li><strong>步驟 id 要穩定：</strong>調試換版本時，已執行的步驟靠 id 對應；改內容不要改 id。</li>
+          <li><strong>定位器的優先順序：</strong><code>role</code>＋<code>name</code>、<code>label</code>、<code>text</code>、<code>testId</code>，最後才是 <code>css</code>／<code>xpath</code>；容易變的加 <code>fallback</code>。元素在 iframe 裡用 <code>frame</code>，點擊開出新分頁用 <code>popup</code> 與 <code>page</code>。</li>
+          <li><strong>會變的值寫成入參：</strong>不要把客戶、日期、數量寫死在步驟裡。</li>
+          <li><strong>密碼不寫進場景：</strong>用 <code>secrets</code> 宣告名稱、<code>{{ secrets.名稱 }}</code> 引用；需要登入的系統用 <code>login: { role }</code>，登入狀態由平台管理。</li>
+          <li><strong>verify 要比對頁面事實與入參：</strong>「步驟沒有出錯」不等於成功。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="workflow">
+      <div class="panel-header"><h2>從空白到正式執行</h2></div>
+      <div class="panel-body">
+        <h3>1. 建立場景並存第一版</h3>
+<pre class="source">POST /agent-api/v1/scenes
+{"id": "order-create", "name": "建立訂單", "category": "訂單", "domainId": "sales"}
+
+POST /agent-api/v1/scenes/order-create/revisions
+{"baseRevision": 0, "files": {"scenario.yaml": "schemaVersion: 1\nid: order-create\n…"},
+ "note": "第一版：只開頁面", "idempotencyKey": "order-create-r1"}
+→ 201 {"sceneId": "order-create", "number": 1, "status": "draft", …}</pre>
+        <p>存檔前可以先 <code>POST /dsl/check {"yaml": "…"}</code>，回應的 <code>issues</code> 帶行號、步驟與欄位。第一版只放 <code>goto</code>（和需要的 <code>login</code>）就好，後面的步驟看了頁面再寫。</p>
+
+        <h3>2. 在錄製端開調試工作階段</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/debug
+{"recorderId": "agent-mac", "revision": 1, "headless": true,
+ "inputs": {"customer": "測試客戶", "quantity": 2}}
+→ 202 {"id": "a1b2c3d4e5f6", "status": "starting", "deviceId": "agent-mac", …}
+
+GET /agent-api/v1/debug/a1b2c3d4e5f6
+→ {"status": "ready", "nextIndex": 0, "steps": [{"index": 0, "id": "open", "status": "pending", …}], …}</pre>
+        <p>等 <code>status</code> 變成 <code>ready</code>（第一次用 Firefox 可能要一兩分鐘）。一個場景同時只有一個工作階段；閒置 15 分鐘自動關閉。</p>
+
+        <h3>3. 看頁面，再寫下一段步驟</h3>
+<pre class="source">POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/0
+POST /agent-api/v1/debug/a1b2c3d4e5f6/snapshot
+→ {"url": "https://erp.example.internal/orders/new", "title": "新增訂單",
+   "tabs": [{"pageId": "main", "url": "…", "active": true}],
+   "frames": [],
+   "fields": [{"role": "textbox", "label": "客戶", "required": true},
+              {"role": "spinbutton", "label": "數量"}],
+   "aria": "- heading \"新增訂單\" [level=1]\n- textbox \"客戶\"\n- spinbutton \"數量\"\n- button \"建立\"",
+   "truncated": false}
+
+POST /agent-api/v1/debug/a1b2c3d4e5f6/locate
+{"locator": {"role": "button", "name": "建立", "exact": true}}
+→ {"located": {"count": 1, "texts": ["建立"]}, …}</pre>
+        <p><code>locate</code> 找到剛好 1 個才用它；0 個或好幾個就換定位器或加 <code>within</code>。頁面很大時 <code>snapshot</code> 可以帶 <code>{"within": {"css": "#main"}}</code> 只看一部分。需要看畫面時用 <code>screenshot</code>，回應裡的 <code>screenshotUrl</code> 可以下載圖片。</p>
+
+        <h3>4. 存新版本、換過去、接著跑</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions
+{"baseRevision": 1, "files": {"scenario.yaml": "…加上 fill-customer、fill-quantity、submit…"}}
+→ 201 {"number": 2, …}
+
+POST /agent-api/v1/debug/a1b2c3d4e5f6/reload   {"revision": 2}
+POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
+→ {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
+        <p>瀏覽器與已執行的步驟會保留，<code>run-to</code> 只執行還沒執行過的步驟，失敗就停。改好再存一版、<code>reload</code>、<code>run-to</code>，直到每一步都是 <code>passed</code>。想從頭重跑用 <code>reset</code>。</p>
+        <div class="notice warn">點擊、填寫、選擇、勾選、按鍵是有副作用的步驟，會在目標系統上真的發生。執行過一次的有副作用步驟要再執行，必須帶 <code>{"force": true}</code>；只在確定重做不會造成重複資料時才這樣做。</div>
+
+        <h3>5. 補齊入參、出參與獨立斷言</h3>
+        <p>用 <code>PUT /scenes/{id}/sections/verify</code>、<code>/inputs</code>、<code>/outputs</code> 只改一段，或 <code>PUT /scenes/{id}/contract</code> 以表格形式改入參與出參；每次都會存成新版本。完成後 <code>DELETE /debug/{sid}</code> 結束工作階段，釋放錄製端。</p>
+
+        <h3>6. 交給 Worker 驗證</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/5/validate
+{"inputs": {"customer": "測試客戶", "quantity": 2}, "idempotencyKey": "order-create-v5-1"}
+→ 202 {"id": "order-create-20261023-…", "purpose": "validation", "status": "queued", …}
+
+GET /agent-api/v1/runs/order-create-20261023-…
+→ {"status": "running", "stage": "automation", …}
+→ {"status": "failed", "error": "…", "finished": true, …}
+GET /agent-api/v1/runs/order-create-20261023-…/steps</pre>
+        <p>失敗時看 <code>error</code>、<code>/steps</code> 中第一個失敗的步驟，以及（有權限時）<code>/files/screenshot.png</code>；回到調試修正。驗證可以用任何版本，正式執行只用已發布版本。</p>
+
+        <h3>7. 發布與正式執行</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/5/publish      （需要 scenes:publish）
+
+POST /agent-api/v1/scenes/order-create/runs
+{"inputs": {"customer": "王小明", "quantity": 3}, "idempotencyKey": "job-8812"}
+→ 202 {"id": "…", "purpose": "execution", "status": "queued", …}
+GET /agent-api/v1/runs/…
+→ {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
+        <p>只有 <code>status</code> 是 <code>passed</code> 時才有 <code>output</code>。沒有發布權限時，告訴使用者哪個場景的哪個版本已驗證通過，請人在 Portal 發布。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="errors">
+      <div class="panel-header"><h2>錯誤怎麼處理</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>狀態碼</th><th>code</th><th>意思</th><th>Agent 該做什麼</th></tr></thead>
+          <tbody>
+            <tr><td>401</td><td><code>unauthorized</code></td><td>金鑰缺少、錯誤、停用或到期</td><td>停止，請管理員處理；不要重試</td></tr>
+            <tr><td>403</td><td><code>scope_missing</code></td><td>這把金鑰沒有需要的權限範圍</td><td>請人授權或改由人完成這一步</td></tr>
+            <tr><td>403</td><td><code>content_disabled</code></td><td>「回傳頁面內容」沒開</td><td>改用 <code>locate</code> 與步驟結果；或請管理員打開</td></tr>
+            <tr><td>403</td><td><code>domain_forbidden</code>、<code>recorder_forbidden</code></td><td>不能用這個領域或錄製端</td><td>換一個允許的，或請管理員加上</td></tr>
+            <tr><td>409</td><td><code>stale_base</code></td><td><code>baseRevision</code> 不是最新版，有人改過</td><td>讀 <code>latest</code> 那一版，把修改套上去再存</td></tr>
+            <tr><td>409</td><td><code>debug_busy</code></td><td>這個場景有人正在調試</td><td>稍後再試，不要搶</td></tr>
+            <tr><td>409</td><td><code>already_executed</code></td><td>有副作用的步驟已執行過</td><td>確定可以重做才帶 <code>force</code>；否則 <code>reset</code></td></tr>
+            <tr><td>409</td><td><code>recorder_offline</code></td><td>錄製端不在線</td><td>換一台，或請人開啟錄製端 App</td></tr>
+            <tr><td>409</td><td><code>recorder_outdated</code></td><td>錄製端 App 太舊（例如不支援讀頁面結構）</td><td>請人更新 RPA 錄製端</td></tr>
+            <tr><td>409</td><td><code>not_validated</code></td><td>這個版本沒有驗證通過的紀錄</td><td>先驗證</td></tr>
+            <tr><td>409</td><td><code>not_published</code></td><td>場景沒有已發布版本，不能正式執行</td><td>發布，或請人發布</td></tr>
+            <tr><td>422</td><td><code>display_unavailable</code></td><td>那台沒有畫面，不能有頭</td><td>改用 <code>"headless": true</code></td></tr>
+            <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML 校驗失敗，<code>issues</code> 列出位置</td><td>依 <code>issues</code> 修正後再存</td></tr>
+            <tr><td>422</td><td><code>inputs_invalid</code></td><td>入參不符合型別或限制，<code>problems</code> 列出哪一個</td><td>修正入參</td></tr>
+            <tr><td>429</td><td><code>limit_reached</code></td><td>超過同時調試或排隊執行的限額</td><td>等現有的完成，或結束不用的工作階段</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body"><p>運行本身的結果不是 HTTP 錯誤：<code>failed</code>、<code>timed_out</code>、<code>cancelled</code>、<code>needs_login</code> 都在 <code>GET /runs/{id}</code> 的 <code>status</code>。</p></div>
+    </section>
+
+    <section class="panel" id="humans">
+      <div class="panel-header"><h2>需要人的時候</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>需要登入：</strong>運行停在 <code>needs_login</code>，或 <code>GET /roles</code> 顯示角色要重新登入。請使用者在錄製端做人工登入，完成後呼叫 <code>POST /runs/{id}/rerun</code>。</li>
+          <li><strong>沒有發布權限：</strong>告訴使用者場景代號與驗證通過的版本號，請人在 Portal 發布。</li>
+          <li><strong>缺 Secret：</strong><code>GET /scenes/{id}</code> 的 <code>needs</code> 列出還沒設定的 Secrets；值由人在 Portal 填，Agent 不能寫入也讀不到。</li>
+          <li><strong>錄製端不在線或太舊：</strong>請人開啟或更新 RPA 錄製端 App。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="rules">
+      <div class="panel-header"><h2>守則</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>每次存版本都帶上次讀到的 <code>baseRevision</code>，不要覆蓋人的修改。</li>
+          <li>用完調試工作階段就 <code>DELETE</code>，不要占住錄製端。</li>
+          <li>不要在正式資料上反覆執行有副作用的步驟；能用測試帳號的角色就用。</li>
+          <li>截圖、頁面結構與出參可能含業務資料，只用在當前的任務，不要另外保存或轉傳。</li>
+          <li>所有寫入都會記在稽核紀錄，版本說明會標出你的用戶端名稱；在 <code>note</code> 寫清楚這一版改了什麼。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

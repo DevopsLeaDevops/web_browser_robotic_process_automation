@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>對外 Agent API · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+<style>
+  .arch text { font-family: system-ui, sans-serif; }
+  .arch .frame { fill: #f8fafd; stroke: #c9d6e5; stroke-dasharray: 5 4; }
+  .arch .frame-label { font-size: 11px; fill: #64758b; letter-spacing: .5px; }
+  .arch .box { fill: #fff; stroke: #cddded; }
+  .arch .box.key { stroke: #147fe6; stroke-width: 1.5; }
+  .arch .box.ext { fill: #f1f4f8; stroke: #dfe6ef; }
+  .arch .title { font-size: 13px; font-weight: 650; fill: #24334a; }
+  .arch .sub { font-size: 11.5px; fill: #64758b; }
+  .arch .link { fill: none; stroke: #7999bb; stroke-width: 1.4; }
+  .arch .label { font-size: 11px; fill: #4776a2; }
+  .arch .link.opt { stroke-dasharray: 5 4; }
+  .arch .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; fill: #315b89; }
+</style>
+</head>
+<body data-page="agent-api" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>對外 Agent API</h1>
+      <p>第三方 Agent 系統只透過伺服器的 <code>/agent-api/v1</code>：寫場景與入參出參、指定錄製端開瀏覽器逐步調試、交給 Worker 驗證與執行，並取得運行過程。新的一層只做認證、權限與稽核，業務規則與發布門檻沿用現有服務。</p>
+    </div>
+    <span class="badge amber">設計已確認，未實作</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認；第一期實作後，端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準。</div>
+
+    <section class="panel" id="scope">
+      <div class="panel-header"><h2>範圍</h2><span class="muted">Agent 從空白做到可以正式執行的場景</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>能力</th><th>Agent 做什麼</th><th>在哪裡跑</th></tr></thead>
+          <tbody>
+            <tr><td>場景與參數</td><td>建立場景；讀寫整份腳本或其中一段（步驟、獨立斷言、入參、出參）；匯入 Playwright 腳本轉成草稿</td><td>伺服器</td></tr>
+            <tr><td>調試</td><td>指定一台錄製端開瀏覽器，讀頁面結構、截圖、測定位器、逐步執行；改完存成新版本後原地接著跑</td><td>錄製端</td></tr>
+            <tr><td>驗證</td><td>把某個版本交給 Worker 跑一次驗證；通過的紀錄是發布依據</td><td>Worker</td></tr>
+            <tr><td>發布</td><td>有 <code>scenes:publish</code> 權限的 Agent 自己發布，否則由人在 Portal 發布</td><td>伺服器</td></tr>
+            <tr><td>執行</td><td>用入參正式執行已發布版本，可以指定 Worker</td><td>Worker</td></tr>
+            <tr><td>運行過程</td><td>狀態、目前階段與步驟、每步結果與錯誤、出參、截圖、報告、錄影</td><td>伺服器</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p><strong>不在範圍內：</strong>錄製（Playwright codegen 要有人操作，Agent 改寫 DSL 或匯入它產生的 Playwright 腳本）；遠端畫面串流（<a href="../adr/0014-desktop-apps.html">ADR 0014</a> 不做）；讀 Secrets 的值、管理裝置與邀請、領域的 git 同步、伺服器設定；人工登入（仍由人在錄製端完成）；完整的使用者與專案權限（M8，屆時併入 API 用戶端）；MCP 轉接（使用者 2026-10-23 決定不做）。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="architecture">
+      <div class="panel-header"><h2>架構</h2><span class="muted">Agent 只連伺服器</span></div>
+      <div class="diagram">
+        <svg class="arch" viewBox="0 0 760 520" role="img" aria-labelledby="agent-title agent-desc">
+          <title id="agent-title">Agent API 的連線方向</title>
+          <desc id="agent-desc">第三方 Agent 系統以 API 金鑰呼叫伺服器對外埠上的 Agent API；Agent API 轉接沿用的服務層，服務層經 Client API 把調試交給錄製端、經 Worker API 把驗證與執行交給 Worker。錄製端與 Worker 照舊以長輪詢主動連到伺服器，瀏覽器在它們那台直接操作目標內部系統。運行結束的 Webhook 是第二期，方向是伺服器到 Agent。</desc>
+          <defs>
+            <marker id="arrow-agent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
+            </marker>
+          </defs>
+
+          <!-- Agent 系統 -->
+          <rect class="box ext" x="16" y="48" width="200" height="88" rx="8"/>
+          <text class="title" x="30" y="72">第三方 Agent 系統</text>
+          <text class="sub" x="30" y="94">寫場景與參數、調試</text>
+          <text class="sub" x="30" y="112">驗證、發布、執行、看過程</text>
+
+          <!-- 伺服器 -->
+          <rect class="frame" x="284" y="16" width="460" height="300" rx="10"/>
+          <text class="frame-label" x="296" y="34">伺服器（rpa serve）· 對外埠 8081</text>
+          <rect class="box key" x="300" y="48" width="428" height="60" rx="8"/>
+          <text class="title" x="314" y="72">Agent API（新增）</text>
+          <text class="mono" x="314" y="92">/agent-api/v1 · API 金鑰、權限範圍、稽核</text>
+          <rect class="box" x="300" y="128" width="428" height="60" rx="8"/>
+          <text class="title" x="314" y="152">服務層（沿用）</text>
+          <text class="sub" x="314" y="172">場景、版本、發布門檻、調試工作階段、執行佇列</text>
+          <rect class="box" x="300" y="208" width="206" height="88" rx="8"/>
+          <text class="title" x="314" y="232">Client API</text>
+          <text class="mono" x="314" y="252">/client-api/v1</text>
+          <text class="sub" x="314" y="272">把調試交給錄製端</text>
+          <rect class="box" x="522" y="208" width="206" height="88" rx="8"/>
+          <text class="title" x="536" y="232">Worker API</text>
+          <text class="mono" x="536" y="252">/worker-api/v1</text>
+          <text class="sub" x="536" y="272">把驗證與執行交給 Worker</text>
+
+          <!-- 裝置 -->
+          <rect class="box" x="300" y="360" width="206" height="72" rx="8"/>
+          <text class="title" x="314" y="384">RPA 錄製端 App</text>
+          <text class="sub" x="314" y="404">調試的瀏覽器開在這台</text>
+          <text class="sub" x="314" y="422">讀頁面結構、截圖</text>
+          <rect class="box" x="522" y="360" width="206" height="72" rx="8"/>
+          <text class="title" x="536" y="384">RPA Worker App</text>
+          <text class="sub" x="536" y="404">驗證與正式執行</text>
+          <text class="sub" x="536" y="422">回報階段與步驟</text>
+
+          <!-- 目標系統 -->
+          <rect class="box ext" x="300" y="456" width="428" height="48" rx="8"/>
+          <text class="title" x="314" y="485">目標內部系統（業務網站）</text>
+
+          <!-- 連線 -->
+          <path class="link" d="M216 78H298" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="226" y="70">API 金鑰</text>
+          <path class="link opt" d="M300 102H218" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="226" y="120">Webhook</text>
+          <path class="link" d="M514 108V126" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M403 188V206" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M625 188V206" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M403 358V298" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="411" y="340">長輪詢（App 主動連）</text>
+          <path class="link" d="M625 358V298" marker-end="url(#arrow-agent)"/>
+          <text class="label" x="633" y="340">長輪詢（App 主動連）</text>
+          <path class="link" d="M403 432V454" marker-end="url(#arrow-agent)"/>
+          <path class="link" d="M625 432V454" marker-end="url(#arrow-agent)"/>
+        </svg>
+      </div>
+      <div class="diagram-caption">藍框是新增的一層；灰底為平台外部的系統；虛線的 Webhook 是第二期。錄製端與 Worker 的連線方式不變，不必開任何埠，Agent 也不必知道它們在哪裡。不直接開放 <code>/api</code>：它沒有認證、跟著 Portal 介面改動；獨立的 <code>/agent-api/v1</code> 可以保持穩定、單獨管版本。</div>
+    </section>
+
+    <section class="panel" id="clients">
+      <div class="panel-header"><h2>API 用戶端、權限與稽核</h2></div>
+      <div class="panel-body">
+        <p>每個 Agent 系統是一個「API 用戶端」，在管理後台登記後拿到一把只顯示一次的 API 金鑰；伺服器只存雜湊，做法與裝置權杖相同。請求帶 <code>Authorization: Bearer &lt;API 金鑰&gt;</code>。</p>
+        <dl class="spec-list">
+          <dt>權限範圍</dt><dd>下表的勾選；新用戶端預設只有 <code>scenes:read</code> 與 <code>runs:read</code></dd>
+          <dt>可用的領域</dt><dd>能讀寫哪些領域的場景；預設全部</dd>
+          <dt>可用的錄製端</dt><dd>能在哪幾台錄製端開調試瀏覽器；預設無。錄製端本身也要在裝置頁打開「允許 Agent 調試」，可以設成「只允許無頭」</dd>
+          <dt>執行位置</dt><dd>local、remote、any，以及可以指定的 Worker；預設 remote、任一台</dd>
+          <dt>限額</dt><dd>同時進行的調試工作階段、排隊中的執行；建議預設 2 個、20 個，超過回 429</dd>
+          <dt>回傳頁面內容</dt><dd>截圖、頁面結構、錄影能不能給這個用戶端；預設關，管理員確認 Agent 的模型可以接收內部頁面後再打開；關閉時這些端點回 403</dd>
+          <dt>到期、啟用、來源 IP</dt><dd>到期、停用或不在允許清單時金鑰立即失效；預設不到期、啟用、不限</dd>
+        </dl>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>權限範圍</th><th>允許的操作</th></tr></thead>
+          <tbody>
+            <tr><td><code>scenes:read</code></td><td>讀領域、場景、版本、角色的登入狀態、Secrets 的名稱</td></tr>
+            <tr><td><code>scenes:write</code></td><td>建立場景、存新版本、改入參出參、匯入 Playwright 腳本</td></tr>
+            <tr><td><code>debug</code></td><td>在允許的錄製端開調試工作階段</td></tr>
+            <tr><td><code>runs:validate</code></td><td>驗證任一版本</td></tr>
+            <tr><td><code>scenes:publish</code></td><td>發布驗證通過、雜湊相符的版本；預設不給</td></tr>
+            <tr><td><code>runs:execute</code></td><td>正式執行已發布版本、取消、重跑</td></tr>
+            <tr><td><code>runs:read</code></td><td>讀運行狀態與產物</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>不搶人的工作階段：</strong>場景已有人在調試時回 409 <code>debug_busy</code>，不關掉對方；Agent 只能關自己開的工作階段（Portal 從另一台開始時仍照舊關掉原本的）。</li>
+          <li><strong>稽核：</strong>每個寫入請求記一筆（時間、用戶端、動作、對象、結果碼），管理後台可以篩選，不能修改或刪除。Agent 存的版本說明自動標「由 Agent〈名稱〉建立」，運行紀錄記下觸發的用戶端。</li>
+          <li><strong>傳輸：</strong>對外埠是 HTTP，金鑰是明文。Agent 系統不在同一個受信任的區網時，在伺服器前放反向代理提供 HTTPS；程式本身不做 TLS。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="endpoints">
+      <div class="panel-header"><h2>端點</h2><span class="muted">都在 /agent-api/v1 下，只在對外埠</span></div>
+      <div class="panel-body">
+        <p>欄位 camelCase、錯誤 <code>{"error": {"code", "message"}}</code>，與現有 <code>/api</code> 一致。會建立東西的 POST 都接受 <code>idempotencyKey</code>，逾時重送不會重複建立或重複執行。「沿用」表示轉接現有 <code>/api</code> 的同一個服務方法。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>端點</th><th>用途</th><th>權限範圍</th><th>來源</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /meta</code></td><td>伺服器與 API 版本、這把金鑰的權限與限額、支援的 DSL 擴充</td><td>任何</td><td>新</td></tr>
+            <tr><td><code>GET /openapi.json</code></td><td>這組 API 的 OpenAPI</td><td>任何</td><td>新</td></tr>
+            <tr><td><code>GET /dsl/schema</code></td><td>場景 DSL 的 JSON Schema（同 <code>rpa schema</code>）</td><td>任何</td><td>新</td></tr>
+            <tr><td><code>POST /dsl/check</code></td><td>不存檔校驗 YAML，回傳問題所在的行號、步驟與欄位</td><td>任何</td><td>新</td></tr>
+            <tr><td><code>GET /domains</code>、<code>/roles</code>、<code>/secrets</code></td><td>領域；角色與登入狀態；Secrets 只有名稱</td><td>scenes:read</td><td>沿用</td></tr>
+            <tr><td><code>GET /recorders</code></td><td>允許的錄製端：是否在線、有沒有畫面、瀏覽器、App 版本與支援的功能</td><td>debug</td><td>新</td></tr>
+            <tr><td><code>GET /workers</code></td><td>允許的 Worker：是否在線、平台、忙不忙</td><td>runs:validate 或 runs:execute</td><td>沿用（篩選）</td></tr>
+            <tr><td><code>GET /scenes</code>、<code>GET /scenes/{id}</code></td><td>場景、版本清單、發布狀態、需要的角色與 Secrets</td><td>scenes:read</td><td>沿用</td></tr>
+            <tr><td><code>POST /scenes</code></td><td>建立場景（代號、名稱、分類、領域）</td><td>scenes:write</td><td>沿用</td></tr>
+            <tr><td><code>GET /scenes/{id}/revisions/{n}</code></td><td>某個版本的檔案</td><td>scenes:read</td><td>沿用</td></tr>
+            <tr><td><code>POST /scenes/{id}/revisions</code></td><td>存成新版本；<code>baseRevision</code> 不是最新版時回 409，避免蓋掉人的修改</td><td>scenes:write</td><td>沿用</td></tr>
+            <tr><td><code>GET</code>、<code>PUT /scenes/{id}/sections/{key}</code></td><td>只讀寫一段：steps、verify、inputs、outputs</td><td>scenes:read／write</td><td>沿用</td></tr>
+            <tr><td><code>PUT /scenes/{id}/contract</code></td><td>用表格形式改入參與出參</td><td>scenes:write</td><td>沿用</td></tr>
+            <tr><td><code>POST /scenes/{id}/import</code></td><td>匯入 Playwright 腳本，轉成 DSL 草稿並回傳轉不了的警告</td><td>scenes:write</td><td>沿用錄製稿匯入</td></tr>
+            <tr><td><code>POST /scenes/{id}/debug</code></td><td>在 <code>recorderId</code> 那台開調試工作階段；選填版本、入參、瀏覽器、有頭或無頭、網址</td><td>debug</td><td>沿用＋新參數</td></tr>
+            <tr><td><code>GET /debug/{sid}</code></td><td>狀態、每一步的結果、目前網址與標題、頁面事實</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>目前頁面的結構：無障礙樹、表單欄位、iframe 與分頁清單</td><td>debug＋回傳頁面內容</td><td>新（錄製端 App 要更新）</td></tr>
+            <tr><td><code>POST /debug/{sid}/screenshot</code></td><td>截目前頁面，回傳圖片的下載路徑</td><td>debug＋回傳頁面內容</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/locate</code></td><td>測試定位器：找到幾個、前幾個的文字</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>執行一步；有副作用而且跑過的要帶 <code>force</code></td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>從下一個還沒執行的步驟執行到第幾步，失敗就停</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/reload</code></td><td>換到剛存的新版本，瀏覽器與已執行的步驟保留</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/reset</code>、<code>DELETE /debug/{sid}</code></td><td>從頭開始、結束</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /scenes/{id}/revisions/{n}/validate</code></td><td>交給 Worker 驗證；選填 <code>workerId</code>、執行位置、入參</td><td>runs:validate</td><td>沿用＋<code>workerId</code></td></tr>
+            <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>發布驗證通過、雜湊相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>
+            <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式執行已發布版本</td><td>runs:execute</td><td>沿用＋<code>workerId</code></td></tr>
+            <tr><td><code>POST /runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消；同樣的入參再跑一次</td><td>runs:execute</td><td>沿用</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>運行過程</h2><span class="muted">第一期可查詢，第二期即時</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>端點</th><th>內容</th><th>期</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /runs/{id}</code></td><td>狀態（排隊、執行中、通過、失敗、逾時、已取消、需要登入）、目前階段、哪台 Worker、入參、出參（只有通過才有）、錯誤、開始與結束時間</td><td>一</td></tr>
+            <tr><td><code>GET /runs?scene=&amp;status=&amp;since=</code></td><td>這個用戶端看得到的運行</td><td>一</td></tr>
+            <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的狀態、開始與結束時間、錯誤、步驟後的網址；第二期起執行中也即時更新</td><td>一、二</td></tr>
+            <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截圖、report.html、result.json、錄影等產物（受「回傳頁面內容」控制）</td><td>一</td></tr>
+            <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>事件長輪詢：有新事件立刻回，沒有就最多等 <code>wait</code> 秒</td><td>二</td></tr>
+            <tr><td>Webhook</td><td>運行結束時 POST 到用戶端登記的網址，帶 HMAC 簽章，失敗會重試</td><td>二</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>事件：</strong><code>queued</code>、<code>claimed</code>（哪台 Worker）、<code>stage</code>（入參、登入、自動化、斷言、出參）、<code>step</code>（第幾步開始或結束、結果、耗時）、<code>finished</code>（最終狀態、出參、錯誤摘要）。序號遞增，用 <code>after</code> 接續，斷線不漏。</li>
+          <li><strong>步驟進度的來源：</strong>Runner 的子程序每跑完一步已經寫 <code>steps.json</code>。本機 worker 讀檔更新資料庫；遠端 Worker 在心跳附上目前步驟，步驟變化時立刻多送一次。舊版 Worker 不送這些欄位也照常運作，只看得到階段。</li>
+          <li><strong>先用長輪詢：</strong>Worker 與錄製端已經用同樣的方式，穿得過代理，不需要伺服器主動連 Agent。Webhook 要伺服器能連到 Agent 系統，網路方向確認後再開。</li>
+          <li><strong>調試不需要事件：</strong>調試的每個命令跑完才回應，回應裡就是那一步的結果。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>典型流程</h2></div>
+      <div class="panel-body">
+        <ol>
+          <li>讀 <code>/meta</code>、<code>/dsl/schema</code>、可用的錄製端與角色。</li>
+          <li>建立場景，存第一版（開網址、需要時宣告登入角色）。</li>
+          <li>在指定的錄製端開調試工作階段。</li>
+          <li>讀頁面結構、截圖、測定位器。</li>
+          <li>寫下一段步驟，存成新版本。</li>
+          <li>換到新版本，執行到最後一步；有步驟失敗就回到第 4 步。</li>
+          <li>補入參、出參與獨立斷言，用 <code>/dsl/check</code> 校驗。</li>
+          <li>交給 Worker 驗證；沒通過就回到調試。</li>
+          <li>發布（有權限的 Agent 自己發布，否則請人在 Portal 發布）。</li>
+          <li>正式執行，讀狀態與出參。執行停在「需要登入」時，請人在錄製端人工登入後呼叫 <code>rerun</code>。</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="snapshot">
+      <div class="panel-header"><h2>讀頁面結構</h2><span class="muted">第一期，錄製端 App 要更新</span></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>做法：</strong>調試子程序 <code>rpa_runner.debug</code> 加 <code>snapshot</code> 命令：目前分頁的無障礙樹（Playwright 的 ARIA 快照）、表單欄位（標籤、名稱、型別、是否必填）、iframe 階層與已開的分頁。Agent 據此寫 <code>role</code>／<code>label</code>／<code>text</code> 定位器。</li>
+          <li><strong>遮罩：</strong>填了 Secret 的欄位與密碼欄位的值一律遮罩，沿用 Runner 的遮罩。</li>
+          <li><strong>大小：</strong>超過上限時截斷並標示，Agent 可以用 <code>within</code> 指定只看頁面的一部分。</li>
+          <li><strong>相容：</strong>錄製端上線時回報支援 <code>snapshot</code>；舊版 App 收到時回 409 <code>recorder_outdated</code>，說明要更新 RPA 錄製端（沿用 M7a 的做法）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="security">
+      <div class="panel-header"><h2>安全與資料外流</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>頁面內容會離開伺服器：</strong>截圖、頁面結構、頁面事實與出參都回傳給 Agent；Agent 接的是外部模型時，這些內容就送到外部。這和 M5 尚待決定的資料去向是同一個問題，所以「回傳頁面內容」預設關。</li>
+          <li><strong>Secrets：</strong>只能引用名稱，值永遠不回傳。</li>
+          <li><strong>發布門檻不變：</strong>Agent 寫的場景和人寫的一樣要經過真實驗證，發布的版本必須就是驗證通過的版本。</li>
+          <li><strong>調試有副作用：</strong>調試會在目標系統上真的點擊與填寫；建議專給 Agent 一台錄製端，並用測試帳號的角色。</li>
+          <li><strong>失控保護：</strong>限額防止排滿佇列或占住錄製端；金鑰可以一鍵停用。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="data">
+      <div class="panel-header"><h2>資料庫與相容性</h2></div>
+      <div class="panel-body"><p>新遷移接在專案空間（0015）之後，只用 SQLite 與 PostgreSQL 都能跑的通用型別（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。現有 <code>/api</code>、Client API、Worker API 不變；舊版 App 照常可用。</p></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>表或欄位</th><th>內容</th><th>期</th></tr></thead>
+          <tbody>
+            <tr><td><code>api_clients</code></td><td>名稱、金鑰雜湊、權限範圍、可用領域與錄製端、執行位置、限額、回傳頁面內容、到期、啟用、最後使用</td><td>一</td></tr>
+            <tr><td><code>api_audit</code></td><td>時間、用戶端、動作、對象、結果碼、摘要；只增不改</td><td>一</td></tr>
+            <tr><td><code>runs.client_id</code></td><td>觸發這次運行的用戶端</td><td>一</td></tr>
+            <tr><td><code>recorders.allow_agent</code>、<code>agent_headless_only</code></td><td>允不允許 Agent 調試、是否只允許無頭</td><td>一</td></tr>
+            <tr><td><code>run_events</code></td><td>運行代號、序號、時間、種類、內容；跟著運行的保留規則清理</td><td>二</td></tr>
+            <tr><td><code>runs.step_index</code>、<code>step_count</code></td><td>目前第幾步、共幾步</td><td>二</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Portal：</strong>管理後台新增「API 用戶端」頁（新增時金鑰只顯示一次、權限範圍、停用、重新產生金鑰、最後使用、稽核紀錄）；裝置頁的錄製端加「允許 Agent 調試」「只允許無頭」；運行列表與報告顯示觸發的 Agent。</li>
+          <li><strong>程式：</strong>新路由 <code>rpa_server/agent_api.py</code> 只轉接服務層；指定錄製端用現有的 <code>use_recorder(…)</code>；<code>PortGateMiddleware</code> 把 <code>/agent-api/</code> 加入對外路徑，金鑰由路由自己檢查；錯誤訊息照 <a href="../adr/0007-i18n.html">ADR 0007</a> 放進 locales，程式判斷用 <code>code</code>。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="phases">
+      <div class="panel-header"><h2>分期</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>期</th><th>內容</th><th>要更新的 App</th><th>完成的標準</th></tr></thead>
+          <tbody>
+            <tr><td>第一期</td><td>API 用戶端、金鑰、權限、稽核；探索、場景與參數、調試（指定錄製端、讀頁面結構）、驗證、發布、執行、取消、重跑；運行狀態、階段、結束後的步驟結果與產物；OpenAPI 與 Agent 使用指南</td><td>錄製端（讀頁面結構）</td><td>一支腳本從空白建立測試網站的場景：讀頁面結構寫出步驟，在錄製端調試、Worker 驗證、發布、執行並拿到出參</td></tr>
+            <tr><td>第二期</td><td>步驟級即時進度、事件長輪詢、Webhook；錄製端的 Agent 通知與停止</td><td>錄製端、Worker</td><td>執行中每一步的事件幾秒內讀得到；舊版 Worker 仍可執行</td></tr>
+            <tr><td>第三期</td><td>專案（組合場景）的執行與進度；請人登入的流程</td><td>不用</td><td>第二期完成後再定</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="testing">
+      <div class="panel-header"><h2>測試與驗收</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>自動測試：</strong>金鑰與權限（缺權限 403、停用或到期 401、超過限額 429）、每個端點的轉接、不搶人的調試工作階段、冪等鍵、稽核；錄製端與 Worker 用現有的測試輔助模擬。</li>
+          <li><strong>瀏覽器測試：</strong>測試網站上的完整流程（建立 → 讀頁面結構 → 調試 → 驗證 → 發布 → 執行 → 讀結果），登記到 <code>tools/ci_roles.py</code>。</li>
+          <li><strong>人工驗收：</strong>Linux 伺服器＋macOS 錄製端＋Windows Worker，從另一台電腦用腳本走完整流程；關掉「允許 Agent 調試」後請求被拒。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
