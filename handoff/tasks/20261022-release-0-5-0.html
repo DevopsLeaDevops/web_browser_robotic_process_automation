@@ -55,7 +55,7 @@
         <li><strong>現象：</strong>確認版本通過；Windows Worker、macOS Worker、macOS 錄製端、伺服器 x64、arm64 五個工作的建置、自我測試、端到端與 Rocky 8 安裝都通過，最後 <code>actions/upload-artifact@v7</code> 失敗：<code>Failed to CreateArtifact: Artifact storage quota has been hit. Unable to upload any new artifacts.</code>「草稿 Release」因此略過。標籤 v0.5.0 本身沒有問題，不用重打。</li>
         <li><strong>原因：</strong>倉庫在 2026-10-22 改成私有。公開倉庫的 Actions 產物不計儲存額度，私有倉庫要計入帳號方案的額度（Free 500 MB、Pro 1 GB、Team 2 GB；超過要設 Actions 的預算）。2026-10-22 21:35 PDT 從 API 查到 693 個未過期產物、約 30 GB：worker-windows-latest 16.8 GB、舊名稱 recorder-macos-14 10.1 GB、recorder-macos-15 0.75 GB、伺服器分發包 1.4 GB、worker-macos-15 0.59 GB、測試報告與 Portal 軌跡 0.4 GB；都保存 14 天。單次發布要上傳約 504 MB（Windows 136、兩個 DMG 各 84、伺服器 103 與 97 MB），本身就超過 Free 的 500 MB。帳號方案查不到（工作階段只能用倉庫範圍的 API）。</li>
         <li><strong>選項（待使用者決定，Claude 建議維持私有）：</strong>(1) 改回公開：產物不計額度，重跑這次執行的失敗工作即可，從零安裝與 App 的「下載新版」也恢復。(2) 維持私有：刪掉舊產物（不能復原，要使用者同意）；在 Settings › Billing 設 Actions 儲存的預算；合併縮短保存期的 PR；額度重新計算後重跑這次執行的失敗工作。</li>
-        <li><strong>修正 PR（兩種選項都適用）：</strong>desktop.yml、server-package.yml 的產物保存期從 14 天改成 PR 與 main 3 天、標籤 1 天；release.yml 建立草稿後刪掉這次執行的產物（<code>actions: write</code>，刪不掉只留警告）。</li>
+        <li><strong>修正 PR（兩種選項都適用）：</strong>desktop.yml、server-package.yml 的產物保存期從 14 天改成 PR 與 main 3 天、標籤 1 天；release.yml 建立草稿後刪掉這次執行的產物（<code>actions: write</code>，刪不掉只留警告）；ci.yml、nightly.yml、setup-scripts.yml 的測試報告與 Portal 軌跡（診斷用）上傳失敗時不再讓工作失敗：PR #75 的「測試（Python 3.12）」就是測試通過、只有上傳報告時額度用完而變紅。</li>
       </ul></div>
     </section>
     <section class="panel" id="known-issues">
