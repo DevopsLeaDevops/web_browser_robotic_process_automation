@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-22 21:10 America/Los_Angeles（PDT，UTC−07:00）。共 305 次運行。
+更新：2026-10-22 21:33 America/Los_Angeles（PDT，UTC−07:00）。共 306 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -14,13 +14,13 @@
 | 伺服器分發包 | 7（0） | 5（0） | 1.9 分（0.0 分） | 10.3 分（0.0 分） | 0.1 分（0.0 分） | 31／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 34（0） | 15（0） | 3.1 分（0.0 分） | 15.5 分（0.0 分） | 0.1 分（0.0 分） | 198／138／38 分（0／0／0 分） |
 | 每晚完整測試 | 3（0） | 0（0） | 40.7 分（0.0 分） | 60.2 分（0.0 分） | 0.0 分（0.0 分） | 157／140／0 分（0／0／0 分） |
-| 發布 | 1（0） | 1（0） | 5.7 分（0.0 分） | 5.7 分（0.0 分） | 0.1 分（0.0 分） | 1／5／4 分（0／0／0 分） |
+| 發布 | 2（0） | 1（0） | 5.8 分（0.0 分） | 5.9 分（0.0 分） | 0.1 分（0.0 分） | 4／9／12 分（0／0／0 分） |
 
 ## 每天的機器時間（分鐘，洛杉磯日期，最近 14 天）
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-22 | 95 | 454 | 317 | 94 | 865 |
+| 2026-10-22 | 96 | 457 | 321 | 103 | 882 |
 | 2026-10-21 | 86 | 295 | 318 | 97 | 711 |
 | 2026-10-20 | 121 | 359 | 274 | 134 | 767 |
 | 2026-10-19 | 3 | 10 | 8 | 6 | 25 |
@@ -200,6 +200,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 10-22 21:27 | 發布 | 推送 | v0.5.0 | failure | 5.9 分 | 0.1 分 | [#39900384051](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39900384051/attempts/1) |
 | 10-22 21:00 | 伺服器分發包 | 推送 | main | failure | 1.9 分 | 0.1 分 | [#39898016309](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39898016309/attempts/1) |
 | 10-22 21:00 | 一鍵安裝腳本 | 推送 | main | failure | 2.8 分 | 0.0 分 | [#39898016283](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39898016283/attempts/1) |
 | 10-22 21:00 | 桌面端建置 | 推送 | main | failure | 4.9 分 | 0.0 分 | [#39898016447](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39898016447/attempts/1) |
@@ -239,5 +240,4 @@
 | 10-22 07:18 | CI | 推送 | main | cancelled | 10.5 分 | 0.1 分 | [#39794604795](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39794604795/attempts/1) |
 | 10-22 06:49 | 桌面端建置 | PR | feat/macos-worker | success | 0.2 分 | 0.1 分 | [#39790298065](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39790298065/attempts/1) |
 | 10-22 06:49 | CI | PR | feat/macos-worker | success | 2.5 分 | 0.1 分 | [#39790297868](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39790297868/attempts/1) |
-| 10-22 06:43 | 桌面端建置 | PR | claude/project-thread-ab62tv | success | 3.9 分 | 0.0 分 | [#39789364884](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39789364884/attempts/1) |
 
