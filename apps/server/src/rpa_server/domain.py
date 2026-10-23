@@ -320,6 +320,8 @@ class RunRecord:
     """由哪台 worker 執行；local 是本機，還沒開始時是 None。"""
     video: dict[str, object] | None = None
     """錄影（M12，見 rpa_server.videos.video_details）；從來沒有錄影時是 None。"""
+    client_id: str | None = None
+    """由哪個 API 用戶端觸發（M14）；人在 Portal 觸發的是 None。"""
 
     @property
     def finished(self) -> bool:
@@ -354,6 +356,7 @@ class RunRecord:
             "target": self.target,
             "workerId": self.worker_id,
             "video": self.video,
+            "clientId": self.client_id,
         }
 
 
@@ -756,6 +759,12 @@ class RecorderRecord:
     """App 看得懂的 DSL 擴充（M7a；更舊的 App 沒有回報，是空的）。"""
     menus: tuple[str, ...] = ()
     """透過這台打開管理 Portal 時另外顯示的第一級選單（叢集管理、管理後台；預設都不顯示）。"""
+    allow_agent: bool = False
+    """允許 API 用戶端（Agent）在這台開調試瀏覽器（M14）。"""
+    agent_headless_only: bool = False
+    """Agent 在這台只能用無頭模式。"""
+    capabilities: tuple[str, ...] = ()
+    """App 支援的功能（M14，例如讀頁面結構 debugSnapshot；更舊的 App 沒有回報，是空的）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -777,4 +786,7 @@ class RecorderRecord:
             "active": self.active,
             "features": list(self.features),
             "menus": list(self.menus),
+            "allowAgent": self.allow_agent,
+            "agentHeadlessOnly": self.agent_headless_only,
+            "capabilities": list(self.capabilities),
         }

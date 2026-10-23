@@ -17,6 +17,7 @@ from rpa_server.context import Via, use_recorder
 from rpa_server.errors import ServiceError
 
 __all__ = [
+    "AGENT_API",
     "CLIENT_API",
     "EXTERNAL_PATHS",
     "LANG_COOKIE",
@@ -99,8 +100,9 @@ class SameOriginMiddleware:
 
 WORKER_API: Final = "/worker-api/"
 CLIENT_API: Final = "/client-api/"
-EXTERNAL_PATHS: Final = (WORKER_API, CLIENT_API)
-"""只在對外埠提供的路徑：Worker API（M9a）與桌面 App 的 Client API（M10）。"""
+AGENT_API: Final = "/agent-api/"
+EXTERNAL_PATHS: Final = (WORKER_API, CLIENT_API, AGENT_API)
+"""只在對外埠提供的路徑：Worker API（M9a）、桌面 App 的 Client API（M10）、Agent API（M14）。"""
 
 
 async def _reply(send: Send, status: int, code: str, message: str) -> None:
@@ -125,13 +127,13 @@ def _bearer(scope: Scope) -> str | None:
 class PortGateMiddleware:
     """對外埠與管理頁面分開在兩個埠（M9a，ADR 0012；M10 ADR 0014 改稱「對外埠」）。
 
-    - 從對外埠（``worker_port``）進來的 ``/worker-api/`` 與 ``/client-api/`` 照常交給路由，
-      權杖由路由自己檢查。
+    - 從對外埠（``worker_port``）進來的 ``/worker-api/``、``/client-api/`` 與 ``/agent-api/``
+      照常交給路由，權杖或 API 金鑰由路由自己檢查。
     - 對外埠上的其他路徑（Portal 頁面、``/api``、靜態檔）只接受錄製端的裝置權杖（M10.2，
       ``authenticate`` 驗證）：錄製端的本機閘道替每個請求加上 ``Authorization``。沒有或不對時 401；
       worker 的權杖也不行。驗過的請求記在 :mod:`rpa_server.context`（頁面與服務知道透過哪台）。
       沒給 ``authenticate`` 時一律 404（M10.1 的行為）。
-    - 從其他埠進來的請求不能用這兩組路徑（沒有開對外埠時也一樣）。
+    - 從其他埠進來的請求不能用這幾組路徑（沒有開對外埠時也一樣）。
     """
 
     def __init__(

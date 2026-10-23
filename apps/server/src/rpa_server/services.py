@@ -10,6 +10,7 @@ M11 起場景、版本、角色的定義在領域資料夾（packs.py），資�
 M4 的登入角色與 Secrets（roles.py）、錄製（recordings.py）、調試工作階段（debugging.py）
 各自一個模組，由這裡建立：``services.roles``、``services.recordings``、``services.debug``；
 M6 的自由試驗場序列（workflows.py）是 ``services.workflows``。
+M14 的對外 Agent API 用戶端（agents.py）是 ``services.agents``；路由在 agent_api.py。
 """
 
 import json
@@ -41,6 +42,7 @@ from rpa_runner.contract import prepare_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
+from rpa_server.agents import AgentService
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
 from rpa_server.devices import RecorderHub
@@ -281,6 +283,7 @@ def run_record(run: Run) -> RunRecord:
         target=cast("Target", run.target),
         worker_id=run.worker_id,
         video=video_details(run),
+        client_id=run.client_id,
     )
 
 
@@ -372,6 +375,8 @@ class Services:
             sessions, storage, self.queue, self.roles, locale=locale, local_worker=local_worker
         )
         """遠端 worker 的登記與分派（M9a）。"""
+        self.agents = AgentService(sessions)
+        """對外 Agent API 的用戶端、金鑰、限額與稽核（M14）。"""
         self.on_queued: Callable[[], None] = lambda: None
         """有新的執行排入佇列（叫醒 worker）。"""
         self.on_cancel: Callable[[str], object] = lambda run_id: None
@@ -922,6 +927,7 @@ class Services:
         category: str | None = None,
         *,
         domain_id: str | None = None,
+        note: str | None = None,
     ) -> SceneRecord:
         scene_id, name = scene_id.strip(), name.strip()
         category = (category or "").strip() or None
@@ -930,7 +936,9 @@ class Services:
         if not name:
             raise _invalid("scene_name_missing", t("error.scene_name_missing"))
         files = {SCENARIO_FILE: new_scene_template(scene_id, name, category)}
-        return self.add_scene(scene_id, files, note=t("revision.note_created"), domain_id=domain_id)
+        return self.add_scene(
+            scene_id, files, note=note or t("revision.note_created"), domain_id=domain_id
+        )
 
     def scene_exists(self, scene_id: str) -> bool:
         with self.sessions() as session:
@@ -1184,12 +1192,13 @@ class Services:
         node_id: str | None = None,
         target: Target | None = None,
         required_worker: str | None = None,
+        client_id: str | None = None,
     ) -> RunRecord:
         """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本；
         試驗場序列的節點（workflow）用序列固定的版本，只能是發布過的版本（M6）。
 
         target 是執行位置（M9a），沒指定時用預設執行位置；
-        required_worker 指定只能由哪台 worker 執行。
+        required_worker 指定只能由哪台 worker 執行；client_id 是觸發的 API 用戶端（M14）。
         headless 沒指定時：執行的地方能顯示瀏覽器視窗就用有頭模式，不能就用無頭模式。
         """
         inputs = dict(inputs or {})
@@ -1245,6 +1254,7 @@ class Services:
                 node_id=node_id,
                 target=target,
                 required_worker=required_worker,
+                client_id=client_id,
             )
             session.add(run)
             if purpose == "validation":
@@ -1424,8 +1434,10 @@ class Services:
         revision: int | None = None,
         limit: int = RUN_LIST_LIMIT,
         with_video: bool = False,
+        client_id: str | None = None,
     ) -> list[RunRecord]:
-        """運行清單（新的在前）；``with_video`` 時只列還有錄影的（運行回看頁，M12）。"""
+        """運行清單（新的在前）；``with_video`` 時只列還有錄影的（運行回看頁，M12）；
+        ``client_id`` 時只列那個 API 用戶端觸發的（M14）。"""
         statement = select(Run).order_by(Run.created_at.desc(), Run.id.desc()).limit(limit)
         if with_video:
             statement = statement.where(
@@ -1452,6 +1464,8 @@ class Services:
             statement = statement.where(Run.purpose.in_(list(purposes)))
         if revision is not None:
             statement = statement.where(Run.revision_number == revision)
+        if client_id is not None:
+            statement = statement.where(Run.client_id == client_id)
         with self.sessions() as session:
             return [run_record(run) for run in session.scalars(statement)]
 
@@ -1787,9 +1801,12 @@ class Services:
                 _section_lines(cast("list[dict[str, object]]", issues), files[SCENARIO_FILE], key)
             raise
 
-    def rerun(self, run_id: str, *, idempotency_key: str | None = None) -> RunRecord:
+    def rerun(
+        self, run_id: str, *, idempotency_key: str | None = None, client_id: str | None = None
+    ) -> RunRecord:
         """用同樣的入參與選項再執行一次（例如登入之後）。驗證用同一個版本，正式執行用目前發布的版本；
         試驗場序列的節點只重新執行這一個節點（同一個版本），不接著執行序列，序列請從序列執行頁繼續。
+        ``client_id`` 是要求重跑的 API 用戶端（M14）。
         """
         run = self.get_run(run_id)
         target = run.target if run.target != "remote" or self.workers.has_remote() else "local"
@@ -1806,4 +1823,5 @@ class Services:
             headless=run.headless if run.headless or self.can_display(target) else True,
             target=target,
             required_worker=pinned,
+            client_id=client_id,
         )

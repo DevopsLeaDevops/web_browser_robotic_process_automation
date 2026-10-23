@@ -12,7 +12,10 @@
   指令、檔案與輸出的格式見 :mod:`rpa_worker.interactive`。
 - **App 太舊**（M7a）：錄製端上線時回報看得懂的 DSL 擴充（``features``）。交給它的場景或登入設定
   用到它不懂的（例如 iframe 的 ``frame``）時，:meth:`RecorderHub.check` 直接說明要更新 RPA 錄製端，
-  不讓舊 App 只回一句「場景校驗失敗」。
+  不讓舊 App 只回一句「場景校驗失敗」。M14 另外回報支援的功能（``capabilities``，例如調試時讀頁面
+  結構），:meth:`RecorderHub.require` 檢查。
+- **Agent**（M14，ADR 0017）：錄製端要在裝置頁打開「允許 Agent 調試」（``allow_agent``），API 用戶端
+  才能在這台開調試瀏覽器；可以只允許無頭（``agent_headless_only``）。
 - **失聯**：超過 :data:`rpa_worker.interactive.LOST_SECONDS` 沒有輪詢、錄製端重新啟動、
   停用或刪除時，它的子程序視為結束（結束碼 :data:`LOST_EXIT`，日誌最後加一行原因）。
 
@@ -422,6 +425,9 @@ class RecorderHub:
             active=active,
             features=reported_names(info.get("features")),
             menus=_menus(row.menus),
+            allow_agent=row.allow_agent,
+            agent_headless_only=row.agent_headless_only,
+            capabilities=reported_names(info.get("capabilities")),
         )
 
     def list_recorders(self) -> list[RecorderRecord]:
@@ -466,8 +472,11 @@ class RecorderHub:
         name: str | None = None,
         disabled: bool | None = None,
         menus: Collection[str] | None = None,
+        allow_agent: bool | None = None,
+        agent_headless_only: bool | None = None,
     ) -> RecorderRecord:
-        """改名稱、停用，或設定透過這台時另外顯示的選單（RECORDER_MENUS 中的哪些）。"""
+        """改名稱、停用，或設定透過這台時另外顯示的選單（RECORDER_MENUS 中的哪些）；
+        允不允許 Agent 在這台調試、是否只允許無頭（M14）。"""
         with self.sessions() as session:
             row = self._row(session, recorder_id)
             if name is not None and name.strip():
@@ -482,6 +491,10 @@ class RecorderHub:
                         t("error.recorder_menu_invalid", menus=", ".join(unknown)),
                     )
                 row.menus = list(_menus(menus))
+            if allow_agent is not None:
+                row.allow_agent = allow_agent
+            if agent_headless_only is not None:
+                row.agent_headless_only = agent_headless_only
             session.commit()
             record = self._record(row)
         if disabled:
@@ -579,6 +592,7 @@ class RecorderHub:
                 "browsers",
                 "display",
                 "features",
+                "capabilities",
             )
             if key in info
         }
@@ -747,6 +761,24 @@ class RecorderHub:
             raise invalid(
                 "recorder_outdated",
                 t("error.recorder_outdated", name=via.name, features=", ".join(missing)),
+            )
+
+    def require(self, via: Via, capability: str) -> None:
+        """要用到錄製端 App 的某個功能（M14，見 :data:`rpa_worker.environment.CAPABILITIES`）之前：
+        上線中、而且回報支援；舊的 App 沒有回報時說明要更新 RPA 錄製端。"""
+        if not self.online(via.id):
+            raise conflict("recorder_offline", t("error.recorder_offline", name=via.name))
+        with self._lock:
+            channel = self._channels.get(via.id)
+            info = dict(channel.info) if channel is not None else {}
+        if capability not in reported_names(info.get("capabilities")):
+            raise invalid(
+                "recorder_outdated",
+                t(
+                    "error.recorder_capability_missing",
+                    name=via.name,
+                    feature=t(f"capability.{capability}"),
+                ),
             )
 
     def launcher(self, via: Via) -> Launch:
