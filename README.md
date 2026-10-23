@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-23 06:56 America/Los_Angeles（PDT，UTC−07:00）。共 329 次運行。
+更新：2026-10-23 08:59 America/Los_Angeles（PDT，UTC−07:00）。共 330 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -11,7 +11,7 @@
 |---|---|---|---|---|---|---|
 | CI | 161（0） | 85（0） | 3.0 分（0.0 分） | 6.6 分（0.0 分） | 0.0 分（0.0 分） | 826／339／0 分（0／0／0 分） |
 | 桌面端建置 | 114（0） | 85（0） | 4.0 分（0.0 分） | 5.4 分（0.0 分） | 0.1 分（0.0 分） | 11／326／325 分（0／0／0 分） |
-| 伺服器分發包 | 11（0） | 7（0） | 1.9 分（0.0 分） | 10.3 分（0.0 分） | 0.1 分（0.0 分） | 46／0／0 分（0／0／0 分） |
+| 伺服器分發包 | 12（0） | 8（0） | 2.0 分（0.0 分） | 10.3 分（0.0 分） | 0.1 分（0.0 分） | 54／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 37（0） | 16（0） | 3.0 分（0.0 分） | 15.2 分（0.0 分） | 0.1 分（0.0 分） | 210／144／45 分（0／0／0 分） |
 | 每晚完整測試 | 3（0） | 0（0） | 40.7 分（0.0 分） | 60.2 分（0.0 分） | 0.0 分（0.0 分） | 157／140／0 分（0／0／0 分） |
 | 發布 | 3（0） | 2（0） | 5.9 分（0.0 分） | 6.8 分（0.0 分） | 0.1 分（0.0 分） | 7／13／23 分（0／0／0 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-23 | 7 | 49 | 3 | 9 | 62 |
+| 2026-10-23 | 8 | 58 | 3 | 9 | 71 |
 | 2026-10-22 | 112 | 544 | 359 | 146 | 1048 |
 | 2026-10-21 | 86 | 295 | 318 | 97 | 711 |
 | 2026-10-20 | 121 | 359 | 274 | 134 | 767 |
@@ -201,6 +201,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 10-23 08:51 | 伺服器分發包 | PR | claude/project-thread-fr1onb | success | 7.5 分 | 0.1 分 | [#39981852267](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39981852267/attempts/1) |
 | 10-23 06:44 | CI | PR | claude/project-thread-fr1onb | success | 11.9 分 | 0.1 分 | [#39963718445](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39963718445/attempts/1) |
 | 10-23 04:08 | CI | PR | claude/project-thread-u3rhl1 | success | 2.7 分 | 0.0 分 | [#39943337519 第 2 次](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39943337519/attempts/2) |
 | 10-23 04:02 | CI | PR | claude/project-thread-u3rhl1 | failure | 3.5 分 | 0.0 分 | [#39943337519](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39943337519/attempts/1) |
@@ -240,5 +241,4 @@
 | 10-22 08:18 | 一鍵安裝腳本 | PR | claude/project-thread-ab62tv | cancelled | 1.0 分 | 0.0 分 | [#39800058860 第 2 次](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39800058860/attempts/2) |
 | 10-22 08:10 | CI | PR | claude/project-thread-ab62tv | failure | 6.9 分 | 0.1 分 | [#39800058876 第 2 次](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39800058876/attempts/2) |
 | 10-22 07:57 | CI | PR | claude/project-thread-ab62tv | failure | 3.6 分 | 0.0 分 | [#39800058876](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39800058876/attempts/1) |
-| 10-22 07:57 | 伺服器分發包 | PR | claude/project-thread-ab62tv | success | 1.8 分 | 0.1 分 | [#39800059052](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39800059052/attempts/1) |
 
