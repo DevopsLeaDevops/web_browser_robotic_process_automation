@@ -1358,3 +1358,6 @@
 {"attempt": 1, "conclusion": "failure", "duration_s": 2193.0, "job": "完整測試（ubuntu-latest，Python 3.12）", "os": "linux", "queue_s": 2.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "failure", "duration_s": 2448.0, "job": "完整測試（ubuntu-latest，Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39852131374, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 7.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 39898016309, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 84.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 5.0, "run_id": 39898016309, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 105.0, "job": "分發包（x64）", "os": "linux", "queue_s": 2.0, "run_id": 39898016309, "workflow": "伺服器分發包"}
