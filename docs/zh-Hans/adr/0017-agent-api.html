@@ -17,7 +17,7 @@
       <h1>ADR 0017：第三方 Agent 经由独立、以 API 密钥授权的 /agent-api/v1 操作平台</h1>
       <p>Agent 只连服务器；调试交给指定的录制端，验证与运行交给 Worker，业务规则与发布门槛沿用现有服务。新的一层只做认证、权限、审核与对外契约。</p>
     </div>
-    <span class="badge amber">提议中</span>
+    <span class="badge green">已接受</span>
   </div>
 
   <div class="stack">
@@ -61,7 +61,7 @@
         <div class="panel-body prose">
           <ul>
             <li>大部分端点是转接，第一期的工作集中在认证、权限、审核、指定录制端与读页面结构。</li>
-            <li>多一个对外的界面：密钥在 HTTP 下是明文，Agent 不在受信任的区网时要在服务器前加 HTTPS。</li>
+            <li>多一个对外的界面：密钥在 HTTP 下是明文。Agent 系统与服务器在同一个局域网（用户 2026-10-23 确认），第一期不要求 HTTPS；Agent 移到局域网外时要在服务器前加 HTTPS。</li>
             <li>读页面结构要出新版录制端 App；旧版 App 仍可调试，只是不能读页面结构。</li>
             <li>Agent 接外部模型时，打开「回传页面内容」等于让内部页面离开内网；这要由管理员逐个用户端决定。</li>
             <li>M8 加入用户与项目权限时，API 用户端要并入同一套权限模型。</li>

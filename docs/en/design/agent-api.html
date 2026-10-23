@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e0d93a10dedd3c98">
+<meta name="translation-source" content="sha256:fa302e8f84152ccb">
 <title>Agent API · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -31,11 +31,11 @@
       <h1>Agent API</h1>
       <p>A third-party agent system works only through the server's <code>/agent-api/v1</code>: it writes scenarios and their inputs and outputs, opens a browser on a chosen recorder to debug step by step, has Workers validate and run them, and follows run progress. The new layer only adds authentication, permissions and auditing; business rules and the publishing gate stay in the existing services.</p>
     </div>
-    <span class="badge amber">Design confirmed, not built</span>
+    <span class="badge blue">Phase 1 in progress</span>
   </div>
 
   <div class="stack">
-    <div class="notice">The decision and the options not chosen are in <a href="../adr/0017-agent-api.html">ADR 0017</a>; how an agent calls the API is in the <a href="../develop/agent-api-guide.html">Agent API guide</a>. The user confirmed the design on 2026-10-23; once phase 1 is built, the server's <code>/agent-api/v1/openapi.json</code> is the reference for endpoints.</div>
+    <div class="notice">The decision and the options not chosen are in <a href="../adr/0017-agent-api.html">ADR 0017</a>; how an agent calls the API is in the <a href="../develop/agent-api-guide.html">Agent API guide</a>. The user confirmed the design on 2026-10-23, and phase 1 was built the same day (in review). The server's <code>/agent-api/v1/openapi.json</code> is the reference for endpoints, and <code>/agent-api/v1/docs</code> lets you try them directly.</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>Scope</h2><span class="muted">From nothing to a scenario that runs in production</span></div>
@@ -134,7 +134,7 @@
           <dt>Scopes</dt><dd>Ticked from the table below; a new client has only <code>scenes:read</code> and <code>runs:read</code></dd>
           <dt>Allowed domains</dt><dd>Which domains' scenarios it can read and write; all by default</dd>
           <dt>Allowed recorders</dt><dd>Which recorders it may open a debug browser on; none by default. The recorder itself must also have "Allow agent debugging" switched on in the Devices page, optionally "Headless only"</dd>
-          <dt>Run location</dt><dd>local, remote or any, and which Workers it may choose; remote and any Worker by default</dd>
+          <dt>Run location</dt><dd>local, remote or any, and which Workers it may choose (<code>workerId</code>); by default the server's default run location and any Worker</dd>
           <dt>Limits</dt><dd>Concurrent debug sessions and queued runs; suggested defaults 2 and 20, with 429 above them</dd>
           <dt>Page content</dt><dd>Whether screenshots, page snapshots and videos may go to this client; off by default, switched on once an administrator has confirmed the agent's model may receive internal pages; while off those endpoints return 403</dd>
           <dt>Expiry, enabled, source IPs</dt><dd>An expired, disabled or out-of-list key stops working at once; by default no expiry, enabled, any source</dd>
@@ -156,9 +156,9 @@
       </div>
       <div class="panel-body">
         <ul class="points">
-          <li><strong>No taking over a person's session:</strong> if someone is already debugging the scenario, the API returns 409 <code>debug_busy</code> instead of closing their session; an agent can only close sessions it opened (the Portal still closes the old session when a person starts on another device).</li>
+          <li><strong>No taking over a person's session:</strong> if someone else (a person or another agent) is already debugging the scenario, the API returns 409 <code>debug_in_use</code> instead of closing their session; an agent can see and use only sessions it opened (the Portal still closes the old session when a person starts on another device). <code>debug_busy</code> keeps its existing meaning: the previous command in the same session has not finished.</li>
           <li><strong>Audit log:</strong> every write request is recorded (time, client, action, target, result code); administrators can filter it in the admin area but cannot edit or delete it. Revisions saved by an agent are noted "Created by agent ‹name›", and runs record the client that started them.</li>
-          <li><strong>Transport:</strong> the external port speaks HTTP, so keys travel in clear text. When the agent system is not on the same trusted network, put a reverse proxy with HTTPS in front of the server; the program itself does not do TLS.</li>
+          <li><strong>Transport:</strong> the external port speaks HTTP, so keys travel in clear text. The user confirmed (2026-10-23) that the agent system and the server share a local network, so phase 1 does not require HTTPS. If the agent later moves off that network, put a reverse proxy with HTTPS in front of the server; the program itself does not do TLS.</li>
         </ul>
       </div>
     </section>
@@ -211,7 +211,7 @@
           <thead><tr><th>Endpoint</th><th>Content</th><th>Phase</th></tr></thead>
           <tbody>
             <tr><td><code>GET /runs/{id}</code></td><td>Status (queued, running, passed, failed, timed out, cancelled, needs login), current stage, which Worker, inputs, outputs (only when passed), error, start and end times</td><td>1</td></tr>
-            <tr><td><code>GET /runs?scene=&amp;status=&amp;since=</code></td><td>Runs this client can see</td><td>1</td></tr>
+            <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>Runs this client can see (scenarios in its domains); <code>mine</code> lists only the runs it started</td><td>1</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>Each step's status, start and end time, error and URL afterwards; updated live while running from phase 2</td><td>1, 2</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>Artifacts such as screenshots, report.html, result.json and videos (subject to page content)</td><td>1</td></tr>
             <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>Event long polling: returns as soon as there is a new event, otherwise waits up to <code>wait</code> seconds</td><td>2</td></tr>
@@ -223,7 +223,7 @@
         <ul class="points">
           <li><strong>Events:</strong> <code>queued</code>, <code>claimed</code> (which Worker), <code>stage</code> (inputs, login, automation, verification, outputs), <code>step</code> (a step started or ended, its result and duration), <code>finished</code> (final status, outputs, error summary). Sequence numbers increase, so <code>after</code> resumes without gaps after a disconnect.</li>
           <li><strong>Where step progress comes from:</strong> the runner's child process already writes <code>steps.json</code> after every step. The local worker reads the file and updates the database; a remote Worker adds the current step to its heartbeat and sends one extra heartbeat when the step changes. Older Workers without these fields keep working and only show stages.</li>
-          <li><strong>Long polling first:</strong> Workers and recorders already work this way, it passes through proxies, and the server never has to connect to the agent. Webhooks need the server to reach the agent system and wait until the network direction is confirmed.</li>
+          <li><strong>Long polling first:</strong> Workers and recorders already work this way, it passes through proxies, and the server never has to connect to the agent. The agent system shares a local network with the server (confirmed by the user on 2026-10-23), so phase 2 webhooks can connect from the server to the agent directly.</li>
           <li><strong>Debugging needs no events:</strong> each debug command answers only when it has finished, with the result of that step.</li>
         </ul>
       </div>
@@ -254,7 +254,7 @@
           <li><strong>How:</strong> the debug process <code>rpa_runner.debug</code> gets a <code>snapshot</code> command returning the current tab's accessibility tree (Playwright's ARIA snapshot), form fields (label, name, type, required), the iframe hierarchy and the open tabs. The agent writes <code>role</code> / <code>label</code> / <code>text</code> locators from it.</li>
           <li><strong>Masking:</strong> values of fields filled with a secret and of password fields are always masked, using the runner's existing masking.</li>
           <li><strong>Size:</strong> above a limit the snapshot is truncated and marked so; the agent can pass <code>within</code> to look at part of the page only.</li>
-          <li><strong>Compatibility:</strong> the recorder reports <code>snapshot</code> support when it comes online; an older app gets 409 <code>recorder_outdated</code> with a message to update the RPA recorder (as in M7a).</li>
+          <li><strong>Compatibility:</strong> the recorder reports <code>snapshot</code> support when it comes online; when an older app does not, the API returns 422 <code>recorder_outdated</code> with a message to update the RPA recorder (the same approach and status code as M7a).</li>
         </ul>
       </div>
     </section>
@@ -274,7 +274,7 @@
 
     <section class="panel" id="data">
       <div class="panel-header"><h2>Database and compatibility</h2></div>
-      <div class="panel-body"><p>The new migration follows the projects migration (0015) and uses only generic types that run on both SQLite and PostgreSQL (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>). <code>/api</code>, the Client API and the Worker API do not change; older apps keep working.</p></div>
+      <div class="panel-body"><p>The phase 1 migration is <code>0015_agent_api</code> (if the projects migration merges first, it moves to follow that one) and uses only generic types that run on both SQLite and PostgreSQL (<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>). <code>/api</code>, the Client API and the Worker API do not change; older apps keep working.</p></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>Table or column</th><th>Content</th><th>Phase</th></tr></thead>

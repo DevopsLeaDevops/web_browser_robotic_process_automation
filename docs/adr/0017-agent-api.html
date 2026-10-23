@@ -16,7 +16,7 @@
       <h1>ADR 0017：第三方 Agent 經由獨立、以 API 金鑰授權的 /agent-api/v1 操作平台</h1>
       <p>Agent 只連伺服器；調試交給指定的錄製端，驗證與執行交給 Worker，業務規則與發布門檻沿用現有服務。新的一層只做認證、權限、稽核與對外契約。</p>
     </div>
-    <span class="badge amber">提議中</span>
+    <span class="badge green">已接受</span>
   </div>
 
   <div class="stack">
@@ -60,7 +60,7 @@
         <div class="panel-body prose">
           <ul>
             <li>大部分端點是轉接，第一期的工作集中在認證、權限、稽核、指定錄製端與讀頁面結構。</li>
-            <li>多一個對外的介面：金鑰在 HTTP 下是明文，Agent 不在受信任的區網時要在伺服器前加 HTTPS。</li>
+            <li>多一個對外的介面：金鑰在 HTTP 下是明文。Agent 系統與伺服器在同一個局域網（使用者 2026-10-23 確認），第一期不要求 HTTPS；Agent 移到局域網外時要在伺服器前加 HTTPS。</li>
             <li>讀頁面結構要出新版錄製端 App；舊版 App 仍可調試，只是不能讀頁面結構。</li>
             <li>Agent 接外部模型時，打開「回傳頁面內容」等於讓內部頁面離開內網；這要由管理員逐個用戶端決定。</li>
             <li>M8 加入使用者與專案權限時，API 用戶端要併入同一套權限模型。</li>

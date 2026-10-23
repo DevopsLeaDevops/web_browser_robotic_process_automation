@@ -3,49 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>對外 Agent API（設計已確認） · 瀏覽器 RPA</title>
+<title>對外 Agent API（M14 第一期實作） · 瀏覽器 RPA</title>
 <link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
 <link rel="stylesheet" href="../handoff.css">
 </head>
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>對外 Agent API（設計已確認）</h1><p>讓第三方 Agent 系統只透過 Linux 伺服器的 API，操作錄製端完成場景腳本與入參出參的新增、修改、調試，再經由伺服器交給 Worker 驗證與執行，並隨時取得運行過程。設計已由使用者確認並寫進文檔；第一期程式等使用者說開始再寫。</p></div></div>
+  <div class="heading"><div><h1>對外 Agent API（M14 第一期實作）</h1><p>讓第三方 Agent 系統只透過 Linux 伺服器的 API，操作錄製端完成場景腳本與入參出參的新增、修改、調試，再經由伺服器交給 Worker 驗證與執行，並隨時取得運行過程。設計已由使用者確認並寫進文檔；使用者 2026-10-23 07:28 說可以做，第一期已實作，與文檔同一個 PR 待審閱。</p></div></div>
   <div class="stack">
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261023-agent-api；2026-10-23 06:43 America/Los_Angeles（PDT，UTC−07:00）</dd>
-        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-23 05:44 America/Los_Angeles（PDT，UTC−07:00）在專案對話要求：「三方系統使用 Linux 伺服器 API 操作錄製端，完成場景腳本和參數的新增、修改、調試運行；同時透過 Linux 服務端呼叫 worker 完成驗證和運作。三方系統是一個 agent 系統。先做設計，確認沒問題再開始 coding。」稍早一則訊息（同日 05:33）提到對外 API 要支持三方系統取得運行過程，原文後半「三方系統主要是…」被截斷，尚未補上。06:29 要求：讀頁面結構提到第一期、設計同步寫進文檔、另寫一份指導 Agent 使用 API 的文檔、待決事項 1～3 依建議、不做 MCP。本階段完成條件：文檔 PR 合併。</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261023-agent-api；2026-10-23 08:50 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-23 05:44 America/Los_Angeles（PDT，UTC−07:00）在專案對話要求：「三方系統使用 Linux 伺服器 API 操作錄製端，完成場景腳本和參數的新增、修改、調試運行；同時透過 Linux 服務端呼叫 worker 完成驗證和運作。三方系統是一個 agent 系統。先做設計，確認沒問題再開始 coding。」稍早一則訊息（同日 05:33）提到對外 API 要支持三方系統取得運行過程，原文後半「三方系統主要是…」被截斷，尚未補上。06:29 要求：讀頁面結構提到第一期、設計同步寫進文檔、另寫一份指導 Agent 使用 API 的文檔、待決事項 1～3 依建議、不做 MCP。07:28：「路綫圖編號用 M14。1. 伺服器和 Agent 是一個局域網。2. 斷掉的三方系統問答不要管他了打錯了。以上沒有問題就可以做。」本階段完成條件：第一期 PR 合併；M14 的驗收是從另一台電腦用腳本走完建立、調試、驗證、發布、執行並拿到出參（路線圖）。</dd>
         <dt>範圍／不包含</dt><dd>範圍：API 用戶端與金鑰、權限、稽核；<code>/agent-api/v1</code> 的場景與版本、調試（指定錄製端、讀頁面結構）、驗證、發布、執行、運行過程。不包含：錄製（codegen 要有人操作）、遠端畫面串流（ADR 0014 不做）、Secrets 的值、裝置與 git 同步管理、完整的使用者與專案權限（M8）、MCP 轉接。</dd>
-        <dt>主責／審閱／接收方</dt><dd>Claude 主責設計與文檔；審閱與確認：使用者；接收方未指定。</dd>
-        <dt>修改檔案／整合者</dt><dd>本階段：<code>docs/design/agent-api.html</code>、<code>docs/adr/0017-agent-api.html</code>、<code>docs/develop/agent-api-guide.html</code> 與英文版、工具產生的簡中版；<code>docs/roadmap.html</code>（M13）、<code>docs/adr/index.html</code>、<code>docs/index.html</code> 與英文、簡中版；<code>docs/assets/nav.js</code>；本任務紀錄與任務索引。沒有改 <code>handoff/decisions.html</code>（#78 正在改，避免衝突）。實作時預計新增 <code>apps/server/src/rpa_server/agent_api.py</code>、遷移（接在 #78 的 0015 之後）、管理後台「API 用戶端」頁、<code>rpa_runner.debug</code> 的 <code>snapshot</code> 命令；<code>middleware.py</code>、<code>app.py</code> 小改。</dd>
-        <dt>狀態</dt><dd>待審閱：設計已確認，文檔 PR 等使用者審閱；第一期程式未開工。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-fr1onb</code>（工具指定的分支名）；文檔 PR 見追加紀錄；base main <code>3d99504</code>。</dd>
-        <dt>交接版本／同步狀態</dt><dd>本紀錄隨本分支推送。完整設計在倉庫的「設計：對外 Agent API」與 ADR 0017；使用者的 Claude 文件「對外 Agent API 設計」內容相同。</dd>
-        <dt>工作區／環境</dt><dd>Claude 雲端容器 Linux x86_64；uv 管理的 Python 環境。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 主責設計、文檔與第一期實作；審閱與確認：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd>文檔：<code>docs/design/agent-api.html</code>、<code>docs/adr/0017-agent-api.html</code>（已接受）、<code>docs/develop/agent-api-guide.html</code> 與英文版、工具產生的簡中版；<code>docs/roadmap.html</code>（M14）、<code>docs/adr/index.html</code>、<code>docs/index.html</code>；<code>docs/assets/nav.js</code>。伺服器：新增 <code>apps/server/src/rpa_server/agents.py</code>（用戶端、金鑰雜湊、權限、稽核）、<code>agent_api.py</code>（掛在 <code>/agent-api/v1</code> 的子應用，自己的 OpenAPI）、遷移 <code>0015_agent_api.py</code>、<code>templates/agents.html</code>；修改 <code>api.py</code>（<code>/api/agents</code>、<code>/api/agent-audit</code>、錄製端的 Agent 開關）、<code>services.py</code>、<code>devices.py</code>、<code>debugging.py</code>、<code>models.py</code>、<code>domain.py</code>、<code>middleware.py</code>（對外埠多 <code>/agent-api</code>）、<code>app.py</code>、<code>pages.py</code>、<code>render.py</code>、<code>static/portal.js</code>、執行與裝置相關模板、三種語言的 locale。Runner：<code>rpa_runner/debug.py</code> 的 <code>snapshot</code> 命令；Worker：<code>environment.py</code> 回報 <code>debugSnapshot</code>。測試：<code>test_agent_api.py</code>（新）、<code>test_migrations.py</code>、<code>test_render.py</code>、<code>test_debug.py</code>、<code>test_protocol.py</code>。沒有改 <code>handoff/decisions.html</code>（#78 正在改，避免衝突）。整合者：使用者。</dd>
+        <dt>狀態</dt><dd>待審閱：第一期程式、測試與文檔都在 PR #79，本地與自動測試通過；人工驗收未執行。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-fr1onb</code>（工具指定的分支名）；PR #79（文檔與第一期實作）；base main <code>3d99504</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本紀錄隨本分支推送；推送後的 head 以 PR #79 為準。完整設計在倉庫的「設計：對外 Agent API」與 ADR 0017；使用者的 Claude 文件「對外 Agent API 設計」是確認時的版本，之後以倉庫為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器 Linux x86_64；uv 管理的 Python 環境；瀏覽器測試用容器內的 Chromium（沒有 Firefox）。</dd>
       </dl></div>
     </section>
     <section class="panel" id="design">
-      <div class="panel-header"><h2>設計摘要（已確認）</h2></div>
+      <div class="panel-header"><h2>設計與實作摘要</h2></div>
       <div class="panel-body"><p>完整內容見 <a href="../../docs/design/agent-api.html">設計：對外 Agent API</a>、<a href="../../docs/adr/0017-agent-api.html">ADR 0017</a> 與 <a href="../../docs/develop/agent-api-guide.html">Agent 使用指南</a>。</p><ul class="points">
         <li><strong>架構：</strong>對外埠（預設 8081）新增 <code>/agent-api/v1</code>，每個 Agent 系統一個「API 用戶端」，<code>Authorization: Bearer</code> 金鑰只存雜湊。Agent 只連伺服器；錄製端與 Worker 照舊經 Client API、Worker API 主動連進來。新路由只轉接 <code>Services</code>，業務規則與發布門檻不變。不直接開放 <code>/api</code>。</li>
-        <li><strong>指定錄製端：</strong>依 <code>recorderId</code> 用 <code>use_recorder(…)</code> 設定目前的錄製端，<code>DebugManager</code> 與 <code>RecorderHub</code> 幾乎不用改。錄製端加「允許 Agent 調試」「只允許無頭」開關，預設關閉；場景已有人在調試時回 409 <code>debug_busy</code>，不搶走。</li>
+        <li><strong>指定錄製端：</strong>依 <code>recorderId</code> 用 <code>use_recorder(…)</code> 設定目前的錄製端，<code>DebugManager</code> 與 <code>RecorderHub</code> 幾乎不用改。錄製端加「允許 Agent 調試」「只允許無頭」開關，預設關閉；場景已有別人在調試時回 409 <code>debug_in_use</code>，不搶走；Agent 只看得到自己開的工作階段。</li>
         <li><strong>權限範圍：</strong><code>scenes:read</code>、<code>scenes:write</code>、<code>debug</code>、<code>runs:validate</code>、<code>scenes:publish</code>（預設不勾）、<code>runs:execute</code>、<code>runs:read</code>；另有可用領域、錄製端、執行位置與 Worker、限額（預設 2 個調試、20 個排隊，超過回 429）、回傳頁面內容（預設關，關閉時回 403 <code>content_disabled</code>）、到期與來源 IP。每個寫入請求寫稽核紀錄。</li>
-        <li><strong>讀頁面結構（第一期）：</strong>調試子程序加 <code>snapshot</code> 命令：無障礙樹、表單欄位、iframe 與分頁，值遮罩，可帶 <code>within</code>，過大時截斷並標 <code>truncated</code>。錄製端上線時回報支援，舊版回 409 <code>recorder_outdated</code>。要出新版錄製端 App。</li>
+        <li><strong>讀頁面結構（第一期）：</strong>調試子程序加 <code>snapshot</code> 命令：無障礙樹、表單欄位、iframe 與分頁，值遮罩，可帶 <code>within</code>，過大時截斷並標 <code>truncated</code>。錄製端上線時回報 <code>debugSnapshot</code>，舊版回 422 <code>recorder_outdated</code>（沿用 M7a 的狀態碼）。要出新版錄製端 App。</li>
         <li><strong>運行過程：</strong>第一期 <code>GET /runs/{id}</code>、列表、結束後的步驟與產物。第二期 <code>steps.json</code> 經心跳回報步驟進度、<code>run_events</code> 長輪詢、Webhook（HMAC）、錄製端的 Agent 通知。</li>
-        <li><strong>資料庫：</strong>第一期 <code>api_clients</code>、<code>api_audit</code>、<code>runs.client_id</code>、<code>recorders.allow_agent</code>／<code>agent_headless_only</code>；第二期 <code>run_events</code>、<code>runs.step_index</code>／<code>step_count</code>。只用通用型別（ADR 0008）。</li>
+        <li><strong>冪等與稽核：</strong>驗證、執行、重跑的 <code>idempotencyKey</code> 加上用戶端雜湊後存在運行紀錄；建立場景與存版本的放在伺服器記憶體 24 小時。稽核是子應用的 ASGI 中介層，每個非 GET 請求一筆，管理後台只能看。</li>
+        <li><strong>資料庫：</strong>第一期遷移 <code>0015_agent_api</code>：<code>api_clients</code>、<code>api_audit</code>、<code>runs.client_id</code>、<code>recorders.allow_agent</code>／<code>agent_headless_only</code>；第二期 <code>run_events</code>、<code>runs.step_index</code>／<code>step_count</code>。只用通用型別（ADR 0008）。</li>
         <li><strong>分期：</strong>第一期 Agent 可從空白走到正式執行，含讀頁面結構；第二期即時步驟進度、事件、Webhook、錄製端通知；第三期專案（組合場景）執行、請人登入。不做 MCP。</li>
       </ul></div>
     </section>
     <section class="panel" id="progress">
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>已完成：</strong>盤點現有 API、調試、裝置與 Runner；設計經使用者確認；寫入 ADR 0017（提議中）、設計頁、Agent 使用指南、路線圖 M13（繁中、英文，簡中由工具產生），並加到導覽、ADR 索引與首頁。</li>
-        <li><strong>未完成／阻礙：</strong>第一期程式未開工，等使用者說開始。原始訊息後半「三方系統主要是…」被截斷，未補上。</li>
-        <li><strong>決定：</strong>(1) <span class="kind user">使用者決定</span>（2026-10-23 06:20 America/Los_Angeles（PDT，UTC−07:00），選項卡）Agent 可以自己發布，但要個別授權：<code>scenes:publish</code> 預設不勾，發布門檻不變。(2)～(4) <span class="kind user">使用者決定</span>（同日 06:29）依 Claude 的建議：截圖、頁面結構、錄影由用戶端的「回傳頁面內容」控制，預設關，管理員確認 Agent 的模型可以接收內部頁面後再打開；Agent 用專用的錄製端並允許無頭；讀頁面結構移到第一期。(5) <span class="kind user">使用者決定</span>（同日 06:29）不做 MCP 轉接。</li>
-        <li><strong>仍待確認（不擋第一期）：</strong>Agent 系統是否與伺服器在同一內網（影響是否要 HTTPS 與第二期的 Webhook 怎麼連回去）；被截斷的那則訊息原本要說的內容。</li>
-        <li><strong>下一個具體動作：</strong>文檔 PR 合併後，使用者說開始就實作第一期：API 用戶端與稽核、<code>/agent-api/v1</code> 路由、指定錄製端、<code>snapshot</code> 命令與錄製端版本回報、管理後台頁、測試。遷移編號在 #78 合併後確定。</li>
+        <li><strong>已完成：</strong>設計、ADR 0017（改為已接受）、設計頁、Agent 使用指南、路線圖 M14（繁中、英文，簡中由工具產生）。第一期實作：API 用戶端與金鑰、權限範圍、限額、可用領域／錄製端／執行位置／Worker、回傳頁面內容開關、到期與來源 IP、稽核；<code>/agent-api/v1</code> 的 meta、DSL 檢查、場景與版本、段落與入參出參、匯入、調試（指定錄製端、步驟、執行到、定位、讀頁面結構、截圖）、驗證、發布、執行、取消、重跑、運行與步驟、產物；管理後台「API 用戶端」頁（新增、編輯、停用、換金鑰、刪除、稽核）與裝置頁的 Agent 開關；Agent 存的版本說明與運行紀錄標出 Agent 名稱。指南的請求範例已照實作更新。</li>
+        <li><strong>未完成／阻礙：</strong>人工驗收未執行：讀頁面結構要新版錄製端 App；要用真的錄製端與 Worker 從另一台電腦走一次 M14 的驗收。第二期（即時步驟進度、事件長輪詢、Webhook、錄製端通知）與第三期未開工。</li>
+        <li><strong>決定：</strong>(1) <span class="kind user">使用者決定</span>（2026-10-23 06:20 America/Los_Angeles（PDT，UTC−07:00），選項卡）Agent 可以自己發布，但要個別授權：<code>scenes:publish</code> 預設不勾，發布門檻不變。(2)～(4) <span class="kind user">使用者決定</span>（同日 06:29）依 Claude 的建議：截圖、頁面結構、錄影由用戶端的「回傳頁面內容」控制，預設關，管理員確認 Agent 的模型可以接收內部頁面後再打開；Agent 用專用的錄製端並允許無頭；讀頁面結構移到第一期。(5) <span class="kind user">使用者決定</span>（同日 06:29）不做 MCP 轉接。(6) <span class="kind user">使用者決定</span>（同日 07:28）路線圖編號用 M14；Agent 系統與伺服器在同一個局域網，第一期不要求 HTTPS，第二期 Webhook 由伺服器直接連 Agent；被截斷的那則訊息不用管。(7) <span class="kind tentative">Claude 實作選擇，可改</span>：場景已有別人調試時回 409 <code>debug_in_use</code>（<code>debug_busy</code> 保留原意）；錄製端過舊回 422 <code>recorder_outdated</code>；執行位置預設跟隨伺服器的預設；建立場景與存版本的冪等只存在記憶體 24 小時。</li>
+        <li><strong>遷移順序：</strong>#78 也用 0015（<code>0015_projects</code>）。哪個 PR 後合併，就把自己的遷移改成 0016 並把 <code>down_revision</code> 接到先合併的那個，<code>test_migrations.py</code> 的預期一起改。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱 PR #79；合併後出新版錄製端 App，在裝置頁打開一台錄製端的「允許 Agent 調試」，於管理後台建立 API 用戶端，用 Agent 使用指南的流程從另一台電腦走一次驗收。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -56,9 +57,14 @@
         <tbody>
           <tr><td>base 3d99504＋本紀錄</td><td><code>git diff --check</code>；人工檢查本頁相對連結</td><td>通過</td><td>純設計與紀錄，沒有程式變更</td></tr>
           <tr><td>base 3d99504＋文檔</td><td><code>uv run python tools/i18n.py stamp …</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>check 通過；328 passed；diff check 通過</td><td>沒有程式變更，未跑其他測試；未在瀏覽器人工看過新頁面</td></tr>
+          <tr><td>base 3d99504＋第一期（2026-10-23 08:48 PDT）</td><td><code>uv run pytest -q apps/server/tests/test_agent_api.py</code></td><td>6 passed（金鑰與對外埠、用戶端驗證、場景／權限／領域／冪等／稽核、執行／限額／執行位置、在假錄製端上調試含讀頁面結構與舊版錄製端、管理後台頁）</td><td>錄製端是測試替身，不是真的 App</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -q -m "not browser" -n auto</code></td><td>1684 passed、3 skipped（Windows 登錄檔、Windows mutex、ssh-keygen）</td><td>不含瀏覽器測試</td></tr>
+          <tr><td>同上，容器 Chromium</td><td><code>uv run pytest -q packages/rpa_runner/tests/test_debug.py</code>（含新的 <code>snapshot</code> 測試）</td><td>7 passed</td><td>沒有 Firefox；錄製端預設用 Firefox</td></tr>
+          <tr><td>同上</td><td><code>uv run ruff check .</code>、<code>ruff format --check .</code>、<code>uv run pyright</code>（變更的檔案）、<code>tools/i18n.py check</code>、<code>pytest tests/docs tests/i18n</code>、<code>git diff --check</code></td><td>全部通過；pyright 0 錯誤；328 passed</td><td>pyright 只跑了變更的檔案，全倉庫交給 CI</td></tr>
+          <tr><td>同上，本機伺服器＋Playwright</td><td>打開管理後台「API 用戶端」頁新增用戶端、看金鑰對話框、編輯帶入原值；裝置頁切換錄製端的 Agent 開關</td><td>正常顯示與儲存，主控台沒有錯誤</td><td>只看繁中；沒有用真的 Agent 系統</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：等 PR；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：等推送後的結果（見 PR #79）；人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -66,7 +72,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-10-23 06:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立任務紀錄，設計草案交給使用者確認。</li><li>2026-10-23 06:20 America/Los_Angeles（PDT，UTC−07:00），使用者：發布權限選「可以，但要個別授權」。</li><li>2026-10-23 06:29 America/Los_Angeles（PDT，UTC−07:00），使用者：讀頁面結構提到第一期；設計寫進文檔；另寫 Agent 使用指南；待決事項 1～3 依建議；不做 MCP。</li><li>2026-10-23 06:43 America/Los_Angeles（PDT，UTC−07:00），Claude：寫完 ADR 0017、設計頁、Agent 使用指南、路線圖 M13（繁中、英文、簡中），文檔測試通過，開文檔 PR。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-10-23 06:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立任務紀錄，設計草案交給使用者確認。</li><li>2026-10-23 06:20 America/Los_Angeles（PDT，UTC−07:00），使用者：發布權限選「可以，但要個別授權」。</li><li>2026-10-23 06:29 America/Los_Angeles（PDT，UTC−07:00），使用者：讀頁面結構提到第一期；設計寫進文檔；另寫 Agent 使用指南；待決事項 1～3 依建議；不做 MCP。</li><li>2026-10-23 06:43 America/Los_Angeles（PDT，UTC−07:00），Claude：寫完 ADR 0017、設計頁、Agent 使用指南、路線圖 M13（繁中、英文、簡中），文檔測試通過，開文檔 PR。</li><li>2026-10-23 07:28 America/Los_Angeles（PDT，UTC−07:00），使用者：路線圖用 M14；伺服器與 Agent 在同一個局域網；截斷的訊息不用管；可以開始實作。</li><li>2026-10-23 08:50 America/Los_Angeles（PDT，UTC−07:00），Claude：第一期實作、測試與文檔更新推到 PR #79，待審閱。</li></ul></div>
     </section>
   </div>
 </main>

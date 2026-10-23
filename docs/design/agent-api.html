@@ -30,11 +30,11 @@
       <h1>對外 Agent API</h1>
       <p>第三方 Agent 系統只透過伺服器的 <code>/agent-api/v1</code>：寫場景與入參出參、指定錄製端開瀏覽器逐步調試、交給 Worker 驗證與執行，並取得運行過程。新的一層只做認證、權限與稽核，業務規則與發布門檻沿用現有服務。</p>
     </div>
-    <span class="badge amber">設計已確認，未實作</span>
+    <span class="badge blue">第一期實作中</span>
   </div>
 
   <div class="stack">
-    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認；第一期實作後，端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準。</div>
+    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作（審閱中）；端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>範圍</h2><span class="muted">Agent 從空白做到可以正式執行的場景</span></div>
@@ -133,7 +133,7 @@
           <dt>權限範圍</dt><dd>下表的勾選；新用戶端預設只有 <code>scenes:read</code> 與 <code>runs:read</code></dd>
           <dt>可用的領域</dt><dd>能讀寫哪些領域的場景；預設全部</dd>
           <dt>可用的錄製端</dt><dd>能在哪幾台錄製端開調試瀏覽器；預設無。錄製端本身也要在裝置頁打開「允許 Agent 調試」，可以設成「只允許無頭」</dd>
-          <dt>執行位置</dt><dd>local、remote、any，以及可以指定的 Worker；預設 remote、任一台</dd>
+          <dt>執行位置</dt><dd>local、remote、any，以及可以指定（<code>workerId</code>）的 Worker；預設跟隨伺服器的預設執行位置、任一台</dd>
           <dt>限額</dt><dd>同時進行的調試工作階段、排隊中的執行；建議預設 2 個、20 個，超過回 429</dd>
           <dt>回傳頁面內容</dt><dd>截圖、頁面結構、錄影能不能給這個用戶端；預設關，管理員確認 Agent 的模型可以接收內部頁面後再打開；關閉時這些端點回 403</dd>
           <dt>到期、啟用、來源 IP</dt><dd>到期、停用或不在允許清單時金鑰立即失效；預設不到期、啟用、不限</dd>
@@ -155,9 +155,9 @@
       </div>
       <div class="panel-body">
         <ul class="points">
-          <li><strong>不搶人的工作階段：</strong>場景已有人在調試時回 409 <code>debug_busy</code>，不關掉對方；Agent 只能關自己開的工作階段（Portal 從另一台開始時仍照舊關掉原本的）。</li>
+          <li><strong>不搶人的工作階段：</strong>場景已有別人（人或其他 Agent）在調試時回 409 <code>debug_in_use</code>，不關掉對方；Agent 只看得到、只能操作自己開的工作階段（Portal 從另一台開始時仍照舊關掉原本的）。<code>debug_busy</code> 沿用原本的意思：同一個工作階段上一個命令還沒跑完。</li>
           <li><strong>稽核：</strong>每個寫入請求記一筆（時間、用戶端、動作、對象、結果碼），管理後台可以篩選，不能修改或刪除。Agent 存的版本說明自動標「由 Agent〈名稱〉建立」，運行紀錄記下觸發的用戶端。</li>
-          <li><strong>傳輸：</strong>對外埠是 HTTP，金鑰是明文。Agent 系統不在同一個受信任的區網時，在伺服器前放反向代理提供 HTTPS；程式本身不做 TLS。</li>
+          <li><strong>傳輸：</strong>對外埠是 HTTP，金鑰是明文。使用者確認（2026-10-23）Agent 系統與伺服器在同一個局域網，第一期不要求 HTTPS；日後 Agent 移到局域網外時，在伺服器前放反向代理提供 HTTPS，程式本身不做 TLS。</li>
         </ul>
       </div>
     </section>
@@ -210,7 +210,7 @@
           <thead><tr><th>端點</th><th>內容</th><th>期</th></tr></thead>
           <tbody>
             <tr><td><code>GET /runs/{id}</code></td><td>狀態（排隊、執行中、通過、失敗、逾時、已取消、需要登入）、目前階段、哪台 Worker、入參、出參（只有通過才有）、錯誤、開始與結束時間</td><td>一</td></tr>
-            <tr><td><code>GET /runs?scene=&amp;status=&amp;since=</code></td><td>這個用戶端看得到的運行</td><td>一</td></tr>
+            <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>這個用戶端看得到的運行（可用領域裡的場景）；<code>mine</code> 只列自己觸發的</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的狀態、開始與結束時間、錯誤、步驟後的網址；第二期起執行中也即時更新</td><td>一、二</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截圖、report.html、result.json、錄影等產物（受「回傳頁面內容」控制）</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>事件長輪詢：有新事件立刻回，沒有就最多等 <code>wait</code> 秒</td><td>二</td></tr>
@@ -222,7 +222,7 @@
         <ul class="points">
           <li><strong>事件：</strong><code>queued</code>、<code>claimed</code>（哪台 Worker）、<code>stage</code>（入參、登入、自動化、斷言、出參）、<code>step</code>（第幾步開始或結束、結果、耗時）、<code>finished</code>（最終狀態、出參、錯誤摘要）。序號遞增，用 <code>after</code> 接續，斷線不漏。</li>
           <li><strong>步驟進度的來源：</strong>Runner 的子程序每跑完一步已經寫 <code>steps.json</code>。本機 worker 讀檔更新資料庫；遠端 Worker 在心跳附上目前步驟，步驟變化時立刻多送一次。舊版 Worker 不送這些欄位也照常運作，只看得到階段。</li>
-          <li><strong>先用長輪詢：</strong>Worker 與錄製端已經用同樣的方式，穿得過代理，不需要伺服器主動連 Agent。Webhook 要伺服器能連到 Agent 系統，網路方向確認後再開。</li>
+          <li><strong>先用長輪詢：</strong>Worker 與錄製端已經用同樣的方式，穿得過代理，不需要伺服器主動連 Agent。Agent 系統與伺服器在同一個局域網（使用者 2026-10-23 確認），第二期的 Webhook 可以由伺服器直接連到 Agent。</li>
           <li><strong>調試不需要事件：</strong>調試的每個命令跑完才回應，回應裡就是那一步的結果。</li>
         </ul>
       </div>
@@ -253,7 +253,7 @@
           <li><strong>做法：</strong>調試子程序 <code>rpa_runner.debug</code> 加 <code>snapshot</code> 命令：目前分頁的無障礙樹（Playwright 的 ARIA 快照）、表單欄位（標籤、名稱、型別、是否必填）、iframe 階層與已開的分頁。Agent 據此寫 <code>role</code>／<code>label</code>／<code>text</code> 定位器。</li>
           <li><strong>遮罩：</strong>填了 Secret 的欄位與密碼欄位的值一律遮罩，沿用 Runner 的遮罩。</li>
           <li><strong>大小：</strong>超過上限時截斷並標示，Agent 可以用 <code>within</code> 指定只看頁面的一部分。</li>
-          <li><strong>相容：</strong>錄製端上線時回報支援 <code>snapshot</code>；舊版 App 收到時回 409 <code>recorder_outdated</code>，說明要更新 RPA 錄製端（沿用 M7a 的做法）。</li>
+          <li><strong>相容：</strong>錄製端上線時回報支援 <code>snapshot</code>；舊版 App 沒有回報時回 422 <code>recorder_outdated</code>，說明要更新 RPA 錄製端（沿用 M7a 的做法與狀態碼）。</li>
         </ul>
       </div>
     </section>
@@ -273,7 +273,7 @@
 
     <section class="panel" id="data">
       <div class="panel-header"><h2>資料庫與相容性</h2></div>
-      <div class="panel-body"><p>新遷移接在專案空間（0015）之後，只用 SQLite 與 PostgreSQL 都能跑的通用型別（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。現有 <code>/api</code>、Client API、Worker API 不變；舊版 App 照常可用。</p></div>
+      <div class="panel-body"><p>第一期的遷移是 <code>0015_agent_api</code>（專案空間的遷移先合併時改接在它後面），只用 SQLite 與 PostgreSQL 都能跑的通用型別（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。現有 <code>/api</code>、Client API、Worker API 不變；舊版 App 照常可用。</p></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>表或欄位</th><th>內容</th><th>期</th></tr></thead>

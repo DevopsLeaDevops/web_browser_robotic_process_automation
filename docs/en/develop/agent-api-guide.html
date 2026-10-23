@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:9376b3e4b893322e">
+<meta name="translation-source" content="sha256:41a4a9e6a98f1db1">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -17,11 +17,11 @@
       <h1>Agent API guide</h1>
       <p>For agent systems that connect to the platform, and the people who write their integrations: how to use <code>/agent-api/v1</code> to build a scene from nothing, debug it on a recorder, have workers validate it, publish and run it, and what to do when something goes wrong.</p>
     </div>
-    <span class="badge amber">Design confirmed, not built</span>
+    <span class="badge blue">Phase 1 in progress</span>
   </div>
 
   <div class="stack">
-    <div class="notice warn">This guide follows the <a href="../design/agent-api.html">design</a> confirmed on 2026-10-23; phase 1 is not built yet. Once implemented, the server's <code>GET /agent-api/v1/openapi.json</code> is the source of truth for fields, and this page will be updated to match.</div>
+    <div class="notice">This guide follows the <a href="../design/agent-api.html">design</a> confirmed on 2026-10-23 and the phase 1 implementation (2026-10-23, in review). The server's <code>GET /agent-api/v1/openapi.json</code> is the source of truth for fields; <code>/agent-api/v1/docs</code> is interactive documentation you can try directly. Neither needs a key.</div>
 
     <section class="panel" id="basics">
       <div class="panel-header"><h2>Basics</h2></div>
@@ -32,7 +32,7 @@
           <dt>Format</dt><dd>JSON with camelCase fields; times are ISO 8601 (UTC).</dd>
           <dt>Errors</dt><dd><code>{"error": {"code": "…", "message": "…", …}}</code>. Programs decide by <code>code</code>; <code>message</code> is for people. Some errors carry details such as <code>issues</code>, <code>problems</code> or <code>latest</code>.</dd>
           <dt>Language</dt><dd><code>?lang=zh-Hant</code>, <code>zh-Hans</code> or <code>en</code> sets the language of <code>message</code>; without it the server default is used.</dd>
-          <dt>Idempotency</dt><dd>POSTs that create something (create scene, save revision, validate, run, rerun) accept <code>idempotencyKey</code>. After a timeout or dropped connection, resend with the same value and nothing is created or run twice.</dd>
+          <dt>Idempotency</dt><dd>POSTs that create something (create scene, save revision, validate, run, rerun) accept <code>idempotencyKey</code>. After a timeout or dropped connection, resend with the same value and you get the earlier result; nothing is created or run twice. Keys for validate, run and rerun are stored with the run; keys for creating scenes and saving revisions are kept in server memory for 24 hours and are forgotten when the server restarts, in which case a resend gets <code>scene_exists</code> or <code>stale_base</code> and you should read the latest state. Different clients using the same value do not affect each other.</dd>
           <dt>Polling</dt><dd>Checking run status every 2 to 5 seconds is enough; phase 2 switches to event long polling.</dd>
         </dl>
       </div>
@@ -47,16 +47,23 @@
 {
   "apiVersion": "1",
   "serverVersion": "0.6.0",
+  "server": {"id": "srv-linux-01", "name": "Linux server"},
   "client": {"id": "agent-erp", "name": "ERP assistant"},
   "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read"],
   "pageContent": true,
   "limits": {"debugSessions": 2, "queuedRuns": 20},
-  "dslFeatures": ["frame", "popup"]
+  "domains": ["sales"],
+  "recorders": ["agent-mac"],
+  "target": null,
+  "workers": null,
+  "expiresAt": null,
+  "dslFeatures": ["anyFrame", "dynamicValues", "frame", "page", "popup"]
 }</pre>
         <ul class="points">
           <li>No <code>scenes:publish</code> in <code>scopes</code>: stop once validation passes and ask a person to publish in the Portal.</li>
           <li><code>pageContent</code> is <code>false</code>: screenshots, page structure and video are unavailable, so write the scene from locator tests and step results only.</li>
-          <li>Then read <code>GET /dsl/schema</code> (JSON Schema for scene YAML), <code>GET /recorders</code> (available recorders), <code>GET /roles</code> (login roles and their state) and <code>GET /secrets</code> (names only).</li>
+          <li><code>domains</code> lists the domains you can read and write (<code>null</code> means all); <code>recorders</code> lists the recorders you can debug on; <code>target</code> and <code>workers</code> are the fixed run location and the workers you may choose (<code>null</code> means no restriction).</li>
+          <li>Then read <code>GET /dsl/schema</code> (JSON Schema for scene YAML), <code>GET /recorders</code> (available recorders: online or not, <code>allowAgent</code>, <code>headlessOnly</code>, and whether <code>capabilities</code> includes <code>debugSnapshot</code>), <code>GET /roles</code> (login roles and their state), <code>GET /secrets</code> (names only) and <code>GET /workers</code> (workers you may choose).</li>
         </ul>
       </div>
     </section>
@@ -124,74 +131,80 @@ verify:
       <div class="panel-body">
         <h3>1. Create the scene and save the first revision</h3>
 <pre class="source">POST /agent-api/v1/scenes
-{"id": "order-create", "name": "Create order", "category": "Orders", "domainId": "sales"}
+{"id": "order-create", "name": "Create order", "category": "Orders", "domainId": "sales",
+ "idempotencyKey": "order-create"}
+→ 201 {"id": "order-create", "latestRevision": 1, …}
 
 POST /agent-api/v1/scenes/order-create/revisions
-{"baseRevision": 0, "files": {"scenario.yaml": "schemaVersion: 1\nid: order-create\n…"},
- "note": "First revision: open the page only", "idempotencyKey": "order-create-r1"}
-→ 201 {"sceneId": "order-create", "number": 1, "status": "draft", …}</pre>
-        <p>Before saving you can call <code>POST /dsl/check {"yaml": "…"}</code>; the <code>issues</code> in the response carry line, step and field. The first revision needs only <code>goto</code> (and <code>login</code> if required); write later steps after looking at the page.</p>
+{"baseRevision": 1, "files": {"scenario.yaml": "schemaVersion: 1\nid: order-create\n…"},
+ "note": "Open the page only", "idempotencyKey": "order-create-r2"}
+→ 201 {"sceneId": "order-create", "number": 2, "status": "draft",
+       "note": "Agent &lt;ERP assistant&gt;: Open the page only", …}</pre>
+        <p>Creating a scene saves revision 1 (a template with only the name) first, so the first save uses <code>baseRevision</code> 1. Without <code>domainId</code> the scene goes to "Unassigned"; if your key is limited to certain domains, give one. Before saving you can call <code>POST /dsl/check {"yaml": "…", "sceneId": "order-create"}</code>; the <code>ok</code> and <code>issues</code> (line, step, field) in the response match the checks made when saving. This revision needs only <code>goto</code> (and <code>login</code> if required); write later steps after looking at the page.</p>
 
         <h3>2. Open a debug session on a recorder</h3>
 <pre class="source">POST /agent-api/v1/scenes/order-create/debug
-{"recorderId": "agent-mac", "revision": 1, "headless": true,
+{"recorderId": "agent-mac", "revision": 2,
  "inputs": {"customer": "Test customer", "quantity": 2}}
-→ 202 {"id": "a1b2c3d4e5f6", "status": "starting", "deviceId": "agent-mac", …}
+→ 202 {"id": "a1b2c3d4e5f6", "status": "starting", "deviceId": "agent-mac",
+       "headless": true, "clientId": "agent-erp", …}
 
 GET /agent-api/v1/debug/a1b2c3d4e5f6
 → {"status": "ready", "nextIndex": 0, "steps": [{"index": 0, "id": "open", "status": "pending", …}], …}</pre>
-        <p>Wait until <code>status</code> is <code>ready</code> (the first Firefox launch can take a minute or two). A scene has only one session at a time, and an idle session closes after 15 minutes.</p>
+        <p>Wait until <code>status</code> is <code>ready</code> (the first Firefox launch can take a minute or two). Sessions are headless by default; you can omit <code>recorderId</code> when your key allows exactly one recorder. A scene has only one session at a time: if you already have one, it is returned (send <code>"restart": true</code> to start again with another revision or inputs); if someone else (a person or another agent) is debugging it, you get 409 <code>debug_in_use</code>. You can see and use only sessions you opened (<code>GET /debug</code> lists them), and an idle session closes after 15 minutes.</p>
 
         <h3>3. Look at the page, then write the next steps</h3>
 <pre class="source">POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/0
 POST /agent-api/v1/debug/a1b2c3d4e5f6/snapshot
 → {"url": "https://erp.example.internal/orders/new", "title": "New order",
-   "tabs": [{"pageId": "main", "url": "…", "active": true}],
+   "tabs": [{"page": null, "url": "…", "title": "New order", "active": true}],
    "frames": [],
-   "fields": [{"role": "textbox", "label": "Customer", "required": true},
-              {"role": "spinbutton", "label": "Quantity"}],
+   "fields": [{"tag": "input", "type": "text", "role": "textbox", "label": "Customer",
+               "name": "customer", "required": true, "disabled": false, "visible": true, "value": ""},
+              {"tag": "input", "type": "number", "role": "spinbutton", "label": "Quantity", …}],
    "aria": "- heading \"New order\" [level=1]\n- textbox \"Customer\"\n- spinbutton \"Quantity\"\n- button \"Create\"",
    "truncated": false}
 
 POST /agent-api/v1/debug/a1b2c3d4e5f6/locate
 {"locator": {"role": "button", "name": "Create", "exact": true}}
-→ {"located": {"count": 1, "texts": ["Create"]}, …}</pre>
-        <p>Use a locator from <code>locate</code> only when it finds exactly one element; with zero or several, change the locator or add <code>within</code>. On large pages, <code>snapshot</code> can take <code>{"within": {"css": "#main"}}</code> to look at part of the page. Use <code>screenshot</code> when you need to see the screen; the <code>screenshotUrl</code> in the response downloads the image.</p>
+→ {"located": {"locator": "…", "ok": true, "count": 1,
+               "matches": [{"tag": "button", "text": "Create"}], "error": null}, …}</pre>
+        <p>Use a locator from <code>locate</code> only when it finds exactly one element; with zero or several, change the locator. In <code>tabs</code>, <code>page</code> is the name of a tab opened by a step with <code>popup</code> (the first tab is <code>null</code>); <code>frames</code> lists iframes, and <code>parent</code> points to the enclosing frame's position in that list. <code>fields</code> lists the form fields on the current page; values of password fields and fields filled with a secret are always <code>***</code>. On large pages <code>aria</code> is cut off and marked <code>truncated</code>; send <code>{"within": {"css": "#main"}}</code> to look at part of the page (<code>within</code> is a locator, so use <code>frame</code> for content inside an iframe). Use <code>screenshot</code> when you need to see the screen; the <code>screenshotUrl</code> in the response downloads the image. Page structure and screenshots both need page content turned on, and the recorder needs the latest app.</p>
 
         <h3>4. Save a new revision, switch to it, and continue</h3>
 <pre class="source">POST /agent-api/v1/scenes/order-create/revisions
-{"baseRevision": 1, "files": {"scenario.yaml": "…adds fill-customer, fill-quantity, submit…"}}
-→ 201 {"number": 2, …}
+{"baseRevision": 2, "files": {"scenario.yaml": "…adds fill-customer, fill-quantity, submit…"}}
+→ 201 {"number": 3, …}
 
-POST /agent-api/v1/debug/a1b2c3d4e5f6/reload   {"revision": 2}
+POST /agent-api/v1/debug/a1b2c3d4e5f6/reload   {"revision": 3}
 POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
 → {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
         <p>The browser and the steps already run are kept; <code>run-to</code> runs only steps that have not run and stops on failure. Fix, save another revision, <code>reload</code> and <code>run-to</code> until every step is <code>passed</code>. Use <code>reset</code> to start over from the beginning.</p>
-        <div class="notice warn">Click, fill, select, check and press are side-effect steps: they really happen in the target system. Running a side-effect step again after it has run once requires <code>{"force": true}</code>; do this only when you are sure redoing it will not create duplicate data.</div>
+        <div class="notice warn">Click, fill, select, check and press are side-effect steps: they really happen in the target system. Running a side-effect step again with <code>POST /debug/{sid}/steps/{index}</code> after it has run once returns 409 <code>confirm_required</code> and requires <code>{"force": true}</code>; do this only when you are sure redoing it will not create duplicate data. <code>run-to</code> returns 409 <code>already_executed</code> when its target comes before the next step that has not run.</div>
 
         <h3>5. Complete inputs, outputs and independent checks</h3>
-        <p>Use <code>PUT /scenes/{id}/sections/verify</code>, <code>/inputs</code> or <code>/outputs</code> to change one section, or <code>PUT /scenes/{id}/contract</code> to edit inputs and outputs as tables; each call saves a new revision. When finished, <code>DELETE /debug/{sid}</code> ends the session and frees the recorder.</p>
+        <p>Use <code>GET</code>/<code>PUT /scenes/{id}/sections/steps</code>, <code>verify</code>, <code>inputs</code> or <code>outputs</code> to read or write one section (<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>), or <code>PUT /scenes/{id}/contract</code> to edit inputs and outputs as tables; each call saves a new revision. If you already have a Playwright (Python) script, <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> converts it to DSL and lists what it could not convert in <code>warnings</code>. When finished, <code>DELETE /debug/{sid}</code> ends the session and frees the recorder.</p>
 
         <h3>6. Have a worker validate it</h3>
-<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/5/validate
-{"inputs": {"customer": "Test customer", "quantity": 2}, "idempotencyKey": "order-create-v5-1"}
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/validate
+{"inputs": {"customer": "Test customer", "quantity": 2}, "idempotencyKey": "order-create-v6-1"}
 → 202 {"id": "order-create-20261023-…", "purpose": "validation", "status": "queued", …}
 
 GET /agent-api/v1/runs/order-create-20261023-…
 → {"status": "running", "stage": "automation", …}
 → {"status": "failed", "error": "…", "finished": true, …}
 GET /agent-api/v1/runs/order-create-20261023-…/steps</pre>
-        <p>On failure, read <code>error</code>, the first failed step in <code>/steps</code> and, when allowed, <code>/files/screenshot.png</code>; then go back to debugging. Validation can use any revision; production runs use only the published revision.</p>
+        <p>On failure, read <code>error</code>, <code>result</code> (the full result after the run: stages, steps, checks), the first failed step in <code>/steps</code> and, when page content is on, the screenshots listed in <code>files</code> and <code>reportUrl</code>; then go back to debugging. Validation can use any revision; production runs use only the published revision. You can choose a worker with <code>workerId</code> (<code>local</code> is the server itself) or set <code>target</code>; if your key has a fixed run location, you cannot choose another. In phase 1, <code>/steps</code> is complete only after the run ends; while it runs, watch <code>status</code> and <code>stage</code>.</p>
 
         <h3>7. Publish and run in production</h3>
-<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/5/publish      (needs scenes:publish)
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/publish      (needs scenes:publish)
 
 POST /agent-api/v1/scenes/order-create/runs
 {"inputs": {"customer": "Alex Chen", "quantity": 3}, "idempotencyKey": "job-8812"}
 → 202 {"id": "…", "purpose": "execution", "status": "queued", …}
 GET /agent-api/v1/runs/…
 → {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
-        <p><code>output</code> is present only when <code>status</code> is <code>passed</code>. Without publish permission, tell the user which revision of which scene passed validation and ask a person to publish it in the Portal.</p>
+        <p><code>output</code> is present only when <code>status</code> is <code>passed</code>. Without publish permission, tell the user which revision of which scene passed validation and ask a person to publish it in the Portal. <code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> lists the runs you can see (scenes in your domains; <code>mine</code> limits it to runs you started); <code>POST /runs/{id}/cancel</code> cancels only runs you started.</p>
       </div>
     </section>
 
@@ -201,21 +214,34 @@ GET /agent-api/v1/runs/…
         <table class="wrap">
           <thead><tr><th>Status</th><th>code</th><th>Meaning</th><th>What the agent should do</th></tr></thead>
           <tbody>
-            <tr><td>401</td><td><code>unauthorized</code></td><td>Key missing, wrong, disabled or expired</td><td>Stop and ask an administrator; do not retry</td></tr>
-            <tr><td>403</td><td><code>scope_missing</code></td><td>This key lacks the required scope</td><td>Ask for authorization or have a person do this step</td></tr>
+            <tr><td>401</td><td><code>unauthorized</code></td><td>Key missing, wrong, disabled or expired, or not allowed from this address</td><td>Stop and ask an administrator; do not retry</td></tr>
+            <tr><td>403</td><td><code>scope_missing</code></td><td>This key lacks the required scope (<code>scopes</code> lists which)</td><td>Ask for authorization or have a person do this step</td></tr>
             <tr><td>403</td><td><code>content_disabled</code></td><td>"Return page content" is off</td><td>Use <code>locate</code> and step results instead, or ask an administrator to turn it on</td></tr>
             <tr><td>403</td><td><code>domain_forbidden</code>, <code>recorder_forbidden</code></td><td>This domain or recorder is not allowed</td><td>Use an allowed one, or ask an administrator to add it</td></tr>
+            <tr><td>403</td><td><code>recorder_agent_off</code></td><td>The recorder does not allow agent debugging, or is disabled</td><td>Ask a person to turn it on on the Devices page, or use another one</td></tr>
+            <tr><td>403</td><td><code>recorder_headless_only</code></td><td>This recorder allows headless mode only</td><td>Do not send <code>"headless": false</code></td></tr>
+            <tr><td>403</td><td><code>target_forbidden</code>, <code>worker_forbidden</code></td><td>This key has a fixed run location, or may not choose this worker</td><td>Leave it out, or use an allowed one</td></tr>
+            <tr><td>403</td><td><code>run_forbidden</code></td><td>Trying to cancel a run someone else started</td><td>Ask a person</td></tr>
+            <tr><td>404</td><td><code>debug_not_found</code>, <code>run_not_found</code> and so on</td><td>Not found, or not visible to you</td><td>Check the ID</td></tr>
             <tr><td>409</td><td><code>stale_base</code></td><td><code>baseRevision</code> is not the latest; someone changed the scene</td><td>Read the <code>latest</code> revision, apply your change to it and save again</td></tr>
-            <tr><td>409</td><td><code>debug_busy</code></td><td>Someone is debugging this scene</td><td>Try again later; do not take it over</td></tr>
-            <tr><td>409</td><td><code>already_executed</code></td><td>A side-effect step has already run</td><td>Send <code>force</code> only if redoing is safe; otherwise <code>reset</code></td></tr>
+            <tr><td>409</td><td><code>scene_exists</code></td><td>The scene ID is already taken</td><td>Use another ID, or read the existing scene</td></tr>
+            <tr><td>409</td><td><code>debug_in_use</code></td><td>Someone else is debugging this scene</td><td>Try again later; do not take it over</td></tr>
+            <tr><td>409</td><td><code>debug_busy</code>, <code>debug_starting</code></td><td>The previous command is still running, or the browser is still starting</td><td>Wait for it before sending the next command</td></tr>
+            <tr><td>409</td><td><code>debug_closed</code></td><td>The session has ended (idle, failed or closed)</td><td>Start debugging again</td></tr>
+            <tr><td>409</td><td><code>confirm_required</code></td><td>A side-effect step has already run</td><td>Send <code>force</code> only if redoing is safe; otherwise <code>reset</code></td></tr>
+            <tr><td>409</td><td><code>already_executed</code></td><td>The <code>run-to</code> target has already run</td><td>Run single steps or <code>reset</code></td></tr>
             <tr><td>409</td><td><code>recorder_offline</code></td><td>The recorder is offline</td><td>Use another one, or ask a person to open the Recorder app</td></tr>
-            <tr><td>409</td><td><code>recorder_outdated</code></td><td>The Recorder app is too old (for example, it cannot read page structure)</td><td>Ask a person to update RPA Recorder</td></tr>
-            <tr><td>409</td><td><code>not_validated</code></td><td>This revision has no passed validation</td><td>Validate first</td></tr>
+            <tr><td>409</td><td><code>not_validated</code>, <code>content_changed</code></td><td>This revision has no passed validation, or its content differs from what was validated</td><td>Validate first</td></tr>
             <tr><td>409</td><td><code>not_published</code></td><td>The scene has no published revision and cannot run in production</td><td>Publish, or ask a person to publish</td></tr>
+            <tr><td>409</td><td><code>rerun_workflow</code></td><td>Composite scene nodes cannot be rerun from here</td><td>Ask a person to handle it in the Portal</td></tr>
+            <tr><td>422</td><td><code>request_invalid</code></td><td>The request is malformed; <code>problems</code> lists the fields</td><td>Fix them according to <code>problems</code></td></tr>
+            <tr><td>422</td><td><code>recorder_required</code></td><td>The key allows several recorders and no <code>recorderId</code> was given</td><td>Send <code>recorderId</code></td></tr>
+            <tr><td>422</td><td><code>recorder_outdated</code></td><td>The Recorder app is too old (for example, it cannot read page structure or does not understand syntax the scene uses)</td><td>Ask a person to update RPA Recorder</td></tr>
             <tr><td>422</td><td><code>display_unavailable</code></td><td>That machine has no display, so headed mode is unavailable</td><td>Use <code>"headless": true</code></td></tr>
             <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML validation failed; <code>issues</code> lists where</td><td>Fix according to <code>issues</code> and save again</td></tr>
-            <tr><td>422</td><td><code>inputs_invalid</code></td><td>Inputs break their type or limits; <code>problems</code> says which</td><td>Fix the inputs</td></tr>
-            <tr><td>429</td><td><code>limit_reached</code></td><td>Over the limit for concurrent debug sessions or queued runs</td><td>Wait for current ones to finish, or end sessions you no longer need</td></tr>
+            <tr><td>422</td><td><code>inputs_invalid</code></td><td>Inputs do not match their type or limits; <code>problems</code> lists which</td><td>Fix the inputs</td></tr>
+            <tr><td>422</td><td><code>worker_target_mismatch</code></td><td>The chosen worker does not match the run location</td><td>Send only one of them</td></tr>
+            <tr><td>429</td><td><code>limit_reached</code></td><td>Over the limit for concurrent debug sessions or queued and running runs (<code>limit</code>)</td><td>Wait for current ones to finish, or end sessions you no longer need</td></tr>
           </tbody>
         </table>
       </div>

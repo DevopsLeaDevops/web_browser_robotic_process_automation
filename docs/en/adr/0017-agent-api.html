@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:8a1790432716aa8e">
+<meta name="translation-source" content="sha256:696420c30d8dcb05">
 <title>ADR 0017 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -17,7 +17,7 @@
       <h1>ADR 0017: Third-party agents operate the platform through a separate /agent-api/v1 authorized by API keys</h1>
       <p>Agents connect only to the server. Debugging goes to a chosen recorder, validation and execution go to workers, and business rules and the publish gate reuse the existing services. The new layer only handles authentication, permissions, auditing and the external contract.</p>
     </div>
-    <span class="badge amber">Proposed</span>
+    <span class="badge green">Accepted</span>
   </div>
 
   <div class="stack">
@@ -61,7 +61,7 @@
         <div class="panel-body prose">
           <ul>
             <li>Most endpoints forward to existing services. Phase 1 work centers on authentication, permissions, auditing, choosing the recorder and reading page structure.</li>
-            <li>There is one more external interface. Keys travel in clear text over HTTP, so put HTTPS in front of the server when the agent is not on a trusted network.</li>
+            <li>There is one more external interface. Keys travel in clear text over HTTP. The agent system shares a local network with the server (confirmed by the user on 2026-10-23), so phase 1 does not require HTTPS; put HTTPS in front of the server if the agent moves off that network.</li>
             <li>Reading page structure needs a new Recorder app release. Older apps can still debug but cannot read page structure.</li>
             <li>When the agent uses an external model, turning on "Return page content" lets internal pages leave the intranet; administrators decide this per client.</li>
             <li>When M8 adds users and project permissions, API clients must join the same permission model.</li>
