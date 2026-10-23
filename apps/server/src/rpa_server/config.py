@@ -26,6 +26,7 @@ from rpa_worker.environment import has_display as worker_has_display
 
 __all__ = [
     "COMPOSITES_DOMAIN",
+    "COMPOSITES_PROJECT",
     "DEFAULT_EXAMPLES",
     "EXAMPLES_DOMAIN",
     "RECORDER_MENUS",
@@ -39,7 +40,10 @@ EXAMPLES_DOMAIN = "testsite"
 """範例場景所屬的領域代號：「測試網站自動化」，案例都對本機測試網站執行。"""
 COMPOSITES_DOMAIN = "composites"
 """「組合場景」領域：只放組合場景的領域；遷移的與沒指定領域的新組合場景放這裡（M11 D1、D7）。
-左側選單不列它，組合場景在「組合場景自動化」管理。"""
+左側選單不列它，組合場景在「專案空間」的專案裡管理。"""
+COMPOSITES_PROJECT = "composites"
+"""升級時建立的專案「組合場景自動化」：原本的組合場景都放進這裡（專案空間，2026-10-23）。
+名稱與說明沒改過時跟著介面語言顯示。"""
 RECORDER_MENUS = ("cluster", "admin")
 """透過錄製端打開管理 Portal 時預設不顯示的第一級選單：叢集管理、管理後台（三段分工，
 2026-10-22）。裝置頁可以替個別錄製端打開；伺服器本機（8080）全部顯示。"""

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block description %}{{ t("composites.description") }}{% endblock %}
-{% block actions %}<button class="button" data-action="import-workflow">{{ t("playground.import") }}</button><button class="button primary" data-action="create-workflow">{{ t("playground.new") }}</button>{% endblock %}
+{% block crumb %}{{ project.name }}{% endblock %}
+{% block description %}{{ project.description or t("composites.description") }}{% endblock %}
+{% block actions %}<span class="muted count">{{ t("composites.count", count=workflows | length) }}</span><button class="button" data-action="import-workflow">{{ t("playground.import") }}</button><button class="button primary" data-action="create-workflow">{{ t("playground.new") }}</button>{% if menu_shown("admin") %}<a class="button" href="/projects">{{ t("project.manage") }} {{ m.arrow() }}</a>{% endif %}{% endblock %}
 {% block content %}
-<div class="stack" id="playground">
+<div class="stack" id="playground" data-project="{{ project.id }}">
   {% if not has_published %}<div class="notice warn">{{ t("playground.no_published") }}</div>{% endif %}
   <div class="card-grid scene-grid" id="composite-cards">
   {% for item in workflows %}
@@ -33,7 +34,7 @@
         {% if item.archived %}<span class="button primary is-disabled" aria-disabled="true" title="{{ t('composite.archived_hint') }}">{{ m.arrow() }} {{ t("workflow.run") }}</span>{% else %}<button class="button primary" data-action="run-composite" data-workflow="{{ item.id }}" data-name="{{ item.name }}">{{ m.arrow() }} {{ t("workflow.run") }}</button>{% endif %}
       </div>
     </article>
-  {% else %}<div class="panel empty">{{ t("playground.empty") }}</div>{% endfor %}
+  {% else %}<div class="panel empty">{{ t("project.empty") }}</div>{% endfor %}
   </div>
   <section class="panel"><div class="panel-header"><h2>{{ t("playground.recent_runs") }}</h2></div>{% if runs %}{{ m.workflow_run_rows(runs) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}</section>
 </div>

@@ -15,6 +15,7 @@ from sqlalchemy.engine.interfaces import ReflectedColumn
 from rpa_server.app import STATIC
 from rpa_server.config import sqlite_url
 from rpa_server.db import create_db_engine, upgrade
+from rpa_server.i18n import t
 from rpa_server.models import Base
 
 MIGRATIONS = STATIC.parent / "migrations"
@@ -33,6 +34,7 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "alembic_version",
             "device_invites",
             "domains",
+            "projects",
             "recorders",
             "recordings",
             "revisions",
@@ -149,8 +151,45 @@ def test_old_database_with_data_upgrades(tmp_path: Path, start: str) -> None:
                 code = connection.execute(text("SELECT code FROM workflows")).scalar_one()
                 assert code == "wf-1"
                 assert connection.execute(text("SELECT count(*) FROM roles")).scalar_one() == 1
+                # 原本的組合場景放進升級時建立的專案「組合場景自動化」（0015）
+                project = connection.execute(text("SELECT project_id FROM workflows")).scalar_one()
+                assert project == "composites"
             # 遷移結束後外鍵檢查要開回來
             assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall() == []
     finally:
         engine.dispose()
+
+
+def test_existing_composites_move_into_a_project(tmp_path: Path) -> None:
+    """專案空間（0015）：原本有組合場景時建立專案「組合場景自動化」並把它們都放進去；
+    沒有組合場景時不建立專案。名稱與說明是繁中訊息目錄的文字，顯示時跟著介面語言。"""
+    catalog = t.messages("zh-Hant")
+    with_composites = create_db_engine(sqlite_url(tmp_path / "with.db"))
+    empty = create_db_engine(sqlite_url(tmp_path / "empty.db"))
+    try:
+        _upgrade_to(with_composites, "0014")
+        with with_composites.begin() as connection:
+            for number in (1, 2):
+                _insert(connection, "workflows", code=f"wf-{number}")
+        upgrade(with_composites)
+        with with_composites.connect() as connection:
+            projects = connection.execute(
+                text("SELECT id, name, description, position FROM projects")
+            ).all()
+            assert [tuple(row) for row in projects] == [
+                (
+                    "composites",
+                    catalog["project.composites_name"],
+                    catalog["project.composites_description"],
+                    0,
+                )
+            ]
+            assigned = connection.execute(text("SELECT DISTINCT project_id FROM workflows")).all()
+            assert [row[0] for row in assigned] == ["composites"]
+        upgrade(empty)
+        with empty.connect() as connection:
+            assert connection.execute(text("SELECT count(*) FROM projects")).scalar_one() == 0
+    finally:
+        with_composites.dispose()
+        empty.dispose()

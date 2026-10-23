@@ -20,6 +20,9 @@ M11 PR 2：組合場景放在領域資料夾的 composites/<代號>/（:mod:`rpa
   都還在、雜湊相同。
 - **依賴**：最新與發布的版本釘住的場景版本、場景用到的角色與 Secrets；不完整時不能執行。
 
+專案空間（2026-10-23）：組合場景可以屬於一個專案（project_id，只在資料庫），專案頁只列那個專案的
+組合場景與它們的執行；還沒分到專案的組合場景在專案管理列出。
+
 所有改變組合場景執行狀態的操作都在同一把鎖裡（worker 的回報與頁面的取消可能同時發生）。
 """
 
@@ -249,18 +252,29 @@ class WorkflowService:
             published_number=row.published_number,
             archived=row.archived,
             dependency=_dependency_status(self._dependencies(row)),
+            project_id=row.project_id,
         )
 
-    def list_workflows(self) -> list[WorkflowRecord]:
+    def list_workflows(self, *, project_id: str | None = None) -> list[WorkflowRecord]:
+        """全部組合場景；給了 project_id 時只列那個專案的（專案頁）。"""
+        statement = select(WorkflowRow).where(WorkflowRow.missing.is_(False))
+        if project_id is not None:
+            statement = statement.where(WorkflowRow.project_id == project_id)
+        with self.sessions() as session:
+            rows = list(session.scalars(statement.order_by(WorkflowRow.id)))
+        return [self._record(row) for row in rows]
+
+    def unassigned(self) -> list[WorkflowRecord]:
+        """還沒分到專案的組合場景（例如從 git 拉來的）：專案管理列出，到組合場景頁選專案。"""
         with self.sessions() as session:
             rows = list(
                 session.scalars(
                     select(WorkflowRow)
-                    .where(WorkflowRow.missing.is_(False))
+                    .where(WorkflowRow.missing.is_(False), WorkflowRow.project_id.is_(None))
                     .order_by(WorkflowRow.id)
                 )
             )
-        return [self._record(row) for row in rows]
+        return [self._record(row, with_last_run=False) for row in rows]
 
     def get_workflow(self, workflow_id: int) -> WorkflowRecord:
         with self.sessions() as session:
@@ -292,10 +306,12 @@ class WorkflowService:
         *,
         code: str | None = None,
         domain_id: str | None = None,
+        project_id: str | None = None,
     ) -> WorkflowRecord:
         """新增組合場景；可以直接帶定義（匯入匯出的 JSON）。定義就是第 1 版。
 
-        code 沒給時自動取 wf-<數字>；domain_id 沒給時放「組合場景」領域（需要時建立）。
+        code 沒給時自動取 wf-<數字>；domain_id 沒給時放「組合場景」領域（需要時建立）；
+        project_id 是放進哪個專案（專案頁新增的就是那個專案），沒給時還沒分到專案。
         """
         workflow = (
             self._definition(definition)
@@ -308,10 +324,13 @@ class WorkflowService:
         if code is not None and not _CODE.fullmatch(code):
             raise invalid("workflow_code_invalid", t("error.workflow_code_invalid", code=code))
         domain_id = domain_id or self.services.composites_domain()
+        project_id = (project_id or "").strip() or None
         packs = self.services.packs
         with packs.lock, self.sessions() as session:
             if session.get(Domain, domain_id) is None:
                 raise not_found("domain_not_found", t("error.domain_not_found", id=domain_id))
+            if project_id is not None:
+                self.services.projects.check(session, project_id)
             code = code or self._next_code(session)
             if self._code_taken(session, code):
                 raise conflict("workflow_code_exists", t("error.workflow_code_exists", code=code))
@@ -325,6 +344,7 @@ class WorkflowService:
                 updated_at=moment,
                 code=code,
                 domain_id=domain_id,
+                project_id=project_id,
                 archived=False,
                 missing=False,
             )
@@ -459,11 +479,15 @@ class WorkflowService:
         code: str | None = None,
         domain_id: str | None = None,
         archived: bool | None = None,
+        project_id: str | None = None,
     ) -> WorkflowRecord:
         """改代號、搬到其他領域、封存（M11 收尾；第 12 節「之後可以在頁面改代號或搬到其他領域」）。
 
         代號就是資料夾的名稱：改代號是把 composites/<舊代號> 改名，搬領域是把資料夾搬到另一個
         領域資料夾（推送後在 git 裡是刪除＋新增；版本與驗證紀錄跟著走）。執行中不能改代號或搬。
+
+        project_id 是移到哪個專案（專案空間）：空字串是不屬於任何專案，None 是不變。只改資料庫，
+        資料夾不動，所以執行中也可以改。
         """
         packs = self.services.packs
         storage = self.services.storage
@@ -525,6 +549,10 @@ class WorkflowService:
                     revision = entry.revisions.get(number) if entry is not None else None
                     if revision is not None and revision.requires:
                         packs.declare_requirements(domain_id, revision.requires)
+            if project_id is not None and (project_id or None) != row.project_id:
+                if project_id:
+                    self.services.projects.check(session, project_id)
+                row.project_id = project_id or None
             if archived is not None and archived != row.archived:
                 manifest = packs.composite_manifest(row.code) or CompositeManifest(
                     id=row.code, name=row.name
@@ -1338,8 +1366,13 @@ class WorkflowService:
             return self._run_record(session, self._run_row(session, run_id))
 
     def list_runs(
-        self, *, workflow_id: int | None = None, limit: int = RUN_LIST_LIMIT
+        self,
+        *,
+        workflow_id: int | None = None,
+        project_id: str | None = None,
+        limit: int = RUN_LIST_LIMIT,
     ) -> list[WorkflowRunRecord]:
+        """組合場景的執行，新的在前；可以只列一個組合場景或一個專案（現在屬於它的組合場景）的。"""
         statement = (
             select(WorkflowRunRow)
             .order_by(WorkflowRunRow.created_at.desc(), WorkflowRunRow.id.desc())
@@ -1347,6 +1380,9 @@ class WorkflowService:
         )
         if workflow_id is not None:
             statement = statement.where(WorkflowRunRow.workflow_id == workflow_id)
+        if project_id is not None:
+            members = select(WorkflowRow.id).where(WorkflowRow.project_id == project_id)
+            statement = statement.where(WorkflowRunRow.workflow_id.in_(members))
         with self.sessions() as session:
             return [self._run_record(session, row) for row in session.scalars(statement)]
 

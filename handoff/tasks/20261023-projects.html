@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>專案空間與專案管理 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>專案空間與專案管理</h1><p>新增第一級選單「專案空間」（放在叢集管理前面），二級選單是專案，一個專案就是一份「組合場景自動化」；管理後台新增「專案管理」，管理方式和領域管理相同；原本的「組合場景自動化」選單拿掉。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261023-projects；2026-10-23 04:00 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-23 03:32 America/Los_Angeles（PDT，UTC−07:00）於 Claude 專案對話：「幫我建置新增管理功能，專案管理。新增一級選單「專案空間」放到叢集管理前面。2.專案管理下轄多個二級選單，每個選單都是一個專案。3.管理後台一級選單下新增"專案管理"，專案管理的功能類似於領域管理，支援專案的管理。每個專案和現有的「組合場景自動化」都是同樣的實現，也就是我把一個「組合場景自動化」包裝成一個專案。4.現有的「組合場景自動化」去掉，後續替換為專案。」<br>
+          第 2 點的「專案管理下轄多個二級選單」照上下文理解為「專案空間」的二級選單是專案（協調者轉述時的解讀，Claude 照此實作）。<br>
+          驗收：(1) 伺服器本機六個第一級選單，專案空間在叢集管理前面，左側二級是各專案、依專案管理的順序；(2) 管理後台有領域管理、專案管理，專案可以新增、改名稱與說明、刪除（沒有組合場景時）、上移下移；(3) 專案頁和原本的組合場景自動化一樣（卡片、DAG 縮圖、快捷執行、最近報告、匯入、新增），只列這個專案的；(4) 場景管理沒有「組合場景自動化」，舊網址 <code>/composites</code> 轉到專案空間；(5) 升級後原本的組合場景都找得到。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：資料表 projects 與 workflows.project_id（遷移 0015）、ProjectService、/api/projects、組合場景的新增／匯入／設定可以選專案、選單（render.py）、頁面（/workspace、/projects、/projects/{代號}）、portal.js、三語訊息、管理 Portal 設計文件（三語）、本任務卡。<br>不包含：專案的權限（和領域一樣，M8 才有使用者權限）；專案不寫進領域資料夾與 git（見決定）；Worker App、錄製端 App 的程式（它們載入 Portal 的頁面，不需要改）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 實作；審閱未指定；合併：使用者</dd>
+        <dt>修改檔案／整合者</dt><dd>apps/server：models.py、config.py、遷移 0015_projects.py（新）、domain.py、projects.py（新）、services.py、workflows.py、api.py、render.py、pages.py、樣板（composites.html 改名 project.html、projects.html（新）、_workflow_forms.html、workflow.html、workflow_run.html、playground.html）、portal.js、訊息目錄；測試 test_projects.py（新）與 test_render、test_api、test_recorder_api、test_composites、test_workflow_api、test_migrations、test_portal；docs/design/portal.html（含英文、簡中）；tools/zh-Hans-overrides.json（「帳務」轉簡中）；handoff（本卡、任務索引、決定）。<br>共用檔案：遷移編號 0015（開工時 main 最新是 0014）。開啟中的 PR #77 只改 architecture、desktop、tech-stack 三份設計文件與 0.5.0 任務卡，和本任務沒有重疊的檔案。</dd>
+        <dt>狀態</dt><dd>待審閱：功能、測試與文件完成，本地檢查通過；推送後看 CI，合併由使用者決定。</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-u3rhl1（這次會話指定的分支）；PR 見 GitHub（推送後建立）；base main 3d99504（PR #76 合併後）</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 3d99504＋本任務的一個提交；推送到 claude/project-thread-u3rhl1，最新遠端 head 以 PR 為準</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.16、uv 0.11.32、鎖定依賴；瀏覽器測試用容器預裝的 Chromium（版本和 Playwright 1.64 鎖定的不同，用暫存區的符號連結對應過去），Firefox、WebKit 沒有裝</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>設計</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>第一級選單（左到右）：</strong>場景管理 → 場景生產 → 場景運行 → <strong>專案空間（/workspace）</strong> → 叢集管理 → 管理後台。/workspace 轉到第一個專案，還沒有專案時轉到專案管理。</li>
+        <li><strong>第二級選單：</strong>專案空間＝專案 ×N（依專案管理的順序，<code>/projects/{代號}</code>）；場景管理＝領域 ×N、登入與憑證（拿掉組合場景自動化）；管理後台＝領域管理、專案管理（<code>/projects</code>）。</li>
+        <li><strong>專案頁：</strong>原本 composites.html 改名 project.html，內容相同，只列這個專案的組合場景，最近執行也只列它們的；頁面上新增與匯入的組合場景放進這個專案。自由試驗場新增時預設第一個專案，可以選「不指定專案」。組合場景頁的「代號、領域、專案與封存」可以換專案或不指定。</li>
+        <li><strong>專案管理：</strong>和領域管理同樣的表格：代號（用在網址，建立後不能改，規則同領域代號）、名稱、說明、組合場景數；新增、編輯、刪除（只有沒有組合場景的專案）、↑ ↓ 調整順序（PUT /api/projects/order，清單和伺服器不同時回 409）。下方列出不屬於任何專案的組合場景，連到它們的設定。</li>
+        <li><strong>資料：</strong>projects 表（id、name、description、position、created_at）與 workflows.project_id（可為空）。專案與組合場景屬於哪個專案只存在這台伺服器的資料庫，不寫進 composite.yaml 與 git，和領域的順序一樣；重新載入領域資料夾時保留（_apply_composites 原地更新列）。</li>
+        <li><strong>升級：</strong>遷移 0015 在已經有組合場景時建立專案「組合場景自動化」（代號 <code>composites</code>）並把它們都放進去；名稱與說明沒改過時跟著介面語言顯示（follow_locale）。舊網址 <code>/composites</code> 303 轉到 /workspace。</li>
+        <li><strong>錄製端：</strong>專案空間照樣顯示（不在 RECORDER_MENUS），因為它取代的組合場景自動化原本在錄製端看得到的場景管理裡；專案管理在管理後台，跟領域管理一樣預設不顯示，專案頁的「管理專案」按鈕在管理後台看不到時也不顯示。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>上述設計的程式、API、頁面、三語訊息、測試（新增 test_projects.py 4 項、test_migrations 1 項、瀏覽器測試 1 項，更新既有選單與組合場景測試）、管理 Portal 設計文件（新增「專案空間」一節，更新選單表、頁面表、API 表、資料表說明）與英文、簡中。</li>
+        <li><strong>未完成／阻礙：</strong>CI、審閱與合併；Firefox、WebKit 的瀏覽器測試只在 CI 跑；人工驗收（真的錄製端 App 上看專案空間、伺服器上用舊資料升級）。</li>
+        <li><strong>決定：</strong>專案空間、專案管理與拿掉組合場景自動化：使用者 2026-10-23 指定（已確認）。以下是實作選擇，使用者可以改：錄製端顯示專案空間；專案歸屬只存在資料庫、不進 git；升級時建立預設專案；/composites 轉址保留舊書籤；自由試驗場新增時預設第一個專案。見<a href="../decisions.html#decisions">決定紀錄</a>。</li>
+        <li><strong>下一個具體動作：</strong>看 PR 的 CI；使用者審閱、合併後人工驗收。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無（手動確認用的腳本、截圖、舊版 worktree 與資料夾在會話的暫存區，不進倉庫）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>基準 3d99504＋本任務差異；雲端容器</td><td><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run pyright</code></td><td>通過；pyright 0 錯誤（11 個警告都是桌面端在 Linux 上沒有的平台套件，既有）</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -m "not browser" -n 4</code></td><td>1661 通過、3 略過（Windows 登錄檔、Windows mutex、ssh-keygen）</td><td>—</td></tr>
+          <tr><td>同上；容器的 Chromium</td><td><code>uv run pytest -m browser apps/server/tests/test_portal.py apps/server/tests/test_workflow_flow.py</code>（<code>PLAYWRIGHT_BROWSERS_PATH</code> 指向暫存區的對應）</td><td>11 通過、6 略過（Firefox 沒裝）；含新增的 <code>test_projects_are_managed_and_hold_composites</code>（新增、改名、上移、刪除專案，專案頁新增組合場景，領域管理的上移）</td><td>Firefox、WebKit 交給 CI</td></tr>
+          <tr><td>同上</td><td><code>uv run python tools/i18n.py sync</code>、<code>stamp</code>（英文 portal.html）、<code>check</code>；<code>uv run pytest tests/docs tests/i18n</code>；<code>git diff --check</code>；handoff 相對連結</td><td>通過（304 個文檔與多語言測試）</td><td>—</td></tr>
+          <tr><td>舊版 main 3d99504 建資料 → 本任務的程式</td><td>舊版 <code>rpa serve</code> 建兩個組合場景後停掉，換本任務的程式啟動（遷移 0015）</td><td>建立專案「組合場景自動化」、組合場景數 2；<code>/composites</code> → 303 <code>/workspace</code> → 303 <code>/projects/composites</code>；繁中與英文截圖檢查，沒有頁面錯誤</td><td>SQLite；PostgreSQL 的遷移交給 CI 的遷移測試</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：推送後確認；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-23 03:35 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，從 main 3d99504。</li>
+        <li>2026-10-23 04:00 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試與文件完成，本地檢查結果見驗證；提交並推送，開 PR。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

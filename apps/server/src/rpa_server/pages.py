@@ -25,6 +25,7 @@ from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
 from rpa_server.render import (
     domain_page,
+    project_page,
     render,
     replay_messages,
     run_filters,
@@ -184,7 +185,7 @@ def page_router(services: Services) -> APIRouter:
     router = APIRouter()
 
     def page(name: str, *, page: str, title: str, **context: object) -> HTMLResponse:
-        """渲染一頁；每一頁都帶著領域清單（場景管理的二級選單）。
+        """渲染一頁；每一頁都帶著領域清單（場景管理的二級選單）與專案清單（專案空間的二級選單）。
 
         here_display：操作的那台能不能開瀏覽器視窗（錄製、逐步調試、人工登入）；不能時這些入口變灰，
         滑鼠移上去提示改用錄製端。
@@ -192,7 +193,14 @@ def page_router(services: Services) -> APIRouter:
         context.setdefault("worker_names", services.workers.names())
         context.setdefault("here_display", services.display_here())
         return _html(
-            render(name, page=page, title=title, domains=services.list_domains(), **context)
+            render(
+                name,
+                page=page,
+                title=title,
+                domains=services.list_domains(),
+                projects=services.projects.list_projects(),
+                **context,
+            )
         )
 
     def domain_of(domain_id: str | None) -> DomainRecord | None:
@@ -652,16 +660,43 @@ def page_router(services: Services) -> APIRouter:
             fingerprint=services.workers.fingerprint,
         )
 
+    # ------------------------------------------------------------ 專案空間（2026-10-23）
+
+    projects = services.projects
+
+    @router.get("/workspace", include_in_schema=False)
+    def workspace() -> RedirectResponse:
+        """專案空間：到第一個專案；還沒有專案時到專案管理。"""
+        items = projects.list_projects()
+        return RedirectResponse(f"/projects/{items[0].id}" if items else "/projects", 303)
+
     @router.get("/composites", include_in_schema=False)
-    def composites() -> HTMLResponse:
-        """組合場景的卡片管理；生產與修改從卡片進入自由試驗場。"""
+    def composites() -> RedirectResponse:
+        """原本的「組合場景自動化」換成專案空間的專案；舊網址轉過去。"""
+        return RedirectResponse("/workspace", 303)
+
+    @router.get("/projects", include_in_schema=False)
+    def projects_page() -> HTMLResponse:
+        """專案管理（管理後台）：新增、改名、刪除、調整順序；還沒分到專案的組合場景。"""
         return page(
-            "composites.html",
-            page="composites",
-            title=t("nav.composites"),
+            "projects.html",
+            page="projects",
+            title=t("nav.projects"),
+            unassigned=workflows.unassigned(),
+        )
+
+    @router.get("/projects/{project_id}", include_in_schema=False)
+    def project(project_id: str) -> HTMLResponse:
+        """專案頁：就是一份「組合場景自動化」，只列這個專案的組合場景與它們的執行。"""
+        record = projects.get_project(project_id)
+        return page(
+            "project.html",
+            page=project_page(project_id),
+            title=record.name,
+            project=record,
             data={"engines": list(ENGINES), **_location_context(services)},
-            workflows=workflows.list_workflows(),
-            runs=workflows.list_runs(limit=_RECENT_RUNS * 2),
+            workflows=workflows.list_workflows(project_id=project_id),
+            runs=workflows.list_runs(project_id=project_id, limit=_RECENT_RUNS * 2),
             has_published=bool(workflows.library()),
             messages=workflow_messages(),
             domain_names={domain.id: domain.name for domain in services.list_domains()},
@@ -703,6 +738,7 @@ def page_router(services: Services) -> APIRouter:
             page="playground",
             title=record.name,
             workflow=record,
+            project=projects.get_project(record.project_id) if record.project_id else None,
             data=data,
             messages=workflow_messages(),
             runs=workflows.list_runs(workflow_id=workflow_id, limit=_RECENT_RUNS),
@@ -716,11 +752,14 @@ def page_router(services: Services) -> APIRouter:
         """一次序列的執行：每個節點的狀態、入參的值與來源、出參、那次執行的報告。"""
         record = workflows.get_run(run_id)
         exists = True
+        owner = None
         if record.workflow_id is not None:
             try:
-                workflows.get_workflow(record.workflow_id)
+                project_id = workflows.get_workflow(record.workflow_id).project_id
             except ServiceError:
                 exists = False
+            else:
+                owner = projects.get_project(project_id) if project_id else None
         role = None
         stopped = next((node for node in record.nodes if node.id == record.failed_node), None)
         if record.status == "needs_login" and stopped is not None:
@@ -742,6 +781,7 @@ def page_router(services: Services) -> APIRouter:
             run=record,
             worker_wait=waiting,
             workflow_exists=exists and record.workflow_id is not None,
+            project=owner,
             role=role,
             messages=workflow_messages(),
         )

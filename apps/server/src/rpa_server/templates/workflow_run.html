@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block crumb %}<a href="/composites">{{ t("nav.composites") }}</a> › {% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %} › {{ run.id }}{% endblock %}
+{% block crumb %}{% if project %}<a href="/projects/{{ project.id }}">{{ project.name }}</a> › {% endif %}{% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %} › {{ run.id }}{% endblock %}
 {% block description %}{{ t("workflow_run.description", name=run.workflow_name, count=run.nodes | length) }}{% endblock %}
 {% block actions %}
 {% if workflow_exists %}<a class="button" href="/playground/{{ run.workflow_id }}">{{ t("workflow_run.back") }}</a>{% endif %}

@@ -9,7 +9,8 @@ M11 起場景、版本、角色的定義在領域資料夾（packs.py），資�
 
 M4 的登入角色與 Secrets（roles.py）、錄製（recordings.py）、調試工作階段（debugging.py）
 各自一個模組，由這裡建立：``services.roles``、``services.recordings``、``services.debug``；
-M6 的自由試驗場序列（workflows.py）是 ``services.workflows``。
+M6 的自由試驗場序列（workflows.py）是 ``services.workflows``；專案空間的專案（projects.py）是
+``services.projects``。
 """
 
 import json
@@ -70,6 +71,7 @@ from rpa_server.jobs import RunQueue
 from rpa_server.models import Domain, Revision, Role, Run, Scene
 from rpa_server.models import Workflow as WorkflowRow
 from rpa_server.packs import COMPOSITES_DOMAIN, UNASSIGNED_DOMAIN, LoadReport, PackStore
+from rpa_server.projects import ProjectService
 from rpa_server.recordings import RecordingService
 from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
@@ -362,6 +364,8 @@ class Services:
         self.debug = DebugManager(
             storage, self, self.roles, display=display, locale=locale, hosts=self.recorders
         )
+        self.projects = ProjectService(sessions)
+        """專案空間的專案：組合場景的分組，只在資料庫（2026-10-23）。"""
         self.workflows = WorkflowService(sessions, self)
         self.videos = VideoService(sessions, storage)
         """錄影的設定、釘選與保留規則（M12）。"""

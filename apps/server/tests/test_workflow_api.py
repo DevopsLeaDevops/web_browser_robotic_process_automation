@@ -599,13 +599,19 @@ def test_dag_invalid_draft_is_saved_but_never_queued(
 
 
 def test_composite_management_and_navigation(client: Client, chain: int) -> None:
-    html = client.get("/composites").text
+    """組合場景的卡片在專案空間的專案頁（2026-10-23 取代「組合場景自動化」）。"""
+    body(client.post("/api/projects", json={"id": "flows", "name": "流程"}), 201)
+    body(client.patch(f"/api/workflows/{chain}", json={"projectId": "flows"}))
+    assert client.get("/composites", follow_redirects=False).headers["location"] == "/workspace"
+    html = client.get("/composites").text  # 舊網址 → 專案空間 → 第一個專案
     assert 'scene-card composite-card"' in html
     assert 'data-action="run-composite"' in html
     assert 'class="preview-edge"' in html
     assert 'href="/playground/' + str(chain) + '"' in html
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
-    assert side.index("/composites") < side.index("/roles")  # 登入與憑證放最後（2026-10-22）
+    assert 'href="/projects/flows"' in side
+    manage = client.get("/roles").text.split('id="sidenav"')[1].split("</nav>")[0]
+    assert "/composites" not in manage  # 場景管理不再列「組合場景自動化」
     production = client.get("/playground").text.split('id="sidenav"')[1].split("</nav>")[0]
     assert production.index("/recording") < production.index("/playground")
     assert "/runs" not in production  # 運行報告在「場景運行」

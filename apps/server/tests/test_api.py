@@ -486,7 +486,7 @@ def test_domains_can_be_reordered(client: Client) -> None:
     assert order() == ["lab", "google", "microsoft"]
     assert client.get("/scenes", follow_redirects=False).headers["location"] == "/domains/lab"
     side = client.get("/domains/google").text.split('id="sidenav"')[1].split("</nav>")[0]
-    links = ["/domains/lab", "/domains/google", "/domains/microsoft", "/composites", "/roles"]
+    links = ["/domains/lab", "/domains/google", "/domains/microsoft", "/roles"]
     assert [side.index(f'href="{link}"') for link in links] == sorted(
         side.index(f'href="{link}"') for link in links
     )
