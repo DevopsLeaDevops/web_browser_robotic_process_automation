@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261023-agent-api；2026-10-23 06:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261023-agent-api；2026-10-23 06:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-23 05:44 America/Los_Angeles（PDT，UTC−07:00）在專案對話要求：「三方系統使用 Linux 伺服器 API 操作錄製端，完成場景腳本和參數的新增、修改、調試運行；同時透過 Linux 服務端呼叫 worker 完成驗證和運作。三方系統是一個 agent 系統。先做設計，確認沒問題再開始 coding。」稍早一則訊息（同日 05:33）提到對外 API 要支持三方系統取得運行過程，原文後半被截斷。本階段的完成條件：使用者確認設計與下方待決事項。</dd>
         <dt>範圍／不包含</dt><dd>範圍：API 用戶端與金鑰、權限、稽核；<code>/agent-api/v1</code> 的場景與版本、調試（指定錄製端）、驗證、發布、執行、運行過程。不包含：錄製（codegen 要有人操作）、遠端畫面串流（ADR 0014 不做）、Secrets 的值、裝置與 git 同步管理、完整的使用者與專案權限（M8）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude 主責設計；審閱與確認：使用者；接收方未指定。</dd>
@@ -43,7 +43,7 @@
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>盤點 <code>api.py</code>、<code>client_api.py</code>、<code>worker_api.py</code>、<code>middleware.py</code>、<code>debugging.py</code>、<code>devices.py</code>、<code>services.request_run</code>、Runner 的階段與 <code>steps.json</code>，以及 #78 的專案空間；寫出設計草案。</li>
         <li><strong>未完成／阻礙：</strong>等使用者確認設計與待決事項。</li>
-        <li><strong>決定（全部待定，括號內為 Claude 的建議）：</strong>(1) Agent 能否自己發布（可以，但要 <code>scenes:publish</code>，預設不給；現行原則是生成只產生草稿、人工發布）；(2) Agent 用的模型在哪裡、截圖與頁面內容能否送出（先確認；和 M5 的資料去向是同一個問題）；(3) Agent 用哪台錄製端（專用一台、允許無頭）；(4) 第三期是否做 MCP 轉接（做）。另需確認 Agent 系統是否在同一內網（影響 Webhook 與 HTTPS）。</li>
+        <li><strong>決定：</strong>(1) <span class="kind user">使用者決定</span>（2026-10-23 06:20 America/Los_Angeles（PDT，UTC−07:00），專案對話的選項卡）Agent 可以自己發布，但要個別授權：API 用戶端的 <code>scenes:publish</code> 預設不勾，發布門檻（驗證通過、雜湊相符）不變。以下仍待定，括號內為 Claude 的建議：(2) Agent 用的模型在哪裡、截圖與頁面內容能否送出（先確認；和 M5 的資料去向是同一個問題）；(3) Agent 用哪台錄製端（專用一台、允許無頭）；(4) 第三期是否做 MCP 轉接（做）。另需確認 Agent 系統是否在同一內網（影響 Webhook 與 HTTPS）。</li>
         <li><strong>下一個具體動作：</strong>使用者確認後，先寫 ADR 0017 與設計頁（繁中、英文，簡中由工具產生），再實作第一期；遷移編號在 #78 合併後確定。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
@@ -62,7 +62,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-10-23 06:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立任務紀錄，設計草案交給使用者確認。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-10-23 06:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立任務紀錄，設計草案交給使用者確認。</li><li>2026-10-23 06:20 America/Los_Angeles（PDT，UTC−07:00），使用者：發布權限選「可以，但要個別授權」。其餘待決事項與整體設計仍待確認。</li></ul></div>
     </section>
   </div>
 </main>
