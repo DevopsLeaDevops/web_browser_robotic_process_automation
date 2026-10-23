@@ -1443,3 +1443,7 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 149.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 2.0, "run_id": 39909284974, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 39909284974, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 39909284974, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 5.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 39909285041, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 312.0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 2.0, "run_id": 39909285041, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 238.0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 39909285041, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 232.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 1.0, "run_id": 39909285041, "workflow": "桌面端建置"}
