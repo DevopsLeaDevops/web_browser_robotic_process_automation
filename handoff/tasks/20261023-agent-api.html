@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>對外 Agent API（設計草案） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>對外 Agent API（設計草案）</h1><p>讓第三方 Agent 系統只透過 Linux 伺服器的 API，操作錄製端完成場景腳本與入參出參的新增、修改、調試，再經由伺服器交給 Worker 驗證與執行，並隨時取得運行過程。目前只有設計，<strong>使用者確認前不寫程式</strong>。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261023-agent-api；2026-10-23 06:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-23 05:44 America/Los_Angeles（PDT，UTC−07:00）在專案對話要求：「三方系統使用 Linux 伺服器 API 操作錄製端，完成場景腳本和參數的新增、修改、調試運行；同時透過 Linux 服務端呼叫 worker 完成驗證和運作。三方系統是一個 agent 系統。先做設計，確認沒問題再開始 coding。」稍早一則訊息（同日 05:33）提到對外 API 要支持三方系統取得運行過程，原文後半被截斷。本階段的完成條件：使用者確認設計與下方待決事項。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：API 用戶端與金鑰、權限、稽核；<code>/agent-api/v1</code> 的場景與版本、調試（指定錄製端）、驗證、發布、執行、運行過程。不包含：錄製（codegen 要有人操作）、遠端畫面串流（ADR 0014 不做）、Secrets 的值、裝置與 git 同步管理、完整的使用者與專案權限（M8）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 主責設計；審閱與確認：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd>本階段只有本任務紀錄與任務索引。實作時預計新增 <code>apps/server/src/rpa_server/agent_api.py</code>、遷移（接在 #78 的 0015 之後）、管理後台「API 用戶端」頁、ADR 0017 與設計頁；<code>middleware.py</code>、<code>app.py</code> 小改。遷移編號與 #78 有相依，#78 合併後再定。</dd>
+        <dt>狀態</dt><dd>待開工：設計草案已交給使用者，等確認與第 4 項的決定。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-fr1onb</code>（工具指定的分支名）；PR 未建立，第一期實作時再開；base main <code>3d99504</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本紀錄隨本分支推送；完整草案（含圖）在使用者的 Claude 文件「對外 Agent API 設計（草案）」，下方摘要足以接手。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器 Linux x86_64；本階段只讀程式碼，未執行測試。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>設計摘要（建議，未確認）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>架構：</strong>對外埠（預設 8081）新增 <code>/agent-api/v1</code>，每個 Agent 系統一個「API 用戶端」，<code>Authorization: Bearer</code> 金鑰只存雜湊。Agent 只連伺服器；錄製端與 Worker 照舊經 Client API、Worker API 主動連進來。新路由只轉接 <code>Services</code>，業務規則與發布門檻不變。不直接開放 <code>/api</code>：它沒有認證、跟著 Portal 介面改動。</li>
+        <li><strong>指定錄製端：</strong>現在互動子程序開在「請求經過的那台錄製端」（<code>rpa_server.context</code>）。Agent API 依 <code>recorderId</code> 用 <code>use_recorder(…)</code> 設定目前的錄製端，<code>DebugManager</code> 與 <code>RecorderHub</code> 幾乎不用改。錄製端加「允許 Agent 調試」「只允許無頭」開關，預設關閉；場景已有人在調試時回 409，不搶走。</li>
+        <li><strong>權限範圍：</strong><code>scenes:read</code>、<code>scenes:write</code>、<code>debug</code>、<code>runs:validate</code>、<code>scenes:publish</code>、<code>runs:execute</code>、<code>runs:read</code>；另有可用領域、錄製端、執行位置與 Worker、限額、回傳頁面內容、到期與來源 IP。每個寫入請求寫稽核紀錄；版本說明與運行紀錄標出用戶端。</li>
+        <li><strong>端點：</strong>探索（<code>/meta</code>、<code>/dsl/schema</code>、<code>/dsl/check</code>、領域、角色、Secrets 名稱、錄製端、Worker）；場景與版本（建立、讀、存新版本帶 <code>baseRevision</code>、段落、入參出參表格、匯入 Playwright 腳本）；調試（開工作階段帶 <code>recorderId</code>、執行一步、執行到、定位器、截圖、第二期的頁面結構 <code>snapshot</code>、換版本、重來、結束）；驗證、發布、執行、取消、重跑（加 <code>workerId</code>，對應內部的 <code>required_worker</code>）。會建立東西的 POST 都接受 <code>idempotencyKey</code>。</li>
+        <li><strong>運行過程：</strong>第一期 <code>GET /runs/{id}</code>、列表、結束後的步驟與產物。第二期：子程序每一步已寫 <code>steps.json</code>，本機 worker 讀檔、遠端 Worker 在心跳附上目前步驟並在變化時立即送出；新表 <code>run_events</code>，<code>GET /runs/{id}/events?after=&amp;wait=</code> 長輪詢；Webhook（HMAC 簽章、重試）。舊版 Worker 只有階段進度。</li>
+        <li><strong>資料庫：</strong><code>api_clients</code>、<code>api_audit</code>、<code>runs.client_id</code>、<code>recorders.allow_agent</code>／<code>agent_headless_only</code>（第一期）；<code>run_events</code>、<code>runs.step_index</code>／<code>step_count</code>（第二期）。只用通用型別（ADR 0008）。</li>
+        <li><strong>分期：</strong>第一期只改伺服器，Agent 可從空白走到正式執行；第二期即時步驟進度、事件、Webhook、頁面結構、錄製端的 Agent 通知（要更新 App）；第三期專案（組合場景）執行、請人登入、MCP 轉接。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>盤點 <code>api.py</code>、<code>client_api.py</code>、<code>worker_api.py</code>、<code>middleware.py</code>、<code>debugging.py</code>、<code>devices.py</code>、<code>services.request_run</code>、Runner 的階段與 <code>steps.json</code>，以及 #78 的專案空間；寫出設計草案。</li>
+        <li><strong>未完成／阻礙：</strong>等使用者確認設計與待決事項。</li>
+        <li><strong>決定（全部待定，括號內為 Claude 的建議）：</strong>(1) Agent 能否自己發布（可以，但要 <code>scenes:publish</code>，預設不給；現行原則是生成只產生草稿、人工發布）；(2) Agent 用的模型在哪裡、截圖與頁面內容能否送出（先確認；和 M5 的資料去向是同一個問題）；(3) Agent 用哪台錄製端（專用一台、允許無頭）；(4) 第三期是否做 MCP 轉接（做）。另需確認 Agent 系統是否在同一內網（影響 Webhook 與 HTTPS）。</li>
+        <li><strong>下一個具體動作：</strong>使用者確認後，先寫 ADR 0017 與設計頁（繁中、英文，簡中由工具產生），再實作第一期；遷移編號在 #78 合併後確定。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>base 3d99504＋本紀錄</td><td><code>git diff --check</code>；人工檢查本頁相對連結</td><td>通過</td><td>純設計與紀錄，沒有程式變更，未跑測試</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行（未開 PR）；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-10-23 06:05 America/Los_Angeles（PDT，UTC−07:00），Claude：建立任務紀錄，設計草案交給使用者確認。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
