@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:984af5227f7e3b8e">
+<meta name="translation-source" content="sha256:f33610f39445aa12">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -87,6 +87,18 @@ gh workflow run server-package.yml --ref branch-name</pre>
       <div class="panel-body prose">
         <p>Run a role locally: <code>uv run pytest -m "browser and (role_worker or smoke)"</code> (worker), <code>uv run pytest -m "not browser or ((smoke or role_server or role_recorder) and not firefox)"</code> (same as CI on Linux).</p>
       </div>
+    </section>
+
+    <section class="panel" id="artifacts">
+      <div class="panel-header"><h2>Artifacts and storage quota</h2></div>
+      <div class="panel-body prose">
+        <p>The repository has been private since 2026-10-22, so Actions artifacts count toward the account plan's storage quota. Once the quota is used up, artifact uploads fail and a release cannot create its draft (this is what happened to v0.5.0). Desktop builds and server packages therefore keep their artifacts for 3 days on PRs and main and for 1 day on releases, and the release workflow deletes its run's artifacts after creating the draft. Test reports and Portal traces are only for diagnosis, so a failed upload does not fail the job.</p>
+        <p>To free the quota in one go, run "清理產物" (<code>cleanup-artifacts.yml</code>) by hand. By default it only lists the artifacts, with counts and sizes by name in the summary; after checking, run it again with "只列出、不刪" (list only) unticked. Deleting cannot be undone; the files of published versions live on Releases and are not affected. The quota goes down only after GitHub recalculates the usage.</p>
+      </div>
+      <pre class="source"># List all artifacts only
+gh workflow run cleanup-artifacts.yml
+# Delete artifacts created more than 3 days ago
+gh workflow run cleanup-artifacts.yml -f older-than-days=3 -f dry-run=false</pre>
     </section>
 
     <section class="panel" id="metrics">

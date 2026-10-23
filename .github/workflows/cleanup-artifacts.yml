@@ -1,0 +1,66 @@
+# 清理產物：刪掉 Actions 的產物，釋放儲存額度。只能手動執行。
+# 倉庫是私有的，產物計入帳號方案的 Actions 儲存額度；額度用完時上傳產物會失敗，發布也建不出草稿
+# （v0.5.0 的發布執行 39900384051）。產物是 PR、main 與發布執行的試用包、測試報告與 Portal 軌跡，
+# 都能重新建置；正式版的檔案在 Releases 上，不受影響。
+# 預設只列出、不刪（dry-run）。刪除不能復原；刪完要等 GitHub 重新計算用量，額度才會降下來。
+name: 清理產物
+
+on:
+  workflow_dispatch:
+    inputs:
+      older-than-days:
+        description: "刪掉幾天以前建立的產物（0＝全部）"
+        default: "0"
+      dry-run:
+        description: "只列出、不刪"
+        type: boolean
+        default: true
+
+concurrency:
+  group: cleanup-artifacts
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    name: 清理產物
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      DAYS: ${{ inputs.older-than-days }}
+    steps:
+      - name: 列出產物
+        run: |
+          if ! [[ "$DAYS" =~ ^[0-9]+$ ]]; then
+            echo "::error title=清理產物::天數要是 0 以上的整數，收到「$DAYS」"
+            exit 1
+          fi
+          cutoff="$(date -u -d "-$DAYS days" +%Y-%m-%dT%H:%M:%SZ)"
+          # 先列完再刪，避免一邊刪一邊翻頁時漏掉
+          gh api --paginate "repos/$GH_REPO/actions/artifacts?per_page=100" \
+            --jq ".artifacts[] | select(.expired | not) | select(.created_at <= \"$cutoff\")
+                  | [.id, .size_in_bytes, .created_at, .name] | @tsv" > "$RUNNER_TEMP/artifacts.tsv"
+          count="$(wc -l < "$RUNNER_TEMP/artifacts.tsv")"
+          megabytes="$(awk -F'\t' '{ s += $2 } END { printf "%.0f", s / 1048576 }' "$RUNNER_TEMP/artifacts.tsv")"
+          {
+            echo "## $cutoff 以前建立的產物：$count 個、$megabytes MB"
+            echo
+            echo "| 名稱 | 個數 | MB |"
+            echo "| --- | ---: | ---: |"
+            awk -F'\t' '{ n[$4]++; s[$4] += $2 } END { for (k in n) printf "| %s | %d | %.0f |\n", k, n[k], s[k] / 1048576 }' \
+              "$RUNNER_TEMP/artifacts.tsv" | sort -t'|' -k4 -rn
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=清理產物::$cutoff 以前建立的產物 $count 個、$megabytes MB"
+      - name: 刪除
+        if: ${{ !inputs.dry-run }}
+        run: |
+          deleted=0
+          while IFS=$'\t' read -r id _; do
+            gh api -X DELETE "repos/$GH_REPO/actions/artifacts/$id"
+            deleted=$((deleted + 1))
+          done < "$RUNNER_TEMP/artifacts.tsv"
+          echo "::notice title=清理產物::刪掉 $deleted 個產物；GitHub 重新計算用量後額度才會降下來"
