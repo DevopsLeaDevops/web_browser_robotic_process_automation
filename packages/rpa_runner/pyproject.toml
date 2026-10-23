@@ -1,6 +1,6 @@
 [project]
 name = "rpa-runner"
-version = "0.4.0"
+version = "0.5.0"
 description = "執行引擎：入參校驗、在瀏覽器中執行步驟、獨立斷言、出參發布、執行報告"
 requires-python = ">=3.12"
 dependencies = [
