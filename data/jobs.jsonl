@@ -1476,3 +1476,8 @@
 {"attempt": 1, "conclusion": "failure", "duration_s": 387.0, "job": "測試（Python 3.12）", "os": "linux", "queue_s": 2.0, "run_id": 39939492994, "workflow": "CI"}
 {"attempt": 1, "conclusion": "success", "duration_s": 156.0, "job": "測試（Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 39939492994, "workflow": "CI"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "Worker 測試（Windows）", "os": "windows", "queue_s": 0.0, "run_id": 39939492994, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 6.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 39940096023, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 28.0, "job": "靜態檢查", "os": "linux", "queue_s": 2.0, "run_id": 39940096023, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 69.0, "job": "測試（Python 3.12）", "os": "linux", "queue_s": 2.0, "run_id": 39940096023, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 572.0, "job": "測試（Python 3.13）", "os": "linux", "queue_s": 3.0, "run_id": 39940096023, "workflow": "CI"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "Worker 測試（Windows）", "os": "windows", "queue_s": 0.0, "run_id": 39940096023, "workflow": "CI"}
