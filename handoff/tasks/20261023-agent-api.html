@@ -64,7 +64,7 @@
           <tr><td>同上，本機伺服器＋Playwright</td><td>打開管理後台「API 用戶端」頁新增用戶端、看金鑰對話框、編輯帶入原值；裝置頁切換錄製端的 Agent 開關</td><td>正常顯示與儲存，主控台沒有錯誤</td><td>只看繁中；沒有用真的 Agent 系統</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：等推送後的結果（見 PR #79）；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：<code>ad9969b</code> 的「測試（Python 3.13）」有 1 項失敗：<code>test_rpa_serve_recognizes_a_running_portal</code>，<code>rpa serve</code> 認 Portal 時只等 1 秒，Portal 第一次產生 OpenAPI 文件（本 PR 多了 4 個路徑）在忙碌的 CI 上超過 1 秒，被當成別的程式。本機量到閒置約 0.25 秒、跑測試時最多 0.66 秒。改成等 3 秒（<code>apps/cli/src/rpa_cli/serve.py</code> 的 <code>PROBE_TIMEOUT</code>），<code>uv run pytest -q apps/cli</code> 與該測試 79 passed；其餘檢查都通過。新的結果見 PR #79。人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
