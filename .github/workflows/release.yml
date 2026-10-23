@@ -7,6 +7,7 @@
 #      啟動、重裝與升級。
 #   4. 用它們的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip 與 macOS 的 DMG，RPA 錄製端的 DMG（M10.2），
 #      伺服器的分發包（Linux x64、arm64），以及 SHA256SUMS.txt。
+#   5. 刪掉這次執行的產物：檔案已經在草稿上，私有倉庫的產物會占 Actions 的儲存額度（一次約 500 MB）。
 # 草稿只有維護者看得到；確認內容後在 GitHub 上按「發布」才公開（docs/design/desktop.html#release）。
 # 已經有同一個標籤的草稿時（重新執行）換掉它的檔案；已經發布的不動，請改用新的版本。
 name: 發布
@@ -62,6 +63,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # 最後一步刪掉這次執行的產物
+      actions: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -160,3 +163,11 @@ jobs:
               --title "RPA $TAG" --notes-file "$notes" --generate-notes
             echo "::notice title=發布::已建立 $TAG 的草稿，確認後在 GitHub 上按「發布」"
           fi
+      - name: 刪掉這次執行的產物
+        # 檔案已經在草稿 Release 上。刪不掉時只留警告，產物 1 天後也會過期。
+        continue-on-error: true
+        run: |
+          gh api --paginate "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[].id' |
+            while read -r id; do
+              gh api -X DELETE "repos/$GH_REPO/actions/artifacts/$id"
+            done

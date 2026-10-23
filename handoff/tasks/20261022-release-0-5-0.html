@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261022-release-0-5-0；2026-10-22 07:55 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261022-release-0-5-0；2026-10-22 21:40 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-22 07:48 America/Los_Angeles（PDT，UTC−07:00）於 Claude 專案對話：「今天你做了多端的改造，我要重新打一個版本，告訴我步驟。」Claude 依<a href="../../docs/design/desktop.html#release">發布流程</a>回覆步驟並建議 0.5.0（v0.4.0 已發布，不能重用）；使用者 07:50 回覆：「好的，你開0.5.0的版本PR吧。」<br>驗收：七個工作區套件與 uv.lock 統一為 0.5.0，<code>tools/release_version.py check v0.5.0</code> 通過；PR 的桌面端建置與伺服器分發包產出 0.5.0 的檔案；合併後在 main 打 v0.5.0，草稿 Release 有六個檔案與 SHA256SUMS.txt，由使用者確認後發布。</dd>
         <dt>範圍／不包含</dt><dd>範圍：版本號（tools/release_version.py bump 0.5.0）、本任務卡、任務索引；順帶把<a href="20261022-menu-roles.html">選單結構與三段分工</a>的狀態改成已合併（PR #72）。<br>不包含：程式與依賴的修改；打標籤與發布 Release（使用者合併後操作，或另外要求 Claude 推標籤）；設計文件裡「目前 v0.4.0」的字樣（docs/design/desktop.html、architecture.html、tech-stack.html）在 0.5.0 真正發布後再改，現在改會寫成還沒發生的事。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude；審閱未指定；合併、標籤與發布：使用者</dd>
         <dt>修改檔案／整合者</dt><dd>七個套件的 pyproject.toml（apps/cli、apps/desktop、apps/server、apps/testsite、apps/worker、packages/rpa_core、packages/rpa_runner）、uv.lock、本頁、任務索引、20261022-menu-roles.html；Claude 整合。開工時沒有其他開啟中的 PR。</dd>
-        <dt>狀態</dt><dd>待審閱：版本與本地檢查完成，已推送並開 PR #73；等 CI、桌面端建置與使用者合併。尚未建立標籤或 Release。</dd>
+        <dt>狀態</dt><dd>發布受阻：使用者於 2026-10-22 21:00 America/Los_Angeles（PDT，UTC−07:00）合併 PR #73（main 6522d74），21:27 推送 v0.5.0。<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/39900384051">發布執行 39900384051</a> 的建置與測試全部通過，但五個建置工作上傳產物時 Actions 儲存額度用完，草稿 Release 沒有建立。見下方<a href="#release-failure">發布失敗</a>；等使用者決定倉庫維持私有或改回公開。</dd>
         <dt>分支／PR／base SHA</dt><dd>claude/project-thread-ab62tv（這次會話指定的分支，PR #72 合併後從 main 重建；倉庫慣例是 chore/release-…，名稱不影響合併）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/73">PR #73</a>；base main 748cba8（#72 合併後）</dd>
         <dt>交接版本／同步狀態</dt><dd>提交於 claude/project-thread-ab62tv（基準 748cba8）並推送；最新 head 以 PR 為準</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.16、uv 0.11.32、鎖定依賴</dd>
@@ -48,6 +48,15 @@
         <li>升級：先停止伺服器並備份資料目錄。Linux 伺服器解壓分發包後執行 <code>install.sh --install-service</code>（之前用 setup-linux.sh 安裝的自動沿用設定與資料），其他系統 <code>git pull</code> 後重新執行安裝腳本並啟動；遷移 0014 在啟動時執行。錄製端、Windows 與 macOS 的 Worker 換成 0.5.0，配對保留；動態入參要用 0.5.0 的 Worker 才能在遠端執行。</li>
         <li>發布後：設計文件「目前 v0.4.0」改成 v0.5.0（繁中、英文、簡中），回填本頁。</li>
       </ol></div>
+    </section>
+    <section class="panel" id="release-failure">
+      <div class="panel-header"><h2>發布失敗（v0.5.0，執行 39900384051）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>現象：</strong>確認版本通過；Windows Worker、macOS Worker、macOS 錄製端、伺服器 x64、arm64 五個工作的建置、自我測試、端到端與 Rocky 8 安裝都通過，最後 <code>actions/upload-artifact@v7</code> 失敗：<code>Failed to CreateArtifact: Artifact storage quota has been hit. Unable to upload any new artifacts.</code>「草稿 Release」因此略過。標籤 v0.5.0 本身沒有問題，不用重打。</li>
+        <li><strong>原因：</strong>倉庫在 2026-10-22 改成私有。公開倉庫的 Actions 產物不計儲存額度，私有倉庫要計入帳號方案的額度（Free 500 MB、Pro 1 GB、Team 2 GB；超過要設 Actions 的預算）。2026-10-22 21:35 PDT 從 API 查到 693 個未過期產物、約 30 GB：worker-windows-latest 16.8 GB、舊名稱 recorder-macos-14 10.1 GB、recorder-macos-15 0.75 GB、伺服器分發包 1.4 GB、worker-macos-15 0.59 GB、測試報告與 Portal 軌跡 0.4 GB；都保存 14 天。單次發布要上傳約 504 MB（Windows 136、兩個 DMG 各 84、伺服器 103 與 97 MB），本身就超過 Free 的 500 MB。帳號方案查不到（工作階段只能用倉庫範圍的 API）。</li>
+        <li><strong>選項（待使用者決定，Claude 建議維持私有）：</strong>(1) 改回公開：產物不計額度，重跑這次執行的失敗工作即可，從零安裝與 App 的「下載新版」也恢復。(2) 維持私有：刪掉舊產物（不能復原，要使用者同意）；在 Settings › Billing 設 Actions 儲存的預算；合併縮短保存期的 PR；額度重新計算後重跑這次執行的失敗工作。</li>
+        <li><strong>修正 PR（兩種選項都適用）：</strong>desktop.yml、server-package.yml 的產物保存期從 14 天改成 PR 與 main 3 天、標籤 1 天；release.yml 建立草稿後刪掉這次執行的產物（<code>actions: write</code>，刪不掉只留警告）。</li>
+      </ul></div>
     </section>
     <section class="panel" id="known-issues">
       <div class="panel-header"><h2>需帶入 Release 說明的已知問題</h2></div>
@@ -81,6 +90,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-22 07:55 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #72 合併後從 main 748cba8 重建分支；確認 v0.4.0 已發布、沒有開啟中的 PR；七個套件與 uv.lock 改為 0.5.0，建立本頁。</li>
         <li>2026-10-22 08:18 America/Los_Angeles（PDT，UTC−07:00），Claude：開 PR #73。CI 結果記在驗證；兩項失敗與 main 相同、不是版本號造成，已在 PR 留言並各重跑一次；Windows 瀏覽器測試的不穩定加進已知問題。</li>
+        <li>2026-10-22 21:40 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者合併 PR #73、推送 v0.5.0 後發布失敗；查明是私有倉庫的 Actions 產物儲存額度用完（見發布失敗），請使用者決定倉庫可見度；從 main 6522d74 重建分支，開縮短產物保存期與發布後刪除產物的 PR。</li>
       </ul></div>
     </section>
   </div>
