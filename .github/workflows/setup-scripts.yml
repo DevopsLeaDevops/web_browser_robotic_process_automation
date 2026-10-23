@@ -234,6 +234,8 @@ jobs:
 
       - name: 保留 Portal 瀏覽器軌跡
         if: failure()
+        # 診斷用的產物：私有倉庫的儲存額度用完時上傳會失敗，不要因此把通過的測試標成失敗
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: portal-in-repo-${{ matrix.os }}
@@ -271,6 +273,8 @@ jobs:
 
       - name: 保留 Portal 瀏覽器軌跡
         if: failure()
+        # 診斷用的產物：私有倉庫的儲存額度用完時上傳會失敗，不要因此把通過的測試標成失敗
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: portal-from-scratch-${{ matrix.os }}

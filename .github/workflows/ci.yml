@@ -135,6 +135,8 @@ jobs:
           exit "$code"
       - name: 保留測試報告（各測試的耗時）
         if: always()
+        # 診斷用的產物：私有倉庫的儲存額度用完時上傳會失敗，不要因此把通過的測試標成失敗
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: pytest-report-${{ matrix.python }}
@@ -179,6 +181,8 @@ jobs:
           exit "$code"
       - name: 保留測試報告（各測試的耗時）
         if: always()
+        # 診斷用的產物：私有倉庫的儲存額度用完時上傳會失敗，不要因此把通過的測試標成失敗
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: pytest-report-windows

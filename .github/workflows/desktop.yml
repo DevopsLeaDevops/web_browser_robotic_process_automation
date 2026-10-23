@@ -22,7 +22,7 @@
 #   端到端（tools/recorder_e2e.py）：從原始碼啟動管理 Portal、產生錄製端邀請，打包版以 --no-window
 #   配對（權杖存進鑰匙圈），經由本機閘道在錄製端逐步調試 BA-001，無頭與有頭各一次。
 # 兩個 App 都是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
-# 產物（DMG、zip、安裝檔）掛在這次建置上 14 天；MVP 不簽章（docs/design/desktop.html#signing）。
+# 產物（DMG、zip、安裝檔）掛在這次建置上 3 天（發布時 1 天）；MVP 不簽章（docs/design/desktop.html#signing）。
 # 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
 name: 桌面端建置
 
@@ -301,5 +301,7 @@ jobs:
           path: |
             ${{ steps.build.outputs.artifact }}
             ${{ steps.build.outputs.installer }}
-          retention-days: 14
+          # 私有倉庫的產物計入 Actions 儲存額度（一次約 500 MB）：發布（標籤）只在同一次執行裡用，留 1 天；
+          # PR 與 main 的試用包留 3 天。
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 1 || 3 }}
           if-no-files-found: error

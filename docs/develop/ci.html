@@ -88,6 +88,18 @@ gh workflow run server-package.yml --ref 分支名稱</pre>
       </div>
     </section>
 
+    <section class="panel" id="artifacts">
+      <div class="panel-header"><h2>產物與儲存額度</h2></div>
+      <div class="panel-body prose">
+        <p>倉庫自 2026-10-22 起是私有的，Actions 的產物計入帳號方案的儲存額度；額度用完時上傳產物會失敗，發布也建不出草稿 Release（v0.5.0 就是這樣）。所以桌面端建置與伺服器分發包的產物在 PR 與 main 上留 3 天、發布時留 1 天，發布流程建好草稿後刪掉那次執行的產物；測試報告與 Portal 軌跡只是診斷用，上傳失敗不讓工作失敗。</p>
+        <p>要一次釋放額度時，手動執行「清理產物」（<code>cleanup-artifacts.yml</code>）：預設只列出，摘要裡依名稱統計個數與大小；確認後取消勾選「只列出、不刪」再執行一次。刪除不能復原；正式版的檔案在 Releases 上，不受影響。刪完要等 GitHub 重新計算用量，額度才會降下來。</p>
+      </div>
+      <pre class="source"># 只列出全部產物
+gh workflow run cleanup-artifacts.yml
+# 刪掉 3 天以前建立的產物
+gh workflow run cleanup-artifacts.yml -f older-than-days=3 -f dry-run=false</pre>
+    </section>
+
     <section class="panel" id="metrics">
       <div class="panel-header"><h2>運行耗時紀錄</h2></div>
       <div class="panel-body prose">
