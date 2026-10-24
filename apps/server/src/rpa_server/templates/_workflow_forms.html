@@ -1,4 +1,8 @@
+{# 專案：專案頁新增的預設放進那個專案，其他地方預設第一個專案 #}
+{% set current_project = project.id if project is defined and project else (projects[0].id if projects else "") %}
+{% macro project_select() %}<label>{{ t("playground.form_project") }}<select name="projectId"><option value="">{{ t("playground.form_project_none") }}</option>{% for item in projects %}<option value="{{ item.id }}"{% if item.id == current_project %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>{% endmacro %}
 <template id="workflow-form">
+  {{ project_select() }}
   <label>{{ t("playground.form_name") }}<input name="name" required maxlength="200" placeholder="{{ t('playground.form_name_placeholder') }}" autocomplete="off"></label>
   <label>{{ t("playground.form_code") }}<input name="code" pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="{{ t('playground.form_code_placeholder') }}" autocomplete="off"></label>
   <label>{{ t("playground.form_domain") }}<select name="domainId"><option value="">{{ t("playground.form_domain_default") }}</option>{% for item in domains %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select><span class="cell-sub">{{ t("playground.form_domain_hint") }}</span></label>
@@ -10,6 +14,7 @@
   <label>{{ t("playground.import_file") }}<input type="file" name="file" accept="application/json,.json"></label>
   <label>{{ t("playground.import_text") }}<textarea class="code-editor compact" name="text" rows="8" spellcheck="false"></textarea></label>
   <label>{{ t("playground.form_name") }}<input name="name" maxlength="200" placeholder="{{ t('playground.import_name_placeholder') }}" autocomplete="off"></label>
+  {{ project_select() }}
   <p class="form-error" role="alert"></p>
 </template>
 <script type="application/json" id="workflow-messages">{{ messages | tojson }}</script>

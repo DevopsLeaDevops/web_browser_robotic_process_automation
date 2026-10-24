@@ -44,11 +44,25 @@
       <div class="panel-header"><h2>领域</h2><span class="muted">场景管理的二级菜单</span></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>依目标系统或业务划分场景。</strong>例如「测试网站自动化」「谷歌自动化」「微软自动化」。每个领域是「场景管理」左侧的一个菜单，顺序在「管理后台 › 领域管理」调整；领域之后是「组合场景自动化」，最后是「登录与凭证」。</li>
+          <li><strong>依目标系统或业务划分场景。</strong>例如「测试网站自动化」「谷歌自动化」「微软自动化」。每个领域是「场景管理」左侧的一个菜单，顺序在「管理后台 › 领域管理」调整；领域之后是「登录与凭证」。组合场景在<a href="#projects">项目空间</a>（2026-10-23 取代原本的「组合场景自动化」）。</li>
           <li><strong>领域页是场景卡片。</strong>1440 宽一列 4 张（每张至少 272px）。每张卡片有名称与分类（没有分类时显示 DSL 场景或 Python 脚本）、最近一次运行的截图、说明，「自动化脚本、断言脚本、运行报告、入参设置、出参设置」五个链接，以及场景编号、最近一次结果、「调试」（DSL 场景打开逐步调试，在那里可以接着验证；Python 脚本场景直接验证最新版本）与「运行」（运行已发布版本；还没发布时显示「待发布」）。</li>
           <li><strong>领域管理（管理后台）。</strong>添加领域（代号用在网址，创建后不能改）、改名称与说明、删除没有场景的领域。场景页的「运行设置」可以把场景移到其他领域。</li>
-          <li><strong>领域的顺序。</strong>领域管理的每一列有「上移」「下移」（↑ ↓），按了立刻保存；「场景管理」的领域菜单与 <code>/scenes</code> 转到的第一个领域都照这个顺序。顺序只存在这台服务器的数据库（<code>domains</code> 的排列顺序），不写进领域文件夹与 git，所以每台服务器各自排；添加、从 git 添加或从文件夹加载的领域排在最后。「组合场景」领域也在清单里，但不在场景管理的领域菜单（组合场景在「组合场景自动化」）。</li>
+          <li><strong>领域的顺序。</strong>领域管理的每一列有「上移」「下移」（↑ ↓），按了立刻保存；「场景管理」的领域菜单与 <code>/scenes</code> 转到的第一个领域都照这个顺序。顺序只存在这台服务器的数据库（<code>domains</code> 的排列顺序），不写进领域文件夹与 git，所以每台服务器各自排；添加、从 git 添加或从文件夹加载的领域排在最后。「组合场景」领域也在清单里，但不在场景管理的领域菜单（组合场景在项目空间的项目里管理）。</li>
           <li><strong>测试网站自动化。</strong>第一次启动时自动创建，放进对测试网站运行的真实案例：创建记录（BA-001）、查询记录（BA-002，入参是 BA-001 的出参）、查询不存在的记录（BA-003）、Python 脚本版的创建记录，以及两个登录示例（BA-004 一般用户、BA-005 主管）。它的名称与说明跟着界面语言显示，改过之后就照改的内容；场景的名称与说明是场景文件的内容，不会翻译。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="projects">
+      <div class="panel-header"><h2>项目空间</h2><span class="muted">2026-10-23 用户要求：一个项目是一份「组合场景自动化」</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>第一级菜单「项目空间」。</strong>放在集群管理前面（<code>/workspace</code>，转到第一个项目；还没有项目时转到项目管理）。左侧第二级是项目，一个项目一个菜单，顺序在「管理后台 › 项目管理」调整。通过录制端照样显示，因为它取代的「组合场景自动化」原本就在录制端看得到的场景管理里（见<a href="#menus">菜单与三段分工</a>）。</li>
+          <li><strong>项目页就是组合场景自动化。</strong><code>/projects/{代号}</code> 沿用原本「组合场景自动化」的卡片、DAG 缩略图、快捷运行、最近报告、导入与添加，只列这个项目的组合场景；最近运行也只列它们的。项目页添加或导入的组合场景放进这个项目；自由试验场添加时默认第一个项目，也可以选「不指定项目」。</li>
+          <li><strong>项目管理（管理后台）。</strong>和领域管理一样：添加（代号用在网址，创建后不能改）、改名称与说明、↑ ↓ 调整顺序（立刻保存）、删除没有组合场景（包含封存的）的项目。页面下方列出还没分到项目的组合场景，点进去在「代号、领域、项目与封存」选项目。</li>
+          <li><strong>组合场景属于一个项目。</strong>组合场景页的「代号、领域、项目与封存」可以移到其他项目或不属于任何项目；只改数据库，文件夹不动，运行中也可以改。组合场景照旧放在某个领域文件夹的 <code>composites/&lt;代号&gt;/</code>，项目和领域互不影响。</li>
+          <li><strong>只在这台服务器。</strong>项目、顺序与组合场景属于哪个项目只存在数据库（<code>projects</code>、<code>workflows.project_id</code>），不写进领域文件夹与 git，和领域的顺序一样每台服务器各自管理；从 git 拉来、这台还没见过的组合场景不属于任何项目，在项目管理列出。重新加载领域文件夹不会改掉组合场景的项目。</li>
+          <li><strong>升级。</strong>原本的「组合场景自动化」菜单拿掉，旧网址 <code>/composites</code> 转到项目空间。升级时已经有组合场景的话，创建项目「组合场景自动化」（代号 <code>composites</code>）并把它们都放进去；名称与说明没改过时跟着界面语言显示，之后可以改名、添加其他项目再把组合场景移过去。</li>
         </ul>
       </div>
     </section>
@@ -160,7 +174,7 @@
     <section class="panel" id="playground">
       <div class="panel-header"><h2>自由试验场与组合场景</h2><span class="muted">DAG：可分叉、可汇合，成功出参传给下游，失败即停</span></div>
       <div class="panel-body prose"><ul>
-        <li><strong>管理与生产。</strong>「场景管理 › 组合场景自动化」沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场；运行报告与运行回看在「场景运行」，设备（M10.1 前叫「远程 Worker」）在「集群管理」（2026-10-22 调整，见<a href="#menus">菜单与三段分工</a>）。</li>
+        <li><strong>管理与生产。</strong>「项目空间 › 各项目」（2026-10-23 前是「场景管理 › 组合场景自动化」，见<a href="#projects">项目空间</a>）沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场；运行报告与运行回看在「场景运行」，设备（M10.1 前叫「远程 Worker」）在「集群管理」（2026-10-22 调整，见<a href="#menus">菜单与三段分工</a>）。</li>
         <li><strong>依赖画布。</strong>场景库可点击加入或拖入画布。拖动节点或用方向键微调位置；点上游右侧圆点，再点下游左侧圆点创建连接。点连接设置下游入参，也可以从右侧加入上游。缩放与适应只改视角，不改座标。节点座标随组合场景保存；画布位置和节点数组顺序不代表运行顺序。顶部名称与操作合并成一列，说明收在「说明」，运行历史默认折叠。画布下方的全宽参数区独立卷动，并列上游出参、下游入参、匹配方式、取值／来源；点击 DAG 连接会切到该组上游与下游。多上游可切换来源节点。</li>
         <li><strong>四种入参来源。</strong>同名匹配仅搜索直接连接的上游，唯一同名且类型兼容时取其出参，没有命中则用场景默认，多个命中必须指定来源；场景默认强制忽略上游同名值；人工指定只覆盖此节点；指定上游出参可以跨字段绑定。选择出参会创建依赖；一个出参可供多个下游，一个入参只有一个来源。整数可以传给数字，其他类型必须相同。</li>
         <li><strong>参数连接。</strong>拖动出参圆点到入参，或依次用鼠标／键盘选取两端，创建显式绑定；类型不符不修改原值。四种模式以按钮同列呈现，仍可用出参选单精确选择。唯一同名匹配与显式来源画出对应连接；歧义、默认值及人工值不画假连接。契约按钮原地显示该固定版本的唯读原文；编辑场景明示另开分页，并提示验证、发布后回画布选新版本。</li>
@@ -207,7 +221,7 @@
           <li><strong>接着现有步骤录制。</strong>选「既有场景的新版本」与刚才的场景，再选「接着现有步骤录制」：浏览器先自动跑完原有步骤，停在创建结果的页面，再录一个动作；新版本的步骤接在原有内容后面，原本的注释不变。</li>
           <li><strong>两个角色。</strong>「场景管理 › 登录与凭证」对 <code>testsite-user</code> 按「登录」，在跳出的窗口用 user / user-pass 登录后按「完成登录」；<code>testsite-manager</code> 用 manager / manager-pass。再分别运行 BA-004、BA-005：两份报告看到的待办不同。</li>
           <li><strong>需要登录与重新运行。</strong>对 <code>testsite-user</code> 按「注销」，再运行 BA-004：停在「需要登录」，没有运行任何步骤；点运行页的登录角色回到「登录与凭证」再登录一次，回到运行页按「重新运行」，结果是「通过」。</li>
-          <li><strong>自由试验场。</strong>先验证并发布 BA-001、BA-002。创建组合场景，加入一个 BA-001、两个 BA-002 及另一个 BA-001 作为汇合节点；连接「创建 → 两次查询 → 汇合」，让两个查询的 recordId 同名匹配上游，汇合的 title 与 quantity 分别取自两个查询。拖动节点、保存并重载，确认位置保留。运行后四个节点都通过且实际入参相符；反向连接应被拒绝。从场景管理的组合场景卡片打开最近运行，确认报告可追溯。</li>
+          <li><strong>自由试验场。</strong>先验证并发布 BA-001、BA-002，在「管理后台 › 项目管理」添加一个项目。到「项目空间」的那个项目创建组合场景，加入一个 BA-001、两个 BA-002 及另一个 BA-001 作为汇合节点；连接「创建 → 两次查询 → 汇合」，让两个查询的 recordId 同名匹配上游，汇合的 title 与 quantity 分别取自两个查询。拖动节点、保存并重载，确认位置保留。运行后四个节点都通过且实际入参相符；反向连接应被拒绝。从项目空间的项目页卡片打开最近运行，确认报告可追溯。</li>
           <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「集群管理 › 设备」添加 <code>win-01</code>，在另一台电脑用对话框里的邀请启动 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付后改在 App 粘贴；步骤见<a href="../develop/remote-worker.html">远程 worker</a>），设备页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
           <li><strong>运行回看（M12）。</strong>运行报告的「回看」栏有 ▶ 与视频长度；打开第 3 步的验证：视频可以播放、暂停、拖曳，滑过时间轴有预览，步骤列表跟着视频走，点一步跳到那一步。运行 BA-002 查询不存在的编号（失败）：打开回看就停在失败步骤之前，结束时有「回到失败的步骤」。在 win-01 用有头、无头各运行一次，运行中取消一次：三段视频都能播放与拖曳。在 Mac 录制端 App 里打开同一页也能播放。</li>
         </ol>
@@ -216,25 +230,26 @@
     </section>
 
     <section class="panel" id="menus">
-      <div class="panel-header"><h2>菜单与三段分工</h2><span class="muted">2026-10-22 用户调整</span></div>
+      <div class="panel-header"><h2>菜单与三段分工</h2><span class="muted">2026-10-22 用户调整；2026-10-23 加上项目空间</span></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>第一级菜单</th><th>左侧第二级</th><th>服务器本机（8080）</th><th>通过录制端</th></tr></thead>
           <tbody>
-            <tr><td>场景管理（<code>/scenes</code>）</td><td>领域 ×N（依领域管理的顺序）、组合场景自动化、登录与凭证</td><td>显示</td><td>显示</td></tr>
+            <tr><td>场景管理（<code>/scenes</code>）</td><td>领域 ×N（依领域管理的顺序）、登录与凭证</td><td>显示</td><td>显示</td></tr>
             <tr><td>场景生产（<code>/recording</code>）</td><td>自主脚本录制、自由试验场</td><td>显示</td><td>显示</td></tr>
             <tr><td>场景运行（<code>/runs</code>）</td><td>运行报告、运行回看</td><td>显示</td><td>显示</td></tr>
+            <tr><td>项目空间（<code>/workspace</code>）</td><td>项目 ×N（依项目管理的顺序）</td><td>显示</td><td>显示</td></tr>
             <tr><td>集群管理（<code>/devices</code>）</td><td>设备</td><td>显示</td><td>默认不显示</td></tr>
-            <tr><td>管理后台（<code>/domains</code>）</td><td>领域管理</td><td>显示</td><td>默认不显示</td></tr>
+            <tr><td>管理后台（<code>/domains</code>）</td><td>领域管理、项目管理</td><td>显示</td><td>默认不显示</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>三段。</strong>服务器（直接打开 8080，例如服务器那台或 SSH 通道）看得到全部菜单；录制端（RPA 录制端 App 经由对外端口打开的 Portal）默认只有场景管理、场景生产、场景运行；Worker 端的 RPA Worker App 不加载 Portal 的页面，维持原样。</li>
+          <li><strong>三段。</strong>服务器（直接打开 8080，例如服务器那台或 SSH 通道）看得到全部菜单；录制端（RPA 录制端 App 经由对外端口打开的 Portal）默认只有场景管理、场景生产、场景运行、项目空间；Worker 端的 RPA Worker App 不加载 Portal 的页面，维持原样。</li>
           <li><strong>替个别录制端打开。</strong>「集群管理 › 设备」的录制端清单每台有「另外显示的菜单」：勾「集群管理」「管理后台」，通过那台就看得到（立刻保存，那台刷新页面就生效）。例如服务器是没有桌面的 Linux、管理者用自己的 Mac 录制端管理时。</li>
-          <li><strong>只是菜单，不是权限。</strong>录制端的权杖照旧能打开所有页面与 API（2026-10-18 的决定，用户权限在 M8）。看不到的菜单，页面上通往它的按钮也不显示（领域页的「管理领域」、等待 worker 时的「查看设备」）；组合场景依赖提示的「从 git 添加」之类的动作链接照旧。</li>
-          <li><strong>网址不变。</strong>只换分组；<code>/runs</code>、<code>/replay</code>、<code>/devices</code>、<code>/domains</code> 等网址与 API 都和之前一样。还没分到领域的场景页停在场景管理、左侧不标示任何一项。</li>
+          <li><strong>只是菜单，不是权限。</strong>录制端的权杖照旧能打开所有页面与 API（2026-10-18 的决定，用户权限在 M8）。看不到的菜单，页面上通往它的按钮也不显示（领域页的「管理领域」、项目页的「管理项目」、等待 worker 时的「查看设备」）；组合场景依赖提示的「从 git 添加」之类的动作链接照旧。</li>
+          <li><strong>网址不变。</strong>只换分组；<code>/runs</code>、<code>/replay</code>、<code>/devices</code>、<code>/domains</code> 等网址与 API 都和之前一样（2026-10-23 起 <code>/composites</code> 转到项目空间）。还没分到领域的场景页停在场景管理、左侧不标示任何一项。</li>
         </ul>
       </div>
     </section>
@@ -260,7 +275,9 @@
             <tr><td><code>/runs/{运行编号}/replay</code></td><td>回看一次运行：视频（网址列、目前步骤的标签）、控制列（播放、上一步／下一步、逐格、¼×～2×、全屏幕、快捷键）、缩略图时间轴（滑过预览、拖曳、步骤轨）、步骤列表跟着视频走（点一步跳到那一步；详细有错误、定位器、填入的值、抽到的事实、场景文件原文与行号、「在场景中打开」）、断言、运行信息与钉选；失败的运行打开就停在失败步骤之前 1 秒；同一个场景的上一次、下一次、上一次没通过；组合场景的节点之间切换。<code>?t=秒&amp;step=步骤</code> 打开时跳到那一刻</td></tr>
             <tr><td><code>/roles</code></td><td>登录与凭证：登录角色（登录、检查、注销）、Secrets</td></tr>
             <tr><td><code>/recording</code>、<code>/recordings/{录制编号}</code></td><td>自主脚本录制：在这台电脑录制或粘贴录制稿；最近的录制；录制详情（转不了的行、转换结果、遮罩过的原始录制稿）</td></tr>
-            <tr><td><code>/composites</code></td><td>组合场景卡片管理、DAG 缩略图、快捷运行、最近报告、打开画布、删除</td></tr>
+            <tr><td><code>/workspace</code></td><td>项目空间：转到第一个项目；还没有项目时转到项目管理。旧网址 <code>/composites</code> 转到这里</td></tr>
+            <tr><td><code>/projects/{代号}</code></td><td>项目页：这个项目的组合场景卡片、DAG 缩略图、快捷运行、最近报告、打开画布、删除；添加、导入组合场景（放进这个项目）</td></tr>
+            <tr><td><code>/projects</code></td><td>项目管理（管理后台）：添加、改名、删除、调整顺序；还没分到项目的组合场景</td></tr>
             <tr><td><code>/playground</code></td><td>自由试验场：创建、导入组合场景与继续编辑画布</td></tr>
             <tr><td><code>/playground/{串行}</code></td><td>编辑组合场景：场景库、DAG 画布、入参与节点设置（固定版本、入参的来源）；保存、运行、导出</td></tr>
             <tr><td><code>/playground/runs/{串行运行}</code></td><td>串行的运行：每个节点的状态、入参的值与来源、出参、报告；取消、从头再运行、从停下的节点继续</td></tr>
@@ -279,6 +296,9 @@
             <tr><td><code>GET</code>、<code>POST /api/domains</code></td><td>领域清单；添加领域（<code>id</code>、<code>name</code>、<code>description</code>）</td></tr>
             <tr><td><code>PUT /api/domains/order</code></td><td>调整领域的顺序：<code>ids</code> 是全部领域的代号，依新的顺序；回应排好的领域清单。和服务器上的清单不同（少了、多了、重复）时 409 <code>domain_order_changed</code>，顺序不变</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/domains/{代号}</code></td><td>领域与它的场景卡片（最近一次运行、截图）、加载问题；改名称与说明（写进 <code>pack.yaml</code>）；删除没有场景与角色的领域（连同领域文件夹）</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/projects</code></td><td>项目清单（依顺序，含组合场景数）；添加项目（<code>id</code>、<code>name</code>、<code>description</code>；代号重复 409 <code>project_exists</code>）</td></tr>
+            <tr><td><code>PUT /api/projects/order</code></td><td>调整项目的顺序：<code>ids</code> 是全部项目的代号；和服务器上的清单不同时 409 <code>project_order_changed</code></td></tr>
+            <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/projects/{代号}</code></td><td>项目与它的组合场景；改名称与说明；删除没有组合场景的项目（有的话 409 <code>project_not_empty</code>）</td></tr>
             <tr><td><code>POST /api/domains/{代号}/reload</code></td><td>重新加载领域文件夹（在文件夹外面改了文件之后）；回传加载问题</td></tr>
             <tr><td><code>GET /api/domains/{代号}/sync</code></td><td>同步状态（M11 PR 3，不连网络）：<code>state</code>（local、unchecked、synced、ahead、behind、diverged、empty、no_directory、conflict、error）、数据源（不含权杖）、上次同步的提交、本机变更与分类计数、远程新提交数、错误、冲突的文件、部署密钥的公钥</td></tr>
             <tr><td><code>PUT</code>、<code>DELETE /api/domains/{代号}/source</code></td><td>设置数据源（<code>url</code>、<code>directory</code>、<code>branch</code>、<code>auth</code>：none／https／ssh、<code>username</code>、<code>token</code>、<code>privateKey</code>、<code>committerName</code>、<code>committerEmail</code>、<code>autoPull</code>；权杖与私钥只写不读，留空不变；网址里不能有帐密）；中断 git 链接（文件夹保留，删除权杖、密钥与工作副本）</td></tr>
@@ -313,12 +333,12 @@
             <tr><td><code>GET /api/recordings/{录制编号}</code>、<code>…/cancel</code></td><td>录制状态、转不了的行与文件；取消录制</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>开始逐步调试（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已经有工作阶段时回传它</td></tr>
             <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作阶段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>调试状态与结束；运行一步（有副作用而且运行过时 409 <code>confirm_required</code>，带 <code>force</code> 再送）、运行到第 n 步、测试定位器、截图、从头开始、换到新版本</td></tr>
-            <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>串行清单（含问题、依赖状态与最近一次运行）；添加串行（<code>name</code>、<code>description</code>、选用的 <code>definition</code>，带了就是导入；选用的 <code>code</code> 与 <code>domainId</code>）</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>串行清单（含问题、依赖状态与最近一次运行）；添加串行（<code>name</code>、<code>description</code>、选用的 <code>definition</code>，带了就是导入；选用的 <code>code</code>、<code>domainId</code> 与 <code>projectId</code>，没有那个项目 404 <code>project_not_found</code>）</td></tr>
             <tr><td><code>GET /api/workflows/library</code></td><td>场景库：发布过的场景版本，以及它们的入参、出参与登录角色</td></tr>
             <tr><td><code>POST /api/workflows/check</code></td><td>检查一份定义（不保存），回传 <code>problems</code></td></tr>
             <tr><td><code>GET</code>、<code>PUT</code>、<code>DELETE /api/workflows/{串行}</code></td><td>串行与最近的运行、版本、验证记录、依赖问题；保存（<code>baseVersion</code> 是最新的版本号码、<code>name</code>、<code>description</code>、<code>definition</code>；不是最新版本就 409，定义改了才是新版本）；删除（运行中不能删，连同文件夹）</td></tr>
             <tr><td><code>POST /api/workflows/{串行}/revisions/{n}/publish</code></td><td>发布组合场景的版本（M11 PR 2）；没有哈希相符的通过验证记录 409 <code>workflow_not_validated</code>，依赖不完整 409 <code>workflow_dependencies</code></td></tr>
-            <tr><td><code>PATCH /api/workflows/{串行}</code></td><td>改代号（<code>code</code>）、搬到其他领域（<code>domainId</code>）、封存（<code>archived</code>）；运行中不能改代号或搬，代号重复 409</td></tr>
+            <tr><td><code>PATCH /api/workflows/{串行}</code></td><td>改代号（<code>code</code>）、搬到其他领域（<code>domainId</code>）、封存（<code>archived</code>）、移到其他项目（<code>projectId</code>，空字符串是不属于任何项目）；运行中不能改代号或搬领域，代号重复 409</td></tr>
             <tr><td><code>POST /api/workflows/{串行}/runs</code></td><td>运行串行（<code>engine</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>；<code>purpose</code> 是 <code>validation</code> 或 <code>execution</code>，验证时可带 <code>revision</code>；还没发布就运行 409 <code>workflow_unpublished</code>）；有问题（含依赖错误）时 422 并列出 <code>problems</code>；202 回串行的运行</td></tr>
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{串行运行}</code></td><td>串行运行清单（可用 <code>workflow</code> 筛选）；单次的状态与每个节点（状态、入参的来源、那次运行）</td></tr>
             <tr><td><code>POST /api/workflow-runs/{串行运行}/cancel</code>、<code>…/rerun</code></td><td>取消；再运行一次（<code>resume: true</code> 从停下的节点继续，否则从头）</td></tr>
@@ -358,12 +378,13 @@
           <p class="muted">数据库的表：</p>
           <dl class="spec-list">
             <dt>domains</dt><dd>代号、名称、说明、排列顺序；最近一次加载领域文件夹的时间与加载问题；git 数据源（不含权杖）与同步状态（上次同步的提交、上次看到的远程提交、分支、错误、冲突的文件）</dd>
+            <dt>projects</dt><dd>项目（2026-10-23）：代号、名称、说明、排列顺序、创建时间</dd>
             <dt>scenes</dt><dd>id、名称与分类（取自最新版本）、所属领域、默认网址、最新与已发布的版本号码、封存、来源缺失</dd>
             <dt>revisions</dt><dd>场景、版本号码（唯一）、内容哈希、种类、状态、说明、发布时间；来源缺失、不能运行的问题、有没有哈希相符的通过验证记录</dd>
             <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、有头或无头模式、入参与出参、错误、哈希、时间；试验场节点的串行运行与节点代号；运行位置、指定的 worker、实际运行的 worker 与租约；录像的长度与大小、钉选、删除的时间与原因（M12）</dd>
             <dt>roles</dt><dd>代号、名称、登录网址、确认网址与判断元素、浏览器、自动登录步骤、最近的状态与检查时间；所在领域、来源缺失</dd>
             <dt>recordings</dt><dd>录制编号、目标场景与版本、方式（新场景、接着现有步骤、整份换掉）与接续的版本、来源（录制或粘贴）、网址、浏览器、角色、状态、转不了的行</dd>
-            <dt>workflows</dt><dd>组合场景：代号、所在领域、名称、说明、最新版本的定义（JSON）与版本号码、发布的版本、封存、来源缺失</dd>
+            <dt>workflows</dt><dd>组合场景：代号、所在领域、名称、说明、最新版本的定义（JSON）与版本号码、发布的版本、封存、来源缺失；属于哪个项目（2026-10-23，只在数据库）</dd>
             <dt>workflow_revisions</dt><dd>组合场景的版本（文件夹的索引）：版本号码、哈希、状态、有没有哈希相符的通过验证记录、不能运行的问题、说明、发布时间</dd>
             <dt>workflow_runs</dt><dd>串行的运行：串行与当时的名称、代号、版本与目的、定义的快照、状态、停在哪个节点与原因、沿用的节点（从停下的节点继续时）、浏览器与窗口模式、时间；运行位置与固定的 worker</dd>
             <dt>workers</dt><dd>远程 worker：代号、名称、权杖的哈希、禁用、上线时回报的信息（M10.1 加上 App 版本）、目前的运行、最后回报时间</dd>

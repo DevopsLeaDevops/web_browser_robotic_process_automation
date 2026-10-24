@@ -20,6 +20,7 @@ from rpa_server.domain import (
     CompositeRevisionRecord,
     DependencyItem,
     DomainRecord,
+    ProjectRecord,
     RecorderRecord,
     RecordingRecord,
     RevisionRecord,
@@ -59,6 +60,9 @@ DOMAIN = DomainRecord(
 )
 OTHER_DOMAIN = DomainRecord("google", "谷歌自動化", None, 1, 0, MOMENT)
 DOMAINS = [DOMAIN, OTHER_DOMAIN]
+PROJECT = ProjectRecord("composites", "組合場景自動化", None, 0, 2, MOMENT)
+OTHER_PROJECT = ProjectRecord("billing", "帳務專案", "帳務相關的組合場景", 1, 0, MOMENT)
+PROJECTS = [PROJECT, OTHER_PROJECT]
 SCENE = SceneRecord(
     id="ba-001",
     name="建立範例紀錄",
@@ -410,6 +414,7 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
             page="domain:testsite",
             title="Debug",
             domains=domains,
+            projects=PROJECTS,
             session=None,
             **common,
         ),
@@ -418,6 +423,7 @@ def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
             page="domain:testsite",
             title="Debug",
             domains=domains,
+            projects=PROJECTS,
             session=session,
             **common,
         ),
@@ -444,9 +450,18 @@ def _source(kind: str, **fields: object) -> dict[str, object]:
 
 
 def _m6_pages(*, english: bool = False) -> dict[str, str]:
-    """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）。"""
+    """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）；
+    專案空間的專案頁與專案管理（2026-10-23）。"""
     domains = (
         [replace(DOMAIN, name="Lab"), replace(OTHER_DOMAIN, name="Other")] if english else DOMAINS
+    )
+    projects = (
+        [
+            replace(PROJECT, name="Composite automation"),
+            replace(OTHER_PROJECT, name="Billing", description="Billing flows"),
+        ]
+        if english
+        else PROJECTS
     )
     name = "Create then look up" if english else "建立後查詢"
     run = (
@@ -529,6 +544,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
         domain_id="composites",
         published_number=1,
         dependency="warnings",
+        project_id="composites",
     )
     revisions = [
         CompositeRevisionRecord(2, "b" * 64, "draft", True, None, None, MOMENT, None, False),
@@ -569,22 +585,54 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
     }
     common: dict[str, object] = {"messages": workflow_messages()}
     return {
-        "composites": render(
-            "composites.html",
-            page="composites",
+        "project": render(
+            "project.html",
+            page="project:composites",
             domains=(),
+            projects=projects,
             **common,
-            title=t("nav.composites"),
+            title=projects[0].name,
+            project=projects[0],
             workflows=[record, replace(record, id=2, domain_id=None, published_number=None)],
             data=data,
             runs=[passed],
             has_published=True,
             domain_names={"composites": "Composites"},
         ),
+        "project-empty": render(
+            "project.html",
+            page="project:billing",
+            domains=domains,
+            projects=projects,
+            **common,
+            title=projects[1].name,
+            project=projects[1],
+            workflows=[],
+            data=data,
+            runs=[],
+            has_published=False,
+            domain_names={},
+        ),
+        "projects": render(
+            "projects.html",
+            page="projects",
+            domains=domains,
+            projects=projects,
+            title=t("nav.projects"),
+            unassigned=[replace(record, id=3, code="wf-3", project_id=None)],
+        ),
+        "projects-empty": render(
+            "projects.html",
+            page="projects",
+            domains=domains,
+            title=t("nav.projects"),
+            unassigned=[],
+        ),
         "playground": render(
             "playground.html",
             page="playground",
             domains=domains,
+            projects=projects,
             title=t("nav.playground"),
             workflows=[
                 record,
@@ -598,6 +646,7 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             "playground.html",
             page="playground",
             domains=domains,
+            projects=projects,
             title=t("nav.playground"),
             workflows=[],
             runs=[],
@@ -608,8 +657,10 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             "workflow.html",
             page="playground",
             domains=domains,
+            projects=projects,
             title=name,
             workflow=record,
+            project=projects[0],
             data=data,
             runs=[passed],
             revisions=revisions,
@@ -621,9 +672,11 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             "workflow_run.html",
             page="playground",
             domains=domains,
+            projects=projects,
             title=passed.id,
             run=passed,
             workflow_exists=True,
+            project=projects[0],
             role=None,
             **common,
         ),
@@ -631,8 +684,10 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             "workflow_run.html",
             page="playground",
             domains=domains,
+            projects=projects,
             title=login.id,
             run=login,
+            project=None,
             workflow_exists=False,
             role="testsite-user",
             **common,
@@ -641,8 +696,10 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             "workflow_run.html",
             page="playground",
             domains=domains,
+            projects=projects,
             title=running.id,
             run=running,
+            project=None,
             workflow_exists=True,
             role=None,
             **common,
@@ -651,8 +708,10 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             "workflow_run.html",
             page="playground",
             domains=domains,
+            projects=projects,
             title=blocked.id,
             run=blocked,
+            project=None,
             workflow_exists=True,
             role=None,
             **common,
@@ -951,38 +1010,55 @@ def _menu(html: str, menu: str) -> list[str]:
     return re.findall(r'href="([^"]+)"', html.split(f'id="{menu}"')[1].split("</nav>")[0])
 
 
-def test_side_menu_lists_domains_then_composites_and_roles() -> None:
-    """2026-10-22：領域 ×N、組合場景自動化，登入與憑證放最後；領域管理搬到管理後台。"""
+def test_side_menu_lists_domains_then_roles() -> None:
+    """2026-10-22：領域 ×N，登入與憑證放最後；領域管理搬到管理後台。
+    2026-10-23：「組合場景自動化」換成專案空間的專案，場景管理不再列它。"""
     with use_locale("zh-Hant"):
         html = _pages()["domain"]
     side = html.split('id="sidenav"')[1].split("</nav>")[0]
     labels = [part.split("</span>")[0] for part in side.split("<span>")[1:]]
-    assert labels == ["測試網站自動化", "谷歌自動化", "組合場景自動化", "登入與憑證"]
+    assert labels == ["測試網站自動化", "谷歌自動化", "登入與憑證"]
     current = 'href="/domains/testsite" title="測試網站自動化" class="active" aria-current="page"'
     assert current in side
 
 
-def test_top_menu_has_five_groups_on_the_server() -> None:
-    """三段分工：伺服器本機看得到全部第一級選單；二級選單依調整後的分組。"""
+def test_top_menu_has_six_groups_on_the_server() -> None:
+    """三段分工：伺服器本機看得到全部第一級選單；二級選單依調整後的分組。
+    2026-10-23：專案空間放在叢集管理前面，二級選單是專案；管理後台多了專案管理。"""
     with use_locale("zh-Hant"):
         pages = _pages()
     html = pages["domain"]
-    assert _menu(html, "topnav") == ["/scenes", "/recording", "/runs", "/devices", "/domains"]
+    assert _menu(html, "topnav") == [
+        "/scenes",
+        "/recording",
+        "/runs",
+        "/workspace",
+        "/devices",
+        "/domains",
+    ]
     top = html.split('id="topnav"')[1].split("</nav>")[0]
     assert [part.split("</a>")[0].split(">")[-1] for part in top.split("<a ")[1:]] == [
         "場景管理",
         "場景生產",
         "場景運行",
+        "專案空間",
         "叢集管理",
         "管理後台",
     ]
     assert _menu(pages["recording"], "sidenav") == ["/recording", "/playground"]
     assert _menu(pages["runs"], "sidenav") == ["/runs", "/replay"]
+    assert _menu(pages["project"], "sidenav") == ["/projects/composites", "/projects/billing"]
     assert _menu(pages["workers"], "sidenav") == ["/devices"]
-    assert _menu(pages["domains"], "sidenav") == ["/domains"]
+    assert _menu(pages["domains"], "sidenav") == ["/domains", "/projects"]
+    assert _menu(pages["projects"], "sidenav") == ["/domains", "/projects"]
     assert 'class="active" aria-current="true">場景運行' in pages["runs"]
+    assert 'class="active" aria-current="true">專案空間' in pages["project"]
+    assert 'href="/projects/composites" title="組合場景自動化" class="active"' in pages["project"]
     assert 'class="active" aria-current="true">管理後台' in pages["domains"]
+    assert 'class="active" aria-current="true">管理後台' in pages["projects"]
+    assert 'href="/projects" title="專案管理" class="active"' in pages["projects"]
     assert 'href="/domains">' in pages["domain"]  # 領域頁的「管理領域」
+    assert 'href="/projects">' in pages["project"]  # 專案頁的「管理專案」
 
 
 def test_domain_management_orders_the_domains() -> None:
@@ -1024,11 +1100,20 @@ def test_recorders_hide_cluster_and_admin_menus_by_default() -> None:
         hidden = {**_pages(), "run-waiting": _waiting_run()}
     with use_locale("zh-Hant"), use_recorder(Via("mac-01", "Mac", ("cluster",))):
         cluster = {**_pages(), "run-waiting": _waiting_run()}
-    assert _menu(hidden["domain"], "topnav") == ["/scenes", "/recording", "/runs"]
+    # 專案空間取代場景管理裡的「組合場景自動化」，錄製端照樣顯示（2026-10-23）
+    assert _menu(hidden["domain"], "topnav") == ["/scenes", "/recording", "/runs", "/workspace"]
     assert 'href="/domains"' not in hidden["domain"]  # 領域頁的「管理領域」也不顯示
+    assert 'href="/projects"' not in hidden["project"]  # 專案頁的「管理專案」也不顯示
+    assert _menu(hidden["project"], "sidenav") == ["/projects/composites", "/projects/billing"]
     assert "data-worker-wait" in hidden["run-waiting"]
     assert 'href="/devices"' not in hidden["run-waiting"]  # 等待 worker 時不連到裝置頁
-    assert _menu(cluster["domain"], "topnav") == ["/scenes", "/recording", "/runs", "/devices"]
+    assert _menu(cluster["domain"], "topnav") == [
+        "/scenes",
+        "/recording",
+        "/runs",
+        "/workspace",
+        "/devices",
+    ]
     assert 'href="/domains"' not in cluster["domain"]
     assert 'href="/devices"' in cluster["run-waiting"]
     # 只是不顯示：直接打開時照樣渲染（M8 才有權限）
@@ -1281,7 +1366,10 @@ def _english_domain_pages() -> dict[str, str]:
         "debug-session",
         "playground",
         "playground-empty",
-        "composites",
+        "project",
+        "project-empty",
+        "projects",
+        "projects-empty",
         "workflow",
         "workflow-run",
         "workflow-run-login",

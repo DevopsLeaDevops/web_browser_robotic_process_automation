@@ -2,9 +2,10 @@
 
 不依賴 FastAPI：頁面路由（pages.py）只負責取資料再呼叫 :func:`render`，樣板也能單獨測試。
 版面沿用設計系統 v1.1 與 MVP 原型：頂部第一級、左側第二級選單（ADR 0006、0011）。
-「場景管理」的二級選單是領域（資料庫裡的 domains，依領域管理的順序），接著是「組合場景自動化」，
-最後是「登入與憑證」。第一級選單依三段分工：伺服器本機全部顯示；透過錄製端時，叢集管理與管理後台
-只在裝置頁替那台打開時才顯示（RECORDER_MENUS）；Worker App 不載入這些頁面。
+「場景管理」的二級選單是領域（資料庫裡的 domains，依領域管理的順序），最後是「登入與憑證」；
+「專案空間」的二級選單是專案（projects，依專案管理的順序；2026-10-23 取代原本場景管理裡的
+「組合場景自動化」）。第一級選單依三段分工：伺服器本機全部顯示；透過錄製端時，叢集管理與管理後台
+只在裝置頁替那台打開時才顯示（RECORDER_MENUS），專案空間照樣顯示；Worker App 不載入這些頁面。
 """
 
 import json
@@ -23,7 +24,7 @@ from rpa_core.workflow import Workflow
 from rpa_server import __version__
 from rpa_server.config import COMPOSITES_DOMAIN, RECORDER_MENUS
 from rpa_server.context import via_recorder
-from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, SceneRecord
+from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, ProjectRecord, SceneRecord
 from rpa_server.i18n import page_t, t
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "domain_page",
     "js_messages",
     "menu_shown",
+    "project_page",
     "render",
     "replay_messages",
     "run_filters",
@@ -108,10 +110,18 @@ NAV: Final = (
         "/runs",
         (NavPage("runs", "/runs"), NavPage("replay", "/replay")),
     ),
+    # 專案空間的二級選單由專案決定（_side_items）
+    NavGroup("workspace", "PROJECTS", "/workspace", ()),
     NavGroup("cluster", "CLUSTER", "/devices", (NavPage("workers", "/devices"),)),
-    NavGroup("admin", "ADMIN", "/domains", (NavPage("domains", "/domains"),)),
+    NavGroup(
+        "admin",
+        "ADMIN",
+        "/domains",
+        (NavPage("domains", "/domains"), NavPage("projects", "/projects")),
+    ),
 )
-"""第一級選單（2026-10-22 使用者調整）：場景管理、場景生產、場景運行、叢集管理、管理後台。"""
+"""第一級選單（2026-10-22 使用者調整；2026-10-23 在叢集管理前面加上專案空間）：場景管理、場景生產、
+場景運行、專案空間、叢集管理、管理後台。"""
 
 _BADGES: Final[Mapping[str, str]] = {
     "passed": "green",
@@ -208,7 +218,10 @@ def badge_color(status: str) -> str:
 
 
 def _group_of(page: str) -> NavGroup:
-    """頁面屬於哪個第一級選單；領域頁（domain:代號）、場景頁、組合場景與登入與憑證屬於場景管理。"""
+    """頁面屬於哪個第一級選單；專案頁（project:代號）屬於專案空間，領域頁（domain:代號）、
+    場景頁與登入與憑證屬於場景管理。"""
+    if page.startswith("project:"):
+        return next(group for group in NAV if group.id == "workspace")
     return next((group for group in NAV if any(p.id == page for p in group.pages)), NAV[0])
 
 
@@ -234,18 +247,23 @@ def domain_page(domain_id: str | None) -> str:
     return f"domain:{domain_id}" if domain_id else "scenes"
 
 
-def _side_items(group: NavGroup, domains: Sequence[DomainRecord]) -> list[SideItem]:
+def project_page(project_id: str) -> str:
+    """專案頁在左側選單上對應的項目。"""
+    return f"project:{project_id}"
+
+
+def _side_items(
+    group: NavGroup, domains: Sequence[DomainRecord], projects: Sequence[ProjectRecord]
+) -> list[SideItem]:
     if group.id == "manage":
         items = [
             SideItem(f"domain:{d.id}", d.name, f"/domains/{d.id}")
             for d in domains
-            if d.id != COMPOSITES_DOMAIN  # 組合場景在「組合場景自動化」管理
+            if d.id != COMPOSITES_DOMAIN  # 組合場景在專案空間的專案裡管理
         ]
-        return [
-            *items,
-            SideItem("composites", t("nav.composites"), "/composites"),
-            SideItem("roles", t("nav.roles"), "/roles"),
-        ]
+        return [*items, SideItem("roles", t("nav.roles"), "/roles")]
+    if group.id == "workspace":
+        return [SideItem(project_page(p.id), p.name, f"/projects/{p.id}") for p in projects]
     return [SideItem(p.id, t("nav." + p.id), p.href, p.milestone) for p in group.pages]
 
 
@@ -301,6 +319,11 @@ def js_messages() -> dict[str, str]:
         "js.domain_delete_title",
         "js.domain_delete_body",
         "js.domain_delete_action",
+        "js.project_create_title",
+        "js.project_edit_title",
+        "js.project_delete_title",
+        "js.project_delete_body",
+        "js.project_delete_action",
         "js.role_create_title",
         "js.role_edit_title",
         "js.role_delete_title",
@@ -495,9 +518,11 @@ def render(
     page: str,
     title: str,
     domains: Sequence[DomainRecord] = (),
+    projects: Sequence[ProjectRecord] = (),
     **context: object,
 ) -> str:
-    """渲染一頁：page 是選單中目前的頁面，title 是頁面標題，domains 是場景管理的二級選單。
+    """渲染一頁：page 是選單中目前的頁面，title 是頁面標題，domains 是場景管理的二級選單，
+    projects 是專案空間的二級選單。
 
     context 的 worker_names 是 worker 代號 → 名稱（執行報告顯示由哪台執行；M9a），沒給時只有本機。
     here_display 是操作的那台能不能開瀏覽器視窗，沒給時當成可以。
@@ -509,8 +534,9 @@ def render(
         page=page,
         group=group,
         nav=visible_nav(),
-        side_items=_side_items(group, domains),
+        side_items=_side_items(group, domains, projects),
         domains=domains,
+        projects=projects,
         title=title,
         locale=get_locale(),
         js_messages=js_messages(),
