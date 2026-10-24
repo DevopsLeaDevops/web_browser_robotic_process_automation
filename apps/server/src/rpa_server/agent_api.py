@@ -11,11 +11,14 @@
 - 寫入請求都記稽核（:class:`AuditMiddleware`）；錯誤一律 ``{"error": {"code", "message", …}}``，
   請求格式不對是 422 ``request_invalid``。
 - 這組 API 自己的 OpenAPI 在 ``/agent-api/v1/openapi.json``（不需要金鑰，不含資料）。
+- 專案與組合場景的路由在 :mod:`rpa_server.agent_projects`，共用這裡的權限檢查與轉換
+  （:class:`AgentTools`）。
 """
 
 import hashlib
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Annotated, Final, Literal, cast
 
 import anyio
@@ -44,7 +47,23 @@ from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services
 from rpa_server.storage import SCENARIO_FILE
 
-__all__ = ["AGENT_PREFIX", "API_VERSION", "agent_api"]
+__all__ = [
+    "AGENT_PREFIX",
+    "API_VERSION",
+    "AgentBody",
+    "AgentTools",
+    "Client",
+    "Executor",
+    "Placer",
+    "ProjectPublisher",
+    "ProjectReader",
+    "ProjectWriter",
+    "RunReader",
+    "Validator",
+    "agent_api",
+    "forbidden",
+    "limit_reached",
+]
 
 AGENT_PREFIX: Final = "/agent-api/v1"
 API_VERSION: Final = "1"
@@ -54,7 +73,7 @@ _ACTIVE_RUNS: Final = ("queued", "running")
 _SAFE_METHODS: Final = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
-class _Body(BaseModel):
+class AgentBody(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")
 
 
@@ -66,20 +85,20 @@ class AgentRevisionCreate(RevisionCreate):
     idempotency_key: str | None = Field(default=None, max_length=100)
 
 
-class SectionBody(_Body):
+class SectionBody(AgentBody):
     base_revision: int = Field(ge=1)
     text: str = Field(max_length=200_000)
     note: str | None = Field(default=None, max_length=500)
 
 
-class ContractBody(_Body):
+class ContractBody(AgentBody):
     base_revision: int = Field(ge=1)
     inputs: list[ContractItem] | None = None
     outputs: list[ContractItem] | None = None
     note: str | None = Field(default=None, max_length=500)
 
 
-class ImportBody(_Body):
+class ImportBody(AgentBody):
     """匯入 Playwright（Python）腳本：continue 接在最新版本後面，replace 整份換掉。"""
 
     source: str = Field(max_length=1_000_000)
@@ -89,13 +108,13 @@ class ImportBody(_Body):
     role_id: str | None = Field(default=None, max_length=64)
 
 
-class CheckBody(_Body):
+class CheckBody(AgentBody):
     yaml: str = Field(max_length=1_000_000)
     scene_id: str | None = Field(default=None, max_length=64)
     """有給時同時檢查場景檔的 id 和它相同。"""
 
 
-class DebugBody(_Body):
+class DebugBody(AgentBody):
     recorder_id: str | None = Field(default=None, max_length=64)
     """在哪台錄製端開瀏覽器；這把金鑰只允許一台時可以不給。"""
     revision: int | None = Field(default=None, ge=1)
@@ -106,23 +125,23 @@ class DebugBody(_Body):
     restart: bool = False
 
 
-class StepBody(_Body):
+class StepBody(AgentBody):
     force: bool = False
 
 
-class LocateBody(_Body):
+class LocateBody(AgentBody):
     locator: str | dict[str, object]
 
 
-class SnapshotBody(_Body):
+class SnapshotBody(AgentBody):
     within: str | dict[str, object] | None = None
 
 
-class ReloadBody(_Body):
+class ReloadBody(AgentBody):
     revision: int = Field(ge=1)
 
 
-class RunBody(_Body):
+class RunBody(AgentBody):
     inputs: dict[str, object] = Field(default_factory=dict[str, object])
     engine: Engine | None = None
     base_url: str | None = Field(default=None, max_length=2000)
@@ -133,7 +152,7 @@ class RunBody(_Body):
     idempotency_key: str | None = Field(default=None, max_length=100)
 
 
-class RerunBody(_Body):
+class RerunBody(AgentBody):
     idempotency_key: str | None = Field(default=None, max_length=100)
 
 
@@ -203,11 +222,11 @@ class AuditMiddleware:
 # ---------------------------------------------------------------- 錯誤
 
 
-def _forbidden(code: str, message: str, **details: object) -> ServiceError:
+def forbidden(code: str, message: str, **details: object) -> ServiceError:
     return ServiceError(403, code, message, **details)
 
 
-def _limit(message: str, limit: int) -> ServiceError:
+def limit_reached(message: str, limit: int) -> ServiceError:
     return ServiceError(429, "limit_reached", message, limit=limit)
 
 
@@ -254,6 +273,27 @@ Executor = Annotated[ApiClientRecord, Depends(_scoped("runs:execute"))]
 RunReader = Annotated[ApiClientRecord, Depends(_scoped("runs:read"))]
 Placer = Annotated[ApiClientRecord, Depends(_scoped("runs:validate", "runs:execute"))]
 """驗證或執行其中一個（看 Worker、取消、重跑；實際要哪一個依運行的目的再檢查）。"""
+ProjectReader = Annotated[ApiClientRecord, Depends(_scoped("projects:read"))]
+ProjectWriter = Annotated[ApiClientRecord, Depends(_scoped("projects:write"))]
+ProjectPublisher = Annotated[ApiClientRecord, Depends(_scoped("projects:publish"))]
+
+
+@dataclass(frozen=True, slots=True)
+class AgentTools:
+    """場景與專案的路由共用的檢查與轉換（在 :func:`agent_api` 裡依服務建立）。"""
+
+    domain_check: Callable[[ApiClientRecord, str | None], None]
+    """領域不在可用的清單時 403 ``domain_forbidden``。"""
+    note: Callable[[ApiClientRecord, str | None, str], str]
+    """Agent 存的版本說明：「Agent〈名稱〉：說明」。"""
+    run_json: Callable[[ApiClientRecord, RunRecord], dict[str, object]]
+    """運行的 JSON：產物網址改成 Agent API 的（沒開回傳頁面內容時是 None），加上 Portal 的路徑。"""
+    scoped_key: Callable[[ApiClientRecord, str | None], str | None]
+    run_limit: Callable[[ApiClientRecord], None]
+    """排隊中與執行中的運行達到上限時 429 ``limit_reached``。"""
+    placement: Callable[
+        [ApiClientRecord, Target | None, str | None], tuple[Target | None, str | None]
+    ]
 
 
 def agent_api(services: Services) -> FastAPI:
@@ -297,7 +337,7 @@ def agent_api(services: Services) -> FastAPI:
 
     def domain_check(client: ApiClientRecord, domain_id: str | None) -> None:
         if not client.domain_allowed(domain_id):
-            raise _forbidden(
+            raise forbidden(
                 "domain_forbidden", t("error.agent_domain_forbidden", id=domain_id or "-")
             )
 
@@ -308,7 +348,7 @@ def agent_api(services: Services) -> FastAPI:
 
     def content_check(client: ApiClientRecord) -> None:
         if not client.policy.page_content:
-            raise _forbidden("content_disabled", t("error.agent_content_disabled"))
+            raise forbidden("content_disabled", t("error.agent_content_disabled"))
 
     def note(client: ApiClientRecord, text: str | None, default: str) -> str:
         return t("agent.note", name=client.name, note=(text or "").strip() or default)[:500]
@@ -339,6 +379,7 @@ def agent_api(services: Services) -> FastAPI:
 
     def run_json(client: ApiClientRecord, run: RunRecord) -> dict[str, object]:
         data = run.to_json()
+        data["portalPath"] = f"/runs/{run.id}"
         content = client.policy.page_content
         data["reportUrl"] = (
             f"{AGENT_PREFIX}/runs/{run.id}/files/{REPORT}" if run.finished and content else None
@@ -358,16 +399,20 @@ def agent_api(services: Services) -> FastAPI:
         digest = hashlib.sha256(f"{client.id}\n{key}".encode()).hexdigest()[:40]
         return f"agent:{digest}"
 
+    def run_limit(client: ApiClientRecord) -> None:
+        """排隊中與執行中的運行（含組合場景的節點）不能超過上限。"""
+        limit = client.policy.max_queued_runs
+        active = services.list_runs(client_id=client.id, statuses=_ACTIVE_RUNS, limit=limit + 1)
+        if len(active) >= limit:
+            raise limit_reached(t("error.agent_run_limit", limit=limit), limit)
+
     def queued_check(client: ApiClientRecord, key: str | None) -> RunRecord | None:
         """冪等鍵用過時回傳那次運行；否則檢查排隊中與執行中的數量。"""
         if key is not None:
             existing = agents.run_for_key(key)
             if existing is not None:
                 return services.get_run(existing)
-        limit = client.policy.max_queued_runs
-        active = services.list_runs(client_id=client.id, statuses=_ACTIVE_RUNS, limit=limit + 1)
-        if len(active) >= limit:
-            raise _limit(t("error.agent_run_limit", limit=limit), limit)
+        run_limit(client)
         return None
 
     def placement(
@@ -376,14 +421,14 @@ def agent_api(services: Services) -> FastAPI:
         """執行位置：用戶端固定了位置時不能指定別的；指定 Worker 要在允許的清單裡。"""
         fixed = client.policy.target
         if fixed is not None and target is not None and target != fixed:
-            raise _forbidden("target_forbidden", t("error.agent_target_forbidden", target=fixed))
+            raise forbidden("target_forbidden", t("error.agent_target_forbidden", target=fixed))
         target = target or fixed
         worker_id = (worker_id or "").strip() or None
         if worker_id is None:
             return target, None
         allowed = client.policy.workers
         if allowed is not None and worker_id not in allowed:
-            raise _forbidden("worker_forbidden", t("error.agent_worker_forbidden", id=worker_id))
+            raise forbidden("worker_forbidden", t("error.agent_worker_forbidden", id=worker_id))
         if worker_id == LOCAL_WORKER:
             if target == "remote":
                 raise invalid(
@@ -442,6 +487,7 @@ def agent_api(services: Services) -> FastAPI:
                 "queuedRuns": policy.max_queued_runs,
             },
             "domains": list(policy.domains) if policy.domains is not None else None,
+            "projects": list(policy.projects) if policy.projects is not None else None,
             "recorders": list(policy.recorders),
             "target": policy.target,
             "workers": list(policy.workers) if policy.workers is not None else None,
@@ -704,16 +750,14 @@ def agent_api(services: Services) -> FastAPI:
                 raise invalid("recorder_required", t("error.agent_recorder_required"))
             recorder_id = allowed[0]
         if recorder_id not in allowed:
-            raise _forbidden(
+            raise forbidden(
                 "recorder_forbidden", t("error.agent_recorder_forbidden", id=recorder_id)
             )
         recorder = services.recorders.get_recorder(recorder_id)
         if not recorder.allow_agent or recorder.disabled:
-            raise _forbidden(
-                "recorder_agent_off", t("error.agent_recorder_off", name=recorder.name)
-            )
+            raise forbidden("recorder_agent_off", t("error.agent_recorder_off", name=recorder.name))
         if not body.headless and recorder.agent_headless_only:
-            raise _forbidden(
+            raise forbidden(
                 "recorder_headless_only", t("error.agent_recorder_headless", name=recorder.name)
             )
         existing = debug.for_scene(scene_id)
@@ -722,7 +766,7 @@ def agent_api(services: Services) -> FastAPI:
         mine = [s for s in debug.sessions() if s.client_id == client.id and s.scene_id != scene_id]
         limit = client.policy.max_debug_sessions
         if len(mine) >= limit:
-            raise _limit(t("error.agent_debug_limit", limit=limit), limit)
+            raise limit_reached(t("error.agent_debug_limit", limit=limit), limit)
         with use_recorder(Via(recorder.id, recorder.name)):
             session = debug.start(
                 scene_id,
@@ -832,7 +876,7 @@ def agent_api(services: Services) -> FastAPI:
         """取消自己觸發的運行；已經發生的外部動作不會回滾。"""
         run = run_for(client, run_id)
         if run.client_id != client.id:
-            raise _forbidden("run_forbidden", t("error.agent_run_forbidden", id=run_id))
+            raise forbidden("run_forbidden", t("error.agent_run_forbidden", id=run_id))
         client.require("runs:validate" if run.purpose == "validation" else "runs:execute")
         return run_json(client, services.cancel_run(run_id))
 
@@ -845,7 +889,7 @@ def agent_api(services: Services) -> FastAPI:
         client.require("runs:validate" if run.purpose == "validation" else "runs:execute")
         fixed = client.policy.target
         if fixed is not None and run.target != fixed:
-            raise _forbidden("target_forbidden", t("error.agent_target_forbidden", target=fixed))
+            raise forbidden("target_forbidden", t("error.agent_target_forbidden", target=fixed))
         key = scoped_key(client, body.idempotency_key if body is not None else None)
         existing = queued_check(client, key)
         if existing is not None:
@@ -919,5 +963,18 @@ def agent_api(services: Services) -> FastAPI:
         path = services.run_file(run_id, relative)
         return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
 
+    # ------------------------------------------------------------ 專案（agent_projects.py）
+
+    from rpa_server.agent_projects import project_routes  # 它匯入本模組，建立時才取用
+
+    tools = AgentTools(
+        domain_check=domain_check,
+        note=note,
+        run_json=run_json,
+        scoped_key=scoped_key,
+        run_limit=run_limit,
+        placement=placement,
+    )
+    app.include_router(project_routes(services, tools))
     app.add_middleware(AuditMiddleware, services=services)
     return app

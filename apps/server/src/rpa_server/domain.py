@@ -613,6 +613,8 @@ class WorkflowRunRecord:
     purpose: str = "validation"
     """validation（驗證某個版本）或 execution（執行發布的版本）；M11 PR 2。"""
     workflow_code: str | None = None
+    client_id: str | None = None
+    """觸發的對外 API 用戶端（M14）；Portal 觸發的是 None。"""
 
     @property
     def finished(self) -> bool:
@@ -649,6 +651,7 @@ class WorkflowRunRecord:
             "workerId": self.worker_id,
             "purpose": self.purpose,
             "workflowCode": self.workflow_code,
+            "clientId": self.client_id,
         }
 
 

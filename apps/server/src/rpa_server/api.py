@@ -35,7 +35,7 @@ from pydantic.alias_generators import to_camel
 
 from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
-from rpa_server.agents import AUDIT_LIMIT, ClientPolicy
+from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError
 from rpa_server.gitsync import Auth, GitSource
@@ -339,8 +339,9 @@ class RecorderUpdate(WorkerUpdate):
 class AgentPolicyBody(_Body):
     """API 用戶端的限制（M14）；清單是 null 時不限。"""
 
-    scopes: list[str] = Field(default_factory=lambda: ["scenes:read", "runs:read"], max_length=20)
+    scopes: list[str] = Field(default_factory=lambda: list(DEFAULT_SCOPES), max_length=20)
     domains: list[str] | None = Field(default=None, max_length=500)
+    projects: list[str] | None = Field(default=None, max_length=500)
     recorders: list[str] = Field(default_factory=list[str], max_length=100)
     target: Target | None = None
     workers: list[str] | None = Field(default=None, max_length=200)
@@ -354,6 +355,7 @@ class AgentPolicyBody(_Body):
         return ClientPolicy(
             scopes=tuple(self.scopes),
             domains=tuple(self.domains) if self.domains is not None else None,
+            projects=tuple(self.projects) if self.projects is not None else None,
             recorders=tuple(self.recorders),
             target=self.target,
             workers=tuple(self.workers) if self.workers is not None else None,

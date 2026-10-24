@@ -1,7 +1,7 @@
 """對外 Agent API（M14，ADR 0017）：API 用戶端 api_clients、稽核 api_audit、runs.client_id、
-錄製端的 recorders.allow_agent 與 agent_headless_only
+workflow_runs.client_id、錄製端的 recorders.allow_agent 與 agent_headless_only
 
-既有的錄製端都不允許 Agent 調試；既有的執行都不是 Agent 觸發的。
+既有的錄製端都不允許 Agent 調試；既有的執行與組合場景的執行都不是 Agent 觸發的。
 
 Revision ID: 0016
 Revises: 0015
@@ -31,6 +31,7 @@ def upgrade() -> None:
         sa.Column("key_prefix", sa.String(20), nullable=False),
         sa.Column("scopes", JsonType, nullable=False),
         sa.Column("domains", JsonType, nullable=True),
+        sa.Column("projects", JsonType, nullable=True),
         sa.Column("recorders", JsonType, nullable=False),
         sa.Column("target", sa.String(10), nullable=True),
         sa.Column("workers", JsonType, nullable=True),
@@ -64,6 +65,9 @@ def upgrade() -> None:
     with op.batch_alter_table("runs") as batch:
         batch.add_column(sa.Column("client_id", sa.String(64), nullable=True))
         batch.create_index("ix_runs_client_id", ["client_id"])
+    with op.batch_alter_table("workflow_runs") as batch:
+        batch.add_column(sa.Column("client_id", sa.String(64), nullable=True))
+        batch.create_index("ix_workflow_runs_client_id", ["client_id"])
     with op.batch_alter_table("recorders") as batch:
         # 既有的錄製端都不允許 Agent 調試
         batch.add_column(
@@ -80,6 +84,9 @@ def downgrade() -> None:
     with op.batch_alter_table("recorders") as batch:
         batch.drop_column("agent_headless_only")
         batch.drop_column("allow_agent")
+    with op.batch_alter_table("workflow_runs") as batch:
+        batch.drop_index("ix_workflow_runs_client_id")
+        batch.drop_column("client_id")
     with op.batch_alter_table("runs") as batch:
         batch.drop_index("ix_runs_client_id")
         batch.drop_column("client_id")

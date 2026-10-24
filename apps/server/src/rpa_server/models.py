@@ -343,6 +343,8 @@ class WorkflowRun(Base):
     workflow_hash: Mapped[str | None] = mapped_column(String(64))
     """跑的版本的雜湊（definition 是解析過來源的快照，雜湊和版本不同）；驗證紀錄記它。
     M11 PR 2 之前的執行（與它們的重跑）沒有，不寫驗證紀錄。"""
+    client_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    """觸發的對外 API 用戶端（M14）；Portal 觸發的是 None。節點的執行也記同一個用戶端。"""
 
 
 class RemoteWorker(Base):
@@ -416,8 +418,8 @@ class Setting(Base):
 class ApiClient(Base):
     """對外 Agent API 的用戶端（M14，ADR 0017）：一個 Agent 系統一把金鑰，資料庫只存金鑰的雜湊。
 
-    清單類的欄位（權限範圍、領域、錄製端、Worker）是 JSON 陣列；``domains``、``workers``
-    是 None 時不限。
+    清單類的欄位（權限範圍、領域、專案、錄製端、Worker）是 JSON 陣列；``domains``、``projects``、
+    ``workers`` 是 None 時不限。
     """
 
     __tablename__ = "api_clients"
@@ -430,6 +432,8 @@ class ApiClient(Base):
     """金鑰的開頭幾個字，管理後台用來認出是哪一把（不足以使用）。"""
     scopes: Mapped[list[str]] = mapped_column(JsonType)
     domains: Mapped[list[str] | None] = mapped_column(JsonType)
+    projects: Mapped[list[str] | None] = mapped_column(JsonType)
+    """可以讀寫哪些專案（專案空間）；None 時不限，限定時不能新增專案。"""
     recorders: Mapped[list[str]] = mapped_column(JsonType)
     target: Mapped[str | None] = mapped_column(String(10))
     """驗證與執行的位置（local、remote、any）；None 時跟隨伺服器的預設執行位置。"""

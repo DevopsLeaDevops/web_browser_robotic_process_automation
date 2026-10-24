@@ -32,6 +32,7 @@
           {% if policy.expires_at %}<span class="cell-sub">{{ t("agents.expires") }} {{ m.time(policy.expires_at) }}</span>{% endif %}</td>
         <td>{% for scope in policy.scopes %}<code class="mono">{{ scope }}</code>{% if not loop.last %} {% endif %}{% endfor %}
           <span class="cell-sub">{{ t("agents.domains_all") if policy.domains is none else t("agents.domains_some", names=(policy.domains | join(t("js.list_separator"))) or "—") }}</span>
+          <span class="cell-sub">{{ t("agents.projects_all") if policy.projects is none else t("agents.projects_some", names=(policy.projects | join(t("js.list_separator"))) or "—") }}</span>
           <span class="cell-sub">{{ t("agents.recorders_some", names=policy.recorders | join(t("js.list_separator"))) if policy.recorders else t("agents.recorders_none") }}</span></td>
         <td>{{ t("agents.limits", debug=policy.max_debug_sessions, queued=policy.max_queued_runs) }}
           <span class="cell-sub">{{ t("agents.page_content_on") if policy.page_content else t("agents.page_content_off") }}</span>
@@ -91,6 +92,12 @@
     <legend>{{ t("agents.domains") }}</legend>
     <label><input type="checkbox" name="all-domains"> {{ t("agents.domains_all") }}</label>
     {% for domain in domains %}<label><input type="checkbox" name="domain" value="{{ domain.id }}"> {{ domain.name }}</label>{% endfor %}
+  </fieldset>
+  <fieldset class="field choice inline">
+    <legend>{{ t("agents.projects") }}</legend>
+    <label><input type="checkbox" name="all-projects"> {{ t("agents.projects_all") }}</label>
+    {% for project in projects %}<label><input type="checkbox" name="project" value="{{ project.id }}"> {{ project.name }}</label>{% endfor %}
+    <span class="cell-sub">{{ t("agents.projects_hint") }}</span>
   </fieldset>
   <fieldset class="field choice inline">
     <legend>{{ t("agents.recorders") }}</legend>

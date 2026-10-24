@@ -2966,9 +2966,11 @@
       set('id', agent ? agent.id : '');
       set('name', agent ? agent.name : '');
       set('description', agent ? agent.description || '' : '');
-      tick('scope', agent ? agent.scopes : ['scenes:read', 'runs:read']);
+      tick('scope', agent ? agent.scopes : ['scenes:read', 'runs:read', 'projects:read']);
       qs('[name="all-domains"]', dialog).checked = !agent || agent.domains === null;
       tick('domain', agent && agent.domains ? agent.domains : []);
+      qs('[name="all-projects"]', dialog).checked = !agent || agent.projects === null;
+      tick('project', agent && agent.projects ? agent.projects : []);
       tick('recorder', agent ? agent.recorders : []);
       set('target', agent && agent.target ? agent.target : '');
       qs('[name="all-workers"]', dialog).checked = !agent || agent.workers === null;
@@ -2980,7 +2982,7 @@
       set('expires', agent && agent.expiresAt ? agent.expiresAt.slice(0, 10) : '');
       if (agent) qs('[name="id"]', dialog).readOnly = true;
       // 「不限」和個別勾選互斥
-      [['all-domains', 'domain'], ['all-workers', 'worker']].forEach(([all, item]) => {
+      [['all-domains', 'domain'], ['all-projects', 'project'], ['all-workers', 'worker']].forEach(([all, item]) => {
         const everything = qs('[name="' + all + '"]', dialog);
         const sync = () => qsa('[name="' + item + '"]', dialog).forEach(input => { input.disabled = everything.checked; });
         everything.addEventListener('change', sync);
@@ -2995,6 +2997,7 @@
       return {
         scopes: checked(dialog, 'scope'),
         domains: qs('[name="all-domains"]', dialog).checked ? null : checked(dialog, 'domain'),
+        projects: qs('[name="all-projects"]', dialog).checked ? null : checked(dialog, 'project'),
         recorders: checked(dialog, 'recorder'),
         target: value('target') || null,
         workers: qs('[name="all-workers"]', dialog).checked ? null : checked(dialog, 'worker'),

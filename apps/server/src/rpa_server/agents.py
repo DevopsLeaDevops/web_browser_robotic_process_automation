@@ -3,13 +3,14 @@
 - 每個 Agent 系統是一個 API 用戶端，請求帶 ``Authorization: Bearer <API 金鑰>``。金鑰只在建立與
   重新產生時回傳一次，資料庫只存雜湊（同裝置權杖，:func:`rpa_server.dispatch.hash_token`）。
 - 權限範圍見 :data:`SCOPES`；新用戶端只有讀取（:data:`DEFAULT_SCOPES`），發布要個別勾選。
-- 其他限制在 :class:`ClientPolicy`：可用的領域（None 不限）、可以開調試的錄製端（預設無）、
+- 其他限制在 :class:`ClientPolicy`：可用的領域與專案（None 不限）、可以開調試的錄製端（預設無）、
   執行位置與可以指定的 Worker、限額、回傳頁面內容（預設關）、到期與來源 IP。
 - 稽核：每個寫入請求記一筆（:meth:`AgentService.record_audit`），只增不改；用戶端刪除後仍保留。
 - 建立場景、存版本的冪等鍵記在記憶體（:meth:`AgentService.recall`），伺服器重新啟動後就忘了；
   驗證與執行的冪等鍵存在運行紀錄裡。
 
-路由在 :mod:`rpa_server.agent_api`；管理後台的 API 在 ``/api/agents``。
+路由在 :mod:`rpa_server.agent_api`（專案在 :mod:`rpa_server.agent_projects`）；管理後台的 API 在
+``/api/agents``。
 """
 
 import ipaddress
@@ -29,7 +30,7 @@ from rpa_server.dispatch import hash_token
 from rpa_server.domain import DOMAIN_ID, LOCAL_WORKER, Target, now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
-from rpa_server.models import ApiAudit, ApiClient, Domain, Recorder, RemoteWorker, Run
+from rpa_server.models import ApiAudit, ApiClient, Domain, Project, Recorder, RemoteWorker, Run
 
 __all__ = [
     "AUDIT_LIMIT",
@@ -50,9 +51,12 @@ SCOPES: Final = (
     "scenes:publish",
     "runs:execute",
     "runs:read",
+    "projects:read",
+    "projects:write",
+    "projects:publish",
 )
-"""權限範圍，依 Agent 做事的順序。"""
-DEFAULT_SCOPES: Final = ("scenes:read", "runs:read")
+"""權限範圍，依 Agent 做事的順序：先做場景，再把場景組成專案裡的組合場景。"""
+DEFAULT_SCOPES: Final = ("scenes:read", "runs:read", "projects:read")
 KEY_PREFIX: Final = "rpa_ak_"
 """API 金鑰的開頭：一眼看得出是哪一種權杖（不要和裝置權杖混用）。"""
 AUDIT_LIMIT: Final = 200
@@ -68,7 +72,9 @@ class ClientPolicy:
 
     scopes: tuple[str, ...] = DEFAULT_SCOPES
     domains: tuple[str, ...] | None = None
-    """可以讀寫哪些領域的場景。"""
+    """可以讀寫哪些領域的場景（組合場景放在哪個領域資料夾也算）。"""
+    projects: tuple[str, ...] | None = None
+    """可以讀寫哪些專案的組合場景；限定時不能新增專案。"""
     recorders: tuple[str, ...] = ()
     """可以在哪幾台錄製端開調試瀏覽器；錄製端本身也要允許 Agent 調試。"""
     target: Target | None = None
@@ -112,6 +118,11 @@ class ApiClientRecord:
         domains = self.policy.domains
         return domains is None or (domain_id is not None and domain_id in domains)
 
+    def project_allowed(self, project_id: str | None) -> bool:
+        """不屬於任何專案的組合場景（專案管理裡列出的）不給 Agent。"""
+        projects = self.policy.projects
+        return project_id is not None and (projects is None or project_id in projects)
+
     def to_json(self) -> dict[str, object]:
         policy = self.policy
         return {
@@ -121,6 +132,7 @@ class ApiClientRecord:
             "keyPrefix": self.key_prefix,
             "scopes": list(policy.scopes),
             "domains": list(policy.domains) if policy.domains is not None else None,
+            "projects": list(policy.projects) if policy.projects is not None else None,
             "recorders": list(policy.recorders),
             "target": policy.target,
             "workers": list(policy.workers) if policy.workers is not None else None,
@@ -177,6 +189,7 @@ def _record(row: ApiClient) -> ApiClientRecord:
     policy = ClientPolicy(
         scopes=_names(row.scopes),
         domains=_names(row.domains) if row.domains is not None else None,
+        projects=_names(row.projects) if row.projects is not None else None,
         recorders=_names(row.recorders),
         target=cast("Target | None", row.target),
         workers=_names(row.workers) if row.workers is not None else None,
@@ -342,7 +355,7 @@ class AgentService:
 
     @staticmethod
     def _check(session: Session, policy: ClientPolicy) -> ClientPolicy:
-        """檢查並整理限制：權限範圍、領域、錄製端、Worker 要存在，IP 要寫得對。"""
+        """檢查並整理限制：權限範圍、領域、專案、錄製端、Worker 要存在，IP 要寫得對。"""
         scopes = _unique(policy.scopes)
         unknown = [scope for scope in scopes if scope not in SCOPES]
         if unknown:
@@ -354,6 +367,12 @@ class AgentService:
         if missing:
             raise invalid(
                 "agent_domain_unknown", t("error.agent_domain_unknown", ids=", ".join(missing))
+            )
+        projects = _unique(policy.projects) if policy.projects is not None else None
+        missing = [p for p in projects or () if session.get(Project, p) is None]
+        if missing:
+            raise invalid(
+                "agent_project_unknown", t("error.agent_project_unknown", ids=", ".join(missing))
             )
         recorders = _unique(policy.recorders)
         missing = [r for r in recorders if session.get(Recorder, r) is None]
@@ -379,6 +398,7 @@ class AgentService:
             policy,
             scopes=tuple(scope for scope in SCOPES if scope in scopes),
             domains=domains,
+            projects=projects,
             recorders=recorders,
             workers=workers,
             allowed_ips=allowed or None,
@@ -388,6 +408,7 @@ class AgentService:
     def _apply(row: ApiClient, policy: ClientPolicy) -> None:
         row.scopes = list(policy.scopes)
         row.domains = list(policy.domains) if policy.domains is not None else None
+        row.projects = list(policy.projects) if policy.projects is not None else None
         row.recorders = list(policy.recorders)
         row.target = policy.target
         row.workers = list(policy.workers) if policy.workers is not None else None

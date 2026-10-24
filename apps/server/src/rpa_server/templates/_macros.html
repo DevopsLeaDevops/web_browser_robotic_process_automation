@@ -147,7 +147,7 @@
 {%- endmacro %}
 
 {# 序列的執行（M6）：清單的一列是一次序列執行 #}
-{% macro workflow_run_rows(runs, show_workflow=true) %}
+{% macro workflow_run_rows(runs, show_workflow=true, agents={}) %}
 <div class="table-scroll">
   <table>
     <thead><tr>
@@ -160,7 +160,7 @@
     <tbody>
     {% for run in runs %}
       <tr data-workflow-run="{{ run.id }}">
-        <td><span class="tag mono">{{ run.id }}</span><span class="cell-sub">{{ time(run.created_at) }}</span></td>
+        <td><span class="tag mono">{{ run.id }}</span><span class="cell-sub">{{ time(run.created_at) }}</span>{% if run.client_id %}<span class="cell-sub">{{ t("runs.by_agent", name=agents.get(run.client_id, run.client_id)) }}</span>{% endif %}</td>
         {% if show_workflow %}<td>{% if run.workflow_id is not none %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %}</td>{% endif %}
         <td>{{ run_badge(run.status) }}{% if run.failed_node and run.finished %}<span class="cell-sub">{{ t("playground.stopped_at", node=run.failed_node) }}</span>{% endif %}</td>
         <td class="nowrap">{{ t("playground.progress", passed=run.passed_count, total=run.nodes | length) }}</td>

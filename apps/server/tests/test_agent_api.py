@@ -138,7 +138,7 @@ def test_agent_api_needs_the_external_port_and_a_valid_key(client: Client, remot
     meta = body(agent.get("/meta"))
     assert meta["apiVersion"] == "1"
     assert meta["client"] == {"id": "agent-erp", "name": "ERP 助理"}
-    assert meta["scopes"] == ["scenes:read", "runs:read"]
+    assert meta["scopes"] == ["scenes:read", "runs:read", "projects:read"]
     assert meta["pageContent"] is False
     assert meta["limits"] == {"debugSessions": 2, "queuedRuns": 20}
     assert "frame" in cast("list[str]", meta["dslFeatures"])
