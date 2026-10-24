@@ -14,7 +14,7 @@
   <div class="heading">
     <div>
       <h1>測試方案指南</h1>
-      <p>寫給接入平台的第三方 Agent：怎麼依需求設計場景與專案，用軟體工程常用的 TestCase 方法設計組合場景，並寫出交給人審閱的測試方案（Markdown、XMind、JSON）。</p>
+      <p>寫給接入平台的第三方 Agent：怎麼依需求設計場景與專案，用軟體工程常用的 TestCase 方法設計組合場景，並寫出交給人審閱的測試方案（XMind，另附給 Agent 自己用的 JSON）。</p>
     </div>
     <span class="badge blue">第一期實作中</span>
   </div>
@@ -61,10 +61,10 @@
           <li><strong>讀需求與平台現況：</strong><code>GET /meta</code>（權限、可用的專案與領域）、<code>GET /projects</code>、<code>GET /composites/library</code>（可以用的場景版本）、<code>GET /roles</code>、<code>GET /secrets</code>。</li>
           <li><strong>設計 TestCase：</strong>列出要驗證的功能點與需求編號，選測試設計方法，寫出 TestCase 清單。這一步還不建立任何東西。</li>
           <li><strong>拆場景：</strong>把 TestCase 的步驟歸納成可重用的場景，對照場景庫，能用就用、缺的才建。</li>
-          <li><strong>交草稿：</strong>寫出測試方案草稿（狀態「草稿」），列出待人確認的事項。調試場景會在目標系統上真的點擊與填寫，建議先請人看過範圍與測試資料；使用者已經明確授權時可以直接往下做。</li>
+          <li><strong>交草稿：</strong>寫出測試方案的 XMind 草稿（狀態「草稿」），在中心主題的備註列出待人確認的事項。調試場景會在目標系統上真的點擊與填寫，建議先請人看過範圍與測試資料；使用者已經明確授權時可以直接往下做。</li>
           <li><strong>建立場景：</strong>建立、調試、驗證、發布缺的場景，見 <a href="agent-api-guide.html">Agent 使用指南</a>。</li>
           <li><strong>建立專案與組合場景：</strong>每個 TestCase 一個組合場景，用 <code>POST /composites/check</code> 檢查到沒有問題再存。</li>
-          <li><strong>完成方案：</strong>填入場景與組合場景的代號和版本，產出 <code>test-plan.md</code>、<code>test-plan.xmind</code>、<code>test-plan.json</code>，狀態改為「待簽核」，交給人。</li>
+          <li><strong>完成方案：</strong>填入場景與組合場景的代號和版本，產出 <code>test-plan.xmind</code> 與 <code>test-plan.json</code>，狀態改為「待簽核」，把 XMind 交給人。</li>
           <li><strong>人簽核後</strong>依<a href="agent-test-report-guide.html">測試報告指南</a>執行。</li>
         </ol>
       </div>
@@ -179,48 +179,44 @@ PUT /agent-api/v1/composites/tc-order-003
     </section>
 
     <section class="panel" id="document">
-      <div class="panel-header"><h2>測試方案的格式</h2><span class="muted">三個檔案放在同一個資料夾</span></div>
+      <div class="panel-header"><h2>測試方案的格式</h2><span class="muted">XMind 給人，JSON 給 Agent</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>test-plan.md</code></dt><dd>主文件，給人讀與簽核。</dd>
-          <dt><code>test-plan.xmind</code></dt><dd>TestCase 心智圖：每個組合場景一個 TestCase，給人快速看涵蓋範圍，也能匯入常見的 TestCase 管理工具。</dd>
+          <dt><code>test-plan.xmind</code></dt><dd><strong>測試方案本身</strong>，給人審閱與簽核：每個組合場景一個 TestCase，方案層級的說明（範圍、環境、準則、待確認、簽核）放在中心主題的備註；也能匯入常見的 TestCase 管理工具。</dd>
           <dt><code>test-plan.json</code></dt><dd>同樣內容的結構化資料，Agent 之後執行與寫報告時讀它；人不必看。</dd>
         </dl>
-        <p>三個檔案從同一份資料產生，TestCase 的編號與數量要一致。資料夾名稱用方案編號，例如 <code>TP-ORDER-2026-10/</code>。修改已經交出的方案要升版本，並在文件資訊的修改紀錄寫改了什麼。</p>
+        <p>兩個檔案從同一份資料產生，TestCase 的編號與數量要一致。資料夾名稱用方案編號，例如 <code>TP-ORDER-2026-10/</code>。修改已經交出的方案要升版本，並在備註的修改紀錄寫改了什麼。</p>
       </div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>test-plan.md 的章節</th><th>內容</th></tr></thead>
+          <thead><tr><th>XMind 的層</th><th>放什麼</th></tr></thead>
           <tbody>
-            <tr><td>文件資訊</td><td>方案編號、版本、狀態（草稿、待簽核、已簽核、作廢）、產生的 Agent 與時間、伺服器（<code>/meta</code> 的 <code>server.id</code> 與 <code>serverVersion</code>）、專案代號、需求來源、修改紀錄</td></tr>
-            <tr><td>1. 目標與範圍</td><td>要驗證什麼；明確列出<strong>不</strong>驗證什麼</td></tr>
-            <tr><td>2. 測試環境</td><td>目標系統網址、瀏覽器、執行位置與 Worker、登入角色、用到的 Secrets 名稱（不寫值）</td></tr>
-            <tr><td>3. 測試策略</td><td>用了哪些設計方法、優先級的定義、執行的批次與順序、重跑原則</td></tr>
-            <tr><td>4. 場景清單</td><td>場景代號、名稱、版本、入參、出參、斷言摘要、狀態（已發布、待發布）</td></tr>
-            <tr><td>5. TestCase 清單</td><td>見下表的欄位</td></tr>
-            <tr><td>6. 追溯矩陣</td><td>需求 × TestCase；沒有 TestCase 的需求寫原因</td></tr>
-            <tr><td>7. 測試資料</td><td>每個 TestCase 的固定值與動態值；會建立或修改哪些資料、怎麼清理</td></tr>
-            <tr><td>8. 進入與退出準則</td><td>Agent 提出建議，由人決定。例如進入：方案已簽核、每個組合場景沒有問題、要用的角色已登入；退出：P1 全部通過、P2 通過率 ≥ 95%、沒有未處理的嚴重缺陷</td></tr>
-            <tr><td>9. 風險與待人確認</td><td>副作用、需要人發布的場景、需要人工登入的角色、權限不足、假設</td></tr>
-            <tr><td>10. 簽核</td><td>審閱者、日期、結論（同意、修改後同意、不同意）、意見：留空給人填</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="table-scroll">
-        <table class="wrap">
-          <thead><tr><th>TestCase 清單的欄位</th><th>例子</th></tr></thead>
-          <tbody>
-            <tr><td>編號、標題</td><td>TC-ORDER-003 數量上限 99 可以建立</td></tr>
-            <tr><td>模組、優先級</td><td>訂單建立、P1</td></tr>
-            <tr><td>需求、設計方法</td><td>REQ-12、邊界值</td></tr>
-            <tr><td>前置條件</td><td>角色 sales 已登入</td></tr>
-            <tr><td>步驟（節點）</td><td>1. create：建立訂單（order-create v6），數量 99；2. query：查詢訂單（order-query v3），用 create 的 orderId</td></tr>
-            <tr><td>預期結果</td><td>1. 取得訂單編號 SO-…，客戶與入參相同；2. 查得到這張訂單，數量是 99</td></tr>
-            <tr><td>組合場景</td><td><code>tc-order-003</code> v2，Portal 路徑 <code>/playground/12</code></td></tr>
+            <tr><td>中心主題</td><td>標題是方案編號與專案名稱，例如「TP-ORDER-2026-10 訂單回歸測試」。<strong>備註</strong>是方案層級的說明，格式見下方。</td></tr>
+            <tr><td>第一層：模組</td><td>測試套件，例如「訂單建立」；備註可以寫這個模組驗證什麼。</td></tr>
+            <tr><td>第二層：TestCase</td><td>每個組合場景一個主題，標題是「編號 標題」，<strong>一定要有優先級標記</strong> <code>priority-1</code>～<code>priority-3</code>（工具靠它認出 TestCase）。標籤：<code>auto</code>（自動執行）、組合場景代號與版本（如 <code>tc-order-003 v2</code>）、需求編號、設計方法。備註：前置條件、測試資料、Portal 路徑。</td></tr>
+            <tr><td>第三層：步驟</td><td>每個節點一個主題：「節點代號：做什麼（場景代號 v版本）」，依執行順序排列。</td></tr>
+            <tr><td>第四層：預期結果</td><td>每個步驟底下<strong>只放一個</strong>預期結果主題；好幾個斷言用「；」連在一起。</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
+        <p>中心主題的備註依序寫這些段落（純文字，一段一行開頭；人審閱後把簽核那一段填好交回，或直接回覆 Agent，Agent 記進 <code>test-plan.json</code> 的 <code>signoff</code>）：</p>
+<pre class="source">文件資訊：TP-ORDER-2026-10 v2；狀態：待簽核；ERP 助理 2026-10-24T08:00Z 產生；伺服器 srv-linux-01（0.6.0）；專案 order-regression；需求來源：訂單規格 v3
+1. 目標與範圍：驗證訂單建立的數量規則與審批流程。不驗證：退款、報表
+2. 測試環境：https://erp-test.example.internal；Chromium；執行位置 any；角色 sales、manager；Secrets：erp-password（只有名稱）
+3. 測試策略：邊界值、狀態轉換；P1 冒煙與核心路徑、P2 主要功能、P3 次要；先驗證再發布，一輪正式執行；環境原因最多重跑一次
+4. 場景：order-create v6（已發布）、order-query v3（已發布）、order-submit-raw v2（待發布）
+5. 未涵蓋的需求：REQ-15 列印（平台不支援列印對話框）
+6. 測試資料與清理：客戶名稱帶時間戳記；每輪約建立 6 張測試訂單，不自動刪除
+7. 進入與退出準則：進入：方案已簽核、組合場景沒有問題、角色已登入；退出：P1 全部通過、P2 通過率 ≥ 95%、沒有未處理的嚴重缺陷
+8. 風險與待人確認：order-submit-raw v2 要人發布；manager 角色要人工登入
+9. 簽核：審閱者＿＿；日期＿＿；結論（同意／修改後同意／不同意）＿＿；意見＿＿
+修改紀錄：v1 初稿；v2 加入 TC-ORDER-004</pre>
+        <ul class="points">
+          <li>主題標題不要以 <code>#</code> 或 <code>!</code> 開頭，常見工具會把它當成註解略過。</li>
+          <li>方案層級的說明只放在中心主題的備註，不要另開工作表或主題：常見的 XMind 轉 TestCase 工具會把沒有子主題的主題當成 TestCase。</li>
+          <li>測試報告用同一張圖，在 TestCase 上加結果標記（見<a href="agent-test-report-guide.html#xmind">測試報告指南</a>）。</li>
+        </ul>
         <p><code>test-plan.json</code> 的建議結構（欄位可以增加，已有的不要改意思）：</p>
 <pre class="source">{
   "format": "rpa-agent-test-plan", "formatVersion": 1,
@@ -243,29 +239,17 @@ PUT /agent-api/v1/composites/tc-order-003
        "action": "用 create 的 orderId 查詢", "expected": "查得到這張訂單，數量是 99"}],
     "composite": {"code": "tc-order-003", "revision": 2, "portalPath": "/playground/12"}
   }],
-  "entryCriteria": ["…"], "exitCriteria": ["…"], "risks": ["…"], "openQuestions": ["…"]
+  "scope": "…", "environment": "…", "strategy": "…", "uncovered": [{"requirement": "REQ-15", "reason": "…"}],
+  "testData": "…", "entryCriteria": ["…"], "exitCriteria": ["…"], "risks": ["…"], "openQuestions": ["…"],
+  "signoff": null,
+  "changes": [{"version": 1, "note": "初稿"}, {"version": 2, "note": "加入 TC-ORDER-004"}]
 }</pre>
       </div>
     </section>
 
     <section class="panel" id="xmind">
-      <div class="panel-header"><h2>XMind 格式</h2><span class="muted">主要給人看組合場景（TestCase）</span></div>
+      <div class="panel-header"><h2>寫出 XMind 檔</h2></div>
       <div class="panel-body">
-        <h3>結構</h3>
-        <dl class="spec-list">
-          <dt>中心主題</dt><dd>方案編號與專案名稱，例如「TP-ORDER-2026-10 訂單回歸測試」；備註寫方案版本與專案代號。</dd>
-          <dt>第一層</dt><dd>模組（測試套件），例如「訂單建立」。</dd>
-          <dt>第二層：TestCase</dt><dd>每個組合場景一個主題，標題是「編號 標題」，<strong>一定要有優先級標記</strong> <code>priority-1</code>～<code>priority-3</code>（工具靠它認出 TestCase）。標籤：<code>auto</code>（自動執行）、組合場景代號與版本（如 <code>tc-order-003 v2</code>）、需求編號、設計方法。備註：前置條件與 Portal 路徑。</dd>
-          <dt>第三層：步驟</dt><dd>每個節點一個主題：「節點代號：做什麼（場景代號 v版本）」，依執行順序排列。</dd>
-          <dt>第四層：預期結果</dt><dd>每個步驟底下<strong>只放一個</strong>預期結果主題；好幾個斷言用「；」連在一起。</dd>
-        </dl>
-        <ul class="points">
-          <li>主題標題不要以 <code>#</code> 或 <code>!</code> 開頭，常見工具會把它當成註解略過。</li>
-          <li>不要把待確認事項、風險放進心智圖；它們在 <code>test-plan.md</code>。</li>
-          <li>測試報告用同一張圖，在 TestCase 上加結果標記（見<a href="agent-test-report-guide.html#xmind">測試報告指南</a>）。</li>
-        </ul>
-
-        <h3>檔案</h3>
         <p><code>.xmind</code> 是 ZIP。<code>content.json</code> 給 XMind 2020 以後的版本，<code>content.xml</code> 給 XMind 8 與常見的 XMind 轉 TestCase 工具（例如 xmind2testcase）。兩份內容相同，下面的 Python 只用標準函式庫就能同時寫出：</p>
 <pre class="source">import json, uuid, zipfile
 from xml.etree import ElementTree as ET
@@ -338,8 +322,14 @@ case = topic("TC-ORDER-003 數量上限 99 可以建立", [
           [topic("查得到這張訂單，數量是 99")]),
 ], priority=1, labels=["auto", "tc-order-003 v2", "REQ-12", "邊界值"],
    notes="角色 sales 已登入\nPortal：/playground/12")
-root = topic("TP-ORDER-2026-10 訂單回歸測試", [topic("訂單建立", [case])],
-             notes="方案版本 2；專案 order-regression")
+plan_notes = "\n".join([
+    "文件資訊：TP-ORDER-2026-10 v2；狀態：待簽核；專案 order-regression",
+    "1. 目標與範圍：…", "2. 測試環境：…", "3. 測試策略：…", "4. 場景：…",
+    "5. 未涵蓋的需求：…", "6. 測試資料與清理：…", "7. 進入與退出準則：…",
+    "8. 風險與待人確認：…", "9. 簽核：審閱者＿＿；日期＿＿；結論＿＿；意見＿＿",
+    "修改紀錄：v1 初稿；v2 加入 TC-ORDER-004",
+])
+root = topic("TP-ORDER-2026-10 訂單回歸測試", [topic("訂單建立", [case])], notes=plan_notes)
 write_xmind("test-plan.xmind", "測試方案", root)</pre>
         <p>寫完可以自己讀回來檢查：解開 ZIP、讀 <code>content.json</code>，確認 TestCase 主題的數量等於 <code>test-plan.json</code> 的 <code>testCases</code>。人要匯入特定的 TestCase 管理工具時，以那個工具的說明為準。</p>
       </div>
@@ -349,10 +339,10 @@ write_xmind("test-plan.xmind", "測試方案", root)</pre>
       <div class="panel-header"><h2>交給人之前</h2></div>
       <div class="panel-body">
         <ul class="points">
-          <li>三個檔案的 TestCase 編號與數量一致；每個 TestCase 都有組合場景代號與版本，<code>GET /composites/{code}</code> 的 <code>problems</code> 是空的。</li>
+          <li>XMind 與 JSON 的 TestCase 編號與數量一致；每個 TestCase 都有組合場景代號與版本，<code>GET /composites/{code}</code> 的 <code>problems</code> 是空的。</li>
           <li>每個需求都有 TestCase，或寫明不測的原因；每個 TestCase 都有優先級與預期結果。</li>
           <li>文件裡沒有 API 金鑰、密碼、Secret 的值；測試資料不含真實個資。</li>
-          <li>要人做的事都列在「待人確認」：發布哪些場景、登入哪些角色、哪些步驟有副作用、缺哪些權限。</li>
+          <li>要人做的事都列在中心主題備註的「風險與待人確認」：發布哪些場景、登入哪些角色、哪些步驟有副作用、缺哪些權限。</li>
           <li>方案的狀態、版本與產生時間正確；在 Portal 打開專案頁（<code>portalPath</code>）看得到同樣的組合場景。</li>
         </ul>
       </div>

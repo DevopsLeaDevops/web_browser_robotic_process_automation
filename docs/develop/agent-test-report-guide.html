@@ -14,7 +14,7 @@
   <div class="heading">
     <div>
       <h1>測試報告指南</h1>
-      <p>寫給接入平台的第三方 Agent：依簽核的測試方案執行專案裡的組合場景、跟蹤進度、處理失敗與重跑，最後寫出交給人驗收的測試報告，並能從報告回溯到每一步的細節。</p>
+      <p>寫給接入平台的第三方 Agent：依簽核的測試方案執行專案裡的組合場景、跟蹤進度、處理失敗與重跑，最後寫出交給人驗收的測試報告（單一 HTML 檔，另附給 Agent 自己用的 JSON），並能從報告回溯到每一步的細節。</p>
     </div>
     <span class="badge blue">第一期實作中</span>
   </div>
@@ -183,17 +183,17 @@ GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.
       <div class="panel-body">
         <p>一輪一個資料夾，名稱用報告編號，例如 <code>TR-ORDER-2026-10-R1/</code>：</p>
 <pre class="source">TR-ORDER-2026-10-R1/
-  test-report.md        主文件，給人讀與驗收
-  test-report.json      同樣內容的結構化資料
-  test-report.xmind     測試方案的 XMind 加上結果標記
-  evidence/             失敗與阻塞的 TestCase 的完整證據
+  test-report.html      測試報告本身，給人用瀏覽器打開、驗收
+  test-report.json      同樣內容的結構化資料，給 Agent 用
+  test-report.xmind     （可選）測試方案的 XMind 加上結果標記
+  evidence/             失敗與阻塞的 TestCase 的完整證據，HTML 用相對路徑連過來
     TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/
       composite-run.json
       reject/run.json  reject/steps.json  reject/result.json  reject/screenshot.png</pre>
       </div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>test-report.md 的章節</th><th>內容</th></tr></thead>
+          <thead><tr><th>test-report.html 的章節</th><th>內容</th></tr></thead>
           <tbody>
             <tr><td>文件資訊</td><td>報告編號、對應的方案編號與版本、輪次、狀態（草稿、待驗收、已驗收）、產生的 Agent 與時間、伺服器代號與版本、執行期間</td></tr>
             <tr><td>1. 結論摘要</td><td>建議（通過、有條件通過、不通過），逐條對照方案的退出準則；通過率；重大缺陷與阻塞；一段話寫給驗收者</td></tr>
@@ -210,6 +210,58 @@ GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.
         </table>
       </div>
       <div class="panel-body">
+        <h3>HTML 的寫法</h3>
+        <ul class="points">
+          <li><strong>單一檔案、可以離線打開：</strong>樣式寫在 <code>&lt;style&gt;</code> 裡，不載入外部的字型、腳本或 CDN（驗收的電腦可能在內網）；不需要 JavaScript 也能完整閱讀，長的回溯用 <code>&lt;details&gt;</code> 摺疊。</li>
+          <li><strong>整個資料夾一起交：</strong>截圖與證據用相對路徑連到 <code>evidence/</code>，例如 <code>&lt;img src="evidence/…/screenshot.png"&gt;</code>；人解壓後直接打開 <code>test-report.html</code>。</li>
+          <li><strong>互相連結：</strong>每個 TestCase 一個錨點（<code>id="TC-ORDER-004"</code>），結論、明細、缺陷與回溯之間用 <code>#</code> 連結。</li>
+          <li><strong>跳脫：</strong>從 API 拿到的文字（錯誤訊息、實際值、頁面上的字）一律做 HTML 跳脫再放進頁面；不要把運行的 <code>report.html</code> 或頁面原始碼整段嵌進來，要看時連到證據檔。</li>
+          <li><strong>結果要有文字：</strong>通過、失敗、阻塞要寫出來，不能只靠顏色；列印時也看得清楚。</li>
+          <li><strong>Portal：</strong><code>portalPath</code> 寫成文字；人給過 Portal 的網址時再做成連結。</li>
+        </ul>
+        <p>最小的骨架（章節照上表，內容換成實際的資料）：</p>
+<pre class="source">&lt;!doctype html&gt;
+&lt;html lang="zh-Hant"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;title&gt;TR-ORDER-2026-10-R1 測試報告&lt;/title&gt;
+&lt;style&gt;
+  body { font: 14px/1.6 system-ui, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccd3dd; padding: 4px 8px; text-align: left; vertical-align: top; }
+  .passed { color: #146c2e; } .failed { color: #b3261e; } .blocked { color: #8a5300; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;TR-ORDER-2026-10-R1 測試報告&lt;/h1&gt;
+&lt;p&gt;方案 TP-ORDER-2026-10 v2 · 狀態：待驗收 · ERP 助理 2026-10-24T09:10Z 產生 · 伺服器 srv-linux-01（0.6.0）&lt;/p&gt;
+&lt;h2 id="summary"&gt;1. 結論摘要&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;建議：有條件通過。&lt;/strong&gt;12 個 TestCase：通過 10、失敗 1、阻塞 1。…&lt;/p&gt;
+&lt;h2 id="cases"&gt;4. TestCase 明細&lt;/h2&gt;
+&lt;table&gt;
+  &lt;tr&gt;&lt;th&gt;編號&lt;/th&gt;&lt;th&gt;標題&lt;/th&gt;&lt;th&gt;優先級&lt;/th&gt;&lt;th&gt;結果&lt;/th&gt;&lt;th&gt;組合場景&lt;/th&gt;&lt;th&gt;執行代號&lt;/th&gt;&lt;th&gt;Portal 路徑&lt;/th&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;td&gt;&lt;a href="#TC-ORDER-004"&gt;TC-ORDER-004&lt;/a&gt;&lt;/td&gt;&lt;td&gt;數量 100 被拒絕&lt;/td&gt;&lt;td&gt;P2&lt;/td&gt;
+      &lt;td class="failed"&gt;失敗&lt;/td&gt;&lt;td&gt;tc-order-004 v1&lt;/td&gt;&lt;td&gt;tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;
+      &lt;td&gt;/playground/runs/tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;h2 id="trace"&gt;7. 詳細回溯&lt;/h2&gt;
+&lt;section id="TC-ORDER-004"&gt;
+  &lt;h3&gt;TC-ORDER-004 數量 100 被拒絕：失敗&lt;/h3&gt;
+  &lt;details open&gt;
+    &lt;summary&gt;節點 reject（order-submit-raw v2）· 運行 order-submit-raw-20261024-081531-4d5e6f · 失敗，停在斷言&lt;/summary&gt;
+    &lt;table&gt;
+      &lt;tr&gt;&lt;th&gt;步驟&lt;/th&gt;&lt;th&gt;動作&lt;/th&gt;&lt;th&gt;結果&lt;/th&gt;&lt;th&gt;耗時&lt;/th&gt;&lt;th&gt;錯誤&lt;/th&gt;&lt;/tr&gt;
+      &lt;tr&gt;&lt;td&gt;submit&lt;/td&gt;&lt;td&gt;click&lt;/td&gt;&lt;td class="passed"&gt;通過&lt;/td&gt;&lt;td&gt;0.8 秒&lt;/td&gt;&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;/table&gt;
+    &lt;p&gt;斷言「顯示數量上限的錯誤」：預期「數量不能超過 99」，實際「訂單已建立」。&lt;/p&gt;
+    &lt;img src="evidence/TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/reject/screenshot.png"
+         alt="reject 失敗時的畫面" width="640"&gt;
+  &lt;/details&gt;
+&lt;/section&gt;
+&lt;h2 id="acceptance"&gt;10. 人工驗收&lt;/h2&gt;
+&lt;p&gt;驗收者：＿＿　日期：＿＿　結論（通過／有條件通過／不通過）：＿＿　意見：＿＿&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
         <p><code>test-report.json</code> 的建議結構：</p>
 <pre class="source">{
   "format": "rpa-agent-test-report", "formatVersion": 1,
@@ -260,6 +312,7 @@ GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.
       <div class="panel-body">
         <ul class="points">
           <li>方案裡的每個 TestCase 在報告裡都有結果；統計數字和明細一致。</li>
+          <li>在沒有網路的電腦用瀏覽器打開 <code>test-report.html</code>：版面正常、頁內連結與截圖都打得開。</li>
           <li>每個失敗都有缺陷或原因；每個阻塞都寫了要人做什麼。</li>
           <li>每個執行代號用 <code>GET /composite-runs/{id}</code> 都查得到，狀態和報告寫的相同。</li>
           <li>證據裡沒有 API 金鑰、密碼、Secret 的值；個資照方案的約定處理。</li>

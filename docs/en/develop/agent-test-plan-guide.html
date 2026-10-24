@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4df904c3b140f55c">
+<meta name="translation-source" content="sha256:bed1b735e0a2512f">
 <title>Test plan guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,7 +15,7 @@
   <div class="heading">
     <div>
       <h1>Test plan guide</h1>
-      <p>For third-party agents connected to the platform: how to design scenes and projects from requirements, design composites with the TestCase methods common in software engineering, and write a test plan for people to review (Markdown, XMind, JSON).</p>
+      <p>For third-party agents connected to the platform: how to design scenes and projects from requirements, design composites with the TestCase methods common in software engineering, and write a test plan for people to review (XMind, plus JSON for the agent's own use).</p>
     </div>
     <span class="badge blue">Phase 1 in progress</span>
   </div>
@@ -62,10 +62,10 @@
           <li><strong>Read the requirements and the platform:</strong> <code>GET /meta</code> (scopes, allowed projects and domains), <code>GET /projects</code>, <code>GET /composites/library</code> (scene revisions you can use), <code>GET /roles</code>, <code>GET /secrets</code>.</li>
           <li><strong>Design TestCases:</strong> list the features and requirement IDs to verify, pick test design methods and write the TestCase list. Nothing is created yet.</li>
           <li><strong>Split into scenes:</strong> turn the TestCase steps into reusable scenes; use what the library already has and create only what is missing.</li>
-          <li><strong>Hand over a draft:</strong> write a draft plan (status "draft") with the open questions. Debugging a scene really clicks and types in the target system, so have people look at the scope and test data first; go straight on only when the user has clearly authorised it.</li>
+          <li><strong>Hand over a draft:</strong> write a draft XMind plan (status "draft") with the open questions in the central topic's notes. Debugging a scene really clicks and types in the target system, so have people look at the scope and test data first; go straight on only when the user has clearly authorised it.</li>
           <li><strong>Create scenes:</strong> create, debug, validate and publish the missing scenes, see the <a href="agent-api-guide.html">Agent API guide</a>.</li>
           <li><strong>Create the project and composites:</strong> one composite per TestCase; check with <code>POST /composites/check</code> until there are no problems, then save.</li>
-          <li><strong>Finish the plan:</strong> fill in the codes and revisions of scenes and composites, produce <code>test-plan.md</code>, <code>test-plan.xmind</code> and <code>test-plan.json</code>, set the status to "pending sign-off" and hand it over.</li>
+          <li><strong>Finish the plan:</strong> fill in the codes and revisions of scenes and composites, produce <code>test-plan.xmind</code> and <code>test-plan.json</code>, set the status to "pending sign-off" and hand the XMind over.</li>
           <li><strong>After sign-off</strong>, run it as described in the <a href="agent-test-report-guide.html">test report guide</a>.</li>
         </ol>
       </div>
@@ -180,48 +180,44 @@ PUT /agent-api/v1/composites/tc-order-003
     </section>
 
     <section class="panel" id="document">
-      <div class="panel-header"><h2>Test plan format</h2><span class="muted">Three files in one folder</span></div>
+      <div class="panel-header"><h2>Test plan format</h2><span class="muted">XMind for people, JSON for the agent</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>test-plan.md</code></dt><dd>The main document, for people to read and sign off.</dd>
-          <dt><code>test-plan.xmind</code></dt><dd>A TestCase mind map: one TestCase per composite, so people can see coverage at a glance; common TestCase tools can import it.</dd>
+          <dt><code>test-plan.xmind</code></dt><dd><strong>The test plan itself</strong>, for people to review and sign off: one TestCase per composite, with the plan-level text (scope, environment, criteria, open questions, sign-off) in the central topic's notes; common TestCase tools can import it.</dd>
           <dt><code>test-plan.json</code></dt><dd>The same content as structured data, read by the agent when it runs the plan and writes the report; people need not read it.</dd>
         </dl>
-        <p>Generate all three from the same data; TestCase IDs and counts must match. Name the folder after the plan ID, e.g. <code>TP-ORDER-2026-10/</code>. A plan that has been handed over gets a new version when changed, with the change noted in the document information's change log.</p>
+        <p>Generate both from the same data; TestCase IDs and counts must match. Name the folder after the plan ID, e.g. <code>TP-ORDER-2026-10/</code>. A plan that has been handed over gets a new version when changed, with the change noted in the change log in the notes.</p>
       </div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>Sections of test-plan.md</th><th>Content</th></tr></thead>
+          <thead><tr><th>XMind level</th><th>Content</th></tr></thead>
           <tbody>
-            <tr><td>Document information</td><td>Plan ID, version, status (draft, pending sign-off, signed off, withdrawn), generating agent and time, server (<code>server.id</code> and <code>serverVersion</code> from <code>/meta</code>), project ID, source of requirements, change log</td></tr>
-            <tr><td>1. Goals and scope</td><td>What is verified; explicitly what is <strong>not</strong></td></tr>
-            <tr><td>2. Test environment</td><td>Target system URL, browser, placement and workers, login roles, names of the secrets used (never values)</td></tr>
-            <tr><td>3. Test strategy</td><td>Design methods used, priority definitions, batches and order of runs, rerun policy</td></tr>
-            <tr><td>4. Scenes</td><td>Scene ID, name, revision, inputs, outputs, summary of checks, status (published, to publish)</td></tr>
-            <tr><td>5. TestCases</td><td>Columns in the next table</td></tr>
-            <tr><td>6. Traceability matrix</td><td>Requirements × TestCases; reasons for requirements without TestCases</td></tr>
-            <tr><td>7. Test data</td><td>Fixed and dynamic values per TestCase; what data are created or changed and how they are cleaned up</td></tr>
-            <tr><td>8. Entry and exit criteria</td><td>Proposed by the agent, decided by people. E.g. entry: plan signed off, no composite has problems, required roles logged in; exit: all P1 pass, P2 pass rate ≥ 95%, no open critical defects</td></tr>
-            <tr><td>9. Risks and open questions</td><td>Side effects, scenes people must publish, roles that need manual login, missing permissions, assumptions</td></tr>
-            <tr><td>10. Sign-off</td><td>Reviewer, date, conclusion (approved, approved with changes, rejected), comments: left blank for people</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="table-scroll">
-        <table class="wrap">
-          <thead><tr><th>TestCase columns</th><th>Example</th></tr></thead>
-          <tbody>
-            <tr><td>ID, title</td><td>TC-ORDER-003 Quantity at the limit (99) can be created</td></tr>
-            <tr><td>Module, priority</td><td>Order creation, P1</td></tr>
-            <tr><td>Requirements, method</td><td>REQ-12, boundary value</td></tr>
-            <tr><td>Preconditions</td><td>Role sales logged in</td></tr>
-            <tr><td>Steps (nodes)</td><td>1. create: create an order with quantity 99 (order-create v6); 2. query: look up the order by create's orderId (order-query v3)</td></tr>
-            <tr><td>Expected results</td><td>1. An order number SO-… is returned and the customer matches the input; 2. the order is found with quantity 99</td></tr>
-            <tr><td>Composite</td><td><code>tc-order-003</code> v2, Portal path <code>/playground/12</code></td></tr>
+            <tr><td>Central topic</td><td>Titled with the plan ID and project name, e.g. "TP-ORDER-2026-10 Order regression". Its <strong>notes</strong> hold the plan-level text, in the format below.</td></tr>
+            <tr><td>Level 1: modules</td><td>Test suites, e.g. "Order creation"; notes may say what the module verifies.</td></tr>
+            <tr><td>Level 2: TestCase</td><td>One topic per composite titled "ID title", and it <strong>must have a priority marker</strong> <code>priority-1</code> to <code>priority-3</code> (tools use it to recognise TestCases). Labels: <code>auto</code> (automated), composite code and revision (e.g. <code>tc-order-003 v2</code>), requirement IDs, design method. Notes: preconditions, test data, Portal path.</td></tr>
+            <tr><td>Level 3: steps</td><td>One topic per node, "node ID: what it does (scene ID vN)", in run order.</td></tr>
+            <tr><td>Level 4: expected result</td><td><strong>Exactly one</strong> expected-result topic under each step; join several checks with "; ".</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
+        <p>The central topic's notes hold these paragraphs in order (plain text, one paragraph per line). After review, people fill in the sign-off line and hand the file back, or reply to the agent directly; the agent records it under <code>signoff</code> in <code>test-plan.json</code>:</p>
+<pre class="source">Document: TP-ORDER-2026-10 v2; status: pending sign-off; generated by ERP assistant at 2026-10-24T08:00Z; server srv-linux-01 (0.6.0); project order-regression; requirements: order spec v3
+1. Goals and scope: verify the quantity rules of order creation and the approval flow. Not covered: refunds, reports
+2. Test environment: https://erp-test.example.internal; Chromium; placement any; roles sales, manager; secrets: erp-password (name only)
+3. Test strategy: boundary values, state transitions; P1 smoke and core paths, P2 main features, P3 minor; validate before publishing, one formal round; at most one rerun for environment causes
+4. Scenes: order-create v6 (published), order-query v3 (published), order-submit-raw v2 (to publish)
+5. Requirements not covered: REQ-15 printing (the platform cannot drive print dialogs)
+6. Test data and clean-up: customer names carry a timestamp; about 6 test orders per round, not deleted automatically
+7. Entry and exit criteria: entry: plan signed off, no composite has problems, roles logged in; exit: all P1 pass, P2 pass rate ≥ 95%, no open critical defects
+8. Risks and open questions: order-submit-raw v2 needs a person to publish; role manager needs a manual login
+9. Sign-off: reviewer __; date __; conclusion (approved / approved with changes / rejected) __; comments __
+Change log: v1 first draft; v2 added TC-ORDER-004</pre>
+        <ul class="points">
+          <li>Do not start topic titles with <code>#</code> or <code>!</code>; common tools treat those as comments and skip them.</li>
+          <li>Keep plan-level text only in the central topic's notes, not in extra sheets or topics: common XMind-to-TestCase tools treat a topic without children as a TestCase.</li>
+          <li>The test report reuses this map and adds result markers to TestCases (see the <a href="agent-test-report-guide.html#xmind">test report guide</a>).</li>
+        </ul>
         <p>Suggested structure of <code>test-plan.json</code> (add fields as needed; do not change the meaning of existing ones):</p>
 <pre class="source">{
   "format": "rpa-agent-test-plan", "formatVersion": 1,
@@ -244,29 +240,17 @@ PUT /agent-api/v1/composites/tc-order-003
        "action": "Look up create's orderId", "expected": "The order is found with quantity 99"}],
     "composite": {"code": "tc-order-003", "revision": 2, "portalPath": "/playground/12"}
   }],
-  "entryCriteria": ["…"], "exitCriteria": ["…"], "risks": ["…"], "openQuestions": ["…"]
+  "scope": "…", "environment": "…", "strategy": "…", "uncovered": [{"requirement": "REQ-15", "reason": "…"}],
+  "testData": "…", "entryCriteria": ["…"], "exitCriteria": ["…"], "risks": ["…"], "openQuestions": ["…"],
+  "signoff": null,
+  "changes": [{"version": 1, "note": "First draft"}, {"version": 2, "note": "Added TC-ORDER-004"}]
 }</pre>
       </div>
     </section>
 
     <section class="panel" id="xmind">
-      <div class="panel-header"><h2>XMind format</h2><span class="muted">Mainly for people to see the composites (TestCases)</span></div>
+      <div class="panel-header"><h2>Writing the XMind file</h2></div>
       <div class="panel-body">
-        <h3>Structure</h3>
-        <dl class="spec-list">
-          <dt>Central topic</dt><dd>Plan ID and project name, e.g. "TP-ORDER-2026-10 Order regression"; notes hold the plan version and project ID.</dd>
-          <dt>Level 1</dt><dd>Modules (test suites), e.g. "Order creation".</dd>
-          <dt>Level 2: TestCase</dt><dd>One topic per composite titled "ID title", and it <strong>must have a priority marker</strong> <code>priority-1</code> to <code>priority-3</code> (tools use it to recognise TestCases). Labels: <code>auto</code> (automated), composite code and revision (e.g. <code>tc-order-003 v2</code>), requirement IDs, design method. Notes: preconditions and the Portal path.</dd>
-          <dt>Level 3: steps</dt><dd>One topic per node, "node ID: what it does (scene ID vN)", in run order.</dd>
-          <dt>Level 4: expected result</dt><dd><strong>Exactly one</strong> expected-result topic under each step; join several checks with "; ".</dd>
-        </dl>
-        <ul class="points">
-          <li>Do not start topic titles with <code>#</code> or <code>!</code>; common tools treat those as comments and skip them.</li>
-          <li>Keep open questions and risks out of the mind map; they belong in <code>test-plan.md</code>.</li>
-          <li>The test report reuses this map and adds result markers to TestCases (see the <a href="agent-test-report-guide.html#xmind">test report guide</a>).</li>
-        </ul>
-
-        <h3>File</h3>
         <p>An <code>.xmind</code> file is a ZIP. <code>content.json</code> is for XMind 2020 and later; <code>content.xml</code> is for XMind 8 and common XMind-to-TestCase tools (such as xmind2testcase). Both hold the same content; this Python writes both with the standard library only:</p>
 <pre class="source">import json, uuid, zipfile
 from xml.etree import ElementTree as ET
@@ -339,8 +323,14 @@ case = topic("TC-ORDER-003 Quantity at the limit (99) can be created", [
           [topic("The order is found with quantity 99")]),
 ], priority=1, labels=["auto", "tc-order-003 v2", "REQ-12", "boundary value"],
    notes="Role sales logged in\nPortal: /playground/12")
-root = topic("TP-ORDER-2026-10 Order regression", [topic("Order creation", [case])],
-             notes="Plan version 2; project order-regression")
+plan_notes = "\n".join([
+    "Document: TP-ORDER-2026-10 v2; status: pending sign-off; project order-regression",
+    "1. Goals and scope: …", "2. Test environment: …", "3. Test strategy: …", "4. Scenes: …",
+    "5. Requirements not covered: …", "6. Test data and clean-up: …", "7. Entry and exit criteria: …",
+    "8. Risks and open questions: …", "9. Sign-off: reviewer __; date __; conclusion __; comments __",
+    "Change log: v1 first draft; v2 added TC-ORDER-004",
+])
+root = topic("TP-ORDER-2026-10 Order regression", [topic("Order creation", [case])], notes=plan_notes)
 write_xmind("test-plan.xmind", "Test plan", root)</pre>
         <p>Read it back to check: unzip, read <code>content.json</code> and confirm the number of TestCase topics equals <code>testCases</code> in <code>test-plan.json</code>. When people import it into a specific TestCase tool, that tool's documentation wins.</p>
       </div>
@@ -350,10 +340,10 @@ write_xmind("test-plan.xmind", "Test plan", root)</pre>
       <div class="panel-header"><h2>Before handing it over</h2></div>
       <div class="panel-body">
         <ul class="points">
-          <li>TestCase IDs and counts match across the three files; every TestCase has a composite code and revision, and <code>GET /composites/{code}</code> shows empty <code>problems</code>.</li>
+          <li>TestCase IDs and counts match between the XMind and the JSON; every TestCase has a composite code and revision, and <code>GET /composites/{code}</code> shows empty <code>problems</code>.</li>
           <li>Every requirement has TestCases or a stated reason it is not tested; every TestCase has a priority and expected results.</li>
           <li>No API keys, passwords or secret values in the documents; no real personal data in the test data.</li>
-          <li>Everything people must do is under open questions: which scenes to publish, which roles to log in, which steps have side effects, which permissions are missing.</li>
+          <li>Everything people must do is under "risks and open questions" in the central topic's notes: which scenes to publish, which roles to log in, which steps have side effects, which permissions are missing.</li>
           <li>Status, version and generation time are right; the project page in the Portal (<code>portalPath</code>) shows the same composites.</li>
         </ul>
       </div>

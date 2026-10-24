@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:8563d245eff4bb20">
+<meta name="translation-source" content="sha256:c8328433d8031917">
 <title>Test report guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,7 +15,7 @@
   <div class="heading">
     <div>
       <h1>Test report guide</h1>
-      <p>For third-party agents connected to the platform: how to run the composites of a project according to a signed-off test plan, track progress, handle failures and reruns, and finally write a test report for people to accept that traces back to every step.</p>
+      <p>For third-party agents connected to the platform: how to run the composites of a project according to a signed-off test plan, track progress, handle failures and reruns, and finally write a test report for people to accept (a single HTML file, plus JSON for the agent's own use) that traces back to every step.</p>
     </div>
     <span class="badge blue">Phase 1 in progress</span>
   </div>
@@ -184,17 +184,17 @@ GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.
       <div class="panel-body">
         <p>One folder per round, named after the report ID, e.g. <code>TR-ORDER-2026-10-R1/</code>:</p>
 <pre class="source">TR-ORDER-2026-10-R1/
-  test-report.md        main document, for people to read and accept
-  test-report.json      the same content as structured data
-  test-report.xmind     the test plan's XMind with result markers
-  evidence/             full evidence for failed and blocked TestCases
+  test-report.html      the test report itself, opened in a browser for acceptance
+  test-report.json      the same content as structured data, for the agent
+  test-report.xmind     (optional) the test plan's XMind with result markers
+  evidence/             full evidence for failed and blocked TestCases, linked from the HTML by relative paths
     TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/
       composite-run.json
       reject/run.json  reject/steps.json  reject/result.json  reject/screenshot.png</pre>
       </div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>Sections of test-report.md</th><th>Content</th></tr></thead>
+          <thead><tr><th>Sections of test-report.html</th><th>Content</th></tr></thead>
           <tbody>
             <tr><td>Document information</td><td>Report ID, plan ID and version, round, status (draft, pending acceptance, accepted), generating agent and time, server ID and version, run period</td></tr>
             <tr><td>1. Summary</td><td>Recommendation (accept, accept with conditions, reject) checked against each exit criterion of the plan; pass rate; major defects and blocks; one paragraph for the reviewer</td></tr>
@@ -211,6 +211,58 @@ GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.
         </table>
       </div>
       <div class="panel-body">
+        <h3>Writing the HTML</h3>
+        <ul class="points">
+          <li><strong>One file that opens offline:</strong> styles go in <code>&lt;style&gt;</code>; load no external fonts, scripts or CDNs (the reviewer's computer may be on an internal network); it must read in full without JavaScript, with long traces folded in <code>&lt;details&gt;</code>.</li>
+          <li><strong>Hand over the whole folder:</strong> screenshots and evidence are linked by relative paths into <code>evidence/</code>, e.g. <code>&lt;img src="evidence/…/screenshot.png"&gt;</code>; people unzip it and open <code>test-report.html</code>.</li>
+          <li><strong>Cross-links:</strong> one anchor per TestCase (<code>id="TC-ORDER-004"</code>); the summary, details, defects and trace link to each other with <code>#</code>.</li>
+          <li><strong>Escaping:</strong> HTML-escape every text that comes from the API (error messages, actual values, words on the page) before putting it in the page; never embed a run's <code>report.html</code> or page source wholesale, link to the evidence file instead.</li>
+          <li><strong>Results in words:</strong> write passed, failed and blocked out; never rely on colour alone, and keep it readable when printed.</li>
+          <li><strong>Portal:</strong> write <code>portalPath</code> as text; make it a link only when people have given you the Portal's address.</li>
+        </ul>
+        <p>A minimal skeleton (sections as in the table above, filled with the real data):</p>
+<pre class="source">&lt;!doctype html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;title&gt;TR-ORDER-2026-10-R1 test report&lt;/title&gt;
+&lt;style&gt;
+  body { font: 14px/1.6 system-ui, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccd3dd; padding: 4px 8px; text-align: left; vertical-align: top; }
+  .passed { color: #146c2e; } .failed { color: #b3261e; } .blocked { color: #8a5300; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;TR-ORDER-2026-10-R1 test report&lt;/h1&gt;
+&lt;p&gt;Plan TP-ORDER-2026-10 v2 · status: pending acceptance · generated by ERP assistant at 2026-10-24T09:10Z · server srv-linux-01 (0.6.0)&lt;/p&gt;
+&lt;h2 id="summary"&gt;1. Summary&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Recommendation: accept with conditions.&lt;/strong&gt; 12 TestCases: 10 passed, 1 failed, 1 blocked. …&lt;/p&gt;
+&lt;h2 id="cases"&gt;4. TestCase details&lt;/h2&gt;
+&lt;table&gt;
+  &lt;tr&gt;&lt;th&gt;ID&lt;/th&gt;&lt;th&gt;Title&lt;/th&gt;&lt;th&gt;Priority&lt;/th&gt;&lt;th&gt;Result&lt;/th&gt;&lt;th&gt;Composite&lt;/th&gt;&lt;th&gt;Run ID&lt;/th&gt;&lt;th&gt;Portal path&lt;/th&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;td&gt;&lt;a href="#TC-ORDER-004"&gt;TC-ORDER-004&lt;/a&gt;&lt;/td&gt;&lt;td&gt;Quantity 100 is rejected&lt;/td&gt;&lt;td&gt;P2&lt;/td&gt;
+      &lt;td class="failed"&gt;Failed&lt;/td&gt;&lt;td&gt;tc-order-004 v1&lt;/td&gt;&lt;td&gt;tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;
+      &lt;td&gt;/playground/runs/tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;h2 id="trace"&gt;7. Detailed trace&lt;/h2&gt;
+&lt;section id="TC-ORDER-004"&gt;
+  &lt;h3&gt;TC-ORDER-004 Quantity 100 is rejected: failed&lt;/h3&gt;
+  &lt;details open&gt;
+    &lt;summary&gt;Node reject (order-submit-raw v2) · run order-submit-raw-20261024-081531-4d5e6f · failed at verify&lt;/summary&gt;
+    &lt;table&gt;
+      &lt;tr&gt;&lt;th&gt;Step&lt;/th&gt;&lt;th&gt;Action&lt;/th&gt;&lt;th&gt;Result&lt;/th&gt;&lt;th&gt;Duration&lt;/th&gt;&lt;th&gt;Error&lt;/th&gt;&lt;/tr&gt;
+      &lt;tr&gt;&lt;td&gt;submit&lt;/td&gt;&lt;td&gt;click&lt;/td&gt;&lt;td class="passed"&gt;Passed&lt;/td&gt;&lt;td&gt;0.8 s&lt;/td&gt;&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;/table&gt;
+    &lt;p&gt;Check "Shows the quantity limit error": expected "Quantity cannot exceed 99", actual "Order created".&lt;/p&gt;
+    &lt;img src="evidence/TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/reject/screenshot.png"
+         alt="Screen when reject failed" width="640"&gt;
+  &lt;/details&gt;
+&lt;/section&gt;
+&lt;h2 id="acceptance"&gt;10. Acceptance&lt;/h2&gt;
+&lt;p&gt;Reviewer: __  Date: __  Conclusion (accept / accept with conditions / reject): __  Comments: __&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
         <p>Suggested structure of <code>test-report.json</code>:</p>
 <pre class="source">{
   "format": "rpa-agent-test-report", "formatVersion": 1,
@@ -261,6 +313,7 @@ GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.
       <div class="panel-body">
         <ul class="points">
           <li>Every TestCase in the plan has a result in the report; the statistics match the details.</li>
+          <li>Open <code>test-report.html</code> in a browser on a computer without network access: the layout is intact and in-page links and screenshots work.</li>
           <li>Every failure has a defect or a cause; every block says what people need to do.</li>
           <li>Every run ID can be found with <code>GET /composite-runs/{id}</code> and has the status the report says.</li>
           <li>The evidence contains no API keys, passwords or secret values; personal data are handled as the plan says.</li>
