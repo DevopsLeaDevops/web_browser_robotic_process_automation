@@ -225,8 +225,8 @@ def test_portal_on_the_external_port_needs_a_recorder_token(client: Client, remo
 
 
 def test_recorders_hide_cluster_and_admin_menus(client: Client, remote: Client) -> None:
-    """三段分工：伺服器本機五個第一級選單都在；錄製端預設不顯示叢集管理與管理後台，
-    裝置頁替那台打開後才顯示。只是選單，不是權限。"""
+    """三段分工：伺服器本機六個第一級選單都在；錄製端預設不顯示叢集管理與管理後台，
+    裝置頁替那台打開後才顯示（專案空間照樣顯示）。只是選單，不是權限。"""
     body(client.post("/api/domains", json={"id": "lab", "name": "實驗"}), 201)
     device = paired(client, remote)
     headers = auth(device.token)
@@ -235,9 +235,9 @@ def test_recorders_hide_cluster_and_admin_menus(client: Client, remote: Client) 
         html = via.get("/domains/lab", headers=headers).text
         return re.findall(r'href="([^"]+)"', html.split('id="topnav"')[1].split("</nav>")[0])
 
-    everything = ["/scenes", "/recording", "/runs", "/devices", "/domains"]
+    everything = ["/scenes", "/recording", "/runs", "/workspace", "/devices", "/domains"]
     assert top(client) == everything
-    assert top(remote, headers=headers) == ["/scenes", "/recording", "/runs"]
+    assert top(remote, headers=headers) == ["/scenes", "/recording", "/runs", "/workspace"]
     assert 'href="/domains"' not in remote.get("/domains/lab", headers=headers).text
     assert remote.get("/devices", headers=headers).status_code == 200
     assert body(client.get("/api/recorders/mac-01"))["menus"] == []
@@ -249,7 +249,13 @@ def test_recorders_hide_cluster_and_admin_menus(client: Client, remote: Client) 
     assert menus["menus"] == ["cluster", "admin"]
     assert top(remote, headers=headers) == everything
     body(client.patch("/api/recorders/mac-01", json={"menus": ["cluster"]}))
-    assert top(remote, headers=headers) == ["/scenes", "/recording", "/runs", "/devices"]
+    assert top(remote, headers=headers) == [
+        "/scenes",
+        "/recording",
+        "/runs",
+        "/workspace",
+        "/devices",
+    ]
     bad = error(client.patch("/api/recorders/mac-01", json={"menus": ["produce"]}), 422)
     assert bad["code"] == "recorder_menu_invalid"
     assert body(client.get("/api/recorders/mac-01"))["menus"] == ["cluster"]

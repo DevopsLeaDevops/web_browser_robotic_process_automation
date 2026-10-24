@@ -2,7 +2,8 @@
 M6 加上自由試驗場的序列 workflows 與序列的執行 workflow_runs；
 M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與由哪台 worker 執行；
 M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄製的 device_id；
-錄製端另外顯示的選單 recorders.menus（三段分工，2026-10-22）。
+錄製端另外顯示的選單 recorders.menus（三段分工，2026-10-22）；
+專案 projects 與組合場景所屬的專案 workflows.project_id（專案空間，2026-10-23）。
 M14：對外 Agent API 的用戶端 api_clients 與稽核 api_audit；執行記下觸發的用戶端 runs.client_id，
 錄製端加上允不允許 Agent 調試 recorders.allow_agent、agent_headless_only（ADR 0017）。
 
@@ -37,6 +38,7 @@ __all__ = [
     "Base",
     "DeviceInvite",
     "Domain",
+    "Project",
     "Recording",
     "RemoteWorker",
     "Revision",
@@ -73,6 +75,21 @@ class Domain(Base):
     使用者名稱、提交者、啟動時自動拉取。沒有就是本機領域。權杖與私鑰不在這裡（git/ 目錄）。"""
     sync: Mapped[dict[str, object] | None] = mapped_column(JsonType)
     """同步狀態（M11 PR 3）：上次同步的提交、上次看到的遠端提交、分支、錯誤、衝突的檔案、時間。"""
+
+
+class Project(Base):
+    """專案：專案空間的二級選單，一個專案是一份「組合場景自動化」（2026-10-23）。
+
+    只在這台伺服器的資料庫：專案、排列順序與組合場景屬於哪個專案都不寫進領域資料夾與 git。
+    """
+
+    __tablename__ = "projects"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
 
 
 class Scene(Base):
@@ -263,6 +280,8 @@ class Workflow(Base):
     archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     missing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     """來源缺失：領域資料夾裡已經沒有這個組合場景。"""
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    """屬於哪個專案（專案空間）；None 是還沒分到專案。只在資料庫，重新載入領域資料夾時不變。"""
 
 
 class WorkflowRevision(Base):

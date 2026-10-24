@@ -40,6 +40,7 @@ __all__ = [
     "DomainRecord",
     "Engine",
     "NodeStatus",
+    "ProjectRecord",
     "Purpose",
     "RecorderRecord",
     "RecorderStatus",
@@ -167,6 +168,28 @@ class DomainRecord:
             "createdAt": _iso(self.created_at),
             "loadedAt": _iso(self.loaded_at),
             "problems": list(self.problems),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectRecord:
+    """專案：專案空間的一個二級選單，一個專案是一份「組合場景自動化」（2026-10-23）。"""
+
+    id: str
+    name: str
+    description: str | None
+    position: int
+    composite_count: int
+    created_at: datetime
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "position": self.position,
+            "compositeCount": self.composite_count,
+            "createdAt": _iso(self.created_at),
         }
 
 
@@ -507,6 +530,8 @@ class WorkflowRecord:
     archived: bool = False
     dependency: "DependencyStatus" = "complete"
     """依賴是否完整（最新版本與發布的版本）：complete、warnings、incomplete。"""
+    project_id: str | None = None
+    """屬於哪個專案（專案空間）；None 是還沒分到專案。"""
 
     @property
     def published(self) -> bool:
@@ -517,6 +542,7 @@ class WorkflowRecord:
             "id": self.id,
             "code": self.code,
             "domainId": self.domain_id,
+            "projectId": self.project_id,
             "name": self.name,
             "description": self.description,
             "definition": self.workflow.to_json(),

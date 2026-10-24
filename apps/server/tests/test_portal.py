@@ -384,11 +384,14 @@ def test_playground_chains_published_scenarios(
     output = created["output"]
     assert isinstance(output, dict)
     validate_and_publish("ba-002", {"recordId": output["recordId"]})
+    # 組合場景放在專案空間的專案裡（2026-10-23）
+    assert api.post(f"{portal}/api/projects", data={"id": "demo", "name": "示範專案"}).ok
 
     # 新增組合場景，從場景庫加入兩個場景：BA-002 的 recordId 自動接上 BA-001 的出參
     page.goto(f"{portal}/playground")
     page.locator('[data-action="create-workflow"]').click()
     dialog = page.locator("#dialog")
+    expect(dialog.locator('select[name="projectId"]')).to_have_value("demo")
     dialog.locator('input[name="name"]').fill("建立後查詢")
     dialog.locator("#dialog-action").click()
     page.wait_for_url(re.compile(r"/playground/\d+$"))
@@ -516,7 +519,8 @@ def test_playground_chains_published_scenarios(
     expect(dialog).not_to_be_visible()
     expect(page.locator('[data-name="recordId"][data-mode="auto"]')).to_be_focused()
     # 卡片也會重新檢查，並提供開啟畫布、定位欄位的入口。
-    page.goto(f"{portal}/composites")
+    page.goto(f"{portal}/workspace")
+    page.wait_for_url(re.compile(r"/projects/demo$"))
     page.locator('[data-action="run-composite"]').click()
     expect(dialog).to_contain_text(reason)
     dialog.locator('a[href*="input=recordId"]').click()
@@ -548,8 +552,8 @@ def test_playground_chains_published_scenarios(
     expect(page.locator('tr[data-node="n2"] [data-status="passed"]')).to_be_visible()
 
     previous_run = root.get_attribute("data-run")
-    # 組合場景管理卡片與最近一次執行
-    page.goto(f"{portal}/composites")
+    # 專案頁的組合場景卡片與最近一次執行
+    page.goto(f"{portal}/projects/demo")
     expect(page.locator("article[data-workflow]")).to_contain_text("ba-001")
     expect(
         page.locator("tr[data-workflow-run]").first.locator('[data-status="passed"]')
@@ -711,3 +715,72 @@ def test_contract_table_rename_survives_view_changes(portal: str, page: Page) ->
     assert leaving.value.type == "beforeunload"
     expect(area).to_have_value(text)
     assert page.url.endswith("/scenes/ba-001")
+
+
+def test_projects_are_managed_and_hold_composites(portal: str, page: Page) -> None:
+    """專案空間（2026-10-23）：專案管理新增、編輯、調整順序、刪除；專案頁新增的組合場景放進
+    那個專案。領域管理的順序與專案共用同一段程式，也一起確認。"""
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    api = page.request
+    dialog = page.locator("#dialog")
+
+    def create_project(project_id: str, name: str) -> None:
+        page.goto(f"{portal}/projects")
+        page.locator('[data-action="new-project"]').click()
+        dialog.locator('input[name="id"]').fill(project_id)
+        dialog.locator('input[name="name"]').fill(name)
+        dialog.locator("#dialog-action").click()
+        page.wait_for_url(f"{portal}/projects/{project_id}")
+
+    # 還沒有專案：專案空間轉到專案管理
+    page.goto(f"{portal}/workspace")
+    page.wait_for_url(f"{portal}/projects")
+    create_project("billing", "帳務")
+    expect(page.locator("#sidenav")).to_contain_text("帳務")
+    page.locator('[data-action="create-workflow"]').click()
+    expect(dialog.locator('select[name="projectId"]')).to_have_value("billing")
+    dialog.locator('input[name="name"]').fill("對帳流程")
+    dialog.locator("#dialog-action").click()
+    page.wait_for_url(re.compile(r"/playground/\d+$"))
+    expect(page.locator(".breadcrumb")).to_contain_text("帳務")
+    workflows = api.get(f"{portal}/api/projects/billing").json()["workflows"]
+    assert [item["name"] for item in workflows] == ["對帳流程"]
+
+    create_project("orders", "訂單")
+    page.goto(f"{portal}/projects")
+    rows = page.locator("#project-order tbody tr")
+    expect(rows).to_have_count(2)
+    with page.expect_response(lambda response: "/api/projects/order" in response.url):
+        rows.first.locator('[data-direction="down"]').click()
+    order = [item["id"] for item in api.get(f"{portal}/api/projects").json()["projects"]]
+    assert order == ["orders", "billing"]
+    page.goto(f"{portal}/workspace")
+    page.wait_for_url(f"{portal}/projects/orders")
+
+    page.goto(f"{portal}/projects")
+    page.locator('[data-action="edit-project"][data-project="orders"]').click()
+    expect(dialog.locator('input[name="name"]')).to_have_value("訂單")
+    expect(dialog.locator('input[name="id"]')).to_be_hidden()
+    dialog.locator('input[name="name"]').fill("訂單專案")
+    dialog.locator("#dialog-action").click()
+    expect(page.locator('tr[data-project="orders"]')).to_contain_text("訂單專案")
+    # 有組合場景的專案沒有刪除按鈕；空的專案可以刪
+    expect(page.locator('[data-action="delete-project"][data-project="billing"]')).to_have_count(0)
+    page.locator('[data-action="delete-project"][data-project="orders"]').click()
+    dialog.locator("#dialog-action").click()
+    expect(page.locator('tr[data-project="orders"]')).to_have_count(0)
+
+    # 領域管理的順序（共用的上移、下移）：最後一列上移一格
+    def domain_ids() -> list[str]:
+        return [item["id"] for item in api.get(f"{portal}/api/domains").json()["domains"]]
+
+    assert api.post(f"{portal}/api/domains", data={"id": "lab", "name": "實驗"}).ok
+    before = domain_ids()
+    assert len(before) >= 2
+    page.goto(f"{portal}/domains")
+    last = page.locator("#domain-order tbody tr").last
+    with page.expect_response(lambda response: "/api/domains/order" in response.url):
+        last.locator('[data-direction="up"]').click()
+    assert domain_ids() == [*before[:-2], before[-1], before[-2]]
+    assert errors == []

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block description %}{{ t("projects.description") }}{% endblock %}
+{% block actions %}<button class="button primary" data-action="new-project">{{ t("projects.new") }}</button>{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("projects.list") }} <span class="count">{{ projects | length }}</span></h2>{% if projects | length > 1 %}<span class="muted">{{ t("projects.order_hint") }}</span>{% endif %}</div>
+    {% if projects %}
+    <div class="table-scroll"><table class="wrap" id="project-order">
+      <thead><tr><th class="numeric">{{ t("projects.col_order") }}</th><th>{{ t("projects.col_name") }}</th><th>{{ t("projects.col_id") }}</th><th>{{ t("projects.col_description") }}</th><th class="numeric">{{ t("projects.col_composites") }}</th><th>{{ t("projects.col_actions") }}</th></tr></thead>
+      <tbody>
+      {% for project in projects %}
+        <tr data-project="{{ project.id }}">
+          <td class="row-actions nowrap"><span class="order-number" data-order-number>{{ loop.index }}</span>
+            <button class="icon-btn" type="button" data-action="move-project" data-direction="up" title="{{ t('projects.move_up') }}" aria-label="{{ t('projects.move_up_named', name=project.name) }}"{% if loop.first %} disabled{% endif %}>↑</button>
+            <button class="icon-btn" type="button" data-action="move-project" data-direction="down" title="{{ t('projects.move_down') }}" aria-label="{{ t('projects.move_down_named', name=project.name) }}"{% if loop.last %} disabled{% endif %}>↓</button></td>
+          <td class="nowrap"><a href="/projects/{{ project.id }}">{{ project.name }}</a></td>
+          <td><span class="tag">{{ project.id }}</span></td>
+          <td>{{ project.description or "—" }}</td>
+          <td class="numeric">{{ project.composite_count }}</td>
+          <td>
+            <button class="text-btn" data-action="edit-project" data-project="{{ project.id }}" data-name="{{ project.name }}" data-description="{{ project.description or '' }}">{{ t("projects.edit") }}</button>
+            {% if project.composite_count == 0 %}<button class="text-btn" data-action="delete-project" data-project="{{ project.id }}" data-name="{{ project.name }}">{{ t("projects.delete") }}</button>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("projects.empty") }}</div>{% endif %}
+  </section>
+  {% if unassigned %}
+  <section class="panel" id="unassigned-composites">
+    <div class="panel-header"><h2>{{ t("projects.unassigned") }}</h2><span class="muted">{{ t("projects.unassigned_hint") }}</span></div>
+    <ul class="panel-body checklist">
+      {% for item in unassigned %}<li><a href="/playground/{{ item.id }}#composite-settings"><span class="tag">{{ item.code }}</span> {{ item.name }}</a></li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+<template id="project-form">
+  <div class="notice" data-new-only>{{ t("projects.new_notice") }}</div>
+  <label data-new-only>{{ t("projects.new_id") }}<input name="id" pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="billing" autocomplete="off"></label>
+  <label>{{ t("projects.new_name") }}<input name="name" required maxlength="100" placeholder="{{ t('projects.name_placeholder') }}"></label>
+  <label>{{ t("projects.new_description") }}<textarea name="description" rows="3" maxlength="2000"></textarea></label>
+  <p class="form-error" role="alert"></p>
+</template>
+{% endblock %}

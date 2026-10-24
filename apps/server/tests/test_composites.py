@@ -157,10 +157,15 @@ def composite_dir(settings: Settings, code: str, domain_id: str = "composites") 
 
 @pytest.fixture
 def chain(app: FastAPI, client: Client) -> JsonObject:
-    """建立「BA-001 → BA-002」的組合場景（沒指定領域：放「組合場景」領域）。"""
+    """建立「BA-001 → BA-002」的組合場景（沒指定領域：放「組合場景」領域），放進專案 flows。"""
     import_examples(app, client)
+    body(client.post("/api/projects", json={"id": "flows", "name": "流程"}), 201)
     return body(
-        client.post("/api/workflows", json={"name": "建立後查詢", "definition": CHAIN}), 201
+        client.post(
+            "/api/workflows",
+            json={"name": "建立後查詢", "definition": CHAIN, "projectId": "flows"},
+        ),
+        201,
     )
 
 
@@ -325,7 +330,7 @@ def test_dependencies_block_a_changed_scene_revision(
     refused = client.post(f"/api/workflows/{chain['id']}/runs", json={"headless": True})
     problems = cast("list[JsonObject]", error(refused, 422)["problems"])
     assert "dependency.hash_mismatch" in [p["code"] for p in problems]
-    assert "依賴" in client.get("/composites").text
+    assert "依賴" in client.get("/projects/flows").text
 
     # 有組合場景的領域不能刪
     assert error(client.delete("/api/domains/composites"), 409)["code"] == "domain_has_composites"
@@ -364,8 +369,8 @@ def test_code_domain_and_archive_can_change(
     assert manifest.archived is True
     refused = client.post(f"/api/workflows/{workflow_id}/runs", json={"headless": True})
     assert error(refused, 409)["code"] == "workflow_archived"
-    assert "composite.archived" not in client.get("/composites").text
-    assert "已封存" in client.get("/composites").text
+    assert "composite.archived" not in client.get("/projects/flows").text
+    assert "已封存" in client.get("/projects/flows").text
     body(client.patch(f"/api/workflows/{workflow_id}", json={"archived": False}))
 
     # 重新載入：從資料夾認得新的代號與領域

@@ -244,8 +244,9 @@
 
   // ---------------------------------------------------------------- 領域管理
 
-  function domainDialog(title, values, run) {
-    modal(title, qs('#domain-form').innerHTML, {label: messages.save, run});
+  // 領域與專案共用：新增時多一個代號欄位，編輯時預填名稱與說明
+  function nameDialog(template, title, values, run) {
+    modal(title, qs(template).innerHTML, {label: messages.save, run});
     const dialog = qs('#dialog-content');
     const editing = values !== null;
     qsa('[data-new-only]', dialog).forEach(element => { element.hidden = editing; });
@@ -258,11 +259,45 @@
     return dialog;
   }
 
+  // 清單的順序（領域、專案）：上移、下移立刻儲存；一次存一個，送出當下的整個順序
+  function bindOrder(table, action, key, url) {
+    if (!table) return;
+    const rows = () => qsa('tbody tr[data-' + key + ']', table);
+    const refresh = () => rows().forEach((row, index, all) => {
+      qs('[data-order-number]', row).textContent = String(index + 1);
+      qs('[data-direction="up"]', row).disabled = index === 0;
+      qs('[data-direction="down"]', row).disabled = index === all.length - 1;
+    });
+    let saving = Promise.resolve();
+    table.addEventListener('click', event => {
+      const button = event.target.closest('[data-action="' + action + '"]');
+      if (!button || button.disabled) return;
+      const row = button.closest('tr');
+      const up = button.dataset.direction === 'up';
+      const other = up ? row.previousElementSibling : row.nextElementSibling;
+      if (!other) return;
+      if (up) other.before(row); else other.after(row);
+      refresh();
+      // 移動後焦點會掉：留在同一個按鈕，到頂或到底時換到另一個
+      (button.disabled ? qs('[data-action="' + action + '"]:not(:disabled)', row) : button).focus();
+      const ids = rows().map(item => item.dataset[key]);
+      saving = saving.then(async () => {
+        const result = await api('PUT', url, {ids});
+        if (!result.ok) {
+          flash(errorMessage(result));
+          location.reload();
+          return;
+        }
+        toast(messages.saved);
+      });
+    });
+  }
+
   function bindDomains() {
     const create = qs('[data-action="new-domain"]');
     if (create) {
       create.addEventListener('click', () => {
-        const dialog = domainDialog(messages.domain_create_title, null, async () => {
+        const dialog = nameDialog('#domain-form', messages.domain_create_title, null, async () => {
           const value = name => qs('[name="' + name + '"]', dialog).value.trim();
           const result = await api('POST', '/api/domains', {id: value('id'), name: value('name'), description: value('description') || null});
           if (!result.ok) {
@@ -356,7 +391,7 @@
     qsa('[data-action="edit-domain"]').forEach(button => {
       button.addEventListener('click', () => {
         const values = {name: button.dataset.name, description: button.dataset.description};
-        const dialog = domainDialog(messages.domain_edit_title, values, async () => {
+        const dialog = nameDialog('#domain-form', messages.domain_edit_title, values, async () => {
           const value = name => qs('[name="' + name + '"]', dialog).value.trim();
           const result = await api('PATCH', '/api/domains/' + path(button.dataset.domain), {name: value('name'), description: value('description')});
           if (!result.ok) {
@@ -378,39 +413,54 @@
         });
       });
     });
-    // 領域的順序（三段分工）：上移、下移立刻儲存，場景管理的領域選單照這個順序；一次存一個，送出當下的整個順序
-    const order = qs('#domain-order');
-    if (order) {
-      const rows = () => qsa('tbody tr[data-domain]', order);
-      const refresh = () => rows().forEach((row, index, all) => {
-        qs('[data-order-number]', row).textContent = String(index + 1);
-        qs('[data-direction="up"]', row).disabled = index === 0;
-        qs('[data-direction="down"]', row).disabled = index === all.length - 1;
-      });
-      let saving = Promise.resolve();
-      order.addEventListener('click', event => {
-        const button = event.target.closest('[data-action="move-domain"]');
-        if (!button || button.disabled) return;
-        const row = button.closest('tr');
-        const up = button.dataset.direction === 'up';
-        const other = up ? row.previousElementSibling : row.nextElementSibling;
-        if (!other) return;
-        if (up) other.before(row); else other.after(row);
-        refresh();
-        // 移動後焦點會掉：留在同一個按鈕，到頂或到底時換到另一個
-        (button.disabled ? qs('[data-action="move-domain"]:not(:disabled)', row) : button).focus();
-        const ids = rows().map(item => item.dataset.domain);
-        saving = saving.then(async () => {
-          const result = await api('PUT', '/api/domains/order', {ids});
+    // 領域的順序（三段分工）：場景管理的領域選單照這個順序
+    bindOrder(qs('#domain-order'), 'move-domain', 'domain', '/api/domains/order');
+  }
+
+  // ---------------------------------------------------------------- 專案管理（專案空間）
+
+  function bindProjects() {
+    const create = qs('[data-action="new-project"]');
+    if (create) {
+      create.addEventListener('click', () => {
+        const dialog = nameDialog('#project-form', messages.project_create_title, null, async () => {
+          const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+          const result = await api('POST', '/api/projects', {id: value('id'), name: value('name'), description: value('description') || null});
           if (!result.ok) {
-            flash(errorMessage(result));
-            location.reload();
+            qs('.form-error', dialog).textContent = errorMessage(result);
             return;
           }
-          toast(messages.saved);
+          location.href = '/projects/' + path(result.data.id);
         });
       });
     }
+    qsa('[data-action="edit-project"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const values = {name: button.dataset.name, description: button.dataset.description};
+        const dialog = nameDialog('#project-form', messages.project_edit_title, values, async () => {
+          const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+          const result = await api('PATCH', '/api/projects/' + path(button.dataset.project), {name: value('name'), description: value('description')});
+          if (!result.ok) {
+            qs('.form-error', dialog).textContent = errorMessage(result);
+            return;
+          }
+          flash(messages.saved);
+          location.reload();
+        });
+      });
+    });
+    qsa('[data-action="delete-project"]').forEach(button => {
+      button.addEventListener('click', () => {
+        confirmDialog(fill(messages.project_delete_title, {name: button.dataset.name}), messages.project_delete_body, messages.project_delete_action, async () => {
+          const result = await api('DELETE', '/api/projects/' + path(button.dataset.project));
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.reload();
+        });
+      });
+    });
+    // 專案的順序：專案空間的選單與 /workspace 轉到的第一個專案照這個順序
+    bindOrder(qs('#project-order'), 'move-project', 'project', '/api/projects/order');
   }
 
   // ---------------------------------------------------------------- 資料來源與同步（M11 PR 3）
@@ -1769,6 +1819,7 @@
           code: form.elements.namedItem('code').value.trim(),
           domainId: form.elements.namedItem('domainId').value,
           archived: form.elements.namedItem('archived').checked,
+          projectId: form.elements.namedItem('projectId').value,
         };
         const result = await api('PATCH', '/api/workflows/' + path(form.dataset.workflow), body);
         if (!result.ok) {
@@ -1799,7 +1850,7 @@
     qs('[data-action="create-workflow"]').addEventListener('click', () => {
       const dialog = workflowDialog(text.create_title, null, text.create_action, async () => {
         const value = name => qs('[name="' + name + '"]', dialog).value.trim();
-        const result = await api('POST', '/api/workflows', {name: value('name'), description: value('description') || null, code: value('code') || null, domainId: value('domainId') || null});
+        const result = await api('POST', '/api/workflows', {name: value('name'), description: value('description') || null, code: value('code') || null, domainId: value('domainId') || null, projectId: value('projectId') || null});
         if (!result.ok) {
           qs('.form-error', dialog).textContent = errorMessage(result);
           return;
@@ -1828,6 +1879,7 @@
           name: given || (typeof name === 'string' && name.trim()) || text.imported_name,
           description: typeof description === 'string' ? description : null,
           definition,
+          projectId: qs('[name="projectId"]', dialog).value || null,
         });
         if (!result.ok) {
           error.textContent = [errorMessage(result), ...problemLines(result)].join('\n');
@@ -3023,6 +3075,7 @@
   bindCompositePublish();
   bindCompositeSettings();
   bindDomains();
+  bindProjects();
   bindSync();
   bindSceneSettings();
   bindEditor();

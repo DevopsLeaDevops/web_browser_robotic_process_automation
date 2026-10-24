@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block description %}{{ t("playground.description") }}{% endblock %}
-{% block actions %}<a class="button" href="/composites">{{ t("nav.composites") }}</a><button class="button" data-action="import-workflow">{{ t("playground.import") }}</button><button class="button primary" data-action="create-workflow">{{ t("playground.new") }}</button>{% endblock %}
+{% block actions %}<a class="button" href="/workspace">{{ t("nav.workspace") }}</a><button class="button" data-action="import-workflow">{{ t("playground.import") }}</button><button class="button primary" data-action="create-workflow">{{ t("playground.new") }}</button>{% endblock %}
 {% block content %}
 <div class="stack" id="playground">
   {% if not has_published %}<div class="notice warn">{{ t("playground.no_published") }}</div>{% endif %}

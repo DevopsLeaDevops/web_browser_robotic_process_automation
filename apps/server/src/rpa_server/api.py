@@ -19,6 +19,8 @@ M10.2：錄製端的登記與邀請（/api/recorders）。錄製端自己用的 
 三段分工（2026-10-22）：領域的順序（PUT /api/domains/order）；錄製端另外顯示的選單
 （PATCH /api/recorders/{代號} 的 menus）。
 
+專案空間（2026-10-23）：專案（/api/projects，和領域一樣新增、改名、刪除、調整順序）；
+組合場景的 projectId（新增時放進哪個專案，PATCH 移到其他專案）。
 M14：對外 Agent API 的用戶端與稽核（/api/agents，金鑰只在建立與重新產生時回傳一次）；
 錄製端允不允許 Agent 調試（PATCH /api/recorders/{代號} 的 allowAgent、agentHeadlessOnly）。
 Agent 自己用的 API 在 /agent-api/v1（agent_api.py）。
@@ -63,6 +65,23 @@ class DomainUpdate(_Body):
 
 class DomainOrder(_Body):
     """領域的排列順序：全部領域的代號，依新的順序（場景管理的領域選單照這個順序）。"""
+
+    ids: list[str] = Field(max_length=1000)
+
+
+class ProjectCreate(_Body):
+    id: str = Field(max_length=64)
+    name: str = Field(max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class ProjectUpdate(_Body):
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class ProjectOrder(_Body):
+    """專案的排列順序：全部專案的代號，依新的順序（專案空間的選單照這個順序）。"""
 
     ids: list[str] = Field(max_length=1000)
 
@@ -264,6 +283,8 @@ class WorkflowCreate(_Body):
     """英數代號（M11 PR 2）；沒帶時自動取 wf-<數字>。"""
     domain_id: str | None = Field(default=None, max_length=64)
     """放在哪個領域資料夾；沒帶時放「組合場景」領域。"""
+    project_id: str | None = Field(default=None, max_length=64)
+    """放進哪個專案（專案空間）；沒帶時還沒分到專案。"""
 
 
 class WorkflowUpdate(_Body):
@@ -274,11 +295,13 @@ class WorkflowUpdate(_Body):
 
 
 class WorkflowManage(_Body):
-    """改代號、搬到其他領域、封存（M11 收尾）；沒帶的欄位不變。"""
+    """改代號、搬到其他領域、封存（M11 收尾）、移到其他專案；沒帶的欄位不變。"""
 
     code: str | None = Field(default=None, max_length=64)
     domain_id: str | None = Field(default=None, max_length=64)
     archived: bool | None = None
+    project_id: str | None = Field(default=None, max_length=64)
+    """空字串：不屬於任何專案。"""
 
 
 class WorkflowCheck(_Body):
@@ -428,6 +451,40 @@ def api_router(services: Services) -> APIRouter:
         """重新載入領域資料夾（M11）：在資料夾外面改了檔案之後。"""
         report = services.reload_domain(domain_id)
         return {**report.to_json(), "domain": services.get_domain(domain_id).to_json()}
+
+    # ------------------------------------------------------------ 專案（專案空間）
+
+    projects = services.projects
+
+    @router.get("/projects")
+    def list_projects() -> dict[str, object]:
+        return {"projects": [project.to_json() for project in projects.list_projects()]}
+
+    @router.post("/projects", status_code=201)
+    def create_project(body: ProjectCreate) -> dict[str, object]:
+        return projects.create_project(body.id, body.name, body.description).to_json()
+
+    @router.put("/projects/order")
+    def order_projects(body: ProjectOrder) -> dict[str, object]:
+        """調整專案的順序：送出全部專案的代號；和伺服器上的清單不同時回 409。"""
+        return {"projects": [item.to_json() for item in projects.reorder_projects(body.ids)]}
+
+    @router.get("/projects/{project_id}")
+    def get_project(project_id: str) -> dict[str, object]:
+        """一個專案與它的組合場景（就是專案頁的卡片）。"""
+        project = projects.get_project(project_id)
+        items = services.workflows.list_workflows(project_id=project_id)
+        return {**project.to_json(), "workflows": [item.to_json() for item in items]}
+
+    @router.patch("/projects/{project_id}")
+    def update_project(project_id: str, body: ProjectUpdate) -> dict[str, object]:
+        project = projects.update_project(project_id, name=body.name, description=body.description)
+        return project.to_json()
+
+    @router.delete("/projects/{project_id}")
+    def delete_project(project_id: str) -> dict[str, object]:
+        projects.delete_project(project_id)
+        return {"deleted": project_id}
 
     # ------------------------------------------------------------ git 同步（M11 PR 3）
 
@@ -930,6 +987,7 @@ def api_router(services: Services) -> APIRouter:
             body.definition,
             code=body.code,
             domain_id=body.domain_id,
+            project_id=body.project_id,
         )
         return record.to_json()
 
@@ -975,7 +1033,11 @@ def api_router(services: Services) -> APIRouter:
     @router.patch("/workflows/{workflow_id}")
     def manage_workflow(workflow_id: int, body: WorkflowManage) -> dict[str, object]:
         record = workflows.manage(
-            workflow_id, code=body.code, domain_id=body.domain_id, archived=body.archived
+            workflow_id,
+            code=body.code,
+            domain_id=body.domain_id,
+            archived=body.archived,
+            project_id=body.project_id,
         )
         return record.to_json()
 
