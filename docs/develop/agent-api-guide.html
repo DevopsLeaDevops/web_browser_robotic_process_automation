@@ -14,13 +14,13 @@
   <div class="heading">
     <div>
       <h1>Agent 使用指南</h1>
-      <p>寫給接入平台的 Agent 系統（以及替它寫整合的人）：怎麼用 <code>/agent-api/v1</code> 從空白建立場景、在錄製端調試、交給 Worker 驗證、發布並正式執行，遇到錯誤時怎麼處理。</p>
+      <p>寫給接入平台的 Agent 系統（以及替它寫整合的人）：怎麼用 <code>/agent-api/v1</code> 從空白建立場景、在錄製端調試、交給 Worker 驗證、發布並正式執行，在專案裡把場景組成組合場景並執行，遇到錯誤時怎麼處理。</p>
     </div>
     <span class="badge blue">第一期實作中</span>
   </div>
 
   <div class="stack">
-    <div class="notice">本指南依 2026-10-23 確認的<a href="../design/agent-api.html">設計</a>與第一期的實作撰寫（2026-10-23，審閱中）。欄位以伺服器的 <code>GET /agent-api/v1/openapi.json</code> 為準；<code>/agent-api/v1/docs</code> 是可以直接試的互動式文件，兩者都不需要金鑰。</div>
+    <div class="notice">本指南依 2026-10-23 確認的<a href="../design/agent-api.html">設計</a>與第一期的實作撰寫（2026-10-23，審閱中）；專案與組合場景 2026-10-24 加入。用 API 做測試時，測試方案與測試報告的寫法見<a href="agent-test-plan-guide.html">測試方案指南</a>與<a href="agent-test-report-guide.html">測試報告指南</a>。欄位以伺服器的 <code>GET /agent-api/v1/openapi.json</code> 為準；<code>/agent-api/v1/docs</code> 是可以直接試的互動式文件，兩者都不需要金鑰。</div>
 
     <section class="panel" id="basics">
       <div class="panel-header"><h2>基本約定</h2></div>
@@ -31,7 +31,7 @@
           <dt>格式</dt><dd>JSON，欄位 camelCase；時間是 ISO 8601（UTC）。</dd>
           <dt>錯誤</dt><dd><code>{"error": {"code": "…", "message": "…", …}}</code>。程式依 <code>code</code> 判斷，<code>message</code> 給人看；有些錯誤另帶細節，例如 <code>issues</code>、<code>problems</code>、<code>latest</code>。</dd>
           <dt>語言</dt><dd><code>?lang=zh-Hant</code>、<code>zh-Hans</code> 或 <code>en</code> 決定 <code>message</code> 的語言；沒給時用伺服器預設。</dd>
-          <dt>冪等</dt><dd>會建立東西的 POST（建立場景、存版本、驗證、執行、重跑）接受 <code>idempotencyKey</code>。逾時或斷線後用同一個值重送，回傳的是上次的結果，不會重複建立或重複執行。驗證、執行、重跑的冪等鍵記在運行紀錄裡；建立場景與存版本的冪等鍵記在伺服器的記憶體 24 小時，伺服器重新啟動後就忘了，這時重送會收到 <code>scene_exists</code> 或 <code>stale_base</code>，讀最新狀態即可。不同用戶端用同一個值互不影響。</dd>
+          <dt>冪等</dt><dd>會建立東西的請求（建立場景、專案與組合場景，存版本，驗證、執行、重跑）接受 <code>idempotencyKey</code>。逾時或斷線後用同一個值重送，回傳的是上次的結果，不會重複建立或重複執行。驗證、執行、重跑的冪等鍵記在運行紀錄裡；建立與存版本的冪等鍵記在伺服器的記憶體 24 小時，伺服器重新啟動後就忘了，這時重送會收到 <code>scene_exists</code>、<code>project_exists</code>、<code>workflow_code_exists</code>、<code>stale_base</code> 或 <code>stale_workflow</code>，讀最新狀態即可。不同用戶端用同一個值互不影響。</dd>
           <dt>輪詢</dt><dd>查運行狀態每 2～5 秒一次即可；第二期改用事件長輪詢。</dd>
         </dl>
       </div>
@@ -48,10 +48,12 @@
   "serverVersion": "0.6.0",
   "server": {"id": "srv-linux-01", "name": "Linux 伺服器"},
   "client": {"id": "agent-erp", "name": "ERP 助理"},
-  "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read"],
+  "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
+             "projects:read", "projects:write"],
   "pageContent": true,
   "limits": {"debugSessions": 2, "queuedRuns": 20},
   "domains": ["sales"],
+  "projects": ["order-regression"],
   "recorders": ["agent-mac"],
   "target": null,
   "workers": null,
@@ -61,7 +63,7 @@
         <ul class="points">
           <li><code>scopes</code> 沒有 <code>scenes:publish</code>：做到驗證通過為止，再請人在 Portal 發布。</li>
           <li><code>pageContent</code> 是 <code>false</code>：截圖、頁面結構、錄影都拿不到，只能靠定位器測試與步驟結果寫場景。</li>
-          <li><code>domains</code> 是可以讀寫的領域（<code>null</code> 不限）；<code>recorders</code> 是可以開調試的錄製端；<code>target</code>、<code>workers</code> 是固定的執行位置與可以指定的 Worker（<code>null</code> 不限）。</li>
+          <li><code>domains</code> 是可以讀寫的領域、<code>projects</code> 是可以用的專案（<code>null</code> 不限）；<code>recorders</code> 是可以開調試的錄製端；<code>target</code>、<code>workers</code> 是固定的執行位置與可以指定的 Worker（<code>null</code> 不限）。</li>
           <li>接著讀 <code>GET /dsl/schema</code>（場景 YAML 的 JSON Schema）、<code>GET /recorders</code>（可用的錄製端：是否在線、<code>allowAgent</code>、<code>headlessOnly</code>、<code>capabilities</code> 有沒有 <code>debugSnapshot</code>）、<code>GET /roles</code>（登入角色與狀態）、<code>GET /secrets</code>（只有名稱）、<code>GET /workers</code>（可以指定的 Worker）。</li>
         </ul>
       </div>
@@ -207,6 +209,42 @@ GET /agent-api/v1/runs/…
       </div>
     </section>
 
+    <section class="panel" id="projects">
+      <div class="panel-header"><h2>專案與組合場景</h2></div>
+      <div class="panel-body">
+        <p>專案空間裡的專案收納組合場景；組合場景把發布過的場景版本接成一個流程（DAG），前面節點的出參可以綁到後面節點的入參。用 API 做測試時，一個組合場景就是一個 TestCase，見<a href="agent-test-plan-guide.html">測試方案指南</a>。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>端點</th><th>用途</th><th>權限範圍</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /projects</code>、<code>GET /projects/{id}</code></td><td>可用的專案；專案與它的組合場景摘要</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects</code>、<code>PATCH /projects/{id}</code></td><td>新增專案（限定了可用專案的金鑰不能新增）；改名稱與說明</td><td>projects:write</td></tr>
+            <tr><td><code>GET /composites/library</code></td><td>可以放進組合場景的場景版本，與入參、出參、登入角色</td><td>projects:read</td></tr>
+            <tr><td><code>POST /composites/check</code></td><td>不存檔檢查定義，回傳 <code>problems</code>（節點、入參）</td><td>projects:read</td></tr>
+            <tr><td><code>GET /composites?project=</code>、<code>GET /composites/{code}</code></td><td>組合場景摘要；完整的定義、問題、版本、驗證紀錄、依賴、最近的執行</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects/{id}/composites</code></td><td>在專案裡建立組合場景（帶定義時就是第 1 版）</td><td>projects:write</td></tr>
+            <tr><td><code>PUT /composites/{code}</code>、<code>PATCH /composites/{code}</code></td><td>存新版本（帶 <code>baseRevision</code>）；移到另一個專案</td><td>projects:write</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/validate</code></td><td>交給 Worker 驗證這個版本</td><td>runs:validate</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/publish</code></td><td>發布驗證通過、依賴完整的版本</td><td>projects:publish（預設不給）</td></tr>
+            <tr><td><code>POST /composites/{code}/runs</code></td><td>正式執行發布的版本</td><td>runs:execute</td></tr>
+            <tr><td><code>POST /projects/{id}/runs</code></td><td>把專案裡的組合場景（或 <code>composites</code> 列出的）逐一排入；排不進去的在 <code>skipped</code></td><td>依 <code>purpose</code>：runs:validate 或 runs:execute</td></tr>
+            <tr><td><code>GET /composite-runs</code>、<code>GET /composite-runs/{id}</code></td><td>組合場景的執行：狀態、進度（<code>progress</code>）、每個節點的狀態與那次運行</td><td>runs:read</td></tr>
+            <tr><td><code>POST /composite-runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消自己觸發的；從頭或從停下的節點（<code>"resume": true</code>）再執行</td><td>依執行的目的</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>看得到哪些：</strong>組合場景要在可用的專案裡，放的領域也要可用；不屬於任何專案的組合場景不給 Agent。看不到的一律回 404。節點用到的場景要在可用的領域，否則 403 <code>composite_scenes_forbidden</code>。</li>
+          <li><strong>沒有執行時的入參：</strong>入參在定義裡綁定（固定值、動態值、上游的出參）；同一個流程換一組資料就是另一個組合場景。</li>
+          <li><strong>節點的細節：</strong>每個節點的 <code>run</code> 是一次普通的運行，步驟、斷言與產物用 <code>/runs/{id}</code>、<code>/runs/{id}/steps</code> 讀；節點不能單獨重跑（409 <code>rerun_workflow</code>），要重跑組合場景的執行。</li>
+          <li><strong>Portal 路徑：</strong>回應帶 <code>portalPath</code>（例如 <code>/playground/runs/…</code>），人在 Portal 看同一筆資料用；寫測試報告時附上。</li>
+          <li><strong>限額：</strong>組合場景的節點也算進「排隊中與執行中」的限額。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="errors">
       <div class="panel-header"><h2>錯誤怎麼處理</h2></div>
       <div class="table-scroll">
@@ -221,7 +259,9 @@ GET /agent-api/v1/runs/…
             <tr><td>403</td><td><code>recorder_headless_only</code></td><td>這台錄製端只允許無頭</td><td>不要帶 <code>"headless": false</code></td></tr>
             <tr><td>403</td><td><code>target_forbidden</code>、<code>worker_forbidden</code></td><td>這把金鑰固定了執行位置，或不能指定這台 Worker</td><td>不要指定，或換允許的</td></tr>
             <tr><td>403</td><td><code>run_forbidden</code></td><td>想取消別人觸發的運行</td><td>請人處理</td></tr>
-            <tr><td>404</td><td><code>debug_not_found</code>、<code>run_not_found</code> 等</td><td>找不到，或不是你看得到的</td><td>確認代號</td></tr>
+            <tr><td>403</td><td><code>project_forbidden</code>、<code>project_create_forbidden</code></td><td>不能用這個專案；限定了可用專案的金鑰不能新增專案</td><td>用允許的專案，或請管理員處理</td></tr>
+            <tr><td>403</td><td><code>composite_scenes_forbidden</code></td><td>組合場景的節點用到不可用領域的場景（<code>scenes</code> 列出哪些）</td><td>換場景，或請管理員加上領域</td></tr>
+            <tr><td>404</td><td><code>debug_not_found</code>、<code>run_not_found</code>、<code>project_not_found</code>、<code>workflow_not_found</code>、<code>workflow_run_not_found</code> 等</td><td>找不到，或不是你看得到的</td><td>確認代號</td></tr>
             <tr><td>409</td><td><code>stale_base</code></td><td><code>baseRevision</code> 不是最新版，有人改過</td><td>讀 <code>latest</code> 那一版，把修改套上去再存</td></tr>
             <tr><td>409</td><td><code>scene_exists</code></td><td>場景代號已經有了</td><td>換代號，或讀現有的場景</td></tr>
             <tr><td>409</td><td><code>debug_in_use</code></td><td>這個場景有別人正在調試</td><td>稍後再試，不要搶</td></tr>
@@ -232,7 +272,12 @@ GET /agent-api/v1/runs/…
             <tr><td>409</td><td><code>recorder_offline</code></td><td>錄製端不在線</td><td>換一台，或請人開啟錄製端 App</td></tr>
             <tr><td>409</td><td><code>not_validated</code>、<code>content_changed</code></td><td>這個版本沒有驗證通過的紀錄，或內容和驗證時不同</td><td>先驗證</td></tr>
             <tr><td>409</td><td><code>not_published</code></td><td>場景沒有已發布版本，不能正式執行</td><td>發布，或請人發布</td></tr>
-            <tr><td>409</td><td><code>rerun_workflow</code></td><td>組合場景的節點不能從這裡重跑</td><td>請人在 Portal 處理</td></tr>
+            <tr><td>409</td><td><code>rerun_workflow</code></td><td>組合場景的節點不能單獨重跑</td><td>重跑組合場景的執行：<code>POST /composite-runs/{id}/rerun</code></td></tr>
+            <tr><td>409</td><td><code>stale_workflow</code></td><td>組合場景的 <code>baseRevision</code> 不是最新版</td><td>讀 <code>latest</code> 那一版，把修改套上去再存</td></tr>
+            <tr><td>409</td><td><code>project_exists</code>、<code>workflow_code_exists</code></td><td>專案或組合場景的代號已經有了</td><td>換代號，或讀現有的</td></tr>
+            <tr><td>409</td><td><code>workflow_unpublished</code></td><td>組合場景沒有發布的版本，不能正式執行</td><td>先驗證、發布，或請人發布</td></tr>
+            <tr><td>409</td><td><code>workflow_invalid</code>、<code>workflow_not_validated</code>、<code>workflow_dependencies</code></td><td>定義有問題不能執行；這個版本沒有驗證通過的紀錄；依賴不完整（<code>problems</code>）不能發布</td><td>依 <code>problems</code> 修正、先驗證</td></tr>
+            <tr><td>409</td><td><code>workflow_run_active</code>、<code>workflow_not_resumable</code></td><td>組合場景的執行還沒結束；沒有可以接著的節點</td><td>等它結束；改用從頭執行</td></tr>
             <tr><td>422</td><td><code>request_invalid</code></td><td>請求的格式不對，<code>problems</code> 列出欄位</td><td>依 <code>problems</code> 修正</td></tr>
             <tr><td>422</td><td><code>recorder_required</code></td><td>這把金鑰允許好幾台錄製端，沒給 <code>recorderId</code></td><td>帶上 <code>recorderId</code></td></tr>
             <tr><td>422</td><td><code>recorder_outdated</code></td><td>錄製端 App 太舊（例如不支援讀頁面結構，或看不懂場景用到的寫法）</td><td>請人更新 RPA 錄製端</td></tr>
@@ -252,7 +297,7 @@ GET /agent-api/v1/runs/…
       <div class="panel-body">
         <ul class="points">
           <li><strong>需要登入：</strong>運行停在 <code>needs_login</code>，或 <code>GET /roles</code> 顯示角色要重新登入。請使用者在錄製端做人工登入，完成後呼叫 <code>POST /runs/{id}/rerun</code>。</li>
-          <li><strong>沒有發布權限：</strong>告訴使用者場景代號與驗證通過的版本號，請人在 Portal 發布。</li>
+          <li><strong>沒有發布權限：</strong>告訴使用者場景或組合場景的代號與驗證通過的版本號，請人在 Portal 發布。</li>
           <li><strong>缺 Secret：</strong><code>GET /scenes/{id}</code> 的 <code>needs</code> 列出還沒設定的 Secrets；值由人在 Portal 填，Agent 不能寫入也讀不到。</li>
           <li><strong>錄製端不在線或太舊：</strong>請人開啟或更新 RPA 錄製端 App。</li>
         </ul>
@@ -263,7 +308,7 @@ GET /agent-api/v1/runs/…
       <div class="panel-header"><h2>守則</h2></div>
       <div class="panel-body">
         <ul class="points">
-          <li>每次存版本都帶上次讀到的 <code>baseRevision</code>，不要覆蓋人的修改。</li>
+          <li>每次存版本（場景與組合場景）都帶上次讀到的 <code>baseRevision</code>，不要覆蓋人的修改。</li>
           <li>用完調試工作階段就 <code>DELETE</code>，不要占住錄製端。</li>
           <li>不要在正式資料上反覆執行有副作用的步驟；能用測試帳號的角色就用。</li>
           <li>截圖、頁面結構與出參可能含業務資料，只用在當前的任務，不要另外保存或轉傳。</li>

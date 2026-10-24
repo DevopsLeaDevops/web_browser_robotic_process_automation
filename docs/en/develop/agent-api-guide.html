@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:41a4a9e6a98f1db1">
+<meta name="translation-source" content="sha256:64f6c80a38863432">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,13 +15,13 @@
   <div class="heading">
     <div>
       <h1>Agent API guide</h1>
-      <p>For agent systems that connect to the platform, and the people who write their integrations: how to use <code>/agent-api/v1</code> to build a scene from nothing, debug it on a recorder, have workers validate it, publish and run it, and what to do when something goes wrong.</p>
+      <p>For agent systems that connect to the platform, and the people who write their integrations: how to use <code>/agent-api/v1</code> to build a scene from nothing, debug it on a recorder, have workers validate it, publish and run it, combine scenes into composites in a project and run them, and what to do when something goes wrong.</p>
     </div>
     <span class="badge blue">Phase 1 in progress</span>
   </div>
 
   <div class="stack">
-    <div class="notice">This guide follows the <a href="../design/agent-api.html">design</a> confirmed on 2026-10-23 and the phase 1 implementation (2026-10-23, in review). The server's <code>GET /agent-api/v1/openapi.json</code> is the source of truth for fields; <code>/agent-api/v1/docs</code> is interactive documentation you can try directly. Neither needs a key.</div>
+    <div class="notice">This guide follows the <a href="../design/agent-api.html">design</a> confirmed on 2026-10-23 and the phase 1 implementation (2026-10-23, in review); projects and composites were added on 2026-10-24. When testing through the API, see the <a href="agent-test-plan-guide.html">test plan guide</a> and the <a href="agent-test-report-guide.html">test report guide</a> for writing test plans and test reports. The server's <code>GET /agent-api/v1/openapi.json</code> is the source of truth for fields; <code>/agent-api/v1/docs</code> is interactive documentation you can try directly. Neither needs a key.</div>
 
     <section class="panel" id="basics">
       <div class="panel-header"><h2>Basics</h2></div>
@@ -32,7 +32,7 @@
           <dt>Format</dt><dd>JSON with camelCase fields; times are ISO 8601 (UTC).</dd>
           <dt>Errors</dt><dd><code>{"error": {"code": "…", "message": "…", …}}</code>. Programs decide by <code>code</code>; <code>message</code> is for people. Some errors carry details such as <code>issues</code>, <code>problems</code> or <code>latest</code>.</dd>
           <dt>Language</dt><dd><code>?lang=zh-Hant</code>, <code>zh-Hans</code> or <code>en</code> sets the language of <code>message</code>; without it the server default is used.</dd>
-          <dt>Idempotency</dt><dd>POSTs that create something (create scene, save revision, validate, run, rerun) accept <code>idempotencyKey</code>. After a timeout or dropped connection, resend with the same value and you get the earlier result; nothing is created or run twice. Keys for validate, run and rerun are stored with the run; keys for creating scenes and saving revisions are kept in server memory for 24 hours and are forgotten when the server restarts, in which case a resend gets <code>scene_exists</code> or <code>stale_base</code> and you should read the latest state. Different clients using the same value do not affect each other.</dd>
+          <dt>Idempotency</dt><dd>Requests that create something (create scenes, projects and composites, save revisions, validate, run, rerun) accept <code>idempotencyKey</code>. After a timeout or dropped connection, resend with the same value and you get the earlier result; nothing is created or run twice. Keys for validate, run and rerun are stored with the run; keys for creating things and saving revisions are kept in server memory for 24 hours and are forgotten when the server restarts, in which case a resend gets <code>scene_exists</code>, <code>project_exists</code>, <code>workflow_code_exists</code>, <code>stale_base</code> or <code>stale_workflow</code> and you should read the latest state. Different clients using the same value do not affect each other.</dd>
           <dt>Polling</dt><dd>Checking run status every 2 to 5 seconds is enough; phase 2 switches to event long polling.</dd>
         </dl>
       </div>
@@ -49,10 +49,12 @@
   "serverVersion": "0.6.0",
   "server": {"id": "srv-linux-01", "name": "Linux server"},
   "client": {"id": "agent-erp", "name": "ERP assistant"},
-  "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read"],
+  "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
+             "projects:read", "projects:write"],
   "pageContent": true,
   "limits": {"debugSessions": 2, "queuedRuns": 20},
   "domains": ["sales"],
+  "projects": ["order-regression"],
   "recorders": ["agent-mac"],
   "target": null,
   "workers": null,
@@ -62,7 +64,7 @@
         <ul class="points">
           <li>No <code>scenes:publish</code> in <code>scopes</code>: stop once validation passes and ask a person to publish in the Portal.</li>
           <li><code>pageContent</code> is <code>false</code>: screenshots, page structure and video are unavailable, so write the scene from locator tests and step results only.</li>
-          <li><code>domains</code> lists the domains you can read and write (<code>null</code> means all); <code>recorders</code> lists the recorders you can debug on; <code>target</code> and <code>workers</code> are the fixed run location and the workers you may choose (<code>null</code> means no restriction).</li>
+          <li><code>domains</code> lists the domains you can read and write and <code>projects</code> the projects you can use (<code>null</code> means all); <code>recorders</code> lists the recorders you can debug on; <code>target</code> and <code>workers</code> are the fixed run location and the workers you may choose (<code>null</code> means no restriction).</li>
           <li>Then read <code>GET /dsl/schema</code> (JSON Schema for scene YAML), <code>GET /recorders</code> (available recorders: online or not, <code>allowAgent</code>, <code>headlessOnly</code>, and whether <code>capabilities</code> includes <code>debugSnapshot</code>), <code>GET /roles</code> (login roles and their state), <code>GET /secrets</code> (names only) and <code>GET /workers</code> (workers you may choose).</li>
         </ul>
       </div>
@@ -208,6 +210,42 @@ GET /agent-api/v1/runs/…
       </div>
     </section>
 
+    <section class="panel" id="projects">
+      <div class="panel-header"><h2>Projects and composites</h2></div>
+      <div class="panel-body">
+        <p>Projects in the project space hold composites (composite scenes); a composite chains published scene revisions into a flow (a DAG), where outputs of earlier nodes can be bound to inputs of later ones. When testing through the API, one composite is one TestCase; see the <a href="agent-test-plan-guide.html">test plan guide</a>.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Endpoint</th><th>Purpose</th><th>Scope</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /projects</code>, <code>GET /projects/{id}</code></td><td>Projects you can use; a project with a summary of its composites</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects</code>, <code>PATCH /projects/{id}</code></td><td>Create a project (not with a key limited to some projects); change name and description</td><td>projects:write</td></tr>
+            <tr><td><code>GET /composites/library</code></td><td>Scene revisions you can put in a composite, with inputs, outputs and login role</td><td>projects:read</td></tr>
+            <tr><td><code>POST /composites/check</code></td><td>Check a definition without saving; returns <code>problems</code> (node, input)</td><td>projects:read</td></tr>
+            <tr><td><code>GET /composites?project=</code>, <code>GET /composites/{code}</code></td><td>Composite summaries; full definition, problems, revisions, validation records, dependencies and recent runs</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects/{id}/composites</code></td><td>Create a composite in a project (with a definition, that is revision 1)</td><td>projects:write</td></tr>
+            <tr><td><code>PUT /composites/{code}</code>, <code>PATCH /composites/{code}</code></td><td>Save a new revision (with <code>baseRevision</code>); move to another project</td><td>projects:write</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/validate</code></td><td>Have a worker validate this revision</td><td>runs:validate</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/publish</code></td><td>Publish a validated revision with complete dependencies</td><td>projects:publish (off by default)</td></tr>
+            <tr><td><code>POST /composites/{code}/runs</code></td><td>Formally run the published revision</td><td>runs:execute</td></tr>
+            <tr><td><code>POST /projects/{id}/runs</code></td><td>Queue the composites of a project (or those listed in <code>composites</code>) one by one; those that cannot start are in <code>skipped</code></td><td>By <code>purpose</code>: runs:validate or runs:execute</td></tr>
+            <tr><td><code>GET /composite-runs</code>, <code>GET /composite-runs/{id}</code></td><td>Composite runs: status, progress (<code>progress</code>), each node's status and run</td><td>runs:read</td></tr>
+            <tr><td><code>POST /composite-runs/{id}/cancel</code>, <code>/rerun</code></td><td>Cancel your own; run again from the start or from the stopping node (<code>"resume": true</code>)</td><td>By the run's purpose</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>What you can see:</strong> a composite must be in an allowed project and its domain must be allowed; composites in no project are not available to agents. Anything you cannot see returns 404. Scenes used by the nodes must be in allowed domains, otherwise 403 <code>composite_scenes_forbidden</code>.</li>
+          <li><strong>No inputs at run time:</strong> inputs are bound in the definition (fixed values, dynamic values, upstream outputs); the same flow with other data is another composite.</li>
+          <li><strong>Node details:</strong> each node's <code>run</code> is an ordinary run; read its steps, checks and artifacts with <code>/runs/{id}</code> and <code>/runs/{id}/steps</code>. A node cannot be rerun on its own (409 <code>rerun_workflow</code>); rerun the composite run.</li>
+          <li><strong>Portal paths:</strong> responses carry <code>portalPath</code> (e.g. <code>/playground/runs/…</code>) for people to see the same record in the Portal; include it in test reports.</li>
+          <li><strong>Limits:</strong> composite nodes count towards the queued-and-running limit.</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="errors">
       <div class="panel-header"><h2>Handling errors</h2></div>
       <div class="table-scroll">
@@ -222,7 +260,9 @@ GET /agent-api/v1/runs/…
             <tr><td>403</td><td><code>recorder_headless_only</code></td><td>This recorder allows headless mode only</td><td>Do not send <code>"headless": false</code></td></tr>
             <tr><td>403</td><td><code>target_forbidden</code>, <code>worker_forbidden</code></td><td>This key has a fixed run location, or may not choose this worker</td><td>Leave it out, or use an allowed one</td></tr>
             <tr><td>403</td><td><code>run_forbidden</code></td><td>Trying to cancel a run someone else started</td><td>Ask a person</td></tr>
-            <tr><td>404</td><td><code>debug_not_found</code>, <code>run_not_found</code> and so on</td><td>Not found, or not visible to you</td><td>Check the ID</td></tr>
+            <tr><td>403</td><td><code>project_forbidden</code>, <code>project_create_forbidden</code></td><td>This project is not allowed; a key limited to some projects cannot create projects</td><td>Use an allowed project, or ask an administrator</td></tr>
+            <tr><td>403</td><td><code>composite_scenes_forbidden</code></td><td>A composite's nodes use scenes in domains you cannot use (<code>scenes</code> lists them)</td><td>Use other scenes, or ask an administrator to add the domains</td></tr>
+            <tr><td>404</td><td><code>debug_not_found</code>, <code>run_not_found</code>, <code>project_not_found</code>, <code>workflow_not_found</code>, <code>workflow_run_not_found</code> and so on</td><td>Not found, or not visible to you</td><td>Check the ID</td></tr>
             <tr><td>409</td><td><code>stale_base</code></td><td><code>baseRevision</code> is not the latest; someone changed the scene</td><td>Read the <code>latest</code> revision, apply your change to it and save again</td></tr>
             <tr><td>409</td><td><code>scene_exists</code></td><td>The scene ID is already taken</td><td>Use another ID, or read the existing scene</td></tr>
             <tr><td>409</td><td><code>debug_in_use</code></td><td>Someone else is debugging this scene</td><td>Try again later; do not take it over</td></tr>
@@ -233,7 +273,12 @@ GET /agent-api/v1/runs/…
             <tr><td>409</td><td><code>recorder_offline</code></td><td>The recorder is offline</td><td>Use another one, or ask a person to open the Recorder app</td></tr>
             <tr><td>409</td><td><code>not_validated</code>, <code>content_changed</code></td><td>This revision has no passed validation, or its content differs from what was validated</td><td>Validate first</td></tr>
             <tr><td>409</td><td><code>not_published</code></td><td>The scene has no published revision and cannot run in production</td><td>Publish, or ask a person to publish</td></tr>
-            <tr><td>409</td><td><code>rerun_workflow</code></td><td>Composite scene nodes cannot be rerun from here</td><td>Ask a person to handle it in the Portal</td></tr>
+            <tr><td>409</td><td><code>rerun_workflow</code></td><td>A composite's node cannot be rerun on its own</td><td>Rerun the composite run: <code>POST /composite-runs/{id}/rerun</code></td></tr>
+            <tr><td>409</td><td><code>stale_workflow</code></td><td>The composite's <code>baseRevision</code> is not the latest</td><td>Read the <code>latest</code> revision, reapply your change and save again</td></tr>
+            <tr><td>409</td><td><code>project_exists</code>, <code>workflow_code_exists</code></td><td>The project ID or composite code is taken</td><td>Pick another, or read the existing one</td></tr>
+            <tr><td>409</td><td><code>workflow_unpublished</code></td><td>The composite has no published revision, so it cannot be formally run</td><td>Validate and publish first, or ask a person to publish</td></tr>
+            <tr><td>409</td><td><code>workflow_invalid</code>, <code>workflow_not_validated</code>, <code>workflow_dependencies</code></td><td>The definition has problems and cannot run; this revision has no passing validation; dependencies are incomplete (<code>problems</code>) so it cannot be published</td><td>Fix by <code>problems</code>, validate first</td></tr>
+            <tr><td>409</td><td><code>workflow_run_active</code>, <code>workflow_not_resumable</code></td><td>The composite run has not finished; there is no node to continue from</td><td>Wait for it to finish; start over instead</td></tr>
             <tr><td>422</td><td><code>request_invalid</code></td><td>The request is malformed; <code>problems</code> lists the fields</td><td>Fix them according to <code>problems</code></td></tr>
             <tr><td>422</td><td><code>recorder_required</code></td><td>The key allows several recorders and no <code>recorderId</code> was given</td><td>Send <code>recorderId</code></td></tr>
             <tr><td>422</td><td><code>recorder_outdated</code></td><td>The Recorder app is too old (for example, it cannot read page structure or does not understand syntax the scene uses)</td><td>Ask a person to update RPA Recorder</td></tr>
@@ -253,7 +298,7 @@ GET /agent-api/v1/runs/…
       <div class="panel-body">
         <ul class="points">
           <li><strong>Login needed:</strong> the run stops at <code>needs_login</code>, or <code>GET /roles</code> shows a role needs to log in again. Ask the user to log in manually on a recorder, then call <code>POST /runs/{id}/rerun</code>.</li>
-          <li><strong>No publish permission:</strong> give the user the scene id and the revision number that passed validation, and ask a person to publish it in the Portal.</li>
+          <li><strong>No publish permission:</strong> give the user the scene or composite code and the revision number that passed validation, and ask a person to publish it in the Portal.</li>
           <li><strong>Missing secret:</strong> <code>needs</code> in <code>GET /scenes/{id}</code> lists secrets not set yet. A person fills in the values in the Portal; agents can neither write nor read them.</li>
           <li><strong>Recorder offline or too old:</strong> ask a person to open or update the RPA Recorder app.</li>
         </ul>
@@ -264,7 +309,7 @@ GET /agent-api/v1/runs/…
       <div class="panel-header"><h2>Rules</h2></div>
       <div class="panel-body">
         <ul class="points">
-          <li>Send the <code>baseRevision</code> you last read every time you save a revision, so you never overwrite a person's changes.</li>
+          <li>Send the <code>baseRevision</code> you last read every time you save a revision (scenes and composites), so you never overwrite a person's changes.</li>
           <li><code>DELETE</code> a debug session when you are done with it; do not hold the recorder.</li>
           <li>Do not repeat side-effect steps against production data; use roles with test accounts when you can.</li>
           <li>Screenshots, page structure and outputs may contain business data. Use them only for the current task; do not store or forward them elsewhere.</li>

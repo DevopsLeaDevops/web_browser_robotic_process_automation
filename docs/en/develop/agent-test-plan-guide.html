@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:4df904c3b140f55c">
+<title>Test plan guide · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="agent-test-plan-guide" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Test plan guide</h1>
+      <p>For third-party agents connected to the platform: how to design scenes and projects from requirements, design composites with the TestCase methods common in software engineering, and write a test plan for people to review (Markdown, XMind, JSON).</p>
+    </div>
+    <span class="badge blue">Phase 1 in progress</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice"><strong>The test plan is the agent's deliverable, for people to review and accept. The platform does not read, upload or store it, and has no API for it.</strong> The agent uses the API in the <a href="agent-api-guide.html">Agent API guide</a> to create scenes, projects and composites on the platform, then writes the design and the results up in this document. Running, tracking and the test report are in the <a href="agent-test-report-guide.html">test report guide</a>. Written on 2026-10-24 at the user's request (in review).</div>
+
+    <section class="panel" id="roles">
+      <div class="panel-header"><h2>Who does what</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>Agent</dt><dd>Analyses requirements, designs TestCases, creates and debugs scenes, creates composites in a project and writes the test plan; after sign-off, runs them and writes the test report.</dd>
+          <dt>People (reviewers)</dt><dd>Review the test plan: is the scope right, are there enough TestCases, are the test data and side effects acceptable, how to settle the open questions. Formal runs start only after sign-off. At the end they accept against the test report.</dd>
+          <dt>Platform</dt><dd>Keeps the revisions of scenes, projects and composites, runs them on workers and keeps each run's steps, checks and artifacts. It does not know the words "test plan" or "TestCase" and does not judge whether testing is sufficient.</dd>
+        </dl>
+        <p>Do not confuse this with the platform's "validation": a validation hands one revision to a worker for one run, as the basis for publishing; a test plan is a document for people.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="mapping">
+      <div class="panel-header"><h2>Terms</h2><span class="muted">What test plan concepts are on the platform</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Test plan</th><th>Platform</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Test plan</td><td>A project</td><td>One plan per project; the project ID goes in the plan. When a project is large, a plan can cover only some of its composites.</td></tr>
+            <tr><td>Module, test suite</td><td>A prefix of the composite code</td><td>Projects have no subfolders, so modules use code prefixes such as <code>tc-order-…</code> and <code>tc-refund-…</code>.</td></tr>
+            <tr><td><strong>TestCase</strong></td><td><strong>A composite</strong></td><td>The composite code is the TestCase ID. Composites take no inputs at run time; test data are fixed values in the definition, so <strong>one set of test data is one composite</strong>.</td></tr>
+            <tr><td>Test step</td><td>A node of the composite</td><td>Each node is a fixed revision of a scene; order comes from output bindings and <code>edges</code>.</td></tr>
+            <tr><td>Expected result</td><td>The <code>verify</code> checks of the node's scene</td><td>When a check fails the node fails; a composite stops at the first failure, so the TestCase fails.</td></tr>
+            <tr><td>Preconditions</td><td>Roles logged in, secrets set, workers online, test data present</td><td>For what the platform can report before a run (roles, workers), write how to check it; for the rest, ask people to confirm.</td></tr>
+            <tr><td>Test data</td><td>Fixed values, dynamic values and upstream outputs bound to node inputs</td><td>Dynamic values such as <code>{{today}}</code>, <code>{{now:yyyyMMddHHmmss}}</code> and <code>{{random:1:99}}</code> are evaluated at run time.</td></tr>
+            <tr><td>Reusable action (keyword)</td><td>A scene</td><td>A scene does one business action with its own inputs, outputs and checks, shared by several TestCases.</td></tr>
+            <tr><td>One test execution</td><td>A composite run</td><td>See the <a href="agent-test-report-guide.html">test report guide</a>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>Overall flow</h2></div>
+      <div class="panel-body">
+        <ol>
+          <li><strong>Read the requirements and the platform:</strong> <code>GET /meta</code> (scopes, allowed projects and domains), <code>GET /projects</code>, <code>GET /composites/library</code> (scene revisions you can use), <code>GET /roles</code>, <code>GET /secrets</code>.</li>
+          <li><strong>Design TestCases:</strong> list the features and requirement IDs to verify, pick test design methods and write the TestCase list. Nothing is created yet.</li>
+          <li><strong>Split into scenes:</strong> turn the TestCase steps into reusable scenes; use what the library already has and create only what is missing.</li>
+          <li><strong>Hand over a draft:</strong> write a draft plan (status "draft") with the open questions. Debugging a scene really clicks and types in the target system, so have people look at the scope and test data first; go straight on only when the user has clearly authorised it.</li>
+          <li><strong>Create scenes:</strong> create, debug, validate and publish the missing scenes, see the <a href="agent-api-guide.html">Agent API guide</a>.</li>
+          <li><strong>Create the project and composites:</strong> one composite per TestCase; check with <code>POST /composites/check</code> until there are no problems, then save.</li>
+          <li><strong>Finish the plan:</strong> fill in the codes and revisions of scenes and composites, produce <code>test-plan.md</code>, <code>test-plan.xmind</code> and <code>test-plan.json</code>, set the status to "pending sign-off" and hand it over.</li>
+          <li><strong>After sign-off</strong>, run it as described in the <a href="agent-test-report-guide.html">test report guide</a>.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>TestCase design methods</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Method</th><th>When</th><th>How to express it with composites</th></tr></thead>
+          <tbody>
+            <tr><td>Equivalence partitioning</td><td>Inputs have clear valid and invalid ranges</td><td>One TestCase per valid class; invalid classes use scenes that expect a rejection (see negative tests below).</td></tr>
+            <tr><td>Boundary value analysis</td><td>Quantities, amounts, lengths, dates</td><td>One TestCase each for minimum, minimum + 1, maximum − 1, maximum and out of range, with the value as a fixed node input.</td></tr>
+            <tr><td>Decision tables, cause-effect graphs</td><td>Several conditions decide the result together (tier × amount × discount)</td><td>One TestCase per rule; conditions are inputs and the result is in the scene's <code>verify</code>.</td></tr>
+            <tr><td>State transitions</td><td>Stateful objects such as documents, orders, approvals</td><td>One composite per transition path to cover, e.g. create → submit → approve → close, chained by outputs (the document number).</td></tr>
+            <tr><td>Use-case (business flow) testing</td><td>Main and alternative flows of an end-to-end process</td><td>One TestCase for the main flow and one per alternative flow (cancel, return, resubmit), sharing the first nodes and changing the rest.</td></tr>
+            <tr><td>Pairwise</td><td>Many parameters, too many combinations</td><td>Pick representative combinations pairwise, one TestCase each; state how they were picked in the plan.</td></tr>
+            <tr><td>Error guessing</td><td>Known weak spots: double submit, blanks, special characters, missing permission</td><td>Extra TestCases, each with its reason.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Priority:</strong> P1 smoke and core paths (run every time), P2 main features and common error handling, P3 minor and rare cases. In XMind, markers <code>priority-1</code> to <code>priority-3</code>.</li>
+          <li><strong>Write negative tests so that a rejection passes:</strong> a composite stops at the first failure and a failed node means a failed TestCase, so you cannot expect a run to "fail". "Quantity over the limit shows an error" becomes a scene that types the bad value, submits, and whose <code>verify</code> checks that the error appears and no document was created.</li>
+          <li><strong>Input rules reject invalid fixed values:</strong> the composite check validates fixed values against the scene's input rules such as <code>minimum</code>, <code>maxLength</code> and <code>enum</code>. To submit an invalid value, the scene's input must not have those rules (for example a separate scene whose input is an unrestricted string).</li>
+          <li><strong>Every TestCase must be repeatable:</strong> when it creates data, use dynamic values for unique data (e.g. <code>Test customer {{now:yyyyMMddHHmmss}}</code>); add a clean-up node at the end when needed.</li>
+          <li><strong>Traceability:</strong> every TestCase maps to at least one requirement ID; every requirement has TestCases, or a stated reason why it is not tested.</li>
+          <li><strong>Side effects:</strong> runs really create and change data in the target system. Use roles with test accounts and test data; record unavoidable ones as risks for people to confirm.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="scenes">
+      <div class="panel-header"><h2>Splitting scenes</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>One business action per scene:</strong> create an order, look up an order, approve. Do not write a whole TestCase as one scene: separate scenes can be shared by TestCases and show which action a failure stopped at.</li>
+          <li><strong>Inputs and outputs:</strong> data that varies are inputs; values needed downstream (document number, amount) are outputs. Related scenes use the same names for outputs and inputs so that <code>{"auto": true}</code> can connect them.</li>
+          <li><strong>Checks are the expected results:</strong> each scene's <code>verify</code> compares page facts with inputs to check the business result of the action, not just "no step failed".</li>
+          <li><strong>Check the library first:</strong> <code>GET /composites/library</code> lists published scene revisions in allowed domains with each revision's inputs, outputs and login role. Use what fits; for changes, save a new revision, validate and publish it, then use the new number. TestCases on older revisions are not affected.</li>
+          <li><strong>Only published revisions:</strong> without <code>scenes:publish</code>, list the scenes and revisions to publish under the plan's open questions and ask people to publish them in the Portal.</li>
+        </ul>
+<pre class="source">GET /agent-api/v1/composites/library
+→ {"scenes": [{"id": "order-create", "name": "Create order", "domainId": "sales", "publishedRevision": 6,
+               "revisions": [{"number": 6, "name": "Create order",
+                              "inputs": [["customer", {"type": "string", "minLength": 1}],
+                                         ["quantity", {"type": "integer", "minimum": 1, "maximum": 99, "default": 1}]],
+                              "outputs": [["orderId", {"type": "string", "pattern": "^SO-\\d+$", …}]],
+                              "role": "sales"}], …}, …]}</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="build">
+      <div class="panel-header"><h2>Creating projects and composites</h2></div>
+      <div class="panel-body">
+        <h3>1. Project</h3>
+<pre class="source">GET /agent-api/v1/projects                                 (projects:read)
+→ {"projects": [{"id": "order-regression", "name": "Order regression", "compositeCount": 4,
+                 "portalPath": "/projects/order-regression", …}]}
+
+POST /agent-api/v1/projects                                (projects:write)
+{"id": "order-regression", "name": "Order regression",
+ "description": "Test plan TP-ORDER-2026-10", "idempotencyKey": "TP-ORDER-2026-10"}
+→ 201 {"id": "order-regression", …}
+
+PATCH /agent-api/v1/projects/order-regression  {"description": "…"}</pre>
+        <p>Project IDs follow the domain rules (lower-case letters and digits, <code>-</code>, <code>_</code>; fixed once created). A key limited to some projects cannot create projects (403 <code>project_create_forbidden</code>); use an existing one or ask an administrator. Deleting and reordering are only in the admin pages.</p>
+
+        <h3>2. Composite definition</h3>
+<pre class="source">{"version": 2, "mode": "dag", "onFailure": "stop",
+ "nodes": [
+   {"id": "create", "sceneId": "order-create", "revision": 6,
+    "inputs": {"customer": {"value": "Test customer {{now:yyyyMMddHHmmss}}"},
+               "quantity": {"value": 99}}},
+   {"id": "query", "sceneId": "order-query", "revision": 3,
+    "inputs": {"orderId": {"node": "create", "output": "orderId"}}}
+ ],
+ "edges": [{"source": "create", "target": "query"}]}</pre>
+        <ul class="points">
+          <li>At most 50 nodes; node <code>id</code>s are unique within a composite.</li>
+          <li>Input sources: <code>{"value": …}</code> a fixed value (dynamic values allowed); <code>{"node": "create", "output": "orderId"}</code> an output of an upstream node; <code>{"auto": true}</code> the single output with the same name on a direct upstream node. Inputs left out use the scene's default; inputs without a default must be given.</li>
+          <li>Output bindings already order the nodes; add <code>edges</code> only for an order without a data dependency.</li>
+          <li>Nodes ready at the same time run one by one in definition order; when a node does not pass, the run stops and later nodes are marked skipped.</li>
+        </ul>
+
+        <h3>3. Check, create, change</h3>
+<pre class="source">POST /agent-api/v1/composites/check   {"definition": {…}}
+→ {"ok": false, "problems": [{"code": "workflow.input_missing", "message": "…",
+                               "node": "query", "input": "orderId"}]}
+
+POST /agent-api/v1/projects/order-regression/composites      (projects:write)
+{"code": "tc-order-003", "name": "TC-ORDER-003 Quantity at the limit (99) can be created",
+ "description": "Goal: an order with the maximum quantity can be created. Requirement: REQ-12. Plan: TP-ORDER-2026-10",
+ "domainId": "sales", "definition": {…},
+ "note": "Test plan TP-ORDER-2026-10 v1", "idempotencyKey": "TP-ORDER-2026-10/tc-order-003"}
+→ 201 {"code": "tc-order-003", "latestRevision": 1, "publishedRevision": null, "problems": [],
+       "dependency": "complete", "portalPath": "/playground/12", …}
+
+PUT /agent-api/v1/composites/tc-order-003
+{"baseRevision": 1, "definition": {…}, "note": "Quantity changed to 99"}
+→ {"latestRevision": 2, …}</pre>
+        <ul class="points">
+          <li>Only an empty <code>problems</code> can be validated and run; fix by <code>node</code> and <code>input</code>. Only <code>dependency</code> <code>complete</code> can be published.</li>
+          <li><strong>The code is the TestCase ID:</strong> lower-case letters and digits, <code>-</code>, <code>_</code>, e.g. <code>tc-order-003</code>; the name starts with the upper-case ID, e.g. "TC-ORDER-003 Quantity at the limit (99) can be created"; the description holds the goal, requirement IDs and plan ID.</li>
+          <li><code>domainId</code> is the domain folder that holds the composite; without it the composite goes in the "Composite scenarios" domain. A key limited to some domains must give an allowed one. Scenes used by the nodes must be in allowed domains too, otherwise 403 <code>composite_scenes_forbidden</code>.</li>
+          <li>Saving with a <code>baseRevision</code> that is not the latest returns 409 <code>stale_workflow</code> (<code>latest</code> is the latest revision): read <code>GET /composites/{code}</code>, reapply your change and save again; never overwrite people's changes. When the definition is unchanged only the name and description are updated, with no new revision.</li>
+          <li>Move to another project with <code>PATCH /composites/{code} {"projectId": "…"}</code>.</li>
+          <li><code>GET /projects/{id}</code> lists a summary of each composite in the project (latest and published revisions, problem count, last run); <code>GET /composites/{code}</code> has the full definition, revisions, validation records and dependencies.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="document">
+      <div class="panel-header"><h2>Test plan format</h2><span class="muted">Three files in one folder</span></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt><code>test-plan.md</code></dt><dd>The main document, for people to read and sign off.</dd>
+          <dt><code>test-plan.xmind</code></dt><dd>A TestCase mind map: one TestCase per composite, so people can see coverage at a glance; common TestCase tools can import it.</dd>
+          <dt><code>test-plan.json</code></dt><dd>The same content as structured data, read by the agent when it runs the plan and writes the report; people need not read it.</dd>
+        </dl>
+        <p>Generate all three from the same data; TestCase IDs and counts must match. Name the folder after the plan ID, e.g. <code>TP-ORDER-2026-10/</code>. A plan that has been handed over gets a new version when changed, with the change noted in the document information's change log.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Sections of test-plan.md</th><th>Content</th></tr></thead>
+          <tbody>
+            <tr><td>Document information</td><td>Plan ID, version, status (draft, pending sign-off, signed off, withdrawn), generating agent and time, server (<code>server.id</code> and <code>serverVersion</code> from <code>/meta</code>), project ID, source of requirements, change log</td></tr>
+            <tr><td>1. Goals and scope</td><td>What is verified; explicitly what is <strong>not</strong></td></tr>
+            <tr><td>2. Test environment</td><td>Target system URL, browser, placement and workers, login roles, names of the secrets used (never values)</td></tr>
+            <tr><td>3. Test strategy</td><td>Design methods used, priority definitions, batches and order of runs, rerun policy</td></tr>
+            <tr><td>4. Scenes</td><td>Scene ID, name, revision, inputs, outputs, summary of checks, status (published, to publish)</td></tr>
+            <tr><td>5. TestCases</td><td>Columns in the next table</td></tr>
+            <tr><td>6. Traceability matrix</td><td>Requirements × TestCases; reasons for requirements without TestCases</td></tr>
+            <tr><td>7. Test data</td><td>Fixed and dynamic values per TestCase; what data are created or changed and how they are cleaned up</td></tr>
+            <tr><td>8. Entry and exit criteria</td><td>Proposed by the agent, decided by people. E.g. entry: plan signed off, no composite has problems, required roles logged in; exit: all P1 pass, P2 pass rate ≥ 95%, no open critical defects</td></tr>
+            <tr><td>9. Risks and open questions</td><td>Side effects, scenes people must publish, roles that need manual login, missing permissions, assumptions</td></tr>
+            <tr><td>10. Sign-off</td><td>Reviewer, date, conclusion (approved, approved with changes, rejected), comments: left blank for people</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>TestCase columns</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td>ID, title</td><td>TC-ORDER-003 Quantity at the limit (99) can be created</td></tr>
+            <tr><td>Module, priority</td><td>Order creation, P1</td></tr>
+            <tr><td>Requirements, method</td><td>REQ-12, boundary value</td></tr>
+            <tr><td>Preconditions</td><td>Role sales logged in</td></tr>
+            <tr><td>Steps (nodes)</td><td>1. create: create an order with quantity 99 (order-create v6); 2. query: look up the order by create's orderId (order-query v3)</td></tr>
+            <tr><td>Expected results</td><td>1. An order number SO-… is returned and the customer matches the input; 2. the order is found with quantity 99</td></tr>
+            <tr><td>Composite</td><td><code>tc-order-003</code> v2, Portal path <code>/playground/12</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p>Suggested structure of <code>test-plan.json</code> (add fields as needed; do not change the meaning of existing ones):</p>
+<pre class="source">{
+  "format": "rpa-agent-test-plan", "formatVersion": 1,
+  "planId": "TP-ORDER-2026-10", "version": 2, "status": "pending_signoff",
+  "generatedAt": "2026-10-24T08:00:00Z",
+  "generatedBy": {"agent": "ERP assistant", "clientId": "agent-erp"},
+  "server": {"id": "srv-linux-01", "version": "0.6.0"},
+  "project": {"id": "order-regression", "name": "Order regression", "portalPath": "/projects/order-regression"},
+  "requirements": [{"id": "REQ-12", "title": "Order quantity 1–99"}],
+  "scenes": [{"id": "order-create", "revision": 6, "status": "published"}],
+  "suites": [{"id": "order-create", "name": "Order creation"}],
+  "testCases": [{
+    "id": "TC-ORDER-003", "title": "Quantity at the limit (99) can be created", "suite": "order-create",
+    "priority": 1, "requirements": ["REQ-12"], "technique": "boundary",
+    "preconditions": ["Role sales logged in"],
+    "steps": [
+      {"node": "create", "scene": "order-create", "revision": 6,
+       "action": "Create an order with quantity 99", "expected": "Order number SO-…; customer matches the input"},
+      {"node": "query", "scene": "order-query", "revision": 3,
+       "action": "Look up create's orderId", "expected": "The order is found with quantity 99"}],
+    "composite": {"code": "tc-order-003", "revision": 2, "portalPath": "/playground/12"}
+  }],
+  "entryCriteria": ["…"], "exitCriteria": ["…"], "risks": ["…"], "openQuestions": ["…"]
+}</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="xmind">
+      <div class="panel-header"><h2>XMind format</h2><span class="muted">Mainly for people to see the composites (TestCases)</span></div>
+      <div class="panel-body">
+        <h3>Structure</h3>
+        <dl class="spec-list">
+          <dt>Central topic</dt><dd>Plan ID and project name, e.g. "TP-ORDER-2026-10 Order regression"; notes hold the plan version and project ID.</dd>
+          <dt>Level 1</dt><dd>Modules (test suites), e.g. "Order creation".</dd>
+          <dt>Level 2: TestCase</dt><dd>One topic per composite titled "ID title", and it <strong>must have a priority marker</strong> <code>priority-1</code> to <code>priority-3</code> (tools use it to recognise TestCases). Labels: <code>auto</code> (automated), composite code and revision (e.g. <code>tc-order-003 v2</code>), requirement IDs, design method. Notes: preconditions and the Portal path.</dd>
+          <dt>Level 3: steps</dt><dd>One topic per node, "node ID: what it does (scene ID vN)", in run order.</dd>
+          <dt>Level 4: expected result</dt><dd><strong>Exactly one</strong> expected-result topic under each step; join several checks with "; ".</dd>
+        </dl>
+        <ul class="points">
+          <li>Do not start topic titles with <code>#</code> or <code>!</code>; common tools treat those as comments and skip them.</li>
+          <li>Keep open questions and risks out of the mind map; they belong in <code>test-plan.md</code>.</li>
+          <li>The test report reuses this map and adds result markers to TestCases (see the <a href="agent-test-report-guide.html#xmind">test report guide</a>).</li>
+        </ul>
+
+        <h3>File</h3>
+        <p>An <code>.xmind</code> file is a ZIP. <code>content.json</code> is for XMind 2020 and later; <code>content.xml</code> is for XMind 8 and common XMind-to-TestCase tools (such as xmind2testcase). Both hold the same content; this Python writes both with the standard library only:</p>
+<pre class="source">import json, uuid, zipfile
+from xml.etree import ElementTree as ET
+
+
+def topic(title, children=(), *, priority=None, markers=(), labels=(), notes=None):
+    marks = ([f"priority-{priority}"] if priority else []) + list(markers)
+    return {"id": uuid.uuid4().hex, "title": title, "markers": marks,
+            "labels": list(labels), "notes": notes, "children": list(children)}
+
+
+def _json(node):
+    data = {"id": node["id"], "class": "topic", "title": node["title"]}
+    if node["markers"]:
+        data["markers"] = [{"markerId": mark} for mark in node["markers"]]
+    if node["labels"]:
+        data["labels"] = node["labels"]
+    if node["notes"]:
+        data["notes"] = {"plain": {"content": node["notes"]}}
+    if node["children"]:
+        data["children"] = {"attached": [_json(child) for child in node["children"]]}
+    return data
+
+
+def _xml(parent, node):
+    element = ET.SubElement(parent, "topic", id=node["id"])
+    ET.SubElement(element, "title").text = node["title"]
+    if node["markers"]:
+        refs = ET.SubElement(element, "marker-refs")
+        for mark in node["markers"]:
+            ET.SubElement(refs, "marker-ref", {"marker-id": mark})
+    if node["labels"]:
+        labels = ET.SubElement(element, "labels")
+        for label in node["labels"]:
+            ET.SubElement(labels, "label").text = label
+    if node["notes"]:
+        ET.SubElement(ET.SubElement(element, "notes"), "plain").text = node["notes"]
+    if node["children"]:
+        attached = ET.SubElement(ET.SubElement(element, "children"), "topics", type="attached")
+        for child in node["children"]:
+            _xml(attached, child)
+
+
+def write_xmind(path, sheet_title, root):
+    sheet_id = uuid.uuid4().hex
+    content = [{"id": sheet_id, "class": "sheet", "title": sheet_title, "rootTopic": _json(root)}]
+    xmap = ET.Element("xmap-content", xmlns="urn:xmind:xmap:xmlns:content:2.0", version="2.0")
+    sheet = ET.SubElement(xmap, "sheet", id=sheet_id)
+    _xml(sheet, root)
+    ET.SubElement(sheet, "title").text = sheet_title
+    manifest = ('&lt;?xml version="1.0" encoding="UTF-8" standalone="no"?&gt;'
+                '&lt;manifest xmlns="urn:xmind:xmap:xmlns:manifest:1.0"&gt;'
+                '&lt;file-entry full-path="content.xml" media-type="text/xml"/&gt;'
+                '&lt;file-entry full-path="META-INF/" media-type=""/&gt;'
+                '&lt;file-entry full-path="META-INF/manifest.xml" media-type="text/xml"/&gt;'
+                '&lt;/manifest&gt;')
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("content.json", json.dumps(content, ensure_ascii=False))
+        archive.writestr("metadata.json", json.dumps({"creator": {"name": "agent", "version": "1"}}))
+        archive.writestr("manifest.json",
+                         json.dumps({"file-entries": {"content.json": {}, "metadata.json": {}}}))
+        archive.writestr("content.xml", ET.tostring(xmap, encoding="unicode", xml_declaration=True))
+        archive.writestr("META-INF/manifest.xml", manifest)
+
+
+case = topic("TC-ORDER-003 Quantity at the limit (99) can be created", [
+    topic("create: create an order with quantity 99 (order-create v6)",
+          [topic("Order number SO-…; customer matches the input")]),
+    topic("query: look up create's orderId (order-query v3)",
+          [topic("The order is found with quantity 99")]),
+], priority=1, labels=["auto", "tc-order-003 v2", "REQ-12", "boundary value"],
+   notes="Role sales logged in\nPortal: /playground/12")
+root = topic("TP-ORDER-2026-10 Order regression", [topic("Order creation", [case])],
+             notes="Plan version 2; project order-regression")
+write_xmind("test-plan.xmind", "Test plan", root)</pre>
+        <p>Read it back to check: unzip, read <code>content.json</code> and confirm the number of TestCase topics equals <code>testCases</code> in <code>test-plan.json</code>. When people import it into a specific TestCase tool, that tool's documentation wins.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="checklist">
+      <div class="panel-header"><h2>Before handing it over</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>TestCase IDs and counts match across the three files; every TestCase has a composite code and revision, and <code>GET /composites/{code}</code> shows empty <code>problems</code>.</li>
+          <li>Every requirement has TestCases or a stated reason it is not tested; every TestCase has a priority and expected results.</li>
+          <li>No API keys, passwords or secret values in the documents; no real personal data in the test data.</li>
+          <li>Everything people must do is under open questions: which scenes to publish, which roles to log in, which steps have side effects, which permissions are missing.</li>
+          <li>Status, version and generation time are right; the project page in the Portal (<code>portalPath</code>) shows the same composites.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

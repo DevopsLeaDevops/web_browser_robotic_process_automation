@@ -24,7 +24,7 @@
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-23</dd>
         <dt>影響範圍</dt><dd>rpa-server（新路由、API 用戶端、稽核、遷移）、rpa-runner（調試的 <code>snapshot</code> 命令）、RPA 錄製端 App（讀頁面結構）；第二期另含 rpa-worker</dd>
-        <dt>相關</dt><dd><a href="0011-fastapi-jinja.html">ADR 0011</a>（API 與 OpenAPI）、<a href="0012-remote-workers.html">ADR 0012</a>（Worker API）、<a href="0014-desktop-apps.html">ADR 0014</a>（錄製端與互動子程序）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（版本與發布紀錄）；<a href="../design/agent-api.html">設計：對外 Agent API</a>；<a href="../develop/agent-api-guide.html">Agent 使用指南</a></dd>
+        <dt>相關</dt><dd><a href="0011-fastapi-jinja.html">ADR 0011</a>（API 與 OpenAPI）、<a href="0012-remote-workers.html">ADR 0012</a>（Worker API）、<a href="0014-desktop-apps.html">ADR 0014</a>（錄製端與互動子程序）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（版本與發布紀錄）；<a href="../design/agent-api.html">設計：對外 Agent API</a>；<a href="../develop/agent-api-guide.html">Agent 使用指南</a>；<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>、<a href="../develop/agent-test-report-guide.html">測試報告指南</a></dd>
       </dl>
     </section>
 
@@ -64,6 +64,7 @@
             <li>讀頁面結構要出新版錄製端 App；舊版 App 仍可調試，只是不能讀頁面結構。</li>
             <li>Agent 接外部模型時，打開「回傳頁面內容」等於讓內部頁面離開內網；這要由管理員逐個用戶端決定。</li>
             <li>M8 加入使用者與專案權限時，API 用戶端要併入同一套權限模型。</li>
+            <li>2026-10-24 使用者要求把專案與組合場景併入第一期：API 用戶端多了「可用的專案」與 <code>projects:*</code> 權限範圍，M8 時一起併入。</li>
           </ul>
         </div>
       </section>

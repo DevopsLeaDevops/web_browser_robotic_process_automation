@@ -29,13 +29,13 @@
   <div class="heading">
     <div>
       <h1>对外 Agent API</h1>
-      <p>第三方 Agent 系统只通过服务器的 <code>/agent-api/v1</code>：写场景与入参出参、指定录制端开浏览器逐步调试、交给 Worker 验证与运行，并取得运行过程。新的一层只做认证、权限与审核，业务规则与发布门槛沿用现有服务。</p>
+      <p>第三方 Agent 系统只通过服务器的 <code>/agent-api/v1</code>：写场景与入参出参、指定录制端开浏览器逐步调试、交给 Worker 验证与运行，在项目里组合场景并运行，并取得运行过程。新的一层只做认证、权限与审核，业务规则与发布门槛沿用现有服务。</p>
     </div>
     <span class="badge blue">第一期实现中</span>
   </div>
 
   <div class="stack">
-    <div class="notice">决策与没有选的方案见 <a href="../adr/0017-agent-api.html">ADR 0017</a>；给 Agent 的调用方式见 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。设计 2026-10-23 由用户确认，第一期同日实现（审阅中）；端点以服务器的 <code>/agent-api/v1/openapi.json</code> 为准，<code>/agent-api/v1/docs</code> 可以直接试。</div>
+    <div class="notice">决策与没有选的方案见 <a href="../adr/0017-agent-api.html">ADR 0017</a>；给 Agent 的调用方式见 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。设计 2026-10-23 由用户确认，第一期同日实现（审阅中）；2026-10-24 用户要求把项目与组合场景并入第一期，并给 Agent 写<a href="../develop/agent-test-plan-guide.html">测试方案指南</a>与<a href="../develop/agent-test-report-guide.html">测试报告指南</a>；端点以服务器的 <code>/agent-api/v1/openapi.json</code> 为准，<code>/agent-api/v1/docs</code> 可以直接试。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>范围</h2><span class="muted">Agent 从空白做到可以正式运行的场景</span></div>
@@ -48,12 +48,13 @@
             <tr><td>验证</td><td>把某个版本交给 Worker 跑一次验证；通过的记录是发布依据</td><td>Worker</td></tr>
             <tr><td>发布</td><td>有 <code>scenes:publish</code> 权限的 Agent 自己发布，否则由人在 Portal 发布</td><td>服务器</td></tr>
             <tr><td>运行</td><td>用入参正式运行已发布版本，可以指定 Worker</td><td>Worker</td></tr>
+            <tr><td>项目与组合场景</td><td>添加、修改项目；在项目里创建组合场景、存版本、检查、验证、发布、运行，整个项目一次排入；读组合场景运行的进度与每个节点</td><td>服务器、Worker</td></tr>
             <tr><td>运行过程</td><td>状态、目前阶段与步骤、每步结果与错误、出参、截图、报告、录像</td><td>服务器</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
-        <p><strong>不在范围内：</strong>录制（Playwright codegen 要有人操作，Agent 改写 DSL 或导入它产生的 Playwright 脚本）；远程画面实时传输（<a href="../adr/0014-desktop-apps.html">ADR 0014</a> 不做）；读 Secrets 的值、管理设备与邀请、领域的 git 同步、服务器设置；人工登录（仍由人在录制端完成）；完整的用户与项目权限（M8，届时并入 API 用户端）；MCP 转接（用户 2026-10-23 决定不做）。</p>
+        <p><strong>不在范围内：</strong>录制（Playwright codegen 要有人操作，Agent 改写 DSL 或导入它产生的 Playwright 脚本）；远程画面实时传输（<a href="../adr/0014-desktop-apps.html">ADR 0014</a> 不做）；读 Secrets 的值、管理设备与邀请、领域的 git 同步、服务器设置；人工登录（仍由人在录制端完成）；完整的用户权限（M8，届时并入 API 用户端）；删除项目与调整项目的顺序（只在管理后台）；MCP 转接（用户 2026-10-23 决定不做）。</p>
       </div>
     </section>
 
@@ -131,8 +132,9 @@
       <div class="panel-body">
         <p>每个 Agent 系统是一个「API 用户端」，在管理后台登记后拿到一把只显示一次的 API 密钥；服务器只存哈希，做法与设备权杖相同。请求带 <code>Authorization: Bearer &lt;API 密钥&gt;</code>。</p>
         <dl class="spec-list">
-          <dt>权限范围</dt><dd>下表的勾选；新用户端默认只有 <code>scenes:read</code> 与 <code>runs:read</code></dd>
+          <dt>权限范围</dt><dd>下表的勾选；新用户端默认只有 <code>scenes:read</code>、<code>runs:read</code> 与 <code>projects:read</code></dd>
           <dt>可用的领域</dt><dd>能读写哪些领域的场景；默认全部</dd>
+          <dt>可用的项目</dt><dd>能用哪些项目里的组合场景；默认全部。限定了项目的用户端不能添加项目；不属于任何项目的组合场景不给 Agent</dd>
           <dt>可用的录制端</dt><dd>能在哪几台录制端开调试浏览器；默认无。录制端本身也要在设备页打开「允许 Agent 调试」，可以设成「只允许无头」</dd>
           <dt>运行位置</dt><dd>local、remote、any，以及可以指定（<code>workerId</code>）的 Worker；默认跟随服务器的默认运行位置、任一台</dd>
           <dt>限额</dt><dd>同时进行的调试工作阶段、排队中的运行；建议默认 2 个、20 个，超过回 429</dd>
@@ -147,10 +149,13 @@
             <tr><td><code>scenes:read</code></td><td>读领域、场景、版本、角色的登录状态、Secrets 的名称</td></tr>
             <tr><td><code>scenes:write</code></td><td>创建场景、存新版本、改入参出参、导入 Playwright 脚本</td></tr>
             <tr><td><code>debug</code></td><td>在允许的录制端开调试工作阶段</td></tr>
-            <tr><td><code>runs:validate</code></td><td>验证任一版本</td></tr>
+            <tr><td><code>runs:validate</code></td><td>验证场景或组合场景的任一版本</td></tr>
             <tr><td><code>scenes:publish</code></td><td>发布验证通过、哈希相符的版本；默认不给</td></tr>
-            <tr><td><code>runs:execute</code></td><td>正式运行已发布版本、取消、重跑</td></tr>
-            <tr><td><code>runs:read</code></td><td>读运行状态与产物</td></tr>
+            <tr><td><code>runs:execute</code></td><td>正式运行已发布版本（场景与组合场景）、取消、重跑</td></tr>
+            <tr><td><code>runs:read</code></td><td>读运行与组合场景运行的状态与产物</td></tr>
+            <tr><td><code>projects:read</code></td><td>读项目、组合场景、场景库，检查组合场景的定义</td></tr>
+            <tr><td><code>projects:write</code></td><td>添加与修改项目；创建组合场景、存新版本、移到另一个项目</td></tr>
+            <tr><td><code>projects:publish</code></td><td>发布验证通过、依赖完整的组合场景版本；默认不给</td></tr>
           </tbody>
         </table>
       </div>
@@ -199,6 +204,13 @@
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>发布验证通过、哈希相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式运行已发布版本</td><td>runs:execute</td><td>沿用＋<code>workerId</code></td></tr>
             <tr><td><code>POST /runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消；同样的入参再跑一次</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>GET</code>、<code>POST /projects</code>，<code>GET</code>、<code>PATCH /projects/{id}</code></td><td>可用的项目与它的组合场景摘要；添加项目；改名称与说明</td><td>projects:read／write</td><td>沿用项目空间</td></tr>
+            <tr><td><code>GET /composites/library</code>、<code>POST /composites/check</code></td><td>可以放进组合场景的场景版本；不保存检查定义</td><td>projects:read</td><td>沿用</td></tr>
+            <tr><td><code>GET /composites</code>、<code>/composites/{code}</code></td><td>组合场景摘要；定义、问题、版本、验证记录、依赖、最近的运行</td><td>projects:read</td><td>沿用</td></tr>
+            <tr><td><code>POST /projects/{id}/composites</code>、<code>PUT</code>、<code>PATCH /composites/{code}</code></td><td>在项目里创建组合场景；存新版本（<code>baseRevision</code> 不是最新时 409）；移到另一个项目</td><td>projects:write</td><td>沿用</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/validate</code>、<code>/publish</code></td><td>验证；发布（门槛和 Portal 相同）</td><td>runs:validate；projects:publish</td><td>沿用</td></tr>
+            <tr><td><code>POST /composites/{code}/runs</code>、<code>POST /projects/{id}/runs</code></td><td>运行一个组合场景；把项目里的组合场景逐一排入，排不进去的列在 <code>skipped</code></td><td>runs:execute（批量验证用 runs:validate）</td><td>新（批量）</td></tr>
+            <tr><td><code>POST /composite-runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消自己触发的；从头或从停下的节点再运行</td><td>依运行的目的</td><td>沿用</td></tr>
           </tbody>
         </table>
       </div>
@@ -214,6 +226,7 @@
             <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>这个用户端看得到的运行（可用领域里的场景）；<code>mine</code> 只列自己触发的</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的状态、开始与结束时间、错误、步骤后的网址；第二期起运行中也实时更新</td><td>一、二</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截图、report.html、result.json、录像等产物（受「回传页面内容」控制）</td><td>一</td></tr>
+            <tr><td><code>GET /composite-runs/{id}</code>、<code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>组合场景的运行：状态、进度（共几个节点、完成几个、通过几个、目前的节点）、每个节点的状态与那次运行（再用 <code>/runs/{id}</code> 读细节）</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>事件长轮询：有新事件立刻回，没有就最多等 <code>wait</code> 秒</td><td>二</td></tr>
             <tr><td>Webhook</td><td>运行结束时 POST 到用户端登记的网址，带 HMAC 签章，失败会重试</td><td>二</td></tr>
           </tbody>
@@ -243,6 +256,7 @@
           <li>交给 Worker 验证；没通过就回到调试。</li>
           <li>发布（有权限的 Agent 自己发布，否则请人在 Portal 发布）。</li>
           <li>正式运行，读状态与出参。运行停在「需要登录」时，请人在录制端人工登录后调用 <code>rerun</code>。</li>
+          <li>需要组成流程时，在项目里创建组合场景（节点是发布过的场景版本），检查、验证、发布后运行，用 <code>/composite-runs</code> 读进度与每个节点的运行。拿来做测试时，测试方案与测试报告由 Agent 写给人验收，平台不读取它们。</li>
         </ol>
       </div>
     </section>
@@ -274,14 +288,14 @@
 
     <section class="panel" id="data">
       <div class="panel-header"><h2>数据库与兼容性</h2></div>
-      <div class="panel-body"><p>第一期的迁移是 <code>0015_agent_api</code>（项目空间的迁移先合并时改接在它后面），只用 SQLite 与 PostgreSQL 都能跑的通用类型（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。现有 <code>/api</code>、Client API、Worker API 不变；旧版 App 照常可用。</p></div>
+      <div class="panel-body"><p>第一期的迁移是 <code>0016_agent_api</code>（接在项目空间的 <code>0015_projects</code> 后面），只用 SQLite 与 PostgreSQL 都能跑的通用类型（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。现有 <code>/api</code>、Client API、Worker API 不变；旧版 App 照常可用。</p></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>表或字段</th><th>内容</th><th>期</th></tr></thead>
           <tbody>
-            <tr><td><code>api_clients</code></td><td>名称、密钥哈希、权限范围、可用领域与录制端、运行位置、限额、回传页面内容、到期、激活、最后使用</td><td>一</td></tr>
+            <tr><td><code>api_clients</code></td><td>名称、密钥哈希、权限范围、可用领域、项目与录制端、运行位置、限额、回传页面内容、到期、激活、最后使用</td><td>一</td></tr>
             <tr><td><code>api_audit</code></td><td>时间、用户端、动作、对象、结果码、摘要；只增不改</td><td>一</td></tr>
-            <tr><td><code>runs.client_id</code></td><td>触发这次运行的用户端</td><td>一</td></tr>
+            <tr><td><code>runs.client_id</code>、<code>workflow_runs.client_id</code></td><td>触发这次运行或组合场景运行的用户端（组合场景的节点也记下）</td><td>一</td></tr>
             <tr><td><code>recorders.allow_agent</code>、<code>agent_headless_only</code></td><td>允不允许 Agent 调试、是否只允许无头</td><td>一</td></tr>
             <tr><td><code>run_events</code></td><td>运行代号、序号、时间、种类、内容；跟着运行的保留规则清理</td><td>二</td></tr>
             <tr><td><code>runs.step_index</code>、<code>step_count</code></td><td>目前第几步、共几步</td><td>二</td></tr>
@@ -302,9 +316,9 @@
         <table class="wrap">
           <thead><tr><th>期</th><th>内容</th><th>要更新的 App</th><th>完成的标准</th></tr></thead>
           <tbody>
-            <tr><td>第一期</td><td>API 用户端、密钥、权限、审核；探索、场景与参数、调试（指定录制端、读页面结构）、验证、发布、运行、取消、重跑；运行状态、阶段、结束后的步骤结果与产物；OpenAPI 与 Agent 使用指南</td><td>录制端（读页面结构）</td><td>一支脚本从空白创建测试网站的场景：读页面结构写出步骤，在录制端调试、Worker 验证、发布、运行并拿到出参</td></tr>
+            <tr><td>第一期</td><td>API 用户端、密钥、权限、审核；探索、场景与参数、调试（指定录制端、读页面结构）、验证、发布、运行、取消、重跑；运行状态、阶段、结束后的步骤结果与产物；项目与组合场景（用户 2026-10-24 要求并入）；OpenAPI、Agent 使用指南、测试方案指南与测试报告指南</td><td>录制端（读页面结构）</td><td>一支脚本从空白创建测试网站的场景：读页面结构写出步骤，在录制端调试、Worker 验证、发布、运行并拿到出参；在项目里创建组合场景、验证、发布、运行并读到每个节点</td></tr>
             <tr><td>第二期</td><td>步骤级实时进度、事件长轮询、Webhook；录制端的 Agent 通知与停止</td><td>录制端、Worker</td><td>运行中每一步的事件几秒内读得到；旧版 Worker 仍可运行</td></tr>
-            <tr><td>第三期</td><td>项目（组合场景）的运行与进度；请人登录的流程</td><td>不用</td><td>第二期完成后再定</td></tr>
+            <tr><td>第三期</td><td>请人登录的流程（通知与等待）；组合场景运行的事件</td><td>不用</td><td>第二期完成后再定</td></tr>
           </tbody>
         </table>
       </div>
@@ -314,7 +328,7 @@
       <div class="panel-header"><h2>测试与验收</h2></div>
       <div class="panel-body">
         <ul class="points">
-          <li><strong>自动测试：</strong>密钥与权限（缺权限 403、禁用或到期 401、超过限额 429）、每个端点的转接、不抢人的调试工作阶段、幂等键、审核；录制端与 Worker 用现有的测试辅助模拟。</li>
+          <li><strong>自动测试：</strong>密钥与权限（缺权限 403、禁用或到期 401、超过限额 429）、每个端点的转接、不抢人的调试工作阶段、幂等键、审核；项目与组合场景从创建到运行、重跑、取消，可用项目与领域的限制；录制端与 Worker 用现有的测试辅助模拟。</li>
           <li><strong>浏览器测试：</strong>测试网站上的完整流程（创建 → 读页面结构 → 调试 → 验证 → 发布 → 运行 → 读结果），登记到 <code>tools/ci_roles.py</code>。</li>
           <li><strong>人工验收：</strong>Linux 服务器＋macOS 录制端＋Windows Worker，从另一台电脑用脚本走完整流程；关掉「允许 Agent 调试」后请求被拒。</li>
         </ul>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:696420c30d8dcb05">
+<meta name="translation-source" content="sha256:779ebc0236673529">
 <title>ADR 0017 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -25,7 +25,7 @@
       <dl class="spec-list">
         <dt>Date</dt><dd class="mono">2026-10-23</dd>
         <dt>Scope</dt><dd>rpa-server (new routes, API clients, audit, migration), rpa-runner (the debug <code>snapshot</code> command), the RPA Recorder app (reading page structure); phase 2 also touches rpa-worker</dd>
-        <dt>Related</dt><dd><a href="0011-fastapi-jinja.html">ADR 0011</a> (API and OpenAPI), <a href="0012-remote-workers.html">ADR 0012</a> (Worker API), <a href="0014-desktop-apps.html">ADR 0014</a> (recorder and interactive subprocesses), <a href="0015-domain-folders-and-git.html">ADR 0015</a> (revisions and publish history); <a href="../design/agent-api.html">Design: Agent API</a>; <a href="../develop/agent-api-guide.html">Agent API guide</a></dd>
+        <dt>Related</dt><dd><a href="0011-fastapi-jinja.html">ADR 0011</a> (API and OpenAPI), <a href="0012-remote-workers.html">ADR 0012</a> (Worker API), <a href="0014-desktop-apps.html">ADR 0014</a> (recorder and interactive subprocesses), <a href="0015-domain-folders-and-git.html">ADR 0015</a> (revisions and publish history); <a href="../design/agent-api.html">Design: Agent API</a>; <a href="../develop/agent-api-guide.html">Agent API guide</a>; <a href="../develop/agent-test-plan-guide.html">Test plan guide</a>, <a href="../develop/agent-test-report-guide.html">Test report guide</a></dd>
       </dl>
     </section>
 
@@ -65,6 +65,7 @@
             <li>Reading page structure needs a new Recorder app release. Older apps can still debug but cannot read page structure.</li>
             <li>When the agent uses an external model, turning on "Return page content" lets internal pages leave the intranet; administrators decide this per client.</li>
             <li>When M8 adds users and project permissions, API clients must join the same permission model.</li>
+            <li>On 2026-10-24 the user asked to bring projects and composite scenarios into phase 1: API clients gain "allowed projects" and the <code>projects:*</code> scopes, which join M8 as well.</li>
           </ul>
         </div>
       </section>

@@ -212,6 +212,16 @@ window.DOCS_NAV = {
           "name": {"zh-Hant": "Agent 使用指南", "zh-Hans": "Agent 使用指南", "en": "Agent API guide"}
         },
         {
+          "id": "agent-test-plan-guide",
+          "href": "develop/agent-test-plan-guide.html",
+          "name": {"zh-Hant": "測試方案指南", "zh-Hans": "测试方案指南", "en": "Test plan guide"}
+        },
+        {
+          "id": "agent-test-report-guide",
+          "href": "develop/agent-test-report-guide.html",
+          "name": {"zh-Hant": "測試報告指南", "zh-Hans": "测试报告指南", "en": "Test report guide"}
+        },
+        {
           "id": "operations",
           "href": "develop/operations.html",
           "name": {"zh-Hant": "部署與操作", "zh-Hans": "部署与操作", "en": "Deployment & operations"}

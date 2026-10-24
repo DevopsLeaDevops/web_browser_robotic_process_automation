@@ -28,13 +28,13 @@
   <div class="heading">
     <div>
       <h1>對外 Agent API</h1>
-      <p>第三方 Agent 系統只透過伺服器的 <code>/agent-api/v1</code>：寫場景與入參出參、指定錄製端開瀏覽器逐步調試、交給 Worker 驗證與執行，並取得運行過程。新的一層只做認證、權限與稽核，業務規則與發布門檻沿用現有服務。</p>
+      <p>第三方 Agent 系統只透過伺服器的 <code>/agent-api/v1</code>：寫場景與入參出參、指定錄製端開瀏覽器逐步調試、交給 Worker 驗證與執行，在專案裡組合場景並執行，並取得運行過程。新的一層只做認證、權限與稽核，業務規則與發布門檻沿用現有服務。</p>
     </div>
     <span class="badge blue">第一期實作中</span>
   </div>
 
   <div class="stack">
-    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作（審閱中）；端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
+    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作（審閱中）；2026-10-24 使用者要求把專案與組合場景併入第一期，並給 Agent 寫<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>與<a href="../develop/agent-test-report-guide.html">測試報告指南</a>；端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>範圍</h2><span class="muted">Agent 從空白做到可以正式執行的場景</span></div>
@@ -47,12 +47,13 @@
             <tr><td>驗證</td><td>把某個版本交給 Worker 跑一次驗證；通過的紀錄是發布依據</td><td>Worker</td></tr>
             <tr><td>發布</td><td>有 <code>scenes:publish</code> 權限的 Agent 自己發布，否則由人在 Portal 發布</td><td>伺服器</td></tr>
             <tr><td>執行</td><td>用入參正式執行已發布版本，可以指定 Worker</td><td>Worker</td></tr>
+            <tr><td>專案與組合場景</td><td>新增、修改專案；在專案裡建立組合場景、存版本、檢查、驗證、發布、執行，整個專案一次排入；讀組合場景執行的進度與每個節點</td><td>伺服器、Worker</td></tr>
             <tr><td>運行過程</td><td>狀態、目前階段與步驟、每步結果與錯誤、出參、截圖、報告、錄影</td><td>伺服器</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
-        <p><strong>不在範圍內：</strong>錄製（Playwright codegen 要有人操作，Agent 改寫 DSL 或匯入它產生的 Playwright 腳本）；遠端畫面串流（<a href="../adr/0014-desktop-apps.html">ADR 0014</a> 不做）；讀 Secrets 的值、管理裝置與邀請、領域的 git 同步、伺服器設定；人工登入（仍由人在錄製端完成）；完整的使用者與專案權限（M8，屆時併入 API 用戶端）；MCP 轉接（使用者 2026-10-23 決定不做）。</p>
+        <p><strong>不在範圍內：</strong>錄製（Playwright codegen 要有人操作，Agent 改寫 DSL 或匯入它產生的 Playwright 腳本）；遠端畫面串流（<a href="../adr/0014-desktop-apps.html">ADR 0014</a> 不做）；讀 Secrets 的值、管理裝置與邀請、領域的 git 同步、伺服器設定；人工登入（仍由人在錄製端完成）；完整的使用者權限（M8，屆時併入 API 用戶端）；刪除專案與調整專案的順序（只在管理後台）；MCP 轉接（使用者 2026-10-23 決定不做）。</p>
       </div>
     </section>
 
@@ -130,8 +131,9 @@
       <div class="panel-body">
         <p>每個 Agent 系統是一個「API 用戶端」，在管理後台登記後拿到一把只顯示一次的 API 金鑰；伺服器只存雜湊，做法與裝置權杖相同。請求帶 <code>Authorization: Bearer &lt;API 金鑰&gt;</code>。</p>
         <dl class="spec-list">
-          <dt>權限範圍</dt><dd>下表的勾選；新用戶端預設只有 <code>scenes:read</code> 與 <code>runs:read</code></dd>
+          <dt>權限範圍</dt><dd>下表的勾選；新用戶端預設只有 <code>scenes:read</code>、<code>runs:read</code> 與 <code>projects:read</code></dd>
           <dt>可用的領域</dt><dd>能讀寫哪些領域的場景；預設全部</dd>
+          <dt>可用的專案</dt><dd>能用哪些專案裡的組合場景；預設全部。限定了專案的用戶端不能新增專案；不屬於任何專案的組合場景不給 Agent</dd>
           <dt>可用的錄製端</dt><dd>能在哪幾台錄製端開調試瀏覽器；預設無。錄製端本身也要在裝置頁打開「允許 Agent 調試」，可以設成「只允許無頭」</dd>
           <dt>執行位置</dt><dd>local、remote、any，以及可以指定（<code>workerId</code>）的 Worker；預設跟隨伺服器的預設執行位置、任一台</dd>
           <dt>限額</dt><dd>同時進行的調試工作階段、排隊中的執行；建議預設 2 個、20 個，超過回 429</dd>
@@ -146,10 +148,13 @@
             <tr><td><code>scenes:read</code></td><td>讀領域、場景、版本、角色的登入狀態、Secrets 的名稱</td></tr>
             <tr><td><code>scenes:write</code></td><td>建立場景、存新版本、改入參出參、匯入 Playwright 腳本</td></tr>
             <tr><td><code>debug</code></td><td>在允許的錄製端開調試工作階段</td></tr>
-            <tr><td><code>runs:validate</code></td><td>驗證任一版本</td></tr>
+            <tr><td><code>runs:validate</code></td><td>驗證場景或組合場景的任一版本</td></tr>
             <tr><td><code>scenes:publish</code></td><td>發布驗證通過、雜湊相符的版本；預設不給</td></tr>
-            <tr><td><code>runs:execute</code></td><td>正式執行已發布版本、取消、重跑</td></tr>
-            <tr><td><code>runs:read</code></td><td>讀運行狀態與產物</td></tr>
+            <tr><td><code>runs:execute</code></td><td>正式執行已發布版本（場景與組合場景）、取消、重跑</td></tr>
+            <tr><td><code>runs:read</code></td><td>讀運行與組合場景執行的狀態與產物</td></tr>
+            <tr><td><code>projects:read</code></td><td>讀專案、組合場景、場景庫，檢查組合場景的定義</td></tr>
+            <tr><td><code>projects:write</code></td><td>新增與修改專案；建立組合場景、存新版本、移到另一個專案</td></tr>
+            <tr><td><code>projects:publish</code></td><td>發布驗證通過、依賴完整的組合場景版本；預設不給</td></tr>
           </tbody>
         </table>
       </div>
@@ -198,6 +203,13 @@
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>發布驗證通過、雜湊相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式執行已發布版本</td><td>runs:execute</td><td>沿用＋<code>workerId</code></td></tr>
             <tr><td><code>POST /runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消；同樣的入參再跑一次</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>GET</code>、<code>POST /projects</code>，<code>GET</code>、<code>PATCH /projects/{id}</code></td><td>可用的專案與它的組合場景摘要；新增專案；改名稱與說明</td><td>projects:read／write</td><td>沿用專案空間</td></tr>
+            <tr><td><code>GET /composites/library</code>、<code>POST /composites/check</code></td><td>可以放進組合場景的場景版本；不存檔檢查定義</td><td>projects:read</td><td>沿用</td></tr>
+            <tr><td><code>GET /composites</code>、<code>/composites/{code}</code></td><td>組合場景摘要；定義、問題、版本、驗證紀錄、依賴、最近的執行</td><td>projects:read</td><td>沿用</td></tr>
+            <tr><td><code>POST /projects/{id}/composites</code>、<code>PUT</code>、<code>PATCH /composites/{code}</code></td><td>在專案裡建立組合場景；存新版本（<code>baseRevision</code> 不是最新時 409）；移到另一個專案</td><td>projects:write</td><td>沿用</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/validate</code>、<code>/publish</code></td><td>驗證；發布（門檻和 Portal 相同）</td><td>runs:validate；projects:publish</td><td>沿用</td></tr>
+            <tr><td><code>POST /composites/{code}/runs</code>、<code>POST /projects/{id}/runs</code></td><td>執行一個組合場景；把專案裡的組合場景逐一排入，排不進去的列在 <code>skipped</code></td><td>runs:execute（批次驗證用 runs:validate）</td><td>新（批次）</td></tr>
+            <tr><td><code>POST /composite-runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消自己觸發的；從頭或從停下的節點再執行</td><td>依執行的目的</td><td>沿用</td></tr>
           </tbody>
         </table>
       </div>
@@ -213,6 +225,7 @@
             <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>這個用戶端看得到的運行（可用領域裡的場景）；<code>mine</code> 只列自己觸發的</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的狀態、開始與結束時間、錯誤、步驟後的網址；第二期起執行中也即時更新</td><td>一、二</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截圖、report.html、result.json、錄影等產物（受「回傳頁面內容」控制）</td><td>一</td></tr>
+            <tr><td><code>GET /composite-runs/{id}</code>、<code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>組合場景的執行：狀態、進度（共幾個節點、完成幾個、通過幾個、目前的節點）、每個節點的狀態與那次運行（再用 <code>/runs/{id}</code> 讀細節）</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>事件長輪詢：有新事件立刻回，沒有就最多等 <code>wait</code> 秒</td><td>二</td></tr>
             <tr><td>Webhook</td><td>運行結束時 POST 到用戶端登記的網址，帶 HMAC 簽章，失敗會重試</td><td>二</td></tr>
           </tbody>
@@ -242,6 +255,7 @@
           <li>交給 Worker 驗證；沒通過就回到調試。</li>
           <li>發布（有權限的 Agent 自己發布，否則請人在 Portal 發布）。</li>
           <li>正式執行，讀狀態與出參。執行停在「需要登入」時，請人在錄製端人工登入後呼叫 <code>rerun</code>。</li>
+          <li>需要組成流程時，在專案裡建立組合場景（節點是發布過的場景版本），檢查、驗證、發布後執行，用 <code>/composite-runs</code> 讀進度與每個節點的運行。拿來做測試時，測試方案與測試報告由 Agent 寫給人驗收，平台不讀取它們。</li>
         </ol>
       </div>
     </section>
@@ -273,14 +287,14 @@
 
     <section class="panel" id="data">
       <div class="panel-header"><h2>資料庫與相容性</h2></div>
-      <div class="panel-body"><p>第一期的遷移是 <code>0015_agent_api</code>（專案空間的遷移先合併時改接在它後面），只用 SQLite 與 PostgreSQL 都能跑的通用型別（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。現有 <code>/api</code>、Client API、Worker API 不變；舊版 App 照常可用。</p></div>
+      <div class="panel-body"><p>第一期的遷移是 <code>0016_agent_api</code>（接在專案空間的 <code>0015_projects</code> 後面），只用 SQLite 與 PostgreSQL 都能跑的通用型別（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。現有 <code>/api</code>、Client API、Worker API 不變；舊版 App 照常可用。</p></div>
       <div class="table-scroll">
         <table class="wrap">
           <thead><tr><th>表或欄位</th><th>內容</th><th>期</th></tr></thead>
           <tbody>
-            <tr><td><code>api_clients</code></td><td>名稱、金鑰雜湊、權限範圍、可用領域與錄製端、執行位置、限額、回傳頁面內容、到期、啟用、最後使用</td><td>一</td></tr>
+            <tr><td><code>api_clients</code></td><td>名稱、金鑰雜湊、權限範圍、可用領域、專案與錄製端、執行位置、限額、回傳頁面內容、到期、啟用、最後使用</td><td>一</td></tr>
             <tr><td><code>api_audit</code></td><td>時間、用戶端、動作、對象、結果碼、摘要；只增不改</td><td>一</td></tr>
-            <tr><td><code>runs.client_id</code></td><td>觸發這次運行的用戶端</td><td>一</td></tr>
+            <tr><td><code>runs.client_id</code>、<code>workflow_runs.client_id</code></td><td>觸發這次運行或組合場景執行的用戶端（組合場景的節點也記下）</td><td>一</td></tr>
             <tr><td><code>recorders.allow_agent</code>、<code>agent_headless_only</code></td><td>允不允許 Agent 調試、是否只允許無頭</td><td>一</td></tr>
             <tr><td><code>run_events</code></td><td>運行代號、序號、時間、種類、內容；跟著運行的保留規則清理</td><td>二</td></tr>
             <tr><td><code>runs.step_index</code>、<code>step_count</code></td><td>目前第幾步、共幾步</td><td>二</td></tr>
@@ -301,9 +315,9 @@
         <table class="wrap">
           <thead><tr><th>期</th><th>內容</th><th>要更新的 App</th><th>完成的標準</th></tr></thead>
           <tbody>
-            <tr><td>第一期</td><td>API 用戶端、金鑰、權限、稽核；探索、場景與參數、調試（指定錄製端、讀頁面結構）、驗證、發布、執行、取消、重跑；運行狀態、階段、結束後的步驟結果與產物；OpenAPI 與 Agent 使用指南</td><td>錄製端（讀頁面結構）</td><td>一支腳本從空白建立測試網站的場景：讀頁面結構寫出步驟，在錄製端調試、Worker 驗證、發布、執行並拿到出參</td></tr>
+            <tr><td>第一期</td><td>API 用戶端、金鑰、權限、稽核；探索、場景與參數、調試（指定錄製端、讀頁面結構）、驗證、發布、執行、取消、重跑；運行狀態、階段、結束後的步驟結果與產物；專案與組合場景（使用者 2026-10-24 要求併入）；OpenAPI、Agent 使用指南、測試方案指南與測試報告指南</td><td>錄製端（讀頁面結構）</td><td>一支腳本從空白建立測試網站的場景：讀頁面結構寫出步驟，在錄製端調試、Worker 驗證、發布、執行並拿到出參；在專案裡建立組合場景、驗證、發布、執行並讀到每個節點</td></tr>
             <tr><td>第二期</td><td>步驟級即時進度、事件長輪詢、Webhook；錄製端的 Agent 通知與停止</td><td>錄製端、Worker</td><td>執行中每一步的事件幾秒內讀得到；舊版 Worker 仍可執行</td></tr>
-            <tr><td>第三期</td><td>專案（組合場景）的執行與進度；請人登入的流程</td><td>不用</td><td>第二期完成後再定</td></tr>
+            <tr><td>第三期</td><td>請人登入的流程（通知與等待）；組合場景執行的事件</td><td>不用</td><td>第二期完成後再定</td></tr>
           </tbody>
         </table>
       </div>
@@ -313,7 +327,7 @@
       <div class="panel-header"><h2>測試與驗收</h2></div>
       <div class="panel-body">
         <ul class="points">
-          <li><strong>自動測試：</strong>金鑰與權限（缺權限 403、停用或到期 401、超過限額 429）、每個端點的轉接、不搶人的調試工作階段、冪等鍵、稽核；錄製端與 Worker 用現有的測試輔助模擬。</li>
+          <li><strong>自動測試：</strong>金鑰與權限（缺權限 403、停用或到期 401、超過限額 429）、每個端點的轉接、不搶人的調試工作階段、冪等鍵、稽核；專案與組合場景從建立到執行、重跑、取消，可用專案與領域的限制；錄製端與 Worker 用現有的測試輔助模擬。</li>
           <li><strong>瀏覽器測試：</strong>測試網站上的完整流程（建立 → 讀頁面結構 → 調試 → 驗證 → 發布 → 執行 → 讀結果），登記到 <code>tools/ci_roles.py</code>。</li>
           <li><strong>人工驗收：</strong>Linux 伺服器＋macOS 錄製端＋Windows Worker，從另一台電腦用腳本走完整流程；關掉「允許 Agent 調試」後請求被拒。</li>
         </ul>
