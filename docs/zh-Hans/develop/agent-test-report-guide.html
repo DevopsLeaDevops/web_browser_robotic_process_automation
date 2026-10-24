@@ -1,0 +1,327 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/agent-test-report-guide.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>测试报告指南 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="agent-test-report-guide" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>测试报告指南</h1>
+      <p>写给接入平台的第三方 Agent：依签核的测试方案运行项目里的组合场景、跟踪进度、处理失败与重跑，最后写出交给人验收的测试报告（单一 HTML 档，另附给 Agent 自己用的 JSON），并能从报告回溯到每一步的细节。</p>
+    </div>
+    <span class="badge blue">第一期实现中</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice"><strong>测试报告是 Agent 的交付物，给人验收；平台不读取、不上传、不保存它。</strong>平台保存的是每次运行的记录（状态、步骤、断言、截图），报告用运行代号与 Portal 路径指向它们。测试方案与 TestCase 的写法见<a href="agent-test-plan-guide.html">测试方案指南</a>，API 的基本约定见 <a href="agent-api-guide.html">Agent 使用指南</a>。本指南 2026-10-24 依用户的要求撰写（审阅中）。</div>
+
+    <section class="panel" id="before">
+      <div class="panel-header"><h2>运行前检查</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>方案已签核：</strong>测试方案的状态是「已签核」；还没签核时先问人，不要直接正式运行。</li>
+          <li><strong>权限：</strong><code>GET /meta</code> 的 <code>scopes</code> 有 <code>projects:read</code>、<code>runs:read</code>，以及要用的 <code>runs:validate</code> 或 <code>runs:execute</code>（自己发布组合场景要 <code>projects:publish</code>）；记下 <code>limits.queuedRuns</code>。</li>
+          <li><strong>组合场景与方案一致：</strong><code>GET /projects/{id}</code> 列出的每个 TestCase 的组合场景 <code>problems</code> 是 0；要验证的版本是方案写的版本，正式运行时 <code>publishedRevision</code> 是方案写的版本。不一致时停下，请人决定要不要更新方案。</li>
+          <li><strong>角色已登录：</strong><code>GET /roles</code> 里方案用到的角色是 <code>logged_in</code>；<code>needs_login</code> 或 <code>none</code> 时请人在录制端登录。</li>
+          <li><strong>Worker 在线：</strong><code>GET /workers</code> 至少一台在线；方案指定了 Worker 时是那一台。</li>
+          <li><strong>记下环境：</strong>开始时间、服务器代号与版本（<code>/meta</code>），写进报告。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>运行</h2><span class="muted">验证、发布、正式运行</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>目的</th><th>调用</th><th>跑哪个版本</th><th>权限</th></tr></thead>
+          <tbody>
+            <tr><td>验证（新写或刚改的 TestCase）</td><td><code>POST /composites/{code}/revisions/{n}/validate</code>；整批用 <code>POST /projects/{id}/runs</code>，<code>"purpose": "validation"</code></td><td>指定的版本；整批时是每个组合场景的最新版本</td><td><code>runs:validate</code></td></tr>
+            <tr><td>发布</td><td><code>POST /composites/{code}/revisions/{n}/publish</code></td><td>验证通过、依赖完整的版本</td><td><code>projects:publish</code>；没有时请人在 Portal 发布</td></tr>
+            <tr><td>正式运行（回归）</td><td><code>POST /composites/{code}/runs</code>；整批用 <code>POST /projects/{id}/runs</code>，<code>"purpose": "execution"</code></td><td>发布的版本</td><td><code>runs:execute</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p>一份报告对应<strong>一轮</strong>运行。一轮用一个编号当幂等键，例如 <code>TR-ORDER-2026-10-R1</code>：</p>
+<pre class="source">POST /agent-api/v1/projects/order-regression/runs
+{"purpose": "execution",
+ "composites": ["tc-order-001", "tc-order-002", "tc-order-003", "tc-order-004"],
+ "idempotencyKey": "TR-ORDER-2026-10-R1"}
+→ 202 {"projectId": "order-regression", "purpose": "execution",
+       "runs": [{"id": "tc-order-001-20261024-080512-a1b2c3", "workflowCode": "tc-order-001",
+                 "workflowVersion": 2, "status": "running",
+                 "progress": {"total": 2, "done": 0, "passed": 0, "current": "create"},
+                 "portalPath": "/playground/runs/tc-order-001-20261024-080512-a1b2c3", …}, …],
+       "skipped": [{"code": "tc-order-004",
+                    "error": {"code": "workflow_unpublished", "message": "…"}}]}</pre>
+        <ul class="points">
+          <li><strong>只跑方案里的 TestCase：</strong>用 <code>composites</code> 列出代号；不给时是项目里全部没有封存的组合场景。</li>
+          <li><strong>没排进去的在 <code>skipped</code>：</strong>依 <code>error.code</code> 处理：<code>workflow_unpublished</code> 先验证、发布；<code>limit_reached</code> 等前面的结束；<code>composite_scenes_forbidden</code>、<code>target_forbidden</code> 请人调整权限。</li>
+          <li><strong>重送同一个请求：</strong>超时、断线或处理完 <code>skipped</code> 之后，用同一个幂等键再送一次：已经开始的回传原本那次运行，没排进去的这次才排入，不会重复运行。</li>
+          <li><strong>限额：</strong>每个运行中的组合场景占用正在跑的那个节点的名额（<code>queuedRuns</code>）。TestCase 多时分批送，或让超过的留在 <code>skipped</code> 稍后再送。</li>
+          <li><strong>记下每个运行代号：</strong>它是报告回溯的起点。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="track">
+      <div class="panel-header"><h2>跟踪进度</h2></div>
+      <div class="panel-body">
+<pre class="source">GET /agent-api/v1/composite-runs/tc-order-001-20261024-080512-a1b2c3
+→ {"id": "tc-order-001-20261024-080512-a1b2c3", "workflowCode": "tc-order-001", "workflowVersion": 2,
+   "purpose": "execution", "status": "running", "finished": false,
+   "progress": {"total": 3, "done": 1, "passed": 1, "current": "query"},
+   "nodes": [
+     {"id": "create", "sceneId": "order-create", "revision": 6, "status": "passed",
+      "run": {"id": "order-create-20261024-080513-d4e5f6", "status": "passed", "stage": "output",
+              "durationSeconds": 12.4, "portalPath": "/runs/order-create-20261024-080513-d4e5f6", …}},
+     {"id": "query", "sceneId": "order-query", "revision": 3, "status": "running",
+      "run": {"id": "order-query-20261024-080526-0a9b8c", "status": "running", "stage": "automation", …}},
+     {"id": "close", "status": "pending", "run": null, …}],
+   "portalPath": "/playground/runs/tc-order-001-20261024-080512-a1b2c3", …}
+
+GET /agent-api/v1/composite-runs?project=order-regression&amp;mine=true&amp;status=running</pre>
+        <ul class="points">
+          <li><strong>频率：</strong>运行中的每 3～5 秒查一次；同时有好几个时用列表一次查，不要每个都高频查。长时间没有变化时逐步拉长到 30 秒。</li>
+          <li><strong>结束：</strong><code>finished</code> 是 <code>true</code> 才算结束；<code>status</code> 是 <code>passed</code>、<code>failed</code>、<code>timed_out</code>、<code>cancelled</code> 或 <code>needs_login</code>。<code>failedNode</code> 是停下的节点；<code>resumable</code> 表示可以从那里继续。</li>
+          <li><strong>节点的状态：</strong><code>pending</code>（还没轮到）、<code>queued</code>、<code>running</code>、<code>passed</code>、<code>reused</code>（接着运行时沿用上一次通过的结果）、<code>failed</code>、<code>timed_out</code>、<code>cancelled</code>、<code>needs_login</code>、<code>skipped</code>（前面停下而略过）。节点的 <code>error</code> 是没有开始的原因，例如绑定的值不符合入参规则。</li>
+          <li><strong>向人回报进度：</strong>每完成一个 TestCase 或每 5 分钟一次，例如「12 个 TestCase：完成 5（通过 4、失败 1），运行中 1，排队 6」。</li>
+          <li><strong>卡住：</strong>节点一直是 <code>queued</code> 时看 <code>GET /workers</code>：Worker 不在线或忙碌时告诉人，不要自己取消。要取消用 <code>POST /composite-runs/{id}/cancel</code>，只能取消自己触发的；目前的节点停止，后面的不运行。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="failures">
+      <div class="panel-header"><h2>失败、阻塞与重跑</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>状态</th><th>意思</th><th>Agent 该做什么</th></tr></thead>
+          <tbody>
+            <tr><td><code>needs_login</code></td><td>某个节点的登录角色要重新登录</td><td>告诉人角色名称，请人在录制端登录；完成后 <code>POST /composite-runs/{id}/rerun {"resume": true}</code>，前面通过的节点沿用</td></tr>
+            <tr><td><code>failed</code></td><td>节点的步骤或断言没有通过</td><td>先取证（下一节）、判断原因，不要为了通过而直接重跑</td></tr>
+            <tr><td><code>timed_out</code></td><td>节点超时</td><td>取证；原因是环境慢时可以重跑一次并记录</td></tr>
+            <tr><td><code>cancelled</code></td><td>被取消</td><td>记录谁取消、为什么</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>原因是环境</strong>（Worker 脱机、网络、目标系统暂时错误）：可以重跑一次；两次的结果与原因都写进报告。</li>
+          <li><strong>原因是产品缺陷：</strong>不要重跑到通过为止；记为失败并写缺陷。</li>
+          <li><strong>原因是场景或组合场景写错</strong>（定位器、断言、数据）：修正后存新版本、重新验证；报告记为「测试脚本问题」，TestCase 的结果以修正后的运行为准，并在「偏离方案」说明版本改了。</li>
+          <li><strong>从头或接着：</strong><code>"resume": true</code> 只在前面节点的结果仍然有效时用（例如人工登录之后）；修正的节点在停下的节点之前时，用 <code>"resume": false</code> 从头再跑。</li>
+          <li><strong>重跑带新的幂等键</strong>，例如 <code>TR-ORDER-2026-10-R1/tc-order-003/2</code>。还在运行时回 409 <code>workflow_run_active</code>；没有可以接着的节点时回 409 <code>workflow_not_resumable</code>，改用从头运行。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="trace">
+      <div class="panel-header"><h2>回溯详细过程</h2><span class="muted">从 TestCase 一路查到每一步</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>层</th><th>从哪里读</th><th>报告要记什么</th></tr></thead>
+          <tbody>
+            <tr><td>TestCase</td><td>测试方案</td><td>编号、优先级、组合场景代号与版本</td></tr>
+            <tr><td>组合场景的运行</td><td><code>GET /composite-runs/{id}</code></td><td>运行代号、目的、状态、创建与结束时间、停下的节点、<code>portalPath</code></td></tr>
+            <tr><td>节点</td><td>同上的 <code>nodes</code></td><td>节点代号、场景与版本、状态、入参的来源（<code>sources</code>）、那次运行的代号</td></tr>
+            <tr><td>运行</td><td><code>GET /runs/{id}</code></td><td>状态、停在哪个阶段、错误、入参、出参、耗时、哪台 Worker</td></tr>
+            <tr><td>阶段</td><td><code>result.stages</code></td><td>入参、登录、自动化、断言、出参各自的状态、消息、耗时</td></tr>
+            <tr><td>步骤</td><td><code>GET /runs/{id}/steps</code></td><td>步骤代号、动作、状态、耗时、错误、步骤后的网址、产物</td></tr>
+            <tr><td>断言</td><td><code>result.checks</code></td><td>名称、比较方式、实际值、预期值、是否通过</td></tr>
+            <tr><td>产物</td><td><code>files</code>、<code>GET /runs/{id}/files/{path}</code></td><td>截图、<code>report.html</code>、录像；<code>result.json</code> 不需要「回传页面内容」，其他都要</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+<pre class="source">GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f
+→ {"status": "failed", "stage": "verify", "error": "…", "input": {"quantity": "100"}, "output": null,
+   "durationSeconds": 9.8, "workerId": "win-01", "portalPath": "/runs/order-submit-raw-20261024-081531-4d5e6f",
+   "result": {"stages": [{"name": "verify", "status": "failed", "message": "…", "durationMs": 120}, …],
+              "checks": [{"name": "显示数量上限的错误", "comparison": "equals",
+                          "actual": "订单已创建", "expected": "数量不能超过 99", "passed": false}], …},
+   "files": ["result.json", "screenshot.png", …],
+   "reportUrl": "/agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/report.html"}
+
+GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/steps
+GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.png</pre>
+        <ul class="points">
+          <li><strong>失败与阻塞的 TestCase：</strong>整条链都存成证据档，放在 <code>evidence/&lt;TestCase 编号&gt;/&lt;运行代号&gt;/</code>：组合场景运行、每个节点的运行、步骤、<code>result.json</code>，有权限时加截图。</li>
+          <li><strong>通过的 TestCase：</strong>记运行代号、耗时、关键的出参即可；人要看细节时用 Portal 路径。</li>
+          <li><strong>Portal 路径：</strong><code>portalPath</code> 只是路径。人在服务器本机的 Portal（<code>http://127.0.0.1:8080</code>）或录制端 App 里打开；不要猜服务器的网址。</li>
+          <li><strong>敏感数据：</strong>Secret 的值平台一律显示为 <code>***</code>，不要设法还原。截图与出参可能含业务数据，只放在交给人的报告文件夹，不另外转传。</li>
+          <li><strong>时间：</strong>API 的时间是 UTC；报告用 UTC，知道验收者的时区时另外标当地时间。服务器可能依保留设置清理旧的运行产物，结束后尽快下载证据。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="results">
+      <div class="panel-header"><h2>TestCase 的结果</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>结果</th><th>什么时候</th><th>JSON</th><th>XMind 标记</th></tr></thead>
+          <tbody>
+            <tr><td>通过</td><td>组合场景的运行是 <code>passed</code>（接着运行时含沿用的节点）</td><td><code>passed</code></td><td><code>symbol-right</code></td></tr>
+            <tr><td>失败</td><td><code>failed</code> 或 <code>timed_out</code>，原因是产品或测试脚本</td><td><code>failed</code></td><td><code>symbol-wrong</code></td></tr>
+            <tr><td>阻塞</td><td><code>needs_login</code> 没等到登录；原因是环境或平台、重跑后仍然不行；被取消</td><td><code>blocked</code></td><td><code>symbol-pause</code></td></tr>
+            <tr><td>跳过</td><td>人决定这一轮不跑</td><td><code>skipped</code></td><td><code>symbol-minus</code></td></tr>
+            <tr><td>未运行</td><td>没能开始：<code>skipped</code> 清单里的错误、权限不足、没有发布的版本</td><td><code>not_run</code></td><td>不加</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body"><p>一个 TestCase 在一轮里可能跑了好几次：结果以最后一次有效的运行为准，每一次都列在报告里。没跑的不能算通过。</p></div>
+    </section>
+
+    <section class="panel" id="report">
+      <div class="panel-header"><h2>测试报告的格式</h2></div>
+      <div class="panel-body">
+        <p>一轮一个文件夹，名称用报告编号，例如 <code>TR-ORDER-2026-10-R1/</code>：</p>
+<pre class="source">TR-ORDER-2026-10-R1/
+  test-report.html      测试报告本身，给人用浏览器打开、验收
+  test-report.json      同样内容的结构化数据，给 Agent 用
+  test-report.xmind     （可选）测试方案的 XMind 加上结果标记
+  evidence/             失败与阻塞的 TestCase 的完整证据，HTML 用相对路径连过来
+    TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/
+      composite-run.json
+      reject/run.json  reject/steps.json  reject/result.json  reject/screenshot.png</pre>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>test-report.html 的章节</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>文档信息</td><td>报告编号、对应的方案编号与版本、轮次、状态（草稿、待验收、已验收）、产生的 Agent 与时间、服务器代号与版本、运行期间</td></tr>
+            <tr><td>1. 结论摘要</td><td>建议（通过、有条件通过、不通过），逐条对照方案的退出准则；通过率；重大缺陷与阻塞；一段话写给验收者</td></tr>
+            <tr><td>2. 运行范围</td><td>方案有几个 TestCase、运行了几个、没运行的与原因</td></tr>
+            <tr><td>3. 结果统计</td><td>依结果、优先级、模块；总耗时</td></tr>
+            <tr><td>4. TestCase 明细</td><td>编号、标题、优先级、结果、组合场景与版本、运行代号、运行次数、耗时、Portal 路径</td></tr>
+            <tr><td>5. 缺陷与问题</td><td>编号、严重程度（严重、一般、轻微）、类别（产品缺陷、测试脚本问题、环境问题、测试数据问题、平台问题）、TestCase、节点与步骤、预期与实际、证据档、建议</td></tr>
+            <tr><td>6. 运行时间线</td><td>开始、重跑、请人登录、取消、修正版本等事件，含时间与谁做的</td></tr>
+            <tr><td>7. 详细回溯</td><td>每个失败与阻塞的 TestCase：组合场景运行 → 节点 → 运行 → 阶段 → 步骤 → 断言 → 证据档</td></tr>
+            <tr><td>8. 偏离方案</td><td>改了哪些场景或组合场景的版本、增减了哪些 TestCase、为什么</td></tr>
+            <tr><td>9. 风险与遗留</td><td>没测到的、只在特定环境验证过的、建议下一轮补的</td></tr>
+            <tr><td>10. 人工验收</td><td>建议抽查的运行（全部失败与阻塞的、每个 P1、其他的抽一部分）及 Portal 路径；签核栏（验收者、日期、结论、意见）留空给人填</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <h3>HTML 的写法</h3>
+        <ul class="points">
+          <li><strong>单一文件、可以脱机打开：</strong>样式写在 <code>&lt;style&gt;</code> 里，不加载外部的字体、脚本或 CDN（验收的电脑可能在内网）；不需要 JavaScript 也能完整阅读，长的回溯用 <code>&lt;details&gt;</code> 折叠。</li>
+          <li><strong>整个文件夹一起交：</strong>截图与证据用相对路径连到 <code>evidence/</code>，例如 <code>&lt;img src="../../develop/evidence/…/screenshot.png"&gt;</code>；人解压后直接打开 <code>test-report.html</code>。</li>
+          <li><strong>互相链接：</strong>每个 TestCase 一个锚点（<code>id="TC-ORDER-004"</code>），结论、明细、缺陷与回溯之间用 <code>#</code> 链接。</li>
+          <li><strong>跳脱：</strong>从 API 拿到的文字（错误消息、实际值、页面上的字）一律做 HTML 跳脱再放进页面；不要把运行的 <code>report.html</code> 或页面源代码整段嵌进来，要看时连到证据档。</li>
+          <li><strong>结果要有文字：</strong>通过、失败、阻塞要写出来，不能只靠颜色；打印时也看得清楚。</li>
+          <li><strong>Portal：</strong><code>portalPath</code> 写成文字；人给过 Portal 的网址时再做成链接。</li>
+        </ul>
+        <p>最小的骨架（章节照上表，内容换成实际的数据）：</p>
+<pre class="source">&lt;!doctype html&gt;
+&lt;html lang="zh-Hant"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;title&gt;TR-ORDER-2026-10-R1 测试报告&lt;/title&gt;
+&lt;style&gt;
+  body { font: 14px/1.6 system-ui, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccd3dd; padding: 4px 8px; text-align: left; vertical-align: top; }
+  .passed { color: #146c2e; } .failed { color: #b3261e; } .blocked { color: #8a5300; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;TR-ORDER-2026-10-R1 测试报告&lt;/h1&gt;
+&lt;p&gt;方案 TP-ORDER-2026-10 v2 · 状态：待验收 · ERP 助理 2026-10-24T09:10Z 产生 · 服务器 srv-linux-01（0.6.0）&lt;/p&gt;
+&lt;h2 id="summary"&gt;1. 结论摘要&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;建议：有条件通过。&lt;/strong&gt;12 个 TestCase：通过 10、失败 1、阻塞 1。…&lt;/p&gt;
+&lt;h2 id="cases"&gt;4. TestCase 明细&lt;/h2&gt;
+&lt;table&gt;
+  &lt;tr&gt;&lt;th&gt;编号&lt;/th&gt;&lt;th&gt;标题&lt;/th&gt;&lt;th&gt;优先级&lt;/th&gt;&lt;th&gt;结果&lt;/th&gt;&lt;th&gt;组合场景&lt;/th&gt;&lt;th&gt;运行代号&lt;/th&gt;&lt;th&gt;Portal 路径&lt;/th&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;td&gt;&lt;a href="#TC-ORDER-004"&gt;TC-ORDER-004&lt;/a&gt;&lt;/td&gt;&lt;td&gt;数量 100 被拒绝&lt;/td&gt;&lt;td&gt;P2&lt;/td&gt;
+      &lt;td class="failed"&gt;失败&lt;/td&gt;&lt;td&gt;tc-order-004 v1&lt;/td&gt;&lt;td&gt;tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;
+      &lt;td&gt;/playground/runs/tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;h2 id="trace"&gt;7. 详细回溯&lt;/h2&gt;
+&lt;section id="TC-ORDER-004"&gt;
+  &lt;h3&gt;TC-ORDER-004 数量 100 被拒绝：失败&lt;/h3&gt;
+  &lt;details open&gt;
+    &lt;summary&gt;节点 reject（order-submit-raw v2）· 运行 order-submit-raw-20261024-081531-4d5e6f · 失败，停在断言&lt;/summary&gt;
+    &lt;table&gt;
+      &lt;tr&gt;&lt;th&gt;步骤&lt;/th&gt;&lt;th&gt;动作&lt;/th&gt;&lt;th&gt;结果&lt;/th&gt;&lt;th&gt;耗时&lt;/th&gt;&lt;th&gt;错误&lt;/th&gt;&lt;/tr&gt;
+      &lt;tr&gt;&lt;td&gt;submit&lt;/td&gt;&lt;td&gt;click&lt;/td&gt;&lt;td class="passed"&gt;通过&lt;/td&gt;&lt;td&gt;0.8 秒&lt;/td&gt;&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;/table&gt;
+    &lt;p&gt;断言「显示数量上限的错误」：预期「数量不能超过 99」，实际「订单已创建」。&lt;/p&gt;
+    &lt;img src="../../develop/evidence/TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/reject/screenshot.png"
+         alt="reject 失败时的画面" width="640"&gt;
+  &lt;/details&gt;
+&lt;/section&gt;
+&lt;h2 id="acceptance"&gt;10. 人工验收&lt;/h2&gt;
+&lt;p&gt;验收者：＿＿　日期：＿＿　结论（通过／有条件通过／不通过）：＿＿　意见：＿＿&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+        <p><code>test-report.json</code> 的建议结构：</p>
+<pre class="source">{
+  "format": "rpa-agent-test-report", "formatVersion": 1,
+  "reportId": "TR-ORDER-2026-10-R1", "status": "pending_acceptance",
+  "plan": {"planId": "TP-ORDER-2026-10", "version": 2},
+  "generatedAt": "2026-10-24T09:10:00Z",
+  "generatedBy": {"agent": "ERP 助理", "clientId": "agent-erp"},
+  "server": {"id": "srv-linux-01", "version": "0.6.0"},
+  "round": {"idempotencyKey": "TR-ORDER-2026-10-R1", "purpose": "execution",
+            "startedAt": "2026-10-24T08:05:12Z", "finishedAt": "2026-10-24T09:02:40Z"},
+  "conclusion": {"recommendation": "conditional", "summary": "…",
+                 "exitCriteria": [{"criterion": "P1 全部通过", "met": true}]},
+  "totals": {"planned": 12, "passed": 10, "failed": 1, "blocked": 1, "skipped": 0, "notRun": 0},
+  "testCases": [{
+    "id": "TC-ORDER-004", "priority": 2, "result": "failed",
+    "composite": {"code": "tc-order-004", "revision": 1},
+    "attempts": [{"runId": "tc-order-004-20261024-081530-1a2b3c", "purpose": "execution",
+                  "status": "failed", "failedNode": "reject",
+                  "createdAt": "2026-10-24T08:15:30Z", "finishedAt": "2026-10-24T08:15:44Z",
+                  "portalPath": "/playground/runs/tc-order-004-20261024-081530-1a2b3c"}],
+    "defects": ["BUG-1"]
+  }],
+  "defects": [{"id": "BUG-1", "severity": "major", "category": "product", "testCase": "TC-ORDER-004",
+               "node": "reject", "runId": "order-submit-raw-20261024-081531-4d5e6f", "step": "submit",
+               "expected": "显示「数量不能超过 99」", "actual": "创建了订单 SO-10240",
+               "evidence": ["evidence/TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/reject/screenshot.png"]}],
+  "timeline": [{"at": "2026-10-24T08:05:12Z", "event": "round_started", "detail": "12 个 TestCase"}],
+  "deviations": []
+}</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="xmind">
+      <div class="panel-header"><h2>结果的 XMind</h2></div>
+      <div class="panel-body">
+        <p>拷贝测试方案的 XMind（写法见<a href="agent-test-plan-guide.html#xmind">测试方案指南</a>），在每个 TestCase 主题上：</p>
+        <ul class="points">
+          <li>加上结果标记：<code>symbol-right</code>、<code>symbol-wrong</code>、<code>symbol-pause</code>、<code>symbol-minus</code>（见上方的表），未运行的不加。</li>
+          <li>加一个标签「结果：通过」之类的文字：标记只是方便看，不认得标记的工具以标签为准。</li>
+          <li>备注后面加上运行代号、Portal 路径；失败的加缺陷编号。</li>
+          <li>失败的步骤可以在它的预期结果主题加 <code>symbol-wrong</code>，指出停在哪一步。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="checklist">
+      <div class="panel-header"><h2>交给人之前</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>方案里的每个 TestCase 在报告里都有结果；统计数字和明细一致。</li>
+          <li>在没有网络的电脑用浏览器打开 <code>test-report.html</code>：版面正常、页内链接与截图都打得开。</li>
+          <li>每个失败都有缺陷或原因；每个阻塞都写了要人做什么。</li>
+          <li>每个运行代号用 <code>GET /composite-runs/{id}</code> 都查得到，状态和报告写的相同。</li>
+          <li>证据里没有 API 密钥、密码、Secret 的值；个资照方案的约定处理。</li>
+          <li>结论和退出准则对得上，不夸大：没跑的、跳过的不算通过。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

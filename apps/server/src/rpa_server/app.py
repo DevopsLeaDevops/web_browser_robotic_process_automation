@@ -9,6 +9,7 @@ M9a：同一個應用也提供 Worker API（/worker-api/v1），只在 ``setting
 M10.1：對外埠也提供桌面 App 的 Client API（/client-api/v1，目前只有配對）。
 M10.2：對外埠上的 Portal 頁面與 API 給帶著錄製端權杖的請求（錄製端的本機閘道）；
 錄製端的指令通道與互動子程序也在 Client API。
+M14：對外埠也提供第三方 Agent 系統用的 Agent API（/agent-api/v1，agent_api.py），用 API 金鑰認證。
 """
 
 import logging
@@ -25,6 +26,7 @@ from sqlalchemy.orm import sessionmaker
 
 from rpa_core.i18n import use_locale
 from rpa_server import __version__
+from rpa_server.agent_api import AGENT_PREFIX, agent_api
 from rpa_server.api import api_router
 from rpa_server.client_api import client_api_router
 from rpa_server.config import Settings
@@ -154,6 +156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(worker_api_router(hub))
     app.include_router(client_api_router(hub, services.recorders, storage))
     app.include_router(page_router(services))
+    app.mount(AGENT_PREFIX, agent_api(services))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.add_middleware(SameOriginMiddleware)
     app.add_middleware(

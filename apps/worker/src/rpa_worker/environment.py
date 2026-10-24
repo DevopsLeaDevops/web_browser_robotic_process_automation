@@ -1,6 +1,7 @@
 """這台電腦能做什麼：能不能顯示瀏覽器視窗、下載了哪些瀏覽器、程式版本的指紋（M9a）。
 M10.1 加上 App 版本，管理 Portal 的裝置頁顯示。M7a 加上看得懂的 DSL 擴充（``features``）：
 管理 Portal 交出場景之前比對，舊的 App 缺少時直接說明要更新（見 :mod:`rpa_core.dsl.features`）。
+M14 加上支援的功能（``capabilities``）：例如調試時讀頁面結構，舊的錄製端 App 沒有。
 
 遠端 worker 上線時把這些告訴管理 Portal，Portal 只把它能跑的任務交給它；
 管理 Portal 自己（本機 worker）也用同一套判斷。
@@ -21,6 +22,7 @@ from typing import Final
 from rpa_core.dsl.features import FEATURES
 
 __all__ = [
+    "CAPABILITIES",
     "FINGERPRINT_PACKAGES",
     "PROTOCOL",
     "WorkerInfo",
@@ -34,6 +36,11 @@ __all__ = [
 
 PROTOCOL: Final = 1
 """Worker API 的協定版本；管理 Portal 與 worker 不同時拒絕連線。"""
+
+CAPABILITIES: Final[frozenset[str]] = frozenset({"debugSnapshot"})
+"""這份程式支援、但不屬於 DSL 的功能（M14）：``debugSnapshot`` 是調試子程序的讀頁面結構
+（``rpa_runner.debug`` 的 ``snapshot`` 命令）。管理 Portal 要用之前比對，舊的 App 缺少時
+說明要更新。"""
 
 FINGERPRINT_PACKAGES: Final = ("rpa_core", "rpa_runner", "rpa_worker")
 """執行結果取決於這些套件的程式；指紋不同代表兩邊的程式不是同一版。"""
@@ -129,6 +136,8 @@ class WorkerInfo:
     """App 的版本（M10.1）：命令列是 rpa-worker 套件的版本，桌面 App 是建置資訊裡的版本。"""
     features: tuple[str, ...] = tuple(sorted(FEATURES))
     """看得懂的 DSL 擴充（M7a）；和程式碼一起打包，所以就是這份程式的 :data:`FEATURES`。"""
+    capabilities: tuple[str, ...] = tuple(sorted(CAPABILITIES))
+    """支援的功能（M14，:data:`CAPABILITIES`）。"""
 
     @classmethod
     def detect(
@@ -159,4 +168,5 @@ class WorkerInfo:
             "display": self.display,
             "version": self.version,
             "features": list(self.features),
+            "capabilities": list(self.capabilities),
         }
