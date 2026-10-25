@@ -107,7 +107,7 @@ gh workflow run cleanup-artifacts.yml -f older-than-days=3 -f dry-run=false</pre
         <p>发布时产生的 <code>RPA-Update-&lt;版本&gt;.zip</code> 用 Ed25519 私钥签章；服务器、设备与桌面 App 的启动器用安装包里的公钥验证，验证不过就不用。私钥只放在 GitHub Secrets 的 <code>RPA_UPDATE_SIGNING_KEY</code>，不进仓库、不贴到对话或 issue；公钥写在 <code>packages/rpa_update/src/rpa_update/keys.py</code> 的 <code>RELEASE_KEYS</code>，随完整的安装包发布。<code>RELEASE_KEYS</code> 是空的、Secret 没设、或两者对不上时，发布流程会失败，不会发出设备验证不了的版本。PR 与 main 上的建置每次用临时密钥测试，不碰正式密钥。</p>
         <h3>第一次产生</h3>
         <ol>
-          <li>在一台有 OpenSSL 的电脑（Linux、macOS 都有）产生私钥，并印出公钥（一行 base64）：</li>
+          <li>在一台有 OpenSSL 1.1.1 以上的电脑产生私钥，并印出公钥（一行 base64）。用 <code>openssl version</code> 查看版本：CentOS 7 的 1.0.2 与 macOS 内置的 LibreSSL 没有 Ed25519，会显示 <code>Algorithm ed25519 not found</code>，请换一台电脑或改用下面项目的工具。</li>
         </ol>
       </div>
       <pre class="source">openssl genpkey -algorithm ed25519 -out rpa-update-signing.pem

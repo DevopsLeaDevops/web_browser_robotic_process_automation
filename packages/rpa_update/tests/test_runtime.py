@@ -7,6 +7,7 @@ import pytest
 
 from rpa_update import build, ed25519, runtime
 from rpa_update.errors import UpdateError
+from rpa_update.keys import RELEASE_KEYS
 from rpa_update.runtime import Runtime, load_runtime, platform_tag, runtime_id, source_digest
 
 
@@ -81,10 +82,20 @@ def test_load_runtime_rejects_bad_file(tmp_path: Path, data: str) -> None:
         load_runtime(path)
 
 
-def test_make_runtime_and_trusted_keys() -> None:
+def test_release_keys_are_valid() -> None:
+    """正式的公鑰每一把都是 32 位元組的 base64，發布流程才簽得出裝置驗證得了的更新檔。"""
+    keys = build.trusted_keys({})
+    assert keys
+    assert len(keys) == len(RELEASE_KEYS)
+
+
+def test_make_runtime_and_trusted_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     key = ed25519.public_key(bytes(range(32)))
     encoded = base64.b64encode(key).decode()
-    assert build.trusted_keys({build.EXTRA_KEYS_ENV: f" {encoded},,{encoded}"}) == (key,)
+    release = ed25519.public_key(bytes(32))
+    monkeypatch.setattr(build, "RELEASE_KEYS", (base64.b64encode(release).decode(),))
+    # 發布用的公鑰在前；空白與重複的略過
+    assert build.trusted_keys({build.EXTRA_KEYS_ENV: f" {encoded},,{encoded}"}) == (release, key)
     with pytest.raises(ed25519.InvalidKeyError):
         build.trusted_keys({build.EXTRA_KEYS_ENV: "AAAA"})
     info = build.make_runtime("server-linux-x64", distributions=["b==2", "a==1"], keys=[key])
@@ -115,6 +126,7 @@ def test_write_runtime_and_keygen(
     assert base64.b64decode(public) == ed25519.public_key(seed)
 
     output = tmp_path / "runtime.json"
+    monkeypatch.setattr(build, "RELEASE_KEYS", ())
     monkeypatch.setenv(build.EXTRA_KEYS_ENV, public)
     args = ["runtime", "--target", "server-linux-x64", "--output", str(output)]
     assert build.main([*args, "--component", "shell=6.22"]) == 0

@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 04:40 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 05:53 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源</dt><dd>使用者在 Claude 專案對話 2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）提出，原文：「現在的系統Linux伺服器、錄製段、worker段可以做成熱更新嗎。現在每次都要重新下載效率不高。」2026-10-25 01:58（PDT，UTC−07:00）回覆設計提案，原文：「1.升級版本，伺服器需要重啓嗎。2.這份升級寫doc了嗎 3.確認事項接受。確認后再開始coding。」</dd>
         <dt>驗收條件</dt><dd>環境代號沒變的版本：伺服器用一個更新檔升級，不必下載完整包；Worker 與錄製端從伺服器自動取得同一個版本，不打斷執行中的任務、錄製與調試；新版本起不來時自動退回上一版；更新檔有簽章，伺服器、裝置、啟動器都驗證；CI 驗證「上一版完整包＋這一版更新檔」的升級路徑與端到端。</dd>
         <dt>範圍／不包含</dt><dd>範圍：ADR 0018 的第一、二階段（下方「分期」）。不包含：第三階段（伺服器代管完整安裝檔、Portal 上傳更新檔、伺服器兼瀏覽器鏡像，之後再決定）；瀏覽器的下載（已經只在 Playwright 改版時重新下載）；伺服器完全不停機；Developer ID／Authenticode 程式碼簽章；Python 腳本場景的運行環境（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>，待確認）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本專案對話）；審閱與合併：使用者；接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>新套件 <code>packages/rpa_update</code>（清單、簽章、環境代號、程式碼層、啟動器）；<code>apps/server/packaging/</code>（<code>bin/rpa</code> 自己重新啟動與退回、<code>install.sh</code> 分層）、<code>rpa_server</code>（<code>updates.py</code>、<code>device_updates.py</code>、Worker API 與 Client API 的 <code>/update</code>、裝置頁、設定）、<code>rpa_cli</code>（<code>rpa update</code>）、<code>apps/desktop/packaging/rpa_desktop.spec</code>、<code>rpa_desktop</code>（<code>build_info.py</code>、<code>updates.py</code>、兩個 controller、<code>gui.py</code>、翻譯）、<code>rpa_worker/remote.py</code>（下載）；<code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>tools/build_update.py</code>；<code>.github/workflows/desktop.yml</code>、<code>server-package.yml</code>、<code>release.yml</code>；文件：ADR 0018、<code>docs/develop/operations.html</code>、<code>docs/develop/ci.html</code>（三語）、本紀錄、決定紀錄。共用檔案：任務索引與決定紀錄也被 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>、#82 修改，整合時保留各自的列。相依：#79 已用 ADR 0017，本篇用 0018；#82 的 Python 運行環境也會改 PyInstaller 設定與 <code>build_server.py</code>，兩邊開始寫程式前先約定檔案範圍與合併順序。</dd>
-        <dt>狀態</dt><dd>第一、二階段實作完成、待審閱（2026-10-25 04:40 PDT）。發布 0.6.0 之前要先有正式的簽署金鑰（見下方「需要使用者做的事」）。</dd>
+        <dt>狀態</dt><dd>第一、二階段實作完成、待審閱（2026-10-25 05:53 PDT）。正式簽署金鑰的公鑰已加進 <code>RELEASE_KEYS</code>；私鑰要存進 Secret <code>RPA_UPDATE_SIGNING_KEY</code> 才能發 0.6.0（見下方「需要使用者做的事」）。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-reisy3</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/83">PR #83</a>（draft）；base main 29176b1。</dd>
         <dt>交接版本／同步狀態</dt><dd>以 PR 的最新提交為準；已推送後可從 GitHub 取得。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、uv 0.11.32、Python 3.13。</dd>
@@ -64,9 +64,9 @@
         <li><strong>實作時的選擇（Claude，待審閱）：</strong>更新檔留在伺服器的版本資料夾（<code>releases/&lt;版本&gt;/update.zip</code>），不另開 <code>updates/</code>；裝置的新一層在 App 正常結束或執行滿 20 秒時確認，連續兩次沒確認就退回（取代設計時的「2 分鐘內沒上線」，啟動器不必懂連線）；使用者按「繼續接任務」就取消這次重新啟動、使用者原本就暫停的 Worker 不重新啟動；裝置頁的更新狀態只記在記憶體。細節見 ADR 0018 的「實作」。</li>
         <li><strong>使用者的問題與回覆：</strong>升級時伺服器要重新啟動嗎？要：Python 在啟動時載入程式。<code>bin/rpa update</code> 安裝並切換後，伺服器等到沒有進行中的錄製、調試、人工登入、本機執行，自己重新啟動，Portal 有數秒打不開；遠端任務靠回報重試與租約延長不會丟。裝置自己更新時伺服器不用重新啟動。</li>
         <li><strong>使用者的部署（2026-10-25 02:09 America/Los_Angeles（PDT，UTC−07:00）說明）：</strong>內網伺服器從 clone 以 nohup 執行（<code>.venv-server/bin/rpa serve … --data /home/admin/.local/share/rpa-server-v040 …</code>）。clone 不支援更新檔，要改用分發包一次，命令只換成 <code>~/rpa-server/bin/rpa</code>，參數、資料目錄、nohup 照舊。另提醒 8080 開在 0.0.0.0 時區網任何人不用配對就能操作 Portal（與本任務無關）。</li>
-        <li><strong>需要使用者做的事：</strong>照 <a href="../../docs/develop/ci.html#update-key">CI 與流水線 › 更新檔的簽署金鑰</a> 產生 Ed25519 金鑰，私鑰存進 Secret <code>RPA_UPDATE_SIGNING_KEY</code>，把公鑰（可以公開）交給 Claude 加進 <code>RELEASE_KEYS</code>。要在打 0.6.0 標籤之前完成：<code>keys.py</code> 是執行環境的一部分，之後才加會改變環境代號，裝置又要完整安裝一次。沒做之前發布流程會失敗（刻意的）。</li>
+        <li><strong>需要使用者做的事：</strong>使用者 2026-10-25 05:52 PDT 產生了 Ed25519 金鑰，公鑰已加進 <code>RELEASE_KEYS</code>（<code>keys.py</code> 是執行環境的一部分，所以要在打 0.6.0 標籤之前）。還要把同一把私鑰的 PEM 全文存進 Secret <code>RPA_UPDATE_SIGNING_KEY</code>（見 <a href="../../docs/develop/ci.html#update-key">CI 與流水線 › 更新檔的簽署金鑰</a>），並另外備份私鑰。私鑰對不上公鑰或 Secret 沒設時，發布流程會失敗（刻意的）。使用者伺服器的 OpenSSL 太舊（沒有 Ed25519），文件已補上版本要求。</li>
         <li><strong>相依與編號：</strong>ADR 0017 已由 PR #79 使用，本篇用 0018；PR #82（Python 腳本場景的運行環境）也改 PyInstaller 設定與 <code>build_server.py</code>，合併時要整合，先合併的一方之後由另一方 rebase。</li>
-        <li><strong>下一個具體動作：</strong>CI 全綠後請使用者審閱 PR #83 並產生金鑰；拿到公鑰後提交到 <code>RELEASE_KEYS</code>。合併後發 0.6.0：伺服器、Worker、錄製端各用完整包安裝最後一次，之後環境代號沒變的版本都用更新檔。</li>
+        <li><strong>下一個具體動作：</strong>「Worker 測試（Windows）」的紅燈是執行器原本就有的問題（Windows 上別的程序在讀 <code>steps.json</code> 時，<code>write_json</code> 改名會失敗），另開執行緒修；修好併入 main 後把 main 併進 PR #83。之後請使用者審閱 PR #83。合併後發 0.6.0：伺服器、Worker、錄製端各用完整包安裝最後一次，之後環境代號沒變的版本都用更新檔。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -99,6 +99,8 @@
         <li>2026-10-25 02:09（PDT，UTC−07:00），使用者：說明內網伺服器的啟動命令，「兼容的話就開始做吧」；Claude 開始第一階段。</li>
         <li>2026-10-25 02:25～03:44（PDT，UTC−07:00），Claude：第一階段（b5160a6～6793633）推送到 PR #83。</li>
         <li>2026-10-25 04:26（PDT，UTC−07:00），Claude：第二階段（be62c98、5f210be、eac4ff3）推送；ADR 0018 改為已接受並補上實作細節，維運與 CI 文件補上更新檔與簽署金鑰。</li>
+        <li>2026-10-25 04:38～04:46（PDT，UTC−07:00），Claude：625f8fc 的「Worker 測試（Windows）」兩次失敗（錄影取消測試，Chromium 一次、Firefox 一次）；同樣的程式在 eac4ff3 全部通過。查到 <code>rpa_runner</code> 的 <code>write_json</code> 在 Windows 上的問題，在 PR 留言附上修正，另開執行緒修。</li>
+        <li>2026-10-25 05:52（PDT，UTC−07:00），使用者：貼上正式金鑰的公鑰；Claude 加進 <code>RELEASE_KEYS</code>，文件補上 OpenSSL 1.1.1 以上的要求。</li>
       </ul></div>
     </section>
   </div>

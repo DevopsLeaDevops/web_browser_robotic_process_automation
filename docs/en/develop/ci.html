@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:cebd03b924b0ddd3">
+<meta name="translation-source" content="sha256:d35b44ba7887dd18">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -107,7 +107,7 @@ gh workflow run cleanup-artifacts.yml -f older-than-days=3 -f dry-run=false</pre
         <p>The <code>RPA-Update-&lt;version&gt;.zip</code> built by a release is signed with an Ed25519 private key; the server, devices and the desktop launcher verify it with the public key inside their package and refuse it when verification fails. The private key lives only in the GitHub secret <code>RPA_UPDATE_SIGNING_KEY</code>: never in the repository, a chat or an issue. The public key is listed in <code>RELEASE_KEYS</code> in <code>packages/rpa_update/src/rpa_update/keys.py</code> and ships with the full packages. When <code>RELEASE_KEYS</code> is empty, the secret is missing, or the two do not match, the release workflow fails instead of publishing a version devices cannot verify. Builds on pull requests and main test with a temporary key every time and never touch the real one.</p>
         <h3>Creating the key</h3>
         <ol>
-          <li>On a computer with OpenSSL (any Linux or macOS), create the private key and print the public key (one line of base64):</li>
+          <li>On a computer with OpenSSL 1.1.1 or later, create the private key and print the public key (one line of base64). Check with <code>openssl version</code>: OpenSSL 1.0.2 on CentOS 7 and the LibreSSL built into macOS have no Ed25519 and print <code>Algorithm ed25519 not found</code>; use another computer or the project tool below.</li>
         </ol>
       </div>
       <pre class="source">openssl genpkey -algorithm ed25519 -out rpa-update-signing.pem

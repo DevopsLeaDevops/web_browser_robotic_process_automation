@@ -10,5 +10,5 @@ from typing import Final
 
 __all__ = ["RELEASE_KEYS"]
 
-RELEASE_KEYS: Final[tuple[str, ...]] = ()
-"""發布版信任的公鑰。還沒產生正式金鑰之前是空的：發布流程會因此失敗，不會發出驗證不了的版本。"""
+RELEASE_KEYS: Final[tuple[str, ...]] = ("+zBkjVUh9RensU1hgeWNOeJuRqH82tguO7byaNXCr6w=",)
+"""發布版信任的公鑰（2026-10-25 產生）。是空的時候發布流程會失敗，不會發出驗證不了的版本。"""
