@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:0c76f27013bd9e36">
+<meta name="translation-source" content="sha256:9f0cbfbee622ce53">
 <title>Tech stack · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -56,7 +56,7 @@
         <dl class="spec-list">
           <dt>Python</dt><dd>3.12 or later (CI tests 3.12 and 3.13; 3.13 by default locally, see <code>.python-version</code>)</dd>
           <dt>uv</dt><dd>0.11 or later (<code>required-version</code> in <code>pyproject.toml</code>)</dd>
-          <dt>Product version</dt><dd>The server, Worker, Recorder and all packages share one version (currently 0.4.0), changed together by <code>tools/release_version.py</code>; see <a href="desktop.html#release-flow">Desktop distribution</a></dd>
+          <dt>Product version</dt><dd>The server, Worker, Recorder and all packages share one version (currently 0.5.0), changed together by <code>tools/release_version.py</code>; see <a href="desktop.html#release-flow">Desktop distribution</a></dd>
           <dt>Type checking</dt><dd>pyright in strict mode; all new code is fully annotated</dd>
           <dt>Dependency locking</dt><dd><code>uv.lock</code> records the exact version of every package and is committed to the repository; CI installs with <code>uv sync --locked</code> and fails when the lock file and <code>pyproject.toml</code> disagree</dd>
           <dt>Dependency updates</dt><dd>Dependabot checks GitHub Actions weekly; Python dependencies are updated by the weekly <code>uv-upgrade</code> workflow, which runs <code>uv lock --upgrade</code>, pushes the <code>deps/uv-upgrade</code> branch and opens a PR (Dependabot does not support uv workspaces yet)</dd>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:b50b1e6f785e2bd7">
+<meta name="translation-source" content="sha256:65c9d8a48cf7d956">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -29,17 +29,17 @@
   <div class="heading">
     <div>
       <h1>Architecture</h1>
-      <p>Components, data flow and directory layout. The whole platform is deployed on the intranet: the server keeps scenarios and records, the two desktop apps (Recorder and Worker) connect to the server, and the browsers on their computers drive the target systems directly. This page reflects v0.4.0 (2026-10-21).</p>
+      <p>Components, data flow and directory layout. The whole platform is deployed on the intranet: the server keeps scenarios and records, the two desktop apps (Recorder and Worker) connect to the server, and the browsers on their computers drive the target systems directly. This page reflects v0.5.0 (2026-10-23).</p>
     </div>
   </div>
 
   <div class="stack">
     <section class="panel" id="current">
-      <div class="panel-header"><h2>Current deployment</h2><span class="muted">v0.4.0: one server + Recorder (macOS) + Worker (Windows)</span></div>
+      <div class="panel-header"><h2>Current deployment</h2><span class="muted">v0.5.0: one server + Recorder (macOS) + Worker (Windows, macOS)</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 560" role="img" aria-labelledby="now-title now-desc">
           <title id="now-title">Current deployment</title>
-          <desc id="now-desc">The server runs rpa serve: 127.0.0.1:8080 for the browser on the server itself, 0.0.0.0:8081 as the external port for paired devices. The API service reads and writes the data directory (domain folders, the SQLite index, run directories), and domains can sync with a git repository. The Recorder app on macOS and the Worker app on Windows both connect to the external port. Browsers for recording, step debugging, manual login and login checks open on the Recorder; browsers for runs open on the Worker; both drive the internal target systems directly. A server with a browser can also run jobs itself.</desc>
+          <desc id="now-desc">The server runs rpa serve: 127.0.0.1:8080 for the browser on the server itself, 0.0.0.0:8081 as the external port for paired devices. The API service reads and writes the data directory (domain folders, the SQLite index, run directories), and domains can sync with a git repository. The Recorder app on macOS and the Worker app on Windows or macOS both connect to the external port. Browsers for recording, step debugging, manual login and login checks open on the Recorder; browsers for runs open on the Worker; both drive the internal target systems directly. A server with a browser can also run jobs itself.</desc>
           <defs>
             <marker id="arrow-now" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -109,7 +109,7 @@
 
           <!-- Worker -->
           <rect class="frame" x="772" y="92" width="212" height="308" rx="10"/>
-          <text class="frame-label" x="784" y="110">Runner machine (Windows)</text>
+          <text class="frame-label" x="784" y="110">Runner (Windows, macOS)</text>
           <rect class="box" x="786" y="120" width="184" height="96" rx="8"/>
           <text class="title" x="800" y="144">Runner process</text>
           <text class="sub" x="800" y="164">Chromium or Firefox</text>
@@ -120,7 +120,7 @@
           <text class="sub" x="800" y="302">Long-polls for jobs</text>
           <text class="sub" x="800" y="320">Heartbeat every 5 s, cancel</text>
           <text class="sub" x="800" y="338">Uploads the run directory</text>
-          <text class="sub" x="800" y="356">Tray icon, starts at sign-in</text>
+          <text class="sub" x="800" y="356">Tray or menu bar, auto-start</text>
           <path class="link" d="M878 254V218" marker-end="url(#arrow-now)"/>
           <path class="link" d="M952 118V62" marker-end="url(#arrow-now)"/>
 
@@ -138,7 +138,7 @@
           <text class="label" x="612" y="478">pull, push (optional)</text>
         </svg>
       </div>
-      <div class="diagram-caption">Blue borders mark the core components; gray boxes are external systems; dashed lines are optional. Every connection is opened by an app, so the server never needs to reach them, and only the server touches the database and the data directory; the server can be Linux, macOS or Windows and needs no screen. The Recorder uses a device token and the Worker a worker token; over HTTP the tokens travel in plain text, so use a trusted network only. When the server has no browser (for example a Linux host), login checks run on the Recorder. Installation: <a href="../develop/operations.html">Deployment and operations</a>, <a href="desktop.html">Desktop distribution</a>.</div>
+      <div class="diagram-caption">Blue borders mark the core components; gray boxes are external systems; dashed lines are optional. Every connection is opened by an app, so the server never needs to reach them, and only the server touches the database and the data directory; the server can be Linux, macOS or Windows and needs no screen; on Linux it can be installed from the self-contained package with its own Python (from v0.5.0). The Recorder uses a device token and the Worker a worker token; over HTTP the tokens travel in plain text, so use a trusted network only. When the server has no browser (for example a Linux host), login checks run on the Recorder. Installation: <a href="../develop/operations.html">Deployment and operations</a>, <a href="desktop.html">Desktop distribution</a>.</div>
     </section>
 
     <section class="panel" id="target">
@@ -269,7 +269,7 @@
           <thead><tr><th>Package</th><th>Responsibility</th><th>Depends on</th><th>Starts</th></tr></thead>
           <tbody>
             <tr><td><code>rpa-core</code></td><td>DSL models, YAML loading and validation, expression engine, JSON Schema export, multilingual message catalogs; definitions and checks of composite scenarios (<code>rpa_core.workflow</code>, M6); the domain folder format and its validation (<code>rpa_core.pack</code>, M11); recording-to-DSL conversion (<code>rpa_core.recording</code>, M4). No browser, no database.</td><td>Pydantic, PyYAML, Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>Execution engine: input validation, step handler registry, browser and context management (including iframes, M7a), login checks and manual login, independent assertions, output publishing, run directory and report, video recording (M12); also runs Python script scenarios and provides the child processes for recording, step debugging and manual login (commands are built in <code>rpa_runner.commands</code>; packaged apps use their own entry point). Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>Execution engine: input validation, step handler registry, browser and context management (including iframes, M7a; new tabs opened by clicks, M7b), login checks and manual login, independent assertions, output publishing, run directory and report, video recording (M12); also runs Python script scenarios and provides the child processes for recording, step debugging and manual login (commands are built in <code>rpa_runner.commands</code>; packaged apps use their own entry point). Stateless.</td><td>rpa-core, Playwright</td><td>M2</td></tr>
             <tr><td>Recording</td><td>Records user actions in an isolated browser, keeps the raw recording and turns it into a DSL draft. M4 does not add a separate package: recording uses Playwright codegen and the conversion is <code>rpa_core.recording</code> in rpa-core (no browser, testable on its own).</td><td>rpa-core, Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI assistant: conversational debugging, natural language → DSL, validation failures fed back for correction, self-healing selectors; it can only edit drafts. <strong>Not created yet</strong>: the model and where data may go must be decided first.</td><td>rpa-core, LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td>The <code>rpa</code> command: validate, schema, run, record, serve, worker, recorder, pack check; generate comes in M5.</td><td>The packages above, click</td><td>M0</td></tr>

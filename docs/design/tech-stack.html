@@ -55,7 +55,7 @@
         <dl class="spec-list">
           <dt>Python</dt><dd>3.12 以上（CI 測 3.12 與 3.13；本機預設 3.13，見 <code>.python-version</code>）</dd>
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
-          <dt>產品版本</dt><dd>伺服器、Worker、錄製端與所有套件同一個版本（目前 0.4.0），<code>tools/release_version.py</code> 一次改全部；見<a href="desktop.html#release-flow">桌面端分發</a></dd>
+          <dt>產品版本</dt><dd>伺服器、Worker、錄製端與所有套件同一個版本（目前 0.5.0），<code>tools/release_version.py</code> 一次改全部；見<a href="desktop.html#release-flow">桌面端分發</a></dd>
           <dt>型別檢查</dt><dd>pyright strict 模式，新程式碼一律完整標註型別</dd>
           <dt>依賴鎖定</dt><dd><code>uv.lock</code> 記錄每個套件的確切版本並提交到倉庫；CI 以 <code>uv sync --locked</code> 安裝，鎖檔與 <code>pyproject.toml</code> 不一致時失敗</dd>
           <dt>依賴更新</dt><dd>Dependabot 每週檢查 GitHub Actions；Python 依賴由每週的 <code>uv-upgrade</code> workflow 執行 <code>uv lock --upgrade</code>、推到 <code>deps/uv-upgrade</code> 分支並開 PR（Dependabot 還不支援 uv workspace）</dd>
