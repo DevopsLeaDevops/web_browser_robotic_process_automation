@@ -2,6 +2,7 @@
 {% import "_macros.html" as m %}
 {% block description %}{{ t("workers.description") }}{% endblock %}
 {% block actions %}<button class="button primary" data-action="new-worker"{% if not worker_port %} disabled title="{{ t('workers.api_off') }}"{% endif %}>{{ t("workers.new") }}</button>{% endblock %}
+{% macro update_line(report) %}{% if report and report.status in ("available", "full", "failed", "off") %}<span class="cell-sub{% if report.status in ("full", "failed") %} text-danger{% endif %}" data-update="{{ report.status }}">{{ t("updates.device_" + report.status, version=device_updates.get("version") or "") }}</span>{% endif %}{% endmacro %}
 {% block content %}
 <div class="stack" id="workers" data-api-url="{{ api_url or '' }}"{% if workers or recorders %} data-poll{% endif %}>
   <div class="notice">{{ t("workers.notice") }}</div>
@@ -33,7 +34,8 @@
           {% else %}<span class="muted">{{ t("workers.never_seen") }}</span>{% endif %}</td>
         <td>{% if worker.version %}{{ t("workers.app_version", version=worker.version) }}{% endif %}
           {% if worker.fingerprint %}<span class="cell-sub"><code class="mono">{{ worker.fingerprint }}</code></span>
-          {% if not worker.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not worker.version %}—{% endif %}</td>
+          {% if not worker.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not worker.version %}—{% endif %}
+          {{ update_line(worker_updates.get(worker.id)) }}</td>
         <td class="role-actions">
           {% if worker.disabled %}
           <button class="text-btn" data-action="enable-worker" data-kind="worker" data-worker="{{ worker.id }}">{{ t("workers.enable") }}</button>
@@ -71,7 +73,8 @@
           {% else %}<span class="muted">{{ t("workers.never_seen") }}</span>{% endif %}</td>
         <td>{% if recorder.version %}{{ t("workers.app_version", version=recorder.version) }}{% endif %}
           {% if recorder.fingerprint %}<span class="cell-sub"><code class="mono">{{ recorder.fingerprint }}</code></span>
-          {% if not recorder.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not recorder.version %}—{% endif %}</td>
+          {% if not recorder.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not recorder.version %}—{% endif %}
+          {{ update_line(recorder_updates.get(recorder.id)) }}</td>
         <td><fieldset class="menu-choices" data-recorder-menus="{{ recorder.id }}"><legend class="visually-hidden">{{ t("recorders.menus_legend", name=recorder.name) }}</legend>
           {% for menu in recorder_menus %}<label><input type="checkbox" name="recorder-menu" value="{{ menu }}"{% if menu in recorder.menus %} checked{% endif %}> {{ t("nav." + menu) }}</label>{% endfor %}</fieldset>
           <span class="cell-sub">{{ t("recorders.menus_hint") }}</span></td>
@@ -89,6 +92,20 @@
       </tbody>
     </table></div>
     {% else %}<div class="empty">{{ t("recorders.empty") }}</div>{% endif %}
+  </section>
+
+  <section class="panel" id="device-updates">
+    <div class="panel-header"><h2>{{ t("updates.title") }}</h2><span class="muted">{{ t("updates.hint") }}</span></div>
+    <div class="panel-body">
+      {% if device_updates.get("version") %}
+      <p>{{ t("updates.ready", version=device_updates.version, release=device_updates.release, size=(device_updates.size / 1048576) | round(1)) }}</p>
+      {% elif device_updates.packaged %}
+      <div class="notice warn">{{ t("updates.missing") }}</div>
+      {% else %}
+      <div class="notice">{{ t("updates.not_packaged") }}</div>
+      {% endif %}
+      <label class="check"><input type="checkbox" name="device-updates-auto"{% if device_updates.auto %} checked{% endif %}> {{ t("updates.auto") }}</label>
+    </div>
   </section>
 
   <section class="panel">

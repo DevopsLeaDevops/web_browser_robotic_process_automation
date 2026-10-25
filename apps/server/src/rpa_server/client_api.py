@@ -9,19 +9,23 @@
 - 錯誤一律是 ``{"error": {"code": …, "message": …}}``：401 代碼或權杖不對、已用過或過期；
   404 子程序已經結束（例如判定失聯，錄製端要結束它）；409 邀請的 App 種類不對
   （``invite_wrong_app``，代碼保留）、裝置已停用或協定版本不同；413 上傳太大；422 內容不對。
+- ``POST /update``、``GET /update/file``（ADR 0018）：錄製端上線前的更新檢查與下載，和 Worker API
+  的相同（:mod:`rpa_server.device_updates`）。
 """
 
 from typing import Annotated, Final
 
 import anyio
 from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from rpa_server.context import Via
+from rpa_server.device_updates import DeviceUpdates
 from rpa_server.devices import RecorderHub
 from rpa_server.dispatch import WorkerHub
 from rpa_server.storage import Storage
-from rpa_server.worker_api import save_upload
+from rpa_server.worker_api import save_upload, update_file_response
 from rpa_worker.interactive import CONTROL_WAIT_SECONDS, MAX_SYNC_BYTES
 from rpa_worker.pairing import CLIENT_API_PREFIX, App
 
@@ -53,7 +57,9 @@ class OutputBody(_Body):
     """錄製端啟動不了子程序時的原因（寫進這邊的日誌）。"""
 
 
-def client_api_router(hub: WorkerHub, recorders: RecorderHub, storage: Storage) -> APIRouter:
+def client_api_router(
+    hub: WorkerHub, recorders: RecorderHub, storage: Storage, updates: DeviceUpdates
+) -> APIRouter:
     router = APIRouter(prefix=CLIENT_API_PREFIX)
 
     @router.post("/pair")
@@ -72,6 +78,17 @@ def client_api_router(hub: WorkerHub, recorders: RecorderHub, storage: Storage) 
         recorder: Annotated[Via, Depends(current_recorder)], body: dict[str, object]
     ) -> dict[str, object]:
         return recorders.hello(recorder.id, body)
+
+    @router.post("/update")
+    def update(
+        recorder: Annotated[Via, Depends(current_recorder)], body: dict[str, object]
+    ) -> dict[str, object]:
+        return updates.offer("recorder", recorder.id, body)
+
+    @router.get("/update/file", response_model=None)
+    def update_file(recorder: Annotated[Via, Depends(current_recorder)]) -> FileResponse:
+        del recorder  # 只要權杖對
+        return update_file_response(updates)
 
     @router.post("/control")
     def control(

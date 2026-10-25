@@ -1452,5 +1452,17 @@
   "server.busy_recordings": "{count} 个录制",
   "server.busy_debug": "{count} 个逐步调试",
   "server.busy_logins": "{count} 个人工登录",
-  "server.busy_local_run": "这台正在运行的任务"
+  "server.busy_local_run": "这台正在运行的任务",
+  "error.update_report_invalid": "更新检查的内容不对：要有 app（worker 或 recorder）、target 与 runtime。",
+  "error.update_unavailable": "这台服务器没有可以给设备下载的更新档。",
+  "updates.title": "设备更新",
+  "updates.hint": "Worker 与录制端跟着服务器的版本：Worker 做完目前的任务、没有任务时自动重新启动应用；录制端在下次打开时应用。",
+  "updates.auto": "自动更新设备",
+  "updates.ready": "设备会更新到服务器的版本 {version}（{release}），更新档约 {size} MB。",
+  "updates.missing": "服务器还没有给设备的更新档：用同一版的更新档运行一次 bin/rpa update RPA-Update-<版本>.zip，设备就能从这台服务器更新。",
+  "updates.not_packaged": "从 clone 运行的服务器不提供设备更新；改用分发包（bin/rpa serve）之后才有。",
+  "updates.device_available": "正在更新到 {version}",
+  "updates.device_full": "要用完整的安装包更新到 {version}",
+  "updates.device_failed": "更新到 {version} 后没能启动，已退回原本的版本",
+  "updates.device_off": "自动更新已关闭（服务器是 {version}）"
 }

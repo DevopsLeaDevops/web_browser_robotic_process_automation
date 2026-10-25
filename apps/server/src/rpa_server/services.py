@@ -44,6 +44,7 @@ from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
+from rpa_server.device_updates import DeviceUpdates
 from rpa_server.devices import RecorderHub
 from rpa_server.dispatch import WorkerHub
 from rpa_server.domain import (
@@ -330,6 +331,8 @@ class Services:
         """領域資料夾：伺服器代號、寫入、載入、驗證紀錄、遷移（M11）。"""
         self.recorders = RecorderHub(sessions, locale=locale)
         """錄製端的登記、上線，以及交給它執行的互動子程序（M10.2）。"""
+        self.device_updates = DeviceUpdates.detect(sessions)
+        """裝置跟著伺服器的版本更新（ADR 0018）：更新檔、「自動更新裝置」與裝置的回報。"""
         self.roles = RoleService(
             sessions,
             storage,

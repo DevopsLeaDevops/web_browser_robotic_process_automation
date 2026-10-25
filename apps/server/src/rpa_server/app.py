@@ -158,8 +158,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return HTMLResponse(page, status_code=error.status)
 
     app.include_router(api_router(services), prefix="/api")
-    app.include_router(worker_api_router(hub))
-    app.include_router(client_api_router(hub, services.recorders, storage))
+    app.include_router(worker_api_router(hub, services.device_updates))
+    app.include_router(client_api_router(hub, services.recorders, storage, services.device_updates))
     app.include_router(page_router(services))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.add_middleware(SameOriginMiddleware)

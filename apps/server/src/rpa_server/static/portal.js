@@ -2900,6 +2900,13 @@
         toast(result.ok ? messages.saved : errorMessage(result));
       });
     });
+    // 自動更新裝置（ADR 0018）：勾選立刻儲存
+    qsa('[name="device-updates-auto"]').forEach(input => {
+      input.addEventListener('change', async () => {
+        const result = await api('PUT', '/api/settings/device-updates', {auto: input.checked});
+        toast(result.ok ? messages.saved : errorMessage(result));
+      });
+    });
     // 透過錄製端時另外顯示的選單（三段分工；預設不顯示叢集管理與管理後台）：勾選立刻儲存
     qsa('[data-recorder-menus]').forEach(group => {
       group.addEventListener('change', async () => {
