@@ -12,6 +12,8 @@
   配對好或清除時由 :meth:`RecorderController.attach` 換掉轉送的目標。
 - 權杖存在鑰匙圈的「RPA Recorder」項目（:data:`SERVICE`），和 RPA Worker 分開。
 - 畫面上的文字在 :meth:`RecorderController.snapshot` 時才依目前語言產生（同 RPA Worker）。
+- 更新（ADR 0018）：上線時在背景問管理 Portal 有沒有新版本，有就下載、裝好
+  （:mod:`rpa_desktop.updates`），提示使用者重新開啟 App 套用；不會自己重新啟動。
 - 外部的動作（配對、下載、執行……）都經由 :class:`RecorderServices`，測試換成替身。
 """
 
@@ -37,6 +39,8 @@ from rpa_desktop.credentials import Credentials, Pairing, TokenStoreError
 from rpa_desktop.downloads import DownloadResult, Progress
 from rpa_desktop.i18n import t
 from rpa_desktop.settings import SETTINGS_FILE, Settings, load_settings, save_settings
+from rpa_desktop.updates import Updater, detect_updater
+from rpa_update.errors import UpdateError
 from rpa_worker.environment import WorkerInfo
 from rpa_worker.pairing import CLIENT_API_PREFIX, App, Invite, InviteError, PairResult, parse_invite
 from rpa_worker.remote import ConnectionLostError, WorkerApiError, WorkerClient
@@ -99,6 +103,7 @@ class RecorderServices:
     client: Callable[[str, str], WorkerClient] = lambda server, token: WorkerClient(
         server, token, prefix=CLIENT_API_PREFIX
     )
+    updater: Callable[[App, str], Updater | None] = detect_updater
 
 
 def default_services() -> RecorderServices:
@@ -172,6 +177,10 @@ class RecorderController:
         self._thread: threading.Thread | None = None
         self._rejected = False
         self._exit_code = 0
+        self._updater: Updater | None = None
+        self._update_client: WorkerClient | None = None
+        self._checking = False
+        self._update_ready: str | None = None
 
     # ------------------------------------------------------------ 訂閱與閘道
 
@@ -274,7 +283,8 @@ class RecorderController:
                 "display": self._display,
                 "version": self.build.version,
                 "fingerprint": self.build.fingerprint,
-                "sameVersion": self._same_version,
+                # 已經裝好管理 Portal 的版本：不用再提示下載安裝檔
+                "sameVersion": self._same_version if self._update_ready is None else None,
                 "serverFingerprint": self._server_fingerprint,
                 "testsite": self._testsite_state,
                 "home": str(self.home),
@@ -511,6 +521,9 @@ class RecorderController:
         info = self.services.detect(self.name, self.build.fingerprint, self.build.version)
         with self._lock:
             self._display = info.display
+        with self._lock:
+            self._updater = self.services.updater("recorder", self.build.version)
+            self._update_client = self.services.client(pairing.server, pairing.token)
         self._set("connecting")
         self._rejected = False
         host = self.services.host(
@@ -555,6 +568,7 @@ class RecorderController:
                 and message.key != "recorder.event_offline"
             )
             self._set("online", False if keep else None)
+            self._check_update()
         elif event == "offline":
             params = {"server": details.get("server"), "reason": details.get("reason")}
             self._set("offline", _Message("recorder.event_offline", params, "warn"))
@@ -563,9 +577,49 @@ class RecorderController:
                 # 權杖被拒（401／403）時清除配對；協定版本不同只停下來說明
                 self._rejected = details.get("status") in (401, 403)
             self._changed()
+            if details.get("code") == "protocol_mismatch":
+                self._check_update()  # 更新到管理 Portal 的版本就能再連上
         elif event in ("started", "finished"):
             logger.info("%s：%s", event, dict(details))
             self._changed()
+
+    # ------------------------------------------------------------ 更新（ADR 0018）
+
+    def _check_update(self) -> None:
+        """在背景問管理 Portal 有沒有新版本（同時只問一次）。"""
+        with self._lock:
+            updater, client = self._updater, self._update_client
+            if updater is None or client is None or self._checking:
+                return
+            self._checking = True
+        threading.Thread(
+            target=self._update, args=(updater, client), name="rpa-update", daemon=True
+        ).start()
+
+    def _update(self, updater: Updater, client: WorkerClient) -> None:
+        try:
+            checked = updater.check(client)
+        except WorkerApiError as error:
+            if error.status == 404:
+                logger.info("管理 Portal 沒有提供更新（較舊的版本，或更新檔剛被移走）")
+            else:
+                params: dict[str, object] = {"error": error.message}
+                self._set(message=_Message("recorder.update_error", params, "warn"))
+            return
+        except (ConnectionLostError, UpdateError, OSError) as error:
+            self._set(message=_Message("recorder.update_error", {"error": error}, "warn"))
+            return
+        finally:
+            with self._lock:
+                self._checking = False
+        offer = checked.offer
+        params = {"version": offer.version}
+        if offer.status in ("full", "failed"):
+            self._set(message=_Message(f"recorder.update_{offer.status}", params, "warn"))
+        elif checked.ready:
+            with self._lock:
+                self._update_ready = offer.version
+            self._set(message=_Message("recorder.update_next_start", params))
 
 
 def wait_for(check: Callable[[], bool], timeout: float, interval: float = 0.05) -> bool:

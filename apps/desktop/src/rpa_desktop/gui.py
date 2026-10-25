@@ -13,6 +13,8 @@ macOS（2026-10-22 起）：「RPA Worker」App，同一份程式，差別見下
 - ``--background``：登入時自動啟動用，只出現在通知區；還沒配對時仍然打開視窗。
 - 沒有 WebView2（Windows）：說明怎麼安裝，之後只靠通知區接任務。
 - 登出或關機：立刻取消執行中的任務並回報（只等幾秒），不擋住關機。
+- 更新（ADR 0018）：裝好管理 Portal 的版本後，閒置時以 ``--background`` 重新啟動套用
+  （:meth:`DesktopApp.restart_for_update`）。
 - ``--smoke-test``：CI 用，打開真的視窗與通知區圖示、確認頁面的腳本跑起來後結束。
 """
 
@@ -61,6 +63,7 @@ logger = logging.getLogger("rpa_desktop.gui")
 WINDOW_SIZE: Final = (800, 760)
 MIN_SIZE: Final = (560, 480)
 SMOKE_SECONDS: Final = 90.0
+BACKGROUND_FLAG: Final = "--background"
 _WEBVIEW2_CLIENT: Final = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 """WebView2 Runtime 在 EdgeUpdate 登錄的產品代碼（Microsoft 文件建議的偵測方式）。"""
 
@@ -224,6 +227,7 @@ class DesktopApp:
         self._push = threading.Event()
         self._shown_for_pairing = False
         self._started_hidden = False
+        controller.on_update_ready = self.restart_for_update
 
     # ------------------------------------------------------------ 執行
 
@@ -413,6 +417,18 @@ class DesktopApp:
         else:
             self.tray.stop()
 
+    def restart_for_update(self) -> bool:
+        """裝好更新、閒置時：啟動新的一份（等這一份結束才選層），然後結束；回傳有沒有開始。"""
+        from rpa_update.boot import relaunch
+
+        try:
+            relaunch([BACKGROUND_FLAG])
+        except OSError:
+            logger.warning("重新啟動失敗，下次開啟時再套用更新", exc_info=True)
+            return False
+        self.quit()
+        return True
+
     def _session_ending_now(self, sender: object = None, args: object = None) -> None:
         logger.info("系統正在登出或關機：取消執行中的任務並回報")
         self._session_ending = True
@@ -523,7 +539,7 @@ def smoke_test(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="rpa-worker", description=t("worker.description"))
-    parser.add_argument("--background", action="store_true", help=t("window.background_help"))
+    parser.add_argument(BACKGROUND_FLAG, action="store_true", help=t("window.background_help"))
     parser.add_argument("--invite", metavar="INVITE", help=t("worker.invite_help"))
     parser.add_argument("--server", metavar="URL", help=t("worker.server_help"))
     parser.add_argument("--smoke-test", action="store_true", help=t("window.smoke_help"))

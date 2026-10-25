@@ -121,21 +121,7 @@ class WorkerClient:
                 raw = response.read()
                 status = response.status
         except urllib.error.HTTPError as error:
-            code, message = "http_error", error.reason
-            try:
-                detail: object = json.loads(error.read() or b"{}")
-                info = (
-                    cast("dict[str, object]", detail).get("error")
-                    if isinstance(detail, dict)
-                    else None
-                )
-                if isinstance(info, dict):
-                    values = cast("dict[str, object]", info)
-                    code = str(values.get("code") or code)
-                    message = str(values.get("message") or message)
-            except (ValueError, OSError):
-                pass
-            raise WorkerApiError(error.code, code, str(message)) from None
+            raise _api_error(error) from None
         except (urllib.error.URLError, OSError, TimeoutError) as error:
             reason = getattr(error, "reason", None) or error
             raise ConnectionLostError(str(reason)) from None
@@ -143,6 +129,55 @@ class WorkerClient:
             return {}
         data_out: object = json.loads(raw)
         return cast("dict[str, object]", data_out) if isinstance(data_out, dict) else {}
+
+    def download(
+        self, path: str, destination: Path, *, limit: int, timeout: float | None = None
+    ) -> int:
+        """GET 一個檔案，一段一段寫到 ``destination``；超過 ``limit`` 位元組就停。回傳大小。
+
+        寫到一半失敗時刪掉 ``destination``。錯誤和 :meth:`call` 相同。
+        """
+        headers = {"Accept": "application/octet-stream"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        request = urllib.request.Request(self.base + path, headers=headers, method="GET")
+        size = 0
+        try:
+            with (
+                self._opener.open(request, timeout=timeout or self.timeout) as response,
+                destination.open("wb") as output,
+            ):
+                while chunk := response.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > limit:
+                        raise ConnectionLostError(f"larger than {limit} bytes")
+                    output.write(chunk)
+        except urllib.error.HTTPError as error:
+            destination.unlink(missing_ok=True)
+            raise _api_error(error) from None
+        except (urllib.error.URLError, OSError, TimeoutError) as error:
+            destination.unlink(missing_ok=True)
+            reason = getattr(error, "reason", None) or error
+            raise ConnectionLostError(str(reason)) from None
+        except ConnectionLostError:
+            destination.unlink(missing_ok=True)
+            raise
+        return size
+
+
+def _api_error(error: urllib.error.HTTPError) -> WorkerApiError:
+    """HTTP 錯誤換成 :class:`WorkerApiError`（讀出管理 Portal 的錯誤代碼與說明）。"""
+    code, message = "http_error", error.reason
+    try:
+        detail: object = json.loads(error.read() or b"{}")
+        info = cast("dict[str, object]", detail).get("error") if isinstance(detail, dict) else None
+        if isinstance(info, dict):
+            values = cast("dict[str, object]", info)
+            code = str(values.get("code") or code)
+            message = str(values.get("message") or message)
+    except (ValueError, OSError):
+        pass
+    return WorkerApiError(error.code, code, str(message))
 
 
 @dataclass(slots=True)

@@ -13,6 +13,10 @@
   （:meth:`WorkerController.stop` 的 ``fast``）。
 - 畫面上的文字在 :meth:`WorkerController.snapshot` 時才依目前語言產生：語言存在 ContextVar，
   背景執行緒（這裡、通知區、視窗的 JS 橋接）看不到主執行緒設定的語言。
+- 更新（ADR 0018）：上線時在背景問管理 Portal 有沒有新版本，有就下載、裝好
+  （:mod:`rpa_desktop.updates`）。視窗版（設了 :attr:`WorkerController.on_update_ready`）暫停領新
+  任務，閒置時重新啟動套用；使用者按「繼續接任務」就取消，和 ``--no-window`` 一樣下次啟動時套用。
+  使用者自己暫停時也不重新啟動。
 - 外部的動作（配對、下載、接任務……）都經由 :class:`Services`，測試換成替身。
 """
 
@@ -32,6 +36,8 @@ from rpa_desktop.credentials import Credentials, Pairing, TokenStoreError
 from rpa_desktop.downloads import DownloadResult, Progress
 from rpa_desktop.i18n import t
 from rpa_desktop.settings import SETTINGS_FILE, Settings, load_settings, save_settings
+from rpa_desktop.updates import Updater, detect_updater
+from rpa_update.errors import UpdateError
 from rpa_worker.environment import WorkerInfo
 from rpa_worker.pairing import App, Invite, InviteError, PairResult, parse_invite
 from rpa_worker.remote import ConnectionLostError, Notify, WorkerApiError, WorkerClient
@@ -114,6 +120,8 @@ class Services:
     testsite: Callable[[int], tuple[Closable | None, str, str]]
     detect: Callable[[str | None, str, str], WorkerInfo]
     client: Callable[[str, str], WorkerClient] = WorkerClient
+    updater: Callable[[App, str], Updater | None] = detect_updater
+    """這個 App 的更新（打包的 App 才有，開發環境是 None）。"""
 
 
 def default_services() -> Services:
@@ -241,6 +249,18 @@ class WorkerController:
         self._quick = False
         self._thread: threading.Thread | None = None
         self._exit_code = 0
+        self.on_update_ready: Callable[[], bool] | None = None
+        """裝好更新、閒置時呼叫（視窗版：重新啟動 App 套用，回傳有沒有開始）。
+
+        None 時下次啟動才套用。"""
+        self._updater: Updater | None = None
+        self._update_client: WorkerClient | None = None
+        self._checking = False
+        self._update_ready: str | None = None
+        self._holding = False
+        self._declined: str | None = None
+        self._claims_paused = False
+        self._looping = False
 
     # ------------------------------------------------------------ 訂閱
 
@@ -324,7 +344,8 @@ class WorkerController:
                 "paused": self._paused.is_set(),
                 "version": self.build.version,
                 "fingerprint": self.build.fingerprint,
-                "sameVersion": self._same_version,
+                # 已經裝好管理 Portal 的版本：不用再提示下載安裝檔
+                "sameVersion": self._same_version if self._update_ready is None else None,
                 "serverFingerprint": self._server_fingerprint,
                 "testsite": self._testsite_state,
                 "home": str(self.home),
@@ -620,6 +641,10 @@ class WorkerController:
         info = self.services.detect(self.name, self.build.fingerprint, self.build.version)
         if not info.display:
             self._set(message=_Message("worker.no_display", level="warn"))
+        with self._lock:
+            self._updater = self.services.updater("worker", self.build.version)
+            self._update_client = self.services.client(pairing.server, pairing.token)
+            self._looping = True
         self._set("paused" if self._paused.is_set() else "connecting")
         try:
             fatal = self.services.run(
@@ -633,6 +658,8 @@ class WorkerController:
                 stop_seconds=lambda: QUICK_STOP_SECONDS if self._quick else STOP_SECONDS,
             )
         finally:
+            with self._lock:
+                self._looping = False
             if site is not None:
                 site.shutdown()
                 site.server_close()
@@ -677,16 +704,20 @@ class WorkerController:
                 self._same_version = details.get("sameVersion") is not False
                 self._server_fingerprint = str(fingerprint) if fingerprint else None
                 self._device_name = str(worker) if worker else None
+                self._claims_paused = False
             with self._lock:
                 message = self._message
             keep = (
                 message is not None and message.level != "info" and message.key not in _CONNECTION
             )
             self._set("paused" if self._paused.is_set() else "online", False if keep else None)
+            self._check_update()
         elif event == "offline":
             params = {"server": details.get("server"), "reason": details.get("reason")}
             self._set("offline", _Message("worker.event_offline", params, "warn"))
         elif event == "paused":
+            with self._lock:
+                self._claims_paused = True
             self._set("paused")
         elif event == "claimed":
             record = RunRecord(
@@ -698,6 +729,7 @@ class WorkerController:
             with self._lock:
                 self._current = record
                 self._recent.appendleft(record)
+                self._claims_paused = False
             self._changed()
         elif event == "reported":
             self._finish(str(details.get("run")), str(details.get("status")))
@@ -715,3 +747,77 @@ class WorkerController:
             status = details.get("status")
             with self._lock:
                 self._rejected_status = status if isinstance(status, int) else 0
+            if details.get("code") == "protocol_mismatch":
+                self._check_update()  # 更新到管理 Portal 的版本就能再連上
+
+    # ------------------------------------------------------------ 更新（ADR 0018）
+
+    def _check_update(self) -> None:
+        """在背景問管理 Portal 有沒有新版本；同時只問一次，已經在等重新啟動時不再問。"""
+        with self._lock:
+            updater, client, stop = self._updater, self._update_client, self._stop
+            if updater is None or client is None or self._checking or self._holding:
+                return
+            self._checking = True
+        threading.Thread(
+            target=self._update, args=(updater, client, stop), name="rpa-update", daemon=True
+        ).start()
+
+    def _update(self, updater: Updater, client: WorkerClient, stop: threading.Event) -> None:
+        try:
+            checked = updater.check(client)
+        except WorkerApiError as error:
+            if error.status == 404:
+                logger.info("管理 Portal 沒有提供更新（較舊的版本，或更新檔剛被移走）")
+            else:
+                params: dict[str, object] = {"error": error.message}
+                self._set(message=_Message("worker.update_error", params, "warn"))
+            return
+        except (ConnectionLostError, UpdateError, OSError) as error:
+            self._set(message=_Message("worker.update_error", {"error": error}, "warn"))
+            return
+        finally:
+            with self._lock:
+                self._checking = False
+        offer = checked.offer
+        if offer.status in ("full", "failed"):
+            params = {"version": offer.version}
+            self._set(message=_Message(f"worker.update_{offer.status}", params, "warn"))
+        elif checked.ready:
+            self._apply(offer.version, stop)
+
+    def _apply(self, version: str, stop: threading.Event) -> None:
+        """新版本裝好了：視窗版暫停領新任務、閒置時重新啟動；其他下次啟動時套用。"""
+        with self._lock:
+            if self._holding:
+                return
+            self._update_ready = version
+            restart = self.on_update_ready
+            # 使用者自己暫停、或已經取消過這個版本的重新啟動：不打擾
+            hold = restart is not None and not self._paused.is_set() and self._declined != version
+            self._holding = hold
+        if restart is None or not hold:
+            self._set(message=_Message("worker.update_next_start", {"version": version}))
+            return
+        self.set_paused(True)
+        self._set(message=_Message("worker.update_restarting", {"version": version}))
+        declined = False
+        while not stop.wait(1.0):
+            if not self._paused.is_set():
+                declined = True  # 使用者按了「繼續接任務」
+                break
+            with self._lock:
+                idle = self._current is None and (self._claims_paused or not self._looping)
+            if idle:
+                logger.info("閒置了：重新啟動套用 %s", version)
+                if restart():
+                    return
+                self.set_paused(False)
+                declined = True
+                break
+        with self._lock:
+            self._holding = False  # 結束、重新配對，或不重新啟動了
+            if declined:
+                self._declined = version
+        if declined:
+            self._set(message=_Message("worker.update_next_start", {"version": version}))
