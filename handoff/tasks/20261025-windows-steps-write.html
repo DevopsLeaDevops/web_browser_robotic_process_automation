@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Windows 寫入 steps.json 失敗 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>Windows 寫入 steps.json 失敗</h1><p>Windows 上別的程序開著 <code>steps.json</code> 時，子程序改名寫入會丟 <code>PermissionError</code>，執行被判定失敗。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261025-windows-steps-write；2026-10-25 04:52 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者的專案中，PR #83（熱更新）的「Worker 測試（Windows）」兩次失敗；Claude 在 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/83#issuecomment-6397226863">#83 的留言</a>分析出原因在 <code>rpa_runner</code>，建議另開 PR 修。驗收：Windows 上目標檔被開著時 <code>write_json</code> 等它關掉後成功；其他系統行為不變；PR 的 Windows 檢查通過。</dd>
+        <dt>範圍／不包含</dt><dd>只改 <code>files.write_json</code> 的改名重試、新增測試、桌面端建置的 Windows 單元測試清單。不包含 Windows 上取消時影片收尾的時序問題（Chromium 那次 <code>unreadable</code>，見 <a href="20261020-m12-replay.html">20261020-m12-replay</a>）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責 Claude；審閱與接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/files.py</code>、<code>packages/rpa_runner/tests/test_files.py</code>（新）、<code>packages/rpa_runner/tests/test_video_browser.py</code>（斷言附上錯誤訊息）、<code>.github/workflows/desktop.yml</code>、本紀錄與任務索引。與 PR #83 沒有重疊的檔案。</dd>
+        <dt>狀態</dt><dd>待審閱：已推送，PR 建立後回填。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-iqv8qq</code>（雲端工作階段指定的分支名稱）；base <code>main</code> <span class="mono">29176b1</span>；PR 見 GitHub。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新提交為準，已推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端 Linux 容器；Python 3.13.17、uv 0.11.32、ruff 0.17.1、pyright 1.1.414、pytest 9.1.1。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>原因：</strong>子程序每一步都用 <code>files.write_json</code> 寫 <code>steps.json</code>（先寫暫存檔再 <code>replace</code>）。Windows 上目標檔被別的程序開著時（Python 的 <code>open</code> 不帶 <code>FILE_SHARE_DELETE</code>），改名丟 <code>PermissionError</code>（WinError 5），例外從 <code>on_progress</code> 傳上去，子程序以 <code>EXIT_FAILED</code> 結束。讀取的一方：<code>test_cancelled_run_keeps_a_playable_video</code> 每 0.1 秒讀進度；伺服器回看（<code>rpa_server/replay.py</code>）也讀執行中的 <code>steps.json</code>，所以 Windows 本機執行時有人在看進度也可能讓執行失敗。CI 日誌只有 <code>'failed' == 'cancelled'</code>，沒有子程序的錯誤訊息；這個原因是推斷，由新的 Windows 測試先確認「開著時改名真的會失敗」。</li>
+        <li><strong>已完成：</strong>Windows 上改名遇到 <code>PermissionError</code> 時每 20 毫秒重試，最多 50 次（約 1 秒）後照舊丟出；其他系統不重試（那是真的沒有權限）。測試：Windows 上另一個執行緒開著目標檔 0.2 秒，先確認直接改名會失敗，再確認 <code>write_json</code> 成功；重試上限與「其他系統不重試」各一個測試。錄影取消、逾時測試的狀態斷言附上 <code>result.error</code>，下次失敗能看到原因。</li>
+        <li><strong>決定（實作選擇）：</strong>Windows 專用的測試不需要瀏覽器，PR 上的「Worker 測試（Windows）」只跑瀏覽器測試，所以加進桌面端建置（<code>desktop.yml</code>）Worker 的單元測試清單，和 <code>test_commands.py</code> 一樣在 PR 上的 Windows 跑；每晚完整測試也會跑。</li>
+        <li><strong>未完成／阻礙：</strong>Windows 上的結果要看 CI；本機是 Linux，Windows 測試略過。</li>
+        <li><strong>下一個具體動作：</strong>確認 PR 的「桌面端建置 → RPA Worker（Windows）」單元測試與「Worker 測試（Windows）」通過；合併後 PR #83 從 main 更新再跑 Windows 檢查。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無；<code>.venv</code> 可用 <code>uv sync --locked</code> 重建。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>base <span class="mono">29176b1</span>＋本任務的修改；雲端 Linux，見上</td><td><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run pyright</code>、<code>uv run python tools/i18n.py check</code>、<code>uv run pytest -m "not browser" -n 4</code></td><td>ruff 通過；pyright 0 errors、11 warnings（桌面端選用套件，既有）；i18n 通過；1662 passed、5 skipped（含本任務兩個 Windows 測試）</td><td>Windows 的兩個測試、瀏覽器測試只在 CI</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：待 PR 建立後回填；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-25 04:52 America/Los_Angeles（PDT，UTC−07:00），Claude：開工並完成本地修改與檢查，推送到 <code>claude/project-thread-iqv8qq</code>。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
