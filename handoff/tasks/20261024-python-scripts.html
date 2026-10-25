@@ -21,8 +21,8 @@
         <dt>主責／審閱／接收方</dt><dd>設計：Claude。審閱與決定：使用者。實作主責等設計確認後再定（預設 Claude）。</dd>
         <dt>修改檔案／整合者</dt><dd>本次只有設計：本頁、<a href="index.html">任務索引</a>、<a href="../decisions.html#pending">決定 › 待你決定</a>。實作會改到的檔案列在<a href="#phases">第 12 節</a>；共用檔案（ADR 編號、遷移編號、訊息目錄、<code>docs/assets/nav.js</code>、路線圖）與 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>（對外 Agent API，ADR 0017、M14）重疊，後合併的一方解衝突。</dd>
         <dt>狀態</dt><dd>設計待審閱：等使用者回覆第 14 節的 D1～D10。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-vql00s</code>，從 <code>a8cde7f</code>（origin/main，#78）開；只有設計的 PR 見<a href="#log">追加紀錄</a>。</dd>
-        <dt>交接版本／同步狀態</dt><dd>設計提交推送後填在<a href="#log">追加紀錄</a>；沒有未提交的檔案。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-vql00s</code>，從 <code>a8cde7f</code>（origin/main，#78）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>（草稿，只有設計，base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>設計 <code>c9d34cc</code> 與本頁的回填已推送到 <code>claude/project-thread-vql00s</code>；沒有未提交的檔案。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.17、uv 0.11.32；沒有安裝倉庫的 <code>.venv</code> 與瀏覽器）。技術驗證（第 2 節）在暫存目錄進行，不進倉庫。</dd>
       </dl></div>
     </section>
@@ -489,7 +489,7 @@ def check(c: Check) -&gt; dict[str, object]:
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
-          <tr><td>a8cde7f＋本頁、任務索引、決定（Claude 雲端環境）</td><td><code>git diff --check</code>；handoff 的相對連結與錨點檢查</td><td>見追加紀錄</td><td>只改 handoff/，不跑程式測試</td></tr>
+          <tr><td>a8cde7f＋本頁、任務索引、決定（Claude 雲端環境）</td><td><code>git diff --check</code>；handoff 的相對連結與錨點檢查</td><td>通過；以 Chromium 開啟本頁，1280 寬沒有橫向捲動</td><td>只改 handoff/，不跑程式測試</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p>CI：依共用流程，只改 handoff/ 的推送沿用上一次的結果；人工驗收：未執行（只有設計）；審閱：等使用者。</p></div>
@@ -504,6 +504,7 @@ def check(c: Check) -&gt; dict[str, object]:
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-24 21:10 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 20:18 的需求建立本頁，完成設計與待決定事項；只有設計，沒有實作。</li>
+        <li>2026-10-24 21:20 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>c9d34cc</code>，開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>；把使用者設成指派人與審閱者失敗（GitHub 回應帳號不是倉庫的協作者），不影響審閱。</li>
       </ul></div>
     </section>
   </div>
