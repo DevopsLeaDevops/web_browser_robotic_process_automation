@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 
 [manifest]
@@ -10,6 +10,7 @@ members = [
     "rpa-runner",
     "rpa-server",
     "rpa-testsite",
+    "rpa-update",
     "rpa-worker",
 ]
 
@@ -28,6 +29,7 @@ dev = [
     { name = "rpa-runner", editable = "packages/rpa_runner" },
     { name = "rpa-server", editable = "apps/server" },
     { name = "rpa-testsite", editable = "apps/testsite" },
+    { name = "rpa-update", editable = "packages/rpa_update" },
     { name = "rpa-worker", editable = "apps/worker" },
     { name = "ruff", specifier = ">=0.16.10" },
 ]
@@ -1424,6 +1426,11 @@ requires-dist = [
 name = "rpa-testsite"
 version = "0.5.0"
 source = { editable = "apps/testsite" }
+
+[[package]]
+name = "rpa-update"
+version = "0.5.0"
+source = { editable = "packages/rpa_update" }
 
 [[package]]
 name = "rpa-worker"
