@@ -116,6 +116,7 @@
           <tr><td>M5：金鑰放哪裡</td><td><span class="kind pending">待你決定</span></td><td>推薦：放在「登入與憑證」的 Secrets（例如 <code>ANTHROPIC_API_KEY</code>）。</td><td>同上第 3 點</td></tr>
           <tr><td><strong>M5：首版功能範圍</strong></td><td><span class="kind pending">待你決定</span></td><td>提案列了四個流程：一句話生成、對話調試、校驗失敗自動修正、選擇器自癒。<span class="kind tentative">Claude 的建議（未提出過）</span>：首版先做「一句話生成」與「校驗失敗自動修正」，對話調試與自癒放第二版。</td><td>m5 提案第二節</td></tr>
           <tr><td><strong>M5：驗收標準</strong></td><td><span class="kind pending">待你確認</span></td><td>提案：助手只改草稿，API 與頁面都沒有發布路徑（自動測試確認）；一句話描述生成可通過驗證的場景（真實模型手動驗收，自動測試用腳本模型）。</td><td>m5 提案第五節；路線圖 M5</td></tr>
+          <tr><td><strong>Python 腳本場景：D1～D10</strong></td><td><span class="kind pending">待你決定</span></td><td>Claude 2026-10-24 提出的設計：「若已有則重複使用」的範圍、Worker 自帶運行環境的方式、uv、腳本介面 <code>rpa_script</code>、腳本場景用 <code>verify</code>、錄製產生腳本、第三方套件、腳本錄影、Linux Worker、分期；每一項都有建議，回覆「照建議」即可。</td><td><a href="tasks/20261024-python-scripts.html#decisions">Python 腳本場景任務紀錄</a> 第 14 節</td></tr>
           <tr><td>M9：部署方式與物件儲存</td><td><span class="kind pending">待你決定</span>（M9 前）</td><td>單機 Docker Compose 或 Kubernetes；S3 相容產品（SeaweedFS、Garage 或公司現有的）。</td><td><a href="../docs/roadmap.html">路線圖</a>「待決定」</td></tr>
         </tbody>
       </table></div>

@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Python 腳本場景（設計） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>Python 腳本場景（設計）</h1><p>讓 Python 腳本場景在 Windows、macOS、Linux 的 Worker 上一樣能跑：Worker 自帶 Python 運行環境、已經有的就沿用；腳本可以錄製產生；運行時有步驟、錄影、報告與回看。場景的自動化腳本、斷言、入參、出參與運行報告沿用現有的契約。只有設計，等使用者確認第 14 節之後才寫程式。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-24 21:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-24 20:18 America/Los_Angeles（PDT，UTC−07:00）在 Claude 專案對話：「幫我做一個新的設計。設計目標是支援腳本場景，考慮運行態 windows worker、mac worker、Linux worker 的通用性，使用 Python 腳本環境，worker 自帶 Python 運行上下文，若已有則重複使用。在場景模型上，自動化腳本、斷言、入參、出參、運行報告使用現有的領域建模方式。腳本錄製的方案我還沒想好，你幫我設計一下。腳本的運行過程、腳本的運行報告、運行回看我還沒想好，幫我設計。注意先設計好在開始 coding，一起設計好在開始動手 coding 實作。」驗收條件見<a href="#goal">第 1 節</a>。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：場景模型、Python 運行環境、腳本介面、錄製、運行過程、運行報告、運行回看、相容性、分期與驗證（第 3～12 節）。不包含：AI 生成腳本（M5）、使用者權限（M8）、帶帳密的私有套件索引、Linux Worker 的安裝包（D9）、腳本以外的語言。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計：Claude。審閱與決定：使用者。實作主責等設計確認後再定（預設 Claude）。</dd>
+        <dt>修改檔案／整合者</dt><dd>本次只有設計：本頁、<a href="index.html">任務索引</a>、<a href="../decisions.html#pending">決定 › 待你決定</a>。實作會改到的檔案列在<a href="#phases">第 12 節</a>；共用檔案（ADR 編號、遷移編號、訊息目錄、<code>docs/assets/nav.js</code>、路線圖）與 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>（對外 Agent API，ADR 0017、M14）重疊，後合併的一方解衝突。</dd>
+        <dt>狀態</dt><dd>設計待審閱：等使用者回覆第 14 節的 D1～D10。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-vql00s</code>，從 <code>a8cde7f</code>（origin/main，#78）開；只有設計的 PR 見<a href="#log">追加紀錄</a>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>設計提交推送後填在<a href="#log">追加紀錄</a>；沒有未提交的檔案。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.17、uv 0.11.32；沒有安裝倉庫的 <code>.venv</code> 與瀏覽器）。技術驗證（第 2 節）在暫存目錄進行，不進倉庫。</dd>
+      </dl></div>
+    </section>
+
+    <section class="panel" id="summary">
+      <div class="panel-header"><h2>0. 一頁摘要</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>場景模型不換。</strong>腳本場景照舊是一份 <code>scenario.yaml</code>：入參、出參、Secrets、登入角色、瀏覽器、總期限都和 DSL 一樣；<code>script:</code> 指出自動化腳本，斷言可以用 DSL 的 <code>verify:</code>＋<code>outputs.from</code>（錄製產生這種），也可以照舊用 <code>assertion.py</code>。運行報告的格式（<code>result.json</code>、<code>steps.json</code>、<code>facts.json</code>、<code>output.json</code>）也一樣。</li>
+        <li><strong>Python 運行環境分三層，每一層「已經有就沿用」。</strong>直譯器（Worker 自帶，或電腦上已裝的相容版本）→ 平台層（和 Worker 同版本的 Playwright＋腳本介面）→ 場景環境（場景鎖定的第三方套件）。用 uv 建立；同一組套件第二次直接沿用（實測 0.1 秒、檔案以硬連結共用，不多佔空間）。</li>
+        <li><strong>新的腳本介面 <code>rpa_script</code>。</strong>瀏覽器由平台照場景設定開好（登入狀態、視窗大小、Firefox 預熱、錄影），腳本用 <code>with run.step("id", "名稱"):</code> 標出步驟、把看到的寫進 <code>run.facts</code>。DSL 的子程序和腳本共用同一份開瀏覽器與錄影的程式，所以報告與回看和 DSL 場景一致。舊的命令列寫法照常可用。</li>
+        <li><strong>錄製直接產生腳本。</strong>沿用 Playwright codegen 與現在的錄製頁，多一個「產生：DSL 場景／Python 腳本場景」。codegen 的 Python 原稿轉成 <code>rpa_script</code> 的腳本：一個操作一步、輸入變成入參、密碼變成 Secret、Inspector 的 Assert 變成頁面事實＋獨立斷言；DSL 轉不了的寫法（hover、上傳、鍵盤、拖曳…）在腳本裡照樣能執行。</li>
+        <li><strong>運行過程多一個「運行環境」階段</strong>（不算進總期限），其餘照 ADR 0009：入參 → 運行環境 → 登入 → 自動化 → 斷言 → 出參。心跳帶著目前的步驟；取消、逾時、程序樹的終止與錄影收尾沿用 M2、M12。</li>
+        <li><strong>回看沿用 M12 的播放器</strong>，步驟詳細多了腳本原文與行號、主控台輸出、錯誤的呼叫堆疊；舊寫法的腳本沒有錄影，回看頁說明怎麼改。</li>
+        <li><strong>分四個 PR 交付</strong>（第 12 節）：運行環境 → 腳本介面＋報告＋回看 → 錄製 → 調試與接著錄製。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="goal">
+      <div class="panel-header"><h2>1. 目標與驗收</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>同一個 Python 腳本場景，不改一行，在 Windows Worker App、macOS Worker App、Linux 的 <code>rpa worker</code> 都能驗證與執行；有頭、無頭都可以（Linux 沒有桌面時只能無頭）。</li>
+        <li>Worker 不需要事先裝 Python：第一次跑腳本時用自帶的環境，沒有網路也能跑只用標準函式庫與 Playwright 的腳本。同一台電腦已經準備好的環境（包括錄製端、命令列共用的）一律沿用，第二次運行的「運行環境」階段在 1 秒內。</li>
+        <li>場景的入參、出參、獨立斷言、Secrets、登入角色、發布門檻和 DSL 場景用同一套規則；通過驗證的版本（含腳本、套件鎖定檔）就是發布的版本。</li>
+        <li>在錄製端錄一段操作，可以直接存成 Python 腳本場景的草稿，交給 Worker 驗證、發布、執行成功。</li>
+        <li>腳本的運行報告有步驟（名稱、結果、耗時、錯誤、原始碼行號）、頁面事實、斷言、出參、截圖、主控台輸出與運行環境；運行回看可以播放、拖曳、和步驟對上，失敗的運行打開就停在失敗步驟之前。</li>
+        <li>舊的腳本場景（<code>ba-001-script</code> 這種命令列寫法）照常通過；舊版 Worker 不會領到它跑不了的腳本，而是看到要更新的說明。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="spike">
+      <div class="panel-header"><h2>2. 現況與技術驗證</h2><span class="muted">程式以 main a8cde7f 查證；實測在 2026-10-24 20:40～21:00 America/Los_Angeles（PDT，UTC−07:00）</span></div>
+      <div class="panel-body">
+        <h3>現在的 Python 腳本場景</h3>
+        <ul class="points">
+          <li>DSL 的逃生門（<a href="../../docs/adr/0009-scenario-contract.html">ADR 0009</a>、<a href="../../docs/design/dsl.html#contract">場景 DSL › script</a>）：<code>script: { automation, assertion }</code> 兩支檔案，沿用 MVP 原型的命令列契約；腳本自己啟動瀏覽器，從環境變數拿到瀏覽器、剩餘期限、有頭／無頭與登入狀態檔（<code>scenarios/demo/ba-001-script/</code>）。</li>
+          <li>Runner 以子程序執行（<code>rpa_runner.run</code> 的 <code>_automation_stage</code>、<code>_verify_stage</code>），直譯器是 <code>sys.executable</code>；打包後是 App 自己的 <code>rpa-child --rpa-script</code>（<code>rpa_runner.commands.script_command</code>），所以<strong>只能 import 標準函式庫與 App 內附的套件</strong>（<a href="../../docs/adr/0014-desktop-apps.html">ADR 0014</a> 的代價）。</li>
+          <li>沒有步驟紀錄（<code>steps.json</code> 是空的）、不錄影（M12 D5「腳本場景暫不支援」）、逐步調試只支援 DSL（卡片的「調試」對腳本場景是直接驗證）；錄製與 AI 不產生腳本場景（ADR 0009）。</li>
+          <li>腳本場景的雜湊包含場景檔與兩支腳本（<code>rpa_core.dsl.sources</code>）；版本、發布門檻、領域資料夾、Worker 任務（<code>JobPayload.files</code>）都已經能帶任意多個檔案。</li>
+        </ul>
+        <h3>技術驗證</h3>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>結果</th><th>根據</th><th>還要確認</th></tr></thead>
+        <tbody>
+          <tr><td>用 uv 從指定的直譯器建環境</td><td><code>uv venv --python 直譯器</code> 0.08 秒；第一次裝 Playwright 1.64.0 5.6 秒（下載＋解壓），第二個環境裝同樣的套件 0.11 秒，檔案以硬連結共用：第一個環境 140 MB，第二個只多 344 KB</td><td>本環境實測（Linux、uv 0.11.32、PyPI）</td><td>Windows（NTFS 硬連結）、macOS（APFS clonefile）的時間與空間在 CI 量</td></tr>
+          <tr><td>場景套件的鎖定與安裝</td><td><code>uv pip compile --universal --generate-hashes</code> 產生一份所有平台通用、帶雜湊的鎖定檔；<code>uv pip install --no-deps --require-hashes -r 鎖定檔</code> 疊在已裝好 Playwright 的環境上，不會動到平台層</td><td>本環境以 openpyxl 3.1.5 實測</td><td>含原生擴充的套件（例如 numpy）在三個平台的 wheel</td></tr>
+          <tr><td>找電腦上已裝的 Python</td><td><code>uv python find '&gt;=3.12' --python-preference only-system</code> 找到 <code>/usr/bin/python3</code>；<code>only-managed</code> 只找 uv 管理的；指定 3.11 也找得到系統的 3.11</td><td>本環境實測</td><td>Windows 的 py launcher／登錄檔、Microsoft Store 的捷徑；macOS 的 <code>/usr/bin/python3</code> 在沒裝開發工具時會跳出安裝視窗，要先排除（第 4 節）</td></tr>
+          <tr><td>下載 Python</td><td><code>uv python install 3.13</code> 下載 python-build-standalone 2.6 秒，解壓後 104 MB</td><td>本環境實測（經由代理）</td><td>公司網路的鏡像（<code>UV_PYTHON_INSTALL_MIRROR</code>）；stripped 版本的大小</td></tr>
+          <tr><td>腳本目錄留在 <code>sys.path</code></td><td><code>python -E -s 腳本</code> 忽略 <code>PYTHON*</code> 環境變數與使用者的 site-packages，但 <code>sys.path[0]</code> 仍是腳本所在的資料夾（腳本可以 import 同場景的其他 .py）；<code>-I</code> 會拿掉它，所以不用</td><td>本環境實測</td><td>無</td></tr>
+          <tr><td>錄製稿轉成腳本</td><td>現在的錄製轉換（<code>rpa_core.recording</code>）已經用 <code>ast</code> 解析 codegen 的 Python 原稿：定位器鏈、iframe、新分頁、輸入值、密碼欄位與 Assert 的判斷都能直接共用</td><td>程式（<code>_chain</code>、<code>_locator</code>、<code>_is_password</code>、<code>_input_name</code>…）</td><td>產生程式碼的格式（第 6 節）</td></tr>
+          <tr><td>瀏覽器版本</td><td>Playwright 的瀏覽器跟 Playwright 版本綁在一起；平台層用和 Worker 完全相同的 Playwright 版本，就用同一份已下載的瀏覽器（<code>ms-playwright</code>），不必再下載</td><td>Playwright 的瀏覽器版本規則；uv.lock 是 1.64.0</td><td>CI：打包後的 Worker 用平台層的 Playwright 開已下載的 Chromium、Firefox</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="model">
+      <div class="panel-header"><h2>3. 場景模型：沿用現有的契約</h2></div>
+      <div class="panel-body">
+        <p>Python 腳本場景和 DSL 場景是同一種東西：同一份 <code>scenario.yaml</code>、同一套入參與出參的宣告、同一個發布門檻；差別只在「自動化」那一段是 Python。<code>schemaVersion</code> 維持 1，新欄位是增加的，舊場景不用改，雜湊也不變。</p>
+<pre class="source"># scenes/ba-001-sdk/revisions/1/scenario.yaml
+schemaVersion: 1
+id: ba-001-sdk
+name: 建立範例紀錄（Python 腳本）
+inputs:                                 # 入參：和 DSL 相同（型別、限制、動態值）
+  title: { type: string, minLength: 1, maxLength: 60, default: 介面驗證範例 }
+  quantity: { type: integer, minimum: 1, maximum: 30, default: 12 }
+outputs:                                # 出參：和 DSL 相同，from 取自頁面事實
+  recordId: { pattern: '^DEMO-[A-Z0-9]+$', from: '{{ facts.record.recordId }}' }
+browser: { engine: firefox, baseUrl: http://127.0.0.1:8765 }
+deadline: 45000
+script:
+  api: 2                                # 新：2＝rpa_script 介面；沒寫是 1（現有的命令列寫法）
+  automation: automation.py             # 自動化腳本
+  python: "3.13"                        # 新，選用：沒寫就用 Worker 自帶的版本
+  requirements: requirements.txt        # 新，選用：第三方套件
+  lock: requirements.lock               # 新：有 requirements 就必須有，存檔時產生
+  files: [helpers.py, data/codes.json]  # 新，選用：腳本會讀的其他檔案
+  platforms: [windows, macos, linux]    # 新，選用：只在這些系統執行；沒寫是不限
+verify:                                 # 獨立斷言：api 2 可以用 DSL 的 verify（和 assertion.py 二擇一）
+  - name: 狀態是已建立
+    value: '{{ facts.record.status }}'
+    equals: 已建立</pre>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>使用者說的</th><th>現有的建模</th><th>腳本場景怎麼用</th></tr></thead>
+        <tbody>
+          <tr><td>自動化腳本</td><td>DSL 的 <code>steps:</code>；卡片與場景頁的「自動化腳本」</td><td><code>script.automation</code> 指的 .py；同一個「自動化腳本」入口改成編輯這支檔案（加上 <code>files</code> 列出的其他檔案）。腳本只負責操作頁面、把看到的寫成頁面事實 <code>facts</code>，不判定成功。</td></tr>
+          <tr><td>斷言</td><td><code>verify:</code>（獨立斷言，「斷言腳本」入口，右側插入 notEmpty／equals／contains／matches）</td><td>api 2 可以直接寫 <code>verify:</code>（錄製產生這種，編輯器與檢查完全相同）；需要程式判斷時改用 <code>script.assertion</code> 的 .py。兩者二擇一；有出參就必須有其中一個（ADR 0009 不變）。</td></tr>
+          <tr><td>入參</td><td><code>inputs:</code>：型別、限制、預設值、動態值；啟動瀏覽器前校驗</td><td>完全相同。腳本從 <code>run.inputs</code> 讀到校驗後的運行態入參（動態值已求值，和 <code>input.json</code> 同一份）。</td></tr>
+          <tr><td>出參</td><td><code>outputs:</code>＋<code>from</code>；獨立斷言通過後才發布</td><td>用 <code>verify</code> 時照舊寫 <code>from</code>；用 <code>assertion.py</code> 時由它回傳候選出參、不寫 <code>from</code>（現有規則）。出參校驗與 <code>output.json</code> 不變。</td></tr>
+          <tr><td>運行報告</td><td>執行目錄：<code>input.json</code>、<code>facts.json</code>、<code>steps.json</code>、<code>output.json</code>、<code>result.json</code>、<code>report.html</code>、截圖、錄影</td><td>同一份格式；<code>steps.json</code> 由腳本介面寫（第 8 節），多出的檔案是增加的（運行環境、主控台輸出）。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <h3>校驗規則（rpa validate、Portal 存檔、rpa pack check 相同）</h3>
+        <ul class="points">
+          <li><code>api</code> 是 1 或 2。api 1 的規則不變（不寫 <code>verify</code>、出參不寫 <code>from</code>、兩支腳本都要有）；<code>python</code>、<code>requirements</code>、<code>files</code>、<code>platforms</code> 兩種 api 都能寫。</li>
+          <li>api 2：<code>assertion</code> 與 <code>verify</code> 恰好一個（沒有出參時兩個都可以不寫，和 DSL 一樣）；<code>verify</code> 與 <code>outputs.from</code> 只能引用 <code>inputs</code>、<code>secrets</code>、<code>facts</code>、<code>env</code>。腳本會寫出哪些 facts 在校驗時看不出來，所以不檢查 facts 的名稱，執行時找不到就在那一條斷言報「沒有這個頁面事實」。</li>
+          <li><code>python</code> 是 <code>"3.12"</code>、<code>"3.13"</code> 或 <code>"3.14"</code>（平台的最低版本仍是 3.12，ADR 0002）。<code>platforms</code> 是 <code>windows</code>、<code>macos</code>、<code>linux</code> 的子集。</li>
+          <li>路徑都相對於場景檔的資料夾，不能用 <code>..</code> 或絕對路徑（沿用 <code>ScriptPath</code> 的規則，<code>files</code> 也可以是 .py 以外的檔案）。每支 .py 在存檔時做語法檢查（依 <code>python</code> 的版本），錯誤指出檔案與行號。</li>
+          <li><code>requirements.txt</code> 只能寫套件名稱與版本條件；不接受網址、VCS、本機路徑、<code>-e</code>、<code>--index-url</code> 之類的選項（套件來源只在伺服器設定，第 4 節）。不能列平台層的套件（<code>playwright</code>、<code>rpa-script</code>）。</li>
+          <li><code>lock</code> 由伺服器產生（第 4 節），每一項都要 <code>==</code> 版本與雜湊；手動上傳的也照同樣規則檢查。</li>
+        </ul>
+        <h3>雜湊與檔案</h3>
+        <ul class="points">
+          <li><code>scenario_sources</code> 依序加上 <code>assertion</code>（有寫才加）、<code>requirements</code>、<code>lock</code>、<code>files</code>。沒有用到新欄位的場景，檔案清單與雜湊完全不變（<a href="../../docs/adr/0015-domain-folders-and-git.html">ADR 0015</a>「演算法改了會讓所有既有的雜湊對不上」）。</li>
+          <li>「驗證的就是發布的」因此包含套件鎖定檔：換了套件版本就是新版本，要重新驗證。</li>
+          <li>領域資料夾的版本目錄照樣放全部檔案；<code>rpa pack check</code> 多檢查上面的規則與每個檔案都在。單一檔案上限沿用 git 推送的 1 MB。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="runtime">
+      <div class="panel-header"><h2>4. Python 運行環境：Worker 自帶，已經有就沿用</h2></div>
+      <div class="panel-body">
+        <p>「運行環境」是腳本實際用的 Python：一個直譯器加上一個虛擬環境。分三層，每一層都以內容決定身分，已經有一模一樣的就直接沿用，沒有才建立。三層都放在這台電腦的快取資料夾，Worker App、錄製端 App 與命令列共用。</p>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>層</th><th>內容</th><th>怎麼認出「已經有」</th><th>從哪裡來（依序）</th></tr></thead>
+        <tbody>
+          <tr><td>1. 直譯器</td><td>CPython 3.12 以上（python-build-standalone，或電腦上已裝的）</td><td>版本、平台、架構相同的已準備直譯器</td><td>(1) 這台已經準備好的；(2) Worker 自帶的（App 內附的壓縮檔解壓一次；Linux 分發包本身的 Python；開發環境 uv 管理的）；(3) 電腦上已裝的相容版本（設定允許時，第 4.3 節）；(4) 用 uv 下載（設定允許時，可以用鏡像）</td></tr>
+          <tr><td>2. 平台層</td><td>和這個 Worker 同版本的 Playwright（含它的 greenlet、pyee）與腳本介面 <code>rpa-script</code></td><td>直譯器＋平台層清單（套件版本與雜湊）</td><td>Worker 自帶的 wheel（離線可用）；開發環境從工作區建</td></tr>
+          <tr><td>3. 場景環境</td><td>平台層＋場景 <code>requirements.lock</code> 的套件</td><td>環境代號＝直譯器組建＋平台層清單＋鎖定檔內容的 sha256 前 16 碼</td><td>uv 從伺服器設定的套件來源安裝（<code>--no-deps --require-hashes</code>）；下載過的 wheel 在 uv 的快取，之後的環境以硬連結共用</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <p>沒有第三方套件的腳本（大多數）直接用第 2 層的環境，每個直譯器只有一份。舊寫法（api 1）的腳本也改在這裡執行：它要的 Playwright 在平台層裡；唯一的差別是不能再 import App 內部的套件（Pydantic 等，ADR 0014 原本就說明只保證標準函式庫與 Playwright），需要時寫進 <code>requirements</code>。</p>
+        <h3 id="runtime-bundle">4.1 每個系統自帶什麼</h3>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th></th><th>Windows Worker App</th><th>macOS Worker App</th><th>Linux（<code>rpa worker</code>）</th></tr></thead>
+        <tbody>
+          <tr><td>形式</td><td>安裝檔／zip（x64）</td><td>DMG（Apple 晶片）</td><td>伺服器分發包（x64、arm64）或原始碼安裝；沒有另外的 App（D9）</td></tr>
+          <tr><td>自帶的直譯器</td><td>App 內附 python-build-standalone 3.13 的壓縮檔，第一次用到時解壓</td><td>同左（arm64）</td><td>分發包本身就是 python-build-standalone 3.13，直接當第 1 層（「已經有就沿用」）；原始碼安裝用 uv 管理的</td></tr>
+          <tr><td>平台層</td><td>App 內附 wheel：Playwright（和 App 同版本）、greenlet、pyee、rpa-script</td><td>同左</td><td>分發包多附這幾個 wheel；原始碼安裝從工作區建</td></tr>
+          <tr><td>uv</td><td>App 內附 <code>uv.exe</code></td><td>App 內附 <code>uv</code></td><td>分發包內附；原始碼安裝用 PATH 上的</td></tr>
+          <tr><td>快取資料夾（<code>RPA_CACHE_DIR</code>／python）</td><td><code>%LOCALAPPDATA%\rpa\cache\python</code></td><td><code>~/Library/Caches/rpa/python</code></td><td><code>~/.cache/rpa/python</code></td></tr>
+          <tr><td>環境的 python</td><td><code>envs\代號\Scripts\python.exe</code></td><td><code>envs/代號/bin/python</code></td><td>同 macOS</td></tr>
+          <tr><td>估計多出的大小</td><td colspan="3">直譯器約 25～35 MB、Playwright wheel 約 36～44 MB、uv 約 15～20 MB（壓縮後；以 CI 的實測為準）。解壓後第 1、2 層約 250 MB，之後的環境共用檔案。D2 是要不要放進安裝檔。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <h3>4.2 快取資料夾</h3>
+<pre class="source">RPA_CACHE_DIR/python/
+  interpreters/cpython-3.13.5-windows-x86_64/   # 第 1 層：自帶的解壓到這裡；下載的也在這裡
+  envs/base-1a2b3c4d5e6f7a8b/                   # 第 2 層：平台層（每個直譯器一份）
+  envs/9f8e7d6c5b4a3210/                        # 第 3 層：某個場景鎖定檔的環境
+    runtime.json                                # 直譯器、平台層、套件清單、建立與最後使用的時間
+  uv/                                           # uv 的下載快取（wheel 只下載一次）
+  machine.json                                  # 這台電腦找到的已裝 Python（定期重找）
+  locks/                                        # 建環境、清理時的檔案鎖</pre>
+        <ul class="points">
+          <li><strong>不會看到建到一半的環境。</strong>先建在 <code>envs/.tmp-…</code>，完成、自我檢查（<code>python -c "import playwright, rpa_script"</code>）後才改名成正式代號。兩個程序同時要同一個環境時，後到的等前一個建完（檔案鎖），不會重建。</li>
+          <li><strong>清理。</strong>保留最近 30 天用過的環境，總量上限 5 GB（硬連結共用的檔案只算一次），超過時從最久沒用的刪起；正在使用的不刪；沒有環境用到的直譯器（自帶的除外）一起刪；最後 <code>uv cache prune</code>。Worker 的「設定」可以看大小、按「清除 Python 運行環境」。刪掉也沒關係，下次會重建（和 Firefox 預熱設定檔相同）。</li>
+          <li><strong>App 升級。</strong>Playwright 或 rpa-script 版本變了，平台層清單就不同，第一次跑腳本時重建（硬連結共用，通常幾秒）；舊的依清理規則刪除。直譯器版本沒變就沿用。</li>
+        </ul>
+        <h3 id="runtime-machine">4.3 「若已有則重複使用」：電腦上已裝的 Python</h3>
+        <ul class="points">
+          <li><strong>本設計的理解（D1）：</strong>三層都「已經有就沿用」；電腦上已裝的 Python 只在 Worker 自帶的版本不符合場景的 <code>python</code> 時才用（例如場景要 3.12、自帶的是 3.13），而且優先於下載。這樣同一個場景在每台 Worker 上預設用同一個直譯器，結果最一致。</li>
+          <li><strong>怎麼找：</strong><code>uv python find 版本 --python-preference only-system</code>。Windows 找 py launcher、登錄檔與 PATH，略過 Microsoft Store 的捷徑（沒安裝時只會打開商店）；macOS 找 PATH、python.org 與 Homebrew，<strong>不碰 <code>/usr/bin/python3</code></strong>，除非 <code>xcode-select -p</code> 有結果（否則會跳出安裝開發工具的視窗）；Linux 找 PATH 與系統套件。找到的記在 <code>machine.json</code>，回報給伺服器。</li>
+          <li><strong>不用的情況：</strong>版本、架構不符；是虛擬環境裡的 python；設定關閉了「使用電腦上已裝的 Python」。</li>
+        </ul>
+        <h3>4.4 設定與網路</h3>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>設定</th><th>在哪裡</th><th>預設</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr><td>Python 套件來源</td><td>伺服器（「場景運行」的設定，和錄影設定放一起）</td><td>PyPI</td><td>可以填公司的鏡像或內部索引；隨任務送給 Worker，伺服器產生鎖定檔也用它。場景不能自己指定來源。</td></tr>
+          <tr><td>Python 下載來源</td><td>伺服器</td><td>python-build-standalone 的 GitHub Release</td><td>uv 的 <code>UV_PYTHON_INSTALL_MIRROR</code>；只在第 1 層要下載時用到。</td></tr>
+          <tr><td>使用電腦上已裝的 Python</td><td>伺服器（Worker 可以覆寫）</td><td>允許</td><td>第 4.3 節。</td></tr>
+          <tr><td>允許下載 Python</td><td>伺服器（Worker 可以覆寫）</td><td>允許</td><td>不允許時，自帶與已裝的都不符合就不交給這台（見第 7 節的派工）。</td></tr>
+          <tr><td>內部鏡像</td><td>Worker 的「設定」</td><td>沒有</td><td>現有的瀏覽器下載鏡像旁邊，多套件來源與 Python 下載來源；有填就優先於伺服器送來的（Worker 所在的網路可能不同）。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <h3>4.5 套件的鎖定</h3>
+        <ul class="points">
+          <li>使用者只寫 <code>requirements.txt</code>（例如 <code>openpyxl&gt;=3.1</code>）。存檔時伺服器以 uv 產生 <code>requirements.lock</code>：<code>uv pip compile --universal --generate-hashes</code>，以平台層的版本為限制條件，不輸出平台層的套件。鎖定檔和腳本一起成為新版本。</li>
+          <li>伺服器連不到套件來源時存檔失敗並說明；也可以在別台電腦用頁面上顯示的命令產生、上傳鎖定檔（照第 3 節的規則檢查）。伺服器需要 uv：開發環境已有，Linux 分發包多附一份（第 4.1 節）。</li>
+          <li>Worker 安裝時一律 <code>--no-deps --require-hashes</code>：只裝鎖定檔列的、雜湊要對，不會因為來源上的新版本而變。</li>
+          <li>Worker 升級後平台層的 Playwright 和某個鎖定檔衝突時，那一次運行在「運行環境」階段失敗，說明要重新鎖定（開新版本並驗證）。</li>
+        </ul>
+        <h3>4.6 回報與派工</h3>
+        <ul class="points">
+          <li>Worker 上線時（<code>WorkerInfo</code>）多回報：系統（windows／macos／linux）與架構、看得懂的擴充多一個 <code>pythonRuntime</code>、可用的直譯器（自帶、已裝、能不能下載）、平台層版本、腳本介面的版本。「裝置」頁顯示這些。</li>
+          <li>伺服器只把腳本場景交給回報 <code>pythonRuntime</code>、系統在 <code>platforms</code> 裡、而且有（或能下載）符合 <code>python</code> 的直譯器的裝置；沒有時執行頁說明「沒有可以執行的 Worker：需要 Python 3.12」或「這個場景只在 Windows 執行」，同 M7a 的做法。舊版 Worker 不回報 <code>pythonRuntime</code>，只會領到舊寫法、沒有新欄位的腳本場景，照舊用 App 自己的直譯器執行。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="sdk">
+      <div class="panel-header"><h2>5. 腳本介面 rpa_script（api 2）</h2></div>
+      <div class="panel-body">
+        <p>新套件 <code>packages/rpa_script</code>（套件名稱 <code>rpa-script</code>）：只依賴 Playwright 與標準函式庫，裝在平台層。它負責腳本與平台之間的一切：讀入參與 Secrets、照場景設定開瀏覽器、記錄步驟、寫頁面事實、截圖、主控台輸出與錯誤。開瀏覽器與錄影的程式（現在 <code>rpa_runner</code> 的 <code>contexts</code>、<code>profiles</code>、<code>video.mark_page</code>、步驟紀錄、總期限）搬進這個套件，DSL 的子程序也改用它，兩種場景開出來的瀏覽器、錄到的影片與 <code>steps.json</code> 完全相同。</p>
+<pre class="source"># automation.py（script.api: 2；錄製產生，之後可以手改）
+from rpa_script import Run, automation
+
+
+@automation
+def main(run: Run) -&gt; None:
+    page = run.page  # 平台照場景設定開好的分頁：瀏覽器、視窗、語言、登入狀態、錄影
+    with run.step("open", "開啟首頁"):
+        page.goto("/")  # 以 / 開頭時接在 browser.baseUrl 後面（同 DSL）
+    with run.step("fill-title", "填寫標題"):
+        page.get_by_label("標題", exact=True).fill(run.inputs["title"])
+    with run.step("fill-quantity", "填寫數量"):
+        page.get_by_label("數量", exact=True).fill(str(run.inputs["quantity"]))
+    with run.step("submit", "建立紀錄"):
+        page.get_by_role("button", name="建立紀錄").click()
+    with run.step("read-record", "讀取紀錄"):
+        receipt = page.locator("#receipt")
+        receipt.wait_for()
+        run.facts["record"] = {
+            "recordId": receipt.locator("#record-id").inner_text(),
+            "status": receipt.locator("#record-status").inner_text(),
+        }</pre>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>介面</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr><td><code>@automation</code></td><td>標出進入點。平台以 <code>python -E -s -m rpa_script automation …</code> 載入這支檔案並呼叫它，腳本不寫啟動瀏覽器、讀參數的樣板。一支檔案只能有一個。</td></tr>
+          <tr><td><code>run.inputs</code>、<code>run.secrets</code></td><td>運行態入參（唯讀，和 <code>input.json</code> 同一份）；場景 <code>secrets</code> 宣告的 Secrets（只有宣告的名稱）。Secrets 的值出現在錯誤、主控台、步驟名稱時自動遮罩。</td></tr>
+          <tr><td><code>run.facts</code></td><td>頁面事實（dict），結束時寫成 <code>facts.json</code>；失敗時也寫出已經取得的部分，報告看得到。</td></tr>
+          <tr><td><code>run.page</code>、<code>run.context</code>、<code>run.playwright</code></td><td>平台開好的分頁與 BrowserContext；可以照 Playwright 的寫法開新分頁、等彈出視窗。腳本可以自己再開其他瀏覽器，但只有這個 context 會錄影。</td></tr>
+          <tr><td><code>with run.step(id, name=None, *, timeout=None, page=None)</code></td><td>標出一步。記下開始、結束的實際時間、結果、錯誤、原始碼行號、所在分頁（<code>page</code> 沒寫時是目前的分頁：剛開出的彈出視窗會成為目前的分頁）。進入一步時把 Playwright 的預設逾時設成「這一步的逾時、<code>defaults.timeout</code> 與總期限剩下的時間」中最小的。id 的格式同 DSL；在迴圈裡重複的 id 記成同一步的第 n 次；可以巢狀（報告縮排顯示，回看的步驟軌畫最外層）。</td></tr>
+          <tr><td><code>run.screenshot(name, *, page=None, full_page=False)</code>、<code>run.attach(path, name=None)</code></td><td>截圖、把檔案（例如下載的報表）存進執行目錄，列在這一步的產物。</td></tr>
+          <tr><td><code>run.log(訊息)</code>、<code>print()</code></td><td>都進主控台輸出，記下時間與當時的步驟（<code>console.jsonl</code>），原樣也寫進 <code>automation.log</code>。</td></tr>
+          <tr><td><code>run.remaining_ms</code>、<code>run.platform</code>、<code>run.lang</code>、<code>run.work_dir</code></td><td>總期限剩下的毫秒；windows／macos／linux；介面語言；這次運行的暫存資料夾（結束後刪除，也是腳本的工作目錄）。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>步驟以外的程式</strong>照樣執行；在步驟外拋出的錯誤記成一個失敗的「步驟外的程式」，附行號。</li>
+          <li><strong>失敗時</strong>：記下錯誤（類型、訊息、呼叫堆疊，只保留場景自己的檔案的那幾層、遮罩 Secrets）到 <code>diagnostic.json</code>，截目前分頁的 <code>screenshot.png</code>，寫出 facts，關掉 context（讓錄影寫完），結束碼 1；總期限到了是 3（逾時，同 DSL）。</li>
+          <li><strong>本機試跑</strong>：作者可以在自己的電腦 <code>python -m rpa_script automation automation.py --scenario scenario.yaml -i title=測試 --headed</code>，或直接用 <code>rpa run</code>（同一套運行環境）。<code>rpa-script</code> 的 wheel 可以從 Portal 下載，讓編輯器有型別提示。</li>
+        </ul>
+        <h3>獨立斷言用 Python 時（assertion.py，選用）</h3>
+<pre class="source">from rpa_script import Check, assertion
+
+
+@assertion
+def check(c: Check) -&gt; dict[str, object]:
+    record = c.facts["record"]
+    c.matches("紀錄編號格式", record["recordId"], r"^DEMO-[A-Z0-9]+$")
+    c.equals("狀態是已建立", record["status"], "已建立")
+    c.equals("標題與入參相同", record.get("title"), c.inputs["title"])
+    return {"recordId": record["recordId"]}  # 候選出參；任何一條沒通過就不採用</pre>
+        <ul class="points">
+          <li>不開瀏覽器，只讀入參與頁面事實。每一條 <code>equals</code>、<code>contains</code>、<code>matches</code>、<code>not_empty</code>、<code>true</code> 都記成一條斷言結果，和 DSL 的 <code>verify</code> 同一個格式（名稱、比較方式、實際、預期、是否通過），報告與回看的「斷言」完全一樣。</li>
+          <li>回傳的 dict 是候選出參，照舊經過出參校驗才發布。</li>
+        </ul>
+        <h3>舊寫法（api 1）</h3>
+        <p>命令列契約（<code>--input --facts --screenshot --target-url</code>、<code>--input --facts --output</code>）與環境變數不變，改在運行環境的平台層執行。報告只有階段、截圖與日誌；沒有步驟與錄影。腳本可以只把 api 改成 2、換成 <code>@automation</code> 的寫法來取得步驟與回看。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="recording">
+      <div class="panel-header"><h2>6. 腳本錄製</h2></div>
+      <div class="panel-body">
+        <p>錄製的部分不改：照舊是 Playwright codegen，瀏覽器與 Inspector 開在操作的那台（錄製端 App 或伺服器本機），錄完把原始稿交給伺服器。改的是轉換的目標：除了 DSL 草稿，也可以轉成 Python 腳本場景的草稿。腳本本來就是 Python，codegen 錄到的每一種操作都能照原樣執行，不會有「轉不了的行」。</p>
+        <ol class="steps">
+          <li>「場景生產 › 自主腳本錄製」多一個選項「產生：DSL 場景（預設）／Python 腳本場景」。選既有場景時跟著那個場景的種類。貼上別台電腦錄的原始稿也一樣可以選。</li>
+          <li>錄製端錄製、關掉瀏覽器；原始稿（密碼遮罩成 ***）傳回伺服器，和現在相同。</li>
+          <li>伺服器轉換：產生 <code>scenario.yaml</code>（入參、出參、Secrets、<code>verify</code>、<code>browser</code>、登入角色）與 <code>automation.py</code>，存成新場景的 v1 或既有場景的新版本。錄製詳情列出步驟、入參、出參、斷言與提醒的數量。</li>
+          <li>之後照舊：（調試）→ 交給 Worker 驗證 → 人工發布。</li>
+        </ol>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>codegen 的原始稿</th><th>轉成</th><th>和 DSL 轉換的關係</th></tr></thead>
+        <tbody>
+          <tr><td><code>import</code>、<code>launch</code>、<code>new_context</code>、<code>new_page</code>、<code>close</code>、<code>with sync_playwright()</code></td><td>去掉；改用 <code>@automation</code> 與 <code>run.page</code>（瀏覽器照場景設定開）</td><td>相同（DSL 也不保留這些）</td></tr>
+          <tr><td><code>page.goto("http://主機/路徑")</code></td><td>第一個網址的來源成為 <code>browser.baseUrl</code>；程式寫 <code>page.goto("/路徑")</code></td><td>相同</td></tr>
+          <tr><td>每一行操作（click、fill、press、select_option、check…）</td><td>一行一個 <code>with run.step("id", "名稱"):</code>；id 與名稱的產生規則同 DSL（open、fill-title、submit…）</td><td>共用 id 與名稱的程式</td></tr>
+          <tr><td><code>.fill("錄到的值")</code></td><td>入參（預設值是錄到的值，名稱取自欄位），程式改成 <code>run.inputs["title"]</code>；數字欄位用 <code>str(…)</code></td><td>共用入參命名；預設值照樣跳脫 <code>{{</code></td></tr>
+          <tr><td>密碼欄位的 <code>.fill(…)</code></td><td>Secret（<code>場景_PASSWORD</code>），程式寫 <code>run.secrets["…"]</code>；原始稿遮罩</td><td>共用密碼判斷與命名</td></tr>
+          <tr><td>Inspector 的 Assert text／Assert value（<code>to_contain_text</code>、<code>to_have_text</code>、<code>to_have_value</code>）</td><td>一個讀取步驟：等元素出現，<code>run.facts["名稱"] = …inner_text()</code>（或 <code>input_value()</code>）；<code>scenario.yaml</code> 多一個出參（<code>from</code> 取這個事實）與一條 <code>verify</code>（錄到的值等於某個輸入時檢查等於那個入參，否則檢查有內容）</td><td>規則相同，只是讀取寫成 Python</td></tr>
+          <tr><td>其他 <code>expect(…)</code>（看得到、網址、標題…）</td><td>原樣留在那一步裡，當成步驟內的防護（同 DSL 的 <code>expect</code>）</td><td>相同</td></tr>
+          <tr><td><code>with page.expect_popup() as page1_info:</code>＋<code>page1 = page1_info.value</code></td><td>一步，保留原寫法；之後在 <code>page1</code> 上的步驟寫 <code>page=page1</code>，回看照分頁換影片片段</td><td>DSL 是 <code>popup</code>／<code>page</code>；這裡直接用 Playwright 的寫法</td></tr>
+          <tr><td><code>frame_locator(…)</code>、<code>content_frame</code></td><td>原樣保留</td><td>DSL 轉成 <code>frame</code>／<code>anyFrame</code></td></tr>
+          <tr><td>hover、dblclick、drag_to、set_input_files、keyboard、mouse、type、press_sequentially…</td><td>原樣保留成步驟。<code>set_input_files</code> 的本機路徑列為提醒：要上傳的檔案放進場景的 <code>files</code>，路徑改成相對的</td><td>DSL 轉不了，只留註解</td></tr>
+          <tr><td><code>page.pause()</code>、看不懂的寫法</td><td>保留並列為提醒（<code>pause</code> 在 Worker 上會一直等到逾時）</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>轉換在哪裡做：</strong><code>rpa_core.recording</code> 拆出共用的解析（定位器鏈、命名、密碼與 Assert 的判斷），新增 <code>rpa_core.recording_script</code> 產生腳本。轉換只在伺服器，錄製端與 Worker 不變（ADR 0014）。產生的程式碼用固定的格式（Ruff 的風格），每一步一個 <code>with</code>，讀得懂也好手改。</li>
+          <li><strong>三種目標：</strong>新場景、「整份換成錄製的內容」（產生新的 <code>automation.py</code>；手改過的內容會被取代，按下前提醒）、「接著現有步驟錄製」（先執行既有腳本、停在最後的畫面再錄，新的步驟接在 <code>@automation</code> 函式的最後；要在錄製端執行腳本，放在第 4 期，第 10 節）。</li>
+          <li><strong>DSL 場景轉成腳本（選用，第 3 期）：</strong>DSL 場景頁「另存為 Python 腳本場景」：步驟一步一步轉成 Playwright 的寫法、<code>verify</code>／<code>outputs</code> 原樣帶過去，成為一個新場景的 v1。只有這個方向（ADR 0001：匯出的程式不能回寫成 DSL）。</li>
+          <li><strong>對外 Agent API：</strong>它的「匯入 Playwright 腳本」（#79）之後可以多一個目標「Python 腳本場景」，用同一套轉換；這次不改 Agent API。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>7. 腳本的運行過程</h2></div>
+      <div class="panel-body"><p>順序照 ADR 0009，多一個「運行環境」階段；每一階段失敗都沒有成功出參。驗證、執行、組合場景的節點都走同一條路，本機 worker、遠端 Worker 也一樣。</p></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>階段</th><th>在哪裡</th><th>做什麼</th><th>產物</th><th>失敗時</th></tr></thead>
+        <tbody>
+          <tr><td>排隊與派工</td><td>伺服器</td><td>入參照現在的規則先校驗（動態值只檢查語法）；算出這個場景要的能力（<code>pythonRuntime</code>、<code>platforms</code>、<code>python</code>），只交給符合的裝置（第 4.6 節）。任務帶著版本的全部檔案（腳本、鎖定檔、<code>files</code>）、入參、Secrets、登入狀態，以及運行環境的設定（套件來源、下載來源、允許已裝／下載）。</td><td>執行紀錄</td><td>422；或排隊並說明在等哪種 Worker</td></tr>
+          <tr><td>入參 input</td><td>Worker</td><td>同 DSL：在這台求動態值、校驗、檢查 Secrets</td><td><code>input.json</code></td><td>不準備環境、不開瀏覽器</td></tr>
+          <tr><td>運行環境 runtime（新）</td><td>Worker</td><td>依第 4 節找到或建好環境；沿用時只是檢查一下（1 秒內），第一次用到某組套件時下載安裝並顯示進度。<strong>不算進總期限</strong>（總期限從這一階段結束才開始算），自己的上限預設 10 分鐘。取消時結束 uv，建到一半的資料夾丟掉。</td><td><code>runtime.json</code>（直譯器與來源、環境代號、新建或沿用、耗時、套件清單）、<code>runtime.log</code></td><td>「運行環境準備失敗」＋原因（找不到符合的 Python、套件來源連不上、鎖定檔與平台層衝突…）；不開瀏覽器</td></tr>
+          <tr><td>登入 login</td><td>Worker</td><td>和 DSL 完全相同（用 App 自己的登入檢查，不在腳本環境）；需要登入時停在 needs_login</td><td><code>login.json</code></td><td>needs_login／失敗</td></tr>
+          <tr><td>自動化 automation</td><td>Worker：腳本子程序</td><td>以環境的 python <code>-E -s -m rpa_script automation</code> 啟動，工作目錄是這次的暫存資料夾。腳本介面照 <code>session.json</code>（瀏覽器、無頭與否、視窗、網址、語言、登入狀態檔、錄影資料夾、總期限、檔案位置；不含 Secrets 的值）開瀏覽器；每一步開始與結束都更新 <code>steps.json</code>。</td><td><code>steps.json</code>、<code>facts.json</code>、<code>console.jsonl</code>、截圖與附件、<code>diagnostic.json</code>、錄影</td><td>失敗的步驟、錯誤、截圖；逾時；取消</td></tr>
+          <tr><td>斷言 verify</td><td>Worker</td><td><code>verify</code>：Runner 照 DSL 的規則比對；<code>assertion.py</code>：環境的 python <code>-m rpa_script assertion</code>，不開瀏覽器</td><td>斷言結果（<code>result.json</code> 的 <code>checks</code>）、候選出參</td><td>沒有成功出參</td></tr>
+          <tr><td>出參 output</td><td>Worker</td><td>同 DSL：<code>from</code> 取值或候選出參，校驗後寫出</td><td><code>output.json</code></td><td>沒有成功出參</td></tr>
+          <tr><td>收尾與上傳</td><td>Worker → 伺服器</td><td>整理錄影（M12），寫 <code>result.json</code>、<code>report.html</code>，上傳整個執行目錄（不含暫存資料夾與運行環境）；驗證紀錄、發布門檻照舊</td><td>執行目錄</td><td>上傳失敗照 M9a 的規則</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>進度：</strong>執行頁顯示目前的階段；運行環境階段顯示最後一行進度（例如「下載 openpyxl 3.1.5」）；自動化階段顯示目前的步驟與第幾步。本機 worker 讀 <code>steps.json</code>，遠端 Worker 在心跳附上目前的步驟、步驟變化時多送一次——和 #79 第二期為 DSL 規劃的步驟進度是同一個來源，所以 DSL 與腳本一起得到。</li>
+          <li><strong>環境變數：</strong>照現在（<code>RPA_DEADLINE_SECONDS</code>、<code>RPA_BROWSER</code>、<code>RPA_HEADLESS</code>、<code>RPA_LANG</code>、<code>RPA_STORAGE_STATE</code>、Secrets、<code>PYTHONIOENCODING=utf-8</code>），再加 <code>PYTHONUTF8=1</code>（Windows 開檔預設也是 UTF-8）；拿掉 <code>PYTHONHOME</code>、<code>PYTHONPATH</code>、<code>VIRTUAL_ENV</code> 與打包 App 的內部變數。</li>
+          <li><strong>取消與逾時：</strong>沿用 M2 與 M12：Linux、macOS 終止程序群組；Windows 結束程序樹，錄影時先只結束瀏覽器讓影片寫完。腳本自己開的子程序一起被結束。有副作用的步驟不自動重試。</li>
+          <li><strong>腳本能做的事：</strong>和現在一樣等於在 Worker 上以那位使用者的身分執行任意程式（可以讀檔案、連網路、讀同一使用者的認證管理員／鑰匙圈）。所以腳本場景照舊只給信任的人編輯、審核時特別標示（卡片標「Python 腳本」，版本差異要看程式）；M8 再加權限。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="report">
+      <div class="panel-header"><h2>8. 腳本的運行報告</h2></div>
+      <div class="panel-body">
+        <h3>執行目錄（增加的檔案以外和 DSL 相同）</h3>
+<pre class="source">runs/&lt;執行編號&gt;/
+  input.json  facts.json  output.json  result.json  report.html  run.json   # 不變
+  steps.json        # 腳本介面寫：每一步的 id、名稱、結果、耗時、錯誤、開始／結束時間、網址、分頁，
+                    #   另加 seq（執行順序）、occurrence（第幾次）、parent（巢狀）、source（檔案與行號）
+  screenshot.png  diagnostic.json  automation.log  assertion.log  video*.webm  video.json  # 不變
+  console.jsonl     # 新：主控台輸出，每行的時間、stdout／stderr、當時的步驟（已遮罩）
+  runtime.json      # 新：運行環境；runtime.log 是準備時的輸出
+  attachments/      # 新：run.attach() 存的檔案
+  scenario/         # 這個版本的快照：場景檔、腳本、鎖定檔、files（不變，只是檔案多了）</pre>
+        <h3><code>result.json</code>（增加的欄位，其他不變）</h3>
+<pre class="source">"kind": "script",
+"stages": [{"name": "input", …}, {"name": "runtime", …}, {"name": "login", …}, {"name": "automation", …}, …],
+"script": {"api": 2, "automation": "automation.py", "assertion": null, "verify": true},
+"runtime": {"python": "3.13.5", "source": "bundled", "env": "9f8e7d6c5b4a3210", "reused": true,
+            "preparedMs": 140, "platformLayer": {"rpaScript": "0.6.0", "playwright": "1.64.0"}, "packages": 2},
+"steps": [ …同 steps.json… ], "checks": [ …同 DSL… ]</pre>
+        <ul class="points">
+          <li><strong>報告頁（<code>report.html</code> 與 <code>/runs/{id}</code>）</strong>依序：結果與錯誤摘要 → 階段（多了運行環境，標「沿用」或「新建，花了 …」）→ 步驟（同 DSL 的表格；多了原始碼行號，點了到編輯頁的那一行；迴圈的步驟顯示第幾次；腳本裡寫了、這次沒跑到的步驟標「未執行」，由伺服器從 <code>automation.py</code> 的 <code>run.step("…", "…")</code> 靜態列出）→ 頁面事實 → 斷言 → 出參 → 截圖與附件 → 主控台輸出（依步驟分組，可以只看錯誤）→ 運行環境（Python、來源、套件清單）。</li>
+          <li><strong>錯誤：</strong>失敗的步驟顯示錯誤訊息與呼叫堆疊，每一層連到腳本的那一行；Playwright 的錯誤保留它的 call log。</li>
+          <li><strong>運行報告的清單</strong>（/runs）多一個「場景類型：DSL／Python 腳本」篩選；其他欄位不變。</li>
+          <li><strong>相容：</strong><code>stages</code> 多了 <code>runtime</code>、新檔案都是增加的；讀 <code>result.json</code> 的程式（報告頁、試驗場、#79 的 Agent API）不認得的階段照名稱顯示。伺服器只把需要運行環境的任務交給新版 Worker，所以舊版伺服器不會收到有 <code>runtime</code> 階段的結果。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="replay">
+      <div class="panel-header"><h2>9. 運行回看</h2></div>
+      <div class="panel-body">
+        <p>腳本介面開的 context 和 DSL 一樣錄影（M12 的規則：有頭、無頭都錄，畫面跟頁面一樣大、寬度上限 1280，保留規則與釘選不變，D8），<code>steps.json</code> 的時間與分頁也是同一種格式，所以 /runs/{id}/replay 的播放器、縮圖時間軸、步驟軌、失敗時停在失敗步驟之前、組合場景節點之間的切換都直接沿用。只有步驟詳細與幾個標示不同：</p>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>位置</th><th>DSL 場景（現在）</th><th>Python 腳本場景</th></tr></thead>
+        <tbody>
+          <tr><td>步驟清單</td><td>場景的步驟</td><td>實際跑過的步驟依 <code>seq</code> 排列；迴圈的同一步顯示「第 n 次」；巢狀的縮排；沒跑到的灰色列在最後</td></tr>
+          <tr><td>步驟詳細</td><td>錯誤、定位器、填入的值、抽到的事實、場景檔原文與行號、「在場景中開啟」</td><td>錯誤與呼叫堆疊、這一步的<strong>腳本原文</strong>（從執行目錄的快照取，標出那幾行）、「在腳本中開啟」（<code>/scenes/{id}/edit?file=automation.py&amp;line=行</code>）、這一步寫入的頁面事實、主控台輸出、截圖與附件</td></tr>
+          <tr><td>時間軸</td><td>步驟軌</td><td>步驟軌（最外層的步驟）＋主控台的刻度（錯誤是紅色），滑過看那一行</td></tr>
+          <tr><td>分頁</td><td>步驟的 <code>pageId</code> 決定片段</td><td>相同；<code>run.step(page=…)</code> 或目前的分頁決定 <code>pageId</code></td></tr>
+          <tr><td>運行資訊</td><td>瀏覽器、Worker、時間、釘選</td><td>另加運行環境（Python、沿用或新建）</td></tr>
+          <tr><td>沒有錄影時</td><td>依保留規則刪除的說明</td><td>舊寫法（api 1）：「這個腳本自己啟動瀏覽器，沒有錄影；改成 rpa_script 的寫法（api: 2）就能回看」，仍列出截圖與日誌</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="debug">
+      <div class="panel-header"><h2>10. 調試與接著錄製（第 4 期）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>腳本的逐步調試＝在步驟邊界暫停。</strong>任意的 Python 不能像 DSL 一樣單獨重跑某一步，所以改成：在錄製端（或伺服器本機）以調試模式執行腳本，每一個 <code>run.step</code> 開始前暫停，頁面顯示截圖、網址、目前的頁面事實與下一步的原文；「執行這一步」「執行到這裡」「執行到底」「從頭開始」（重新啟動子程序）。暫停時可以用定位器測試（DSL 定位器或 Playwright 的 selector）。改了腳本要存成新版本再從頭開始。</li>
+        <li><strong>沿用現有的互動子程序。</strong>一行一個 JSON 命令與回覆（同 <code>rpa_runner.debug</code>），經 Client API 交給錄製端；錄製端可以執行的模組多一個 <code>rpa_script</code>（只在運行環境裡、只用伺服器送來的檔案），所以錄製端 App 也帶運行環境（同 Worker）。</li>
+        <li><strong>接著錄製：</strong>先在錄製的瀏覽器裡執行既有的腳本（同調試），結束後在同一個 context 開始錄製（同 <code>rpa_runner.record</code> 的做法），錄到的步驟轉換後接在 <code>@automation</code> 函式的最後。</li>
+        <li>這兩項在第 1～3 期之後做；在那之前，腳本場景的「調試」照舊是直接驗證最新版本。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="compat">
+      <div class="panel-header"><h2>11. 相容性與要改的既有決定</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>怎麼處理</th></tr></thead>
+        <tbody>
+          <tr><td>舊的腳本場景（api 1）</td><td>雜湊不變、不用重新發布；新版 Worker 在平台層執行，舊版照舊。</td></tr>
+          <tr><td>舊版 Worker／錄製端</td><td>不回報 <code>pythonRuntime</code>：不會領到 api 2、有 <code>requirements</code>／<code>python</code>／<code>platforms</code> 的場景；執行頁說明要更新哪個 App（同 M7a 的 features）。</td></tr>
+          <tr><td>舊版伺服器＋新版 Worker</td><td>任務沒有運行環境的設定時，Worker 照舊用 App 自己的直譯器執行（不加 <code>runtime</code> 階段）。</td></tr>
+          <tr><td>ADR 0009「錄製與 AI 不產生腳本場景」</td><td>改成「錄製可以產生腳本場景（使用者選），AI 仍然不產生」（D6）。</td></tr>
+          <tr><td>ADR 0009「腳本場景不寫 verify，出參也不寫 from」</td><td>只對 api 1 成立；api 2 二擇一（D5）。</td></tr>
+          <tr><td>ADR 0014「打包後的腳本只能 import 標準函式庫與 App 內附的套件」</td><td>改成在運行環境執行，可以有鎖定的第三方套件（D2、D7）。</td></tr>
+          <tr><td>ADR 0016／M12 D5「Python 腳本場景暫不支援錄影」</td><td>api 2 照 M12 的規則錄影（D8）。</td></tr>
+          <tr><td>DSL 子程序</td><td>改用 <code>rpa_script</code> 裡共用的開瀏覽器與錄影程式，行為不變（現有的瀏覽器與錄影測試照跑）。</td></tr>
+          <tr><td>#79 對外 Agent API（M14、ADR 0017）</td><td>不衝突：場景與運行的格式都是增加的；ADR 編號、遷移編號、路線圖、訊息目錄由後合併的一方調整。本設計的 ADR 暫定 0018、里程碑暫定 M15。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="phases">
+      <div class="panel-header"><h2>12. 分期與驗證</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>期</th><th>內容</th><th>主要檔案</th><th>自動測試</th></tr></thead>
+        <tbody>
+          <tr><td>P1 運行環境</td><td>三層環境、uv、快取與清理、已裝 Python 的偵測、設定；<code>runtime</code> 階段；api 1 改在平台層執行；<code>WorkerInfo</code> 回報與派工；桌面端建置附上直譯器、wheel 與 uv；Linux 分發包附 wheel 與 uv；場景的 <code>python</code>、<code>requirements</code>／<code>lock</code>、<code>files</code>、<code>platforms</code> 與伺服器產生鎖定檔</td><td><code>rpa_core.dsl</code>（contract、sources、features）、<code>rpa_runner</code>（新的 runtime、run、commands）、<code>rpa_worker</code>（environment、protocol、remote）、<code>rpa_server</code>（dispatch、設定、鎖定、裝置頁）、<code>tools/build_desktop.py</code>、<code>tools/build_server.py</code>、打包設定</td><td>三個系統的單元測試（找直譯器、沿用、同時建同一個環境、清理、建到一半被取消）；本機的假套件索引（<code>--find-links</code>）測鎖定與安裝，不連網路；打包後的 App 離線執行 <code>ba-001-script</code>；Linux 分發包的 <code>rpa worker</code> 無頭執行</td></tr>
+          <tr><td>P2 腳本介面、報告、回看</td><td><code>packages/rpa_script</code>（session、步驟、facts、截圖、附件、主控台、錯誤、assertion）；DSL 子程序改用共用程式；api 2 的校驗（verify 二擇一）；報告頁、回看頁的腳本部分；新的範例 <code>scenarios/demo/ba-001-sdk/</code></td><td><code>packages/rpa_script</code>、<code>rpa_runner</code>（child、browser、video、run、report）、<code>rpa_server</code>（replay、render、pages、模板）</td><td>api 2 範例在 Chromium、Firefox 通過與失敗各一；錄影和步驟對時（沿用 M12 的純色頁）；逾時、取消（Windows 先結束瀏覽器）；Windows、macOS 打包後端到端；既有的 DSL 瀏覽器與錄影測試照舊全過</td></tr>
+          <tr><td>P3 錄製</td><td>codegen 原始稿 → 腳本；錄製頁的「產生」選項；腳本場景的檔案編輯（自動化腳本、斷言、套件、其他檔案）；DSL「另存為 Python 腳本場景」</td><td><code>rpa_core.recording</code>（拆出共用）、新的 <code>rpa_core.recording_script</code>、<code>rpa_server</code>（recordings、編輯頁）</td><td>現有錄製測試的原始稿各轉一份腳本，再真的執行；iframe、新分頁、hover、上傳的原始稿；密碼不落地</td></tr>
+          <tr><td>P4 調試與接著錄製</td><td>第 10 節；錄製端 App 帶運行環境</td><td><code>rpa_script</code>（調試模式）、<code>rpa_worker.recorder</code>、<code>rpa_server.debugging</code>、調試頁</td><td>錄製端端到端（<code>tools/recorder_e2e.py</code>）多一段腳本調試</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>每一期一個 PR，各自更新正式文件（ADR、場景 DSL、管理 Portal、桌面端分發、系統架構、路線圖；繁中、英文、簡中產生）與本頁；照<a href="../collaboration.html#validation">共用流程的驗證門檻</a>跑 Ruff、Pyright、pytest、i18n check 與 CI 的三個系統。</li>
+          <li><strong>人工驗收（P3 之後）：</strong>Mac 錄製端錄一段測試網站的操作、選「Python 腳本場景」→ Windows Worker 有頭驗證 → 發布 → macOS Worker 與 Linux <code>rpa worker</code>（無頭）各執行一次 → 三次的報告與回看都能播放、對上步驟；第二次執行的「運行環境」顯示「沿用」；一個用 openpyxl 讀寫 Excel 的腳本；拔掉網路的 Worker 跑沒有第三方套件的腳本；執行中取消一次，影片能播放。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="alternatives">
+      <div class="panel-header"><h2>13. 沒有選的方案</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+        <tbody>
+          <tr><td>繼續用 App 打包的直譯器（<code>rpa-child --rpa-script</code>）</td><td>PyInstaller 打包的直譯器不能安裝套件，三個系統的行為也取決於打包時剛好帶了什麼。</td></tr>
+          <tr><td>Worker App 改成「自帶 Python＋site-packages」（像 Linux 分發包），App 與腳本共用一份直譯器</td><td>只帶一份 Playwright driver、最省空間，但要重做 M10 的打包、安裝檔、自我測試與單一執行；App 自己的套件也會和腳本的套件互相影響。之後要縮小安裝檔時再評估。</td></tr>
+          <tr><td>一律用電腦上已裝的 Python</td><td>每台的版本與套件不同，結果不一致；Windows 常常沒有、macOS 的系統 Python 會跳出安裝開發工具。保留為第 4.3 節的備用來源。</td></tr>
+          <tr><td>每次運行都建一個新環境</td><td>最乾淨，但每次多幾秒到幾分鐘、需要網路；以內容決定身分的環境一樣乾淨（不可變），又能沿用。</td></tr>
+          <tr><td>標準函式庫的 venv＋pip</td><td>不必多帶 uv，但慢很多、沒有跨環境共用的快取、不能產生跨平台的鎖定檔，找直譯器也要自己寫。</td></tr>
+          <tr><td>conda／Docker 隔離</td><td>太重；Docker 在 Windows、macOS 的桌面上不一定有，有頭模式也很難。</td></tr>
+          <tr><td>自動把 Playwright 的每個呼叫記成步驟（包一層代理物件或用 Trace）</td><td>代理物件跟著 Playwright 版本容易壞、型別檢查不友善；Trace 檔案大、要另開 Trace Viewer（ADR 0016 已不選）。改成錄製產生的腳本每個操作自動一步，手寫的由作者標。</td></tr>
+          <tr><td>錄製只產生 DSL，再轉成腳本</td><td>多繞一層，DSL 轉不了的操作（hover、上傳…）在第一步就丟了。保留「另存為 Python 腳本場景」給已經是 DSL 的場景。</td></tr>
+          <tr><td>腳本的斷言只能用 assertion.py</td><td>錄製的 Assert 得產生 Python 斷言，Portal 的斷言編輯器與報告的斷言就和 DSL 不同；用同一個 <code>verify</code> 才是「沿用現有的建模」。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>14. 待你決定</h2><span class="muted">回覆「照建議」即可全部採用；有不同意見的只回那一項</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選項</th></tr></thead>
+        <tbody>
+          <tr><td>D1</td><td><span class="kind pending">待你決定</span>「若已有則重複使用」指的是什麼</td><td>三層都沿用（直譯器、平台層、場景環境，Worker、錄製端與命令列共用）；電腦上已裝的 Python 只在自帶的版本不符合時才用，而且優先於下載（第 4.3 節）</td><td>(a) 優先用電腦上已裝的 Python，自帶的只在沒有時才用；(b) 只用自帶的與下載的，永遠不用電腦上的</td></tr>
+          <tr><td>D2</td><td><span class="kind pending">待你決定</span>「Worker 自帶」怎麼帶</td><td>直譯器、平台層的 wheel 與 uv 放進 Worker 的安裝檔／DMG（第一次跑腳本不必連網路；壓縮後估計多 70～80 MB）；Linux 用分發包本身的 Python</td><td>第一次需要時才下載（安裝檔不變；Worker 要連得到下載來源或鏡像）</td></tr>
+          <tr><td>D3</td><td><span class="kind pending">待你決定</span>用什麼建環境</td><td>uv（倉庫已經在用；快、共用快取、跨平台鎖定、會找已裝的 Python）</td><td>標準函式庫的 venv＋pip（少帶一個執行檔，但慢、沒有跨平台鎖定）</td></tr>
+          <tr><td>D4</td><td><span class="kind pending">待你決定</span>腳本介面</td><td>新增 <code>rpa_script</code>（api 2）：瀏覽器由平台開，才有步驟、錄影、回看；舊的命令列寫法（api 1）照常可用</td><td>只保留舊寫法，報告與回看只有階段、截圖與日誌</td></tr>
+          <tr><td>D5</td><td><span class="kind pending">待你決定</span>腳本場景的斷言</td><td>可以用 DSL 的 <code>verify</code>＋<code>outputs.from</code>（錄製產生這種）；也可以用 <code>assertion.py</code>，二擇一</td><td>只用 <code>assertion.py</code>（ADR 0009 原本的規則）</td></tr>
+          <tr><td>D6</td><td><span class="kind pending">待你決定</span>錄製產生腳本</td><td>錄製頁多「產生：DSL 場景／Python 腳本場景」，預設 DSL；改掉 ADR 0009「錄製不產生腳本場景」（AI 仍然不產生）</td><td>錄製只產生 DSL，需要時「另存為 Python 腳本場景」</td></tr>
+          <tr><td>D7</td><td><span class="kind pending">待你決定</span>第三方套件</td><td>允許；版本與雜湊鎖定，套件來源只在伺服器（與 Worker 的鏡像）設定</td><td>第一版不允許第三方套件（只有標準函式庫與 Playwright），P1 少做鎖定</td></tr>
+          <tr><td>D8</td><td><span class="kind pending">待你決定</span>腳本場景的錄影</td><td>api 2 照 M12 的規則錄（改掉 M12 D5「腳本場景暫不支援」）</td><td>照舊不錄，回看只有截圖</td></tr>
+          <tr><td>D9</td><td><span class="kind pending">待你決定</span>Linux Worker</td><td>沿用伺服器分發包或原始碼的 <code>rpa worker</code>（無頭；有桌面時可有頭），這次不另做 Linux Worker 安裝包</td><td>另做 Linux Worker 分發包（tar.gz、systemd 使用者服務、下載瀏覽器）</td></tr>
+          <tr><td>D10</td><td><span class="kind pending">待你決定</span>分期</td><td>照第 12 節 P1～P4，P1 開始實作；調試與接著錄製在 P4</td><td>P4 先不排，P1～P3 完成後再談</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>讀現有的模型與程式（第 2 節）、技術驗證、設計（第 3～13 節）、待決定事項（第 14 節）。</li>
+        <li><strong>未完成／阻礙：</strong>等使用者回覆 D1～D10；沒有寫任何實作程式（使用者要求先設計）。Windows、macOS 的大小與時間只是估計，P1 在 CI 實測。</li>
+        <li><strong>決定：</strong>第 14 節全部是建議，不是已確認；使用者回覆後寫進本頁與<a href="../decisions.html">決定</a>，確認的內容在 P1 寫成 ADR（暫定 0018）。</li>
+        <li><strong>下一個具體動作：</strong>使用者回覆後更新第 14 節，從最新的 main 開 P1；先做運行環境的單元測試與 CI 的三個系統。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。技術驗證的環境在暫存目錄，不進倉庫。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>a8cde7f＋本頁、任務索引、決定（Claude 雲端環境）</td><td><code>git diff --check</code>；handoff 的相對連結與錨點檢查</td><td>見追加紀錄</td><td>只改 handoff/，不跑程式測試</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：依共用流程，只改 handoff/ 的推送沿用上一次的結果；人工驗收：未執行（只有設計）；審閱：等使用者。</p></div>
+    </section>
+
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-24 21:10 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 20:18 的需求建立本頁，完成設計與待決定事項；只有設計，沒有實作。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
