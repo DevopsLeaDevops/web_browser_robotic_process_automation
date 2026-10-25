@@ -5,7 +5,7 @@ RPA Worker、RPA 錄製端的資料夾（和 App 自己用的相同，``RPA_WORK
 
     app/
         active.json          現在用哪一層（:class:`Active`）
-        boot.log             啟動器的紀錄：只有改用內建的程式、退回上一層時才寫
+        boot.log             啟動器的紀錄：只有改用內建的程式、退回上一層、重新啟動再試時才寫
         <版本-提交>/
             manifest.json    更新檔的清單與簽章，原樣保留：每次啟動都重新驗證
             manifest.sig
@@ -73,6 +73,7 @@ __all__ = [
     "install_layer",
     "layers_dir",
     "load_layer",
+    "log",
     "prune",
     "read_active",
     "write_active",
@@ -183,7 +184,7 @@ def write_active(root: Path, active: Active) -> None:
     temporary.replace(root / ACTIVE_FILE)
 
 
-def _log(root: Path, message: str) -> None:
+def log(root: Path, message: str) -> None:
     """寫一行到 boot.log；寫不進去也不影響啟動。檔案太大時從頭開始。"""
     with contextlib.suppress(OSError):
         root.mkdir(parents=True, exist_ok=True)
@@ -380,9 +381,9 @@ def _fallback(
         try:
             layer = load_layer(root, previous, runtime)
         except (UpdateError, OSError) as error:
-            _log(root, f"上一層 {previous} 也不能用：{_describe(error)}")
+            log(root, f"上一層 {previous} 也不能用：{_describe(error)}")
     chosen = layer.release if layer is not None else None
-    _log(root, f"不用 {failed}（{reason}），改用 {chosen or BUILTIN}")
+    log(root, f"不用 {failed}（{reason}），改用 {chosen or BUILTIN}")
     updated = Active(release=chosen, installed_with=runtime.release, failed=failed)
     return updated, layer
 
@@ -413,12 +414,12 @@ def activate(
         try:
             return _use(load_layer(root, pinned, info, full=False), env, paths), False
         except (UpdateError, OSError) as error:
-            _log(root, f"父程序指定的 {pinned} 不能用：{_describe(error)}")
+            log(root, f"父程序指定的 {pinned} 不能用：{_describe(error)}")
     active = read_active(root)
     if active.release is None:
         return _use(None, env, paths), False
     if active.installed_with != info.release:
-        _log(root, f"重新安裝過完整的安裝包（{info.release}），改用內建的程式")
+        log(root, f"重新安裝過完整的安裝包（{info.release}），改用內建的程式")
         _save(root, Active(installed_with=info.release))
         return _use(None, env, paths), False
     if active.pending:
@@ -442,7 +443,7 @@ def _save(root: Path, active: Active) -> None:
     try:
         write_active(root, active)
     except OSError as error:
-        _log(root, f"寫不進 {ACTIVE_FILE}：{error}")
+        log(root, f"寫不進 {ACTIVE_FILE}：{error}")
 
 
 def confirm(root: Path, release: str) -> bool:

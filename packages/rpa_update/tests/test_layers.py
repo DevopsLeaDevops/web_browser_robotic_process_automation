@@ -1,8 +1,10 @@
 import importlib
 import json
 import os
+import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -305,3 +307,73 @@ def test_boot_install_reports_errors(
     assert boot.main([boot.INSTALL_FLAG, str(other)]) == 1
     assert json.loads(capsys.readouterr().out)["error"] == "runtime_changed"
     assert boot.main([boot.INSTALL_FLAG]) == 2
+
+
+def test_relaunch_starts_a_fresh_copy(monkeypatch: pytest.MonkeyPatch) -> None:
+    started: list[tuple[list[str], dict[str, str]]] = []
+
+    def popen(command: list[str], *, env: dict[str, str], **options: object) -> object:
+        del options
+        started.append((command, env))
+        return object()
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    boot.relaunch(["--background"], {LAYER_ENV: "0.6.0-0000002", "PATH": "/bin"})
+    [(command, env)] = started
+    assert command == [sys.executable, "--background"]
+    assert LAYER_ENV not in env  # 新的程序重新選層
+    assert env[boot.RESTART_AFTER_ENV] == str(os.getpid())
+    assert env["PATH"] == "/bin"
+
+
+def test_wait_for_exit() -> None:
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        assert boot.wait_for_exit(child.pid, 0.3) is False
+        child.kill()
+        if sys.platform == "linux":
+            # 還沒收掉的殭屍程序也算結束了
+            started = time.monotonic()
+            assert boot.wait_for_exit(child.pid, 10) is True
+            assert time.monotonic() - started < 5
+    finally:
+        child.kill()
+        child.wait()
+    assert boot.wait_for_exit(child.pid, 5) is True
+
+
+def test_restarted_boot_waits_and_retries_an_unconfirmed_layer(
+    tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(layers, "load_runtime", lambda: RUNTIME)
+    monkeypatch.setattr(boot, "APP_MODULE", "fakeapp")
+    waited: list[int] = []
+    relaunched: list[list[str]] = []
+
+    def wait_for_exit(pid: int, timeout: float) -> bool:
+        waited.append(pid)
+        return True
+
+    def relaunch(args: Sequence[str]) -> None:
+        relaunched.append(list(args))
+
+    monkeypatch.setattr(boot, "wait_for_exit", wait_for_exit)
+    monkeypatch.setattr(boot, "relaunch", relaunch)
+    install_layer(home, _update(tmp_path, "0000002", code="raise SystemExit(3)\n"), RUNTIME)
+    # 一般的啟動失敗：不重新啟動（使用者看得到）
+    assert boot.main(["--background"]) == 3
+    assert relaunched == []
+    # 重新啟動套用更新後失敗：等舊程序結束，再重新啟動一次
+    monkeypatch.setenv(boot.RESTART_AFTER_ENV, "4242")
+    monkeypatch.delenv(LAYER_ENV)
+    assert boot.main(["--background"]) == 3
+    assert waited == [4242]
+    assert relaunched == [["--background"]]
+    assert boot.RESTART_AFTER_ENV not in os.environ
+    assert "重新啟動再試" in (home / LOG_FILE).read_text(encoding="utf-8")
+    # 次數用完退回內建的程式後就不是新裝的一層了：不再重新啟動
+    monkeypatch.setenv(boot.RESTART_AFTER_ENV, "4242")
+    monkeypatch.delenv(LAYER_ENV)
+    assert boot.main(["--background"]) == 3  # 測試裡 sys.path 還留著前兩次的那一層
+    assert read_active(home).failed == "0.6.0-0000002"
+    assert relaunched == [["--background"]]
