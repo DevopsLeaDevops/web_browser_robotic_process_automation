@@ -56,7 +56,7 @@
     <div class="table-scroll"><table class="wrap">
       <thead><tr>
         <th>{{ t("recorders.col_recorder") }}</th><th>{{ t("workers.col_status") }}</th><th>{{ t("workers.col_machine") }}</th>
-        <th>{{ t("workers.col_version") }}</th><th>{{ t("recorders.col_menus") }}</th><th>{{ t("workers.col_actions") }}</th>
+        <th>{{ t("workers.col_version") }}</th><th>{{ t("recorders.col_menus") }}</th><th>{{ t("recorders.col_agent") }}</th><th>{{ t("workers.col_actions") }}</th>
       </tr></thead>
       <tbody>
       {% for recorder in recorders %}
@@ -75,6 +75,10 @@
         <td><fieldset class="menu-choices" data-recorder-menus="{{ recorder.id }}"><legend class="visually-hidden">{{ t("recorders.menus_legend", name=recorder.name) }}</legend>
           {% for menu in recorder_menus %}<label><input type="checkbox" name="recorder-menu" value="{{ menu }}"{% if menu in recorder.menus %} checked{% endif %}> {{ t("nav." + menu) }}</label>{% endfor %}</fieldset>
           <span class="cell-sub">{{ t("recorders.menus_hint") }}</span></td>
+        <td><fieldset class="menu-choices" data-recorder-agent="{{ recorder.id }}"><legend class="visually-hidden">{{ t("recorders.agent_legend", name=recorder.name) }}</legend>
+          <label><input type="checkbox" name="allowAgent"{% if recorder.allow_agent %} checked{% endif %}> {{ t("recorders.allow_agent") }}</label>
+          <label><input type="checkbox" name="agentHeadlessOnly"{% if recorder.agent_headless_only %} checked{% endif %}> {{ t("recorders.agent_headless_only") }}</label></fieldset>
+          <span class="cell-sub">{{ t("recorders.agent_hint") }}</span></td>
         <td class="role-actions">
           {% if recorder.disabled %}
           <button class="text-btn" data-action="enable-worker" data-kind="recorder" data-worker="{{ recorder.id }}">{{ t("workers.enable") }}</button>

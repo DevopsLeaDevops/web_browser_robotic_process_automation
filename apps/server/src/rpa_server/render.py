@@ -117,7 +117,11 @@ NAV: Final = (
         "admin",
         "ADMIN",
         "/domains",
-        (NavPage("domains", "/domains"), NavPage("projects", "/projects")),
+        (
+            NavPage("domains", "/domains"),
+            NavPage("projects", "/projects"),
+            NavPage("agents", "/agents"),
+        ),
     ),
 )
 """第一級選單（2026-10-22 使用者調整；2026-10-23 在叢集管理前面加上專案空間）：場景管理、場景生產、
@@ -370,6 +374,19 @@ def js_messages() -> dict[str, str]:
         "js.worker_delete_title",
         "js.worker_delete_body",
         "js.worker_delete_action",
+        "js.agent_create_title",
+        "js.agent_create_action",
+        "js.agent_edit_title",
+        "js.agent_key_title",
+        "js.agent_copied",
+        "js.agent_rotate_title",
+        "js.agent_rotate_body",
+        "js.agent_rotate_action",
+        "js.agent_delete_title",
+        "js.agent_delete_body",
+        "js.agent_delete_action",
+        "js.agent_disabled",
+        "js.agent_enabled",
         "js.worker_disabled",
         "js.worker_enabled",
         "js.sync_pulled",
@@ -524,11 +541,13 @@ def render(
     """渲染一頁：page 是選單中目前的頁面，title 是頁面標題，domains 是場景管理的二級選單，
     projects 是專案空間的二級選單。
 
-    context 的 worker_names 是 worker 代號 → 名稱（執行報告顯示由哪台執行；M9a），沒給時只有本機。
+    context 的 worker_names 是 worker 代號 → 名稱（執行報告顯示由哪台執行；M9a），沒給時只有本機；
+    agent_names 是 API 用戶端代號 → 名稱（由哪個 Agent 觸發；M14）。
     here_display 是操作的那台能不能開瀏覽器視窗，沒給時當成可以。
     """
     group = _group_of(page)
     context.setdefault("worker_names", {"local": page_t("worker.local")})
+    context.setdefault("agent_names", {})
     context.setdefault("here_display", True)
     return _env.get_template(name).render(
         page=page,

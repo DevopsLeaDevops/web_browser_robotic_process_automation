@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:c8328433d8031917">
+<title>Test report guide · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="agent-test-report-guide" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Test report guide</h1>
+      <p>For third-party agents connected to the platform: how to run the composites of a project according to a signed-off test plan, track progress, handle failures and reruns, and finally write a test report for people to accept (a single HTML file, plus JSON for the agent's own use) that traces back to every step.</p>
+    </div>
+    <span class="badge blue">Phase 1 in progress</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice"><strong>The test report is the agent's deliverable, for people to accept. The platform does not read, upload or store it.</strong> The platform keeps the record of each run (status, steps, checks, screenshots); the report points to them with run IDs and Portal paths. How to write the test plan and TestCases is in the <a href="agent-test-plan-guide.html">test plan guide</a>; API conventions are in the <a href="agent-api-guide.html">Agent API guide</a>. Written on 2026-10-24 at the user's request (in review).</div>
+
+    <section class="panel" id="before">
+      <div class="panel-header"><h2>Before running</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>The plan is signed off:</strong> the test plan's status is "signed off"; if not, ask people first and do not start formal runs.</li>
+          <li><strong>Scopes:</strong> <code>scopes</code> in <code>GET /meta</code> include <code>projects:read</code>, <code>runs:read</code> and the <code>runs:validate</code> or <code>runs:execute</code> you need (publishing composites yourself needs <code>projects:publish</code>); note <code>limits.queuedRuns</code>.</li>
+          <li><strong>Composites match the plan:</strong> in <code>GET /projects/{id}</code> every TestCase's composite has 0 <code>problems</code>; the revision to validate is the one in the plan, and for formal runs <code>publishedRevision</code> is the one in the plan. If not, stop and ask people whether to update the plan.</li>
+          <li><strong>Roles are logged in:</strong> the roles used by the plan are <code>logged_in</code> in <code>GET /roles</code>; for <code>needs_login</code> or <code>none</code>, ask people to log in on a recorder.</li>
+          <li><strong>Workers are online:</strong> <code>GET /workers</code> shows at least one online, or the one the plan names.</li>
+          <li><strong>Record the environment:</strong> start time, server ID and version (<code>/meta</code>), for the report.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="run">
+      <div class="panel-header"><h2>Running</h2><span class="muted">Validate, publish, run</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Purpose</th><th>Call</th><th>Which revision</th><th>Scope</th></tr></thead>
+          <tbody>
+            <tr><td>Validation (new or just changed TestCases)</td><td><code>POST /composites/{code}/revisions/{n}/validate</code>; in a batch, <code>POST /projects/{id}/runs</code> with <code>"purpose": "validation"</code></td><td>The given revision; in a batch, each composite's latest revision</td><td><code>runs:validate</code></td></tr>
+            <tr><td>Publish</td><td><code>POST /composites/{code}/revisions/{n}/publish</code></td><td>A validated revision with complete dependencies</td><td><code>projects:publish</code>; without it, people publish in the Portal</td></tr>
+            <tr><td>Formal run (regression)</td><td><code>POST /composites/{code}/runs</code>; in a batch, <code>POST /projects/{id}/runs</code> with <code>"purpose": "execution"</code></td><td>The published revision</td><td><code>runs:execute</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p>One report covers <strong>one round</strong> of runs. Use one ID per round as the idempotency key, e.g. <code>TR-ORDER-2026-10-R1</code>:</p>
+<pre class="source">POST /agent-api/v1/projects/order-regression/runs
+{"purpose": "execution",
+ "composites": ["tc-order-001", "tc-order-002", "tc-order-003", "tc-order-004"],
+ "idempotencyKey": "TR-ORDER-2026-10-R1"}
+→ 202 {"projectId": "order-regression", "purpose": "execution",
+       "runs": [{"id": "tc-order-001-20261024-080512-a1b2c3", "workflowCode": "tc-order-001",
+                 "workflowVersion": 2, "status": "running",
+                 "progress": {"total": 2, "done": 0, "passed": 0, "current": "create"},
+                 "portalPath": "/playground/runs/tc-order-001-20261024-080512-a1b2c3", …}, …],
+       "skipped": [{"code": "tc-order-004",
+                    "error": {"code": "workflow_unpublished", "message": "…"}}]}</pre>
+        <ul class="points">
+          <li><strong>Run only the plan's TestCases:</strong> list their codes in <code>composites</code>; without it, every composite in the project that is not archived runs.</li>
+          <li><strong>What did not start is in <code>skipped</code>:</strong> act on <code>error.code</code>: <code>workflow_unpublished</code> validate and publish first; <code>limit_reached</code> wait for earlier runs to finish; <code>composite_scenes_forbidden</code>, <code>target_forbidden</code> ask people to adjust the permissions.</li>
+          <li><strong>Resend the same request:</strong> after a timeout, a dropped connection or fixing <code>skipped</code>, send it again with the same idempotency key: runs that started are returned as they are, only the rest start now; nothing runs twice.</li>
+          <li><strong>Limits:</strong> each running composite takes one slot of <code>queuedRuns</code> for its current node. With many TestCases, send them in batches or let the extra ones land in <code>skipped</code> and resend later.</li>
+          <li><strong>Record every run ID:</strong> it is where tracing in the report starts.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="track">
+      <div class="panel-header"><h2>Tracking progress</h2></div>
+      <div class="panel-body">
+<pre class="source">GET /agent-api/v1/composite-runs/tc-order-001-20261024-080512-a1b2c3
+→ {"id": "tc-order-001-20261024-080512-a1b2c3", "workflowCode": "tc-order-001", "workflowVersion": 2,
+   "purpose": "execution", "status": "running", "finished": false,
+   "progress": {"total": 3, "done": 1, "passed": 1, "current": "query"},
+   "nodes": [
+     {"id": "create", "sceneId": "order-create", "revision": 6, "status": "passed",
+      "run": {"id": "order-create-20261024-080513-d4e5f6", "status": "passed", "stage": "output",
+              "durationSeconds": 12.4, "portalPath": "/runs/order-create-20261024-080513-d4e5f6", …}},
+     {"id": "query", "sceneId": "order-query", "revision": 3, "status": "running",
+      "run": {"id": "order-query-20261024-080526-0a9b8c", "status": "running", "stage": "automation", …}},
+     {"id": "close", "status": "pending", "run": null, …}],
+   "portalPath": "/playground/runs/tc-order-001-20261024-080512-a1b2c3", …}
+
+GET /agent-api/v1/composite-runs?project=order-regression&amp;mine=true&amp;status=running</pre>
+        <ul class="points">
+          <li><strong>How often:</strong> every 3–5 seconds for running ones; with several at once use the list in one call instead of polling each one quickly. When nothing changes for a long time, back off to 30 seconds.</li>
+          <li><strong>Done:</strong> only <code>finished</code> <code>true</code> means done; <code>status</code> is then <code>passed</code>, <code>failed</code>, <code>timed_out</code>, <code>cancelled</code> or <code>needs_login</code>. <code>failedNode</code> is the node it stopped at; <code>resumable</code> means it can continue from there.</li>
+          <li><strong>Node statuses:</strong> <code>pending</code> (not its turn yet), <code>queued</code>, <code>running</code>, <code>passed</code>, <code>reused</code> (a continued run kept the earlier passing result), <code>failed</code>, <code>timed_out</code>, <code>cancelled</code>, <code>needs_login</code>, <code>skipped</code> (skipped because the run stopped earlier). A node's <code>error</code> says why it did not start, e.g. a bound value broke an input rule.</li>
+          <li><strong>Report progress to people:</strong> after each TestCase or every 5 minutes, e.g. "12 TestCases: 5 done (4 passed, 1 failed), 1 running, 6 queued".</li>
+          <li><strong>Stuck:</strong> when a node stays <code>queued</code>, check <code>GET /workers</code>; if workers are offline or busy, tell people rather than cancelling on your own. To cancel, <code>POST /composite-runs/{id}/cancel</code> works only on runs you started; the current node stops and later ones do not run.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="failures">
+      <div class="panel-header"><h2>Failures, blocks and reruns</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Status</th><th>Meaning</th><th>What the agent does</th></tr></thead>
+          <tbody>
+            <tr><td><code>needs_login</code></td><td>A node's login role must log in again</td><td>Tell people the role and ask them to log in on a recorder; then <code>POST /composite-runs/{id}/rerun {"resume": true}</code>, keeping the nodes that passed</td></tr>
+            <tr><td><code>failed</code></td><td>A node's step or check did not pass</td><td>Collect evidence first (next section) and find the cause; do not just rerun to get a pass</td></tr>
+            <tr><td><code>timed_out</code></td><td>A node timed out</td><td>Collect evidence; when the environment was slow, rerun once and record it</td></tr>
+            <tr><td><code>cancelled</code></td><td>Cancelled</td><td>Record who cancelled it and why</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>Cause is the environment</strong> (worker offline, network, temporary error in the target system): rerun once; record both results and the cause.</li>
+          <li><strong>Cause is a product defect:</strong> do not rerun until it passes; record it as failed and write up the defect.</li>
+          <li><strong>Cause is a mistake in a scene or composite</strong> (locator, check, data): fix it, save a new revision and validate again; record it as a "test script issue". The TestCase result is the run after the fix; note the revision change under deviations from the plan.</li>
+          <li><strong>Continue or start over:</strong> use <code>"resume": true</code> only while the earlier nodes' results still hold (e.g. after a manual login); when the fixed node is before the stopping node, start over with <code>"resume": false</code>.</li>
+          <li><strong>Reruns take a new idempotency key</strong>, e.g. <code>TR-ORDER-2026-10-R1/tc-order-003/2</code>. A run still going returns 409 <code>workflow_run_active</code>; a run with no node to continue from returns 409 <code>workflow_not_resumable</code>, so start over instead.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="trace">
+      <div class="panel-header"><h2>Tracing the details</h2><span class="muted">From a TestCase down to every step</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Level</th><th>Read from</th><th>What the report records</th></tr></thead>
+          <tbody>
+            <tr><td>TestCase</td><td>The test plan</td><td>ID, priority, composite code and revision</td></tr>
+            <tr><td>Composite run</td><td><code>GET /composite-runs/{id}</code></td><td>Run ID, purpose, status, created and finished times, stopping node, <code>portalPath</code></td></tr>
+            <tr><td>Node</td><td><code>nodes</code> of the same response</td><td>Node ID, scene and revision, status, input sources (<code>sources</code>), ID of its run</td></tr>
+            <tr><td>Run</td><td><code>GET /runs/{id}</code></td><td>Status, stage it stopped at, error, inputs, outputs, duration, worker</td></tr>
+            <tr><td>Stages</td><td><code>result.stages</code></td><td>Status, message and duration of input, login, automation, verify and output</td></tr>
+            <tr><td>Steps</td><td><code>GET /runs/{id}/steps</code></td><td>Step ID, action, status, duration, error, URL after the step, artifacts</td></tr>
+            <tr><td>Checks</td><td><code>result.checks</code></td><td>Name, comparison, actual, expected, passed</td></tr>
+            <tr><td>Artifacts</td><td><code>files</code>, <code>GET /runs/{id}/files/{path}</code></td><td>Screenshots, <code>report.html</code>, video; <code>result.json</code> needs no "return page content", everything else does</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+<pre class="source">GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f
+→ {"status": "failed", "stage": "verify", "error": "…", "input": {"quantity": "100"}, "output": null,
+   "durationSeconds": 9.8, "workerId": "win-01", "portalPath": "/runs/order-submit-raw-20261024-081531-4d5e6f",
+   "result": {"stages": [{"name": "verify", "status": "failed", "message": "…", "durationMs": 120}, …],
+              "checks": [{"name": "Shows the quantity limit error", "comparison": "equals",
+                          "actual": "Order created", "expected": "Quantity cannot exceed 99", "passed": false}], …},
+   "files": ["result.json", "screenshot.png", …],
+   "reportUrl": "/agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/report.html"}
+
+GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/steps
+GET /agent-api/v1/runs/order-submit-raw-20261024-081531-4d5e6f/files/screenshot.png</pre>
+        <ul class="points">
+          <li><strong>Failed and blocked TestCases:</strong> save the whole chain as evidence under <code>evidence/&lt;TestCase ID&gt;/&lt;run ID&gt;/</code>: the composite run, each node's run, steps and <code>result.json</code>, plus screenshots when allowed.</li>
+          <li><strong>Passed TestCases:</strong> record the run ID, duration and key outputs; people use the Portal path for details.</li>
+          <li><strong>Portal paths:</strong> <code>portalPath</code> is only a path. People open it in the Portal on the server itself (<code>http://127.0.0.1:8080</code>) or inside the recorder app; do not guess the server's address.</li>
+          <li><strong>Sensitive data:</strong> the platform always shows secret values as <code>***</code>; do not try to recover them. Screenshots and outputs may hold business data: keep them only in the report folder handed to people and do not pass them elsewhere.</li>
+          <li><strong>Time:</strong> API times are UTC; write UTC in the report and add local time when you know the reviewer's time zone. The server may clean up old run artifacts under its retention settings, so download evidence soon after the runs.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="results">
+      <div class="panel-header"><h2>TestCase results</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Result</th><th>When</th><th>JSON</th><th>XMind marker</th></tr></thead>
+          <tbody>
+            <tr><td>Passed</td><td>The composite run is <code>passed</code> (including reused nodes when continued)</td><td><code>passed</code></td><td><code>symbol-right</code></td></tr>
+            <tr><td>Failed</td><td><code>failed</code> or <code>timed_out</code> caused by the product or a test script</td><td><code>failed</code></td><td><code>symbol-wrong</code></td></tr>
+            <tr><td>Blocked</td><td><code>needs_login</code> without a login; caused by the environment or platform and still failing after a rerun; cancelled</td><td><code>blocked</code></td><td><code>symbol-pause</code></td></tr>
+            <tr><td>Skipped</td><td>People decided not to run it this round</td><td><code>skipped</code></td><td><code>symbol-minus</code></td></tr>
+            <tr><td>Not run</td><td>Could not start: an error in <code>skipped</code>, missing permission, no published revision</td><td><code>not_run</code></td><td>None</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body"><p>A TestCase may run several times in a round: its result is the last valid run, and every attempt is listed in the report. What did not run never counts as passed.</p></div>
+    </section>
+
+    <section class="panel" id="report">
+      <div class="panel-header"><h2>Test report format</h2></div>
+      <div class="panel-body">
+        <p>One folder per round, named after the report ID, e.g. <code>TR-ORDER-2026-10-R1/</code>:</p>
+<pre class="source">TR-ORDER-2026-10-R1/
+  test-report.html      the test report itself, opened in a browser for acceptance
+  test-report.json      the same content as structured data, for the agent
+  test-report.xmind     (optional) the test plan's XMind with result markers
+  evidence/             full evidence for failed and blocked TestCases, linked from the HTML by relative paths
+    TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/
+      composite-run.json
+      reject/run.json  reject/steps.json  reject/result.json  reject/screenshot.png</pre>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Sections of test-report.html</th><th>Content</th></tr></thead>
+          <tbody>
+            <tr><td>Document information</td><td>Report ID, plan ID and version, round, status (draft, pending acceptance, accepted), generating agent and time, server ID and version, run period</td></tr>
+            <tr><td>1. Summary</td><td>Recommendation (accept, accept with conditions, reject) checked against each exit criterion of the plan; pass rate; major defects and blocks; one paragraph for the reviewer</td></tr>
+            <tr><td>2. Scope run</td><td>TestCases in the plan, how many ran, which did not and why</td></tr>
+            <tr><td>3. Statistics</td><td>By result, priority and module; total duration</td></tr>
+            <tr><td>4. TestCase details</td><td>ID, title, priority, result, composite and revision, run ID, attempts, duration, Portal path</td></tr>
+            <tr><td>5. Defects and issues</td><td>ID, severity (critical, major, minor), category (product defect, test script issue, environment, test data, platform), TestCase, node and step, expected and actual, evidence files, suggestion</td></tr>
+            <tr><td>6. Timeline</td><td>Start, reruns, login requests, cancellations, revision fixes, with time and who did it</td></tr>
+            <tr><td>7. Detailed trace</td><td>For each failed and blocked TestCase: composite run → node → run → stage → step → check → evidence files</td></tr>
+            <tr><td>8. Deviations from the plan</td><td>Which scene or composite revisions changed, which TestCases were added or dropped, and why</td></tr>
+            <tr><td>9. Risks and leftovers</td><td>What was not tested, what was verified only in one environment, what to add next round</td></tr>
+            <tr><td>10. Acceptance</td><td>Runs to spot-check (all failed and blocked, every P1, a sample of the rest) with Portal paths; a sign-off block (reviewer, date, conclusion, comments) left blank for people</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <h3>Writing the HTML</h3>
+        <ul class="points">
+          <li><strong>One file that opens offline:</strong> styles go in <code>&lt;style&gt;</code>; load no external fonts, scripts or CDNs (the reviewer's computer may be on an internal network); it must read in full without JavaScript, with long traces folded in <code>&lt;details&gt;</code>.</li>
+          <li><strong>Hand over the whole folder:</strong> screenshots and evidence are linked by relative paths into <code>evidence/</code>, e.g. <code>&lt;img src="evidence/…/screenshot.png"&gt;</code>; people unzip it and open <code>test-report.html</code>.</li>
+          <li><strong>Cross-links:</strong> one anchor per TestCase (<code>id="TC-ORDER-004"</code>); the summary, details, defects and trace link to each other with <code>#</code>.</li>
+          <li><strong>Escaping:</strong> HTML-escape every text that comes from the API (error messages, actual values, words on the page) before putting it in the page; never embed a run's <code>report.html</code> or page source wholesale, link to the evidence file instead.</li>
+          <li><strong>Results in words:</strong> write passed, failed and blocked out; never rely on colour alone, and keep it readable when printed.</li>
+          <li><strong>Portal:</strong> write <code>portalPath</code> as text; make it a link only when people have given you the Portal's address.</li>
+        </ul>
+        <p>A minimal skeleton (sections as in the table above, filled with the real data):</p>
+<pre class="source">&lt;!doctype html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;title&gt;TR-ORDER-2026-10-R1 test report&lt;/title&gt;
+&lt;style&gt;
+  body { font: 14px/1.6 system-ui, sans-serif; max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccd3dd; padding: 4px 8px; text-align: left; vertical-align: top; }
+  .passed { color: #146c2e; } .failed { color: #b3261e; } .blocked { color: #8a5300; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;TR-ORDER-2026-10-R1 test report&lt;/h1&gt;
+&lt;p&gt;Plan TP-ORDER-2026-10 v2 · status: pending acceptance · generated by ERP assistant at 2026-10-24T09:10Z · server srv-linux-01 (0.6.0)&lt;/p&gt;
+&lt;h2 id="summary"&gt;1. Summary&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Recommendation: accept with conditions.&lt;/strong&gt; 12 TestCases: 10 passed, 1 failed, 1 blocked. …&lt;/p&gt;
+&lt;h2 id="cases"&gt;4. TestCase details&lt;/h2&gt;
+&lt;table&gt;
+  &lt;tr&gt;&lt;th&gt;ID&lt;/th&gt;&lt;th&gt;Title&lt;/th&gt;&lt;th&gt;Priority&lt;/th&gt;&lt;th&gt;Result&lt;/th&gt;&lt;th&gt;Composite&lt;/th&gt;&lt;th&gt;Run ID&lt;/th&gt;&lt;th&gt;Portal path&lt;/th&gt;&lt;/tr&gt;
+  &lt;tr&gt;&lt;td&gt;&lt;a href="#TC-ORDER-004"&gt;TC-ORDER-004&lt;/a&gt;&lt;/td&gt;&lt;td&gt;Quantity 100 is rejected&lt;/td&gt;&lt;td&gt;P2&lt;/td&gt;
+      &lt;td class="failed"&gt;Failed&lt;/td&gt;&lt;td&gt;tc-order-004 v1&lt;/td&gt;&lt;td&gt;tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;
+      &lt;td&gt;/playground/runs/tc-order-004-20261024-081530-1a2b3c&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;h2 id="trace"&gt;7. Detailed trace&lt;/h2&gt;
+&lt;section id="TC-ORDER-004"&gt;
+  &lt;h3&gt;TC-ORDER-004 Quantity 100 is rejected: failed&lt;/h3&gt;
+  &lt;details open&gt;
+    &lt;summary&gt;Node reject (order-submit-raw v2) · run order-submit-raw-20261024-081531-4d5e6f · failed at verify&lt;/summary&gt;
+    &lt;table&gt;
+      &lt;tr&gt;&lt;th&gt;Step&lt;/th&gt;&lt;th&gt;Action&lt;/th&gt;&lt;th&gt;Result&lt;/th&gt;&lt;th&gt;Duration&lt;/th&gt;&lt;th&gt;Error&lt;/th&gt;&lt;/tr&gt;
+      &lt;tr&gt;&lt;td&gt;submit&lt;/td&gt;&lt;td&gt;click&lt;/td&gt;&lt;td class="passed"&gt;Passed&lt;/td&gt;&lt;td&gt;0.8 s&lt;/td&gt;&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;/table&gt;
+    &lt;p&gt;Check "Shows the quantity limit error": expected "Quantity cannot exceed 99", actual "Order created".&lt;/p&gt;
+    &lt;img src="evidence/TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/reject/screenshot.png"
+         alt="Screen when reject failed" width="640"&gt;
+  &lt;/details&gt;
+&lt;/section&gt;
+&lt;h2 id="acceptance"&gt;10. Acceptance&lt;/h2&gt;
+&lt;p&gt;Reviewer: __  Date: __  Conclusion (accept / accept with conditions / reject): __  Comments: __&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+        <p>Suggested structure of <code>test-report.json</code>:</p>
+<pre class="source">{
+  "format": "rpa-agent-test-report", "formatVersion": 1,
+  "reportId": "TR-ORDER-2026-10-R1", "status": "pending_acceptance",
+  "plan": {"planId": "TP-ORDER-2026-10", "version": 2},
+  "generatedAt": "2026-10-24T09:10:00Z",
+  "generatedBy": {"agent": "ERP assistant", "clientId": "agent-erp"},
+  "server": {"id": "srv-linux-01", "version": "0.6.0"},
+  "round": {"idempotencyKey": "TR-ORDER-2026-10-R1", "purpose": "execution",
+            "startedAt": "2026-10-24T08:05:12Z", "finishedAt": "2026-10-24T09:02:40Z"},
+  "conclusion": {"recommendation": "conditional", "summary": "…",
+                 "exitCriteria": [{"criterion": "All P1 pass", "met": true}]},
+  "totals": {"planned": 12, "passed": 10, "failed": 1, "blocked": 1, "skipped": 0, "notRun": 0},
+  "testCases": [{
+    "id": "TC-ORDER-004", "priority": 2, "result": "failed",
+    "composite": {"code": "tc-order-004", "revision": 1},
+    "attempts": [{"runId": "tc-order-004-20261024-081530-1a2b3c", "purpose": "execution",
+                  "status": "failed", "failedNode": "reject",
+                  "createdAt": "2026-10-24T08:15:30Z", "finishedAt": "2026-10-24T08:15:44Z",
+                  "portalPath": "/playground/runs/tc-order-004-20261024-081530-1a2b3c"}],
+    "defects": ["BUG-1"]
+  }],
+  "defects": [{"id": "BUG-1", "severity": "major", "category": "product", "testCase": "TC-ORDER-004",
+               "node": "reject", "runId": "order-submit-raw-20261024-081531-4d5e6f", "step": "submit",
+               "expected": "Shows \"Quantity cannot exceed 99\"", "actual": "Order SO-10240 was created",
+               "evidence": ["evidence/TC-ORDER-004/tc-order-004-20261024-081530-1a2b3c/reject/screenshot.png"]}],
+  "timeline": [{"at": "2026-10-24T08:05:12Z", "event": "round_started", "detail": "12 TestCases"}],
+  "deviations": []
+}</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="xmind">
+      <div class="panel-header"><h2>Results in XMind</h2></div>
+      <div class="panel-body">
+        <p>Copy the test plan's XMind (see the <a href="agent-test-plan-guide.html#xmind">test plan guide</a>) and on each TestCase topic:</p>
+        <ul class="points">
+          <li>Add a result marker: <code>symbol-right</code>, <code>symbol-wrong</code>, <code>symbol-pause</code>, <code>symbol-minus</code> (see the table above); none for not run.</li>
+          <li>Add a label such as "Result: passed": markers are a visual aid, and tools that do not know a marker rely on the label.</li>
+          <li>Append the run ID and Portal path to the notes; add defect IDs to failed ones.</li>
+          <li>For a failed step, you can add <code>symbol-wrong</code> to its expected-result topic to show where it stopped.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="checklist">
+      <div class="panel-header"><h2>Before handing it over</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>Every TestCase in the plan has a result in the report; the statistics match the details.</li>
+          <li>Open <code>test-report.html</code> in a browser on a computer without network access: the layout is intact and in-page links and screenshots work.</li>
+          <li>Every failure has a defect or a cause; every block says what people need to do.</li>
+          <li>Every run ID can be found with <code>GET /composite-runs/{id}</code> and has the status the report says.</li>
+          <li>The evidence contains no API keys, passwords or secret values; personal data are handled as the plan says.</li>
+          <li>The conclusion matches the exit criteria without overstating: runs that did not happen or were skipped never count as passed.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
