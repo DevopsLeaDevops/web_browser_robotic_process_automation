@@ -4,6 +4,8 @@ M9a 加上遠端 worker workers、設定 settings，執行記下執行位置與�
 M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄製的 device_id；
 錄製端另外顯示的選單 recorders.menus（三段分工，2026-10-22）；
 專案 projects 與組合場景所屬的專案 workflows.project_id（專案空間，2026-10-23）。
+M14：對外 Agent API 的用戶端 api_clients 與稽核 api_audit；執行記下觸發的用戶端 runs.client_id，
+錄製端加上允不允許 Agent 調試 recorders.allow_agent、agent_headless_only（ADR 0017）。
 
 M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資料夾（rpa_server.packs）；這幾張表是
 資料夾的**索引**，載入時依資料夾重建。只在資料庫的欄位（網址覆寫、排序、登入檢查的結果）
@@ -31,6 +33,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from rpa_server.db import NAMING_CONVENTION, JsonType, UtcDateTime
 
 __all__ = [
+    "ApiAudit",
+    "ApiClient",
     "Base",
     "DeviceInvite",
     "Domain",
@@ -181,6 +185,8 @@ class Run(Base):
     """錄影被刪除的時間；運行紀錄本身留著。"""
     video_deleted_reason: Mapped[str | None] = mapped_column(String(20))
     """刪除的原因：expired（超過保留天數）、quota（超過總量上限）。"""
+    client_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    """由哪個 API 用戶端觸發（M14）；人在 Portal 觸發的是 None。用戶端刪除後仍保留，不設外鍵。"""
 
 
 class Role(Base):
@@ -337,6 +343,8 @@ class WorkflowRun(Base):
     workflow_hash: Mapped[str | None] = mapped_column(String(64))
     """跑的版本的雜湊（definition 是解析過來源的快照，雜湊和版本不同）；驗證紀錄記它。
     M11 PR 2 之前的執行（與它們的重跑）沒有，不寫驗證紀錄。"""
+    client_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    """觸發的對外 API 用戶端（M14）；Portal 觸發的是 None。節點的執行也記同一個用戶端。"""
 
 
 class RemoteWorker(Base):
@@ -374,6 +382,12 @@ class Recorder(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     menus: Mapped[list[str] | None] = mapped_column(JsonType)
     """透過這台打開管理 Portal 時另外顯示的第一級選單（叢集管理、管理後台；預設都不顯示）。"""
+    allow_agent: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """允許 API 用戶端（Agent）在這台開調試瀏覽器（M14）；預設不允許。"""
+    agent_headless_only: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
+    """Agent 在這台只能用無頭模式（不在操作的人面前開視窗）。"""
 
 
 class DeviceInvite(Base):
@@ -399,3 +413,59 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[dict[str, object]] = mapped_column(JsonType)
+
+
+class ApiClient(Base):
+    """對外 Agent API 的用戶端（M14，ADR 0017）：一個 Agent 系統一把金鑰，資料庫只存金鑰的雜湊。
+
+    清單類的欄位（權限範圍、領域、專案、錄製端、Worker）是 JSON 陣列；``domains``、``projects``、
+    ``workers`` 是 None 時不限。
+    """
+
+    __tablename__ = "api_clients"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(Text)
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    key_prefix: Mapped[str] = mapped_column(String(20))
+    """金鑰的開頭幾個字，管理後台用來認出是哪一把（不足以使用）。"""
+    scopes: Mapped[list[str]] = mapped_column(JsonType)
+    domains: Mapped[list[str] | None] = mapped_column(JsonType)
+    projects: Mapped[list[str] | None] = mapped_column(JsonType)
+    """可以讀寫哪些專案（專案空間）；None 時不限，限定時不能新增專案。"""
+    recorders: Mapped[list[str]] = mapped_column(JsonType)
+    target: Mapped[str | None] = mapped_column(String(10))
+    """驗證與執行的位置（local、remote、any）；None 時跟隨伺服器的預設執行位置。"""
+    workers: Mapped[list[str] | None] = mapped_column(JsonType)
+    """可以指定的 Worker（local 是伺服器本機）；None 時不限。"""
+    max_debug_sessions: Mapped[int] = mapped_column()
+    max_queued_runs: Mapped[int] = mapped_column()
+    page_content: Mapped[bool] = mapped_column(Boolean, default=False)
+    """回傳頁面內容：截圖、頁面結構、錄影與報告能不能給這個用戶端。"""
+    allowed_ips: Mapped[list[str] | None] = mapped_column(JsonType)
+    """允許的來源 IP 或網段；None 時不限。"""
+    expires_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    last_used_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class ApiAudit(Base):
+    """API 用戶端的寫入請求（M14）：只增不改。用戶端刪除後紀錄仍保留，所以不設外鍵。"""
+
+    __tablename__ = "api_audit"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
+    client_id: Mapped[str] = mapped_column(String(64), index=True)
+    client_name: Mapped[str] = mapped_column(String(100))
+    method: Mapped[str] = mapped_column(String(10))
+    action: Mapped[str] = mapped_column(String(200))
+    """路由的路徑樣式，例如 ``/scenes/{scene_id}/revisions``。"""
+    target: Mapped[str | None] = mapped_column(String(300))
+    """操作的對象：路徑參數的值（場景代號、版本、工作階段、運行編號）。"""
+    status: Mapped[int] = mapped_column()
+    code: Mapped[str | None] = mapped_column(String(60))
+    """失敗時的錯誤代碼。"""
+    ip: Mapped[str | None] = mapped_column(String(64))

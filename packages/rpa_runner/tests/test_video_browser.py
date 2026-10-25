@@ -229,7 +229,7 @@ def test_cancelled_run_keeps_a_playable_video(site: str, engine: str, tmp_path: 
         run_id="video-cancel",
     )
 
-    assert result.status == "cancelled"
+    assert result.status == "cancelled", result.error
     info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
     assert info["file"] == VIDEO, info
     assert info["complete"] is True, info
@@ -251,7 +251,7 @@ def test_timed_out_run_keeps_a_playable_video(site: str, engine: str, tmp_path: 
         deadline_ms=5000,
     )
 
-    assert result.status == "timed_out"
+    assert result.status == "timed_out", result.error
     info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
     assert info["complete"] is True, info
 

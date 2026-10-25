@@ -387,11 +387,11 @@
     </section>
 
     <section class="panel" id="release-flow">
-      <div class="panel-header"><h2>从源代码到安装档</h2><span class="muted">目前 v0.4.0（2026-10-21 06:10 PDT 发布）；之前 v0.3.0、v0.2.0</span></div>
+      <div class="panel-header"><h2>从源代码到安装档</h2><span class="muted">目前 v0.5.0（2026-10-23 01:01 PDT 发布）；之前 v0.4.0、v0.3.0、v0.2.0</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="rel-title rel-desc">
           <title id="rel-title">从源代码到安装档</title>
-          <desc id="rel-desc">在功能分支用 release_version.py 统一版本，PR 合并后在 main 打标签，发布流程确认版本、建置两个 App 并跑端到端，产生草稿 Release，由维护者确认后发布；App 的「下载新版」连到最新的 Release。</desc>
+          <desc id="rel-desc">在功能分支用 release_version.py 统一版本，PR 合并后在 main 打标签，发布流程确认版本、建置两个 App 与服务器分发包并跑端到端，产生草稿 Release，由维护者确认后发布；App 的「下载新版」连到最新的 Release。</desc>
           <defs>
             <marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -402,7 +402,7 @@
           <text class="step" x="26" y="42">1</text>
           <text class="title" x="40" y="42">统一版本</text>
           <text class="mono" x="26" y="64">release_version.py</text>
-          <text class="mono" x="26" y="82">bump 0.4.0</text>
+          <text class="mono" x="26" y="82">bump 0.5.0</text>
           <text class="sub" x="26" y="100">全部包与 uv.lock</text>
           <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="223" y="42">2</text>
@@ -414,14 +414,14 @@
           <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="420" y="42">3</text>
           <text class="title" x="434" y="42">打标签</text>
-          <text class="mono" x="420" y="64">v0.4.0</text>
+          <text class="mono" x="420" y="64">v0.5.0</text>
           <text class="sub" x="420" y="82">必须在 main 上</text>
           <text class="sub" x="420" y="100">和包版本一致</text>
           <path class="link" d="M390 76H404" marker-end="url(#rel-arrow)"/>
           <rect class="box key" x="603" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="617" y="42">4</text>
           <text class="title" x="631" y="42">发布流程</text>
-          <text class="sub" x="617" y="64">建置 DMG、安装档、zip</text>
+          <text class="sub" x="617" y="64">建置 App 与服务器包</text>
           <text class="sub" x="617" y="82">安装→运行→升级→移除</text>
           <text class="sub" x="617" y="100">产生草稿 Release</text>
           <path class="link" d="M587 76H601" marker-end="url(#rel-arrow)"/>
@@ -434,7 +434,7 @@
           <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
         </svg>
       </div>
-      <div class="diagram-caption">服务器：Linux 用同一个版本的分发包（「服务器分发包」流程建置，发布时一起附上）；其他系统用同一个版本的源代码更新。v0.4.0 的已知问题（回看视频比例、录像对时）写在 Release 说明与任务记录。</div>
+      <div class="diagram-caption">服务器：Linux 用同一个版本的分发包（「服务器分发包」流程建置，发布时一起附上）；其他系统用同一个版本的源代码更新。v0.5.0 的已知问题（录像与回看、Windows 上的浏览器测试、私有仓库的下载权限等）记在任务记录。</div>
     </section>
 
     <div class="two-col">
@@ -457,9 +457,9 @@
         <div class="panel-body prose">
           <ul>
             <li><strong>同一个版本。</strong>服务器、Worker、录制端与所有包用同一个版本（<code>主.次.修</code>，数字），标签是 <code>v0.2.0</code> 这种格式（2026-10-18 决定）。<code>python3 tools/release_version.py bump 0.2.0</code> 一次改全部包与 <code>uv.lock</code>。</li>
-            <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合并 → 在 <code>main</code> 上打标签并推送 → 「发布」流程（<code>.github/workflows/release.yml</code>）确认标签和包版本一致、标签在 <code>main</code> 上，调用桌面端建置（含安装、升级、卸载的端到端）与服务器分发包的建置（在 Rocky 8 容器里安装、启动、升级），创建<strong>草稿</strong> Release：Worker 的 Windows 安装档、免安装 zip 与 macOS DMG、录制端的 DMG（M10.2 起）、服务器的分发包（Linux x64、arm64）、<code>SHA256SUMS.txt</code>。</li>
-            <li><strong>草稿。</strong>仓库是公开的，发布后任何人都下载得到（没有邀请连不上 Portal）；所以由维护者确认草稿的内容后才按「发布」。重新运行时换掉同一个草稿的文件；已经发布的版本不换，改用新的版本。</li>
-            <li><strong>下载新版。</strong>App 的版本和服务器不同时，窗口的「下载新版」打开最新的 Release（<code>…/releases/latest</code>，只算已发布的）。</li>
+            <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合并 → 在 <code>main</code> 上打标签并推送 → 「发布」流程（<code>.github/workflows/release.yml</code>）确认标签和包版本一致、标签在 <code>main</code> 上，调用桌面端建置（含安装、升级、卸载的端到端）与服务器分发包的建置（在 Rocky 8 容器里安装、启动、升级），创建<strong>草稿</strong> Release：Worker 的 Windows 安装档、免安装 zip 与 macOS DMG、录制端的 DMG（M10.2 起）、服务器的分发包（Linux x64、arm64）、<code>SHA256SUMS.txt</code>。草稿建好后删掉这次运行的产物，免得占用 Actions 的保存额度（见<a href="../develop/ci.html#artifacts">产物与保存额度</a>）。</li>
+            <li><strong>草稿。</strong>仓库在 2026-10-22 改成私有，发布后只有登录且有权限的 GitHub 账号下载得到（没有邀请也连不上 Portal）；草稿仍由维护者确认内容后才按「发布」。重新运行时换掉同一个草稿的文件；已经发布的版本不换，改用新的版本。</li>
+            <li><strong>下载新版。</strong>App 的版本和服务器不同时，窗口的「下载新版」打开最新的 Release（<code>…/releases/latest</code>，只算已发布的）；仓库是私有的，浏览器要先登录有权限的 GitHub 账号，否则是 404。</li>
           </ul>
         </div>
       </section>

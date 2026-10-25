@@ -4,6 +4,7 @@
 // M10.1：遠端 worker 頁改為裝置頁，新增與重新邀請都產生邀請（一次性、24 小時內有效）。
 // M10.2：裝置頁也登記錄製端（/api/recorders），邀請的用法依裝置種類不同。
 // 三段分工：領域管理的上移、下移；裝置頁替錄製端打開叢集管理、管理後台的選單。
+// M14：管理後台的 API 用戶端（金鑰只顯示一次）；裝置頁的「允許 Agent 調試」「只允許無頭」。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -2908,6 +2909,15 @@
         toast(result.ok ? messages.saved : errorMessage(result));
       });
     });
+    // 允不允許 Agent 在這台調試、是否只允許無頭（M14）：勾選立刻儲存
+    qsa('[data-recorder-agent]').forEach(group => {
+      group.addEventListener('change', async event => {
+        const input = event.target;
+        const result = await api('PATCH', '/api/recorders/' + path(group.dataset.recorderAgent), {[input.name]: input.checked});
+        if (!result.ok) input.checked = !input.checked;
+        toast(result.ok ? messages.saved : errorMessage(result));
+      });
+    });
     // 狀態（上線、忙碌、離線）改變時重新載入；對話框開著時不打擾
     if (root.hasAttribute('data-poll')) {
       const states = () => qsa('tr[data-state]').map(row => row.dataset.state).join('|');
@@ -2924,6 +2934,141 @@
         }
       }, 5000);
     }
+  }
+
+  // ---------------------------------------------------------------- API 用戶端（M14）
+
+  function bindAgents() {
+    const root = qs('#agents');
+    if (!root) return;
+    const base = (root.dataset.apiUrl || location.origin) + '/agent-api/v1';
+    const checked = (dialog, name) => qsa('[name="' + name + '"]:checked', dialog).map(input => input.value);
+    const lines = text => text.split(/[\s,，]+/).map(item => item.trim()).filter(Boolean);
+
+    function showKey(agent, key) {
+      modal(fill(messages.agent_key_title, {name: agent.name}), qs('#agent-key').innerHTML, null);
+      const dialog = qs('#dialog-content');
+      qs('[name="key"]', dialog).value = key;
+      qs('[name="base"]', dialog).value = base;
+      qs('[data-command="curl"]', dialog).textContent = 'curl -H "Authorization: Bearer ' + key + '" ' + base + '/meta';
+      const field = qs('[name="key"]', dialog);
+      field.focus();
+      field.select();
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(key).then(() => toast(messages.agent_copied), () => {});
+      }
+      $('#dialog').addEventListener('close', () => location.reload(), {once: true});
+    }
+
+    function fillForm(dialog, agent) {
+      const set = (name, value) => { qs('[name="' + name + '"]', dialog).value = value; };
+      const tick = (name, values) => qsa('[name="' + name + '"]', dialog).forEach(input => { input.checked = values.includes(input.value); });
+      set('id', agent ? agent.id : '');
+      set('name', agent ? agent.name : '');
+      set('description', agent ? agent.description || '' : '');
+      tick('scope', agent ? agent.scopes : ['scenes:read', 'runs:read', 'projects:read']);
+      qs('[name="all-domains"]', dialog).checked = !agent || agent.domains === null;
+      tick('domain', agent && agent.domains ? agent.domains : []);
+      qs('[name="all-projects"]', dialog).checked = !agent || agent.projects === null;
+      tick('project', agent && agent.projects ? agent.projects : []);
+      tick('recorder', agent ? agent.recorders : []);
+      set('target', agent && agent.target ? agent.target : '');
+      qs('[name="all-workers"]', dialog).checked = !agent || agent.workers === null;
+      tick('worker', agent && agent.workers ? agent.workers : []);
+      set('max-debug', agent ? agent.limits.debugSessions : 2);
+      set('max-queued', agent ? agent.limits.queuedRuns : 20);
+      qs('[name="page-content"]', dialog).checked = Boolean(agent && agent.pageContent);
+      set('allowed-ips', agent && agent.allowedIps ? agent.allowedIps.join(', ') : '');
+      set('expires', agent && agent.expiresAt ? agent.expiresAt.slice(0, 10) : '');
+      if (agent) qs('[name="id"]', dialog).readOnly = true;
+      // 「不限」和個別勾選互斥
+      [['all-domains', 'domain'], ['all-projects', 'project'], ['all-workers', 'worker']].forEach(([all, item]) => {
+        const everything = qs('[name="' + all + '"]', dialog);
+        const sync = () => qsa('[name="' + item + '"]', dialog).forEach(input => { input.disabled = everything.checked; });
+        everything.addEventListener('change', sync);
+        sync();
+      });
+    }
+
+    function readPolicy(dialog) {
+      const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+      const expires = value('expires');
+      const ips = lines(value('allowed-ips'));
+      return {
+        scopes: checked(dialog, 'scope'),
+        domains: qs('[name="all-domains"]', dialog).checked ? null : checked(dialog, 'domain'),
+        projects: qs('[name="all-projects"]', dialog).checked ? null : checked(dialog, 'project'),
+        recorders: checked(dialog, 'recorder'),
+        target: value('target') || null,
+        workers: qs('[name="all-workers"]', dialog).checked ? null : checked(dialog, 'worker'),
+        maxDebugSessions: Number(value('max-debug') || 0),
+        maxQueuedRuns: Number(value('max-queued') || 0),
+        pageContent: qs('[name="page-content"]', dialog).checked,
+        allowedIps: ips.length ? ips : null,
+        expiresAt: expires ? new Date(expires + 'T23:59:59').toISOString() : null,
+      };
+    }
+
+    function agentDialog(agent) {
+      const title = agent ? fill(messages.agent_edit_title, {name: agent.name}) : messages.agent_create_title;
+      modal(title, qs('#agent-form').innerHTML, {label: agent ? messages.save : messages.agent_create_action, run: async () => {
+        const dialog = qs('#dialog-content');
+        const value = name => qs('[name="' + name + '"]', dialog).value.trim();
+        const fields = {name: value('name') || null, description: value('description'), policy: readPolicy(dialog)};
+        if (agent) {
+          const result = await api('PATCH', '/api/agents/' + path(agent.id), fields);
+          if (!result.ok) return dialogError(dialog, result);
+          flash(messages.saved);
+          return location.reload();
+        }
+        const result = await api('POST', '/api/agents', {id: value('id'), ...fields});
+        if (!result.ok) return dialogError(dialog, result);
+        showKey(result.data.agent, result.data.key);
+      }});
+      const dialog = qs('#dialog-content');
+      fillForm(dialog, agent);
+      qs(agent ? '[name="name"]' : '[name="id"]', dialog).focus();
+    }
+
+    const agentOf = button => JSON.parse(button.closest('tr[data-agent]').dataset.agent);
+    qs('[data-action="new-agent"]').addEventListener('click', () => agentDialog(null));
+    qsa('[data-action="edit-agent"]').forEach(button => button.addEventListener('click', () => agentDialog(agentOf(button))));
+    const toggle = async (button, disabled) => {
+      busy(button, true);
+      const result = await api('PATCH', '/api/agents/' + path(agentOf(button).id), {disabled});
+      if (!result.ok) {
+        busy(button, false);
+        return toast(errorMessage(result));
+      }
+      flash(disabled ? messages.agent_disabled : messages.agent_enabled);
+      location.reload();
+    };
+    qsa('[data-action="disable-agent"]').forEach(button => button.addEventListener('click', () => toggle(button, true)));
+    qsa('[data-action="enable-agent"]').forEach(button => button.addEventListener('click', () => toggle(button, false)));
+    qsa('[data-action="rotate-agent"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const agent = agentOf(button);
+        confirmDialog(fill(messages.agent_rotate_title, {name: agent.name}), messages.agent_rotate_body, messages.agent_rotate_action, async () => {
+          const result = await api('POST', '/api/agents/' + path(agent.id) + '/key');
+          if (!result.ok) {
+            $('#dialog').close();
+            return toast(errorMessage(result));
+          }
+          showKey(result.data.agent, result.data.key);
+        });
+      });
+    });
+    qsa('[data-action="delete-agent"]').forEach(button => {
+      button.addEventListener('click', () => {
+        const agent = agentOf(button);
+        confirmDialog(fill(messages.agent_delete_title, {name: agent.name}), messages.agent_delete_body, messages.agent_delete_action, async () => {
+          const result = await api('DELETE', '/api/agents/' + path(agent.id));
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.reload();
+        });
+      });
+    });
   }
 
   bindLanguage();
@@ -2950,6 +3095,7 @@
   bindWorkflowEditor();
   bindWorkflowRun();
   bindWorkers();
+  bindAgents();
   bindVideoSettings();
   showFlash();
 })();

@@ -32,6 +32,8 @@ def test_migrations_match_models(tmp_path: Path) -> None:
         assert differences == []
         assert sorted(inspect(engine).get_table_names()) == [
             "alembic_version",
+            "api_audit",
+            "api_clients",
             "device_invites",
             "domains",
             "projects",
@@ -193,3 +195,30 @@ def test_existing_composites_move_into_a_project(tmp_path: Path) -> None:
     finally:
         with_composites.dispose()
         empty.dispose()
+
+
+def test_agent_api_migration_keeps_recorders_closed(tmp_path: Path) -> None:
+    """M14：既有的錄製端都不允許 Agent 調試，既有的執行與組合場景的執行都不是 Agent 觸發的。"""
+    engine = create_db_engine(sqlite_url(tmp_path / "rpa.db"))
+    try:
+        _upgrade_to(engine, "0015")
+        with engine.begin() as connection:
+            _insert(connection, "recorders", id="mac-01", token_hash="h")
+            _insert(connection, "domains", id="lab")
+            _insert(connection, "scenes", id="ba-001")
+            _insert(connection, "revisions", scene_id="ba-001", number=1)
+            revision = connection.execute(text("SELECT id FROM revisions")).scalar_one()
+            _insert(connection, "runs", id="ba-001-run", scene_id="ba-001", revision_id=revision)
+            _insert(connection, "workflow_runs", id="wf1-run", workflow_id=1)
+        upgrade(engine)
+        with engine.connect() as connection:
+            row = connection.execute(
+                text("SELECT allow_agent, agent_headless_only FROM recorders")
+            ).one()
+            assert tuple(row) == (0, 0)
+            assert connection.execute(text("SELECT client_id FROM runs")).scalar_one() is None
+            workflow_run = text("SELECT client_id FROM workflow_runs")
+            assert connection.execute(workflow_run).scalar_one() is None
+            assert connection.execute(text("SELECT count(*) FROM api_clients")).scalar_one() == 0
+    finally:
+        engine.dispose()
