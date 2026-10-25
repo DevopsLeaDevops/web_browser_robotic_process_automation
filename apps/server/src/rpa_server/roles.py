@@ -291,6 +291,12 @@ class RoleService:
         self.local_engines: Callable[[], Collection[str]] = _LOCAL_BROWSERS
         """這台下載了哪些瀏覽器（決定登入檢查在哪台跑）；測試換成固定的清單。"""
 
+    @property
+    def active_logins(self) -> list[str]:
+        """進行中的人工登入（角色編號）；伺服器重新啟動前要等它們結束（ADR 0018）。"""
+        with self._lock:
+            return [role_id for role_id, login in self._logins.items() if login.active]
+
     # ------------------------------------------------------------ 查詢
 
     @staticmethod

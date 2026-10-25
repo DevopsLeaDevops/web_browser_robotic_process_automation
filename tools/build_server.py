@@ -5,20 +5,30 @@
 伺服器（``rpa serve``）以前只能 clone 程式碼再執行 scripts/setup-linux.sh：伺服器要連得到 GitHub
 與 PyPI，每次升級都重新下載套件。分發包把這些在 CI 先做好：
 
+分成兩層（ADR 0018）：``python/`` 是執行環境（Python、第三方套件、rpa_update），``app/`` 是我們的
+程式（工作區的套件）。只有程式改變的版本用更新檔（tools/build_update.py）換掉 ``app/`` 就好。
+
 1. Python：uv 管理的 CPython（python-build-standalone，``.python-version`` 的版本），整個複製進來。
    它不依賴系統的 Python，可以搬到任何位置；需要 glibc 2.17 以上。
-2. 套件：``uv export`` 照 uv.lock 列出 rpa-cli 需要的套件（含 sha256），工作區的套件另外建成
-   wheel，都直接裝進這份 Python 的 site-packages。指定 ``manylinux_2_28`` 平台：建置的機器
-   （Ubuntu）比較新，不指定的話可能選到公司伺服器（glibc 2.28）載入不了的 wheel；裝好後再逐一
-   核對每個 wheel 的平台標籤。
-3. ``bin/rpa``（apps/server/packaging/rpa）、``install.sh``（apps/server/packaging/install.sh）、
-   第一次啟動時匯入的範例場景（scenarios/demo）、``BUILD_INFO``（版本、提交、架構）。
-4. 用包內的 Python 執行 ``rpa --version`` 並載入伺服器的程式，確認能用之後打包成
+2. 第三方套件：``uv export`` 照 uv.lock 列出 rpa-cli 需要的套件（含 sha256），直接裝進這份
+   Python 的 site-packages。指定 ``manylinux_2_28`` 平台：建置的機器（Ubuntu）比較新，不指定的話
+   可能選到公司伺服器（glibc 2.28）載入不了的 wheel；裝好後再逐一核對每個 wheel 的平台標籤。
+   rpa_update 也裝在這裡：驗證更新檔的程式不能被更新檔換掉。
+3. 執行環境的代號與信任的公鑰寫進 ``rpa_update/runtime.json``（``python -m rpa_update.build``）。
+4. 程式碼層：工作區的套件建成 wheel，裝進 ``app/``（:func:`build_app_layer`，更新檔也用它），
+   .pyc 用 unchecked-hash（解開更新檔時修改時間會變，不能用時間判斷）。
+5. ``bin/rpa``（apps/server/packaging/rpa）、``install.sh``（apps/server/packaging/install.sh）、
+   第一次啟動時匯入的範例場景（scenarios/demo）、``BUILD_INFO``（版本、提交、架構、環境代號）。
+6. 用包內的 Python 執行 ``rpa --version`` 並載入伺服器的程式，確認能用之後打包成
    ``RPA-Server-<版本>-linux-<x64|arm64>.tar.gz``。
+
+環境變數 ``RPA_UPDATE_EXTRA_KEYS`` 會傳給第 3 步（CI 測試升級路徑時用臨時的公鑰；發布時必須
+是空的）。
 
 只用標準函式庫，CI 用系統的 python3 執行，不必先 ``uv sync``；需要 PATH 上有 uv。
 在哪個架構執行就建哪個架構（要用包內的 Python 編譯 .pyc、做最後的檢查）。
-最後印出 ``artifact: …``；在 GitHub Actions 裡同時寫進步驟的輸出。
+最後印出 ``artifact: …`` 與 ``runtime: server-linux-<架構>=<環境代號>``；在 GitHub Actions 裡
+同時寫進步驟的輸出（``artifact``、``target``、``runtime``）。
 """
 
 import argparse
@@ -43,7 +53,10 @@ PACKAGING: Final = ROOT / "apps" / "server" / "packaging"
 EXAMPLES: Final = ROOT / "scenarios" / "demo"
 
 PACKAGES: Final = ("rpa-core", "rpa-runner", "rpa-worker", "rpa-testsite", "rpa-server", "rpa-cli")
-"""裝進分發包的工作區套件（rpa-cli 與它的相依）；桌面端（rpa-desktop）不裝。"""
+"""裝進分發包 app/ 的工作區套件（rpa-cli 與它的相依）；桌面端（rpa-desktop）不裝。"""
+RUNTIME_PACKAGE: Final = "rpa-update"
+"""跟著執行環境走的工作區套件：裝進 python/ 的 site-packages，不放進 app/。"""
+_RUNTIME_LINE: Final = re.compile(r"^runtime: (?P<target>\S+)=(?P<id>[0-9a-f]{16})$", re.MULTILINE)
 GLIBC_FLOOR: Final = (2, 28)
 """公司伺服器的下限（README、scripts/setup-linux.sh 的檢查）。"""
 
@@ -107,6 +120,11 @@ def commit() -> str:
 
 def bundle_name(version: str, target: Target) -> str:
     return f"RPA-Server-{version}-linux-{target.label}"
+
+
+def runtime_target(target: Target) -> str:
+    """更新檔清單裡的目標名稱（rpa_update.runtime.target_name）。"""
+    return f"server-linux-{target.label}"
 
 
 # ---------------------------------------------------------------- wheel 的平台
@@ -202,8 +220,63 @@ def stage_python(source: Path, target: Path) -> Path:
     return python
 
 
-def install_packages(uv: str, python: Path, target: Target, work: Path) -> None:
-    """照 uv.lock 把 rpa-cli 與相依套件裝進包內的 Python。"""
+def build_wheels(uv: str, packages: Iterable[str], out_dir: Path) -> dict[str, Path]:
+    """把工作區的套件建成 wheel：{套件名稱: wheel}。"""
+    shutil.rmtree(out_dir, ignore_errors=True)
+    found: dict[str, Path] = {}
+    for package in packages:
+        before = set(out_dir.glob("*.whl")) if out_dir.exists() else set[Path]()
+        _run([uv, "build", "--wheel", "--package", package, "--out-dir", out_dir])
+        built = sorted(set(out_dir.glob("*.whl")) - before)
+        if len(built) != 1:
+            raise SystemExit(f"{package} 應該建出一個 wheel：{built}")
+        found[package] = built[0]
+    return found
+
+
+def build_app_layer(uv: str, python: Path, wheels: Iterable[Path], app: Path) -> None:
+    """程式碼層：把工作區的 wheel 裝進 ``app``，用 ``python`` 編譯 unchecked-hash 的 .pyc。
+
+    分發包與更新檔（tools/build_update.py）都用它。console_scripts 寫死了建置時的路徑，刪掉；
+    rpa 命令由 bin/rpa 提供。
+    """
+    shutil.rmtree(app, ignore_errors=True)
+    _run(
+        [
+            uv,
+            "pip",
+            "install",
+            "--python",
+            python,
+            "--target",
+            app,
+            "--no-deps",
+            "--no-compile",
+            "--link-mode",
+            "copy",
+            *sorted(wheels),
+        ]
+    )
+    shutil.rmtree(app / "bin", ignore_errors=True)
+    for leftover in app.glob("*.dist-info/direct_url.json"):
+        leftover.unlink()  # 寫著建置機器上 wheel 的路徑
+    _run(
+        [
+            python,
+            "-m",
+            "compileall",
+            "-q",
+            "-j",
+            "0",
+            "--invalidation-mode",
+            "unchecked-hash",
+            app,
+        ]
+    )
+
+
+def install_packages(uv: str, python: Path, target: Target, work: Path, app: Path) -> None:
+    """照 uv.lock 把第三方套件與 rpa-update 裝進包內的 Python，其他工作區的套件裝進 ``app``。"""
     requirements = work / "requirements.txt"
     _run(
         [
@@ -221,10 +294,7 @@ def install_packages(uv: str, python: Path, target: Target, work: Path) -> None:
             requirements,
         ]
     )
-    wheels = work / "wheels"
-    shutil.rmtree(wheels, ignore_errors=True)
-    for package in PACKAGES:
-        _run([uv, "build", "--wheel", "--package", package, "--out-dir", wheels])
+    wheels = build_wheels(uv, [*PACKAGES, RUNTIME_PACKAGE], work / "wheels")
     common: list[str | Path] = [
         uv,
         "pip",
@@ -240,7 +310,22 @@ def install_packages(uv: str, python: Path, target: Target, work: Path) -> None:
         "--no-deps",
     ]
     _run([*common, "--require-hashes", "-r", requirements])
-    _run([*common, *sorted(wheels.glob("*.whl"))])
+    _run([*common, wheels[RUNTIME_PACKAGE]])
+    build_app_layer(uv, python, [wheels[name] for name in PACKAGES], app)
+
+
+def write_runtime(python: Path, target: Target) -> str:
+    """寫出 rpa_update/runtime.json（包內的 Python 自己算環境代號），回傳環境代號。"""
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "VIRTUAL_ENV"))}
+    output = _run(
+        [python, "-I", "-m", "rpa_update.build", "runtime", "--target", runtime_target(target)],
+        env=env,
+    )
+    print(output.rstrip())
+    found = _RUNTIME_LINE.search(output)
+    if found is None or found.group("target") != runtime_target(target):
+        raise SystemExit(f"rpa_update.build 沒有印出環境代號：{output}")
+    return found.group("id")
 
 
 def site_packages(python: Path) -> Path:
@@ -259,7 +344,9 @@ def remove_scripts(bin_dir: Path, keep: set[str]) -> list[str]:
     return removed
 
 
-def build_info_text(*, version: str, commit_id: str, target: Target, python: str) -> str:
+def build_info_text(
+    *, version: str, commit_id: str, target: Target, python: str, runtime: str
+) -> str:
     """BUILD_INFO：一行一個 KEY=值（install.sh 逐行讀取，不當成腳本執行）。"""
     built_at = datetime.now(UTC).isoformat(timespec="seconds")
     lines = {
@@ -269,6 +356,7 @@ def build_info_text(*, version: str, commit_id: str, target: Target, python: str
         "arch": target.machine,
         "python": python,
         "glibc": f"{GLIBC_FLOOR[0]}.{GLIBC_FLOOR[1]}",
+        "runtime": runtime,
         "built_at": built_at,
     }
     return "".join(f"{key}={value}\n" for key, value in lines.items())
@@ -287,15 +375,16 @@ def _check(bundle: Path) -> str:
             bundle / "python" / "bin" / "python3",
             "-c",
             "import sqlite3, ssl; from rpa_server.app import create_app; "
-            "from rpa_server.config import Settings",
+            "from rpa_server.config import Settings; from rpa_update.runtime import load_runtime; "
+            "assert load_runtime() is not None",
         ],
-        env=env,
+        env={**env, "PYTHONPATH": str(bundle / "app")},
     )
     return output
 
 
-def build(target: Target | None = None) -> Path:
-    """建置這台電腦架構的分發包，回傳 tar.gz 的路徑。"""
+def build(target: Target | None = None) -> tuple[Path, str]:
+    """建置這台電腦架構的分發包，回傳 (tar.gz 的路徑, 環境代號)。"""
     if sys.platform != "linux":
         raise SystemExit("伺服器的分發包要在 Linux 上建置")
     target = host_target() if target is None else target
@@ -310,7 +399,7 @@ def build(target: Target | None = None) -> Path:
     python_key = target.python(python_version())
     python = stage_python(managed_python(uv, python_key), bundle / "python")
     keep = {entry.name for entry in (bundle / "python" / "bin").iterdir()}
-    install_packages(uv, python, target, work)
+    install_packages(uv, python, target, work, bundle / "app")
     removed = remove_scripts(bundle / "python" / "bin", keep)
     if removed:
         print(f"刪掉寫死建置路徑的命令：{', '.join(removed)}")
@@ -318,6 +407,7 @@ def build(target: Target | None = None) -> Path:
     if problems:
         raise SystemExit("這些套件需要比 glibc 2.28 新的系統：\n" + "\n".join(problems))
     full_version = _run([python, "-c", "import platform; print(platform.python_version())"])
+    runtime = write_runtime(python, target)
 
     (bundle / "bin").mkdir()
     shutil.copy2(PACKAGING / "rpa", bundle / "bin" / "rpa")
@@ -327,7 +417,11 @@ def build(target: Target | None = None) -> Path:
     shutil.copytree(EXAMPLES, bundle / "scenarios" / "demo")
     (bundle / "BUILD_INFO").write_text(
         build_info_text(
-            version=version, commit_id=commit(), target=target, python=full_version.strip()
+            version=version,
+            commit_id=commit(),
+            target=target,
+            python=full_version.strip(),
+            runtime=runtime,
         ),
         encoding="utf-8",
     )
@@ -349,20 +443,24 @@ def build(target: Target | None = None) -> Path:
             name,
         ]
     )
-    return archive
+    return archive, runtime
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="建置 Linux 伺服器的分發包（這台電腦的架構）")
     parser.parse_args(argv)
-    archive = build()
+    target = host_target()
+    archive, runtime = build(target)
     size = archive.stat().st_size / 1024 / 1024
     print(f"artifact: {archive.as_posix()}")
+    print(f"runtime: {runtime_target(target)}={runtime}")
     print(f"大小：{size:.1f} MB")
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
         with Path(output).open("a", encoding="utf-8") as stream:
             stream.write(f"artifact={archive.as_posix()}\n")
+            stream.write(f"target={runtime_target(target)}\n")
+            stream.write(f"runtime={runtime}\n")
     return 0
 
 

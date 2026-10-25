@@ -1,11 +1,110 @@
 #!/usr/bin/env bash
 # 分發包裡的 rpa 命令（tools/build_server.py 放到 bin/rpa）：用包內的 Python 執行 rpa_cli。
-# 不讀使用者或系統的 Python 設定（PYTHONPATH、使用者的 site-packages），伺服器啟動的子程序
-# （sys.executable -m …）也繼承同樣的環境。
+# 程式碼層在同一個版本資料夾的 app/（ADR 0018），用 PYTHONPATH 指過去；Python 與第三方套件在
+# python/（裝好之後是指向 runtimes/<環境代號>/python 的連結）。不讀使用者或系統的 Python 設定
+# （PYTHONHOME、使用者的 site-packages），伺服器啟動的子程序（sys.executable -m …）也繼承同樣的環境。
+#
+# 裝好的版本（<安裝位置>/releases/<版本>/）執行 serve 時，這個腳本負責重新啟動（ADR 0018 決策 5）：
+# - 伺服器以結束碼 75 結束（rpa update 之後、沒有進行中的工作時）：改用 current 指向的版本，
+#   以同樣的參數再啟動；
+# - 剛換上的版本還沒開始服務就失敗結束：current 換回上一版、還原遷移前的 SQLite 備份，再啟動上一版。
+# nohup 或 systemd 都一樣；收到 TERM、INT、HUP 時轉給伺服器，等它結束。
 set -euo pipefail
 root="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
-unset PYTHONHOME PYTHONPATH PYTHONSTARTUP PYTHONUSERBASE
-export PYTHONNOUSERSITE=1 PYTHONUTF8=1
+RESTART=75
+
+installed() {
+  local parent
+  parent="$(dirname "$root")"
+  [ "$(basename "$parent")" = releases ] && [ -L "$(dirname "$parent")/current" ]
+}
+
+state_value() {
+  sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n 1
+}
+
+# 剛換上的版本起不來：退回上一版。成功時回傳 0（呼叫者再啟動一次），沒有可退的版本時回傳 1。
+rollback() {
+  local prefix="$1" state="$2" previous backup database
+  previous="$(state_value "$state" previous)"
+  [ -n "$previous" ] && [ -d "$prefix/releases/$previous" ] || return 1
+  backup="$(state_value "$state" backup)"
+  database="$(state_value "$state" database)"
+  printf '\nrpa：新版本 %s 還沒開始服務就結束了，退回 %s。\n' "$(state_value "$state" target)" "$previous" >&2
+  if [ -n "$backup" ] && [ -f "$backup" ] && [ -n "$database" ]; then
+    # 還原遷移前的備份；新版本留下的 -wal、-shm 一定要刪掉，否則 SQLite 會把它們套回去。
+    # 在 if 的條件裡 set -e 不生效，每一步都自己檢查：還原不了就不退回（舊版本不認得新的資料庫）。
+    if ! cp -p "$backup" "$database.restore"; then
+      printf 'rpa：無法還原資料庫備份 %s，不退回；請手動處理。\n' "$backup" >&2
+      return 1
+    fi
+    rm -f "$database-wal" "$database-shm" &&
+      mv -f "$database.restore" "$database" || return 1
+    printf 'rpa：已還原遷移前的資料庫備份 %s。\n' "$backup" >&2
+  fi
+  ln -sfn "releases/$previous" "$prefix/.current.rollback" &&
+    mv -Tf "$prefix/.current.rollback" "$prefix/current" &&
+    mv -f "$state" "$prefix/run/update.failed"
+}
+
+child=""
+stopping=""
+
+# 收到 TERM、INT、HUP：請伺服器結束（uvicorn 收到 TERM 會等進行中的請求），記下是哪個信號
+on_signal() {
+  stopping="$1"
+  [ -z "$child" ] || kill -TERM "$child" 2>/dev/null || true
+}
+
+supervise() {
+  local prefix state release status
+  prefix="$(dirname "$(dirname "$root")")"
+  state="$prefix/run/update.state"
+  # 不要停在某個版本資料夾裡：舊版本會被刪掉
+  case "$(pwd -P)/" in "$prefix/releases/"*) cd "$prefix" ;; esac
+  trap 'on_signal TERM' TERM
+  trap 'on_signal INT' INT
+  trap 'on_signal HUP' HUP
+  while :; do
+    release="$(readlink -f "$prefix/current")"
+    RPA_SUPERVISED=1 "$release/bin/rpa" "$@" &
+    child=$!
+    status=0
+    wait "$child" || status=$?
+    # 收到信號時 wait 會提早返回：等伺服器真的結束
+    while kill -0 "$child" 2>/dev/null; do
+      status=0
+      wait "$child" || status=$?
+    done
+    child=""
+    if [ -n "$stopping" ]; then
+      # 和直接執行伺服器時一樣，以同一個信號結束（systemd 把它當成正常停止）
+      trap - "$stopping"
+      kill -s "$stopping" "$$"
+      exit "$status"
+    fi
+    if [ "$status" = "$RESTART" ]; then
+      printf '\nrpa：重新啟動，使用 %s。\n' "$(basename "$(readlink -f "$prefix/current")")" >&2
+      continue
+    fi
+    if [ "$status" != 0 ] && [ -f "$state" ] &&
+      [ "$(state_value "$state" target)" = "$(basename "$release")" ] &&
+      rollback "$prefix" "$state"; then
+      continue
+    fi
+    exit "$status"
+  done
+}
+
+if [ "${1:-}" = serve ] && [ -z "${RPA_SUPERVISED:-}" ] && installed; then
+  supervise "$@"
+fi
+
+unset PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE
+export PYTHONPATH="$root/app" PYTHONNOUSERSITE=1 PYTHONUTF8=1 PYTHONDONTWRITEBYTECODE=1
+export RPA_RELEASE_DIR="$root"
+# 第一次啟動時匯入的範例場景：跟著版本資料夾，不依賴目前的工作目錄
+export RPA_EXAMPLES_DIR="${RPA_EXAMPLES_DIR:-$root/scenarios/demo}"
 # 包內的 Python 自帶 OpenSSL，憑證預設找 Debian 的位置；RHEL 系統的憑證在 /etc/pki。
 if [ -z "${SSL_CERT_FILE:-}" ] && [ -z "${SSL_CERT_DIR:-}" ]; then
   for bundle in /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem; do

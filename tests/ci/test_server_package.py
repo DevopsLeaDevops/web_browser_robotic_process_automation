@@ -1,13 +1,16 @@
 """Linux 伺服器的分發包：包內的 install.sh、bin/rpa 與建置工具（tools/build_server.py）。
 
 install.sh 用假的分發包（python3、rpa 都是小腳本）測安裝、重裝、升級、保留舊版本、
-沿用 clone 安裝的設定與 systemd 服務的分支；真正的分發包在 Rocky 8 容器裡的安裝與啟動
-由 CI（server-package.yml）驗證。
+執行環境的共用（runtimes/）、沿用 clone 安裝的設定與 systemd 服務的分支；bin/rpa 測程式碼層的
+路徑與 serve 的重新啟動、退回（ADR 0018）。真正的分發包在 Rocky 8 容器裡的安裝、啟動與用更新檔
+升級由 CI（server-package.yml）驗證。
 """
 
 import os
 import shutil
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -34,13 +37,22 @@ STUBS = (
 )
 
 
+RUNTIME = "0123456789abcdef"
+
+
 def make_bundle(
-    folder: Path, *, version: str = "0.4.0", commit: str = "abc1234", arch: str = "x86_64"
+    folder: Path,
+    *,
+    version: str = "0.4.0",
+    commit: str = "abc1234",
+    arch: str = "x86_64",
+    runtime: str = RUNTIME,
 ) -> Path:
     """假的分發包：bin/rpa 把工作目錄與參數寫到 $RPA_TEST_LOG，python3 什麼都不做。"""
     bundle = folder / f"RPA-Server-{version}-{commit}"
     (bundle / "bin").mkdir(parents=True)
     (bundle / "python" / "bin").mkdir(parents=True)
+    (bundle / "app" / "rpa_cli").mkdir(parents=True)
     (bundle / "scenarios" / "demo").mkdir(parents=True)
     rpa = bundle / "bin" / "rpa"
     rpa.write_text(
@@ -54,7 +66,8 @@ def make_bundle(
         script.chmod(0o755)
     shutil.copy2(INSTALL, bundle / "install.sh")
     (bundle / "BUILD_INFO").write_text(
-        f"app=server\nversion={version}\ncommit={commit}\narch={arch}\npython=3.13.9\n",
+        f"app=server\nversion={version}\ncommit={commit}\narch={arch}\npython=3.13.9\n"
+        f"runtime={runtime}\n",
         encoding="utf-8",
     )
     return bundle
@@ -147,9 +160,12 @@ def test_system_detection(
 @pytest.mark.parametrize(
     "build_info",
     [
-        "version=0.4\ncommit=abc\narch=x86_64\n",
-        "version=0.4.0\ncommit=ABC;rm\narch=x86_64\n",
-        "version=0.4.0\ncommit=abc\narch=i686\n",
+        f"version=0.4\ncommit=abc\narch=x86_64\nruntime={RUNTIME}\n",
+        f"version=0.4.0\ncommit=ABC;rm\narch=x86_64\nruntime={RUNTIME}\n",
+        f"version=0.4.0\ncommit=abc\narch=i686\nruntime={RUNTIME}\n",
+        # 0.5.0 以前的分發包沒有環境代號（也沒有 app/）
+        "version=0.4.0\ncommit=abc\narch=x86_64\n",
+        "version=0.4.0\ncommit=abc\narch=x86_64\nruntime=../evil\n",
     ],
 )
 def test_bad_build_info_stops(tmp_path: Path, build_info: str) -> None:
@@ -160,9 +176,10 @@ def test_bad_build_info_stops(tmp_path: Path, build_info: str) -> None:
     assert "BUILD_INFO" in result.stderr
 
 
-def test_incomplete_bundle_stops(tmp_path: Path) -> None:
+@pytest.mark.parametrize("missing", ["python", "app"])
+def test_incomplete_bundle_stops(tmp_path: Path, missing: str) -> None:
     bundle = make_bundle(tmp_path)
-    shutil.rmtree(bundle / "python")
+    shutil.rmtree(bundle / missing)
     result = run('read_bundle "$1"', str(bundle))
     assert result.returncode != 0
     assert "不是完整的" in result.stderr
@@ -226,14 +243,20 @@ def test_first_install_layout_and_launcher(tmp_path: Path) -> None:
     output = ok(install(tmp_path, bundle, "--prefix", str(prefix), env={"RPA_DATA_DIR": str(data)}))
     assert (prefix / "current").is_symlink()
     assert (prefix / "current").readlink().as_posix() == "releases/0.4.0-abc1234"
-    assert (prefix / "releases" / "0.4.0-abc1234" / "BUILD_INFO").is_file()
+    release = prefix / "releases" / "0.4.0-abc1234"
+    assert (release / "BUILD_INFO").is_file()
+    assert (release / "app" / "rpa_cli").is_dir()
+    # Python 與第三方套件放在 runtimes/，版本資料夾只有連結
+    assert (release / "python").readlink().as_posix() == f"../../runtimes/{RUNTIME}/python"
+    assert (prefix / "runtimes" / RUNTIME / "python" / "bin" / "python3").is_file()
+    assert not (prefix / "run" / "update.state").exists()  # 第一次安裝沒有上一版可退
     assert (bundle / "BUILD_INFO").is_file()  # 下載的資料夾原樣保留
     env_file = prefix / "rpa-server.env"
     assert oct(env_file.stat().st_mode & 0o777) == "0o600"
     assert "export RPA_DATA_DIR=" + str(data).replace(" ", "\\ ") in env_file.read_text("utf-8")
     assert "背景服務：未安裝" in output
 
-    # 啟動器：在 current 的版本資料夾裡、以設定檔的埠號與資料目錄執行 rpa serve
+    # 啟動器：在安裝位置（不停在版本資料夾裡）、以設定檔的埠號與資料目錄執行 rpa serve
     log = tmp_path / "args.txt"
     started = subprocess.run(
         [str(prefix / "bin" / "rpa-server")],
@@ -244,7 +267,7 @@ def test_first_install_layout_and_launcher(tmp_path: Path) -> None:
     )
     assert started.returncode == 0, started.stderr
     cwd, *args = log.read_text("utf-8").splitlines()
-    assert Path(cwd).resolve() == (prefix / "releases" / "0.4.0-abc1234").resolve()
+    assert Path(cwd).resolve() == prefix.resolve()
     assert args[:3] == ["serve", "--host", "127.0.0.1"]
     assert args[args.index("--port") + 1] == "8080"
     assert args[args.index("--data") + 1] == str(data)
@@ -271,12 +294,50 @@ def test_reinstall_keeps_settings_and_upgrade_switches(tmp_path: Path) -> None:
     assert "已經裝過" in ok(install(tmp_path, first, "--prefix", str(prefix)))
     assert env_file.read_text("utf-8") == before
 
-    # 新的版本：current 換過去，舊版本保留
+    # 新的版本：current 換過去，舊版本保留；記下上一版（起不來時 bin/rpa 退回），請伺服器重新啟動
     second = make_bundle(tmp_path / "b", version="0.4.1", commit="bbbbbbb")
-    ok(install(tmp_path, second, "--prefix", str(prefix)))
+    output = ok(install(tmp_path, second, "--prefix", str(prefix)))
     assert (prefix / "current").readlink().as_posix() == "releases/0.4.1-bbbbbbb"
     assert (prefix / "releases" / "0.4.0-aaaaaaa").is_dir()
     assert env_file.read_text("utf-8") == before
+    state = (prefix / "run" / "update.state").read_text("utf-8")
+    assert state == "target=0.4.1-bbbbbbb\nprevious=0.4.0-aaaaaaa\n"
+    request = (prefix / "run" / "restart.request").read_text("utf-8")
+    assert request == "target=0.4.1-bbbbbbb\n"
+    assert "自己換成新版本" in output
+    # 執行環境相同：共用同一份
+    assert [path.name for path in (prefix / "runtimes").iterdir()] == [RUNTIME]
+
+
+def test_runtimes_are_shared_and_pruned_with_their_releases(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    old = "1" * 16
+    new = "2" * 16
+    ok(
+        install(
+            tmp_path,
+            make_bundle(tmp_path / "a", commit="aaaaaaa", runtime=old),
+            "--prefix",
+            str(prefix),
+        )
+    )
+    for number, commit in enumerate(("bbbbbbb", "ccccccc", "ddddddd"), start=1):
+        bundle = make_bundle(tmp_path / commit, version=f"0.4.{number}", commit=commit, runtime=new)
+        ok(install(tmp_path, bundle, "--prefix", str(prefix), "--keep", "2"))
+        runtimes = sorted(path.name for path in (prefix / "runtimes").iterdir())
+        # 用舊環境的版本還在（上一版、保留數量內）時，舊環境也留著
+        assert runtimes == ([old, new] if number == 1 else [new])
+
+
+def test_broken_runtime_is_replaced(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    bundle = make_bundle(tmp_path / "a", commit="aaaaaaa")
+    ok(install(tmp_path, bundle, "--prefix", str(prefix)))
+    python = prefix / "runtimes" / RUNTIME / "python" / "bin" / "python3"
+    python.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    second = make_bundle(tmp_path / "b", version="0.4.1", commit="bbbbbbb")
+    ok(install(tmp_path, second, "--prefix", str(prefix)))
+    assert python.read_text("utf-8") == "#!/usr/bin/env bash\nexit 0\n"
 
 
 def test_old_releases_are_pruned_but_current_and_previous_stay(tmp_path: Path) -> None:
@@ -300,17 +361,29 @@ def test_old_releases_are_pruned_but_current_and_previous_stay(tmp_path: Path) -
     assert names == ["0.4.2-3333333", "0.4.5-6666666"]
 
 
-def test_broken_python_does_not_switch_current(tmp_path: Path) -> None:
+def test_broken_release_does_not_switch_current(tmp_path: Path) -> None:
     prefix = tmp_path / "srv"
     ok(install(tmp_path, make_bundle(tmp_path / "a", commit="aaaaaaa"), "--prefix", str(prefix)))
     broken = make_bundle(tmp_path / "b", version="0.4.1", commit="bbbbbbb")
-    (broken / "python" / "bin" / "python3").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (broken / "bin" / "rpa").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
     result = install(tmp_path, broken, "--prefix", str(prefix))
     assert result.returncode != 0
     assert "無法執行" in result.stderr
     assert (prefix / "current").readlink().as_posix() == "releases/0.4.0-aaaaaaa"
     assert not (prefix / "releases" / "0.4.1-bbbbbbb").exists()
     assert not [path for path in (prefix / "releases").iterdir() if path.name.startswith(".")]
+
+
+def test_broken_python_in_a_new_runtime_does_not_switch_current(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    ok(install(tmp_path, make_bundle(tmp_path / "a", commit="aaaaaaa"), "--prefix", str(prefix)))
+    broken = make_bundle(tmp_path / "b", version="0.4.1", commit="bbbbbbb", runtime="f" * 16)
+    (broken / "python" / "bin" / "python3").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    result = install(tmp_path, broken, "--prefix", str(prefix))
+    assert result.returncode != 0
+    assert "無法執行" in result.stderr
+    assert (prefix / "current").readlink().as_posix() == "releases/0.4.0-aaaaaaa"
+    assert sorted(path.name for path in (prefix / "runtimes").iterdir()) == [RUNTIME]
 
 
 # ---------------------------------------------------------------- 沿用 clone 安裝的設定
@@ -420,6 +493,28 @@ def test_upgrade_restarts_our_running_service(tmp_path: Path) -> None:
     output = ok(install(tmp_path, second, "--prefix", str(prefix), before=SYSTEMD, env=env))
     assert calls.read_text("utf-8").splitlines() == ["ROOT systemctl restart rpa-server.service"]
     assert "背景服務：已重新啟動" in output
+    assert not (prefix / "run" / "restart.request").exists()  # systemd 已經重新啟動
+
+
+def test_rolled_back_restart_says_so(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    (tmp_path / "unit").mkdir()
+    env = {"CALLS": str(tmp_path / "calls.txt"), "FAKE_ACTIVE": "1"}
+    first = make_bundle(tmp_path / "a", commit="aaaaaaa")
+    ok(
+        install(
+            tmp_path, first, "--prefix", str(prefix), "--install-service", before=SYSTEMD, env=env
+        )
+    )
+    second = make_bundle(tmp_path / "b", version="0.4.1", commit="bbbbbbb")
+    # 重新啟動後 bin/rpa serve 退回上一版：current 又指回 0.4.0
+    rollback = (
+        'as_root() { echo "ROOT $*" >> "$CALLS"; '
+        'ln -sfn releases/0.4.0-aaaaaaa "$PREFIX/current"; }; '
+    )
+    result = install(tmp_path, second, "--prefix", str(prefix), before=SYSTEMD + rollback, env=env)
+    assert result.returncode != 0
+    assert "已自動退回 0.4.0-aaaaaaa" in result.stderr
 
 
 def test_failed_restart_explains_how_to_go_back(tmp_path: Path) -> None:
@@ -462,37 +557,179 @@ def test_unit_quotes_unusual_paths(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- bin/rpa
 
 
-def test_wrapper_uses_the_bundled_python(tmp_path: Path) -> None:
-    root = tmp_path / "releases" / "1"
+def make_release(prefix: Path, name: str, python: str) -> Path:
+    """裝好的版本資料夾：真的 bin/rpa，python3 是 ``python`` 這段 Bash。"""
+    root = prefix / "releases" / name
     (root / "bin").mkdir(parents=True)
     (root / "python" / "bin").mkdir(parents=True)
+    (root / "app").mkdir()
     shutil.copy2(WRAPPER, root / "bin" / "rpa")
-    python = root / "python" / "bin" / "python3"
-    python.write_text(
-        '#!/usr/bin/env bash\nprintf "%s\\n" "$@" "path=${PYTHONPATH-unset}" '
-        '"nouser=$PYTHONNOUSERSITE" "cert=${SSL_CERT_FILE-unset}"\n',
-        encoding="utf-8",
+    stub = root / "python" / "bin" / "python3"
+    stub.write_text("#!/usr/bin/env bash\n" + python, encoding="utf-8")
+    stub.chmod(0o755)
+    return root
+
+
+def point_current(prefix: Path, name: str) -> None:
+    current = prefix / "current"
+    if current.is_symlink():
+        current.unlink()
+    current.symlink_to(f"releases/{name}")
+
+
+def test_wrapper_uses_the_bundled_python(tmp_path: Path) -> None:
+    root = make_release(
+        tmp_path,
+        "1",
+        'printf "%s\\n" "$@" "path=${PYTHONPATH-unset}" "release=$RPA_RELEASE_DIR" '
+        '"examples=$RPA_EXAMPLES_DIR" "nouser=$PYTHONNOUSERSITE" "cert=${SSL_CERT_FILE-unset}"\n',
     )
-    python.chmod(0o755)
-    (tmp_path / "current").symlink_to("releases/1")
+    point_current(tmp_path, "1")
     environ = {**os.environ, "PYTHONPATH": "/evil", "SSL_CERT_FILE": "/my/ca.pem"}
+    environ.pop("RPA_EXAMPLES_DIR", None)
     result = subprocess.run(
-        [str(tmp_path / "current" / "bin" / "rpa"), "serve", "--port", "1"],
+        [str(tmp_path / "current" / "bin" / "rpa"), "pack", "--x"],
         env=environ,
         capture_output=True,
         text=True,
         check=True,
     )
+    real = root.resolve()
     assert result.stdout.splitlines() == [
         "-m",
         "rpa_cli",
-        "serve",
-        "--port",
-        "1",
-        "path=unset",
+        "pack",
+        "--x",
+        f"path={real}/app",
+        f"release={real}",
+        f"examples={real}/scenarios/demo",
         "nouser=1",
         "cert=/my/ca.pem",
     ]
+
+
+def supervise(prefix: Path, *args: str, timeout: float = 30) -> subprocess.CompletedProcess[str]:
+    environ = {k: v for k, v in os.environ.items() if not k.startswith(("RPA_", "PYTHON"))}
+    return subprocess.run(
+        [str(prefix / "current" / "bin" / "rpa"), "serve", *args],
+        env={**environ, "LOG": str(prefix / "log.txt")},
+        cwd=prefix / "current",
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def test_serve_restarts_with_the_new_current(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    # 舊版本：像 rpa update 一樣把 current 換成新版本，再以結束碼 75 結束
+    make_release(
+        prefix,
+        "old",
+        'echo "old $* $PWD" >> "$LOG"\n'
+        'ln -sfn releases/new "$RPA_RELEASE_DIR/../../current"\nexit 75\n',
+    )
+    make_release(prefix, "new", 'echo "new $* supervised=$RPA_SUPERVISED" >> "$LOG"\nexit 0\n')
+    point_current(prefix, "old")
+    result = supervise(prefix, "--port", "1")
+    assert result.returncode == 0, result.stderr
+    assert (prefix / "log.txt").read_text("utf-8").splitlines() == [
+        f"old -m rpa_cli serve --port 1 {prefix.resolve()}",  # 不停在版本資料夾裡（會被刪）
+        "new -m rpa_cli serve --port 1 supervised=1",
+    ]
+    assert "重新啟動，使用 new" in result.stderr
+
+
+def test_serve_rolls_back_when_the_new_version_cannot_start(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    make_release(prefix, "old", 'echo old >> "$LOG"\nexit 0\n')
+    make_release(prefix, "new", 'echo new >> "$LOG"\necho "migrated" > "$DB-wal"\nexit 3\n')
+    point_current(prefix, "new")
+    data = tmp_path / "data"
+    data.mkdir()
+    database = data / "rpa.db"
+    database.write_text("migrated", encoding="utf-8")
+    backup = data / "backup.db"
+    backup.write_text("before", encoding="utf-8")
+    (prefix / "run").mkdir()
+    (prefix / "run" / "update.state").write_text(
+        f"target=new\nprevious=old\nbackup={backup}\ndatabase={database}\n", encoding="utf-8"
+    )
+    environ = {k: v for k, v in os.environ.items() if not k.startswith(("RPA_", "PYTHON"))}
+    result = subprocess.run(
+        [str(prefix / "current" / "bin" / "rpa"), "serve"],
+        env={**environ, "LOG": str(prefix / "log.txt"), "DB": str(database)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (prefix / "log.txt").read_text("utf-8").splitlines() == ["new", "old"]
+    assert (prefix / "current").readlink().as_posix() == "releases/old"
+    assert database.read_text("utf-8") == "before"
+    assert not Path(f"{database}-wal").exists()
+    assert not (prefix / "run" / "update.state").exists()
+    assert "target=new" in (prefix / "run" / "update.failed").read_text("utf-8")
+    assert "退回 old" in result.stderr
+
+
+def test_serve_does_not_roll_back_a_confirmed_version(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    make_release(prefix, "old", 'echo old >> "$LOG"\n')
+    make_release(prefix, "new", 'echo new >> "$LOG"\nexit 3\n')
+    point_current(prefix, "new")
+    # 沒有 update.state：新版本已經開始服務過，之後當掉交給 systemd 之類處理
+    result = supervise(prefix)
+    assert result.returncode == 3
+    assert (prefix / "log.txt").read_text("utf-8").splitlines() == ["new"]
+    assert (prefix / "current").readlink().as_posix() == "releases/new"
+
+
+def test_serve_forwards_term_and_stops_with_it(tmp_path: Path) -> None:
+    prefix = tmp_path / "srv"
+    make_release(
+        prefix,
+        "1",
+        'trap \'echo "got TERM" >> "$LOG"; exit 0\' TERM\necho started >> "$LOG"\n'
+        "while :; do sleep 0.1; done\n",
+    )
+    point_current(prefix, "1")
+    environ = {k: v for k, v in os.environ.items() if not k.startswith(("RPA_", "PYTHON"))}
+    log = prefix / "log.txt"
+    process = subprocess.Popen(
+        [str(prefix / "current" / "bin" / "rpa"), "serve"],
+        env={**environ, "LOG": str(log)},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        for _ in range(100):
+            if log.exists():
+                break
+            time.sleep(0.1)
+        process.terminate()
+        assert process.wait(timeout=20) == -signal.SIGTERM
+    finally:
+        if process.poll() is None:
+            process.kill()
+    assert log.read_text("utf-8").splitlines() == ["started", "got TERM"]
+
+
+def test_bundle_run_in_place_is_not_supervised(tmp_path: Path) -> None:
+    root = make_release(tmp_path, "1", 'echo "supervised=${RPA_SUPERVISED-no}"\n')
+    # 解壓後還沒安裝：沒有 releases/ 與 current，直接執行
+    bundle = tmp_path / "bundle"
+    root.rename(bundle)
+    result = subprocess.run(
+        [str(bundle / "bin" / "rpa"), "serve"],
+        env={k: v for k, v in os.environ.items() if not k.startswith("RPA_")},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "supervised=no"
 
 
 # ---------------------------------------------------------------- tools/build_server.py
@@ -546,12 +783,16 @@ def test_targets_and_names() -> None:
 
 def test_build_info_is_read_by_install_sh(tmp_path: Path) -> None:
     text = build_server.build_info_text(
-        version="0.4.0", commit_id="df47b14", target=build_server.TARGETS["x86_64"], python="3.13.9"
+        version="0.4.0",
+        commit_id="df47b14",
+        target=build_server.TARGETS["x86_64"],
+        python="3.13.9",
+        runtime=RUNTIME,
     )
     bundle = make_bundle(tmp_path)
     (bundle / "BUILD_INFO").write_text(text, encoding="utf-8")
-    result = run('read_bundle "$1"; echo "$RELEASE $ARCH"', str(bundle))
-    assert ok(result).splitlines()[-1] == "0.4.0-df47b14 x86_64"
+    result = run('read_bundle "$1"; echo "$RELEASE $ARCH $RUNTIME"', str(bundle))
+    assert ok(result).splitlines()[-1] == f"0.4.0-df47b14 x86_64 {RUNTIME}"
 
 
 def test_version_comes_from_the_packages() -> None:

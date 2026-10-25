@@ -14,6 +14,8 @@
   那個埠有 Worker API、Client API 與配對（M10），錄製端也用它的權杖看管理頁面（M10.2）；
   每個請求都要權杖或邀請。這台的管理頁面仍然只在 ``--host`` 上。
   ``--no-local-worker`` 讓這台電腦不執行，全部交給遠端 worker。
+- 分發包由 bin/rpa serve 啟動時（ADR 0018）：``rpa update`` 換好版本後，等到沒有進行中的錄製、
+  逐步調試、人工登入、本機執行時結束（結束碼 75），由 bin/rpa 用新版本再啟動。
 """
 
 import dataclasses
@@ -25,7 +27,7 @@ import urllib.request
 from collections.abc import Sequence
 from http.server import ThreadingHTTPServer
 from pathlib import Path
-from typing import Final, cast
+from typing import TYPE_CHECKING, Final, cast
 
 import click
 
@@ -34,6 +36,12 @@ from testsite.server import ADDRESS_IN_USE, start_in_background
 from testsite.server import DEFAULT_PORT as TESTSITE_PORT
 from testsite.server import LOOPBACK as TESTSITE_HOST
 
+if TYPE_CHECKING:
+    import uvicorn
+    from fastapi import FastAPI
+
+    from rpa_server.updates import RestartWatcher
+
 __all__ = [
     "DEFAULT_PORT",
     "PORTAL_TITLE",
@@ -41,6 +49,7 @@ __all__ = [
     "build_serve_command",
     "open_listener",
     "portal_url",
+    "restart_watcher",
     "start_testsite",
 ]
 
@@ -241,6 +250,7 @@ def build_serve_command() -> click.Command:
         sock, chosen, skipped = open_listener(host, port)
         worker_sock: socket.socket | None = None
         site: ThreadingHTTPServer | None = None
+        watcher: RestartWatcher | None = None
         try:
             if worker_port is not None:
                 if worker_port == chosen:
@@ -293,13 +303,51 @@ def build_serve_command() -> click.Command:
             config = uvicorn.Config(
                 app, host=host, port=chosen, log_level="info", timeout_graceful_shutdown=5
             )
-            uvicorn.Server(config).run(sockets=sockets)
+            server = uvicorn.Server(config)
+            watcher = restart_watcher(app, server)
+            if watcher is not None:
+                watcher.start()
+            server.run(sockets=sockets)
         finally:
+            if watcher is not None:
+                watcher.close()
             sock.close()
             if worker_sock is not None:
                 worker_sock.close()
             if site is not None:
                 site.shutdown()
                 site.server_close()
+        if watcher is not None and watcher.triggered:
+            from rpa_server.updates import RESTART_EXIT
+
+            # bin/rpa serve 看到這個結束碼，用 current 的版本再啟動（ADR 0018）
+            raise SystemExit(RESTART_EXIT)
 
     return serve
+
+
+def restart_watcher(app: "FastAPI", server: "uvicorn.Server") -> "RestartWatcher | None":
+    """bin/rpa serve 啟動的分發包：等 rpa update 的重新啟動請求（ADR 0018）；其他情況回傳 None。"""
+    from rpa_server.config import Settings
+    from rpa_server.i18n import t as server_t
+    from rpa_server.services import Services
+    from rpa_server.updates import Layout, RestartWatcher, supervised
+    from rpa_worker import Worker
+
+    layout = Layout.detect()
+    if layout is None or not supervised():
+        return None
+    services = cast("Services", app.state.services)
+    worker = cast("Worker", app.state.worker)
+
+    def busy() -> list[str]:
+        reasons = services.busy()
+        if worker.current is not None:
+            reasons.append(server_t("server.busy_local_run"))
+        return reasons
+
+    def stop() -> None:
+        server.should_exit = True
+
+    locale = cast("Settings", app.state.settings).locale
+    return RestartWatcher(layout, busy=busy, stop=stop, locale=locale)

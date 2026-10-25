@@ -7,6 +7,8 @@ dependencies = [
   "rpa-core",
   "rpa-runner",
   "rpa-worker",
+  # 分層更新（ADR 0018）：分發包裡它裝在執行環境（python/），不在程式碼層（app/）
+  "rpa-update",
   "fastapi>=0.143.0",
   "uvicorn>=0.54.0",
   "jinja2>=3.1.6",
@@ -19,6 +21,7 @@ dependencies = [
 rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
 rpa-worker = { workspace = true }
+rpa-update = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]

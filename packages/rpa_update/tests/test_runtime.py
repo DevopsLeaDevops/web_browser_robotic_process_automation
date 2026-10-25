@@ -1,9 +1,10 @@
+import base64
 import json
 from pathlib import Path
 
 import pytest
 
-from rpa_update import runtime
+from rpa_update import build, ed25519, runtime
 from rpa_update.errors import UpdateError
 from rpa_update.runtime import Runtime, load_runtime, platform_tag, runtime_id, source_digest
 
@@ -77,3 +78,47 @@ def test_load_runtime_rejects_bad_file(tmp_path: Path, data: str) -> None:
     path.write_text(data)
     with pytest.raises(UpdateError, match="runtime_invalid"):
         load_runtime(path)
+
+
+def test_make_runtime_and_trusted_keys() -> None:
+    key = ed25519.public_key(bytes(range(32)))
+    encoded = base64.b64encode(key).decode()
+    assert build.trusted_keys({build.EXTRA_KEYS_ENV: f" {encoded},,{encoded}"}) == (key,)
+    with pytest.raises(ed25519.InvalidKeyError):
+        build.trusted_keys({build.EXTRA_KEYS_ENV: "AAAA"})
+    info = build.make_runtime("server-linux-x64", distributions=["b==2", "a==1"], keys=[key])
+    assert info.components["distributions"] == ["a==1", "b==2"]
+    assert info.id == runtime_id(info.components)
+    # 換了第三方套件：代號跟著換
+    other = build.make_runtime("server-linux-x64", distributions=["a==1", "b==3"], keys=[key])
+    assert other.id != info.id
+    # 不同的目標也不同
+    assert build.make_runtime("worker-windows-x64", distributions=["a==1", "b==2"]).id != info.id
+
+
+def test_installed_distributions_skip_workspace_and_pip() -> None:
+    found = build.installed_distributions()
+    names = {item.split("==")[0] for item in found}
+    assert "pydantic" in names
+    assert not {name for name in names if name.startswith("rpa-")}
+    assert "pip" not in names
+
+
+def test_write_runtime_and_keygen(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    private = tmp_path / "dev.pem"
+    assert build.main(["keygen", "--private", str(private)]) == 0
+    public = capsys.readouterr().out.strip()
+    seed = ed25519.private_from_pem(private.read_text())
+    assert base64.b64decode(public) == ed25519.public_key(seed)
+
+    output = tmp_path / "runtime.json"
+    monkeypatch.setenv(build.EXTRA_KEYS_ENV, public)
+    args = ["runtime", "--target", "server-linux-x64", "--output", str(output)]
+    assert build.main([*args, "--component", "shell=6.22"]) == 0
+    info = load_runtime(output)
+    assert info is not None
+    assert info.keys == (base64.b64decode(public),)
+    assert info.components["shell"] == "6.22"
+    assert f"runtime: server-linux-x64={info.id}" in capsys.readouterr().out

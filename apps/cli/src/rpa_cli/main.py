@@ -2,7 +2,7 @@
 
 子命令依里程碑加入：validate 與 schema（M1）、run（M2）、serve（M3）、record（M4）、
 worker（M9a，遠端 worker）、recorder（M10.2，錄製端）、pack（M11，領域資料夾）、
-generate（M5）。
+generate（M5）、update（ADR 0018，用更新檔升級伺服器分發包）。
 
 說明文字要依語言顯示，所以命令在決定語言之後才由 build_cli() 建立，
 不在模組載入時就用裝飾器定義好。
@@ -22,6 +22,7 @@ from rpa_cli.record import build_record_command
 from rpa_cli.recorder import build_recorder_command
 from rpa_cli.run import build_run_command
 from rpa_cli.serve import build_serve_command
+from rpa_cli.update import build_update_command
 from rpa_cli.validate import build_schema_command, build_validate_command
 from rpa_cli.worker import build_worker_command
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, LOCALES, Locale, parse_locale, set_locale
@@ -77,6 +78,7 @@ def build_cli() -> click.Group:
     cli.add_command(build_worker_command())
     cli.add_command(build_recorder_command())
     cli.add_command(build_pack_command())
+    cli.add_command(build_update_command())
     return cli
 
 

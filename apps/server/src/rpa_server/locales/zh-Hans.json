@@ -1443,5 +1443,14 @@
   "replay.page_recordings": "各分页原始录像：",
   "replay.page_number": "分页 {n}",
   "replay.missing_clip": "此时段没有对应分页的录像。运行结果请以步骤记录为准。",
-  "replayjs.missing_pages": "部分分页视频缺失；时间轴保留完整步骤，缺片时段会显示提示。"
+  "replayjs.missing_pages": "部分分页视频缺失；时间轴保留完整步骤，缺片时段会显示提示。",
+  "server.update_waiting": "已经换上 {release}，等进行中的工作结束后重新启动：{reasons}",
+  "server.update_restarting": "重新启动，改用 {release}（rpa update）",
+  "server.update_confirmed": "{release} 已经开始服务，更新完成",
+  "server.update_backup": "数据库迁移前已备份到 {path}",
+  "server.update_postgres": "数据库要迁移：PostgreSQL 不会自动备份，请先自行备份",
+  "server.busy_recordings": "{count} 个录制",
+  "server.busy_debug": "{count} 个逐步调试",
+  "server.busy_logins": "{count} 个人工登录",
+  "server.busy_local_run": "这台正在运行的任务"
 }

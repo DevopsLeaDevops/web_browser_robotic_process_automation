@@ -28,7 +28,7 @@ from rpa_server import __version__
 from rpa_server.api import api_router
 from rpa_server.client_api import client_api_router
 from rpa_server.config import Settings
-from rpa_server.db import create_db_engine, upgrade
+from rpa_server.db import create_db_engine, migration_status, upgrade
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_server.middleware import (
@@ -42,6 +42,7 @@ from rpa_server.pages import page_router
 from rpa_server.render import render
 from rpa_server.services import Services
 from rpa_server.storage import Storage
+from rpa_server.updates import before_upgrade, mark_started
 from rpa_server.worker_api import worker_api_router
 from rpa_worker import Worker
 
@@ -57,6 +58,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     storage = Storage(settings.data_dir)
     storage.ensure()
     engine = create_db_engine(settings.database_url)
+    pending, versioned = migration_status(engine)
+    with use_locale(settings.locale):
+        # 分層更新（ADR 0018）：遷移前先備份 SQLite，剛換上的版本起不來時 bin/rpa 還原它
+        before_upgrade(engine, storage.backups, pending=pending, versioned=versioned)
     upgrade(engine)
     sessions = sessionmaker(engine, expire_on_commit=False)
     services = Services(
@@ -112,6 +117,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             # 啟動時自動拉取（M11 PR 3）：在背景做，連不上時用本機上一次的資料照常啟動
             threading.Thread(target=pull, name="git-startup-pull", daemon=True).start()
+        with use_locale(settings.locale):
+            mark_started()  # 剛換上的版本能開始服務：bin/rpa 不必退回
         try:
             yield
         finally:

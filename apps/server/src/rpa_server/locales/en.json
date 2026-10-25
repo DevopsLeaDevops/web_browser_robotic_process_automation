@@ -1443,5 +1443,14 @@
   "replay.page_recordings": "Original page recordings:",
   "replay.page_number": "Page {n}",
   "replay.missing_clip": "No recording for this page at this time. Check the step records for execution results.",
-  "replayjs.missing_pages": "Some page recordings are missing. All steps remain on the timeline; missing intervals are marked."
+  "replayjs.missing_pages": "Some page recordings are missing. All steps remain on the timeline; missing intervals are marked.",
+  "server.update_waiting": "{release} is installed; restarting once these finish: {reasons}",
+  "server.update_restarting": "Restarting to use {release} (rpa update)",
+  "server.update_confirmed": "{release} is serving; the update is complete",
+  "server.update_backup": "The database was backed up to {path} before migrating",
+  "server.update_postgres": "The database will be migrated: PostgreSQL is not backed up automatically, back it up yourself first",
+  "server.busy_recordings": "{count} recording(s)",
+  "server.busy_debug": "{count} step debugging session(s)",
+  "server.busy_logins": "{count} manual login(s)",
+  "server.busy_local_run": "the run on this computer"
 }

@@ -23,6 +23,7 @@ from typing import Final, cast
 from rpa_update.errors import UpdateError
 
 __all__ = [
+    "FORMAT",
     "KINDS",
     "PLATFORMS",
     "RUNTIME_FILE",
