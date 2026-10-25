@@ -91,6 +91,29 @@ def current_time(page: Page) -> float:
     return float(page.evaluate("document.getElementById('replay-video').currentTime"))
 
 
+@pytest.mark.parametrize("start_ms", [0, 500])
+def test_replay_reports_media_error_before_script_loads(page: Page, start_ms: int) -> None:
+    """影片在腳本載入前已失敗；即使時間軸先有空白，也必須顯示播不了。"""
+    page.set_content(
+        '<video preload="auto" src="data:video/webm;base64,YmFk"></video>'
+        '<div id="gap" hidden></div>'
+    )
+    page.wait_for_function("document.querySelector('video').error !== null")
+    page.add_script_tag(path=str(ROOT / "apps/server/src/rpa_server/static/replay-media.js"))
+    page.evaluate(
+        """startMs => {
+        const element = document.querySelector('video');
+        const media = new ReplayMedia(element, {durationMs: 2000, clips: [{
+          pageId: 'page-1', startMs, durationMs: 1500, url: element.getAttribute('src'),
+        }]}, [], document.getElementById('gap'));
+        media.addEventListener('error', () => { document.body.dataset.mediaError = 'true'; });
+        }""",
+        start_ms,
+    )
+    expect(page.locator("body")).to_have_attribute("data-media-error", "true")
+    expect(page.locator("#gap")).to_be_hidden()
+
+
 def test_replay_follows_steps_and_seeks(portal: str, page: Page) -> None:
     with running() as site, httpx2.Client(base_url=portal, timeout=30) as client:
         assert client.post("/api/scenes/import").status_code < 400
