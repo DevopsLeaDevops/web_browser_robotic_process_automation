@@ -15,16 +15,17 @@
   <div class="heading">
     <div>
       <h1>ADR 0018：程序层与运行环境分开打包，服务器把更新分发给设备</h1>
-      <p>每个版本多发一个约 1 MB 的更新档，只含我们自己的程序；交给服务器一次，服务器更新自己，Worker 与录制端从区网取得同一个版本，在不打断工作的时机应用。运行环境（Python、第三方包）没变时不必重新下载完整包。</p>
+      <p>每个版本多发一个约 2 MB 的更新档，只含我们自己的程序；交给服务器一次，服务器更新自己，Worker 与录制端从区网取得同一个版本，在不打断工作的时机应用。运行环境（Python、第三方包）没变时不必重新下载完整包。</p>
     </div>
-    <span class="badge amber">提议中</span>
+    <span class="badge green">已接受</span>
   </div>
 
   <div class="stack">
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-25</dd>
-        <dt>影响范围</dt><dd>rpa-server、rpa-cli、rpa-worker、rpa-desktop；打包工具（<code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>apps/*/packaging/</code>）；发布流程（<code>.github/workflows/release.yml</code>）</dd>
+        <dt>状态</dt><dd>2026-10-25 用户接受（含五项确认事项，见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）；第一、二阶段实现在 PR #83。和原本提议不同的细节见下方<a href="#implementation">实现</a>。</dd>
+        <dt>影响范围</dt><dd>rpa-update（新包）、rpa-server、rpa-cli、rpa-worker、rpa-desktop；打包工具（<code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>apps/*/packaging/</code>）；发布流程（<code>.github/workflows/release.yml</code>）</dd>
         <dt>相关</dt><dd><a href="0008-sqlite-and-postgresql.html">ADR 0008</a>（一个服务器进程访问数据库）、<a href="0012-remote-workers.html">ADR 0012</a>（租约与回报重试）、<a href="0014-desktop-apps.html">ADR 0014</a>（桌面 App；原本把自动更新留到之后）；<a href="../../../handoff/tasks/20261024-hot-update.html">任务记录</a></dd>
         <dt>编号</dt><dd>0017 已由对外 Agent API 的 PR #79 使用，本篇用 0018。</dd>
       </dl>
@@ -47,12 +48,12 @@
             <li><strong>分层。</strong>程序层：七个工作区包，纯 Python，各平台共用同一份。运行环境：Python 3.13、运行时需要的第三方包、PyInstaller 外壳（桌面 App），各平台一份。浏览器照旧。Python 脚本场景的运行环境（PR #82，待确认）若采用，是另一层，有自己的版本，不受本篇影响。</li>
             <li><strong>环境代号。</strong>每个平台的运行环境有一个代号：Python 版本、运行时第三方包的锁定清单（<code>uv export</code>，不含开发工具）、外壳的版本与收入的模块清单的哈希。CI 建置完整包时算出并写进包里。程序层写明各平台需要的代号；代号相同才能只换程序层，不同就要完整包。</li>
             <li><strong>更新档。</strong>发布时多产生 <code>RPA-Update-&lt;版本&gt;.zip</code>：程序层的文件、清单（版本、提交、程序指纹、协定版本、看得懂的 DSL 扩充、各平台的环境代号、每个文件的 SHA-256 与大小）与清单的 Ed25519 签章。完整包照旧发布，用于第一次安装与环境代号改变时。</li>
-            <li><strong>服务器。</strong>安装位置改成 <code>runtimes/&lt;环境代号&gt;/python</code>（多版本共用）＋ <code>releases/&lt;版本&gt;-&lt;提交&gt;/app</code>（程序层），<code>current</code> 的原子切换照旧。<code>bin/rpa update &lt;更新档&gt;</code>：验证签章与哈希 → 确认有所需的环境代号 → 安装并用包内 Python 加载服务器程序 → 切换 <code>current</code> → 请运行中的服务器重新启动。服务器等到没有进行中的录制、逐步调试、人工登录才结束（<code>--now</code> 不等）；新版本启动时有新的迁移，先备份 SQLite 再迁移（PostgreSQL 提醒自行备份）。更新档保存在数据目录的 <code>updates/</code> 供设备下载。服务器启动时把运行中远程任务的租约延长一个周期，重新启动期间不会被标成「worker 失联」。</li>
+            <li><strong>服务器。</strong>安装位置改成 <code>runtimes/&lt;环境代号&gt;/python</code>（多版本共用）＋ <code>releases/&lt;版本&gt;-&lt;提交&gt;/app</code>（程序层），<code>current</code> 的原子切换照旧。<code>bin/rpa update &lt;更新档&gt;</code>：验证签章与哈希 → 确认有所需的环境代号 → 安装并用包内 Python 加载服务器程序 → 切换 <code>current</code> → 请运行中的服务器重新启动。服务器等到没有进行中的录制、逐步调试、人工登录、本机运行才结束（<code>--now</code> 不等）；新版本启动时有新的迁移，先备份 SQLite 再迁移（PostgreSQL 提醒自行备份）。更新档留在该版本的文件夹（<code>releases/&lt;版本&gt;/update.zip</code>）供设备下载。服务器启动时把运行中远程任务的租约延长一个周期，重新启动期间不会被标成「worker 失联」。</li>
             <li><strong>服务器自己重新启动。</strong><code>bin/rpa serve</code> 看顾服务器进程：服务器以约定的结束码结束时，用同样的参数启动 <code>current</code> 的新版本；新版本在开始服务之前就结束，切回上一版、还原迁移前的备份再启动。不依赖 systemd，用 nohup 或 systemd 启动都一样（用户的内网服务器用 nohup，2026-10-25 说明）。从 clone（<code>.venv-server</code>）运行的服务器不支持更新档，因为 git 管理的文件不能被覆盖：要先改用分发包一次，命令只把 <code>.venv-server/bin/rpa</code> 换成 <code>~/rpa-server/bin/rpa</code>，参数与数据目录照旧。</li>
             <li><strong>设备的启动器。</strong>PyInstaller 的入口改成一个很小的启动器，我们的程序不再编进可执行文件的封存。启动器读文件夹里 <code>app/active.json</code> 指定的版本，验证签章、每个文件的哈希与环境代号，通过才放到 <code>sys.path</code> 最前面；否则用 App 内置的程序层（安装时的版本）并记日志。子进程（<code>rpa-child</code>）由父进程以环境变量指定同一份程序层。外壳收入完整的标准函数库（不含 tkinter、test 等），新版程序用到新模块时不会在旧外壳上找不到。</li>
             <li><strong>不改 App 本身。</strong>程序层下载到设备既有的文件夹：Windows <code>%LOCALAPPDATA%\rpa\worker\app\</code>、macOS <code>~/Library/Application Support/rpa/{worker,recorder}/app/</code>。macOS 的 .app 签章不被破坏，也不需要「App 管理」权限。</li>
             <li><strong>设备跟随服务器的版本。</strong>设备上线前先调用更新端点（Worker API 与 Client API 各一个），回报 App 种类、平台、版本、环境代号。端点的格式固定、不检查协定版本，之后协定升级时旧 App 也能先更新。服务器回复：已是同版本／可以更新（版本、大小、哈希）／要完整安装。设备追的是服务器现在的版本，不是最新版；服务器退回时设备也跟着退回。</li>
-            <li><strong>应用的时机。</strong>Worker：做完目前的任务、暂停领取，自己重新启动（数秒）；只在没有任务时重启。录制端：不打断录制与调试，窗口提示「重新打开即可应用」，下次打开时应用。新版本启动后 2 分钟内没能上线、或连续当掉两次，就退回上一版并回报服务器；保留最近 3 个版本。服务器设置有「自动更新设备」开关，默认开；设备页显示每台的版本与更新状态。</li>
+            <li><strong>应用的时机。</strong>Worker：做完目前的任务、暂停领取，自己重新启动（数秒）；只在没有任务时重启。录制端：不打断录制与调试，窗口提示「重新打开即可应用」，下次打开时应用。新的一层在 App 正常结束或运行满 20 秒时确认；连续两次启动都没确认，第三次启动就退回上一层（没有上一层就用内置的程序），下次检查更新时回报服务器，同一个版本不再自动安装；保留最近 3 层。服务器设置有「自动更新设备」开关，默认开；设备页显示每台的版本与更新状态。</li>
             <li><strong>签章。</strong>CI 用 Ed25519 私钥（GitHub Secrets）签清单，公钥随运行环境发布；服务器安装时、设备下载时、启动器每次启动时都验证。验证以 RFC 8032 的参考算法实现（只做验证），不加依赖。启动器接受一组公钥，以便日后换钥。</li>
             <li><strong>依赖更新的节奏。</strong>每周的依赖更新 PR 中，只动到开发工具的照常合并（不改环境代号）；动到运行环境的累积起来，在「环境版本」一起合并，节奏由用户决定。Playwright 升级会让每台设备重新下载浏览器，PR 与 Release 说明要标出。</li>
           </ol>
@@ -60,17 +61,35 @@
       </section>
     </div>
 
+    <section class="panel" id="implementation">
+      <div class="panel-header"><h2>实现</h2><span class="muted">第一、二阶段，2026-10-25，PR #83</span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>包 rpa_update。</strong>清单、签章验证、环境代号、代码层的安装与选层、桌面 App 的启动器都在这里（<code>packages/rpa_update</code>）。只用标准函数库，跟着运行环境走：改了它就是改了环境代号，要发完整的安装包。</li>
+          <li><strong>环境代号的内容。</strong>服务器：Python 版本与运行时第三方包的锁定清单。桌面 App：PyInstaller 版本、收入的模块所属的第三方包与版本、这些文件内容的哈希与模块数量（我们自己的七个包不算）。<code>runtime.json</code> 另外记下内置的程序版本（<code>版本-提交</code>）与信任的公钥。</li>
+          <li><strong>服务器。</strong><code>bin/rpa update 更新档 [--now]</code> 验证、装成新的版本文件夹、换 <code>current</code>；服务器以结束码 75 结束，<code>bin/rpa serve</code> 用 <code>current</code> 的版本再启动；刚换上的版本还没开始服务就结束时，退回上一版并还原迁移前的 SQLite 备份。用完整的分发包安装的版本文件夹没有更新档，拿同一版的更新档再运行一次 <code>rpa update</code> 就会放进去，设备才有得更新。</li>
+          <li><strong>桌面 App 的代码层。</strong>放在 App 文件夹的 <code>app/&lt;版本-提交&gt;/</code>（<code>manifest.json</code>、<code>manifest.sig</code>、<code>app/</code>），旁边是 <code>active.json</code> 与 <code>boot.log</code>（只记改用内置的程序、退回、重新启动再试）。每次启动都验证签章、环境代号与每个文件；子进程由 <code>RPA_APP_LAYER</code> 指定同一层。重新安装完整的安装包后改回内置的程序。外壳收入完整的标准函数库，只排除用不到的（tkinter、test、ensurepip 等）与依赖系统函数库的 readline、curses。</li>
+          <li><strong>设备的更新检查。</strong><code>POST /update</code>（Worker API 与 Client API）回报 App 种类、目标、环境代号、目前的版本与上次退回的版本；回复 <code>current</code>、<code>available</code>（大小、SHA-256）、<code>full</code>、<code>failed</code>、<code>off</code>、<code>unavailable</code>，<code>GET /update/file</code> 下载。设备在上线时、以及因协定版本不同被拒时检查；旧的管理 Portal 没有这个端点时不提示。</li>
+          <li><strong>Worker 的应用。</strong>窗口版装好之后暂停领取，目前的任务结束后以 <code>--background</code> 重新启动；新的进程带着旧进程的 pid（<code>RPA_RESTART_AFTER</code>），等它结束、放开单一运行的锁才选层。用户按「继续接任务」就取消；用户原本就暂停时也不重新启动；这两种都改在下次打开时应用。重新启动后新的一层还没确认就失败时，启动器再重新启动一次，没有人在电脑前也会退回上一层。<code>--no-window</code> 只提示。</li>
+          <li><strong>录制端。</strong>只提示「关掉再打开就会应用」，不自己重新启动。</li>
+          <li><strong>设置与画面。</strong>「自动更新设备」存在 <code>settings</code> 表（<code>device_updates</code>），默认开。设备页显示服务器的更新档，以及每台最近一次的更新状态（只记在内存，服务器重新启动后等设备再回报）。</li>
+          <li><strong>发布。</strong><code>release.yml</code> 用 Secrets 的 <code>RPA_UPDATE_SIGNING_KEY</code> 产生并签署 <code>RPA-Update-&lt;版本&gt;.zip</code>，并确认每个安装包信任的公钥都是 <code>rpa_update/keys.py</code> 的 <code>RELEASE_KEYS</code>；还没有正式密钥时发布会失败。产生密钥的步骤见<a href="../develop/ci.html#update-key">CI 与流水线 › 更新档的签署密钥</a>。PR 上的建置用临时密钥测试。</li>
+          <li><strong>实测（Linux x86_64 本地建置）。</strong>更新档约 1.9 MB（七个包编译成 .pyc）。打包的 Worker 装上更新档后加载新的一层、确认、两次启动失败后退回，新的进程会等旧的结束后才启动（约 0.5 秒内接手）。</li>
+        </ul>
+      </div>
+    </section>
+
     <div class="two-col">
       <section class="panel" id="consequences">
         <div class="panel-header"><h2>后果</h2></div>
         <div class="panel-body prose">
           <ul>
-            <li>环境代号没变的版本（例如 0.4.0 → 0.5.0），整套系统的升级从「6 个 84～136 MB 的文件、每台设备各自下载安装」变成「1 个约 1 MB 的文件、交给服务器一次」。设备从区网下载，不需要 GitHub 账号。</li>
+            <li>环境代号没变的版本（例如 0.4.0 → 0.5.0），整套系统的升级从「6 个 84～136 MB 的文件、每台设备各自下载安装」变成「1 个约 2 MB 的文件、交给服务器一次」。设备从区网下载，不需要 GitHub 账号。</li>
             <li>服务器与设备的程序指纹保持一致，「版本不同」提醒与 M7a「App 太旧」的失败几乎不再出现。</li>
             <li>服务器仍要重新启动（Python 在启动时引导程序），Portal 会有数秒打不开；远程 Worker 的回报重试 10 分钟、领取自动重连（现有行为），加上租约延长，任务不会丢。</li>
             <li>现有的 0.5.0 没有启动器，要用第一个分层的版本（预定 0.6.0）完整安装最后一次；配对、设置与数据保留。从 clone 运行的服务器同时改用分发包。</li>
-            <li>代价：多一个启动器与更新流程要维护；桌面 App 因为收入完整的标准函数库会变大一些（实现时实测）；程序从用户可写的文件夹加载，安全靠签章；更新端点的格式要永远兼容；签章私钥遗失或外泄时，要发新的完整包换钥。</li>
-            <li>CI 要多一条路径：用上一版的完整包安装，应用这一版的更新档，再跑端到端。</li>
+            <li>代价：多一个启动器与更新流程要维护；桌面 App 因为收入完整的标准函数库会变大一些；程序从用户可写的文件夹加载，安全靠签章；更新端点的格式要永远兼容；签章私钥遗失或外泄时，要发新的完整包换钥。</li>
+            <li>CI 多一条路径：把这次建置的完整包当成上一版，装上换了提交的更新档再跑自我测试，并确认启动就失败的更新会自动退回；服务器分发包另测升级、退回与拒绝窜改。</li>
           </ul>
         </div>
       </section>

@@ -101,7 +101,7 @@ def check_release_keys(runtimes: Sequence[Runtime], seed: bytes) -> None:
     if not release:
         raise SystemExit(
             "rpa_update/keys.py 的 RELEASE_KEYS 是空的：先產生發布用的金鑰"
-            "（docs/develop/release.html#update-key），把公鑰加進去"
+            "（docs/develop/ci.html#update-key），把公鑰加進去"
         )
     if ed25519.public_key(seed) not in release:
         raise SystemExit(f"{KEY_ENV} 的私鑰對不上 RELEASE_KEYS 裡的任何一把公鑰")

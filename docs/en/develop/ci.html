@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:f33610f39445aa12">
+<meta name="translation-source" content="sha256:cebd03b924b0ddd3">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -48,7 +48,7 @@
           <tbody>
             <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the Windows worker tests when the PR touches worker paths; the desktop builds when it touches <code>apps/</code> or <code>packages/</code>; the server packages when it touches packages the server uses or dependencies (x64 and arm64 builds, installed, started and upgraded in a Rocky 8 container); the setup scripts when it touches scripts or dependencies (the scripts and smoke tests only)</td><td>About 4 min (the desktop builds are the floor); about 2.5 min when the desktop builds do not run</td></tr>
             <tr><td>Pushes that only change <code>handoff/</code> or <code>docs/</code></td><td>See <a href="#docs-only">the next section</a></td><td>About 1 min</td></tr>
-            <tr><td>Version tag <code>v*</code></td><td>Release: check the version, build both desktop apps, draft release</td><td>About 4 min</td></tr>
+            <tr><td>Version tag <code>v*</code></td><td>Release: check the version, build the desktop apps and server bundles, build and sign the update file (<a href="#update-key">key</a>), draft release</td><td>About 4 min</td></tr>
             <tr><td>Daily 20:17 UTC</td><td>Nightly full tests: all tests on three systems, both browsers, Python 3.12 and 3.13, with the browser tests run three times</td><td>About 30 min</td></tr>
             <tr><td>Daily 20:47 UTC</td><td>Full setup-script run: all tests in the in-repo run, plus from scratch</td><td>About 15 min</td></tr>
             <tr><td>Sundays 22:17 UTC</td><td>Python dependency update: opens a PR and triggers CI when there are updates</td><td>Under 1 min, plus CI</td></tr>
@@ -99,6 +99,29 @@ gh workflow run server-package.yml --ref branch-name</pre>
 gh workflow run cleanup-artifacts.yml
 # Delete artifacts created more than 3 days ago
 gh workflow run cleanup-artifacts.yml -f older-than-days=3 -f dry-run=false</pre>
+    </section>
+
+    <section class="panel" id="update-key">
+      <div class="panel-header"><h2>Update signing key</h2><span class="muted"><a href="../adr/0018-layered-updates.html">ADR 0018</a></span></div>
+      <div class="panel-body prose">
+        <p>The <code>RPA-Update-&lt;version&gt;.zip</code> built by a release is signed with an Ed25519 private key; the server, devices and the desktop launcher verify it with the public key inside their package and refuse it when verification fails. The private key lives only in the GitHub secret <code>RPA_UPDATE_SIGNING_KEY</code>: never in the repository, a chat or an issue. The public key is listed in <code>RELEASE_KEYS</code> in <code>packages/rpa_update/src/rpa_update/keys.py</code> and ships with the full packages. When <code>RELEASE_KEYS</code> is empty, the secret is missing, or the two do not match, the release workflow fails instead of publishing a version devices cannot verify. Builds on pull requests and main test with a temporary key every time and never touch the real one.</p>
+        <h3>Creating the key</h3>
+        <ol>
+          <li>On a computer with OpenSSL (any Linux or macOS), create the private key and print the public key (one line of base64):</li>
+        </ol>
+      </div>
+      <pre class="source">openssl genpkey -algorithm ed25519 -out rpa-update-signing.pem
+openssl pkey -in rpa-update-signing.pem -pubout -outform DER | tail -c 32 | base64</pre>
+      <div class="panel-body prose">
+        <ol start="2">
+          <li>In the repository, open Settings › Secrets and variables › Actions › New repository secret, name it <code>RPA_UPDATE_SIGNING_KEY</code>, and paste the whole content of <code>rpa-update-signing.pem</code> (including the <code>-----BEGIN PRIVATE KEY-----</code> and <code>-----END PRIVATE KEY-----</code> lines).</li>
+          <li>Add the public key to <code>RELEASE_KEYS</code> through a pull request. The public key is not secret.</li>
+          <li>Back up the private key file somewhere only you can reach (for example a password manager), then delete it from that computer. If the private key is lost, later versions cannot be signed and devices need a full installer with a new public key; the same applies if it leaks.</li>
+        </ol>
+        <p>The project's own tool works too: <code>uv run python -m rpa_update.build keygen --private rpa-update-signing.pem</code> prints the public key, and the file has the same format as OpenSSL's.</p>
+        <h3>Rotating the key</h3>
+        <p>Add the new public key to <code>RELEASE_KEYS</code> (keep the old one) and publish a full release; once the server and devices run that release, replace the secret with the new private key, and finally remove the old public key. Changing <code>RELEASE_KEYS</code> changes the runtime ID, so both releases are installed from full packages.</p>
+      </div>
     </section>
 
     <section class="panel" id="metrics">

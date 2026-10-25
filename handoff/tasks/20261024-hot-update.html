@@ -10,19 +10,19 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>20261024-hot-update：伺服器、錄製端、Worker 的熱更新（分層打包、伺服器分發更新）</h1><p>每個版本多發一個約 1 MB 的更新檔，只含我們自己的程式；交給伺服器一次，伺服器更新自己，Worker 與錄製端從區網取得同一個版本，在不打斷工作的時機套用。設計見 <a href="../../docs/adr/0018-layered-updates.html">ADR 0018</a>（提議中）。目前只有設計，使用者確認倉庫裡的文件之後才寫程式。</p></div></div>
+  <div class="heading"><div><h1>20261024-hot-update：伺服器、錄製端、Worker 的熱更新（分層打包、伺服器分發更新）</h1><p>每個版本多發一個約 1 MB 的更新檔，只含我們自己的程式；交給伺服器一次，伺服器更新自己，Worker 與錄製端從區網取得同一個版本，在不打斷工作的時機套用。設計見 <a href="../../docs/adr/0018-layered-updates.html">ADR 0018</a>（已接受）。第一、二階段已實作在 PR #83，等 CI、審閱，以及使用者產生簽署金鑰。</p></div></div>
   <div class="stack">
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 02:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 04:40 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源</dt><dd>使用者在 Claude 專案對話 2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）提出，原文：「現在的系統Linux伺服器、錄製段、worker段可以做成熱更新嗎。現在每次都要重新下載效率不高。」2026-10-25 01:58（PDT，UTC−07:00）回覆設計提案，原文：「1.升級版本，伺服器需要重啓嗎。2.這份升級寫doc了嗎 3.確認事項接受。確認后再開始coding。」</dd>
-        <dt>驗收條件（提議）</dt><dd>環境代號沒變的版本：伺服器用一個更新檔升級，不必下載完整包；Worker 與錄製端從伺服器自動取得同一個版本，不打斷執行中的任務、錄製與調試；新版本起不來時自動退回上一版；更新檔有簽章，伺服器、裝置、啟動器都驗證；CI 驗證「上一版完整包＋這一版更新檔」的升級路徑與端到端。</dd>
+        <dt>驗收條件</dt><dd>環境代號沒變的版本：伺服器用一個更新檔升級，不必下載完整包；Worker 與錄製端從伺服器自動取得同一個版本，不打斷執行中的任務、錄製與調試；新版本起不來時自動退回上一版；更新檔有簽章，伺服器、裝置、啟動器都驗證；CI 驗證「上一版完整包＋這一版更新檔」的升級路徑與端到端。</dd>
         <dt>範圍／不包含</dt><dd>範圍：ADR 0018 的第一、二階段（下方「分期」）。不包含：第三階段（伺服器代管完整安裝檔、Portal 上傳更新檔、伺服器兼瀏覽器鏡像，之後再決定）；瀏覽器的下載（已經只在 Playwright 改版時重新下載）；伺服器完全不停機；Developer ID／Authenticode 程式碼簽章；Python 腳本場景的運行環境（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>，待確認）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本專案對話）；審閱與合併：使用者；接收方：未指定。</dd>
-        <dt>修改檔案／整合者</dt><dd>這一輪只有文件：<code>docs/adr/0018-layered-updates.html</code> 三語、三語的 ADR 索引、<code>docs/assets/nav.js</code>、本紀錄、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。之後的實作預計動到 <code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>apps/server/packaging/</code>、<code>apps/desktop/packaging/</code>、<code>rpa_desktop</code>（入口與啟動器）、<code>rpa_server</code>（更新端點、裝置頁、租約）、<code>rpa_worker</code>（上線前查更新）、<code>rpa_cli</code>、<code>.github/workflows/release.yml</code>、<code>server-package.yml</code>、<code>desktop.yml</code>。共用檔案：任務索引與決定紀錄也被 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>、#82 修改，整合時保留各自的列。相依：#79 已用 ADR 0017，本篇用 0018；#82 的 Python 運行環境也會改 PyInstaller 設定與 <code>build_server.py</code>，兩邊開始寫程式前先約定檔案範圍與合併順序。</dd>
-        <dt>狀態</dt><dd>實作中（第一階段）：使用者 2026-10-25 02:09（PDT，UTC−07:00）確認相容後同意開始。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-reisy3</code>；只改文件的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/83">PR #83</a>（draft，待確認）；base main 29176b1。</dd>
+        <dt>修改檔案／整合者</dt><dd>新套件 <code>packages/rpa_update</code>（清單、簽章、環境代號、程式碼層、啟動器）；<code>apps/server/packaging/</code>（<code>bin/rpa</code> 自己重新啟動與退回、<code>install.sh</code> 分層）、<code>rpa_server</code>（<code>updates.py</code>、<code>device_updates.py</code>、Worker API 與 Client API 的 <code>/update</code>、裝置頁、設定）、<code>rpa_cli</code>（<code>rpa update</code>）、<code>apps/desktop/packaging/rpa_desktop.spec</code>、<code>rpa_desktop</code>（<code>build_info.py</code>、<code>updates.py</code>、兩個 controller、<code>gui.py</code>、翻譯）、<code>rpa_worker/remote.py</code>（下載）；<code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>tools/build_update.py</code>；<code>.github/workflows/desktop.yml</code>、<code>server-package.yml</code>、<code>release.yml</code>；文件：ADR 0018、<code>docs/develop/operations.html</code>、<code>docs/develop/ci.html</code>（三語）、本紀錄、決定紀錄。共用檔案：任務索引與決定紀錄也被 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>、#82 修改，整合時保留各自的列。相依：#79 已用 ADR 0017，本篇用 0018；#82 的 Python 運行環境也會改 PyInstaller 設定與 <code>build_server.py</code>，兩邊開始寫程式前先約定檔案範圍與合併順序。</dd>
+        <dt>狀態</dt><dd>第一、二階段實作完成、待審閱（2026-10-25 04:40 PDT）。發布 0.6.0 之前要先有正式的簽署金鑰（見下方「需要使用者做的事」）。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-reisy3</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/83">PR #83</a>（draft）；base main 29176b1。</dd>
         <dt>交接版本／同步狀態</dt><dd>以 PR 的最新提交為準；已推送後可從 GitHub 取得。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、uv 0.11.32、Python 3.13。</dd>
       </dl></div>
@@ -57,14 +57,16 @@
     <section class="panel" id="progress">
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>已完成：</strong>盤點（上一節）；設計提案先以 Claude 文件交給使用者（只有使用者看得到，內容已全部寫進 ADR 0018 與本紀錄，以倉庫為準）；本輪把設計寫進倉庫。</li>
+        <li><strong>已完成（第一階段，伺服器）：</strong>b5160a6 新增 <code>rpa_update</code>；6029876 伺服器分發包分層（<code>runtimes/&lt;環境代號&gt;/python</code>＋<code>releases/&lt;版本&gt;/app</code>）、<code>rpa update</code>、<code>bin/rpa serve</code> 以結束碼 75 重新啟動、剛換上的版本起不來時退回並還原 SQLite 備份；c4c7307 server-package.yml 測升級、退回與拒絕竄改；534f7ab 修 CI 的探測逾時。</li>
+        <li><strong>已完成（第一階段，桌面 App）：</strong>7223ac4 程式碼層與啟動器（<code>rpa_update/layers.py</code>、<code>boot.py</code>）；5cdf4d8 PyInstaller 入口改成啟動器、收入完整標準函式庫、建置時寫出 runtime.json；6793633 desktop.yml 用臨時金鑰測試裝更新檔與自動退回，release.yml 產生並簽署 <code>RPA-Update-&lt;版本&gt;.zip</code>。</li>
+        <li><strong>已完成（第二階段）：</strong>be62c98 伺服器的 <code>POST /update</code>、<code>GET /update/file</code>、「自動更新裝置」設定與裝置頁；5f210be 啟動器的重新啟動（<code>RPA_RESTART_AFTER</code>，等舊程序結束）與重新啟動後失敗再試；eac4ff3 兩個 App 上線時檢查、下載、安裝，Worker 視窗版閒置時重新啟動，錄製端與 <code>--no-window</code> 下次開啟時套用。</li>
         <li><strong>決定（使用者 2026-10-25 01:58 America/Los_Angeles（PDT，UTC−07:00）接受）：</strong>(1) 方向：分層打包＋伺服器當更新中心＋裝置跟隨伺服器的版本；(2) 從第一版就簽章，Ed25519 私鑰放 GitHub Secrets，私鑰不進倉庫；(3) Worker 閒置時自動套用、伺服器有總開關（預設開），錄製端只提示、下次開啟時套用；(4) 動到執行環境的依賴更新累積到「環境版本」再合併，節奏由使用者決定；(5) 先做第一、二階段，第三階段之後再說。見<a href="../decisions.html#decisions">決定紀錄</a>。</li>
-        <li><strong>使用者的問題與回覆：</strong>升級時伺服器要重新啟動嗎？要：Python 在啟動時載入程式。<code>bin/rpa update</code> 安裝並切換後，伺服器等到沒有進行中的錄製、調試、人工登入，自己重新啟動，Portal 有數秒打不開；遠端任務靠回報重試與租約延長不會丟。裝置自己更新時伺服器不用重新啟動。不做完全不停機（要反向代理，SQLite 不能兩個程序同時寫）。</li>
-        <li><strong>使用者的部署（2026-10-25 02:09 America/Los_Angeles（PDT，UTC−07:00）說明）：</strong>內網伺服器從 clone 執行，原文命令：<code>nohup env -u RPA_DATABASE_URL .venv-server/bin/rpa serve --host 0.0.0.0 --port 8080 --data /home/admin/.local/share/rpa-server-v040 --worker-host 0.0.0.0 --worker-port 8081 --no-local-worker --testsite-host 0.0.0.0 &gt;&gt; rpa-server-v040.log 2&gt;&amp;1 &lt; /dev/null &amp;</code>，並說「兼容的話就開始做吧」。回覆與設計調整：clone 不支援更新檔（git 管理的檔案不能被覆蓋），要改用分發包一次，命令只換成 <code>~/rpa-server/bin/rpa</code>，參數、資料目錄、nohup 照舊；重新啟動改由 <code>bin/rpa serve</code> 自己負責，不依賴 systemd（ADR 0018 決策 5）。另提醒 8080 開在 0.0.0.0 時區網任何人不用配對就能操作 Portal（與本任務無關）。使用者據此同意開始寫程式；第一階段的程式放在同一個分支與 PR #83（雲端工作階段只能推送到這個分支）。</li>
-        <li><strong>理解與待確認：</strong>「確認后再開始coding」解讀為：使用者看過本 PR 的文件並回覆之後才寫程式（已在對話中說明這個解讀；若使用者的意思是可以直接開始，以使用者的回覆為準）。</li>
-        <li><strong>實作時要先驗證的風險：</strong>PyInstaller 打包後從外部資料夾匯入 .py（路徑式匯入與凍結匯入器並存）在 Windows、macOS 都可行；外殼收入完整標準函式庫後的大小；伺服器實際重新啟動要幾秒；macOS 從 Application Support 載入 .py 不受 Gatekeeper 影響（程式層沒有原生程式庫）。</li>
-        <li><strong>需要使用者做的事（第一階段 PR 會附步驟）：</strong>在本機產生 Ed25519 金鑰，私鑰存進 GitHub Secrets；公鑰提交進倉庫。</li>
-        <li><strong>下一個具體動作：</strong>使用者確認本 PR 的文件 → 從 main 開第一階段的分支，先做啟動器與「打包後從外部資料夾載入」的驗證，再做伺服器的 <code>bin/rpa update</code>。開工前和 #82 約定 PyInstaller 設定與 <code>build_server.py</code> 的修改範圍。</li>
+        <li><strong>實作時的選擇（Claude，待審閱）：</strong>更新檔留在伺服器的版本資料夾（<code>releases/&lt;版本&gt;/update.zip</code>），不另開 <code>updates/</code>；裝置的新一層在 App 正常結束或執行滿 20 秒時確認，連續兩次沒確認就退回（取代設計時的「2 分鐘內沒上線」，啟動器不必懂連線）；使用者按「繼續接任務」就取消這次重新啟動、使用者原本就暫停的 Worker 不重新啟動；裝置頁的更新狀態只記在記憶體。細節見 ADR 0018 的「實作」。</li>
+        <li><strong>使用者的問題與回覆：</strong>升級時伺服器要重新啟動嗎？要：Python 在啟動時載入程式。<code>bin/rpa update</code> 安裝並切換後，伺服器等到沒有進行中的錄製、調試、人工登入、本機執行，自己重新啟動，Portal 有數秒打不開；遠端任務靠回報重試與租約延長不會丟。裝置自己更新時伺服器不用重新啟動。</li>
+        <li><strong>使用者的部署（2026-10-25 02:09 America/Los_Angeles（PDT，UTC−07:00）說明）：</strong>內網伺服器從 clone 以 nohup 執行（<code>.venv-server/bin/rpa serve … --data /home/admin/.local/share/rpa-server-v040 …</code>）。clone 不支援更新檔，要改用分發包一次，命令只換成 <code>~/rpa-server/bin/rpa</code>，參數、資料目錄、nohup 照舊。另提醒 8080 開在 0.0.0.0 時區網任何人不用配對就能操作 Portal（與本任務無關）。</li>
+        <li><strong>需要使用者做的事：</strong>照 <a href="../../docs/develop/ci.html#update-key">CI 與流水線 › 更新檔的簽署金鑰</a> 產生 Ed25519 金鑰，私鑰存進 Secret <code>RPA_UPDATE_SIGNING_KEY</code>，把公鑰（可以公開）交給 Claude 加進 <code>RELEASE_KEYS</code>。要在打 0.6.0 標籤之前完成：<code>keys.py</code> 是執行環境的一部分，之後才加會改變環境代號，裝置又要完整安裝一次。沒做之前發布流程會失敗（刻意的）。</li>
+        <li><strong>相依與編號：</strong>ADR 0017 已由 PR #79 使用，本篇用 0018；PR #82（Python 腳本場景的運行環境）也改 PyInstaller 設定與 <code>build_server.py</code>，合併時要整合，先合併的一方之後由另一方 rebase。</li>
+        <li><strong>下一個具體動作：</strong>CI 全綠後請使用者審閱 PR #83 並產生金鑰；拿到公鑰後提交到 <code>RELEASE_KEYS</code>。合併後發 0.6.0：伺服器、Worker、錄製端各用完整包安裝最後一次，之後環境代號沒變的版本都用更新檔。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -74,10 +76,13 @@
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
-          <tr><td>main 29176b1＋本輪文件差異；Claude 雲端容器</td><td><code>uv run python tools/i18n.py check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；handoff 的相對連結另外檢查</td><td>見追加紀錄</td><td>只有文件，沒有程式行為要測</td></tr>
+          <tr><td>main 29176b1＋設計文件；Claude 雲端容器</td><td><code>uv run python tools/i18n.py check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>312 通過、連結無誤</td><td>只有文件</td></tr>
+          <tr><td>eac4ff3 的工作樹；Claude 雲端容器（Linux x86_64、uv 0.11.32、Python 3.13）</td><td><code>uv run ruff check .</code>；<code>uv run ruff format --check .</code>；<code>uv run pyright</code>；<code>uv run python tools/i18n.py check</code>；<code>uv run pytest -m "not browser" -n 4</code></td><td>全部通過；pytest 1864 通過、3 略過（Windows 登錄檔、Windows mutex、ssh-keygen）</td><td>瀏覽器測試只在 CI 跑</td></tr>
+          <tr><td>同上，本地建置的 Linux Worker App（PyInstaller 6.22.3，臨時金鑰）</td><td>把 desktop.yml 的程式碼層步驟原樣跑一次；另用打包版的 <code>--rpa-script</code> 呼叫 <code>relaunch</code></td><td>裝更新檔後載入 0000002、確認；啟動失敗的 0000003 兩次結束碼 7 後退回 0000002；新的程序等舊的結束（舊程序睡 4 秒，等了 4.7 秒），relaunch 的新程序在舊程序結束約 0.5 秒後接手、用新的一層、沒有繼承 <code>RPA_RESTART_AFTER</code></td><td>沙箱連不到 cdn.playwright.dev，裝更新檔後的瀏覽器自我測試沒跑（CI 會跑）；Windows、macOS 的重新啟動只有 CI 的等待測試，視窗版實際閒置重新啟動沒有自動測試</td></tr>
+          <tr><td>6793633，GitHub Actions</td><td>PR #83 的各流程</td><td>桌面端建置（Windows、macOS 的程式碼層步驟）、伺服器分發包、一鍵安裝腳本通過；CI 的「Worker 測試（Windows）」失敗：<code>rpa_runner</code> 的瀏覽器測試逾時（test_frames、test_profiles、test_run，Firefox 與 Chromium），這個 PR 沒有改到這些程式</td><td>eac4ff3 的運行結果見 PR</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見 PR；人工驗收：未執行（只有設計）；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>人工驗收：未執行（要用 0.6.0 的完整包安裝後，以下一版的更新檔實際升級伺服器與裝置）；審閱：未審閱。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -91,6 +96,9 @@
         <li>2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）起，Claude：盤點打包與升級流程，提出設計（Claude 文件），等使用者確認。</li>
         <li>2026-10-25 01:58（PDT，UTC−07:00），使用者：接受確認事項，詢問伺服器是否要重新啟動、設計是否寫成文件；Claude 回覆並開始把設計寫進倉庫。</li>
         <li>2026-10-25 02:04（PDT，UTC−07:00），Claude：提交 72ef61d 並推送，開 PR #83（draft）。本地 docs 與 i18n 測試 312 通過、連結無誤。等使用者確認文件後開始第一階段。</li>
+        <li>2026-10-25 02:09（PDT，UTC−07:00），使用者：說明內網伺服器的啟動命令，「兼容的話就開始做吧」；Claude 開始第一階段。</li>
+        <li>2026-10-25 02:25～03:44（PDT，UTC−07:00），Claude：第一階段（b5160a6～6793633）推送到 PR #83。</li>
+        <li>2026-10-25 04:26（PDT，UTC−07:00），Claude：第二階段（be62c98、5f210be、eac4ff3）推送；ADR 0018 改為已接受並補上實作細節，維運與 CI 文件補上更新檔與簽署金鑰。</li>
       </ul></div>
     </section>
   </div>
