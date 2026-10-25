@@ -116,7 +116,7 @@
   </section>
   <details class="panel workflow-history"><summary>{{ t("workflow.runs") }} <span class="count">{{ runs | length }}</span></summary>
     <div class="visually-hidden"><h2>{{ t("workflow.runs") }} <span class="count">{{ runs | length }}</span></h2></div>
-    {% if runs %}{{ m.workflow_run_rows(runs, show_workflow=false) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}
+    {% if runs %}{{ m.workflow_run_rows(runs, show_workflow=false, agents=agent_names) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}
   </details>
 </div>
 <template id="workflow-form">
