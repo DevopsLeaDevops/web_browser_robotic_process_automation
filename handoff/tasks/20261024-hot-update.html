@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261024-hot-update · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261024-hot-update：伺服器、錄製端、Worker 的熱更新（分層打包、伺服器分發更新）</h1><p>每個版本多發一個約 1 MB 的更新檔，只含我們自己的程式；交給伺服器一次，伺服器更新自己，Worker 與錄製端從區網取得同一個版本，在不打斷工作的時機套用。設計見 <a href="../../docs/adr/0018-layered-updates.html">ADR 0018</a>（提議中）。目前只有設計，使用者確認倉庫裡的文件之後才寫程式。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 02:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源</dt><dd>使用者在 Claude 專案對話 2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）提出，原文：「現在的系統Linux伺服器、錄製段、worker段可以做成熱更新嗎。現在每次都要重新下載效率不高。」2026-10-25 01:58（PDT，UTC−07:00）回覆設計提案，原文：「1.升級版本，伺服器需要重啓嗎。2.這份升級寫doc了嗎 3.確認事項接受。確認后再開始coding。」</dd>
+        <dt>驗收條件（提議）</dt><dd>環境代號沒變的版本：伺服器用一個更新檔升級，不必下載完整包；Worker 與錄製端從伺服器自動取得同一個版本，不打斷執行中的任務、錄製與調試；新版本起不來時自動退回上一版；更新檔有簽章，伺服器、裝置、啟動器都驗證；CI 驗證「上一版完整包＋這一版更新檔」的升級路徑與端到端。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：ADR 0018 的第一、二階段（下方「分期」）。不包含：第三階段（伺服器代管完整安裝檔、Portal 上傳更新檔、伺服器兼瀏覽器鏡像，之後再決定）；瀏覽器的下載（已經只在 Playwright 改版時重新下載）；伺服器完全不停機；Developer ID／Authenticode 程式碼簽章；Python 腳本場景的運行環境（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>，待確認）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本專案對話）；審閱與合併：使用者；接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd>這一輪只有文件：<code>docs/adr/0018-layered-updates.html</code> 三語、三語的 ADR 索引、<code>docs/assets/nav.js</code>、本紀錄、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。之後的實作預計動到 <code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>apps/server/packaging/</code>、<code>apps/desktop/packaging/</code>、<code>rpa_desktop</code>（入口與啟動器）、<code>rpa_server</code>（更新端點、裝置頁、租約）、<code>rpa_worker</code>（上線前查更新）、<code>rpa_cli</code>、<code>.github/workflows/release.yml</code>、<code>server-package.yml</code>、<code>desktop.yml</code>。共用檔案：任務索引與決定紀錄也被 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>、#82 修改，整合時保留各自的列。相依：#79 已用 ADR 0017，本篇用 0018；#82 的 Python 運行環境也會改 PyInstaller 設定與 <code>build_server.py</code>，兩邊開始寫程式前先約定檔案範圍與合併順序。</dd>
+        <dt>狀態</dt><dd>設計待確認：使用者已接受確認事項（見下方決定），寫程式要等使用者看過本 PR 的文件並回覆。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-reisy3</code>；只改文件的 PR（建立後回填）；base main 29176b1。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以 PR 的最新提交為準；已推送後可從 GitHub 取得。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、uv 0.11.32、Python 3.13。</dd>
+      </dl></div>
+    </section>
+
+    <section class="panel" id="findings">
+      <div class="panel-header"><h2>盤點：現在的打包與升級</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>大小（v0.5.0 發布紀錄）：</strong>伺服器分發包 x64 約 103 MB、arm64 約 97 MB；Windows Worker 的建置產物合計約 136 MB；兩個 DMG 各約 84 MB（<a href="20261022-release-0-5-0.html">0.5.0 任務紀錄</a>）。</li>
+        <li><strong>每版真正改變的程式：</strong>七個工作區套件的原始碼（不含 <code>__pycache__</code>）用 <code>tar -czf - packages/*/src apps/*/src | wc -c</code> 量得約 0.6 MB（main a8cde7f）；其中 rpa_server 約 0.3 MB（頁面、翻譯、遷移都算在內）。</li>
+        <li><strong>第三方套件的變動：</strong>比較各版本標籤的 <code>uv.lock</code>（只算來自套件庫的套件）：0.2.0 → 0.3.0 變 6 項（PyObjC），0.3.0 → 0.4.0 變 20 項（含 Playwright 1.63 → 1.64；部分是 pytest 等開發工具），0.4.0 → 0.5.0 與 0.5.0 → main 29176b1 都是 0 項。</li>
+        <li><strong>伺服器：</strong><code>install.sh</code> 已有版本並排（<code>releases/</code>）、原子切換 <code>current</code>、保留 3 版、重新啟動後 60 秒內沒回應就停下並印出退回指令（不會自動退回）。<code>bin/rpa</code> 清掉 <code>PYTHONPATH</code>，子程序以 <code>sys.executable -m …</code> 啟動。</li>
+        <li><strong>桌面 App：</strong>PyInstaller 6.22.3 資料夾模式，<code>rpa-worker</code>／<code>rpa-recorder</code> 與 <code>rpa-child</code> 兩個執行檔各自內含程式封存；入口 <code>rpa_desktop/entry.py</code> 一開頭就匯入 <code>rpa_runner.commands</code>，所以啟動器必須是另一個更早執行的入口。程式指紋在建置時寫進 <code>build_info.json</code>。「下載新版」連 GitHub 最新 Release（<code>rpa_desktop/release.py</code>）。</li>
+        <li><strong>伺服器重新啟動時的遠端任務：</strong>Worker 回報失敗會重試最多 600 秒、領取連不上時退避重連（上限 30 秒，<code>rpa_worker/remote.py</code>）；租約 60 秒（<code>rpa_worker/protocol.py</code>），伺服器的背景執行緒會把過期的標成「worker 失聯」（<code>rpa_server/dispatch.py</code>），所以要在啟動時延長租約。</li>
+        <li><strong>依賴更新：</strong><code>uv-upgrade.yml</code> 每週日執行 <code>uv lock --upgrade</code> 並開 PR。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="plan">
+      <div class="panel-header"><h2>分期</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>階段</th><th>內容</th><th>交付後的效果</th></tr></thead>
+        <tbody>
+          <tr><td>1 分層打包與伺服器更新（一個 PR）</td><td>環境代號；伺服器分發包與兩個 App 改成分層（啟動器、完整標準函式庫）；發布多產生 <code>RPA-Update-&lt;版本&gt;.zip</code> 與簽章；<code>rpa-server update</code>、自動備份與退回；啟動時延長租約</td><td>伺服器升級只要約 1 MB；App 已經能從資料夾載入新版</td></tr>
+          <tr><td>2 裝置自動更新（一個 PR）</td><td>Worker API／Client API 的更新端點；下載、驗證、待套用；Worker 閒置時重新啟動、錄製端提示；自動退回；裝置頁的版本與更新狀態、「自動更新裝置」開關</td><td>Worker 與錄製端從伺服器自動更新</td></tr>
+          <tr><td>3 選用（之後再決定）</td><td>伺服器代管完整安裝檔（Windows 可靜默安裝）、Portal 上傳更新檔、伺服器兼 Playwright 瀏覽器鏡像</td><td>依賴改變時也不必逐台從 GitHub 下載</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>兩個階段合併後發 0.6.0：現有 0.5.0 的伺服器、Worker、錄製端要用 0.6.0 的完整包安裝最後一次（配對、設定與資料保留），之後環境代號沒變的版本都用更新檔。</p></div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>盤點（上一節）；設計提案先以 Claude 文件交給使用者（只有使用者看得到，內容已全部寫進 ADR 0018 與本紀錄，以倉庫為準）；本輪把設計寫進倉庫。</li>
+        <li><strong>決定（使用者 2026-10-25 01:58 America/Los_Angeles（PDT，UTC−07:00）接受）：</strong>(1) 方向：分層打包＋伺服器當更新中心＋裝置跟隨伺服器的版本；(2) 從第一版就簽章，Ed25519 私鑰放 GitHub Secrets，私鑰不進倉庫；(3) Worker 閒置時自動套用、伺服器有總開關（預設開），錄製端只提示、下次開啟時套用；(4) 動到執行環境的依賴更新累積到「環境版本」再合併，節奏由使用者決定；(5) 先做第一、二階段，第三階段之後再說。見<a href="../decisions.html#decisions">決定紀錄</a>。</li>
+        <li><strong>使用者的問題與回覆：</strong>升級時伺服器要重新啟動嗎？要：Python 在啟動時載入程式。<code>rpa-server update</code> 會等到沒有進行中的錄製、調試、人工登入，再切換並重新啟動，Portal 有數秒打不開；遠端任務靠回報重試與租約延長不會丟。裝置自己更新時伺服器不用重新啟動。不做完全不停機（要反向代理，SQLite 不能兩個程序同時寫）。</li>
+        <li><strong>理解與待確認：</strong>「確認后再開始coding」解讀為：使用者看過本 PR 的文件並回覆之後才寫程式（已在對話中說明這個解讀；若使用者的意思是可以直接開始，以使用者的回覆為準）。</li>
+        <li><strong>實作時要先驗證的風險：</strong>PyInstaller 打包後從外部資料夾匯入 .py（路徑式匯入與凍結匯入器並存）在 Windows、macOS 都可行；外殼收入完整標準函式庫後的大小；伺服器實際重新啟動要幾秒；macOS 從 Application Support 載入 .py 不受 Gatekeeper 影響（程式層沒有原生程式庫）。</li>
+        <li><strong>需要使用者做的事（第一階段 PR 會附步驟）：</strong>在本機產生 Ed25519 金鑰，私鑰存進 GitHub Secrets；公鑰提交進倉庫。</li>
+        <li><strong>下一個具體動作：</strong>使用者確認本 PR 的文件 → 從 main 開第一階段的分支，先做啟動器與「打包後從外部資料夾載入」的驗證，再做伺服器的 <code>rpa-server update</code>。開工前和 #82 約定 PyInstaller 設定與 <code>build_server.py</code> 的修改範圍。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>main 29176b1＋本輪文件差異；Claude 雲端容器</td><td><code>uv run python tools/i18n.py check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；handoff 的相對連結另外檢查</td><td>見追加紀錄</td><td>只有文件，沒有程式行為要測</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR；人工驗收：未執行（只有設計）；審閱：未審閱。</p></div>
+    </section>
+
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）起，Claude：盤點打包與升級流程，提出設計（Claude 文件），等使用者確認。</li>
+        <li>2026-10-25 01:58（PDT，UTC−07:00），使用者：接受確認事項，詢問伺服器是否要重新啟動、設計是否寫成文件；Claude 回覆並開始把設計寫進倉庫。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

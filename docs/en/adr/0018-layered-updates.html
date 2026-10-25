@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:3d434aefc9487d48">
+<title>ADR 0018 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0018" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0018: Package our code separately from the runtime, and let the server hand updates to devices</h1>
+      <p>Each release also ships an update file of about 1 MB that holds only our own code. Give it to the server once: the server updates itself, and Workers and recorders fetch the same version over the LAN and apply it when it does not interrupt work. When the runtime (Python, third-party packages) has not changed, nobody downloads a full package again.</p>
+    </div>
+    <span class="badge amber">Proposed</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-25</dd>
+        <dt>Scope</dt><dd>rpa-server, rpa-cli, rpa-worker, rpa-desktop; packaging tools (<code>tools/build_server.py</code>, <code>tools/build_desktop.py</code>, <code>apps/*/packaging/</code>); the release workflow (<code>.github/workflows/release.yml</code>)</dd>
+        <dt>Related</dt><dd><a href="0008-sqlite-and-postgresql.html">ADR 0008</a> (one server process owns the database), <a href="0012-remote-workers.html">ADR 0012</a> (leases and report retries), <a href="0014-desktop-apps.html">ADR 0014</a> (desktop apps; automatic updates were left for later); <a href="../../../handoff/tasks/20261024-hot-update.html">task record</a></dd>
+        <dt>Number</dt><dd>0017 is taken by the external Agent API in PR #79, so this record is 0018.</dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>On 2026-10-24 the user asked for hot updates: every upgrade of the server, the recorder and the Worker downloads a whole package again, which is slow.</p>
+          <p>In v0.5.0 the server bundle is about 103 MB (x64) and 97 MB (arm64), the Windows Worker build outputs about 136 MB in total, and each DMG about 84 MB. What actually changes between releases is the seven workspace packages (including the Portal pages, translations and database migrations): their source compresses to about 0.6 MB (measured on main a8cde7f). The rest is Python, third-party packages and the Playwright driver.</p>
+          <p>Third-party packages rarely change: 6 changed from 0.2.0 to 0.3.0 (PyObjC added for macOS), 20 from 0.3.0 to 0.4.0 (including Playwright 1.63 to 1.64; some are only development tools), and none from 0.4.0 to 0.5.0.</p>
+          <p>The repository became private on 2026-10-22, so only a signed-in GitHub account with access can download a Release or follow the app's "Download new version" link. Someone has to download, carry and install the package on every device. Browsers (570 to 710 MB unpacked) are downloaded again only when the Playwright version changes, which is already incremental and out of scope here.</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li><strong>Layers.</strong> The code layer is the seven workspace packages: pure Python, one copy shared by all platforms. The runtime is Python 3.13, the third-party packages needed at run time and the PyInstaller shell (desktop apps), one per platform. Browsers stay as they are. If the runtime for Python script scenarios (PR #82, awaiting confirmation) is adopted, it is a separate layer with its own version and is not affected by this record.</li>
+            <li><strong>Runtime ID.</strong> Each platform's runtime has an ID: a hash of the Python version, the locked list of run-time third-party packages (<code>uv export</code>, without development tools), and the shell's version and list of collected modules. CI computes it when it builds the full package and writes it into the package. The code layer states the ID it needs on each platform; only the code layer is replaced when the IDs match, and a full package is needed when they differ.</li>
+            <li><strong>Update file.</strong> Each release also produces <code>RPA-Update-&lt;version&gt;.zip</code>: the code layer's files, a manifest (version, commit, code fingerprint, protocol version, understood DSL features, the runtime ID per platform, and the SHA-256 and size of every file) and an Ed25519 signature of the manifest. Full packages are still published, for first installs and for when the runtime ID changes.</li>
+            <li><strong>Server.</strong> The install folder becomes <code>runtimes/&lt;runtime ID&gt;/python</code> (shared by several versions) plus <code>releases/&lt;version&gt;-&lt;commit&gt;/app</code> (the code layer); the atomic switch of <code>current</code> stays. <code>rpa-server update &lt;update file&gt;</code>: verify the signature and hashes, check that the needed runtime ID is present, install and load the server code with the bundled Python, back up SQLite when there are new migrations (remind the operator to back up PostgreSQL), wait until no recording, step debugging or manual login is in progress (<code>--now</code> skips the wait), switch and restart the service, and switch back to the previous version and restore the backup if the admin port does not answer within 60 seconds. The update file is kept in the data folder's <code>updates/</code> for devices to download. On startup the server extends the lease of running remote runs by one period, so a restart does not mark them as "worker lost".</li>
+            <li><strong>Device launcher.</strong> The PyInstaller entry point becomes a small launcher, and our code is no longer compiled into the executable's archive. The launcher reads the version named in <code>app/active.json</code> in the data folder and checks the signature, every file's hash and the runtime ID. Only then does it put that version first on <code>sys.path</code>; otherwise it uses the code layer built into the app (the installed version) and logs why. The parent process pins child processes (<code>rpa-child</code>) to the same code layer through an environment variable. The shell collects the whole standard library (without tkinter, test and the like), so new code that uses another module still finds it in an older shell.</li>
+            <li><strong>The app itself is never modified.</strong> The code layer is downloaded into the device's existing data folder: <code>%LOCALAPPDATA%\rpa\worker\app\</code> on Windows, <code>~/Library/Application Support/rpa/{worker,recorder}/app/</code> on macOS. The macOS .app signature stays intact and no "App Management" permission is needed.</li>
+            <li><strong>Devices follow the server's version.</strong> Before going online a device calls the update endpoint (one in the Worker API, one in the Client API) with its app kind, platform, version and runtime ID. The endpoint's format is fixed and does not check the protocol version, so an old app can still update first when the protocol changes later. The server answers: same version, update available (version, size, hash), or full install needed. Devices track the server's current version, not the latest release; when the server goes back, the devices go back too.</li>
+            <li><strong>When to apply.</strong> Worker: finish the current run, stop claiming and restart itself (a few seconds), only when it has no run. Recorder: never interrupt recording or debugging; the window says "reopen to apply", and the update is applied on the next start. If a new version cannot go online within 2 minutes after starting, or crashes twice in a row, the device goes back to the previous version and tells the server; the last 3 versions are kept. A server setting "Update devices automatically" is on by default; the Devices page shows each device's version and update state.</li>
+            <li><strong>Signing.</strong> CI signs the manifest with an Ed25519 private key (GitHub Secrets); the public key ships with the runtime. The server verifies on install, devices on download, and the launcher on every start. Verification follows the RFC 8032 reference algorithm (verify only), with no new dependency. The launcher accepts a set of public keys so the key can be rotated later.</li>
+            <li><strong>Dependency update rhythm.</strong> In the weekly dependency update PRs, changes that touch only development tools are merged as usual (the runtime ID does not change); changes to the runtime are collected and merged together as a "runtime release", at a rhythm the user decides. A Playwright upgrade makes every device download browsers again, so its PR and the Release notes must say so.</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>For a release whose runtime ID does not change (for example 0.4.0 to 0.5.0), upgrading the whole system goes from "6 files of 84 to 136 MB, downloaded and installed on every device" to "1 file of about 1 MB, given to the server once". Devices download over the LAN and need no GitHub account.</li>
+            <li>The server and the devices keep the same code fingerprint, so the "different version" warning and the M7a "app too old" failures should become rare.</li>
+            <li>The server still restarts (Python loads code at startup), so the Portal is unavailable for a few seconds. Remote Workers retry reports for 10 minutes and reconnect to claim (existing behaviour); with the lease extension no run is lost.</li>
+            <li>0.5.0 has no launcher, so the first layered release (planned as 0.6.0) needs one last full install; pairing, settings and data are kept.</li>
+            <li>Costs: a launcher and an update flow to maintain; desktop apps get somewhat larger from the full standard library (to be measured during implementation); code is loaded from a user-writable folder, so safety rests on the signature; the update endpoint's format must stay compatible forever; if the signing key is lost or leaked, a new full package is needed to rotate it.</li>
+            <li>CI gains another path: install the previous release's full package, apply this release's update file, then run the end-to-end tests.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Compare files and download only the changed ones</td><td>PyInstaller compiles our code into the executable's archive, so the executables change every release. The code layer has to be split out anyway, and once it is, comparing files adds little.</td></tr>
+              <tr><td>Binary diffs of the installers (bsdiff and the like)</td><td>Diffs of compressed installers are poor, and every pair of versions needs its own diff, which complicates publishing and storage.</td></tr>
+              <tr><td>Whole-package auto-updaters such as Sparkle or WinSparkle</td><td>They make updates automatic but not smaller, and need a public download URL (the repository is private) and signing certificates.</td></tr>
+              <tr><td>Reload modules while running (importlib.reload)</td><td>Old objects and state stay in memory; behaviour is hard to predict and failures are hard to trace.</td></tr>
+              <tr><td>A server that never stops (two processes taking turns)</td><td>Needs a reverse proxy in front, and SQLite cannot be written by two processes at once (ADR 0008). It saves only a few seconds.</td></tr>
+              <tr><td>Every device downloads from GitHub directly</td><td>The repository is private and needs an account; devices on the internal network cannot always reach GitHub.</td></tr>
+              <tr><td>No signature, only hashes and the device token</td><td>Devices talk to the server over HTTP today; an update replaces the program itself and stays, which is a bigger risk than a one-off scenario.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -168,6 +168,11 @@ window.DOCS_NAV = {
           "id": "adr-0016",
           "href": "adr/0016-run-replay.html",
           "name": {"zh-Hant": "0016 運行回看", "zh-Hans": "0016 运行回看", "en": "0016 Run replay"}
+        },
+        {
+          "id": "adr-0018",
+          "href": "adr/0018-layered-updates.html",
+          "name": {"zh-Hant": "0018 分層更新", "zh-Hans": "0018 分层更新", "en": "0018 Layered updates"}
         }
       ]
     },
