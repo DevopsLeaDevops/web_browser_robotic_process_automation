@@ -1365,6 +1365,7 @@ dependencies = [
     { name = "rpa-core" },
     { name = "rpa-runner" },
     { name = "rpa-testsite" },
+    { name = "rpa-update" },
     { name = "rpa-worker" },
 ]
 
@@ -1377,6 +1378,7 @@ requires-dist = [
     { name = "rpa-core", editable = "packages/rpa_core" },
     { name = "rpa-runner", editable = "packages/rpa_runner" },
     { name = "rpa-testsite", editable = "apps/testsite" },
+    { name = "rpa-update", editable = "packages/rpa_update" },
     { name = "rpa-worker", editable = "apps/worker" },
 ]
 
