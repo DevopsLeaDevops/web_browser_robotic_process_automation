@@ -46,7 +46,8 @@
             <li><strong>分層。</strong>程式層：七個工作區套件，純 Python，各平台共用同一份。執行環境：Python 3.13、執行時需要的第三方套件、PyInstaller 外殼（桌面 App），各平台一份。瀏覽器照舊。Python 腳本場景的運行環境（PR #82，待確認）若採用，是另一層，有自己的版本，不受本篇影響。</li>
             <li><strong>環境代號。</strong>每個平台的執行環境有一個代號：Python 版本、執行時第三方套件的鎖定清單（<code>uv export</code>，不含開發工具）、外殼的版本與收入的模組清單的雜湊。CI 建置完整包時算出並寫進包裡。程式層寫明各平台需要的代號；代號相同才能只換程式層，不同就要完整包。</li>
             <li><strong>更新檔。</strong>發布時多產生 <code>RPA-Update-&lt;版本&gt;.zip</code>：程式層的檔案、清單（版本、提交、程式指紋、協定版本、看得懂的 DSL 擴充、各平台的環境代號、每個檔案的 SHA-256 與大小）與清單的 Ed25519 簽章。完整包照舊發布，用於第一次安裝與環境代號改變時。</li>
-            <li><strong>伺服器。</strong>安裝位置改成 <code>runtimes/&lt;環境代號&gt;/python</code>（多版本共用）＋ <code>releases/&lt;版本&gt;-&lt;提交&gt;/app</code>（程式層），<code>current</code> 的原子切換照舊。<code>rpa-server update &lt;更新檔&gt;</code>：驗證簽章與雜湊 → 確認有所需的環境代號 → 安裝並用包內 Python 載入伺服器程式 → 有新遷移時先備份 SQLite（PostgreSQL 提醒自行備份）→ 等到沒有進行中的錄製、逐步調試、人工登入（<code>--now</code> 不等）→ 切換並重新啟動服務 → 60 秒內管理埠沒有回應就自動切回上一版、還原備份。更新檔保存在資料目錄的 <code>updates/</code> 供裝置下載。伺服器啟動時把執行中遠端任務的租約延長一個週期，重新啟動期間不會被標成「worker 失聯」。</li>
+            <li><strong>伺服器。</strong>安裝位置改成 <code>runtimes/&lt;環境代號&gt;/python</code>（多版本共用）＋ <code>releases/&lt;版本&gt;-&lt;提交&gt;/app</code>（程式層），<code>current</code> 的原子切換照舊。<code>bin/rpa update &lt;更新檔&gt;</code>：驗證簽章與雜湊 → 確認有所需的環境代號 → 安裝並用包內 Python 載入伺服器程式 → 切換 <code>current</code> → 請執行中的伺服器重新啟動。伺服器等到沒有進行中的錄製、逐步調試、人工登入才結束（<code>--now</code> 不等）；新版本啟動時有新的遷移，先備份 SQLite 再遷移（PostgreSQL 提醒自行備份）。更新檔保存在資料目錄的 <code>updates/</code> 供裝置下載。伺服器啟動時把執行中遠端任務的租約延長一個週期，重新啟動期間不會被標成「worker 失聯」。</li>
+            <li><strong>伺服器自己重新啟動。</strong><code>bin/rpa serve</code> 看顧伺服器程序：伺服器以約定的結束碼結束時，用同樣的參數啟動 <code>current</code> 的新版本；新版本在開始服務之前就結束，切回上一版、還原遷移前的備份再啟動。不依賴 systemd，用 nohup 或 systemd 啟動都一樣（使用者的內網伺服器用 nohup，2026-10-25 說明）。從 clone（<code>.venv-server</code>）執行的伺服器不支援更新檔，因為 git 管理的檔案不能被覆蓋：要先改用分發包一次，命令只把 <code>.venv-server/bin/rpa</code> 換成 <code>~/rpa-server/bin/rpa</code>，參數與資料目錄照舊。</li>
             <li><strong>裝置的啟動器。</strong>PyInstaller 的入口改成一個很小的啟動器，我們的程式不再編進執行檔的封存。啟動器讀資料夾裡 <code>app/active.json</code> 指定的版本，驗證簽章、每個檔案的雜湊與環境代號，通過才放到 <code>sys.path</code> 最前面；否則用 App 內建的程式層（安裝時的版本）並記日誌。子程序（<code>rpa-child</code>）由父程序以環境變數指定同一份程式層。外殼收入完整的標準函式庫（不含 tkinter、test 等），新版程式用到新模組時不會在舊外殼上找不到。</li>
             <li><strong>不改 App 本身。</strong>程式層下載到裝置既有的資料夾：Windows <code>%LOCALAPPDATA%\rpa\worker\app\</code>、macOS <code>~/Library/Application Support/rpa/{worker,recorder}/app/</code>。macOS 的 .app 簽章不被破壞，也不需要「App 管理」權限。</li>
             <li><strong>裝置跟隨伺服器的版本。</strong>裝置上線前先呼叫更新端點（Worker API 與 Client API 各一個），回報 App 種類、平台、版本、環境代號。端點的格式固定、不檢查協定版本，之後協定升級時舊 App 也能先更新。伺服器回覆：已是同版本／可以更新（版本、大小、雜湊）／要完整安裝。裝置追的是伺服器現在的版本，不是最新版；伺服器退回時裝置也跟著退回。</li>
@@ -66,7 +67,7 @@
             <li>環境代號沒變的版本（例如 0.4.0 → 0.5.0），整套系統的升級從「6 個 84～136 MB 的檔案、每台裝置各自下載安裝」變成「1 個約 1 MB 的檔案、交給伺服器一次」。裝置從區網下載，不需要 GitHub 帳號。</li>
             <li>伺服器與裝置的程式指紋保持一致，「版本不同」提醒與 M7a「App 太舊」的失敗幾乎不再出現。</li>
             <li>伺服器仍要重新啟動（Python 在啟動時載入程式），Portal 會有數秒打不開；遠端 Worker 的回報重試 10 分鐘、領取自動重連（現有行為），加上租約延長，任務不會丟。</li>
-            <li>現有的 0.5.0 沒有啟動器，要用第一個分層的版本（預定 0.6.0）完整安裝最後一次；配對、設定與資料保留。</li>
+            <li>現有的 0.5.0 沒有啟動器，要用第一個分層的版本（預定 0.6.0）完整安裝最後一次；配對、設定與資料保留。從 clone 執行的伺服器同時改用分發包。</li>
             <li>代價：多一個啟動器與更新流程要維護；桌面 App 因為收入完整的標準函式庫會變大一些（實作時實測）；程式從使用者可寫的資料夾載入，安全靠簽章；更新端點的格式要永遠相容；簽章私鑰遺失或外洩時，要發新的完整包換鑰。</li>
             <li>CI 要多一條路徑：用上一版的完整包安裝，套用這一版的更新檔，再跑端到端。</li>
           </ul>
