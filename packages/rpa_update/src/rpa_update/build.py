@@ -1,6 +1,7 @@
 """建置時用（ADR 0018）：寫出 runtime.json、產生測試用的金鑰。
 
     python -m rpa_update.build runtime --target server-linux-x64 [--output 路徑] [--component 名=值]
+                                       [--release 版本-提交]
     python -m rpa_update.build keygen --private 私鑰.pem      # 印出公鑰（base64）
 
 ``runtime`` 用執行它的 Python 算環境代號：Python 的主、次版本、這個 Python 裝了哪些第三方套件
@@ -14,18 +15,20 @@
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
 import sys
 import sysconfig
 from collections.abc import Iterable, Mapping, Sequence
-from importlib.metadata import distributions
+from importlib.metadata import distributions, packages_distributions, version
 from pathlib import Path
 from typing import Final
 
 from rpa_update import ed25519
 from rpa_update.keys import RELEASE_KEYS
+from rpa_update.manifest import hash_file
 from rpa_update.runtime import FORMAT, Runtime, runtime_id, source_digest
 
 __all__ = [
@@ -34,6 +37,7 @@ __all__ = [
     "main",
     "make_runtime",
     "private_to_pem",
+    "shell_components",
     "trusted_keys",
 ]
 
@@ -84,6 +88,7 @@ def make_runtime(
     distributions: Iterable[str] | None = None,
     extra: Mapping[str, object] | None = None,
     keys: Sequence[bytes] | None = None,
+    release: str = "",
 ) -> Runtime:
     """這個執行環境的 :class:`Runtime`。"""
     components: dict[str, object] = {
@@ -102,7 +107,68 @@ def make_runtime(
         id=runtime_id(components),
         keys=tuple(trusted_keys() if keys is None else keys),
         components=components,
+        release=release,
     )
+
+
+def _inside(path: Path, folders: Sequence[Path]) -> bool:
+    return any(path.is_relative_to(folder) for folder in folders)
+
+
+def shell_components(
+    modules: Iterable[tuple[str, str | None]],
+    files: Iterable[tuple[str, str]],
+    *,
+    ours: Iterable[str],
+    shell: str,
+) -> dict[str, object]:
+    """桌面 App 外殼（PyInstaller）的環境內容：程式碼層以外收進 App 的一切（建置的 spec 呼叫）。
+
+    ``modules`` 是 (模組名稱, 檔案)，``files`` 是 (App 裡的路徑, 來源檔案)（二進位檔與資料）；
+    ``ours`` 是程式碼層的頂層套件，它們的模組、資料與 ``*.dist-info`` 都不算。site-packages 裡的
+    檔案算內容的雜湊（套件換版本、換檔案都會改變代號），其他的（Python 自己的標準函式庫）只算
+    名稱：Python 只換修正版時不必重新安裝。
+    """
+    own = {name.replace("-", "_") for name in ours}
+    paths = sysconfig.get_paths()
+    site = [Path(paths["purelib"]).resolve(), Path(paths["platlib"]).resolve()]
+    digest = hashlib.sha256()
+    count = 0
+    tops: set[str] = set()
+
+    def add(name: str, source: str | None) -> None:
+        nonlocal count
+        path = Path(source).resolve() if source else None
+        if path is not None and path.is_file() and _inside(path, site):
+            digest.update(f"{name}\0{hash_file(path).sha256}\0".encode())
+        else:
+            digest.update(f"{name}\0\0".encode())
+        count += 1
+
+    for name, source in sorted(modules, key=lambda item: item[0]):
+        top = name.split(".", 1)[0]
+        if top in own:
+            continue
+        tops.add(top)
+        add(name, source)
+    for name, source in sorted(files, key=lambda item: item[0]):
+        first = name.replace("\\", "/").split("/", 1)[0]
+        if first in own or _normalize(first.split("-", 1)[0]).replace("-", "_") in own:
+            continue
+        add(name.replace("\\", "/"), source)
+    owners = packages_distributions()
+    used = sorted(
+        f"{_normalize(dist)}=={version(dist)}"
+        for top in tops
+        for dist in owners.get(top, [])
+        if not WORKSPACE.fullmatch(_normalize(dist))
+    )
+    return {
+        "shell": shell,
+        "distributions": sorted(set(used)),
+        "files": digest.hexdigest()[:16],
+        "file_count": count,
+    }
 
 
 def private_to_pem(seed: bytes) -> str:
@@ -119,7 +185,7 @@ def _write_runtime(args: argparse.Namespace) -> int:
         if not sep or not name:
             raise SystemExit(f"--component 要寫成 名稱=值：{item}")
         extra[name] = value
-    info = make_runtime(str(args.target), extra=extra)
+    info = make_runtime(str(args.target), extra=extra, release=str(args.release or ""))
     default = Path(sysconfig.get_paths()["purelib"]) / "rpa_update" / "runtime.json"
     output = Path(args.output) if args.output else default
     output.write_text(json.dumps(info.to_json(), indent=1) + "\n", encoding="utf-8")
@@ -144,6 +210,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     runtime.add_argument("--target", required=True)
     runtime.add_argument("--output")
     runtime.add_argument("--component", action="append")
+    runtime.add_argument("--release", help="安裝包內建的程式版本（版本-提交）")
     runtime.set_defaults(handler=_write_runtime)
     keygen = commands.add_parser("keygen", help="產生測試用的金鑰")
     keygen.add_argument("--private", required=True)

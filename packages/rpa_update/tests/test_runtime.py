@@ -1,5 +1,6 @@
 import base64
 import json
+import sysconfig
 from pathlib import Path
 
 import pytest
@@ -122,3 +123,45 @@ def test_write_runtime_and_keygen(
     assert info.keys == (base64.b64decode(public),)
     assert info.components["shell"] == "6.22"
     assert f"runtime: server-linux-x64={info.id}" in capsys.readouterr().out
+
+
+def test_shell_components(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    site = tmp_path / "site"
+    (site / "yaml").mkdir(parents=True)
+    module = site / "yaml" / "__init__.py"
+    module.write_text("x = 1\n")
+    stdlib = tmp_path / "lib" / "json.py"
+    stdlib.parent.mkdir()
+    stdlib.write_text("a = 1\n")
+    paths = {"purelib": str(site), "platlib": str(site)}
+    monkeypatch.setattr(sysconfig, "get_paths", lambda: paths)
+
+    def components(**changes: object) -> dict[str, object]:
+        modules: list[tuple[str, str | None]] = [
+            ("yaml", str(module)),
+            ("json", str(stdlib)),
+            ("rpa_core.dsl", str(tmp_path / "rpa_core.py")),
+            ("sys", None),
+        ]
+        files = [
+            ("yaml/_yaml.so", str(module)),
+            ("rpa_core-0.5.0.dist-info/METADATA", str(stdlib)),
+            ("rpa_testsite-0.5.0.dist-info/METADATA", str(stdlib)),
+            ("rpa_desktop\\build_info.json", str(stdlib)),
+        ]
+        values: dict[str, object] = {"ours": ["rpa_core", "rpa_desktop", "rpa-testsite"]}
+        values.update(changes)
+        return build.shell_components(modules, files, shell="pyinstaller 6.22.3", **values)  # type: ignore[arg-type]
+
+    first = components()
+    assert first["file_count"] == 4  # yaml、json、sys、yaml/_yaml.so
+    assert first["shell"] == "pyinstaller 6.22.3"
+    assert "pyyaml==" in " ".join(map(str, first["distributions"]))  # type: ignore[call-overload]
+    # 標準函式庫只算名稱：Python 換修正版時不變
+    stdlib.write_text("a = 2\n")
+    assert components() == first
+    # site-packages 的內容一改，代號就跟著改
+    module.write_text("x = 2\n")
+    assert components()["files"] != first["files"]
+    # 程式碼層的套件不算
+    assert components(ours=["rpa_desktop", "rpa-testsite"])["file_count"] == 6

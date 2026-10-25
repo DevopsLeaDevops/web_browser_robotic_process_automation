@@ -88,12 +88,18 @@ class Runtime:
     """信任的 Ed25519 公鑰（每把 32 位元組）。"""
     components: Mapping[str, object] = field(default_factory=dict[str, object])
     """算出代號的內容，只用來排查問題。"""
+    release: str = ""
+    """安裝包內建的程式是哪一版（``0.6.0-1a2b3c4``，和 :attr:`Manifest.release` 相同寫法）。
+
+    不算進環境代號：同一個執行環境可以裝很多版的程式。桌面 App 用它認出使用者重新安裝過完整的
+    安裝包，改回內建的程式。"""
 
     def to_json(self) -> dict[str, object]:
         return {
             "format": FORMAT,
             "target": self.target,
             "id": self.id,
+            "release": self.release,
             "keys": [base64.b64encode(key).decode("ascii") for key in self.keys],
             "components": dict(self.components),
         }
@@ -104,13 +110,14 @@ class Runtime:
             raise UpdateError("runtime_invalid")
         values = cast("dict[str, object]", data)
         target, ident, keys = values.get("target"), values.get("id"), values.get("keys")
-        components = values.get("components", {})
+        components, release = values.get("components", {}), values.get("release", "")
         if (
             values.get("format") != FORMAT
             or not isinstance(target, str)
             or not isinstance(ident, str)
             or not isinstance(keys, list)
             or not isinstance(components, dict)
+            or not isinstance(release, str)
         ):
             raise UpdateError("runtime_invalid")
         return cls(
@@ -118,6 +125,7 @@ class Runtime:
             id=ident,
             keys=_decode_keys(cast("list[object]", keys)),
             components=cast("dict[str, object]", components),
+            release=release,
         )
 
 
