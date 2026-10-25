@@ -1,0 +1,323 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/agent-api-guide.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent 使用指南 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="agent-api-guide" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Agent 使用指南</h1>
+      <p>写给接入平台的 Agent 系统（以及替它写集成的人）：怎么用 <code>/agent-api/v1</code> 从空白创建场景、在录制端调试、交给 Worker 验证、发布并正式运行，在项目里把场景组成组合场景并运行，遇到错误时怎么处理。</p>
+    </div>
+    <span class="badge blue">第一期实现中</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice">本指南依 2026-10-23 确认的<a href="../design/agent-api.html">设计</a>与第一期的实现撰写（2026-10-23，审阅中）；项目与组合场景 2026-10-24 加入。用 API 做测试时，测试方案与测试报告的写法见<a href="agent-test-plan-guide.html">测试方案指南</a>与<a href="agent-test-report-guide.html">测试报告指南</a>。字段以服务器的 <code>GET /agent-api/v1/openapi.json</code> 为准；<code>/agent-api/v1/docs</code> 是可以直接试的交互式文档，两者都不需要密钥。</div>
+
+    <section class="panel" id="basics">
+      <div class="panel-header"><h2>基本约定</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>地址</dt><dd><code>http://&lt;服务器&gt;:8081/agent-api/v1</code>；服务器前有 HTTPS 反向代理时用代理的地址。</dd>
+          <dt>认证</dt><dd>每个请求带 <code>Authorization: Bearer &lt;API 密钥&gt;</code>。密钥由管理员在管理后台的「API 用户端」创建，只显示一次；不要写进日志或场景。</dd>
+          <dt>格式</dt><dd>JSON，字段 camelCase；时间是 ISO 8601（UTC）。</dd>
+          <dt>错误</dt><dd><code>{"error": {"code": "…", "message": "…", …}}</code>。程序依 <code>code</code> 判断，<code>message</code> 给人看；有些错误另带细节，例如 <code>issues</code>、<code>problems</code>、<code>latest</code>。</dd>
+          <dt>语言</dt><dd><code>?lang=zh-Hant</code>、<code>zh-Hans</code> 或 <code>en</code> 决定 <code>message</code> 的语言；没给时用服务器默认。</dd>
+          <dt>幂等</dt><dd>会创建东西的请求（创建场景、项目与组合场景，存版本，验证、运行、重跑）接受 <code>idempotencyKey</code>。超时或断线后用同一个值重送，回传的是上次的结果，不会重复创建或重复运行。验证、运行、重跑的幂等键记在运行记录里；创建与存版本的幂等键记在服务器的内存 24 小时，服务器重新启动后就忘了，这时重送会收到 <code>scene_exists</code>、<code>project_exists</code>、<code>workflow_code_exists</code>、<code>stale_base</code> 或 <code>stale_workflow</code>，读最新状态即可。不同用户端用同一个值互不影响。</dd>
+          <dt>轮询</dt><dd>查运行状态每 2～5 秒一次即可；第二期改用事件长轮询。</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="before">
+      <div class="panel-header"><h2>开始之前</h2></div>
+      <div class="panel-body">
+        <p>先调用 <code>GET /meta</code>，确认这把密钥能做什么，缺的请管理员补，不要用试错的方式找出权限。</p>
+<pre class="source">GET /agent-api/v1/meta
+
+{
+  "apiVersion": "1",
+  "serverVersion": "0.6.0",
+  "server": {"id": "srv-linux-01", "name": "Linux 服务器"},
+  "client": {"id": "agent-erp", "name": "ERP 助理"},
+  "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
+             "projects:read", "projects:write"],
+  "pageContent": true,
+  "limits": {"debugSessions": 2, "queuedRuns": 20},
+  "domains": ["sales"],
+  "projects": ["order-regression"],
+  "recorders": ["agent-mac"],
+  "target": null,
+  "workers": null,
+  "expiresAt": null,
+  "dslFeatures": ["anyFrame", "dynamicValues", "frame", "page", "popup"]
+}</pre>
+        <ul class="points">
+          <li><code>scopes</code> 没有 <code>scenes:publish</code>：做到验证通过为止，再请人在 Portal 发布。</li>
+          <li><code>pageContent</code> 是 <code>false</code>：截图、页面结构、录像都拿不到，只能靠定位器测试与步骤结果写场景。</li>
+          <li><code>domains</code> 是可以读写的领域、<code>projects</code> 是可以用的项目（<code>null</code> 不限）；<code>recorders</code> 是可以开调试的录制端；<code>target</code>、<code>workers</code> 是固定的运行位置与可以指定的 Worker（<code>null</code> 不限）。</li>
+          <li>接着读 <code>GET /dsl/schema</code>（场景 YAML 的 JSON Schema）、<code>GET /recorders</code>（可用的录制端：是否在线、<code>allowAgent</code>、<code>headlessOnly</code>、<code>capabilities</code> 有没有 <code>debugSnapshot</code>）、<code>GET /roles</code>（登录角色与状态）、<code>GET /secrets</code>（只有名称）、<code>GET /workers</code>（可以指定的 Worker）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="scenario">
+      <div class="panel-header"><h2>场景长什么样</h2></div>
+      <div class="panel-body">
+        <p>一个场景是一份 YAML（<code>scenario.yaml</code>）。步骤只负责操作页面、抽取「页面事实」；成功与否由 <code>verify</code> 独立判断，全部通过才发布出参。完整规格见<a href="../design/dsl.html">场景 DSL</a>。</p>
+<pre class="source">schemaVersion: 1
+id: order-create
+name: 创建订单
+category: 订单
+inputs:
+  customer: { type: string, minLength: 1 }
+  quantity: { type: integer, minimum: 1, maximum: 99, default: 1 }
+outputs:
+  orderId: { type: string, pattern: '^SO-\d+$', from: '{{ facts.order.orderId }}' }
+login: { role: sales }
+browser:
+  engine: chromium
+  baseUrl: https://erp.example.internal
+defaults:
+  timeout: 10000
+steps:
+  - id: open
+    action: goto
+    url: /orders/new
+  - id: fill-customer
+    action: fill
+    target: { label: 客户, exact: true }
+    value: '{{ inputs.customer }}'
+  - id: fill-quantity
+    action: fill
+    target: { label: 数量, exact: true }
+    value: '{{ inputs.quantity }}'
+  - id: submit
+    action: click
+    target: { role: button, name: 创建, exact: true }
+  - id: read-order
+    action: extract
+    target: { css: '#order-summary' }
+    as: order
+    fields:
+      orderId: { target: { testId: order-id } }
+      customer: { target: { testId: order-customer } }
+verify:
+  - name: 取得订单编号
+    value: '{{ facts.order.orderId }}'
+    matches: '^SO-\d+$'
+  - name: 客户与入参相同
+    value: '{{ facts.order.customer }}'
+    equals: '{{ inputs.customer }}'</pre>
+        <ul class="points">
+          <li><strong>步骤 id 要稳定：</strong>调试换版本时，已运行的步骤靠 id 对应；改内容不要改 id。</li>
+          <li><strong>定位器的优先级：</strong><code>role</code>＋<code>name</code>、<code>label</code>、<code>text</code>、<code>testId</code>，最后才是 <code>css</code>／<code>xpath</code>；容易变的加 <code>fallback</code>。元素在 iframe 里用 <code>frame</code>，点击开出新分页用 <code>popup</code> 与 <code>page</code>。</li>
+          <li><strong>会变的值写成入参：</strong>不要把客户、日期、数量写死在步骤里。</li>
+          <li><strong>密码不写进场景：</strong>用 <code>secrets</code> 声明名称、<code>{{ secrets.名称 }}</code> 引用；需要登录的系统用 <code>login: { role }</code>，登录状态由平台管理。</li>
+          <li><strong>verify 要比较页面事实与入参：</strong>「步骤没有出错」不等于成功。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="workflow">
+      <div class="panel-header"><h2>从空白到正式运行</h2></div>
+      <div class="panel-body">
+        <h3>1. 创建场景并存第一版</h3>
+<pre class="source">POST /agent-api/v1/scenes
+{"id": "order-create", "name": "创建订单", "category": "订单", "domainId": "sales",
+ "idempotencyKey": "order-create"}
+→ 201 {"id": "order-create", "latestRevision": 1, …}
+
+POST /agent-api/v1/scenes/order-create/revisions
+{"baseRevision": 1, "files": {"scenario.yaml": "schemaVersion: 1\nid: order-create\n…"},
+ "note": "只开页面", "idempotencyKey": "order-create-r2"}
+→ 201 {"sceneId": "order-create", "number": 2, "status": "draft",
+       "note": "Agent〈ERP 助理〉：只开页面", …}</pre>
+        <p>创建场景时服务器会先存第 1 版（只有名称的模板），所以第一次保存的 <code>baseRevision</code> 是 1。没给 <code>domainId</code> 时场景放进「未分类」，密钥限定了领域时就要给。保存前可以先 <code>POST /dsl/check {"yaml": "…", "sceneId": "order-create"}</code>，回应的 <code>ok</code> 与 <code>issues</code>（行号、步骤、字段）和保存时的检查相同。这一版只放 <code>goto</code>（和需要的 <code>login</code>）就好，后面的步骤看了页面再写。</p>
+
+        <h3>2. 在录制端开调试工作阶段</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/debug
+{"recorderId": "agent-mac", "revision": 2,
+ "inputs": {"customer": "测试客户", "quantity": 2}}
+→ 202 {"id": "a1b2c3d4e5f6", "status": "starting", "deviceId": "agent-mac",
+       "headless": true, "clientId": "agent-erp", …}
+
+GET /agent-api/v1/debug/a1b2c3d4e5f6
+→ {"status": "ready", "nextIndex": 0, "steps": [{"index": 0, "id": "open", "status": "pending", …}], …}</pre>
+        <p>等 <code>status</code> 变成 <code>ready</code>（第一次用 Firefox 可能要一两分钟）。默认无头；这把密钥只允许一台录制端时可以不给 <code>recorderId</code>。一个场景同时只有一个工作阶段：自己已经开了就回传原本那个（要换版本或入参重开时带 <code>"restart": true</code>），别人（人或其他 Agent）正在调试时回 409 <code>debug_in_use</code>。你只看得到、只能操作自己开的工作阶段（<code>GET /debug</code> 列出），闲置 15 分钟自动关闭。</p>
+
+        <h3>3. 看页面，再写下一段步骤</h3>
+<pre class="source">POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/0
+POST /agent-api/v1/debug/a1b2c3d4e5f6/snapshot
+→ {"url": "https://erp.example.internal/orders/new", "title": "添加订单",
+   "tabs": [{"page": null, "url": "…", "title": "添加订单", "active": true}],
+   "frames": [],
+   "fields": [{"tag": "input", "type": "text", "role": "textbox", "label": "客户",
+               "name": "customer", "required": true, "disabled": false, "visible": true, "value": ""},
+              {"tag": "input", "type": "number", "role": "spinbutton", "label": "数量", …}],
+   "aria": "- heading \"添加订单\" [level=1]\n- textbox \"客户\"\n- spinbutton \"数量\"\n- button \"创建\"",
+   "truncated": false}
+
+POST /agent-api/v1/debug/a1b2c3d4e5f6/locate
+{"locator": {"role": "button", "name": "创建", "exact": true}}
+→ {"located": {"locator": "…", "ok": true, "count": 1,
+               "matches": [{"tag": "button", "text": "创建"}], "error": null}, …}</pre>
+        <p><code>locate</code> 找到刚好 1 个才用它；0 个或好几个就换定位器。<code>tabs</code> 的 <code>page</code> 是步骤用 <code>popup</code> 开出、取了名字的分页（一开始的分页是 <code>null</code>）；<code>frames</code> 是 iframe，<code>parent</code> 指向上一层在清单里的位置。<code>fields</code> 列出目前页面的表单字段，密码字段与填了 Secret 的值一律是 <code>***</code>。页面很大时 <code>aria</code> 会截断并标 <code>truncated</code>，用 <code>{"within": {"css": "#main"}}</code> 只看一部分（<code>within</code> 是定位器，iframe 里的用 <code>frame</code>）。需要看画面时用 <code>screenshot</code>，回应里的 <code>screenshotUrl</code> 可以下载图片。读页面结构与截图都要「回传页面内容」，录制端也要是新版 App。</p>
+
+        <h3>4. 存新版本、换过去、接着跑</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions
+{"baseRevision": 2, "files": {"scenario.yaml": "…加上 fill-customer、fill-quantity、submit…"}}
+→ 201 {"number": 3, …}
+
+POST /agent-api/v1/debug/a1b2c3d4e5f6/reload   {"revision": 3}
+POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
+→ {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
+        <p>浏览器与已运行的步骤会保留，<code>run-to</code> 只运行还没运行过的步骤，失败就停。改好再存一版、<code>reload</code>、<code>run-to</code>，直到每一步都是 <code>passed</code>。想从头重跑用 <code>reset</code>。</p>
+        <div class="notice warn">点击、填写、选择、勾选、按键是有副作用的步骤，会在目标系统上真的发生。运行过一次的有副作用步骤用 <code>POST /debug/{sid}/steps/{index}</code> 再运行时回 409 <code>confirm_required</code>，必须带 <code>{"force": true}</code>；只在确定重做不会造成重复数据时才这样做。<code>run-to</code> 的目标在下一个还没运行的步骤之前时回 409 <code>already_executed</code>。</div>
+
+        <h3>5. 补齐入参、出参与独立断言</h3>
+        <p>用 <code>GET</code>／<code>PUT /scenes/{id}/sections/steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code> 只读写一段（<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>），或 <code>PUT /scenes/{id}/contract</code> 以表格形式改入参与出参；每次都会存成新版本。已经有 Playwright（Python）脚本时，可以用 <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> 转成 DSL，转不了的写在 <code>warnings</code>。完成后 <code>DELETE /debug/{sid}</code> 结束工作阶段，释放录制端。</p>
+
+        <h3>6. 交给 Worker 验证</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/validate
+{"inputs": {"customer": "测试客户", "quantity": 2}, "idempotencyKey": "order-create-v6-1"}
+→ 202 {"id": "order-create-20261023-…", "purpose": "validation", "status": "queued", …}
+
+GET /agent-api/v1/runs/order-create-20261023-…
+→ {"status": "running", "stage": "automation", …}
+→ {"status": "failed", "error": "…", "finished": true, …}
+GET /agent-api/v1/runs/order-create-20261023-…/steps</pre>
+        <p>失败时看 <code>error</code>、<code>result</code>（结束后的完整结果：阶段、步骤、断言）、<code>/steps</code> 中第一个失败的步骤，以及（有「回传页面内容」时）<code>files</code> 列出的截图与 <code>reportUrl</code>；回到调试修正。验证可以用任何版本，正式运行只用已发布版本。可以带 <code>workerId</code> 指定 Worker（<code>local</code> 是服务器本机）或 <code>target</code>；密钥固定了运行位置时不能指定别的。第一期的 <code>/steps</code> 在运行结束后才完整，运行中请看 <code>status</code> 与 <code>stage</code>。</p>
+
+        <h3>7. 发布与正式运行</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/publish      （需要 scenes:publish）
+
+POST /agent-api/v1/scenes/order-create/runs
+{"inputs": {"customer": "王小明", "quantity": 3}, "idempotencyKey": "job-8812"}
+→ 202 {"id": "…", "purpose": "execution", "status": "queued", …}
+GET /agent-api/v1/runs/…
+→ {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
+        <p>只有 <code>status</code> 是 <code>passed</code> 时才有 <code>output</code>。没有发布权限时，告诉用户哪个场景的哪个版本已验证通过，请人在 Portal 发布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的运行（可用领域里的场景，<code>mine</code> 只列自己触发的）；<code>POST /runs/{id}/cancel</code> 只能取消自己触发的。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="projects">
+      <div class="panel-header"><h2>项目与组合场景</h2></div>
+      <div class="panel-body">
+        <p>项目空间里的项目收纳组合场景；组合场景把发布过的场景版本接成一个流程（DAG），前面节点的出参可以绑到后面节点的入参。用 API 做测试时，一个组合场景就是一个 TestCase，见<a href="agent-test-plan-guide.html">测试方案指南</a>。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>端点</th><th>用途</th><th>权限范围</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /projects</code>、<code>GET /projects/{id}</code></td><td>可用的项目；项目与它的组合场景摘要</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects</code>、<code>PATCH /projects/{id}</code></td><td>添加项目（限定了可用项目的密钥不能添加）；改名称与说明</td><td>projects:write</td></tr>
+            <tr><td><code>GET /composites/library</code></td><td>可以放进组合场景的场景版本，与入参、出参、登录角色</td><td>projects:read</td></tr>
+            <tr><td><code>POST /composites/check</code></td><td>不保存检查定义，回传 <code>problems</code>（节点、入参）</td><td>projects:read</td></tr>
+            <tr><td><code>GET /composites?project=</code>、<code>GET /composites/{code}</code></td><td>组合场景摘要；完整的定义、问题、版本、验证记录、依赖、最近的运行</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects/{id}/composites</code></td><td>在项目里创建组合场景（带定义时就是第 1 版）</td><td>projects:write</td></tr>
+            <tr><td><code>PUT /composites/{code}</code>、<code>PATCH /composites/{code}</code></td><td>存新版本（带 <code>baseRevision</code>）；移到另一个项目</td><td>projects:write</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/validate</code></td><td>交给 Worker 验证这个版本</td><td>runs:validate</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/publish</code></td><td>发布验证通过、依赖完整的版本</td><td>projects:publish（默认不给）</td></tr>
+            <tr><td><code>POST /composites/{code}/runs</code></td><td>正式运行发布的版本</td><td>runs:execute</td></tr>
+            <tr><td><code>POST /projects/{id}/runs</code></td><td>把项目里的组合场景（或 <code>composites</code> 列出的）逐一排入；排不进去的在 <code>skipped</code></td><td>依 <code>purpose</code>：runs:validate 或 runs:execute</td></tr>
+            <tr><td><code>GET /composite-runs</code>、<code>GET /composite-runs/{id}</code></td><td>组合场景的运行：状态、进度（<code>progress</code>）、每个节点的状态与那次运行</td><td>runs:read</td></tr>
+            <tr><td><code>POST /composite-runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消自己触发的；从头或从停下的节点（<code>"resume": true</code>）再运行</td><td>依运行的目的</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>看得到哪些：</strong>组合场景要在可用的项目里，放的领域也要可用；不属于任何项目的组合场景不给 Agent。看不到的一律回 404。节点用到的场景要在可用的领域，否则 403 <code>composite_scenes_forbidden</code>。</li>
+          <li><strong>没有运行时的入参：</strong>入参在定义里绑定（固定值、动态值、上游的出参）；同一个流程换一组数据就是另一个组合场景。</li>
+          <li><strong>节点的细节：</strong>每个节点的 <code>run</code> 是一次普通的运行，步骤、断言与产物用 <code>/runs/{id}</code>、<code>/runs/{id}/steps</code> 读；节点不能单独重跑（409 <code>rerun_workflow</code>），要重跑组合场景的运行。</li>
+          <li><strong>Portal 路径：</strong>回应带 <code>portalPath</code>（例如 <code>/playground/runs/…</code>），人在 Portal 看同一笔数据用；写测试报告时附上。</li>
+          <li><strong>限额：</strong>组合场景的节点也算进「排队中与运行中」的限额。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="errors">
+      <div class="panel-header"><h2>错误怎么处理</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>状态码</th><th>code</th><th>意思</th><th>Agent 该做什么</th></tr></thead>
+          <tbody>
+            <tr><td>401</td><td><code>unauthorized</code></td><td>密钥缺少、错误、禁用、到期，或不能从这个地址使用</td><td>停止，请管理员处理；不要重试</td></tr>
+            <tr><td>403</td><td><code>scope_missing</code></td><td>这把密钥没有需要的权限范围（<code>scopes</code> 列出缺哪个）</td><td>请人授权或改由人完成这一步</td></tr>
+            <tr><td>403</td><td><code>content_disabled</code></td><td>「回传页面内容」没开</td><td>改用 <code>locate</code> 与步骤结果；或请管理员打开</td></tr>
+            <tr><td>403</td><td><code>domain_forbidden</code>、<code>recorder_forbidden</code></td><td>不能用这个领域或录制端</td><td>换一个允许的，或请管理员加上</td></tr>
+            <tr><td>403</td><td><code>recorder_agent_off</code></td><td>录制端没有打开「允许 Agent 调试」或已禁用</td><td>请人在设备页打开，或换一台</td></tr>
+            <tr><td>403</td><td><code>recorder_headless_only</code></td><td>这台录制端只允许无头</td><td>不要带 <code>"headless": false</code></td></tr>
+            <tr><td>403</td><td><code>target_forbidden</code>、<code>worker_forbidden</code></td><td>这把密钥固定了运行位置，或不能指定这台 Worker</td><td>不要指定，或换允许的</td></tr>
+            <tr><td>403</td><td><code>run_forbidden</code></td><td>想取消别人触发的运行</td><td>请人处理</td></tr>
+            <tr><td>403</td><td><code>project_forbidden</code>、<code>project_create_forbidden</code></td><td>不能用这个项目；限定了可用项目的密钥不能添加项目</td><td>用允许的项目，或请管理员处理</td></tr>
+            <tr><td>403</td><td><code>composite_scenes_forbidden</code></td><td>组合场景的节点用到不可用领域的场景（<code>scenes</code> 列出哪些）</td><td>换场景，或请管理员加上领域</td></tr>
+            <tr><td>404</td><td><code>debug_not_found</code>、<code>run_not_found</code>、<code>project_not_found</code>、<code>workflow_not_found</code>、<code>workflow_run_not_found</code> 等</td><td>找不到，或不是你看得到的</td><td>确认代号</td></tr>
+            <tr><td>409</td><td><code>stale_base</code></td><td><code>baseRevision</code> 不是最新版，有人改过</td><td>读 <code>latest</code> 那一版，把修改套上去再存</td></tr>
+            <tr><td>409</td><td><code>scene_exists</code></td><td>场景代号已经有了</td><td>换代号，或读现有的场景</td></tr>
+            <tr><td>409</td><td><code>debug_in_use</code></td><td>这个场景有别人正在调试</td><td>稍后再试，不要抢</td></tr>
+            <tr><td>409</td><td><code>debug_busy</code>、<code>debug_starting</code></td><td>上一个命令还在跑，或浏览器还在启动</td><td>等它完成再送下一个命令</td></tr>
+            <tr><td>409</td><td><code>debug_closed</code></td><td>工作阶段已经结束（闲置、出错或被关掉）</td><td>重新开始调试</td></tr>
+            <tr><td>409</td><td><code>confirm_required</code></td><td>有副作用的步骤已运行过</td><td>确定可以重做才带 <code>force</code>；否则 <code>reset</code></td></tr>
+            <tr><td>409</td><td><code>already_executed</code></td><td><code>run-to</code> 的目标已经运行过</td><td>用单步运行或 <code>reset</code></td></tr>
+            <tr><td>409</td><td><code>recorder_offline</code></td><td>录制端不在线</td><td>换一台，或请人打开录制端 App</td></tr>
+            <tr><td>409</td><td><code>not_validated</code>、<code>content_changed</code></td><td>这个版本没有验证通过的记录，或内容和验证时不同</td><td>先验证</td></tr>
+            <tr><td>409</td><td><code>not_published</code></td><td>场景没有已发布版本，不能正式运行</td><td>发布，或请人发布</td></tr>
+            <tr><td>409</td><td><code>rerun_workflow</code></td><td>组合场景的节点不能单独重跑</td><td>重跑组合场景的运行：<code>POST /composite-runs/{id}/rerun</code></td></tr>
+            <tr><td>409</td><td><code>stale_workflow</code></td><td>组合场景的 <code>baseRevision</code> 不是最新版</td><td>读 <code>latest</code> 那一版，把修改套上去再存</td></tr>
+            <tr><td>409</td><td><code>project_exists</code>、<code>workflow_code_exists</code></td><td>项目或组合场景的代号已经有了</td><td>换代号，或读现有的</td></tr>
+            <tr><td>409</td><td><code>workflow_unpublished</code></td><td>组合场景没有发布的版本，不能正式运行</td><td>先验证、发布，或请人发布</td></tr>
+            <tr><td>409</td><td><code>workflow_invalid</code>、<code>workflow_not_validated</code>、<code>workflow_dependencies</code></td><td>定义有问题不能运行；这个版本没有验证通过的记录；依赖不完整（<code>problems</code>）不能发布</td><td>依 <code>problems</code> 修正、先验证</td></tr>
+            <tr><td>409</td><td><code>workflow_run_active</code>、<code>workflow_not_resumable</code></td><td>组合场景的运行还没结束；没有可以接着的节点</td><td>等它结束；改用从头运行</td></tr>
+            <tr><td>422</td><td><code>request_invalid</code></td><td>请求的格式不对，<code>problems</code> 列出字段</td><td>依 <code>problems</code> 修正</td></tr>
+            <tr><td>422</td><td><code>recorder_required</code></td><td>这把密钥允许好几台录制端，没给 <code>recorderId</code></td><td>带上 <code>recorderId</code></td></tr>
+            <tr><td>422</td><td><code>recorder_outdated</code></td><td>录制端 App 太旧（例如不支持读页面结构，或看不懂场景用到的写法）</td><td>请人更新 RPA 录制端</td></tr>
+            <tr><td>422</td><td><code>display_unavailable</code></td><td>那台没有画面，不能有头</td><td>改用 <code>"headless": true</code></td></tr>
+            <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML 校验失败，<code>issues</code> 列出位置</td><td>依 <code>issues</code> 修正后再存</td></tr>
+            <tr><td>422</td><td><code>inputs_invalid</code></td><td>入参不符合类型或限制，<code>problems</code> 列出哪一个</td><td>修正入参</td></tr>
+            <tr><td>422</td><td><code>worker_target_mismatch</code></td><td>指定的 Worker 和运行位置不一致</td><td>只给其中一个</td></tr>
+            <tr><td>429</td><td><code>limit_reached</code></td><td>超过同时调试或排队、运行中的限额（<code>limit</code>）</td><td>等现有的完成，或结束不用的工作阶段</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body"><p>运行本身的结果不是 HTTP 错误：<code>failed</code>、<code>timed_out</code>、<code>cancelled</code>、<code>needs_login</code> 都在 <code>GET /runs/{id}</code> 的 <code>status</code>。</p></div>
+    </section>
+
+    <section class="panel" id="humans">
+      <div class="panel-header"><h2>需要人的时候</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>需要登录：</strong>运行停在 <code>needs_login</code>，或 <code>GET /roles</code> 显示角色要重新登录。请用户在录制端做人工登录，完成后调用 <code>POST /runs/{id}/rerun</code>。</li>
+          <li><strong>没有发布权限：</strong>告诉用户场景或组合场景的代号与验证通过的版本号，请人在 Portal 发布。</li>
+          <li><strong>缺 Secret：</strong><code>GET /scenes/{id}</code> 的 <code>needs</code> 列出还没设置的 Secrets；值由人在 Portal 填，Agent 不能写入也读不到。</li>
+          <li><strong>录制端不在线或太旧：</strong>请人打开或更新 RPA 录制端 App。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="rules">
+      <div class="panel-header"><h2>守则</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>每次存版本（场景与组合场景）都带上次读到的 <code>baseRevision</code>，不要覆盖人的修改。</li>
+          <li>用完调试工作阶段就 <code>DELETE</code>，不要占住录制端。</li>
+          <li>不要在正式数据上反复运行有副作用的步骤；能用测试账号的角色就用。</li>
+          <li>截图、页面结构与出参可能含业务数据，只用在当前的任务，不要另外保存或转传。</li>
+          <li>所有写入都会记在审核记录，版本说明会标出你的用户端名称；在 <code>note</code> 写清楚这一版改了什么。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

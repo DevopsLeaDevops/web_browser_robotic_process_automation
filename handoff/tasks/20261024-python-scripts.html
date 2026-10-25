@@ -15,14 +15,14 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-24 22:52 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-25 16:55 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 專案對話提出兩次（原文見<a href="#revision">修訂說明</a>）：2026-10-24 20:18 America/Los_Angeles（PDT，UTC−07:00）要求設計腳本場景（三種 Worker 通用、Worker 自帶並沿用 Python 運行上下文、沿用現有的領域建模、設計錄製、運行過程、運行報告與回看，先設計好再寫程式）；22:34 修訂方向（腳本場景不是 Python 呼叫 Playwright；舊功能記錄到文件後封存；腳本包含處理 Excel、合併檔案等本機自動化；Python 運行環境改成專門建置的一套虛擬運行環境）。驗收條件見<a href="#goal">第 1 節</a>。</dd>
         <dt>範圍／不包含</dt><dd>範圍：封存舊功能、場景模型、RPA Python 運行環境、腳本介面、錄製（腳本工作台）、運行過程、運行報告、運行回看、相容性、分期與驗證（第 3～12 節）。不包含：Python 腳本開瀏覽器（網頁的部分用 DSL 場景，第 13 節）、錄製桌面操作、AI 生成腳本（M5）、使用者權限（M8）、Linux Worker 安裝包（D11）、Python 以外的語言。</dd>
-        <dt>主責／審閱／接收方</dt><dd>設計：Claude。審閱與決定：使用者。實作主責等設計確認後再定（預設 Claude）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計：Claude。審閱與決定：使用者。實作主責等設計確認後再定（預設 Claude）。Codex 依使用者本次要求接手 PR #82 的主線更新、衝突整合與驗證；不變更設計決定。</dd>
         <dt>修改檔案／整合者</dt><dd>本次只有設計：本頁、<a href="index.html">任務索引</a>、<a href="../decisions.html#pending">決定 › 待你決定</a>。實作會改到的檔案列在<a href="#phases">第 12 節</a>；共用檔案（ADR 編號、遷移編號、訊息目錄、<code>docs/assets/nav.js</code>、路線圖）與 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>（對外 Agent API，ADR 0017、M14）重疊，後合併的一方解衝突。</dd>
         <dt>狀態</dt><dd>第二版設計待審閱：等使用者回覆第 14 節的 D1～D11。第一版（網頁腳本、場景自己鎖定套件）已依使用者的修訂取代，內容留在 <code>3c7df35</code>。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-vql00s</code>，從 <code>a8cde7f</code>（origin/main，#78）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>（草稿，只有設計，base main）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>第二版與本頁的回填已推送到 <code>claude/project-thread-vql00s</code>；沒有未提交的檔案。</dd>
+        <dt>交接版本／同步狀態</dt><dd>接收遠端 head <code>6fd866766438c08c9b2ad17253abfca98b31407d</code>，合入 main <code>c587cda</code>（已含 #79、#84、#81）。本次提交記錄本地整合與驗證；推送、可合併狀態及 CI 以 PR 最新 head 為準。第二版設計與 D1～D11 待決定事項保留。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.17、uv 0.11.32；沒有安裝倉庫的 <code>.venv</code> 與瀏覽器）。技術驗證（第 2 節）在暫存目錄進行，不進倉庫。</dd>
       </dl></div>
     </section>
@@ -554,7 +554,7 @@ def check(c: Check) -&gt; dict[str, object]:
 
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
-      <div class="panel-body"><p>未接收。</p></div>
+      <div class="panel-body"><p>2026-10-25 16:55 America/Los_Angeles（PDT，UTC−07:00），Codex 依使用者本次要求接收 <code>6fd8667</code>，在獨立 Windows 工作區核對遠端與差異，合入 main <code>c587cda</code>。衝突僅有任務索引，保留雙方全部任務連結；本次接收只涵蓋衝突整合，不代表設計已確認或開始實作。</p></div>
     </section>
 
     <section class="panel" id="log">
@@ -564,6 +564,7 @@ def check(c: Check) -&gt; dict[str, object]:
         <li>2026-10-24 20:38 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>c9d34cc</code>，開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>；把使用者設成指派人與審閱者失敗（GitHub 回應帳號不是倉庫的協作者），不影響審閱。</li>
         <li>2026-10-24 20:40 America/Los_Angeles（PDT，UTC−07:00），Claude：更正本頁的時間：更新時間、技術驗證的時段與前兩條紀錄原本多寫了約 30 分鐘，改成提交與實測的實際時間（<code>c9d34cc</code>、<code>3cb3ef0</code> 的提交時間）。</li>
         <li>2026-10-24 22:52 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 22:34 的修訂改寫成第二版：腳本場景改成本機自動化（Excel、檔案），舊的 Python＋Playwright 腳本場景封存，運行環境改成專門建置的 RPA Python 運行環境，錄製改成腳本工作台，回看改成步驟時間軸；待決定事項改成 D1～D11。第一版的內容留在 <code>3c7df35</code>。仍然只有設計，沒有實作。</li>
+        <li>2026-10-25 16:55 America/Los_Angeles（PDT，UTC−07:00），Codex：依使用者要求處理 PR #82 衝突，從 <code>6fd8667</code> 合入 <code>origin/main</code>（<code>c587cda</code>），保留 Python 腳本設計、Windows 寫入修復、排程測試修復與 Agent API 的任務連結，不重寫既有提交。驗證環境 Windows、Python 3.12.10、Git 2.54.0.windows.1；檢查 <code>git diff --check</code>、本 PR 三份交接頁的本地連結與錨點、索引涵蓋雙親全部連結，以及設計正文與 D1～D11 未變。只手動整合交接文件，本機不重跑程式測試；推送後核對 CI。PR 保持草稿，不合併、不發布。</li>
       </ul></div>
     </section>
   </div>

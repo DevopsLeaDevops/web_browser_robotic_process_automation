@@ -9,6 +9,8 @@
 - 只支援 DSL 場景；Python 腳本場景請用驗證執行。
 - 在錄製端調試時，場景用到錄製端的 App 看不懂的 DSL 擴充（例如 iframe 的 frame，M7a）就不開始，
   直接說明要更新 RPA 錄製端（見 :meth:`rpa_server.devices.RecorderHub.check`）。
+- 對外 Agent API（M14）開的工作階段記下用戶端（``client_id``）；讀頁面結構（``snapshot``）要錄製端的
+  App 支援 ``debugSnapshot``。
 """
 
 import json
@@ -44,7 +46,7 @@ if TYPE_CHECKING:
     from rpa_server.roles import RoleService
     from rpa_server.services import Services
 
-__all__ = ["IDLE_SECONDS", "SIDE_EFFECTS", "DebugManager", "DebugSession"]
+__all__ = ["IDLE_SECONDS", "SIDE_EFFECTS", "SNAPSHOT", "DebugManager", "DebugSession"]
 
 IDLE_SECONDS: Final = 15 * 60.0
 """閒置這麼久就關閉工作階段。"""
@@ -54,6 +56,9 @@ SIDE_EFFECTS: Final = frozenset({"click", "fill", "select", "check", "press"})
 """有副作用的動作：執行過之後再執行要確認。"""
 ENGINES: Final = ("chromium", "firefox")
 _ACTIVE: Final = frozenset({"starting", "ready", "busy"})
+SNAPSHOT: Final = "debugSnapshot"
+"""讀頁面結構：錄製端的 App 要回報支援這個功能（M14，見 rpa_worker.environment.CAPABILITIES）。"""
+_SNAPSHOT_KEYS: Final = ("url", "title", "tabs", "frames", "fields", "aria", "truncated")
 
 
 @dataclass(slots=True)
@@ -135,6 +140,8 @@ class DebugSession:
     facts: dict[str, object] = field(default_factory=dict[str, object])
     located: dict[str, object] | None = None
     role: str | None = None
+    client_id: str | None = None
+    """由哪個 API 用戶端開的（M14）；Portal 開的是 None。"""
     created_at: datetime = field(default_factory=now)
     last_used: float = field(default_factory=time.monotonic)
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -165,6 +172,7 @@ class DebugSession:
             "located": self.located,
             "role": self.role,
             "deviceId": self.device,
+            "clientId": self.client_id,
             "steps": [step.to_json() for step in self.steps],
             "createdAt": self.created_at.isoformat(timespec="seconds"),
             "idleSeconds": int(time.monotonic() - self.last_used),
@@ -230,6 +238,7 @@ class DebugManager:
         headless: bool | None = None,
         base_url: str | None = None,
         restart: bool = False,
+        client_id: str | None = None,
     ) -> DebugSession:
         scene = self.services.get_scene(scene_id)
         if scene.archived:
@@ -295,6 +304,7 @@ class DebugManager:
             role=scenario.login.role if scenario.login is not None else None,
             device=via.id if via is not None else None,
             launcher=launcher,
+            client_id=client_id,
         )
         with self._lock:
             self._sessions[session_id] = session
@@ -475,6 +485,26 @@ class DebugManager:
             "error": reply.get("error"),
         }
         return session
+
+    def snapshot(self, session_id: str, within: object = None) -> dict[str, object]:
+        """目前頁面的結構（M14）：無障礙樹、表單欄位、iframe 與分頁；``within`` 只看一部分。
+
+        在錄製端調試時，那台的 App 要支援（舊版說明要更新 RPA 錄製端）。
+        """
+        session = self.get(session_id)
+        if session.device is not None and self.hosts is not None:
+            name = self.hosts.get_recorder(session.device).name
+            self.hosts.require(Via(session.device, name), SNAPSHOT)
+        command: dict[str, object] = {"cmd": "snapshot"}
+        if within is not None:
+            command["within"] = parse_locator(within)
+        reply = self._command(session, 60, **command)
+        if not reply.get("ok"):
+            raise invalid(
+                "snapshot_failed",
+                t("error.debug_snapshot_failed", detail=str(reply.get("error") or "")),
+            )
+        return {key: reply.get(key) for key in _SNAPSHOT_KEYS}
 
     def screenshot(self, session_id: str) -> DebugSession:
         session = self.get(session_id)

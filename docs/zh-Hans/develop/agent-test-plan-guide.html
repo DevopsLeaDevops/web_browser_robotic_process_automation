@@ -1,0 +1,354 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/develop/agent-test-plan-guide.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>测试方案指南 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="agent-test-plan-guide" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>测试方案指南</h1>
+      <p>写给接入平台的第三方 Agent：怎么依需求设计场景与项目，用软件工程常用的 TestCase 方法设计组合场景，并写出交给人审阅的测试方案（XMind，另附给 Agent 自己用的 JSON）。</p>
+    </div>
+    <span class="badge blue">第一期实现中</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice"><strong>测试方案是 Agent 的交付物，给人审阅与验收；平台不读取、不上传、不保存它，也没有对应的 API。</strong>Agent 用 <a href="agent-api-guide.html">Agent 使用指南</a>的 API 在平台上创建场景、项目与组合场景，再把设计与结果整理成这份文档。运行、跟踪与测试报告见<a href="agent-test-report-guide.html">测试报告指南</a>。本指南 2026-10-24 依用户的要求撰写（审阅中）。</div>
+
+    <section class="panel" id="roles">
+      <div class="panel-header"><h2>谁做什么</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>Agent</dt><dd>分析需求、设计 TestCase、创建与调试场景、在项目里创建组合场景、写测试方案；签核后运行并写测试报告。</dd>
+          <dt>人（验收者）</dt><dd>审阅测试方案：范围对不对、TestCase 够不够、测试数据与副作用能不能接受、待确认的事项怎么处理；签核后才正式运行。最后依测试报告验收。</dd>
+          <dt>平台</dt><dd>保存场景、项目与组合场景的版本，在 Worker 上运行，保留每次运行的步骤、断言与产物。平台不知道「测试方案」「TestCase」这些词，也不判断测试够不够。</dd>
+        </dl>
+        <p>别和平台的「验证」混淆：平台的验证是把某个版本交给 Worker 跑一次、作为发布的依据；测试方案是写给人看的文档。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="mapping">
+      <div class="panel-header"><h2>名词对照</h2><span class="muted">测试方案的概念在平台上是什么</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>测试方案</th><th>平台</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>测试方案（Test Plan）</td><td>一个项目</td><td>一份方案对应一个项目；项目代号写进方案。一个项目太大时，方案可以只涵盖其中一部分组合场景。</td></tr>
+            <tr><td>模块、测试包（Test Suite）</td><td>组合场景代号的前缀</td><td>项目底下没有子文件夹，用代号前缀分模块，例如 <code>tc-order-…</code>、<code>tc-refund-…</code>。</td></tr>
+            <tr><td><strong>TestCase</strong></td><td><strong>一个组合场景</strong></td><td>组合场景代号就是 TestCase 编号。组合场景运行时不收入参，测试数据写在定义里的固定值，所以<strong>一组测试数据就是一个组合场景</strong>。</td></tr>
+            <tr><td>测试步骤</td><td>组合场景的节点</td><td>每个节点是某个场景的固定版本；先后由出参绑定与 <code>edges</code> 决定。</td></tr>
+            <tr><td>预期结果</td><td>节点的场景的 <code>verify</code>（独立断言）</td><td>断言不通过，节点就失败；组合场景失败即停，TestCase 就失败。</td></tr>
+            <tr><td>前置条件</td><td>角色已登录、Secrets 已设置、Worker 在线、测试数据存在</td><td>平台在运行前查得到的（角色、Worker）写查询方式；查不到的写清楚请人确认。</td></tr>
+            <tr><td>测试数据</td><td>节点入参的固定值、动态值、上游的出参</td><td>动态值如 <code>{{today}}</code>、<code>{{now:yyyyMMddHHmmss}}</code>、<code>{{random:1:99}}</code>，运行时才求值。</td></tr>
+            <tr><td>可重用的操作（关键字）</td><td>场景</td><td>一个场景做一个业务动作，有自己的入参、出参与断言，给好几个 TestCase 共用。</td></tr>
+            <tr><td>一次测试运行</td><td>组合场景的运行</td><td>见<a href="agent-test-report-guide.html">测试报告指南</a>。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>整体流程</h2></div>
+      <div class="panel-body">
+        <ol>
+          <li><strong>读需求与平台现况：</strong><code>GET /meta</code>（权限、可用的项目与领域）、<code>GET /projects</code>、<code>GET /composites/library</code>（可以用的场景版本）、<code>GET /roles</code>、<code>GET /secrets</code>。</li>
+          <li><strong>设计 TestCase：</strong>列出要验证的功能点与需求编号，选测试设计方法，写出 TestCase 清单。这一步还不创建任何东西。</li>
+          <li><strong>拆场景：</strong>把 TestCase 的步骤归纳成可重用的场景，对照场景库，能用就用、缺的才建。</li>
+          <li><strong>交草稿：</strong>写出测试方案的 XMind 草稿（状态「草稿」），在中心主题的备注列出待人确认的事项。调试场景会在目标系统上真的点击与填写，建议先请人看过范围与测试数据；用户已经明确授权时可以直接往下做。</li>
+          <li><strong>创建场景：</strong>创建、调试、验证、发布缺的场景，见 <a href="agent-api-guide.html">Agent 使用指南</a>。</li>
+          <li><strong>创建项目与组合场景：</strong>每个 TestCase 一个组合场景，用 <code>POST /composites/check</code> 检查到没有问题再存。</li>
+          <li><strong>完成方案：</strong>填入场景与组合场景的代号和版本，产出 <code>test-plan.xmind</code> 与 <code>test-plan.json</code>，状态改为「待签核」，把 XMind 交给人。</li>
+          <li><strong>人签核后</strong>依<a href="agent-test-report-guide.html">测试报告指南</a>运行。</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>设计 TestCase 的方法</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>方法</th><th>什么时候用</th><th>在组合场景怎么表达</th></tr></thead>
+          <tbody>
+            <tr><td>等价类划分</td><td>入参有明确的有效与无效范围</td><td>每个有效类一个 TestCase；无效类用「预期被拒绝」的场景（见下方负向测试）。</td></tr>
+            <tr><td>边界值分析</td><td>数量、金额、长度、日期</td><td>最小、最小＋1、最大−1、最大、超出各一个 TestCase，值写在节点入参的固定值。</td></tr>
+            <tr><td>判定表、因果图</td><td>好几个条件一起决定结果（等级 × 金额 × 优惠）</td><td>判定表的每条规则一个 TestCase；条件是入参，结果写在场景的 <code>verify</code>。</td></tr>
+            <tr><td>状态转换</td><td>单据、订单、审批等有状态的对象</td><td>每条要涵盖的转换路径一个组合场景，例如创建 → 送审 → 核准 → 结案；节点之间用出参（单号）串起来。</td></tr>
+            <tr><td>场景法（业务流程）</td><td>端到端流程的基本流与备选流</td><td>基本流一个 TestCase；每个备选流（取消、退回、补件）各一个，共用前段节点、换后段。</td></tr>
+            <tr><td>成对组合（pairwise）</td><td>参数多、全部组合太多</td><td>用成对组合挑出代表的组合，每组一个 TestCase；在方案写明挑选方式。</td></tr>
+            <tr><td>错误推测</td><td>常见的易错点：重复送出、空白、特殊字符、权限不足</td><td>补充的 TestCase，标出依据。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>优先级：</strong>P1 冒烟与内核路径（每次都要跑）、P2 主要功能与常见的错误处理、P3 次要与少见的情况。XMind 用标记 <code>priority-1</code>～<code>priority-3</code> 表示。</li>
+          <li><strong>负向测试写成「预期被拒绝而通过」：</strong>组合场景失败即停，节点失败就代表 TestCase 失败，不能期待运行「失败」。「数量超过上限要显示错误」要做成一个场景：填入错误的值、送出，<code>verify</code> 断言错误消息出现、没有创建单据。</li>
+          <li><strong>入参限制会挡掉不合法的固定值：</strong>组合场景的检查会依场景入参的 <code>minimum</code>、<code>maxLength</code>、<code>enum</code> 等规则检查固定值。要送出不合法的值，那个场景的入参就不能有这些限制（例如另做一个入参是字符串、不设范围的场景）。</li>
+          <li><strong>每个 TestCase 都要能重跑：</strong>会创建数据的，用动态值产生不重复的数据（例如 <code>测试客户-{{now:yyyyMMddHHmmss}}</code>）；需要时在最后加清理的节点。</li>
+          <li><strong>追溯：</strong>每个 TestCase 至少对应一个需求编号；每个需求都要有 TestCase，没有的写明不测的原因。</li>
+          <li><strong>副作用：</strong>运行会在目标系统上真的创建、修改数据。用测试账号的角色与测试数据；避免不了的写进风险，请人确认。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="scenes">
+      <div class="panel-header"><h2>场景怎么拆</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>一个场景一个业务动作：</strong>创建订单、查询订单、核准。不要把整个 TestCase 写成一个场景：拆开才能被不同的 TestCase 共用，失败时也知道停在哪个动作。</li>
+          <li><strong>入参与出参：</strong>会变的数据是入参，下游要用的值（单号、金额）是出参。相关的场景用一致的出参与入参名称，<code>{"auto": true}</code> 才能自动接上。</li>
+          <li><strong>断言就是预期结果：</strong>每个场景的 <code>verify</code> 比较页面事实与入参，断言这个动作的业务结果，而不是「步骤没有出错」。</li>
+          <li><strong>先查场景库：</strong><code>GET /composites/library</code> 列出可用领域里发布过的场景版本，以及每个版本的入参、出参与登录角色。合用的直接用；要改的存新版本、验证、发布后用新的版本号，已经用旧版本的 TestCase 不受影响。</li>
+          <li><strong>只能用发布过的版本：</strong>没有 <code>scenes:publish</code> 时，把要发布的场景与版本列在方案的「待人确认」，请人在 Portal 发布。</li>
+        </ul>
+<pre class="source">GET /agent-api/v1/composites/library
+→ {"scenes": [{"id": "order-create", "name": "创建订单", "domainId": "sales", "publishedRevision": 6,
+               "revisions": [{"number": 6, "name": "创建订单",
+                              "inputs": [["customer", {"type": "string", "minLength": 1}],
+                                         ["quantity", {"type": "integer", "minimum": 1, "maximum": 99, "default": 1}]],
+                              "outputs": [["orderId", {"type": "string", "pattern": "^SO-\\d+$", …}]],
+                              "role": "sales"}], …}, …]}</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="build">
+      <div class="panel-header"><h2>创建项目与组合场景</h2></div>
+      <div class="panel-body">
+        <h3>1. 项目</h3>
+<pre class="source">GET /agent-api/v1/projects                                 （projects:read）
+→ {"projects": [{"id": "order-regression", "name": "订单回归测试", "compositeCount": 4,
+                 "portalPath": "/projects/order-regression", …}]}
+
+POST /agent-api/v1/projects                                （projects:write）
+{"id": "order-regression", "name": "订单回归测试",
+ "description": "测试方案 TP-ORDER-2026-10", "idempotencyKey": "TP-ORDER-2026-10"}
+→ 201 {"id": "order-regression", …}
+
+PATCH /agent-api/v1/projects/order-regression  {"description": "…"}</pre>
+        <p>项目代号的规则和领域相同（小写英数、<code>-</code>、<code>_</code>，创建后不能改）。密钥限定了可用的项目时不能添加项目（403 <code>project_create_forbidden</code>），用已有的或请管理员创建。删除与排序只在管理后台。</p>
+
+        <h3>2. 组合场景的定义</h3>
+<pre class="source">{"version": 2, "mode": "dag", "onFailure": "stop",
+ "nodes": [
+   {"id": "create", "sceneId": "order-create", "revision": 6,
+    "inputs": {"customer": {"value": "测试客户-{{now:yyyyMMddHHmmss}}"},
+               "quantity": {"value": 99}}},
+   {"id": "query", "sceneId": "order-query", "revision": 3,
+    "inputs": {"orderId": {"node": "create", "output": "orderId"}}}
+ ],
+ "edges": [{"source": "create", "target": "query"}]}</pre>
+        <ul class="points">
+          <li>最多 50 个节点；节点 <code>id</code> 在组合场景里不能重复。</li>
+          <li>入参的来源：<code>{"value": …}</code> 固定值（可以是动态值）；<code>{"node": "create", "output": "orderId"}</code> 上游节点的出参；<code>{"auto": true}</code> 从直接上游找唯一同名的出参。没写的入参用场景的默认值，没有默认值的一定要给。</li>
+          <li>出参绑定本身就形成先后；没有数据关系但要有先后时才加 <code>edges</code>。</li>
+          <li>同时就绪的节点依定义的顺序逐个运行；任何节点没有通过就停，后面的节点标为略过。</li>
+        </ul>
+
+        <h3>3. 检查、创建、修改</h3>
+<pre class="source">POST /agent-api/v1/composites/check   {"definition": {…}}
+→ {"ok": false, "problems": [{"code": "workflow.input_missing", "message": "…",
+                               "node": "query", "input": "orderId"}]}
+
+POST /agent-api/v1/projects/order-regression/composites      （projects:write）
+{"code": "tc-order-003", "name": "TC-ORDER-003 数量上限 99 可以创建",
+ "description": "目的：数量等于上限时可以创建。需求：REQ-12。方案：TP-ORDER-2026-10",
+ "domainId": "sales", "definition": {…},
+ "note": "测试方案 TP-ORDER-2026-10 v1", "idempotencyKey": "TP-ORDER-2026-10/tc-order-003"}
+→ 201 {"code": "tc-order-003", "latestRevision": 1, "publishedRevision": null, "problems": [],
+       "dependency": "complete", "portalPath": "/playground/12", …}
+
+PUT /agent-api/v1/composites/tc-order-003
+{"baseRevision": 1, "definition": {…}, "note": "数量改为 99"}
+→ {"latestRevision": 2, …}</pre>
+        <ul class="points">
+          <li><code>problems</code> 是空的才能验证与运行；依 <code>node</code>、<code>input</code> 修正。<code>dependency</code> 是 <code>complete</code> 才能发布。</li>
+          <li><strong>代号就是 TestCase 编号：</strong>小写英数、<code>-</code>、<code>_</code>，例如 <code>tc-order-003</code>；名称以大写编号开头，例如「TC-ORDER-003 数量上限 99 可以创建」；说明写目的、需求编号与方案编号。</li>
+          <li><code>domainId</code> 是放组合场景的领域文件夹，没给时放「组合场景」领域；密钥限定了领域时要给可用的。节点用到的场景也要在可用的领域，否则 403 <code>composite_scenes_forbidden</code>。</li>
+          <li>保存时 <code>baseRevision</code> 不是最新会回 409 <code>stale_workflow</code>（<code>latest</code> 是最新版本）：读 <code>GET /composites/{code}</code>，把修改套上去再存，不要盖掉人的修改。定义没变时只更新名称与说明，不会多一个版本。</li>
+          <li>移到另一个项目：<code>PATCH /composites/{code} {"projectId": "…"}</code>。</li>
+          <li><code>GET /projects/{id}</code> 列出项目里每个组合场景的摘要（最新与发布的版本、问题数、最近一次运行）；<code>GET /composites/{code}</code> 有完整的定义、版本、验证记录与依赖。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="document">
+      <div class="panel-header"><h2>测试方案的格式</h2><span class="muted">XMind 给人，JSON 给 Agent</span></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt><code>test-plan.xmind</code></dt><dd><strong>测试方案本身</strong>，给人审阅与签核：每个组合场景一个 TestCase，方案层级的说明（范围、环境、准则、待确认、签核）放在中心主题的备注；也能导入常见的 TestCase 管理工具。</dd>
+          <dt><code>test-plan.json</code></dt><dd>同样内容的结构化数据，Agent 之后运行与写报告时读它；人不必看。</dd>
+        </dl>
+        <p>两个文件从同一份数据产生，TestCase 的编号与数量要一致。文件夹名称用方案编号，例如 <code>TP-ORDER-2026-10/</code>。修改已经交出的方案要升版本，并在备注的修改记录写改了什么。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>XMind 的层</th><th>放什么</th></tr></thead>
+          <tbody>
+            <tr><td>中心主题</td><td>标题是方案编号与项目名称，例如「TP-ORDER-2026-10 订单回归测试」。<strong>备注</strong>是方案层级的说明，格式见下方。</td></tr>
+            <tr><td>第一层：模块</td><td>测试包，例如「订单创建」；备注可以写这个模块验证什么。</td></tr>
+            <tr><td>第二层：TestCase</td><td>每个组合场景一个主题，标题是「编号 标题」，<strong>一定要有优先级标记</strong> <code>priority-1</code>～<code>priority-3</code>（工具靠它认出 TestCase）。标签：<code>auto</code>（自动运行）、组合场景代号与版本（如 <code>tc-order-003 v2</code>）、需求编号、设计方法。备注：前置条件、测试数据、Portal 路径。</td></tr>
+            <tr><td>第三层：步骤</td><td>每个节点一个主题：「节点代号：做什么（场景代号 v版本）」，依运行顺序排列。</td></tr>
+            <tr><td>第四层：预期结果</td><td>每个步骤底下<strong>只放一个</strong>预期结果主题；好几个断言用「；」连在一起。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p>中心主题的备注依序写这些段落（纯文字，一段一行开头；人审阅后把签核那一段填好交回，或直接回复 Agent，Agent 记进 <code>test-plan.json</code> 的 <code>signoff</code>）：</p>
+<pre class="source">文档信息：TP-ORDER-2026-10 v2；状态：待签核；ERP 助理 2026-10-24T08:00Z 产生；服务器 srv-linux-01（0.6.0）；项目 order-regression；需求来源：订单规格 v3
+1. 目标与范围：验证订单创建的数量规则与审批流程。不验证：退款、报表
+2. 测试环境：https://erp-test.example.internal；Chromium；运行位置 any；角色 sales、manager；Secrets：erp-password（只有名称）
+3. 测试策略：边界值、状态转换；P1 冒烟与内核路径、P2 主要功能、P3 次要；先验证再发布，一轮正式运行；环境原因最多重跑一次
+4. 场景：order-create v6（已发布）、order-query v3（已发布）、order-submit-raw v2（待发布）
+5. 未涵盖的需求：REQ-15 打印（平台不支持打印对话框）
+6. 测试数据与清理：客户名称带时间戳记；每轮约创建 6 张测试订单，不自动删除
+7. 进入与退出准则：进入：方案已签核、组合场景没有问题、角色已登录；退出：P1 全部通过、P2 通过率 ≥ 95%、没有未处理的严重缺陷
+8. 风险与待人确认：order-submit-raw v2 要人发布；manager 角色要人工登录
+9. 签核：审阅者＿＿；日期＿＿；结论（同意／修改后同意／不同意）＿＿；意见＿＿
+修改记录：v1 初稿；v2 加入 TC-ORDER-004</pre>
+        <ul class="points">
+          <li>主题标题不要以 <code>#</code> 或 <code>!</code> 开头，常见工具会把它当成注释略过。</li>
+          <li>方案层级的说明只放在中心主题的备注，不要另开工作表或主题：常见的 XMind 转 TestCase 工具会把没有子主题的主题当成 TestCase。</li>
+          <li>测试报告用同一张图，在 TestCase 上加结果标记（见<a href="agent-test-report-guide.html#xmind">测试报告指南</a>）。</li>
+        </ul>
+        <p><code>test-plan.json</code> 的建议结构（字段可以增加，已有的不要改意思）：</p>
+<pre class="source">{
+  "format": "rpa-agent-test-plan", "formatVersion": 1,
+  "planId": "TP-ORDER-2026-10", "version": 2, "status": "pending_signoff",
+  "generatedAt": "2026-10-24T08:00:00Z",
+  "generatedBy": {"agent": "ERP 助理", "clientId": "agent-erp"},
+  "server": {"id": "srv-linux-01", "version": "0.6.0"},
+  "project": {"id": "order-regression", "name": "订单回归测试", "portalPath": "/projects/order-regression"},
+  "requirements": [{"id": "REQ-12", "title": "订单数量 1～99"}],
+  "scenes": [{"id": "order-create", "revision": 6, "status": "published"}],
+  "suites": [{"id": "order-create", "name": "订单创建"}],
+  "testCases": [{
+    "id": "TC-ORDER-003", "title": "数量上限 99 可以创建", "suite": "order-create",
+    "priority": 1, "requirements": ["REQ-12"], "technique": "boundary",
+    "preconditions": ["角色 sales 已登录"],
+    "steps": [
+      {"node": "create", "scene": "order-create", "revision": 6,
+       "action": "创建订单，数量 99", "expected": "取得订单编号 SO-…，客户与入参相同"},
+      {"node": "query", "scene": "order-query", "revision": 3,
+       "action": "用 create 的 orderId 查询", "expected": "查得到这张订单，数量是 99"}],
+    "composite": {"code": "tc-order-003", "revision": 2, "portalPath": "/playground/12"}
+  }],
+  "scope": "…", "environment": "…", "strategy": "…", "uncovered": [{"requirement": "REQ-15", "reason": "…"}],
+  "testData": "…", "entryCriteria": ["…"], "exitCriteria": ["…"], "risks": ["…"], "openQuestions": ["…"],
+  "signoff": null,
+  "changes": [{"version": 1, "note": "初稿"}, {"version": 2, "note": "加入 TC-ORDER-004"}]
+}</pre>
+      </div>
+    </section>
+
+    <section class="panel" id="xmind">
+      <div class="panel-header"><h2>写出 XMind 档</h2></div>
+      <div class="panel-body">
+        <p><code>.xmind</code> 是 ZIP。<code>content.json</code> 给 XMind 2020 以后的版本，<code>content.xml</code> 给 XMind 8 与常见的 XMind 转 TestCase 工具（例如 xmind2testcase）。两份内容相同，下面的 Python 只用标准函数库就能同时写出：</p>
+<pre class="source">import json, uuid, zipfile
+from xml.etree import ElementTree as ET
+
+
+def topic(title, children=(), *, priority=None, markers=(), labels=(), notes=None):
+    marks = ([f"priority-{priority}"] if priority else []) + list(markers)
+    return {"id": uuid.uuid4().hex, "title": title, "markers": marks,
+            "labels": list(labels), "notes": notes, "children": list(children)}
+
+
+def _json(node):
+    data = {"id": node["id"], "class": "topic", "title": node["title"]}
+    if node["markers"]:
+        data["markers"] = [{"markerId": mark} for mark in node["markers"]]
+    if node["labels"]:
+        data["labels"] = node["labels"]
+    if node["notes"]:
+        data["notes"] = {"plain": {"content": node["notes"]}}
+    if node["children"]:
+        data["children"] = {"attached": [_json(child) for child in node["children"]]}
+    return data
+
+
+def _xml(parent, node):
+    element = ET.SubElement(parent, "topic", id=node["id"])
+    ET.SubElement(element, "title").text = node["title"]
+    if node["markers"]:
+        refs = ET.SubElement(element, "marker-refs")
+        for mark in node["markers"]:
+            ET.SubElement(refs, "marker-ref", {"marker-id": mark})
+    if node["labels"]:
+        labels = ET.SubElement(element, "labels")
+        for label in node["labels"]:
+            ET.SubElement(labels, "label").text = label
+    if node["notes"]:
+        ET.SubElement(ET.SubElement(element, "notes"), "plain").text = node["notes"]
+    if node["children"]:
+        attached = ET.SubElement(ET.SubElement(element, "children"), "topics", type="attached")
+        for child in node["children"]:
+            _xml(attached, child)
+
+
+def write_xmind(path, sheet_title, root):
+    sheet_id = uuid.uuid4().hex
+    content = [{"id": sheet_id, "class": "sheet", "title": sheet_title, "rootTopic": _json(root)}]
+    xmap = ET.Element("xmap-content", xmlns="urn:xmind:xmap:xmlns:content:2.0", version="2.0")
+    sheet = ET.SubElement(xmap, "sheet", id=sheet_id)
+    _xml(sheet, root)
+    ET.SubElement(sheet, "title").text = sheet_title
+    manifest = ('&lt;?xml version="1.0" encoding="UTF-8" standalone="no"?&gt;'
+                '&lt;manifest xmlns="urn:xmind:xmap:xmlns:manifest:1.0"&gt;'
+                '&lt;file-entry full-path="content.xml" media-type="text/xml"/&gt;'
+                '&lt;file-entry full-path="META-INF/" media-type=""/&gt;'
+                '&lt;file-entry full-path="META-INF/manifest.xml" media-type="text/xml"/&gt;'
+                '&lt;/manifest&gt;')
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("content.json", json.dumps(content, ensure_ascii=False))
+        archive.writestr("metadata.json", json.dumps({"creator": {"name": "agent", "version": "1"}}))
+        archive.writestr("manifest.json",
+                         json.dumps({"file-entries": {"content.json": {}, "metadata.json": {}}}))
+        archive.writestr("content.xml", ET.tostring(xmap, encoding="unicode", xml_declaration=True))
+        archive.writestr("META-INF/manifest.xml", manifest)
+
+
+case = topic("TC-ORDER-003 数量上限 99 可以创建", [
+    topic("create：创建订单，数量 99（order-create v6）",
+          [topic("取得订单编号 SO-…；客户与入参相同")]),
+    topic("query：用 create 的 orderId 查询（order-query v3）",
+          [topic("查得到这张订单，数量是 99")]),
+], priority=1, labels=["auto", "tc-order-003 v2", "REQ-12", "边界值"],
+   notes="角色 sales 已登录\nPortal：/playground/12")
+plan_notes = "\n".join([
+    "文档信息：TP-ORDER-2026-10 v2；状态：待签核；项目 order-regression",
+    "1. 目标与范围：…", "2. 测试环境：…", "3. 测试策略：…", "4. 场景：…",
+    "5. 未涵盖的需求：…", "6. 测试数据与清理：…", "7. 进入与退出准则：…",
+    "8. 风险与待人确认：…", "9. 签核：审阅者＿＿；日期＿＿；结论＿＿；意见＿＿",
+    "修改记录：v1 初稿；v2 加入 TC-ORDER-004",
+])
+root = topic("TP-ORDER-2026-10 订单回归测试", [topic("订单创建", [case])], notes=plan_notes)
+write_xmind("test-plan.xmind", "测试方案", root)</pre>
+        <p>写完可以自己读回来检查：解开 ZIP、读 <code>content.json</code>，确认 TestCase 主题的数量等于 <code>test-plan.json</code> 的 <code>testCases</code>。人要导入特定的 TestCase 管理工具时，以那个工具的说明为准。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="checklist">
+      <div class="panel-header"><h2>交给人之前</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>XMind 与 JSON 的 TestCase 编号与数量一致；每个 TestCase 都有组合场景代号与版本，<code>GET /composites/{code}</code> 的 <code>problems</code> 是空的。</li>
+          <li>每个需求都有 TestCase，或写明不测的原因；每个 TestCase 都有优先级与预期结果。</li>
+          <li>文档里没有 API 密钥、密码、Secret 的值；测试数据不含真实个资。</li>
+          <li>要人做的事都列在中心主题备注的「风险与待人确认」：发布哪些场景、登录哪些角色、哪些步骤有副作用、缺哪些权限。</li>
+          <li>方案的状态、版本与产生时间正确；在 Portal 打开项目页（<code>portalPath</code>）看得到同样的组合场景。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

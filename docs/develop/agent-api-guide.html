@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent 使用指南 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="agent-api-guide" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Agent 使用指南</h1>
+      <p>寫給接入平台的 Agent 系統（以及替它寫整合的人）：怎麼用 <code>/agent-api/v1</code> 從空白建立場景、在錄製端調試、交給 Worker 驗證、發布並正式執行，在專案裡把場景組成組合場景並執行，遇到錯誤時怎麼處理。</p>
+    </div>
+    <span class="badge blue">第一期實作中</span>
+  </div>
+
+  <div class="stack">
+    <div class="notice">本指南依 2026-10-23 確認的<a href="../design/agent-api.html">設計</a>與第一期的實作撰寫（2026-10-23，審閱中）；專案與組合場景 2026-10-24 加入。用 API 做測試時，測試方案與測試報告的寫法見<a href="agent-test-plan-guide.html">測試方案指南</a>與<a href="agent-test-report-guide.html">測試報告指南</a>。欄位以伺服器的 <code>GET /agent-api/v1/openapi.json</code> 為準；<code>/agent-api/v1/docs</code> 是可以直接試的互動式文件，兩者都不需要金鑰。</div>
+
+    <section class="panel" id="basics">
+      <div class="panel-header"><h2>基本約定</h2></div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>位址</dt><dd><code>http://&lt;伺服器&gt;:8081/agent-api/v1</code>；伺服器前有 HTTPS 反向代理時用代理的位址。</dd>
+          <dt>認證</dt><dd>每個請求帶 <code>Authorization: Bearer &lt;API 金鑰&gt;</code>。金鑰由管理員在管理後台的「API 用戶端」建立，只顯示一次；不要寫進日誌或場景。</dd>
+          <dt>格式</dt><dd>JSON，欄位 camelCase；時間是 ISO 8601（UTC）。</dd>
+          <dt>錯誤</dt><dd><code>{"error": {"code": "…", "message": "…", …}}</code>。程式依 <code>code</code> 判斷，<code>message</code> 給人看；有些錯誤另帶細節，例如 <code>issues</code>、<code>problems</code>、<code>latest</code>。</dd>
+          <dt>語言</dt><dd><code>?lang=zh-Hant</code>、<code>zh-Hans</code> 或 <code>en</code> 決定 <code>message</code> 的語言；沒給時用伺服器預設。</dd>
+          <dt>冪等</dt><dd>會建立東西的請求（建立場景、專案與組合場景，存版本，驗證、執行、重跑）接受 <code>idempotencyKey</code>。逾時或斷線後用同一個值重送，回傳的是上次的結果，不會重複建立或重複執行。驗證、執行、重跑的冪等鍵記在運行紀錄裡；建立與存版本的冪等鍵記在伺服器的記憶體 24 小時，伺服器重新啟動後就忘了，這時重送會收到 <code>scene_exists</code>、<code>project_exists</code>、<code>workflow_code_exists</code>、<code>stale_base</code> 或 <code>stale_workflow</code>，讀最新狀態即可。不同用戶端用同一個值互不影響。</dd>
+          <dt>輪詢</dt><dd>查運行狀態每 2～5 秒一次即可；第二期改用事件長輪詢。</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel" id="before">
+      <div class="panel-header"><h2>開始之前</h2></div>
+      <div class="panel-body">
+        <p>先呼叫 <code>GET /meta</code>，確認這把金鑰能做什麼，缺的請管理員補，不要用試錯的方式找出權限。</p>
+<pre class="source">GET /agent-api/v1/meta
+
+{
+  "apiVersion": "1",
+  "serverVersion": "0.6.0",
+  "server": {"id": "srv-linux-01", "name": "Linux 伺服器"},
+  "client": {"id": "agent-erp", "name": "ERP 助理"},
+  "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
+             "projects:read", "projects:write"],
+  "pageContent": true,
+  "limits": {"debugSessions": 2, "queuedRuns": 20},
+  "domains": ["sales"],
+  "projects": ["order-regression"],
+  "recorders": ["agent-mac"],
+  "target": null,
+  "workers": null,
+  "expiresAt": null,
+  "dslFeatures": ["anyFrame", "dynamicValues", "frame", "page", "popup"]
+}</pre>
+        <ul class="points">
+          <li><code>scopes</code> 沒有 <code>scenes:publish</code>：做到驗證通過為止，再請人在 Portal 發布。</li>
+          <li><code>pageContent</code> 是 <code>false</code>：截圖、頁面結構、錄影都拿不到，只能靠定位器測試與步驟結果寫場景。</li>
+          <li><code>domains</code> 是可以讀寫的領域、<code>projects</code> 是可以用的專案（<code>null</code> 不限）；<code>recorders</code> 是可以開調試的錄製端；<code>target</code>、<code>workers</code> 是固定的執行位置與可以指定的 Worker（<code>null</code> 不限）。</li>
+          <li>接著讀 <code>GET /dsl/schema</code>（場景 YAML 的 JSON Schema）、<code>GET /recorders</code>（可用的錄製端：是否在線、<code>allowAgent</code>、<code>headlessOnly</code>、<code>capabilities</code> 有沒有 <code>debugSnapshot</code>）、<code>GET /roles</code>（登入角色與狀態）、<code>GET /secrets</code>（只有名稱）、<code>GET /workers</code>（可以指定的 Worker）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="scenario">
+      <div class="panel-header"><h2>場景長什麼樣</h2></div>
+      <div class="panel-body">
+        <p>一個場景是一份 YAML（<code>scenario.yaml</code>）。步驟只負責操作頁面、抽取「頁面事實」；成功與否由 <code>verify</code> 獨立判斷，全部通過才發布出參。完整規格見<a href="../design/dsl.html">場景 DSL</a>。</p>
+<pre class="source">schemaVersion: 1
+id: order-create
+name: 建立訂單
+category: 訂單
+inputs:
+  customer: { type: string, minLength: 1 }
+  quantity: { type: integer, minimum: 1, maximum: 99, default: 1 }
+outputs:
+  orderId: { type: string, pattern: '^SO-\d+$', from: '{{ facts.order.orderId }}' }
+login: { role: sales }
+browser:
+  engine: chromium
+  baseUrl: https://erp.example.internal
+defaults:
+  timeout: 10000
+steps:
+  - id: open
+    action: goto
+    url: /orders/new
+  - id: fill-customer
+    action: fill
+    target: { label: 客戶, exact: true }
+    value: '{{ inputs.customer }}'
+  - id: fill-quantity
+    action: fill
+    target: { label: 數量, exact: true }
+    value: '{{ inputs.quantity }}'
+  - id: submit
+    action: click
+    target: { role: button, name: 建立, exact: true }
+  - id: read-order
+    action: extract
+    target: { css: '#order-summary' }
+    as: order
+    fields:
+      orderId: { target: { testId: order-id } }
+      customer: { target: { testId: order-customer } }
+verify:
+  - name: 取得訂單編號
+    value: '{{ facts.order.orderId }}'
+    matches: '^SO-\d+$'
+  - name: 客戶與入參相同
+    value: '{{ facts.order.customer }}'
+    equals: '{{ inputs.customer }}'</pre>
+        <ul class="points">
+          <li><strong>步驟 id 要穩定：</strong>調試換版本時，已執行的步驟靠 id 對應；改內容不要改 id。</li>
+          <li><strong>定位器的優先順序：</strong><code>role</code>＋<code>name</code>、<code>label</code>、<code>text</code>、<code>testId</code>，最後才是 <code>css</code>／<code>xpath</code>；容易變的加 <code>fallback</code>。元素在 iframe 裡用 <code>frame</code>，點擊開出新分頁用 <code>popup</code> 與 <code>page</code>。</li>
+          <li><strong>會變的值寫成入參：</strong>不要把客戶、日期、數量寫死在步驟裡。</li>
+          <li><strong>密碼不寫進場景：</strong>用 <code>secrets</code> 宣告名稱、<code>{{ secrets.名稱 }}</code> 引用；需要登入的系統用 <code>login: { role }</code>，登入狀態由平台管理。</li>
+          <li><strong>verify 要比對頁面事實與入參：</strong>「步驟沒有出錯」不等於成功。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="workflow">
+      <div class="panel-header"><h2>從空白到正式執行</h2></div>
+      <div class="panel-body">
+        <h3>1. 建立場景並存第一版</h3>
+<pre class="source">POST /agent-api/v1/scenes
+{"id": "order-create", "name": "建立訂單", "category": "訂單", "domainId": "sales",
+ "idempotencyKey": "order-create"}
+→ 201 {"id": "order-create", "latestRevision": 1, …}
+
+POST /agent-api/v1/scenes/order-create/revisions
+{"baseRevision": 1, "files": {"scenario.yaml": "schemaVersion: 1\nid: order-create\n…"},
+ "note": "只開頁面", "idempotencyKey": "order-create-r2"}
+→ 201 {"sceneId": "order-create", "number": 2, "status": "draft",
+       "note": "Agent〈ERP 助理〉：只開頁面", …}</pre>
+        <p>建立場景時伺服器會先存第 1 版（只有名稱的範本），所以第一次存檔的 <code>baseRevision</code> 是 1。沒給 <code>domainId</code> 時場景放進「未分類」，金鑰限定了領域時就要給。存檔前可以先 <code>POST /dsl/check {"yaml": "…", "sceneId": "order-create"}</code>，回應的 <code>ok</code> 與 <code>issues</code>（行號、步驟、欄位）和存檔時的檢查相同。這一版只放 <code>goto</code>（和需要的 <code>login</code>）就好，後面的步驟看了頁面再寫。</p>
+
+        <h3>2. 在錄製端開調試工作階段</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/debug
+{"recorderId": "agent-mac", "revision": 2,
+ "inputs": {"customer": "測試客戶", "quantity": 2}}
+→ 202 {"id": "a1b2c3d4e5f6", "status": "starting", "deviceId": "agent-mac",
+       "headless": true, "clientId": "agent-erp", …}
+
+GET /agent-api/v1/debug/a1b2c3d4e5f6
+→ {"status": "ready", "nextIndex": 0, "steps": [{"index": 0, "id": "open", "status": "pending", …}], …}</pre>
+        <p>等 <code>status</code> 變成 <code>ready</code>（第一次用 Firefox 可能要一兩分鐘）。預設無頭；這把金鑰只允許一台錄製端時可以不給 <code>recorderId</code>。一個場景同時只有一個工作階段：自己已經開了就回傳原本那個（要換版本或入參重開時帶 <code>"restart": true</code>），別人（人或其他 Agent）正在調試時回 409 <code>debug_in_use</code>。你只看得到、只能操作自己開的工作階段（<code>GET /debug</code> 列出），閒置 15 分鐘自動關閉。</p>
+
+        <h3>3. 看頁面，再寫下一段步驟</h3>
+<pre class="source">POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/0
+POST /agent-api/v1/debug/a1b2c3d4e5f6/snapshot
+→ {"url": "https://erp.example.internal/orders/new", "title": "新增訂單",
+   "tabs": [{"page": null, "url": "…", "title": "新增訂單", "active": true}],
+   "frames": [],
+   "fields": [{"tag": "input", "type": "text", "role": "textbox", "label": "客戶",
+               "name": "customer", "required": true, "disabled": false, "visible": true, "value": ""},
+              {"tag": "input", "type": "number", "role": "spinbutton", "label": "數量", …}],
+   "aria": "- heading \"新增訂單\" [level=1]\n- textbox \"客戶\"\n- spinbutton \"數量\"\n- button \"建立\"",
+   "truncated": false}
+
+POST /agent-api/v1/debug/a1b2c3d4e5f6/locate
+{"locator": {"role": "button", "name": "建立", "exact": true}}
+→ {"located": {"locator": "…", "ok": true, "count": 1,
+               "matches": [{"tag": "button", "text": "建立"}], "error": null}, …}</pre>
+        <p><code>locate</code> 找到剛好 1 個才用它；0 個或好幾個就換定位器。<code>tabs</code> 的 <code>page</code> 是步驟用 <code>popup</code> 開出、取了名字的分頁（一開始的分頁是 <code>null</code>）；<code>frames</code> 是 iframe，<code>parent</code> 指向上一層在清單裡的位置。<code>fields</code> 列出目前頁面的表單欄位，密碼欄位與填了 Secret 的值一律是 <code>***</code>。頁面很大時 <code>aria</code> 會截斷並標 <code>truncated</code>，用 <code>{"within": {"css": "#main"}}</code> 只看一部分（<code>within</code> 是定位器，iframe 裡的用 <code>frame</code>）。需要看畫面時用 <code>screenshot</code>，回應裡的 <code>screenshotUrl</code> 可以下載圖片。讀頁面結構與截圖都要「回傳頁面內容」，錄製端也要是新版 App。</p>
+
+        <h3>4. 存新版本、換過去、接著跑</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions
+{"baseRevision": 2, "files": {"scenario.yaml": "…加上 fill-customer、fill-quantity、submit…"}}
+→ 201 {"number": 3, …}
+
+POST /agent-api/v1/debug/a1b2c3d4e5f6/reload   {"revision": 3}
+POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
+→ {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
+        <p>瀏覽器與已執行的步驟會保留，<code>run-to</code> 只執行還沒執行過的步驟，失敗就停。改好再存一版、<code>reload</code>、<code>run-to</code>，直到每一步都是 <code>passed</code>。想從頭重跑用 <code>reset</code>。</p>
+        <div class="notice warn">點擊、填寫、選擇、勾選、按鍵是有副作用的步驟，會在目標系統上真的發生。執行過一次的有副作用步驟用 <code>POST /debug/{sid}/steps/{index}</code> 再執行時回 409 <code>confirm_required</code>，必須帶 <code>{"force": true}</code>；只在確定重做不會造成重複資料時才這樣做。<code>run-to</code> 的目標在下一個還沒執行的步驟之前時回 409 <code>already_executed</code>。</div>
+
+        <h3>5. 補齊入參、出參與獨立斷言</h3>
+        <p>用 <code>GET</code>／<code>PUT /scenes/{id}/sections/steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code> 只讀寫一段（<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>），或 <code>PUT /scenes/{id}/contract</code> 以表格形式改入參與出參；每次都會存成新版本。已經有 Playwright（Python）腳本時，可以用 <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> 轉成 DSL，轉不了的寫在 <code>warnings</code>。完成後 <code>DELETE /debug/{sid}</code> 結束工作階段，釋放錄製端。</p>
+
+        <h3>6. 交給 Worker 驗證</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/validate
+{"inputs": {"customer": "測試客戶", "quantity": 2}, "idempotencyKey": "order-create-v6-1"}
+→ 202 {"id": "order-create-20261023-…", "purpose": "validation", "status": "queued", …}
+
+GET /agent-api/v1/runs/order-create-20261023-…
+→ {"status": "running", "stage": "automation", …}
+→ {"status": "failed", "error": "…", "finished": true, …}
+GET /agent-api/v1/runs/order-create-20261023-…/steps</pre>
+        <p>失敗時看 <code>error</code>、<code>result</code>（結束後的完整結果：階段、步驟、斷言）、<code>/steps</code> 中第一個失敗的步驟，以及（有「回傳頁面內容」時）<code>files</code> 列出的截圖與 <code>reportUrl</code>；回到調試修正。驗證可以用任何版本，正式執行只用已發布版本。可以帶 <code>workerId</code> 指定 Worker（<code>local</code> 是伺服器本機）或 <code>target</code>；金鑰固定了執行位置時不能指定別的。第一期的 <code>/steps</code> 在運行結束後才完整，執行中請看 <code>status</code> 與 <code>stage</code>。</p>
+
+        <h3>7. 發布與正式執行</h3>
+<pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/publish      （需要 scenes:publish）
+
+POST /agent-api/v1/scenes/order-create/runs
+{"inputs": {"customer": "王小明", "quantity": 3}, "idempotencyKey": "job-8812"}
+→ 202 {"id": "…", "purpose": "execution", "status": "queued", …}
+GET /agent-api/v1/runs/…
+→ {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
+        <p>只有 <code>status</code> 是 <code>passed</code> 時才有 <code>output</code>。沒有發布權限時，告訴使用者哪個場景的哪個版本已驗證通過，請人在 Portal 發布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的運行（可用領域裡的場景，<code>mine</code> 只列自己觸發的）；<code>POST /runs/{id}/cancel</code> 只能取消自己觸發的。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="projects">
+      <div class="panel-header"><h2>專案與組合場景</h2></div>
+      <div class="panel-body">
+        <p>專案空間裡的專案收納組合場景；組合場景把發布過的場景版本接成一個流程（DAG），前面節點的出參可以綁到後面節點的入參。用 API 做測試時，一個組合場景就是一個 TestCase，見<a href="agent-test-plan-guide.html">測試方案指南</a>。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>端點</th><th>用途</th><th>權限範圍</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /projects</code>、<code>GET /projects/{id}</code></td><td>可用的專案；專案與它的組合場景摘要</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects</code>、<code>PATCH /projects/{id}</code></td><td>新增專案（限定了可用專案的金鑰不能新增）；改名稱與說明</td><td>projects:write</td></tr>
+            <tr><td><code>GET /composites/library</code></td><td>可以放進組合場景的場景版本，與入參、出參、登入角色</td><td>projects:read</td></tr>
+            <tr><td><code>POST /composites/check</code></td><td>不存檔檢查定義，回傳 <code>problems</code>（節點、入參）</td><td>projects:read</td></tr>
+            <tr><td><code>GET /composites?project=</code>、<code>GET /composites/{code}</code></td><td>組合場景摘要；完整的定義、問題、版本、驗證紀錄、依賴、最近的執行</td><td>projects:read</td></tr>
+            <tr><td><code>POST /projects/{id}/composites</code></td><td>在專案裡建立組合場景（帶定義時就是第 1 版）</td><td>projects:write</td></tr>
+            <tr><td><code>PUT /composites/{code}</code>、<code>PATCH /composites/{code}</code></td><td>存新版本（帶 <code>baseRevision</code>）；移到另一個專案</td><td>projects:write</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/validate</code></td><td>交給 Worker 驗證這個版本</td><td>runs:validate</td></tr>
+            <tr><td><code>POST /composites/{code}/revisions/{n}/publish</code></td><td>發布驗證通過、依賴完整的版本</td><td>projects:publish（預設不給）</td></tr>
+            <tr><td><code>POST /composites/{code}/runs</code></td><td>正式執行發布的版本</td><td>runs:execute</td></tr>
+            <tr><td><code>POST /projects/{id}/runs</code></td><td>把專案裡的組合場景（或 <code>composites</code> 列出的）逐一排入；排不進去的在 <code>skipped</code></td><td>依 <code>purpose</code>：runs:validate 或 runs:execute</td></tr>
+            <tr><td><code>GET /composite-runs</code>、<code>GET /composite-runs/{id}</code></td><td>組合場景的執行：狀態、進度（<code>progress</code>）、每個節點的狀態與那次運行</td><td>runs:read</td></tr>
+            <tr><td><code>POST /composite-runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消自己觸發的；從頭或從停下的節點（<code>"resume": true</code>）再執行</td><td>依執行的目的</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>看得到哪些：</strong>組合場景要在可用的專案裡，放的領域也要可用；不屬於任何專案的組合場景不給 Agent。看不到的一律回 404。節點用到的場景要在可用的領域，否則 403 <code>composite_scenes_forbidden</code>。</li>
+          <li><strong>沒有執行時的入參：</strong>入參在定義裡綁定（固定值、動態值、上游的出參）；同一個流程換一組資料就是另一個組合場景。</li>
+          <li><strong>節點的細節：</strong>每個節點的 <code>run</code> 是一次普通的運行，步驟、斷言與產物用 <code>/runs/{id}</code>、<code>/runs/{id}/steps</code> 讀；節點不能單獨重跑（409 <code>rerun_workflow</code>），要重跑組合場景的執行。</li>
+          <li><strong>Portal 路徑：</strong>回應帶 <code>portalPath</code>（例如 <code>/playground/runs/…</code>），人在 Portal 看同一筆資料用；寫測試報告時附上。</li>
+          <li><strong>限額：</strong>組合場景的節點也算進「排隊中與執行中」的限額。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="errors">
+      <div class="panel-header"><h2>錯誤怎麼處理</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>狀態碼</th><th>code</th><th>意思</th><th>Agent 該做什麼</th></tr></thead>
+          <tbody>
+            <tr><td>401</td><td><code>unauthorized</code></td><td>金鑰缺少、錯誤、停用、到期，或不能從這個位址使用</td><td>停止，請管理員處理；不要重試</td></tr>
+            <tr><td>403</td><td><code>scope_missing</code></td><td>這把金鑰沒有需要的權限範圍（<code>scopes</code> 列出缺哪個）</td><td>請人授權或改由人完成這一步</td></tr>
+            <tr><td>403</td><td><code>content_disabled</code></td><td>「回傳頁面內容」沒開</td><td>改用 <code>locate</code> 與步驟結果；或請管理員打開</td></tr>
+            <tr><td>403</td><td><code>domain_forbidden</code>、<code>recorder_forbidden</code></td><td>不能用這個領域或錄製端</td><td>換一個允許的，或請管理員加上</td></tr>
+            <tr><td>403</td><td><code>recorder_agent_off</code></td><td>錄製端沒有打開「允許 Agent 調試」或已停用</td><td>請人在裝置頁打開，或換一台</td></tr>
+            <tr><td>403</td><td><code>recorder_headless_only</code></td><td>這台錄製端只允許無頭</td><td>不要帶 <code>"headless": false</code></td></tr>
+            <tr><td>403</td><td><code>target_forbidden</code>、<code>worker_forbidden</code></td><td>這把金鑰固定了執行位置，或不能指定這台 Worker</td><td>不要指定，或換允許的</td></tr>
+            <tr><td>403</td><td><code>run_forbidden</code></td><td>想取消別人觸發的運行</td><td>請人處理</td></tr>
+            <tr><td>403</td><td><code>project_forbidden</code>、<code>project_create_forbidden</code></td><td>不能用這個專案；限定了可用專案的金鑰不能新增專案</td><td>用允許的專案，或請管理員處理</td></tr>
+            <tr><td>403</td><td><code>composite_scenes_forbidden</code></td><td>組合場景的節點用到不可用領域的場景（<code>scenes</code> 列出哪些）</td><td>換場景，或請管理員加上領域</td></tr>
+            <tr><td>404</td><td><code>debug_not_found</code>、<code>run_not_found</code>、<code>project_not_found</code>、<code>workflow_not_found</code>、<code>workflow_run_not_found</code> 等</td><td>找不到，或不是你看得到的</td><td>確認代號</td></tr>
+            <tr><td>409</td><td><code>stale_base</code></td><td><code>baseRevision</code> 不是最新版，有人改過</td><td>讀 <code>latest</code> 那一版，把修改套上去再存</td></tr>
+            <tr><td>409</td><td><code>scene_exists</code></td><td>場景代號已經有了</td><td>換代號，或讀現有的場景</td></tr>
+            <tr><td>409</td><td><code>debug_in_use</code></td><td>這個場景有別人正在調試</td><td>稍後再試，不要搶</td></tr>
+            <tr><td>409</td><td><code>debug_busy</code>、<code>debug_starting</code></td><td>上一個命令還在跑，或瀏覽器還在啟動</td><td>等它完成再送下一個命令</td></tr>
+            <tr><td>409</td><td><code>debug_closed</code></td><td>工作階段已經結束（閒置、出錯或被關掉）</td><td>重新開始調試</td></tr>
+            <tr><td>409</td><td><code>confirm_required</code></td><td>有副作用的步驟已執行過</td><td>確定可以重做才帶 <code>force</code>；否則 <code>reset</code></td></tr>
+            <tr><td>409</td><td><code>already_executed</code></td><td><code>run-to</code> 的目標已經執行過</td><td>用單步執行或 <code>reset</code></td></tr>
+            <tr><td>409</td><td><code>recorder_offline</code></td><td>錄製端不在線</td><td>換一台，或請人開啟錄製端 App</td></tr>
+            <tr><td>409</td><td><code>not_validated</code>、<code>content_changed</code></td><td>這個版本沒有驗證通過的紀錄，或內容和驗證時不同</td><td>先驗證</td></tr>
+            <tr><td>409</td><td><code>not_published</code></td><td>場景沒有已發布版本，不能正式執行</td><td>發布，或請人發布</td></tr>
+            <tr><td>409</td><td><code>rerun_workflow</code></td><td>組合場景的節點不能單獨重跑</td><td>重跑組合場景的執行：<code>POST /composite-runs/{id}/rerun</code></td></tr>
+            <tr><td>409</td><td><code>stale_workflow</code></td><td>組合場景的 <code>baseRevision</code> 不是最新版</td><td>讀 <code>latest</code> 那一版，把修改套上去再存</td></tr>
+            <tr><td>409</td><td><code>project_exists</code>、<code>workflow_code_exists</code></td><td>專案或組合場景的代號已經有了</td><td>換代號，或讀現有的</td></tr>
+            <tr><td>409</td><td><code>workflow_unpublished</code></td><td>組合場景沒有發布的版本，不能正式執行</td><td>先驗證、發布，或請人發布</td></tr>
+            <tr><td>409</td><td><code>workflow_invalid</code>、<code>workflow_not_validated</code>、<code>workflow_dependencies</code></td><td>定義有問題不能執行；這個版本沒有驗證通過的紀錄；依賴不完整（<code>problems</code>）不能發布</td><td>依 <code>problems</code> 修正、先驗證</td></tr>
+            <tr><td>409</td><td><code>workflow_run_active</code>、<code>workflow_not_resumable</code></td><td>組合場景的執行還沒結束；沒有可以接著的節點</td><td>等它結束；改用從頭執行</td></tr>
+            <tr><td>422</td><td><code>request_invalid</code></td><td>請求的格式不對，<code>problems</code> 列出欄位</td><td>依 <code>problems</code> 修正</td></tr>
+            <tr><td>422</td><td><code>recorder_required</code></td><td>這把金鑰允許好幾台錄製端，沒給 <code>recorderId</code></td><td>帶上 <code>recorderId</code></td></tr>
+            <tr><td>422</td><td><code>recorder_outdated</code></td><td>錄製端 App 太舊（例如不支援讀頁面結構，或看不懂場景用到的寫法）</td><td>請人更新 RPA 錄製端</td></tr>
+            <tr><td>422</td><td><code>display_unavailable</code></td><td>那台沒有畫面，不能有頭</td><td>改用 <code>"headless": true</code></td></tr>
+            <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML 校驗失敗，<code>issues</code> 列出位置</td><td>依 <code>issues</code> 修正後再存</td></tr>
+            <tr><td>422</td><td><code>inputs_invalid</code></td><td>入參不符合型別或限制，<code>problems</code> 列出哪一個</td><td>修正入參</td></tr>
+            <tr><td>422</td><td><code>worker_target_mismatch</code></td><td>指定的 Worker 和執行位置不一致</td><td>只給其中一個</td></tr>
+            <tr><td>429</td><td><code>limit_reached</code></td><td>超過同時調試或排隊、執行中的限額（<code>limit</code>）</td><td>等現有的完成，或結束不用的工作階段</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body"><p>運行本身的結果不是 HTTP 錯誤：<code>failed</code>、<code>timed_out</code>、<code>cancelled</code>、<code>needs_login</code> 都在 <code>GET /runs/{id}</code> 的 <code>status</code>。</p></div>
+    </section>
+
+    <section class="panel" id="humans">
+      <div class="panel-header"><h2>需要人的時候</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li><strong>需要登入：</strong>運行停在 <code>needs_login</code>，或 <code>GET /roles</code> 顯示角色要重新登入。請使用者在錄製端做人工登入，完成後呼叫 <code>POST /runs/{id}/rerun</code>。</li>
+          <li><strong>沒有發布權限：</strong>告訴使用者場景或組合場景的代號與驗證通過的版本號，請人在 Portal 發布。</li>
+          <li><strong>缺 Secret：</strong><code>GET /scenes/{id}</code> 的 <code>needs</code> 列出還沒設定的 Secrets；值由人在 Portal 填，Agent 不能寫入也讀不到。</li>
+          <li><strong>錄製端不在線或太舊：</strong>請人開啟或更新 RPA 錄製端 App。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="rules">
+      <div class="panel-header"><h2>守則</h2></div>
+      <div class="panel-body">
+        <ul class="points">
+          <li>每次存版本（場景與組合場景）都帶上次讀到的 <code>baseRevision</code>，不要覆蓋人的修改。</li>
+          <li>用完調試工作階段就 <code>DELETE</code>，不要占住錄製端。</li>
+          <li>不要在正式資料上反覆執行有副作用的步驟；能用測試帳號的角色就用。</li>
+          <li>截圖、頁面結構與出參可能含業務資料，只用在當前的任務，不要另外保存或轉傳。</li>
+          <li>所有寫入都會記在稽核紀錄，版本說明會標出你的用戶端名稱；在 <code>note</code> 寫清楚這一版改了什麼。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

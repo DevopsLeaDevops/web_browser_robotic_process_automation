@@ -28,17 +28,17 @@
   <div class="heading">
     <div>
       <h1>系統架構</h1>
-      <p>元件、資料流與目錄結構。平台全部部署在內網：伺服器保存場景與紀錄，錄製端與 Worker 兩個桌面 App 主動連到伺服器，瀏覽器在它們那台直接操作目標系統。本頁對照 v0.4.0（2026-10-21）。</p>
+      <p>元件、資料流與目錄結構。平台全部部署在內網：伺服器保存場景與紀錄，錄製端與 Worker 兩個桌面 App 主動連到伺服器，瀏覽器在它們那台直接操作目標系統。本頁對照 v0.5.0（2026-10-23）。</p>
     </div>
   </div>
 
   <div class="stack">
     <section class="panel" id="current">
-      <div class="panel-header"><h2>目前的部署</h2><span class="muted">v0.4.0：一台伺服器＋錄製端（macOS）＋Worker（Windows）</span></div>
+      <div class="panel-header"><h2>目前的部署</h2><span class="muted">v0.5.0：一台伺服器＋錄製端（macOS）＋Worker（Windows、macOS）</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 560" role="img" aria-labelledby="now-title now-desc">
           <title id="now-title">目前的部署圖</title>
-          <desc id="now-desc">伺服器執行 rpa serve：127.0.0.1:8080 給伺服器那台的瀏覽器，0.0.0.0:8081 對外埠給已配對的裝置；API 服務讀寫資料目錄（領域資料夾、SQLite 索引、執行目錄），領域可以和 git 倉庫同步。macOS 上的錄製端 App 與 Windows 上的 Worker App 都主動連到對外埠；錄製、逐步調試、人工登入與登入檢查的瀏覽器開在錄製端，執行的瀏覽器開在 Worker，兩者直接操作目標內部系統。伺服器有瀏覽器時也可以自己執行。</desc>
+          <desc id="now-desc">伺服器執行 rpa serve：127.0.0.1:8080 給伺服器那台的瀏覽器，0.0.0.0:8081 對外埠給已配對的裝置；API 服務讀寫資料目錄（領域資料夾、SQLite 索引、執行目錄），領域可以和 git 倉庫同步。macOS 上的錄製端 App 與 Windows 或 macOS 上的 Worker App 都主動連到對外埠；錄製、逐步調試、人工登入與登入檢查的瀏覽器開在錄製端，執行的瀏覽器開在 Worker，兩者直接操作目標內部系統。伺服器有瀏覽器時也可以自己執行。</desc>
           <defs>
             <marker id="arrow-now" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -108,7 +108,7 @@
 
           <!-- Worker -->
           <rect class="frame" x="772" y="92" width="212" height="308" rx="10"/>
-          <text class="frame-label" x="784" y="110">執行機（Windows）</text>
+          <text class="frame-label" x="784" y="110">執行機（Windows、macOS）</text>
           <rect class="box" x="786" y="120" width="184" height="96" rx="8"/>
           <text class="title" x="800" y="144">runner 子程序</text>
           <text class="sub" x="800" y="164">Chromium 或 Firefox</text>
@@ -119,7 +119,7 @@
           <text class="sub" x="800" y="302">長輪詢領取任務</text>
           <text class="sub" x="800" y="320">每 5 秒心跳、得知取消</text>
           <text class="sub" x="800" y="338">完成後上傳執行目錄</text>
-          <text class="sub" x="800" y="356">通知區、登入時自動啟動</text>
+          <text class="sub" x="800" y="356">通知區或選單列、自動啟動</text>
           <path class="link" d="M878 254V218" marker-end="url(#arrow-now)"/>
           <path class="link" d="M944 118V62" marker-end="url(#arrow-now)"/>
 
@@ -137,7 +137,7 @@
           <text class="label" x="612" y="478">拉取、推送（選用）</text>
         </svg>
       </div>
-      <div class="diagram-caption">藍框為核心元件；灰底為平台外部的系統；虛線為選用。所有連線都由 App 主動發起，伺服器不需要連到它們；只有伺服器存取資料庫與資料目錄；伺服器可以是 Linux、macOS 或 Windows，不需要螢幕。錄製端用裝置權杖、Worker 用 worker 權杖，權杖在 HTTP 下是明文，只適合信任的區網。伺服器沒有瀏覽器時（例如 Linux 主機），「檢查」登入狀態改由錄製端執行。安裝見<a href="../develop/operations.html">部署與操作</a>、<a href="desktop.html">桌面端分發</a>。</div>
+      <div class="diagram-caption">藍框為核心元件；灰底為平台外部的系統；虛線為選用。所有連線都由 App 主動發起，伺服器不需要連到它們；只有伺服器存取資料庫與資料目錄；伺服器可以是 Linux、macOS 或 Windows，不需要螢幕；Linux 可以用自帶 Python 的分發包安裝（v0.5.0 起）。錄製端用裝置權杖、Worker 用 worker 權杖，權杖在 HTTP 下是明文，只適合信任的區網。伺服器沒有瀏覽器時（例如 Linux 主機），「檢查」登入狀態改由錄製端執行。安裝見<a href="../develop/operations.html">部署與操作</a>、<a href="desktop.html">桌面端分發</a>。</div>
     </section>
 
     <section class="panel" id="target">
@@ -268,7 +268,7 @@
           <thead><tr><th>套件</th><th>職責</th><th>依賴</th><th>起始</th></tr></thead>
           <tbody>
             <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出、多語言訊息目錄；組合場景的定義與檢查（<code>rpa_core.workflow</code>，M6）；領域資料夾的格式與校驗（<code>rpa_core.pack</code>，M11）；錄製稿轉 DSL（<code>rpa_core.recording</code>，M4）。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>執行引擎：入參校驗、步驟處理器註冊表、瀏覽器與上下文管理（含 iframe，M7a）、登入檢查與人工登入、獨立斷言、出參發布、執行目錄與報告、錄影（M12）；也執行 Python 腳本場景，並提供錄製、逐步調試、人工登入的子程序（子程序命令集中在 <code>rpa_runner.commands</code>，打包後走 App 的入口）。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>執行引擎：入參校驗、步驟處理器註冊表、瀏覽器與上下文管理（含 iframe，M7a；點擊開出的新分頁，M7b）、登入檢查與人工登入、獨立斷言、出參發布、執行目錄與報告、錄影（M12）；也執行 Python 腳本場景，並提供錄製、逐步調試、人工登入的子程序（子程序命令集中在 <code>rpa_runner.commands</code>，打包後走 App 的入口）。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
             <tr><td>錄製</td><td>在隔離的瀏覽器中記錄使用者操作，保存原始錄製稿並轉成 DSL 草稿。M4 沒有另外做套件：錄製用 Playwright codegen，轉換是 rpa-core 的 <code>rpa_core.recording</code>（不碰瀏覽器，可以單獨測試）。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI 助手：對話調試、自然語言 → DSL、校驗失敗回饋修正、選擇器自癒；只能修改草稿。<strong>尚未建立</strong>：要先決定模型與資料去向。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、schema、run、record、serve、worker、recorder、pack check；generate 在 M5。</td><td>上述套件、click</td><td>M0</td></tr>

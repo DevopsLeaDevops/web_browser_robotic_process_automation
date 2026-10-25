@@ -257,6 +257,8 @@ def test_worker_info_to_json() -> None:
         "version": "0.1.0",
         # 管理 Portal 交出用到 iframe、新分頁、動態值的場景之前比對擴充能力
         "features": ["anyFrame", "dynamicValues", "frame", "page", "popup"],
+        # 調試時讀頁面結構（M14）：錄製端的 App 要支援，Agent 才能用
+        "capabilities": ["debugSnapshot"],
     }
 
 

@@ -7,6 +7,7 @@
 import json
 import socket
 import threading
+import time
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,7 +51,7 @@ def occupied() -> Generator[int, None, None]:
 
 
 @contextmanager
-def fake_portal() -> Generator[int, None, None]:
+def fake_portal(delay: float = 0) -> Generator[int, None, None]:
     """一個看起來像管理 Portal 的伺服器（/api/openapi.json 的標題相同）。"""
 
     class Handler(BaseHTTPRequestHandler):
@@ -58,6 +59,7 @@ def fake_portal() -> Generator[int, None, None]:
             """不輸出存取紀錄。"""
 
         def do_GET(self) -> None:
+            time.sleep(delay)
             body = json.dumps({"info": {"title": PORTAL_TITLE}}).encode()
             self.send_response(200 if self.path == "/api/openapi.json" else 404)
             self.send_header("Content-Type", "application/json")
@@ -108,6 +110,13 @@ def test_running_portal_is_not_started_twice() -> None:
             assert raised.value.message.startswith(
                 f"管理 Portal 已經在 http://127.0.0.1:{port}/ 執行中"
             )
+
+
+def test_slow_portal_is_not_mistaken_for_another_program() -> None:
+    """首次產生 OpenAPI 或主機繁忙時，超過一秒仍應認得既有 Portal。"""
+    with fake_portal(delay=1.2) as port, pytest.raises(click.ClickException) as raised:
+        open_listener(HOST, port)
+    assert raised.value.message.startswith(f"管理 Portal 已經在 http://127.0.0.1:{port}/ 執行中")
 
 
 def test_address_that_is_not_local_is_reported() -> None:
