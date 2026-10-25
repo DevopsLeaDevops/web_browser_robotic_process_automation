@@ -61,6 +61,8 @@ PORTAL_TITLE: Final = "RPA Portal"
 """管理 Portal 的 OpenAPI 標題（rpa_server.app），用來認出已經在執行的 Portal。"""
 
 _IN_USE: Final = ADDRESS_IN_USE
+_PROBE_TIMEOUT: Final = 5.0
+"""辨識 Portal 時等回應的秒數：第一次讀 /api/openapi.json 要產生整份文件，忙碌的機器上超過 1 秒。"""
 
 
 def _is_loopback(host: str) -> bool:
@@ -101,7 +103,7 @@ def _get_json(url: str) -> dict[str, object] | None:
     """讀取本機網址的 JSON 物件；連不上或不是 JSON 物件時回傳 None。"""
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 本機位址不走代理
     try:
-        with opener.open(url, timeout=1) as response:
+        with opener.open(url, timeout=_PROBE_TIMEOUT) as response:
             data: object = json.load(response)
     except (OSError, ValueError):
         return None
