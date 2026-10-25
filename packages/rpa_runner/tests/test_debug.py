@@ -1,6 +1,7 @@
 """調試工作階段的子程序：一行一個 JSON 命令，一次執行一個步驟（M4）。"""
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -178,6 +179,93 @@ def test_tabs_stay_open_between_steps(engine: str, tmp_path: Path) -> None:
             record = cast("dict[str, object]", missing["record"])
             assert record["status"] == "failed"
             assert "items" in str(record["error"])
+        finally:
+            if process.poll() is None:
+                assert process.stdin is not None
+                process.stdin.write(json.dumps({"cmd": "close"}) + "\n")
+                process.stdin.flush()
+                process.wait(timeout=30)
+
+
+def test_snapshot_lists_fields_and_the_accessibility_tree(session: tuple[Session, Path]) -> None:
+    """讀頁面結構（M14）：給 Agent 寫定位器用的欄位、無障礙樹，within 只看一部分。"""
+    debug, _ = session
+    debug.send("step", index=0)
+    debug.send("step", index=1)  # 填標題
+    shot = debug.send("snapshot")
+    assert shot["ok"] is True
+    assert str(shot["url"]).endswith("/")
+    assert shot["title"] == "本機範例頁"
+    fields = cast("list[dict[str, object]]", shot["fields"])
+    visible = {str(field["label"]): field for field in fields if field["visible"]}
+    assert visible["標題"]["role"] == "textbox"
+    assert visible["標題"]["value"] == "調試範例"
+    assert visible["標題"]["required"] is True
+    assert visible["數量"]["role"] == "spinbutton"
+    aria = str(shot["aria"])
+    assert 'button "建立紀錄"' in aria
+    assert shot["truncated"] is False
+    tabs = cast("list[dict[str, object]]", shot["tabs"])
+    assert tabs == [{"page": None, "url": shot["url"], "title": "本機範例頁", "active": True}]
+    assert shot["frames"] == []
+
+    part = debug.send("snapshot", within={"css": "#create-form"})
+    assert "建立範例紀錄" in str(part["aria"])
+    assert "範例紀錄" not in str(part["aria"]).replace("建立範例紀錄", "")
+    missing = debug.send("snapshot", within={"css": "#does-not-exist"})
+    assert missing["ok"] is False
+    assert debug.send("snapshot", within={"role": "button", "css": "x"})["ok"] is False
+
+
+def test_snapshot_masks_passwords_and_secrets(engine: str, tmp_path: Path) -> None:
+    """密碼欄位與 Secrets 的值不離開調試子程序。"""
+    scenario = tmp_path / "scenario.yaml"
+    scenario.write_text(
+        "schemaVersion: 1\nid: snapshot-login\nname: 讀頁面結構\n"
+        "secrets: [DEMO_SECRET]\n"
+        "browser: { baseUrl: http://127.0.0.1:8765 }\n"
+        "steps:\n"
+        "  - { id: open, action: goto, url: /login }\n"
+        "  - { id: user, action: fill, target: { label: 帳號 },"
+        " value: '{{ secrets.DEMO_SECRET }}' }\n"
+        "  - { id: password, action: fill, target: { label: 密碼 }, value: user-pass }\n",
+        encoding="utf-8",
+    )
+    inputs = tmp_path / "input.json"
+    inputs.write_text("{}", encoding="utf-8")
+    with running() as site:
+        command = [
+            sys.executable, "-m", "rpa_runner.debug",
+            "--scenario", str(scenario), "--input", str(inputs),
+            "--out", str(tmp_path / "debug"), "--engine", engine, "--base-url", site,
+        ]  # fmt: skip
+        env = {**os.environ, "DEMO_SECRET": "manager-secret"}
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            env=env,
+        )
+        try:
+            debug = Session(process)
+            assert debug.read()["event"] == "ready"
+            for index in range(3):
+                reply = debug.send("step", index=index)
+                assert cast("dict[str, object]", reply["record"])["status"] == "passed", reply
+            shot = debug.send("snapshot")
+            text = json.dumps(shot, ensure_ascii=False)
+            assert "manager-secret" not in text
+            assert "user-pass" not in text
+            fields = {
+                str(field["label"]): field
+                for field in cast("list[dict[str, object]]", shot["fields"])
+            }
+            assert fields["密碼"]["value"] == "***"
+            assert fields["帳號"]["value"] == "***"
+            assert fields["記住我"]["role"] == "checkbox"
+            assert fields["記住我"]["checked"] is False
         finally:
             if process.poll() is None:
                 assert process.stdin is not None

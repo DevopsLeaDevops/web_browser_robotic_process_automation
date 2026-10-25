@@ -23,6 +23,9 @@ M11 PR 2：組合場景放在領域資料夾的 composites/<代號>/（:mod:`rpa
 專案空間（2026-10-23）：組合場景可以屬於一個專案（project_id，只在資料庫），專案頁只列那個專案的
 組合場景與它們的執行；還沒分到專案的組合場景在專案管理列出。
 
+對外 Agent API（M14）：組合場景的執行記下觸發的用戶端（client_id），節點的執行也記同一個；
+Agent 存的版本說明由呼叫端帶（note）。路由在 :mod:`rpa_server.agent_projects`。
+
 所有改變組合場景執行狀態的操作都在同一把鎖裡（worker 的回報與頁面的取消可能同時發生）。
 """
 
@@ -30,7 +33,7 @@ import logging
 import os
 import re
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Final, Literal, cast
 
@@ -281,6 +284,18 @@ class WorkflowService:
             row = self._row(session, workflow_id)
         return self._record(row)
 
+    def find(self, code: str) -> int:
+        """代號 → 組合場景的編號（對外 API 用代號指定組合場景）；找不到時 404。"""
+        with self.sessions() as session:
+            found = session.scalars(
+                select(WorkflowRow.id).where(
+                    WorkflowRow.code == code, WorkflowRow.missing.is_(False)
+                )
+            ).first()
+        if found is None:
+            raise not_found("workflow_not_found", t("error.workflow_not_found", id=code))
+        return found
+
     @staticmethod
     def _name(name: str) -> str:
         name = name.strip()
@@ -307,11 +322,13 @@ class WorkflowService:
         code: str | None = None,
         domain_id: str | None = None,
         project_id: str | None = None,
+        note: str | None = None,
     ) -> WorkflowRecord:
         """新增組合場景；可以直接帶定義（匯入匯出的 JSON）。定義就是第 1 版。
 
         code 沒給時自動取 wf-<數字>；domain_id 沒給時放「組合場景」領域（需要時建立）；
-        project_id 是放進哪個專案（專案頁新增的就是那個專案），沒給時還沒分到專案。
+        project_id 是放進哪個專案（專案頁新增的就是那個專案），沒給時還沒分到專案；
+        note 是第 1 版的說明（沒給時是「建立」）。
         """
         workflow = (
             self._definition(definition)
@@ -355,7 +372,9 @@ class WorkflowService:
                 packs.write_composite(
                     CompositeManifest(id=code, name=name, description=description)
                 )
-                self._write_revision(session, row, 1, workflow, t("workflow.note_created"), moment)
+                self._write_revision(
+                    session, row, 1, workflow, note or t("workflow.note_created"), moment
+                )
                 session.commit()
             except BaseException:
                 session.rollback()
@@ -418,10 +437,12 @@ class WorkflowService:
         name: str | None = None,
         description: str | None = None,
         definition: object = None,
+        note: str | None = None,
     ) -> WorkflowRecord:
         """存檔：base_version 不是目前的版本時回 409（別的分頁已經存過）。
 
-        定義和最新版本不同時存成新的版本（version 加一）；名稱與說明寫進 composite.yaml，不分版本。
+        定義和最新版本不同時存成新的版本（version 加一），note 是那個版本的說明（沒給時是
+        「存檔」）；名稱與說明寫進 composite.yaml，不分版本。
         """
         workflow = self._definition(definition) if definition is not None else None
         packs = self.services.packs
@@ -450,7 +471,7 @@ class WorkflowService:
                 number = row.version + 1
                 try:
                     self._write_revision(
-                        session, row, number, workflow, t("workflow.note_saved"), moment
+                        session, row, number, workflow, note or t("workflow.note_saved"), moment
                     )
                 except FileExistsError:
                     session.rollback()
@@ -621,15 +642,18 @@ class WorkflowService:
         target: Target | None = None,
         purpose: Purpose = "validation",
         revision: int | None = None,
+        worker_id: str | None = None,
+        client_id: str | None = None,
     ) -> WorkflowRunRecord:
         """執行組合場景：先檢查，沒有問題才建立組合場景的執行並排入第一個節點。
 
         purpose 是 validation（驗證某個版本，預設最新；結束時寫驗證紀錄）或 execution
         （執行發布的版本）。target 是執行位置（M9a）：每個節點都一樣，而且第一個節點由哪台
-        worker 領取，後面就都給它。
+        worker 領取，後面就都給它；worker_id 指定從第一個節點起就給哪台遠端 worker。
+        client_id 是觸發的對外 API 用戶端（M14）。
         """
         key = (idempotency_key or "").strip() or None
-        existing = self._by_key(key)
+        existing = self.by_key(key)
         if existing is not None:
             return existing
         with self.sessions() as session:
@@ -646,7 +670,7 @@ class WorkflowService:
                 number = revision or row.version
             source_hash = self._usable_revision(session, row, number).content_hash
             code, name = row.code, row.name
-        workflow = self._revision_workflow(code, number)
+        workflow = self.revision_workflow(code, number)
         problems = self.check(workflow) + [
             WorkflowProblem(item.code, item.message)
             for item in self._requirement_items_for(code, number)
@@ -666,9 +690,11 @@ class WorkflowService:
             reused={},
             start_index=0,
             target=target,
+            worker_id=worker_id,
             purpose=purpose,
             code=code,
             source_hash=source_hash,
+            client_id=client_id,
         )
 
     @staticmethod
@@ -695,7 +721,7 @@ class WorkflowService:
             )
         return item
 
-    def _revision_workflow(self, code: str, number: int) -> Workflow:
+    def revision_workflow(self, code: str, number: int) -> Workflow:
         """某個版本的定義（讀領域資料夾裡的 workflow.json）。"""
         entry, _ = self.services.packs.composite_entry(code)
         revision = entry.revisions.get(number) if entry is not None else None
@@ -712,11 +738,19 @@ class WorkflowService:
         return revision.workflow
 
     def rerun(
-        self, run_id: str, *, resume: bool = False, idempotency_key: str | None = None
+        self,
+        run_id: str,
+        *,
+        resume: bool = False,
+        idempotency_key: str | None = None,
+        client_id: str | None = None,
     ) -> WorkflowRunRecord:
-        """用同一份定義再執行一次：從頭開始，或從停下的節點繼續（沿用前面節點的出參）。"""
+        """用同一份定義再執行一次：從頭開始，或從停下的節點繼續（沿用前面節點的出參）。
+
+        client_id 是要求重跑的對外 API 用戶端（M14）；Portal 重跑時是 None。
+        """
         key = (idempotency_key or "").strip() or None
-        existing = self._by_key(key)
+        existing = self.by_key(key)
         if existing is not None:
             return existing
         with self.sessions() as session:
@@ -755,6 +789,7 @@ class WorkflowService:
             purpose=purpose,
             code=code,
             source_hash=source_hash,
+            client_id=client_id,
         )
 
     def _resume_point(
@@ -791,7 +826,8 @@ class WorkflowService:
         if not workflow.nodes:  # check_workflow 會回報；這裡只是保險
             raise invalid("workflow_invalid", t("error.workflow_invalid", count=1))
 
-    def _by_key(self, key: str | None) -> WorkflowRunRecord | None:
+    def by_key(self, key: str | None) -> WorkflowRunRecord | None:
+        """用這個冪等鍵建立的組合場景執行。"""
         if key is None:
             return None
         with self.sessions() as session:
@@ -819,6 +855,7 @@ class WorkflowService:
         purpose: Purpose = "validation",
         code: str | None = None,
         source_hash: str | None = None,
+        client_id: str | None = None,
     ) -> WorkflowRunRecord:
         workflow, problems = plan_workflow(
             workflow,
@@ -848,13 +885,14 @@ class WorkflowService:
                         purpose=purpose,
                         workflow_code=code,
                         workflow_hash=source_hash,
+                        client_id=client_id,
                     )
                 )
                 try:
                     session.commit()
                 except IntegrityError:
                     session.rollback()
-                    existing = self._by_key(key)
+                    existing = self.by_key(key)
                     if existing is None:
                         raise
                     return existing
@@ -870,6 +908,7 @@ class WorkflowService:
             outputs = self._outputs(session, row)
             engine, headless = row.engine, row.headless
             target, pinned = cast("Target", row.target), row.worker_id
+            client_id = row.client_id
         node = workflow.execution_nodes()[index]
         values, problems = resolve_inputs(node, outputs)
         if problems:
@@ -887,6 +926,7 @@ class WorkflowService:
                 node_id=node.id,
                 target=target,
                 required_worker=pinned,
+                client_id=client_id,
             )
         except ServiceError as error:
             details = error.details.get("problems")
@@ -1315,6 +1355,7 @@ class WorkflowService:
             nodes=tuple(nodes),
             purpose=row.purpose,
             workflow_code=row.workflow_code,
+            client_id=row.client_id,
         )
 
     def _node_state(
@@ -1371,8 +1412,15 @@ class WorkflowService:
         workflow_id: int | None = None,
         project_id: str | None = None,
         limit: int = RUN_LIST_LIMIT,
+        projects: Collection[str] | None = None,
+        statuses: Collection[str] = (),
+        purposes: Collection[str] = (),
+        client_id: str | None = None,
     ) -> list[WorkflowRunRecord]:
-        """組合場景的執行，新的在前；可以只列一個組合場景或一個專案（現在屬於它的組合場景）的。"""
+        """組合場景的執行，新的在前；可以只列一個組合場景或一個專案（現在屬於它的組合場景）的。
+
+        對外 API（M14）另外可以限定幾個專案（projects）、狀態、目的與觸發的用戶端。
+        """
         statement = (
             select(WorkflowRunRow)
             .order_by(WorkflowRunRow.created_at.desc(), WorkflowRunRow.id.desc())
@@ -1383,6 +1431,15 @@ class WorkflowService:
         if project_id is not None:
             members = select(WorkflowRow.id).where(WorkflowRow.project_id == project_id)
             statement = statement.where(WorkflowRunRow.workflow_id.in_(members))
+        if projects is not None:
+            members = select(WorkflowRow.id).where(WorkflowRow.project_id.in_(list(projects)))
+            statement = statement.where(WorkflowRunRow.workflow_id.in_(members))
+        if statuses:
+            statement = statement.where(WorkflowRunRow.status.in_(list(statuses)))
+        if purposes:
+            statement = statement.where(WorkflowRunRow.purpose.in_(list(purposes)))
+        if client_id is not None:
+            statement = statement.where(WorkflowRunRow.client_id == client_id)
         with self.sessions() as session:
             return [self._run_record(session, row) for row in session.scalars(statement)]
 

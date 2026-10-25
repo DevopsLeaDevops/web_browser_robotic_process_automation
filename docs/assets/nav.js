@@ -81,6 +81,11 @@ window.DOCS_NAV = {
           "id": "desktop",
           "href": "design/desktop.html",
           "name": {"zh-Hant": "桌面端分發", "zh-Hans": "桌面端分发", "en": "Desktop distribution"}
+        },
+        {
+          "id": "agent-api",
+          "href": "design/agent-api.html",
+          "name": {"zh-Hant": "對外 Agent API", "zh-Hans": "对外 Agent API", "en": "Agent API"}
         }
       ]
     },
@@ -170,6 +175,11 @@ window.DOCS_NAV = {
           "name": {"zh-Hant": "0016 運行回看", "zh-Hans": "0016 运行回看", "en": "0016 Run replay"}
         },
         {
+          "id": "adr-0017",
+          "href": "adr/0017-agent-api.html",
+          "name": {"zh-Hant": "0017 對外 Agent API", "zh-Hans": "0017 对外 Agent API", "en": "0017 Agent API"}
+        },
+        {
           "id": "adr-0018",
           "href": "adr/0018-layered-updates.html",
           "name": {"zh-Hant": "0018 分層更新", "zh-Hans": "0018 分层更新", "en": "0018 Layered updates"}
@@ -200,6 +210,21 @@ window.DOCS_NAV = {
           "id": "remote-worker",
           "href": "develop/remote-worker.html",
           "name": {"zh-Hant": "遠端 worker", "zh-Hans": "远程 worker", "en": "Remote workers"}
+        },
+        {
+          "id": "agent-api-guide",
+          "href": "develop/agent-api-guide.html",
+          "name": {"zh-Hant": "Agent 使用指南", "zh-Hans": "Agent 使用指南", "en": "Agent API guide"}
+        },
+        {
+          "id": "agent-test-plan-guide",
+          "href": "develop/agent-test-plan-guide.html",
+          "name": {"zh-Hant": "測試方案指南", "zh-Hans": "测试方案指南", "en": "Test plan guide"}
+        },
+        {
+          "id": "agent-test-report-guide",
+          "href": "develop/agent-test-report-guide.html",
+          "name": {"zh-Hant": "測試報告指南", "zh-Hans": "测试报告指南", "en": "Test report guide"}
         },
         {
           "id": "operations",

@@ -4,6 +4,8 @@
 """
 
 import json
+import os
+import time
 from pathlib import Path
 from typing import Final
 
@@ -18,6 +20,8 @@ __all__ = [
     "LOGIN_LOG",
     "LOGIN_SCREENSHOT",
     "OUTPUT",
+    "REPLACE_ATTEMPTS",
+    "REPLACE_DELAY",
     "REPORT",
     "RESULT",
     "SCENARIO_DIR",
@@ -60,12 +64,27 @@ VIDEO_INFO: Final = "video.json"
 VIDEO_TMP: Final = ".video"
 """錄影時 Playwright 寫入的暫存資料夾；執行結束時整理成 video.webm 後刪掉。"""
 
+REPLACE_ATTEMPTS: Final = 50
+"""Windows 上改名被別的程序擋住時最多試幾次；每次間隔 REPLACE_DELAY 秒，合計約 1 秒。"""
+REPLACE_DELAY: Final = 0.02
+
 
 def write_json(path: Path, value: object) -> None:
-    """寫出 JSON：先寫暫存檔再改名，子程序在寫到一半時被終止也不會留下不完整的檔案。"""
+    """寫出 JSON：先寫暫存檔再改名，子程序在寫到一半時被終止也不會留下不完整的檔案。
+
+    Windows 上別的程序正開著 path 時（回看、測試在讀執行中的 steps.json），改名會丟
+    PermissionError（WinError 5），稍等重試；其他系統的 PermissionError 是真的沒有權限，照舊丟出。
+    """
     temporary = path.with_name(f".{path.name}.tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(path)
+    for attempt in range(1, REPLACE_ATTEMPTS + 1):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            if os.name != "nt" or attempt == REPLACE_ATTEMPTS:
+                raise
+            time.sleep(REPLACE_DELAY)
 
 
 def read_json(path: Path) -> object:

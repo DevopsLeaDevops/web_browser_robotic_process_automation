@@ -36,7 +36,7 @@
     </article>
   {% else %}<div class="panel empty">{{ t("project.empty") }}</div>{% endfor %}
   </div>
-  <section class="panel"><div class="panel-header"><h2>{{ t("playground.recent_runs") }}</h2></div>{% if runs %}{{ m.workflow_run_rows(runs) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}</section>
+  <section class="panel"><div class="panel-header"><h2>{{ t("playground.recent_runs") }}</h2></div>{% if runs %}{{ m.workflow_run_rows(runs, agents=agent_names) }}{% else %}<div class="empty">{{ t("playground.no_runs") }}</div>{% endif %}</section>
 </div>
 {% include "_workflow_forms.html" %}
 {% include "_workflow_run_form.html" %}

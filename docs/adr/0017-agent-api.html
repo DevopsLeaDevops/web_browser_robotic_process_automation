@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0017 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0017" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0017：第三方 Agent 經由獨立、以 API 金鑰授權的 /agent-api/v1 操作平台</h1>
+      <p>Agent 只連伺服器；調試交給指定的錄製端，驗證與執行交給 Worker，業務規則與發布門檻沿用現有服務。新的一層只做認證、權限、稽核與對外契約。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-23</dd>
+        <dt>影響範圍</dt><dd>rpa-server（新路由、API 用戶端、稽核、遷移）、rpa-runner（調試的 <code>snapshot</code> 命令）、RPA 錄製端 App（讀頁面結構）；第二期另含 rpa-worker</dd>
+        <dt>相關</dt><dd><a href="0011-fastapi-jinja.html">ADR 0011</a>（API 與 OpenAPI）、<a href="0012-remote-workers.html">ADR 0012</a>（Worker API）、<a href="0014-desktop-apps.html">ADR 0014</a>（錄製端與互動子程序）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（版本與發布紀錄）；<a href="../design/agent-api.html">設計：對外 Agent API</a>；<a href="../develop/agent-api-guide.html">Agent 使用指南</a>；<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>、<a href="../develop/agent-test-report-guide.html">測試報告指南</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>使用者要求（2026-10-23）：第三方的 Agent 系統使用 Linux 伺服器的 API 操作錄製端，完成場景腳本與參數的新增、修改、調試運行；再經由伺服器呼叫 Worker 完成驗證與執行，並取得運行過程。</p>
+          <p>現有的 <code>/api</code> 已有場景、版本、調試、驗證、執行的全部操作，但沒有認證：只開在伺服器本機的 8080，或帶錄製端的裝置權杖從對外埠進來。互動子程序開在「請求經過的那台錄製端」，Agent 不經過錄製端，無法指定。Worker 只回報五個階段，沒有步驟級的進度。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li><strong>獨立的對外 API。</strong>對外埠新增 <code>/agent-api/v1</code>，有自己的 OpenAPI；路由只轉接服務層，不複製業務規則。<code>/api</code>、Client API、Worker API 不變。</li>
+            <li><strong>API 用戶端。</strong>每個 Agent 系統在管理後台登記為一個用戶端，金鑰只顯示一次、只存雜湊。用戶端設定權限範圍（<code>scenes:read</code>、<code>scenes:write</code>、<code>debug</code>、<code>runs:validate</code>、<code>scenes:publish</code>、<code>runs:execute</code>、<code>runs:read</code>）、可用領域與錄製端、執行位置與 Worker、限額、回傳頁面內容、到期與來源 IP。</li>
+            <li><strong>Agent 只連伺服器。</strong>調試請求帶 <code>recorderId</code>，伺服器以現有的 <code>use_recorder</code> 把子程序交給那台；錄製端要在裝置頁打開「允許 Agent 調試」，可以只允許無頭。場景已有人在調試時回 409，不關掉對方。</li>
+            <li><strong>發布要個別授權。</strong>Agent 可以發布，但只有勾選 <code>scenes:publish</code> 的用戶端可以，預設不勾（使用者 2026-10-23 決定）。發布門檻不變：發布的版本必須是驗證通過、雜湊相符的版本。</li>
+            <li><strong>頁面內容預設不回傳。</strong>截圖、頁面結構與錄影受用戶端的「回傳頁面內容」控制，預設關；管理員確認 Agent 的模型可以接收內部頁面後再打開（使用者同意的建議）。Secrets 的值永遠不回傳。</li>
+            <li><strong>讀頁面結構在第一期。</strong>調試子程序加 <code>snapshot</code> 命令（無障礙樹、表單欄位、iframe 與分頁），值遮罩；錄製端上線時回報支援，舊版回 409 並提示更新（使用者 2026-10-23 要求提前）。</li>
+            <li><strong>運行過程。</strong>第一期提供狀態、階段、結束後的步驟與產物；第二期由 <code>steps.json</code> 經心跳回報步驟進度，提供事件長輪詢與 Webhook。</li>
+            <li><strong>稽核。</strong>每個寫入請求記下時間、用戶端、動作、對象與結果，只增不改；版本與運行標出觸發的用戶端。</li>
+            <li><strong>不做 MCP 轉接。</strong>只提供 HTTP API 與使用指南（使用者 2026-10-23 決定）。</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>大部分端點是轉接，第一期的工作集中在認證、權限、稽核、指定錄製端與讀頁面結構。</li>
+            <li>多一個對外的介面：金鑰在 HTTP 下是明文。Agent 系統與伺服器在同一個局域網（使用者 2026-10-23 確認），第一期不要求 HTTPS；Agent 移到局域網外時要在伺服器前加 HTTPS。</li>
+            <li>讀頁面結構要出新版錄製端 App；舊版 App 仍可調試，只是不能讀頁面結構。</li>
+            <li>Agent 接外部模型時，打開「回傳頁面內容」等於讓內部頁面離開內網；這要由管理員逐個用戶端決定。</li>
+            <li>M8 加入使用者與專案權限時，API 用戶端要併入同一套權限模型。</li>
+            <li>2026-10-24 使用者要求把專案與組合場景併入第一期：API 用戶端多了「可用的專案」與 <code>projects:*</code> 權限範圍，M8 時一起併入。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>直接對外開放 <code>/api</code> 並加權杖</td><td><code>/api</code> 跟著 Portal 介面改動，不適合當對外契約；權限與稽核要穿插在每個頁面用的路由裡。</td></tr>
+              <tr><td>Agent 直接連錄製端或 Worker</td><td>錄製端與 Worker 要開埠、Agent 要知道每台的位置；破壞「所有連線由 App 主動發起」（ADR 0012、0014）。</td></tr>
+              <tr><td>在伺服器開瀏覽器給 Agent 調試</td><td>Linux 伺服器沒有畫面也可能沒裝瀏覽器；錄製、調試的瀏覽器開在錄製端（ADR 0014）。</td></tr>
+              <tr><td>遠端畫面串流</td><td>ADR 0014 已決定不做；Agent 用截圖與頁面結構即可。</td></tr>
+              <tr><td>一開始就用 SSE 或 WebSocket 推送事件</td><td>長輪詢與 Worker、錄製端一致，穿得過代理；推送等第二期再評估。</td></tr>
+              <tr><td>MCP 轉接</td><td>使用者 2026-10-23 決定不做。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

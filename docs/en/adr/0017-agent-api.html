@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:779ebc0236673529">
+<title>ADR 0017 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0017" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0017: Third-party agents operate the platform through a separate /agent-api/v1 authorized by API keys</h1>
+      <p>Agents connect only to the server. Debugging goes to a chosen recorder, validation and execution go to workers, and business rules and the publish gate reuse the existing services. The new layer only handles authentication, permissions, auditing and the external contract.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-23</dd>
+        <dt>Scope</dt><dd>rpa-server (new routes, API clients, audit, migration), rpa-runner (the debug <code>snapshot</code> command), the RPA Recorder app (reading page structure); phase 2 also touches rpa-worker</dd>
+        <dt>Related</dt><dd><a href="0011-fastapi-jinja.html">ADR 0011</a> (API and OpenAPI), <a href="0012-remote-workers.html">ADR 0012</a> (Worker API), <a href="0014-desktop-apps.html">ADR 0014</a> (recorder and interactive subprocesses), <a href="0015-domain-folders-and-git.html">ADR 0015</a> (revisions and publish history); <a href="../design/agent-api.html">Design: Agent API</a>; <a href="../develop/agent-api-guide.html">Agent API guide</a>; <a href="../develop/agent-test-plan-guide.html">Test plan guide</a>, <a href="../develop/agent-test-report-guide.html">Test report guide</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>User request (2026-10-23): a third-party agent system uses the Linux server's API to operate a recorder, creating, changing and debugging scene scripts and parameters; it then has the server call workers to validate and execute them, and reads how each run progresses.</p>
+          <p>The existing <code>/api</code> already covers scenes, revisions, debugging, validation and execution, but it has no authentication: it is open only on the server's local port 8080, or from the external port with a recorder's device token. Interactive subprocesses open on "the recorder the request came through"; an agent does not come through a recorder and cannot choose one. Workers report only five stages, with no step-level progress.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ol>
+            <li><strong>A separate external API.</strong> The external port gains <code>/agent-api/v1</code> with its own OpenAPI. Routes only forward to the service layer and do not copy business rules. <code>/api</code>, the Client API and the Worker API do not change.</li>
+            <li><strong>API clients.</strong> Each agent system is registered in the admin area as one client. Its key is shown once and only its hash is stored. A client sets scopes (<code>scenes:read</code>, <code>scenes:write</code>, <code>debug</code>, <code>runs:validate</code>, <code>scenes:publish</code>, <code>runs:execute</code>, <code>runs:read</code>), allowed domains and recorders, run location and worker, limits, page content, expiry and source IPs.</li>
+            <li><strong>Agents connect only to the server.</strong> A debug request carries <code>recorderId</code>, and the server uses the existing <code>use_recorder</code> to hand the subprocess to that recorder. The recorder must have "Allow agent debugging" turned on in its device page and can be limited to headless. When someone is already debugging the scene the API returns 409 and does not close their session.</li>
+            <li><strong>Publishing needs per-client authorization.</strong> Agents may publish, but only clients with <code>scenes:publish</code> ticked, which is off by default (user decision, 2026-10-23). The publish gate does not change: the published revision must be one that passed validation with a matching hash.</li>
+            <li><strong>Page content is off by default.</strong> Screenshots, page structure and video follow the client's "Return page content" setting, which is off by default. An administrator turns it on after confirming the agent's model may receive internal pages (recommendation the user accepted). Secret values are never returned.</li>
+            <li><strong>Reading page structure is in phase 1.</strong> The debug subprocess gains a <code>snapshot</code> command (accessibility tree, form fields, iframes and tabs) with values masked. Recorders report support when they connect, and older ones get 409 with a prompt to update (the user asked to move it forward, 2026-10-23).</li>
+            <li><strong>Run progress.</strong> Phase 1 provides status, stage, and steps and files after the run. Phase 2 reports step progress from <code>steps.json</code> through heartbeats and adds event long polling and webhooks.</li>
+            <li><strong>Audit.</strong> Every write request records time, client, action, target and result, append-only. Revisions and runs show which client triggered them.</li>
+            <li><strong>No MCP adapter.</strong> Only the HTTP API and the usage guide are provided (user decision, 2026-10-23).</li>
+          </ol>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>Most endpoints forward to existing services. Phase 1 work centers on authentication, permissions, auditing, choosing the recorder and reading page structure.</li>
+            <li>There is one more external interface. Keys travel in clear text over HTTP. The agent system shares a local network with the server (confirmed by the user on 2026-10-23), so phase 1 does not require HTTPS; put HTTPS in front of the server if the agent moves off that network.</li>
+            <li>Reading page structure needs a new Recorder app release. Older apps can still debug but cannot read page structure.</li>
+            <li>When the agent uses an external model, turning on "Return page content" lets internal pages leave the intranet; administrators decide this per client.</li>
+            <li>When M8 adds users and project permissions, API clients must join the same permission model.</li>
+            <li>On 2026-10-24 the user asked to bring projects and composite scenarios into phase 1: API clients gain "allowed projects" and the <code>projects:*</code> scopes, which join M8 as well.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Expose <code>/api</code> with a token</td><td><code>/api</code> changes with the Portal UI and is not suited to an external contract; permissions and audit would be spread through routes the pages use.</td></tr>
+              <tr><td>Agents connect directly to recorders or workers</td><td>Recorders and workers would need open ports and agents would need to know where each one is; this breaks "every connection is started by the app" (ADR 0012, 0014).</td></tr>
+              <tr><td>Open a browser on the server for agent debugging</td><td>The Linux server has no display and may not have a browser installed; recording and debugging browsers run on recorders (ADR 0014).</td></tr>
+              <tr><td>Remote screen streaming</td><td>ADR 0014 already decided against it; screenshots and page structure are enough for agents.</td></tr>
+              <tr><td>Push events with SSE or WebSocket from the start</td><td>Long polling matches workers and recorders and passes through proxies; push can be reconsidered in phase 2.</td></tr>
+              <tr><td>MCP adapter</td><td>The user decided against it on 2026-10-23.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

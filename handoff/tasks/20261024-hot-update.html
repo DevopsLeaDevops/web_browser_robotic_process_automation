@@ -66,7 +66,7 @@
         <li><strong>使用者的部署（2026-10-25 02:09 America/Los_Angeles（PDT，UTC−07:00）說明）：</strong>內網伺服器從 clone 以 nohup 執行（<code>.venv-server/bin/rpa serve … --data /home/admin/.local/share/rpa-server-v040 …</code>）。clone 不支援更新檔，要改用分發包一次，命令只換成 <code>~/rpa-server/bin/rpa</code>，參數、資料目錄、nohup 照舊。另提醒 8080 開在 0.0.0.0 時區網任何人不用配對就能操作 Portal（與本任務無關）。</li>
         <li><strong>需要使用者做的事：</strong>使用者 2026-10-25 05:52 PDT 產生了 Ed25519 金鑰，公鑰已加進 <code>RELEASE_KEYS</code>（<code>keys.py</code> 是執行環境的一部分，所以要在打 0.6.0 標籤之前）。還要把同一把私鑰的 PEM 全文存進 Secret <code>RPA_UPDATE_SIGNING_KEY</code>（見 <a href="../../docs/develop/ci.html#update-key">CI 與流水線 › 更新檔的簽署金鑰</a>），並另外備份私鑰。私鑰對不上公鑰或 Secret 沒設時，發布流程會失敗（刻意的）。使用者伺服器的 OpenSSL 太舊（沒有 Ed25519），文件已補上版本要求。</li>
         <li><strong>相依與編號：</strong>ADR 0017 已由 PR #79 使用，本篇用 0018；PR #82（Python 腳本場景的運行環境）也改 PyInstaller 設定與 <code>build_server.py</code>，合併時要整合，先合併的一方之後由另一方 rebase。</li>
-        <li><strong>下一個具體動作：</strong>「Worker 測試（Windows）」的紅燈是執行器原本就有的問題（Windows 上別的程序在讀 <code>steps.json</code> 時，<code>write_json</code> 改名會失敗），另開執行緒修；修好併入 main 後把 main 併進 PR #83。之後請使用者審閱 PR #83。合併後發 0.6.0：伺服器、Worker、錄製端各用完整包安裝最後一次，之後環境代號沒變的版本都用更新檔。</li>
+        <li><strong>下一個具體動作：</strong>執行器在 Windows 上寫 <code>steps.json</code> 的問題已由 PR #84 修好並併進來。請使用者審閱 PR #83，並把私鑰存進 Secret。合併後發 0.6.0：伺服器、Worker、錄製端各用完整包安裝最後一次，之後環境代號沒變的版本都用更新檔。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -101,6 +101,7 @@
         <li>2026-10-25 04:26（PDT，UTC−07:00），Claude：第二階段（be62c98、5f210be、eac4ff3）推送；ADR 0018 改為已接受並補上實作細節，維運與 CI 文件補上更新檔與簽署金鑰。</li>
         <li>2026-10-25 04:38～04:46（PDT，UTC−07:00），Claude：625f8fc 的「Worker 測試（Windows）」兩次失敗（錄影取消測試，Chromium 一次、Firefox 一次）；同樣的程式在 eac4ff3 全部通過。查到 <code>rpa_runner</code> 的 <code>write_json</code> 在 Windows 上的問題，在 PR 留言附上修正，另開執行緒修。</li>
         <li>2026-10-25 05:52（PDT，UTC−07:00），使用者：貼上正式金鑰的公鑰；Claude 加進 <code>RELEASE_KEYS</code>，文件補上 OpenSSL 1.1.1 以上的要求。</li>
+        <li>2026-10-25 07:59（PDT，UTC−07:00），Claude：併入 main（9fd0861：PR #84 的 <code>write_json</code> 改名重試、PR #79 的 Agent API）。衝突：<code>rpa serve</code> 認 Portal 的逾時兩邊都改了，採用 main 的 <code>PROBE_TIMEOUT</code>（3 秒）；伺服器語系檔、頁面測試的資料、ADR 索引與導覽、任務索引兩邊都保留（ADR 0017 在 0018 前面）。</li>
       </ul></div>
     </section>
   </div>

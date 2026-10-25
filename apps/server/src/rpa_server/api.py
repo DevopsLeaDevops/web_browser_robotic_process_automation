@@ -21,8 +21,12 @@ M10.2：錄製端的登記與邀請（/api/recorders）。錄製端自己用的 
 
 專案空間（2026-10-23）：專案（/api/projects，和領域一樣新增、改名、刪除、調整順序）；
 組合場景的 projectId（新增時放進哪個專案，PATCH 移到其他專案）。
+M14：對外 Agent API 的用戶端與稽核（/api/agents，金鑰只在建立與重新產生時回傳一次）；
+錄製端允不允許 Agent 調試（PATCH /api/recorders/{代號} 的 allowAgent、agentHeadlessOnly）。
+Agent 自己用的 API 在 /agent-api/v1（agent_api.py）。
 """
 
+from datetime import datetime
 from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Query, Request
@@ -31,6 +35,7 @@ from pydantic.alias_generators import to_camel
 
 from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
+from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError
 from rpa_server.gitsync import Auth, GitSource
@@ -326,6 +331,54 @@ class WorkerUpdate(_Body):
 class RecorderUpdate(WorkerUpdate):
     menus: list[str] | None = Field(default=None, max_length=10)
     """透過這台時另外顯示的第一級選單（cluster、admin）；預設都不顯示（三段分工）。"""
+    allow_agent: bool | None = None
+    """允許 Agent 在這台開調試瀏覽器（M14）。"""
+    agent_headless_only: bool | None = None
+
+
+class AgentPolicyBody(_Body):
+    """API 用戶端的限制（M14）；清單是 null 時不限。"""
+
+    scopes: list[str] = Field(default_factory=lambda: list(DEFAULT_SCOPES), max_length=20)
+    domains: list[str] | None = Field(default=None, max_length=500)
+    projects: list[str] | None = Field(default=None, max_length=500)
+    recorders: list[str] = Field(default_factory=list[str], max_length=100)
+    target: Target | None = None
+    workers: list[str] | None = Field(default=None, max_length=200)
+    max_debug_sessions: int = Field(default=2, ge=0, le=50)
+    max_queued_runs: int = Field(default=20, ge=0, le=1000)
+    page_content: bool = False
+    allowed_ips: list[str] | None = Field(default=None, max_length=100)
+    expires_at: datetime | None = None
+
+    def policy(self) -> ClientPolicy:
+        return ClientPolicy(
+            scopes=tuple(self.scopes),
+            domains=tuple(self.domains) if self.domains is not None else None,
+            projects=tuple(self.projects) if self.projects is not None else None,
+            recorders=tuple(self.recorders),
+            target=self.target,
+            workers=tuple(self.workers) if self.workers is not None else None,
+            max_debug_sessions=self.max_debug_sessions,
+            max_queued_runs=self.max_queued_runs,
+            page_content=self.page_content,
+            allowed_ips=tuple(self.allowed_ips) if self.allowed_ips is not None else None,
+            expires_at=self.expires_at,
+        )
+
+
+class AgentCreate(_Body):
+    id: str = Field(max_length=64)
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+    policy: AgentPolicyBody = Field(default_factory=AgentPolicyBody)
+
+
+class AgentUpdate(_Body):
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=2000)
+    disabled: bool | None = None
+    policy: AgentPolicyBody | None = None
 
 
 class TargetSetting(_Body):
@@ -1078,7 +1131,12 @@ def api_router(services: Services) -> APIRouter:
     @router.patch("/recorders/{recorder_id}")
     def update_recorder(recorder_id: str, body: RecorderUpdate) -> dict[str, object]:
         record = recorders.update_recorder(
-            recorder_id, name=body.name, disabled=body.disabled, menus=body.menus
+            recorder_id,
+            name=body.name,
+            disabled=body.disabled,
+            menus=body.menus,
+            allow_agent=body.allow_agent,
+            agent_headless_only=body.agent_headless_only,
         )
         return record.to_json()
 
@@ -1091,6 +1149,58 @@ def api_router(services: Services) -> APIRouter:
     def delete_recorder(recorder_id: str) -> dict[str, object]:
         recorders.delete_recorder(recorder_id)
         return {"deleted": recorder_id}
+
+    # ------------------------------------------------------------ API 用戶端（M14）
+
+    agents = services.agents
+
+    @router.get("/agents")
+    def list_agents() -> dict[str, object]:
+        return {"agents": [item.to_json() for item in agents.list_clients()]}
+
+    @router.post("/agents", status_code=201)
+    def create_agent(body: AgentCreate) -> dict[str, object]:
+        """登記 API 用戶端；回應裡的 key 只有這一次拿得到。"""
+        record, key = agents.create_client(
+            body.id, body.name, body.description, body.policy.policy()
+        )
+        return {"agent": record.to_json(), "key": key}
+
+    @router.get("/agents/{client_id}")
+    def get_agent(client_id: str) -> dict[str, object]:
+        return agents.get_client(client_id).to_json()
+
+    @router.patch("/agents/{client_id}")
+    def update_agent(client_id: str, body: AgentUpdate) -> dict[str, object]:
+        record = agents.update_client(
+            client_id,
+            name=body.name,
+            description=body.description,
+            disabled=body.disabled,
+            policy=body.policy.policy() if body.policy is not None else None,
+        )
+        return record.to_json()
+
+    @router.post("/agents/{client_id}/key")
+    def rotate_agent_key(client_id: str) -> dict[str, object]:
+        """重新產生金鑰：舊的立刻失效；新的只有這一次拿得到。"""
+        record, key = agents.rotate_key(client_id)
+        return {"agent": record.to_json(), "key": key}
+
+    @router.delete("/agents/{client_id}")
+    def delete_agent(client_id: str) -> dict[str, object]:
+        agents.delete_client(client_id)
+        return {"deleted": client_id}
+
+    @router.get("/agent-audit")
+    def agent_audit(
+        client: str | None = None,
+        before: int | None = None,
+        limit: Annotated[int, Query(ge=1, le=AUDIT_LIMIT)] = AUDIT_LIMIT,
+    ) -> dict[str, object]:
+        """API 用戶端的寫入紀錄，新的在前；before 是上一頁最後一筆的 id。"""
+        records = agents.list_audit(client_id=client, before=before, limit=limit)
+        return {"audit": [item.to_json() for item in records]}
 
     @router.put("/settings/default-target")
     def set_default_target(body: TargetSetting) -> dict[str, object]:
