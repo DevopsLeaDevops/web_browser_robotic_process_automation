@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-24 18:04 America/Los_Angeles（PDT，UTC−07:00）。共 362 次運行。
+更新：2026-10-24 20:38 America/Los_Angeles（PDT，UTC−07:00）。共 362 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
