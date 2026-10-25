@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-25 06:00 America/Los_Angeles（PDT，UTC−07:00）。共 399 次運行。
+更新：2026-10-25 06:02 America/Los_Angeles（PDT，UTC−07:00）。共 400 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,7 +9,7 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 185（0） | 98（0） | 3.1 分（0.0 分） | 6.6 分（0.0 分） | 0.0 分（0.0 分） | 957／388／0 分（0／0／0 分） |
+| CI | 186（0） | 99（0） | 3.1 分（0.0 分） | 6.5 分（0.0 分） | 0.0 分（0.0 分） | 962／393／0 分（0／0／0 分） |
 | 桌面端建置 | 127（0） | 96（0） | 4.0 分（0.0 分） | 6.3 分（0.0 分） | 0.1 分（0.0 分） | 12／374／435 分（0／0／0 分） |
 | 伺服器分發包 | 27（0） | 22（0） | 2.0 分（0.0 分） | 6.7 分（0.0 分） | 0.1 分（0.0 分） | 110／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 51（0） | 27（0） | 3.2 分（0.0 分） | 15.5 分（0.0 分） | 0.1 分（0.0 分） | 308／223／98 分（0／0／0 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-25 | 33 | 138 | 67 | 78 | 283 |
+| 2026-10-25 | 34 | 143 | 71 | 78 | 292 |
 | 2026-10-24 | 11 | 142 | 132 | 130 | 405 |
 | 2026-10-23 | 33 | 204 | 123 | 115 | 441 |
 | 2026-10-22 | 112 | 544 | 359 | 146 | 1048 |
@@ -32,53 +32,53 @@
 
 ### CI · pytest-report-3.12/pytest-report.xml
 
-最近一次：2026-10-25 05:02 America/Los_Angeles（PDT，UTC−07:00），合計 213 秒。
+最近一次：2026-10-25 05:57 America/Los_Angeles（PDT，UTC−07:00），合計 258 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 18.3（18.5） | 29 | `apps/server/tests/test_api.py` |
-| 17.6（17.6） | 24 | `apps/server/tests/test_production_api.py` |
-| 17.2（16.4） | 22 | `apps/server/tests/test_remote_worker_api.py` |
+| 19.3（18.7） | 29 | `apps/server/tests/test_api.py` |
+| 18.3（17.7） | 24 | `apps/server/tests/test_production_api.py` |
+| 18.2（18.1） | 17 | `apps/cli/tests/test_serve.py` |
+| 17.9（16.8） | 22 | `apps/server/tests/test_remote_worker_api.py` |
+| 14.0（13.5） | 14 | `apps/worker/tests/test_gateway.py` |
 | 13.9（13.9） | 17 | `apps/worker/tests/test_recorder.py` |
-| 13.5（13.5） | 14 | `apps/worker/tests/test_gateway.py` |
-| 13.2（12.5） | 20 | `apps/server/tests/test_recorder_api.py` |
-| 12.1（11.9） | 11 | `apps/server/tests/test_gitsync.py` |
-| 10.4（10.5） | 14 | `apps/server/tests/test_workflow_api.py` |
-| 8.3（8.4） | 12 | `apps/server/tests/test_replay.py` |
-| 7.8（7.3） | 27 | `apps/desktop/tests/test_recorder_app.py` |
+| 13.6（12.0） | 11 | `apps/server/tests/test_gitsync.py` |
+| 13.3（12.8） | 20 | `apps/server/tests/test_recorder_api.py` |
+| 11.9（10.7） | 14 | `apps/server/tests/test_workflow_api.py` |
+| 10.6（9.0） | 12 | `apps/server/tests/test_replay.py` |
 
 ### CI · pytest-report-3.13/pytest-report.xml
 
-最近一次：2026-10-25 05:02 America/Los_Angeles（PDT，UTC−07:00），合計 206 秒。
+最近一次：2026-10-25 05:57 America/Los_Angeles（PDT，UTC−07:00），合計 534 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 14.8（17.4） | 29 | `apps/server/tests/test_api.py` |
-| 14.6（16.9） | 24 | `apps/server/tests/test_production_api.py` |
-| 14.1（16.3） | 22 | `apps/server/tests/test_remote_worker_api.py` |
-| 13.8（13.9） | 17 | `apps/worker/tests/test_recorder.py` |
-| 13.5（13.5） | 14 | `apps/worker/tests/test_gateway.py` |
-| 11.9（12.8） | 11 | `apps/server/tests/test_gitsync.py` |
-| 11.2（0.5） | 13 | `apps/desktop/tests/test_ui.py` |
-| 10.7（12.1） | 20 | `apps/server/tests/test_recorder_api.py` |
-| 9.2（10.7） | 14 | `apps/server/tests/test_workflow_api.py` |
-| 8.6（9.3） | 12 | `apps/server/tests/test_replay.py` |
+| 71.1（69.4） | 8 | `apps/server/tests/test_portal.py` |
+| 43.1（42.8） | 3 | `apps/server/tests/test_workflow_flow.py` |
+| 37.7（37.0） | 2 | `apps/server/tests/test_replay_flow.py` |
+| 33.0（33.0） | 3 | `apps/server/tests/test_remote_worker_flow.py` |
+| 30.9（30.6） | 5 | `apps/server/tests/test_production_flow.py` |
+| 24.3（23.1） | 5 | `packages/rpa_runner/tests/test_debug.py` |
+| 18.4（17.7） | 29 | `apps/server/tests/test_api.py` |
+| 18.2（18.1） | 17 | `apps/cli/tests/test_serve.py` |
+| 17.2（16.9） | 24 | `apps/server/tests/test_production_api.py` |
+| 16.7（16.6） | 22 | `apps/server/tests/test_remote_worker_api.py` |
 
 ### CI · pytest-report-windows/pytest-report.xml
 
-最近一次：2026-10-25 04:54 America/Los_Angeles（PDT，UTC−07:00），合計 638 秒。
+最近一次：2026-10-25 05:57 America/Los_Angeles（PDT，UTC−07:00），合計 737 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 225.3（229.6） | 16 | `packages\rpa_runner\tests\test_login.py` |
-| 117.5（117.5） | 14 | `packages\rpa_runner\tests\test_video_browser.py` |
-| 111.9（111.9） | 10 | `packages\rpa_runner\tests\test_frames.py` |
-| 98.4（98.5） | 20 | `packages\rpa_runner\tests\test_run.py` |
-| 46.4（45.1） | 8 | `packages\rpa_runner\tests\test_tabs.py` |
-| 26.4（26.4） | 1 | `packages\rpa_runner\tests\test_profiles.py` |
-| 4.9（5.4） | 2 | `tests\smoke\test_browser.py` |
-| 4.6（4.0） | 1 | `apps\desktop\tests\test_selftest.py` |
-| 2.7（2.6） | 1 | `apps\worker\tests\test_worker.py` |
+| 271.0（240.2） | 16 | `packages\rpa_runner\tests\test_login.py` |
+| 141.0（132.6） | 10 | `packages\rpa_runner\tests\test_frames.py` |
+| 124.1（122.8） | 14 | `packages\rpa_runner\tests\test_video_browser.py` |
+| 109.6（98.5） | 20 | `packages\rpa_runner\tests\test_run.py` |
+| 46.6（46.4） | 8 | `packages\rpa_runner\tests\test_tabs.py` |
+| 30.5（26.9） | 1 | `packages\rpa_runner\tests\test_profiles.py` |
+| 6.1（6.1） | 2 | `tests\smoke\test_browser.py` |
+| 4.7（4.0） | 1 | `apps\desktop\tests\test_selftest.py` |
+| 3.7（2.6） | 1 | `apps\worker\tests\test_worker.py` |
 
 ### 每晚完整測試 · test-results-macos-latest-3.13/pass-1.xml
 
@@ -256,6 +256,7 @@
 |---|---|---|---|---|---|---|---|
 | 10-25 05:57 | 伺服器分發包 | PR | claude/project-thread-reisy3 | success | 2.8 分 | 0.1 分 | [#40195417323](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40195417323/attempts/1) |
 | 10-25 05:57 | 一鍵安裝腳本 | PR | claude/project-thread-reisy3 | success | 3.3 分 | 0.0 分 | [#40195417238](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40195417238/attempts/1) |
+| 10-25 05:57 | CI | PR | claude/project-thread-reisy3 | success | 4.4 分 | 0.1 分 | [#40195417242](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40195417242/attempts/1) |
 | 10-25 05:02 | 桌面端建置 | PR | claude/project-thread-iqv8qq | success | 0.1 分 | 0.0 分 | [#40191419697](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40191419697/attempts/1) |
 | 10-25 05:02 | 伺服器分發包 | PR | claude/project-thread-iqv8qq | success | 0.1 分 | 0.1 分 | [#40191419834](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40191419834/attempts/1) |
 | 10-25 05:02 | CI | PR | claude/project-thread-iqv8qq | success | 1.6 分 | 0.1 分 | [#40191419723](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40191419723/attempts/1) |
@@ -293,5 +294,4 @@
 | 10-24 20:37 | CI | PR | claude/project-thread-vql00s | cancelled | 1.7 分 | 0.0 分 | [#40158889362](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40158889362/attempts/1) |
 | 10-24 17:17 | 一鍵安裝腳本 | PR | fix/scheduled-test-failures | success | 2.7 分 | 0.1 分 | [#40146110080](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40146110080/attempts/1) |
 | 10-24 17:17 | 伺服器分發包 | PR | fix/scheduled-test-failures | success | 3.1 分 | 0.1 分 | [#40146110058](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40146110058/attempts/1) |
-| 10-24 17:17 | CI | PR | fix/scheduled-test-failures | success | 4.1 分 | 0.0 分 | [#40146110114](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40146110114/attempts/1) |
 
