@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-24 21:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-24 20:40 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-24 20:18 America/Los_Angeles（PDT，UTC−07:00）在 Claude 專案對話：「幫我做一個新的設計。設計目標是支援腳本場景，考慮運行態 windows worker、mac worker、Linux worker 的通用性，使用 Python 腳本環境，worker 自帶 Python 運行上下文，若已有則重複使用。在場景模型上，自動化腳本、斷言、入參、出參、運行報告使用現有的領域建模方式。腳本錄製的方案我還沒想好，你幫我設計一下。腳本的運行過程、腳本的運行報告、運行回看我還沒想好，幫我設計。注意先設計好在開始 coding，一起設計好在開始動手 coding 實作。」驗收條件見<a href="#goal">第 1 節</a>。</dd>
         <dt>範圍／不包含</dt><dd>範圍：場景模型、Python 運行環境、腳本介面、錄製、運行過程、運行報告、運行回看、相容性、分期與驗證（第 3～12 節）。不包含：AI 生成腳本（M5）、使用者權限（M8）、帶帳密的私有套件索引、Linux Worker 的安裝包（D9）、腳本以外的語言。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計：Claude。審閱與決定：使用者。實作主責等設計確認後再定（預設 Claude）。</dd>
@@ -53,7 +53,7 @@
     </section>
 
     <section class="panel" id="spike">
-      <div class="panel-header"><h2>2. 現況與技術驗證</h2><span class="muted">程式以 main a8cde7f 查證；實測在 2026-10-24 20:40～21:00 America/Los_Angeles（PDT，UTC−07:00）</span></div>
+      <div class="panel-header"><h2>2. 現況與技術驗證</h2><span class="muted">程式以 main a8cde7f 查證；實測在 2026-10-24 20:25～20:35 America/Los_Angeles（PDT，UTC−07:00）</span></div>
       <div class="panel-body">
         <h3>現在的 Python 腳本場景</h3>
         <ul class="points">
@@ -503,8 +503,9 @@ def check(c: Check) -&gt; dict[str, object]:
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-10-24 21:10 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 20:18 的需求建立本頁，完成設計與待決定事項；只有設計，沒有實作。</li>
-        <li>2026-10-24 21:20 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>c9d34cc</code>，開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>；把使用者設成指派人與審閱者失敗（GitHub 回應帳號不是倉庫的協作者），不影響審閱。</li>
+        <li>2026-10-24 20:37 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 20:18 的需求建立本頁，完成設計與待決定事項；只有設計，沒有實作。</li>
+        <li>2026-10-24 20:38 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>c9d34cc</code>，開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>；把使用者設成指派人與審閱者失敗（GitHub 回應帳號不是倉庫的協作者），不影響審閱。</li>
+        <li>2026-10-24 20:40 America/Los_Angeles（PDT，UTC−07:00），Claude：更正本頁的時間：更新時間、技術驗證的時段與前兩條紀錄原本多寫了約 30 分鐘，改成提交與實測的實際時間（<code>c9d34cc</code>、<code>3cb3ef0</code> 的提交時間）。</li>
       </ul></div>
     </section>
   </div>
