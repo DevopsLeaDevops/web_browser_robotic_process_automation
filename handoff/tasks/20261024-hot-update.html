@@ -22,7 +22,7 @@
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（本專案對話）；審閱與合併：使用者；接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>這一輪只有文件：<code>docs/adr/0018-layered-updates.html</code> 三語、三語的 ADR 索引、<code>docs/assets/nav.js</code>、本紀錄、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>。之後的實作預計動到 <code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>apps/server/packaging/</code>、<code>apps/desktop/packaging/</code>、<code>rpa_desktop</code>（入口與啟動器）、<code>rpa_server</code>（更新端點、裝置頁、租約）、<code>rpa_worker</code>（上線前查更新）、<code>rpa_cli</code>、<code>.github/workflows/release.yml</code>、<code>server-package.yml</code>、<code>desktop.yml</code>。共用檔案：任務索引與決定紀錄也被 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>、#82 修改，整合時保留各自的列。相依：#79 已用 ADR 0017，本篇用 0018；#82 的 Python 運行環境也會改 PyInstaller 設定與 <code>build_server.py</code>，兩邊開始寫程式前先約定檔案範圍與合併順序。</dd>
         <dt>狀態</dt><dd>設計待確認：使用者已接受確認事項（見下方決定），寫程式要等使用者看過本 PR 的文件並回覆。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-reisy3</code>；只改文件的 PR（建立後回填）；base main 29176b1。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-reisy3</code>；只改文件的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/83">PR #83</a>（draft，待確認）；base main 29176b1。</dd>
         <dt>交接版本／同步狀態</dt><dd>以 PR 的最新提交為準；已推送後可從 GitHub 取得。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、uv 0.11.32、Python 3.13。</dd>
       </dl></div>
@@ -89,6 +89,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）起，Claude：盤點打包與升級流程，提出設計（Claude 文件），等使用者確認。</li>
         <li>2026-10-25 01:58（PDT，UTC−07:00），使用者：接受確認事項，詢問伺服器是否要重新啟動、設計是否寫成文件；Claude 回覆並開始把設計寫進倉庫。</li>
+        <li>2026-10-25 02:20（PDT，UTC−07:00）前後，Claude：提交 72ef61d 並推送，開 PR #83（draft）。本地 docs 與 i18n 測試 312 通過、連結無誤。等使用者確認文件後開始第一階段。</li>
       </ul></div>
     </section>
   </div>
