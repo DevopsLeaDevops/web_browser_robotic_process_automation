@@ -169,7 +169,11 @@ jobs:
 
       - name: setup.sh
         if: runner.os != 'Windows'
-        run: ./scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
+        run: |
+          display=()
+          # 全量包含 headed 錄影測試；只在 CI 提供虛擬螢幕，不改使用者的安裝方式。
+          if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" ./scripts/setup.sh 2>&1 | tee "$RUNNER_TEMP/$SETUP_LOG"
       # 第二次只確認重跑腳本後環境仍然可用：冒煙測試確認兩種瀏覽器能啟動、rpa run 能跑完範例場景。
       # 偶發問題由 nightly.yml 每晚把瀏覽器測試連跑三遍來抓。
       - name: setup.sh 再執行一次（應該很快且成功；只跑冒煙測試）

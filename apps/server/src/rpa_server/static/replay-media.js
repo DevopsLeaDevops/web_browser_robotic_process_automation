@@ -79,6 +79,11 @@ class ReplayMedia extends EventTarget {
     clearTimeout(this.loadTimer);
     this.pending = false;
     this.element.pause();
+    // 首格可能晚於時間軸零點；即使目前是空白，也不能漏掉腳本載入前已發生的媒體錯誤。
+    if (!this.loaded && this.element.error && (!clip || this.element.getAttribute('src') === clip.url)) {
+      setTimeout(() => { if (revision === this.revision) { ++this.revision; this.fail(); } });
+      return;
+    }
     if (!clip) {
       this.active = null;
       this.element.dataset.pageId = forced || this.pageAt(this.position);
