@@ -137,11 +137,12 @@ jobs:
         run: uv sync --locked --group desktop-build
       - name: 單元測試（Worker：自動啟動、單一執行、認證管理員或鑰匙圈用真的）
         if: matrix.app == 'worker'
-        # Linux 的 CI 測不到系統專用的部分（Windows 的登錄檔、WebView2 偵測、認證管理員；
-        # macOS 的鑰匙圈）
+        # Linux 的 CI 測不到系統專用的部分（Windows 的登錄檔、WebView2 偵測、認證管理員、
+        # 檔案被別的程序開著時改名失敗；macOS 的鑰匙圈）
         run: |
           set +e
           uv run pytest -q apps/desktop/tests packages/rpa_runner/tests/test_commands.py apps/worker/tests/test_service.py \
+            packages/rpa_runner/tests/test_files.py \
             --junitxml="${{ runner.temp }}/desktop-pytest.xml" -o junit_family=xunit1
           code=$?
           set -e
