@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 02:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 02:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源</dt><dd>使用者在 Claude 專案對話 2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）提出，原文：「現在的系統Linux伺服器、錄製段、worker段可以做成熱更新嗎。現在每次都要重新下載效率不高。」2026-10-25 01:58（PDT，UTC−07:00）回覆設計提案，原文：「1.升級版本，伺服器需要重啓嗎。2.這份升級寫doc了嗎 3.確認事項接受。確認后再開始coding。」</dd>
         <dt>驗收條件（提議）</dt><dd>環境代號沒變的版本：伺服器用一個更新檔升級，不必下載完整包；Worker 與錄製端從伺服器自動取得同一個版本，不打斷執行中的任務、錄製與調試；新版本起不來時自動退回上一版；更新檔有簽章，伺服器、裝置、啟動器都驗證；CI 驗證「上一版完整包＋這一版更新檔」的升級路徑與端到端。</dd>
         <dt>範圍／不包含</dt><dd>範圍：ADR 0018 的第一、二階段（下方「分期」）。不包含：第三階段（伺服器代管完整安裝檔、Portal 上傳更新檔、伺服器兼瀏覽器鏡像，之後再決定）；瀏覽器的下載（已經只在 Playwright 改版時重新下載）；伺服器完全不停機；Developer ID／Authenticode 程式碼簽章；Python 腳本場景的運行環境（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>，待確認）。</dd>
@@ -89,7 +89,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）起，Claude：盤點打包與升級流程，提出設計（Claude 文件），等使用者確認。</li>
         <li>2026-10-25 01:58（PDT，UTC−07:00），使用者：接受確認事項，詢問伺服器是否要重新啟動、設計是否寫成文件；Claude 回覆並開始把設計寫進倉庫。</li>
-        <li>2026-10-25 02:20（PDT，UTC−07:00）前後，Claude：提交 72ef61d 並推送，開 PR #83（draft）。本地 docs 與 i18n 測試 312 通過、連結無誤。等使用者確認文件後開始第一階段。</li>
+        <li>2026-10-25 02:04（PDT，UTC−07:00），Claude：提交 72ef61d 並推送，開 PR #83（draft）。本地 docs 與 i18n 測試 312 通過、連結無誤。等使用者確認文件後開始第一階段。</li>
       </ul></div>
     </section>
   </div>
