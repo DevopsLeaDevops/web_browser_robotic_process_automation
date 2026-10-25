@@ -12,9 +12,16 @@
 Python 必須和執行環境同一個主、次版本（``.python-version``），.pyc 才載入得了。
 ``--version``、``--commit`` 只給 CI 測試升級路徑時用（模擬下一個版本）。
 產物在 dist/update/；最後印出 ``artifact: …``，在 GitHub Actions 裡同時寫進步驟的輸出。
+
+發布流程（release.yml）改用 ``--runtime-file``：各平台建置時留下的 runtime.json 副本
+（``runtime-<目標>.json``），再加上 ``--release`` 確認：
+
+- :data:`rpa_update.keys.RELEASE_KEYS` 不是空的，簽章的私鑰是其中一把；
+- 每個安裝包信任的公鑰剛好就是 RELEASE_KEYS（沒有混進 CI 的臨時金鑰）。
 """
 
 import argparse
+import base64
 import os
 import re
 import shutil
@@ -25,8 +32,10 @@ from pathlib import Path
 from typing import Final
 
 from rpa_update import ed25519
+from rpa_update.errors import UpdateError
+from rpa_update.keys import RELEASE_KEYS
 from rpa_update.manifest import Manifest, scan_tree, write_update
-from rpa_update.runtime import KINDS, PLATFORMS
+from rpa_update.runtime import KINDS, PLATFORMS, Runtime, load_runtime
 from tools.build_server import (
     EXAMPLES,
     PACKAGING,
@@ -70,6 +79,37 @@ def parse_runtimes(values: Sequence[str]) -> dict[str, str]:
             raise SystemExit(f"{target} 有兩個不同的環境代號")
         runtimes[target] = ident
     return runtimes
+
+
+def read_runtime_files(paths: Sequence[Path]) -> list[Runtime]:
+    """``--runtime-file``：各平台建置時留下的 runtime.json 副本。"""
+    runtimes: list[Runtime] = []
+    for path in paths:
+        try:
+            runtime = load_runtime(path)
+        except UpdateError as error:
+            raise SystemExit(f"{path} 不是 runtime.json：{error.code}") from None
+        if runtime is None:
+            raise SystemExit(f"找不到 {path}")
+        runtimes.append(runtime)
+    return runtimes
+
+
+def check_release_keys(runtimes: Sequence[Runtime], seed: bytes) -> None:
+    """``--release``：簽章的私鑰與每個安裝包信任的公鑰都是發布用的那一組。"""
+    release = {base64.b64decode(key) for key in RELEASE_KEYS}
+    if not release:
+        raise SystemExit(
+            "rpa_update/keys.py 的 RELEASE_KEYS 是空的：先產生發布用的金鑰"
+            "（docs/develop/release.html#update-key），把公鑰加進去"
+        )
+    if ed25519.public_key(seed) not in release:
+        raise SystemExit(f"{KEY_ENV} 的私鑰對不上 RELEASE_KEYS 裡的任何一把公鑰")
+    for runtime in runtimes:
+        if set(runtime.keys) != release:
+            raise SystemExit(
+                f"{runtime.target} 信任的公鑰和 RELEASE_KEYS 不同（混進了 CI 的臨時金鑰？）"
+            )
 
 
 def signing_key(path: Path | None, environ: Mapping[str, str] | None = None) -> bytes:
@@ -148,12 +188,29 @@ def build(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="產生更新檔（只有我們的程式，加上清單與簽章）")
     parser.add_argument("--runtime", action="append", default=[], metavar="目標=環境代號")
+    parser.add_argument(
+        "--runtime-file",
+        action="append",
+        default=[],
+        type=Path,
+        help="各平台建置留下的 runtime.json 副本（發布流程用）",
+    )
+    parser.add_argument(
+        "--release",
+        action="store_true",
+        help="發布用：確認簽章與每個安裝包信任的公鑰都是 RELEASE_KEYS",
+    )
     parser.add_argument("--key", type=Path, help=f"私鑰的 PEM 檔案（預設讀 {KEY_ENV}）")
     parser.add_argument("--version", help="只給測試用：換掉版本")
     parser.add_argument("--commit", help="只給測試用：換掉提交")
     args = parser.parse_args(argv)
-    runtimes = parse_runtimes(args.runtime)
+    files = read_runtime_files(args.runtime_file)
+    runtimes = parse_runtimes([*args.runtime, *(f"{item.target}={item.id}" for item in files)])
     seed = signing_key(args.key)
+    if args.release:
+        if args.runtime or args.version or args.commit:
+            raise SystemExit("--release 只接受 --runtime-file（目標與信任的公鑰要能核對）")
+        check_release_keys(files, seed)
     archive = build(runtimes, seed, version=args.version, commit_id=args.commit)
     key = ed25519.key_id(ed25519.public_key(seed))
     size = archive.stat().st_size / 1024 / 1024

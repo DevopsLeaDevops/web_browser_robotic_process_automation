@@ -5,10 +5,11 @@
     uv run python tools/build_desktop.py worker     # Windows：rpa-worker/、zip 與安裝檔
                                                     # macOS：dist/desktop/RPA Worker.app 與 DMG
 
-產物都在 dist/desktop/，中間檔在 build/desktop/（兩者都在 .gitignore）。最後印出三行：
+產物都在 dist/desktop/，中間檔在 build/desktop/（兩者都在 .gitignore）。最後印出：
 ``executable: …``（App 的執行檔）、``child: …``（同資料夾的 rpa-child，主控台程式：
-``--version``、``--self-test`` 要讀輸出時用；RPA Worker 是視窗程式，沒有標準輸出）與
-``artifact: …``（要上傳的檔案）；在 GitHub Actions 裡同時寫進步驟的輸出。
+``--version``、``--self-test`` 要讀輸出時用；RPA Worker 是視窗程式，沒有標準輸出）、
+``artifact: …``（要上傳的檔案）與 ``runtime: 目標=環境代號``（ADR 0018，更新檔的清單要用）；
+在 GitHub Actions 裡同時寫進步驟的輸出。
 RPA Worker 的執行檔圖示在建置時由 ``rpa_desktop.icon`` 畫出（倉庫不放二進位圖檔）。
 
 Windows 上另外用 Inno Setup 建安裝檔（M10.1 PR 3，``apps/desktop/packaging/rpa_worker.iss``），
@@ -36,6 +37,7 @@ from pathlib import Path
 from typing import Final, cast
 
 from rpa_desktop.build_info import APPS, App, write
+from rpa_update.runtime import Runtime, load_runtime
 
 ROOT: Final = Path(__file__).resolve().parent.parent
 SPEC: Final = ROOT / "apps" / "desktop" / "packaging" / "rpa_desktop.spec"
@@ -303,15 +305,29 @@ def _zip(app: App, version: str) -> Path:
     return Path(shutil.make_archive(str(base), "zip", root_dir=DIST, base_dir=EXECUTABLES[app]))
 
 
-def build(app: App) -> tuple[Path, Path, Path | None]:
-    """建置一個 App，回傳 (執行檔, 要上傳的檔案, Windows 的安裝檔)。"""
+def runtime_path(app: App) -> Path:
+    """spec 寫出的 runtime.json（ADR 0018），也放進 App 的 rpa_update/。"""
+    return WORK / app / "runtime.json"
+
+
+def runtime_copy(runtime: Runtime) -> Path:
+    """runtime.json 的副本，和 App 一起上傳：發布流程用它產生更新檔（build_update.py）。"""
+    return DIST / f"runtime-{runtime.target}.json"
+
+
+def build(app: App) -> tuple[Path, Path, Path | None, Runtime]:
+    """建置一個 App，回傳 (執行檔, 要上傳的檔案, Windows 的安裝檔, 執行環境)。"""
     info_path = WORK / app / "build_info.json"
     info = write(info_path, app, _commit())
+    runtime_file = runtime_path(app)
+    runtime_file.unlink(missing_ok=True)
     env = {
         **os.environ,
         "RPA_DESKTOP_APP": app,
         "RPA_DESKTOP_INFO": str(info_path),
         "RPA_DESKTOP_VERSION": info.version,
+        "RPA_DESKTOP_RELEASE": f"{info.version}-{info.commit}" if info.commit else info.version,
+        "RPA_DESKTOP_RUNTIME": str(runtime_file),
     }
     icon = _icon(app)
     if icon is not None:
@@ -333,22 +349,29 @@ def build(app: App) -> tuple[Path, Path, Path | None]:
         env=env,
         check=True,
     )
+    runtime = load_runtime(runtime_file)
+    if runtime is None:
+        raise RuntimeError(f"PyInstaller 沒有寫出 {runtime_file}")
+    shutil.copy2(runtime_file, runtime_copy(runtime))
     artifact = _dmg(app, info.version) if sys.platform == "darwin" else _zip(app, info.version)
     setup = _installer(info.version) if os.name == "nt" and app == "worker" else None
-    return executable(app), artifact, setup
+    return executable(app), artifact, setup, runtime
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="建置 RPA 錄製端或 RPA Worker")
     parser.add_argument("app", choices=APPS)
     args = parser.parse_args(argv)
-    built, artifact, setup = build(cast("App", args.app))
+    built, artifact, setup, runtime = build(cast("App", args.app))
     # 用正斜線：Windows 上的 bash 與 PowerShell 都看得懂
     lines = {
         "executable": built.as_posix(),
         "child": child(cast("App", args.app)).as_posix(),
         "artifact": artifact.as_posix(),
         "installer": setup.as_posix() if setup is not None else "",
+        # 發布流程收集各平台的環境代號，寫進更新檔的清單（tools/build_update.py --runtime）
+        "runtime": f"{runtime.target}={runtime.id}",
+        "runtime_file": runtime_copy(runtime).as_posix(),
     }
     for key, value in lines.items():
         print(f"{key}: {value}")

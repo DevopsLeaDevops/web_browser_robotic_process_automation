@@ -279,7 +279,10 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: server-linux-${{ matrix.label }}
-          path: ${{ steps.build.outputs.artifact }}
+          # runtime-<目標>.json：發布流程產生更新檔時要用（ADR 0018），不上傳到 Release
+          path: |
+            ${{ steps.build.outputs.artifact }}
+            ${{ steps.build.outputs.runtime_file }}
           # 私有倉庫的產物計入 Actions 儲存額度（一次約 500 MB）：發布（標籤）只在同一次執行裡用，留 1 天；
           # PR 與 main 的試用包留 3 天。
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 1 || 3 }}

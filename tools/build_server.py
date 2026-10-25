@@ -55,6 +55,8 @@ EXAMPLES: Final = ROOT / "scenarios" / "demo"
 PACKAGES: Final = ("rpa-core", "rpa-runner", "rpa-worker", "rpa-testsite", "rpa-server", "rpa-cli")
 """裝進分發包 app/ 的工作區套件（rpa-cli 與它的相依）；桌面端（rpa-desktop）不裝。"""
 RUNTIME_PACKAGE: Final = "rpa-update"
+RUNTIME_FILE: Final = "runtime.json"
+"""rpa_update.runtime.RUNTIME_FILE（這個工具只用標準函式庫，不匯入 rpa_update）。"""
 """跟著執行環境走的工作區套件：裝進 python/ 的 site-packages，不放進 app/。"""
 _RUNTIME_LINE: Final = re.compile(r"^runtime: (?P<target>\S+)=(?P<id>[0-9a-f]{16})$", re.MULTILINE)
 GLIBC_FLOOR: Final = (2, 28)
@@ -257,7 +259,8 @@ def build_app_layer(uv: str, python: Path, wheels: Iterable[Path], app: Path) ->
             *sorted(wheels),
         ]
     )
-    shutil.rmtree(app / "bin", ignore_errors=True)
+    for scripts in ("bin", "Scripts"):  # Windows 上是 Scripts
+        shutil.rmtree(app / scripts, ignore_errors=True)
     for leftover in app.glob("*.dist-info/direct_url.json"):
         leftover.unlink()  # 寫著建置機器上 wheel 的路徑
     _run(
@@ -326,6 +329,11 @@ def write_runtime(python: Path, target: Target) -> str:
     if found is None or found.group("target") != runtime_target(target):
         raise SystemExit(f"rpa_update.build 沒有印出環境代號：{output}")
     return found.group("id")
+
+
+def runtime_copy(target: Target) -> Path:
+    """runtime.json 的副本（和分發包裡的相同）：發布流程用它產生更新檔（build_update.py）。"""
+    return DIST / f"runtime-{runtime_target(target)}.json"
 
 
 def site_packages(python: Path) -> Path:
@@ -408,6 +416,8 @@ def build(target: Target | None = None) -> tuple[Path, str]:
         raise SystemExit("這些套件需要比 glibc 2.28 新的系統：\n" + "\n".join(problems))
     full_version = _run([python, "-c", "import platform; print(platform.python_version())"])
     runtime = write_runtime(python, target)
+    DIST.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(site_packages(python) / "rpa_update" / RUNTIME_FILE, runtime_copy(target))
 
     (bundle / "bin").mkdir()
     shutil.copy2(PACKAGING / "rpa", bundle / "bin" / "rpa")
@@ -461,6 +471,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             stream.write(f"artifact={archive.as_posix()}\n")
             stream.write(f"target={runtime_target(target)}\n")
             stream.write(f"runtime={runtime}\n")
+            stream.write(f"runtime_file={runtime_copy(target).as_posix()}\n")
     return 0
 
 

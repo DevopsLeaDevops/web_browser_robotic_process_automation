@@ -5,9 +5,12 @@
 #      macOS 上錄製端的視窗自我測試與端到端（M10.2）。
 #   3. 呼叫伺服器分發包的建置（server-package.yml）：x64、arm64 的 tar.gz，在 Rocky 8 容器裡安裝、
 #      啟動、重裝與升級。
-#   4. 用它們的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip 與 macOS 的 DMG，RPA 錄製端的 DMG（M10.2），
-#      伺服器的分發包（Linux x64、arm64），以及 SHA256SUMS.txt。
-#   5. 刪掉這次執行的產物：檔案已經在草稿上，私有倉庫的產物會占 Actions 的儲存額度（一次約 500 MB）。
+#   4. 產生更新檔 RPA-Update-<版本>.zip（ADR 0018）：只有程式碼層，用 GitHub Secrets 的
+#      RPA_UPDATE_SIGNING_KEY 簽章；清單寫上前兩步每個安裝包的環境代號（runtime-<目標>.json）。
+#      確認簽章的私鑰與每個安裝包信任的公鑰都是 rpa_update/keys.py 的 RELEASE_KEYS。
+#   5. 用它們的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip 與 macOS 的 DMG，RPA 錄製端的 DMG（M10.2），
+#      伺服器的分發包（Linux x64、arm64）、更新檔，以及 SHA256SUMS.txt。
+#   6. 刪掉這次執行的產物：檔案已經在草稿上，私有倉庫的產物會占 Actions 的儲存額度（一次約 500 MB）。
 # 草稿只有維護者看得到；確認內容後在 GitHub 上按「發布」才公開（docs/design/desktop.html#release）。
 # 已經有同一個標籤的草稿時（重新執行）換掉它的檔案；已經發布的不動，請改用新的版本。
 name: 發布
@@ -70,6 +73,8 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TAG: ${{ github.ref_name }}
     steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
       - uses: actions/download-artifact@v8
         with:
           name: worker-windows-latest
@@ -90,15 +95,28 @@ jobs:
         with:
           name: server-linux-arm64
           path: release
+      - name: 更新檔（只有程式碼層，簽章）
+        env:
+          RPA_UPDATE_SIGNING_KEY: ${{ secrets.RPA_UPDATE_SIGNING_KEY }}
+        run: |
+          # 每個安裝包一個 runtime-<目標>.json：五個目標都要有
+          ls release/runtime-*.json
+          test "$(ls release/runtime-*.json | wc -l)" = 5
+          args=()
+          for file in release/runtime-*.json; do args+=(--runtime-file "$file"); done
+          uv run --locked --no-default-groups --package rpa-cli python -m tools.build_update --release "${args[@]}"
+          mv dist/update/RPA-Update-*.zip release/
+          rm release/runtime-*.json
       - name: 檔案與 SHA-256
         working-directory: release
         run: |
           ls -l
-          # Worker 的安裝檔、zip 與 macOS 的 DMG、錄製端的 DMG、伺服器的兩個分發包各一個；名稱裡要有這次的版本
+          # Worker 的安裝檔、zip 與 macOS 的 DMG、錄製端的 DMG、伺服器的兩個分發包、更新檔各一個；名稱裡要有這次的版本
           version="${TAG#v}"
           for pattern in "RPA-Worker-Setup-$version-windows-x64.exe" "RPA-Worker-$version-windows-x64.zip" \
             "RPA-Worker-$version-macos-arm64.dmg" "RPA-Recorder-$version-macos-arm64.dmg" \
-            "RPA-Server-$version-linux-x64.tar.gz" "RPA-Server-$version-linux-arm64.tar.gz"; do
+            "RPA-Server-$version-linux-x64.tar.gz" "RPA-Server-$version-linux-arm64.tar.gz" \
+            "RPA-Update-$version.zip"; do
             if [ ! -f "$pattern" ]; then
               echo "::error title=發布::產物裡沒有 $pattern"
               exit 1
@@ -140,13 +158,21 @@ jobs:
           - 解壓後執行 `bash RPA-Server-…/install.sh --install-service`；升級時解壓新版再執行一次，
             設定、資料與服務沿用。之前用 `setup-linux.sh` 安裝的，自動沿用那份設定與資料。
 
+          ## 更新檔（只有程式，幾 MB）
+
+          - **更新檔** `RPA-Update-….zip`：已經裝好分發包的伺服器執行
+            `<安裝位置>/bin/rpa update RPA-Update-….zip`，沒有進行中的錄製、逐步調試與人工登入時自動重新啟動；
+            新版本起不來會自動退回。
+          - 這一版換了 Python 或第三方套件時，更新檔會說明要改用完整的分發包。
+
           RPA Worker: installer for the current user (no administrator rights needed) and a
           portable zip for Windows, and a DMG for Apple silicon Macs (same features; it lives
           in the menu bar). RPA Recorder: a DMG for Apple silicon Macs; recording, step-by-step
           debugging and manual login through it open their browsers on that Mac. Pair either
           with an invitation from the admin Portal's Devices page. RPA Server: self-contained
           Linux packages (x64, arm64; RHEL family, glibc 2.28+) with Python and all packages
-          inside; extract and run `install.sh`, again for upgrades. Not code-signed or notarized
+          inside; extract and run `install.sh`, again for upgrades, or apply the small signed
+          `RPA-Update-….zip` with `bin/rpa update` on an installed server. Not code-signed or notarized
           yet (on macOS allow it under System Settings › Privacy & Security on first launch);
           verify downloads with `SHA256SUMS.txt`.
           EOF
