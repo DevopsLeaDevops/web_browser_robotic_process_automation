@@ -22,7 +22,7 @@
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/debug.py</code>、runner 訊息目錄；<code>apps/worker/src/rpa_worker/environment.py</code>（CAPABILITIES）；<code>apps/server/src/rpa_server/debugging.py</code>（<code>reload</code>、新的 <code>restart</code>）、<code>api.py</code>（<code>POST /api/debug/{id}/restart</code>）、<code>render.py</code>、<code>static/portal.js</code>、<code>templates/debug.html</code>、伺服器訊息目錄；測試 <code>apps/server/tests/test_agent_api.py</code>、<code>test_portal.py</code>、<code>test_recorder_flow.py</code>、<code>apps/worker/tests/test_protocol.py</code>、<code>packages/rpa_runner/tests/test_debug.py</code>、<code>test_interactive_inputs.py</code>；文檔 <code>docs/develop/agent-api-guide.html</code>、<code>docs/design/agent-api.html</code>、<code>docs/design/portal.html</code> 與英文版（簡中由 bootstrap 產生）；任務索引。Claude 整合。</dd>
         <dt>狀態</dt><dd>實作完成、本地檢查通過，待推送與 CI。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>fix/remote-debug-reload</code>；PR 未建立；base main <code>8e84c6a</code>（PR #89 v0.6.2 合併）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>基準 <code>8e84c6a</code>＋本機未提交差異，尚未推送。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：實作 <code>3b1fa92</code>、bootstrap 簡中 <code>f290c6d</code>；之後的提交見 PR。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器 Linux x86_64、Python 3.13.17。PyPI 被代理拒絕（<code>uv sync --locked</code> 失敗，files.pythonhosted.org 的 CONNECT 回 403），改用系統 Python 加上依 <code>uv.lock</code> 版本從 GitHub clone 的 fastapi 0.148.0、starlette 1.9.0、sqlalchemy 2.1.5、alembic 1.20.0、mako 1.4.3、annotated-doc 0.0.5；Ruff 0.17.1（GitHub release）、Pyright 1.1.414、pytest 9.1.1（沒有 pytest-xdist）；系統 Playwright 只有 Chromium（chromium-1243），沒有 Firefox。簡中靠 <code>[bootstrap]</code>。</dd>
       </dl></div>
     </section>
@@ -69,6 +69,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-26 06:40 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>8e84c6a</code> 開分支 <code>fix/remote-debug-reload</code>，建立本紀錄，寫出重現測試。</li>
         <li>2026-10-26 07:10 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試與文檔完成，本地檢查通過（見驗證），準備推送。</li>
+        <li>2026-10-26 07:15 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>3b1fa92</code>（<code>[bootstrap]</code>）；機器人提交簡中 <code>f290c6d</code>，但 bootstrap 的「檢查」步驟失敗（工作日誌下載被代理擋下，沒有 annotations），改看 PR 的 CI。</li>
       </ul></div>
     </section>
   </div>
