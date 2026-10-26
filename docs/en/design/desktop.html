@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e22bf64c49a96d03">
+<meta name="translation-source" content="sha256:03df5f7c061546cd">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -456,7 +456,7 @@
         <div class="panel-body prose">
           <ul>
             <li><strong>One version.</strong>The server, worker, recorder and every package share one version (<code>MAJOR.MINOR.PATCH</code>, numbers only), tagged like <code>v0.2.0</code> (decided 2026-10-18). <code>python3 tools/release_version.py bump 0.2.0</code> changes every package and <code>uv.lock</code> at once.</li>
-            <li><strong>Process.</strong>Bump the version on a feature branch → merge the PR → tag on <code>main</code> and push the tag → the Release workflow (<code>.github/workflows/release.yml</code>) checks that the tag matches the package versions and is on <code>main</code>, calls the desktop build (including the install, upgrade and uninstall end-to-end test) and the server package build (installed, started and upgraded in a Rocky 8 container), and creates a <strong>draft</strong> release with the worker's Windows installer, portable zip and macOS DMG, the recorder's DMG (from M10.2), the server packages (Linux x64, arm64) and <code>SHA256SUMS.txt</code>. Once the draft exists, the run's artifacts are deleted so they do not take up Actions storage (see <a href="../develop/ci.html#artifacts">Artifacts and storage quota</a>).</li>
+            <li><strong>Process.</strong>Bump the version on a feature branch → merge the PR → tag on <code>main</code> and push the tag → the Release workflow (<code>.github/workflows/release.yml</code>) checks that the tag matches the package versions and is on <code>main</code>, calls the desktop build (including the install, upgrade and uninstall end-to-end test) and the server package build (installed, started and upgraded in a Rocky 8 container), and creates a <strong>draft</strong> release with the worker's Windows installer, portable zip and macOS DMG, the recorder's DMG (from M10.2), the server packages (Linux x64, arm64) and <code>SHA256SUMS.txt</code>. The Release notes get an "Upgrading from vX" section that compares runtime IDs with the latest published release and names which targets can use the update file and which need the full installer (<code>tools/runtime_changes.py</code>, 2026-10-26). Once the draft exists, the run's artifacts are deleted so they do not take up Actions storage (see <a href="../develop/ci.html#artifacts">Artifacts and storage quota</a>).</li>
             <li><strong>Drafts.</strong>The repository has been private since 2026-10-22, so only signed-in GitHub accounts with access can download a published release (and without an invitation nothing can reach a portal); a maintainer still checks the draft before choosing Publish. A rerun replaces the same draft's files; a published version is never replaced, so use a new version instead.</li>
             <li><strong>Download the new version.</strong>When the app's version differs from the server's, the window's Download the new version opens the latest release (<code>…/releases/latest</code>, which counts only published ones); since the repository is private, the browser must be signed in to a GitHub account with access, or the page is a 404.</li>
           </ul>

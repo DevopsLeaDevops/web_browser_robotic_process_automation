@@ -189,6 +189,13 @@ WORKER = WorkerRecord(
     version="0.1.0",
 )
 WORKER_NAMES = {"local": "本機", "win-01": "Windows <測試機>"}
+FULL_UPDATE: dict[str, object] = {
+    "status": "full",
+    "target": "recorder-macos-arm64",
+    "runtime": "664ed2247e8081d1",
+    "needed": "4880b5543aa109b6",
+}
+"""環境代號不同，要用完整的安裝包（2026-10-26：0.6.0 → 0.6.1 的錄製端）。"""
 DEVICE_UPDATES: dict[str, object] = {
     "auto": True,
     "packaged": True,
@@ -923,10 +930,13 @@ def _pages() -> dict[str, str]:
                     same_version=True,
                 ),
             ],
-            recorders=[RECORDER, replace(RECORDER, id="mac-02", status="disabled", disabled=True)],
+            recorders=[
+                replace(RECORDER, same_version=False),
+                replace(RECORDER, id="mac-02", status="disabled", disabled=True),
+            ],
             device_updates=DEVICE_UPDATES,
-            worker_updates={"win-01": {"status": "available"}, "mac": {"status": "failed"}},
-            recorder_updates={"mac-01": {"status": "full"}, "mac-02": {"status": "off"}},
+            worker_updates={"mac": {"status": "failed"}},
+            recorder_updates={"mac-01": FULL_UPDATE, "mac-02": {"status": "off"}},
             default_target="any",
             targets=("local", "remote", "any"),
             local_worker=False,
@@ -1385,7 +1395,10 @@ def _english_domain_pages() -> dict[str, str]:
                 ],
                 recorders=[replace(RECORDER, name="Amy Mac")],
                 device_updates={"auto": False, "packaged": True},
-                worker_updates={"win-01": {"status": "available"}, "mac": {"status": "full"}},
+                worker_updates={
+                    "win-01": {"status": "available"},
+                    "mac": {**FULL_UPDATE, "target": "worker-windows-x64", "needed": None},
+                },
                 recorder_updates={"mac-01": {"status": "failed"}},
                 default_target="remote",
                 targets=("local", "remote", "any"),
@@ -1749,7 +1762,17 @@ def test_remote_worker_pages() -> None:
     workers = pages["workers"]
     assert 'id="worker-win-01"' in workers
     assert 'data-api-url="http://192.168.1.10:8081"' in workers
-    assert "和 Portal 的程式版本不同" in _text(workers)
+    # 還沒回報更新狀態：提醒程式版本不同；要用完整的安裝包時說明原因，不再重複提醒（2026-10-26）
+    assert _text(workers).count("和 Portal 的程式版本不同") == 1
+    assert 'id="worker-win-01"' in workers.split("data-version-differs")[0]
+    recorder_row = workers.split('id="recorder-mac-01"')[1].split("</tr>")[0]
+    assert "data-version-differs" not in recorder_row
+    assert "要用完整的安裝包更新到 0.6.0：這台的執行環境（Python 或內建的套件）和 0.6.0 不同" in (
+        _text(recorder_row)
+    )
+    assert 'title="這台的環境代號是 664ed2247e8081d1，0.6.0 的更新檔要 4880b5543aa109b6"' in (
+        recorder_row
+    )
     assert 'data-action="enable-worker" data-kind="worker" data-worker="mac"' in workers
     assert 'value="local" disabled' in workers  # --no-local-worker
     assert "rpa serve --worker-port 8081" in _text(pages["workers-empty"])

@@ -100,6 +100,13 @@ jobs:
       - name: 建置（系統的 python3 執行，只用標準函式庫）
         id: build
         run: python3 tools/build_server.py
+      - name: 環境代號和最近一次發布比較（不同時，已經裝好的伺服器要用完整的分發包）
+        # 只是提示（annotation）：發布時 release.yml 再比一次，寫進 Release 說明（2026-10-26）
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --locked --no-default-groups --package rpa-cli python -m tools.runtime_changes --latest --runtime-file "${{ steps.build.outputs.runtime_file }}"
       - name: 更新檔（模擬下一個提交；另一個故意壞掉）
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         id: update

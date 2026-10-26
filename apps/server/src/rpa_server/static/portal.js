@@ -1384,19 +1384,43 @@
   }
 
   // 場景詳情頁的區域連結（卡片與頁面上方的 #steps、#verify、#inputs、#outputs、#runs…）：
-  // 切到對應的分頁並捲到那一區；同一頁內點連結也一樣（不留下上一頁的紀錄）
+  // 切到對應的分頁並捲到那一區；同一頁內點連結也一樣（不留下上一頁的紀錄）。
+  // 捲動只在這裡做：入參與出參、預覽等內容載入後版面會變，跳過去後的幾秒內、使用者還沒自己
+  // 捲動或操作之前，版面一變就重新對齊。目標區塊閃一下外框：入參與出參左右並排時看得出是哪一個。
   function bindSceneAnchors(showScript) {
-    if (!qs('.scene-page')) return;
+    const pageArea = qs('.scene-page');
+    if (!pageArea) return;
     const targets = {versions: 'scene-versions', inputs: 'contract-inputs', outputs: 'contract-outputs', steps: 'script', verify: 'script'};
+    let current = null;
+    let holdUntil = 0;
+    const align = smooth => current?.scrollIntoView({block: 'start', behavior: smooth ? 'smooth' : 'auto'});
     const go = (hash, smooth) => {
       const name = hash.replace(/^#/, '');
       if (!name) return;
       if ((name === 'steps' || name === 'verify') && showScript) showScript(name);
       const target = document.getElementById(targets[name] || name);
       if (!target) return;
-      target.scrollIntoView({block: 'start', behavior: smooth ? 'smooth' : 'auto'});
+      current = target;
+      holdUntil = performance.now() + 4000;
+      align(smooth);
       qsa('.scene-jump a').forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + name));
+      target.classList.remove('anchor-hit');
+      void target.offsetWidth;  // 重新開始動畫
+      target.classList.add('anchor-hit');
     };
+    const release = () => { holdUntil = 0; };
+    ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(type => window.addEventListener(type, release, {capture: true, passive: true}));
+    const settle = () => { if (current && performance.now() < holdUntil) align(false); };
+    // 區域連結列在窄視窗會換行：留給它的高度跟著實際高度（CSS 的 --scene-jump-height）
+    const jump = qs('.scene-jump', pageArea);
+    const measure = () => { if (jump) pageArea.style.setProperty('--scene-jump-height', jump.offsetHeight + 'px'); };
+    measure();
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(settle).observe(pageArea);
+      if (jump) new ResizeObserver(() => { measure(); settle(); }).observe(jump);
+    }
+    document.addEventListener('scene-layout', settle);
+    pageArea.addEventListener('animationend', event => event.target.classList.remove('anchor-hit'));
     document.addEventListener('click', event => {
       const link = event.target.closest('a[href^="#"]');
       if (!link || link.closest('#sidenav, #topnav') || link.classList.contains('skip')) return;
@@ -1405,7 +1429,7 @@
       go(link.getAttribute('href'), true);
     });
     window.addEventListener('hashchange', () => go(location.hash, true));
-    // 等版面（入參與出參的表格）排好再捲動，位置才準
+    // 等版面排好再捲動，位置才準
     requestAnimationFrame(() => go(location.hash, false));
   }
 
@@ -1763,11 +1787,11 @@
         return;
       }
       schedulePreviews();
+      // 捲動交給 bindSceneAnchors（這裡再捲會把編輯區移到畫面中間）：只把游標放進原文，
+      // 再請它依載入後的版面重新對齊
       const kind = location.hash.slice(1).replace('contract-', '');
-      if (['inputs', 'outputs'].includes(kind)) {
-        const area = qs('#contract-' + kind + ' [name="yaml"]');
-        area.scrollIntoView({block: 'center'}); area.focus({preventScroll: true});
-      }
+      if (['inputs', 'outputs'].includes(kind)) qs('#contract-' + kind + ' [name="yaml"]').focus({preventScroll: true});
+      document.dispatchEvent(new Event('scene-layout'));
     });
   }
 

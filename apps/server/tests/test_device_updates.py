@@ -135,8 +135,21 @@ def test_offer_statuses(app: FastAPI, offered: Path) -> None:
         "version": "0.5.0",
         "failed": None,
         "target": TARGET,
+        "runtime": report()["runtime"],
+        "needed": report()["runtime"],
         "at": pytest.approx(service.clock(), abs=60),
     }
+    # 要完整的安裝包時，裝置頁說明環境代號哪裡不同；更新檔沒有這個目標時 needed 是 None
+    service.offer("worker", "win-01", report(runtime="0" * 16))
+    full = service.report("worker", "win-01") or {}
+    assert (full["status"], full["runtime"], full["needed"]) == (
+        "full",
+        "0" * 16,
+        report()["runtime"],
+    )
+    service.offer("recorder", "mac-01", other)
+    missing = service.report("recorder", "mac-01") or {}
+    assert (missing["status"], missing["needed"]) == ("full", None)
     assert service.report("worker", "other") is None
     summary = service.summary()
     assert summary["auto"] is False

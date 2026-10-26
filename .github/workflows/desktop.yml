@@ -177,6 +177,13 @@ jobs:
       - name: 建置
         id: build
         run: uv run python tools/build_desktop.py ${{ matrix.app }}
+      - name: 環境代號和最近一次發布比較（不同時，已經裝好的裝置要用完整的安裝包）
+        # 只是提示（annotation）：發布時 release.yml 再比一次，寫進 Release 說明（2026-10-26）
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run python -m tools.runtime_changes --latest --runtime-file "${{ steps.build.outputs.runtime_file }}"
       - name: 自我測試（打包後的 App）
         env:
           # 全新的資料夾：確定瀏覽器是打包後的 driver 下載的，不是開發環境留下的

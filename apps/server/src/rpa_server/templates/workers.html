@@ -2,7 +2,10 @@
 {% import "_macros.html" as m %}
 {% block description %}{{ t("workers.description") }}{% endblock %}
 {% block actions %}<button class="button primary" data-action="new-worker"{% if not worker_port %} disabled title="{{ t('workers.api_off') }}"{% endif %}>{{ t("workers.new") }}</button>{% endblock %}
-{% macro update_line(report) %}{% if report and report.status in ("available", "full", "failed", "off") %}<span class="cell-sub{% if report.status in ("full", "failed") %} text-danger{% endif %}" data-update="{{ report.status }}">{{ t("updates.device_" + report.status, version=device_updates.get("version") or "") }}</span>{% endif %}{% endmacro %}
+{# 裝置的更新狀態（ADR 0018）。「要用完整的安裝包」說明原因，滑過去看環境代號（2026-10-26）。
+   有更新狀態說明時不再顯示「和 Portal 的程式版本不同」：兩行說的是同一件事 #}
+{% macro update_line(report) %}{% if report and report.status in ("available", "full", "failed", "off") %}{% set version = device_updates.get("version") or "" %}<span class="cell-sub{% if report.status in ("full", "failed") %} text-danger{% endif %}" data-update="{{ report.status }}"{% if report.status == "full" %} title="{{ t('updates.device_full_detail', current=report.runtime, needed=report.needed, version=version) if report.needed else t('updates.device_full_missing', target=report.target, version=version) }}"{% endif %}>{{ t("updates.device_" + report.status, version=version) }}</span>{% endif %}{% endmacro %}
+{% macro version_note(device, report) %}{% if not device.same_version and not (report and report.status in ("available", "full", "failed", "off")) %}<span class="cell-sub text-danger" data-version-differs>{{ t("workers.version_differs") }}</span>{% endif %}{% endmacro %}
 {% block content %}
 <div class="stack" id="workers" data-api-url="{{ api_url or '' }}"{% if workers or recorders %} data-poll{% endif %}>
   <div class="notice">{{ t("workers.notice") }}</div>
@@ -34,7 +37,7 @@
           {% else %}<span class="muted">{{ t("workers.never_seen") }}</span>{% endif %}</td>
         <td>{% if worker.version %}{{ t("workers.app_version", version=worker.version) }}{% endif %}
           {% if worker.fingerprint %}<span class="cell-sub"><code class="mono">{{ worker.fingerprint }}</code></span>
-          {% if not worker.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not worker.version %}—{% endif %}
+          {{ version_note(worker, worker_updates.get(worker.id)) }}{% elif not worker.version %}—{% endif %}
           {{ update_line(worker_updates.get(worker.id)) }}</td>
         <td class="role-actions">
           {% if worker.disabled %}
@@ -73,7 +76,7 @@
           {% else %}<span class="muted">{{ t("workers.never_seen") }}</span>{% endif %}</td>
         <td>{% if recorder.version %}{{ t("workers.app_version", version=recorder.version) }}{% endif %}
           {% if recorder.fingerprint %}<span class="cell-sub"><code class="mono">{{ recorder.fingerprint }}</code></span>
-          {% if not recorder.same_version %}<span class="cell-sub text-danger">{{ t("workers.version_differs") }}</span>{% endif %}{% elif not recorder.version %}—{% endif %}
+          {{ version_note(recorder, recorder_updates.get(recorder.id)) }}{% elif not recorder.version %}—{% endif %}
           {{ update_line(recorder_updates.get(recorder.id)) }}</td>
         <td><fieldset class="menu-choices" data-recorder-menus="{{ recorder.id }}"><legend class="visually-hidden">{{ t("recorders.menus_legend", name=recorder.name) }}</legend>
           {% for menu in recorder_menus %}<label><input type="checkbox" name="recorder-menu" value="{{ menu }}"{% if menu in recorder.menus %} checked{% endif %}> {{ t("nav." + menu) }}</label>{% endfor %}</fieldset>

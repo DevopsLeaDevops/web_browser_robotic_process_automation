@@ -32,7 +32,7 @@ import shutil
 import subprocess
 import sys
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Final, cast
 
@@ -70,6 +70,27 @@ WEBVIEW2_URL: Final = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 檔案會更新，所以不釘 SHA-256，改為核對 Microsoft 的數位簽章。"""
 WEBVIEW2_FILE: Final = "MicrosoftEdgeWebview2Setup.exe"
 _MESSAGE_NAME: Final = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+WORKSPACE_METADATA: Final = re.compile(r"^(rpa_\w+|testsite)-[^/]+\.(dist|egg)-info$")
+"""工作區套件的套件資訊資料夾（``rpa_update-0.6.1.dist-info``）。"""
+
+
+def shell_files(files: Iterable[tuple[str, str]]) -> list[tuple[str, str]]:
+    """spec 算環境代號時，收進 App 的檔案（App 裡的路徑, 來源）去掉工作區套件的 ``*.dist-info``。
+
+    rpa_update 屬於外殼，它的 dist-info 原本也被 :func:`rpa_update.build.shell_components` 算進去：
+    資料夾名稱與 METADATA 帶著這一版的版本號，uv 從原始碼安裝時還留下記錄時間的
+    ``uv_cache.json``，每次建置都不同。結果每一版桌面 App 的環境代號都變，裝置一直被要求用完整的
+    安裝包更新（0.6.0 → 0.6.1，2026-10-26）。rpa_update 的內容由它的模組與原始碼的雜湊代表。
+
+    這段放在 spec 這邊而不改 shell_components：rpa_update 的任何一個檔案改了，伺服器的環境代號也會
+    跟著改，伺服器就不能用更新檔升級。等 rpa_update 下次有必要的修改時再搬過去。
+    """
+    kept: list[tuple[str, str]] = []
+    for name, source in files:
+        first = name.replace("\\", "/").split("/", 1)[0]
+        if not WORKSPACE_METADATA.fullmatch(first):
+            kept.append((name, source))
+    return kept
 
 
 def _commit() -> str:

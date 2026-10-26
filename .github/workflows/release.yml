@@ -8,6 +8,8 @@
 #   4. 產生更新檔 RPA-Update-<版本>.zip（ADR 0018）：只有程式碼層，用 GitHub Secrets 的
 #      RPA_UPDATE_SIGNING_KEY 簽章；清單寫上前兩步每個安裝包的環境代號（runtime-<目標>.json）。
 #      確認簽章的私鑰與每個安裝包信任的公鑰都是 rpa_update/keys.py 的 RELEASE_KEYS。
+#      再和最近一次發布的更新檔比較環境代號（tools/runtime_changes.py）：哪些目標可以只用更新檔、
+#      哪些要完整的安裝包，寫成 annotation 與 Release 說明的「從 v上一版 升級」。
 #   5. 用它們的產物建立**草稿** Release：RPA Worker 的安裝檔、免安裝 zip 與 macOS 的 DMG，RPA 錄製端的 DMG（M10.2），
 #      伺服器的分發包（Linux x64、arm64）、更新檔，以及 SHA256SUMS.txt。
 #   6. 刪掉這次執行的產物：檔案已經在草稿上，私有倉庫的產物會占 Actions 的儲存額度（一次約 500 MB）。
@@ -106,6 +108,10 @@ jobs:
           for file in release/runtime-*.json; do args+=(--runtime-file "$file"); done
           uv run --locked --no-default-groups --package rpa-cli python -m tools.build_update --release "${args[@]}"
           mv dist/update/RPA-Update-*.zip release/
+          # 和上一次發布比較環境代號：哪些安裝好的伺服器與裝置可以只用更新檔、哪些要完整的安裝包，
+          # 寫成 annotation 與 Release 說明的一段（2026-10-26；只是提示，比不了不擋發布）
+          uv run --locked --no-default-groups --package rpa-cli python -m tools.runtime_changes --latest \
+            "${args[@]}" --notes "$RUNNER_TEMP/runtime-notes.md" || echo "::warning title=發布::沒能和上一次發布比較環境代號"
           rm release/runtime-*.json
       - name: 檔案與 SHA-256
         working-directory: release
@@ -176,6 +182,10 @@ jobs:
           yet (on macOS allow it under System Settings › Privacy & Security on first launch);
           verify downloads with `SHA256SUMS.txt`.
           EOF
+          # 從上一版怎麼升級（上一步和最近一次發布比較環境代號的結果）
+          if [ -s "$RUNNER_TEMP/runtime-notes.md" ]; then
+            { echo; cat "$RUNNER_TEMP/runtime-notes.md"; } >> "$notes"
+          fi
           files=(*.exe *.zip *.dmg *.tar.gz SHA256SUMS.txt)
           if draft="$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
             if [ "$draft" != "true" ]; then
