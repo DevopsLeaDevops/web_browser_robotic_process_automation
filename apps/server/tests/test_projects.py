@@ -243,8 +243,12 @@ def test_composites_belong_to_projects(
 
 def test_project_pages_and_navigation(client: Client, published: None) -> None:
     """專案空間（第一級選單，在叢集管理前面）：二級選單是專案；專案頁就是組合場景自動化。"""
-    # 還沒有專案：專案空間轉到專案管理
-    assert client.get("/workspace", follow_redirects=False).headers["location"] == "/projects"
+    # 還沒有專案：留在專案空間（選單標在專案空間，不是管理後台），說明到專案管理新增
+    workspace = client.get("/workspace", follow_redirects=False)
+    assert workspace.status_code == 200
+    assert 'href="/workspace" class="active"' in workspace.text
+    assert "還沒有專案" in workspace.text
+    assert 'href="/projects"' in workspace.text
     assert client.get("/composites", follow_redirects=False).headers["location"] == "/workspace"
     empty = client.get("/projects").text
     assert 'data-action="new-project"' in empty
@@ -298,6 +302,11 @@ def test_project_pages_and_navigation(client: Client, published: None) -> None:
     # 組合場景頁：設定可以選專案，麵包屑連回專案
     editor = client.get(f"/playground/{flow['id']}").text
     assert '<a href="/projects/billing">帳務</a>' in editor
+    # 屬於專案的組合場景：選單停在專案空間的這個專案（藍底），不是場景生產的自由試驗場
+    assert 'href="/workspace" class="active"' in editor
+    assert 'href="/projects/billing" title="帳務" class="active"' in editor
+    loose_editor = client.get(f"/playground/{loose['id']}").text
+    assert 'href="/playground" title="自由試驗場" class="active"' in loose_editor
     settings = editor.split('id="composite-settings"')[1].split("</form>")[0]
     assert '<option value="billing" selected>' in settings
     # 自由試驗場新增時預設第一個專案

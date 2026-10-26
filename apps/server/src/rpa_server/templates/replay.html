@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{% block crumb %}<a href="/replay">{{ t("nav.replay") }}</a> › {{ run.id }}{% endblock %}
+{% block crumb %}<a href="/runs">{{ t("nav.runs") }}</a> › <a href="/runs/{{ run.id }}">{{ run.id }}</a> › {{ t("replay.crumb") }}{% endblock %}
 {% block description %}<a href="/scenes/{{ run.scene_id }}">{{ run.scene_id }}</a> {{ run.scene_name }} · v{{ run.revision_number }} · {{ t("purpose." + run.purpose) }} · {{ m.run_badge(run.status) }}{% if run.duration_seconds is not none %} · {{ "%.1f"|format(run.duration_seconds) }} s{% endif %} · {{ engine }} · {{ t("replay.window_headless") if run.headless else t("replay.window_headed") }}{% if run.worker_id and run.worker_id != "local" %} · {{ t("run.worker") }} {{ worker_names.get(run.worker_id, run.worker_id) }}{% endif %}{% endblock %}
 {% block actions %}
 {% if data.neighbors.previousFailed %}<a class="button" href="/runs/{{ data.neighbors.previousFailed }}/replay" title="{{ t('replay.previous_failed_title') }}">‹ {{ t("replay.previous_failed") }}</a>{% endif %}

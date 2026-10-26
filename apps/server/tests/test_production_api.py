@@ -806,9 +806,14 @@ def test_scene_and_card_pages_link_to_debugging(client: Client) -> None:
     assert [name for name, _ in data["inputs"]] == ["title", "quantity"]
     assert [name for name, _ in data["outputs"]] == ["recordId", "title", "quantity"]
     domain = client.get("/domains/lab").text
-    # 卡片的「自動化腳本」「斷言腳本」分別打開場景檔的 steps、verify 兩段
-    assert 'href="/scenes/ba-001/edit?part=steps"' in domain
-    assert 'href="/scenes/ba-001/edit?part=verify"' in domain
+    # 卡片的五個連結都跳到場景詳情頁的區域，依序：自動化腳本、斷言腳本、入參、出參、運行報告
+    links = [
+        f'href="/scenes/ba-001#{part}"' for part in ("steps", "verify", "inputs", "outputs", "runs")
+    ]
+    positions = [domain.index(link) for link in links]
+    assert positions == sorted(positions)
+    assert "/edit?part=" not in domain
+    assert 'href="/runs?scene=ba-001"' not in domain
     assert 'href="/recording?scene=ba-001"' in scene
     script = client.get("/scenes/ba-001-script").text
     assert 'href="/scenes/ba-001-script/debug"' not in script
@@ -876,10 +881,16 @@ def test_automation_and_assertion_are_edited_separately(client: Client) -> None:
     verify = body(client.get("/api/scenes/ba-001/sections/verify"))
     assert str(verify["text"]).startswith("verify:")
 
-    page = client.get("/scenes/ba-001/edit?part=verify").text
-    assert 'id="section-form"' in page
+    # 兩段腳本在場景詳情頁的「腳本」區編輯；舊的網址轉到詳情頁的區域
+    page = client.get("/scenes/ba-001").text
+    assert 'id="script-form"' in page
     assert "facts.record" in page  # 列出可以引用的頁面事實
-    assert client.get("/scenes/ba-001/edit?part=steps").status_code == 200
+    assert '<textarea class="code-editor" name="verify"' in page
+    moved = client.get("/scenes/ba-001/edit?part=verify", follow_redirects=False)
+    assert moved.status_code == 303
+    assert moved.headers["location"] == "/scenes/ba-001#verify"
+    # 完整場景檔另開視窗（外部連結），不和兩段腳本混在一起
+    assert 'class="text-btn external-link" href="/scenes/ba-001/edit" target="_blank"' in page
 
     text = (
         str(verify["text"])
@@ -919,6 +930,63 @@ def test_automation_and_assertion_are_edited_separately(client: Client) -> None:
     assert error(other)["code"] == "section_key"
     script = client.put(
         "/api/scenes/ba-001-script/sections/steps", json={"baseRevision": 1, "text": "steps: []"}
+    )
+    assert error(script)["code"] == "section_script"
+
+
+def test_automation_and_assertion_saved_together(client: Client) -> None:
+    """場景詳情頁一次存兩段：一起校驗、建立一個新版本；問題標出在哪一段的第幾行。"""
+    body(client.post("/api/scenes/import"))
+    steps = str(body(client.get("/api/scenes/ba-001/sections/steps"))["text"])
+    verify = str(body(client.get("/api/scenes/ba-001/sections/verify"))["text"])
+    # 步驟把 extract 改名、斷言跟著改：分開存的話中間的版本會校驗失敗，一起存就可以
+    renamed_steps = steps.replace("as: record", "as: created")
+    renamed_verify = verify.replace("facts.record", "facts.created")
+    assert renamed_steps != steps
+    assert renamed_verify != verify
+    half = client.put(
+        "/api/scenes/ba-001/sections/steps", json={"baseRevision": 1, "text": renamed_steps}
+    )
+    assert error(half)["code"] == "revision_invalid"
+    outputs = str(body(client.get("/api/scenes/ba-001/sections/outputs"))["text"])
+    saved = body(
+        client.put(
+            "/api/scenes/ba-001/sections",
+            json={
+                "baseRevision": 1,
+                "sections": {
+                    "steps": renamed_steps,
+                    "verify": renamed_verify,
+                    "outputs": outputs.replace("facts.record", "facts.created"),
+                },
+            },
+        ),
+        201,
+    )
+    assert saved["number"] == 2
+    note = str(body(client.get("/api/scenes/ba-001/revisions/2"))["note"])
+    assert note == "編輯自動化腳本、斷言腳本、出參"
+
+    broken = client.put(
+        "/api/scenes/ba-001/sections",
+        json={
+            "baseRevision": 2,
+            "sections": {"verify": "verify:\n  - value: '{{ facts.nope }}'\n    notEmpty: true"},
+        },
+    )
+    issues = cast("list[JsonObject]", error(broken)["issues"])
+    assert any(
+        issue.get("section") == "verify" and issue.get("sectionLine") == 2 for issue in issues
+    ), issues
+    stale = client.put(
+        "/api/scenes/ba-001/sections", json={"baseRevision": 1, "sections": {"steps": steps}}
+    )
+    assert stale.status_code == 409
+    empty = client.put("/api/scenes/ba-001/sections", json={"baseRevision": 2, "sections": {}})
+    assert error(empty)["code"] == "section_none"
+    script = client.put(
+        "/api/scenes/ba-001-script/sections",
+        json={"baseRevision": 1, "sections": {"steps": "steps: []"}},
     )
     assert error(script)["code"] == "section_script"
 

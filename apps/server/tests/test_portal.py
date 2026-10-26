@@ -340,17 +340,30 @@ def test_testsite_domain_runs_a_real_case_from_its_card(
     width = card.locator("img").evaluate("image => image.decode().then(() => image.naturalWidth)")
     assert width > 0
 
-    # 卡片上的「斷言腳本」只打開場景檔的 verify 段；點頁面事實插入到游標的位置
+    # 卡片上的「斷言腳本」跳到場景詳情頁的腳本區、切到斷言腳本；點頁面事實插入到游標的位置
     card.locator("a", has_text="斷言腳本").click()
-    page.wait_for_url(re.compile(r"/scenes/ba-003/edit\?part=verify$"))
-    area = page.locator('#section-form textarea[name="text"]')
+    page.wait_for_url(re.compile(r"/scenes/ba-003#verify$"))
+    expect(page.locator('[data-script-tab="verify"]')).to_have_attribute("aria-selected", "true")
+    area = page.locator('#script-form textarea[name="verify"]')
+    expect(area).to_be_visible()
     expect(area).to_have_value(re.compile(r"^verify:"))
+    save = page.locator('[data-action="save-scripts"]')
+    expect(save).to_be_disabled()
     area.evaluate("area => area.setSelectionRange(area.value.length, area.value.length)")
-    page.locator("[data-insert]", has_text="facts.").first.click()
+    page.locator("#script-form [data-insert]", has_text="facts.").first.click()
     assert area.input_value().rstrip().endswith("}}")
-    page.locator('a.active[href$="part=verify"]').wait_for()
-    page.locator('a[href$="part=steps"]').click()
-    expect(area).to_have_value(re.compile(r"^steps:"))
+    expect(save).to_be_enabled()
+    # 同一頁切到自動化腳本，斷言腳本的修改還在；完整場景檔另開視窗
+    page.locator('[data-script-tab="steps"]').click()
+    expect(page.locator('#script-form textarea[name="steps"]')).to_have_value(
+        re.compile(r"^steps:")
+    )
+    expect(area).to_be_hidden()
+    expect(page.locator("#script a.external-link")).to_have_attribute("target", "_blank")
+    # 上方的區域連結：運行報告就是這一頁的「最近運行」
+    page.locator(".scene-jump a", has_text="最近運行").click()
+    expect(page.locator("#runs")).to_be_in_viewport()
+    expect(page.locator("#runs [data-status='passed']").first).to_be_visible()
     assert errors == []
 
 
@@ -631,6 +644,9 @@ def test_contract_workspace_preserves_drafts_and_saves_both_columns(
     for tile in tiles.all():
         expect(tile).to_be_visible()
     boxes = [box for tile in tiles.all() if (box := tile.bounding_box()) is not None]
+    # 入參與出參在場景詳情頁的中段：輸入時頁面會捲動，和預覽在同一個時間點量位置
+    left = inputs.bounding_box()
+    assert left is not None
     assert len(boxes) == 3
     assert boxes[0]["y"] == boxes[1]["y"] == boxes[2]["y"]
     assert boxes[0]["x"] < boxes[1]["x"] < boxes[2]["x"]
@@ -711,10 +727,67 @@ def test_contract_table_rename_survives_view_changes(portal: str, page: Page) ->
     expect(page.locator('[data-action="save-contract"]')).to_be_enabled()
     page.once("dialog", lambda dialog: dialog.dismiss())
     with page.expect_event("dialog") as leaving:
-        page.locator('#page-actions a[href$="/edit"]').click(no_wait_after=True)
+        page.locator('#page-actions a[href^="/recording"]').click(no_wait_after=True)
     assert leaving.value.type == "beforeunload"
     expect(area).to_have_value(text)
     assert page.url.endswith("/scenes/ba-001")
+
+
+@pytest.mark.parametrize("portal", [DEMO], indirect=True)
+def test_scene_page_saves_scripts_and_contract_in_turn(portal: str, page: Page) -> None:
+    """場景詳情頁（2026-10-25）：腳本區存成新版本；入參與出參接著存不會被當成舊版本；
+    校驗問題標出段落與行號，點一下切到那一段。"""
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(f"{portal}/scenes/ba-001#steps")
+    steps = page.locator('#script-form textarea[name="steps"]')
+    verify = page.locator('#script-form textarea[name="verify"]')
+    save = page.locator('[data-action="save-scripts"]')
+    expect(steps).to_be_visible()
+    expect(save).to_be_disabled()
+    # 斷言引用不存在的事實：問題標出「斷言腳本 第 N 行」，從自動化腳本點一下切過去
+    page.locator('[data-script-tab="verify"]').click()
+    original = verify.input_value()
+    verify.fill(original + "\n  - name: 不存在\n    value: '{{ facts.nope }}'\n    notEmpty: true")
+    expect(page.locator("#script-state")).to_contain_text("斷言腳本有還沒儲存的修改")
+    page.locator('[data-script-tab="steps"]').click()
+    save.click()
+    issue = page.locator("#script-issues [data-issue]:not([disabled])").first
+    expect(issue).to_contain_text("斷言腳本 第")
+    issue.click()
+    expect(verify).to_be_visible()
+    expect(page.locator('[data-script-tab="verify"]')).to_have_attribute("aria-selected", "true")
+    # 改好再存：建立 v2，版本表、斷言數量跟著更新
+    verify.fill(
+        original
+        + "\n  - name: 狀態有值\n    value: '{{ facts.record.status }}'\n    notEmpty: true"
+    )
+    save.click()
+    expect(page.locator("#script-saved")).to_contain_text("v2")
+    expect(page.locator('tr[data-revision="2"]')).to_be_visible()
+    expect(page.locator("#script-count-verify")).to_have_text("5")
+    expect(save).to_be_disabled()
+    # 入參與出參接著存：以 v2 為基準（不會被當成舊版本），斷言的修改也保留
+    inputs = page.locator('#contract-inputs textarea[name="yaml"]')
+    expect(page.locator("#contract-state")).to_contain_text("v2")
+    inputs.fill(inputs.input_value().replace("default: 12", "default: 9"))
+    page.locator('[data-action="save-contract"]').click()
+    expect(page.locator("#contract-state")).to_contain_text("v3")
+    final = page.request.get(f"{portal}/api/scenes/ba-001/revisions/3").json()["files"]
+    assert "default: 9" in final["scenario.yaml"]
+    assert "狀態有值" in final["scenario.yaml"]
+    # 腳本區也接著用 v3：再存一次是 v4
+    verify.fill(verify.input_value().replace("狀態有值", "狀態不是空的"))
+    save.click()
+    expect(page.locator("#script-saved")).to_contain_text("v4")
+    # 錄製端（WKWebView）不要自動把第一個字母改成大寫：所有文字輸入框、之後才出現的也一樣
+    for field in ('input[name="baseUrl"]', 'input[name="note"]', "#script textarea"):
+        expect(page.locator(field).first).to_have_attribute("autocapitalize", "off")
+    page.goto(f"{portal}/domains/testsite")
+    page.locator('[data-action="new-scene"]').click()
+    expect(page.locator('#dialog input[name="id"]')).to_have_attribute("autocapitalize", "off")
+    expect(page.locator('#dialog input[name="id"]')).to_have_attribute("autocorrect", "off")
+    assert errors == []
 
 
 def test_projects_are_managed_and_hold_composites(portal: str, page: Page) -> None:
@@ -733,8 +806,10 @@ def test_projects_are_managed_and_hold_composites(portal: str, page: Page) -> No
         dialog.locator("#dialog-action").click()
         page.wait_for_url(f"{portal}/projects/{project_id}")
 
-    # 還沒有專案：專案空間轉到專案管理
+    # 還沒有專案：專案空間留在專案空間（選單標在專案空間），「管理專案」到專案管理
     page.goto(f"{portal}/workspace")
+    expect(page.locator("#topnav a.active")).to_have_text("專案空間")
+    page.locator('#page-actions a[href="/projects"]').click()
     page.wait_for_url(f"{portal}/projects")
     create_project("billing", "帳務")
     expect(page.locator("#sidenav")).to_contain_text("帳務")

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- 專案空間還沒有專案時（2026-10-25）：留在專案空間，不跳到管理後台的專案管理，選單才標得對 -#}
+{% block description %}{{ t("projects.description") }}{% endblock %}
+{% block actions %}{% if menu_shown("admin") %}<a class="button primary" href="/projects">{{ t("project.manage") }} {{ m.arrow() }}</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="panel empty">{{ t("workspace.empty") }}{% if not menu_shown("admin") %}<p>{{ t("workspace.empty_no_admin") }}</p>{% endif %}</div>
+{% endblock %}

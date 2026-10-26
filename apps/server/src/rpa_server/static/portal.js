@@ -144,7 +144,7 @@
     const response = await fetch('/scenes/' + path(scene));
     if (!response.ok) return;
     const page = new DOMParser().parseFromString(await response.text(), 'text/html');
-    for (const id of ['scene-versions', 'scene-release-status', 'page-actions']) {
+    for (const id of ['scene-versions', 'scene-release-status', 'page-actions', 'script-count-steps', 'script-count-verify']) {
       const next = qs('#' + id, page), current = qs('#' + id);
       if (next && current) current.replaceWith(next);
     }
@@ -1261,7 +1261,7 @@
     const end = area.selectionEnd;
     area.setRangeText(text, start, end, 'end');
     area.focus();
-    area.dispatchEvent(new Event('input'));
+    area.dispatchEvent(new Event('input', {bubbles: true}));
   }
 
   // 第 line 行（從 1 開始）整行選取並捲到看得見的位置
@@ -1274,33 +1274,56 @@
     area.scrollTop = Math.max(0, (line - 4) * height);
   }
 
-  // 校驗問題：落在這一段的標出段落裡的行號，點一下選到那一行
-  function showSectionIssues(list, result, area) {
-    const error = result.data && result.data.error;
-    const issues = error && Array.isArray(error.issues) ? error.issues : [];
-    list.innerHTML = '<li>' + esc(errorMessage(result)) + '</li>' + issues.map((issue, index) => {
-      const where = issue.sectionLine ? fill(messages.section_line, {line: issue.sectionLine}) + '  ' : '';
-      return '<li><button type="button" class="text-btn" data-issue="' + index + '">' + esc(where + (issue.message || issue.text || '')) + '</button></li>';
-    }).join('');
-    list.closest('section').hidden = false;
-    qsa('[data-issue]', list).forEach(button => {
-      const issue = issues[Number(button.dataset.issue)];
-      button.disabled = !issue.sectionLine;
-      button.addEventListener('click', () => selectLine(area, issue.sectionLine));
+  // 場景詳情頁的「腳本」區（2026-10-25）：自動化腳本（steps）與斷言腳本（verify）切換編輯；
+  // 兩段有改的一起存成一個新版本（PUT /api/scenes/{id}/sections）。不換頁：錄製端的視窗沒有上一頁。
+  function bindScripts() {
+    const panel = qs('#script');
+    if (!panel) return null;
+    const form = qs('#script-form');
+    const tabs = qsa('[data-script-tab]', panel);
+    const show = part => {
+      if (!tabs.some(tab => tab.dataset.scriptTab === part)) return;
+      tabs.forEach(tab => {
+        const active = tab.dataset.scriptTab === part;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', String(active));
+      });
+      qsa('[data-script-part]', panel).forEach(element => { element.hidden = element.dataset.scriptPart !== part; });
+      if (form) form.dataset.key = part;
+    };
+    tabs.forEach(tab => tab.addEventListener('click', () => show(tab.dataset.scriptTab)));
+    if (!form) return show;
+    const scene = form.dataset.scene;
+    const archived = panel.dataset.archived === '1';
+    const areas = {steps: form.elements.namedItem('steps'), verify: form.elements.namedItem('verify')};
+    const saved = {steps: areas.steps.value, verify: areas.verify.value};
+    const state = qs('#script-state');
+    const save = qs('[data-action="save-scripts"]', form);
+    const list = qs('#script-issues');
+    const label = part => messages['script_' + part];
+    const changed = () => Object.keys(areas).filter(part => areas[part].value !== saved[part]);
+    const refresh = () => {
+      const parts = changed();
+      save.disabled = archived || parts.length === 0;
+      state.textContent = parts.length
+        ? fill(messages.scripts_unsaved, {parts: parts.map(label).join(messages.list_separator)})
+        : fill(messages.scripts_state, {number: form.dataset.base});
+    };
+    form.addEventListener('input', refresh);
+    window.addEventListener('beforeunload', event => {
+      if (changed().length) { event.preventDefault(); event.returnValue = ''; }
     });
-    list.closest('section').scrollIntoView({block: 'nearest'});
-  }
-
-  function bindSection() {
-    const form = qs('#section-form');
-    if (!form) return;
-    const markSaved = watchEditor(form);
-    const area = form.elements.namedItem('text');
-    const key = form.dataset.key;
-    qsa('[data-insert]').forEach(chip => chip.addEventListener('click', () => insertAt(area, chip.dataset.insert)));
+    // 入參、出參存成新版本時，接著用那個版本當基準（只換掉這兩段，不會蓋掉入參、出參）
+    document.addEventListener('scene-revision', event => {
+      if (event.detail.source === 'scripts') return;
+      form.dataset.base = event.detail.number;
+      refresh();
+    });
+    qsa('[data-insert]', form).forEach(chip => chip.addEventListener('click', () => insertAt(areas[form.dataset.key], chip.dataset.insert)));
     // 斷言範本：接在最後，縮排跟著現有的項目
     const rules = {notEmpty: 'notEmpty: true', equals: 'equals: ""', contains: 'contains: ""', matches: 'matches: "^$"'};
-    qsa('[data-insert-check]').forEach(button => button.addEventListener('click', () => {
+    qsa('[data-insert-check]', form).forEach(button => button.addEventListener('click', () => {
+      const area = areas.verify;
       const found = /^( *)- /m.exec(area.value.replace(/^verify:.*$/m, ''));
       const indent = found ? found[1] : '  ';
       let text = area.value.replace(/\s+$/, '');
@@ -1310,26 +1333,80 @@
       const position = area.value.lastIndexOf('- name: ') + '- name: '.length;
       area.focus();
       area.setSelectionRange(position, position);
+      refresh();
     }));
-    const save = qs('[data-action="save-section"]');
-    const list = qs('#issue-list');
+    // 校驗問題：標出在哪一段的第幾行，點一下切到那一段、選到那一行
+    const showIssues = result => {
+      const error = result.data && result.data.error;
+      const issues = error && Array.isArray(error.issues) ? error.issues : [];
+      list.innerHTML = '<li>' + esc(errorMessage(result)) + '</li>' + issues.map((issue, index) => {
+        const where = issue.section && issue.sectionLine ? label(issue.section) + ' ' + fill(messages.section_line, {line: issue.sectionLine}) + '  ' : '';
+        return '<li><button type="button" class="text-btn" data-issue="' + index + '">' + esc(where + (issue.message || issue.text || '')) + '</button></li>';
+      }).join('');
+      list.hidden = false;
+      qsa('[data-issue]', list).forEach(button => {
+        const issue = issues[Number(button.dataset.issue)];
+        button.disabled = !issue.section || !issue.sectionLine || !areas[issue.section];
+        button.addEventListener('click', () => { show(issue.section); selectLine(areas[issue.section], issue.sectionLine); });
+      });
+      list.scrollIntoView({block: 'nearest'});
+    };
     const submit = async () => {
-      qs('#issues').hidden = true;
+      const parts = changed();
+      if (!parts.length || archived) return;
+      list.hidden = true;
       busy(save, true); form.inert = true;
-      const result = await api('PUT', '/api/scenes/' + path(form.dataset.scene) + '/sections/' + path(key), {
+      const result = await api('PUT', '/api/scenes/' + path(scene) + '/sections', {
         baseRevision: Number(form.dataset.base),
-        text: area.value,
+        sections: Object.fromEntries(parts.map(part => [part, areas[part].value])),
         note: form.elements.namedItem('note').value.trim() || null,
       });
       busy(save, false); form.inert = false;
       if (!result.ok) {
         if (result.status === 409 && result.data && result.data.error && result.data.error.code === 'stale_base') return toast(messages.stale_base);
-        return showSectionIssues(list, result, area);
+        return showIssues(result);
       }
-      markSaved(); savedRevision(form, result.data.number);
+      const number = result.data.number;
+      parts.forEach(part => { saved[part] = areas[part].value; });
+      form.elements.namedItem('note').value = '';
+      form.dataset.base = number;
+      refresh();
+      let notice = qs('#script-saved');
+      if (!notice) { notice = document.createElement('div'); notice.id = 'script-saved'; notice.className = 'notice contract-next'; notice.setAttribute('role', 'status'); form.prepend(notice); }
+      notice.innerHTML = '<span>' + esc(fill(messages.contract_saved_next, {number})) + '</span><a class="button" href="/scenes/' + path(scene) + '/run?purpose=validation&revision=' + number + '">' + esc(messages.validate_next) + '</a>';
+      toast(messages.saved + ' v' + number);
+      document.dispatchEvent(new CustomEvent('scene-revision', {detail: {number, source: 'scripts'}}));
+      await refreshSceneSummary(scene);
     };
-    if (save) save.addEventListener('click', submit);
     form.addEventListener('submit', event => { event.preventDefault(); submit(); });
+    refresh();
+    return show;
+  }
+
+  // 場景詳情頁的區域連結（卡片與頁面上方的 #steps、#verify、#inputs、#outputs、#runs…）：
+  // 切到對應的分頁並捲到那一區；同一頁內點連結也一樣（不留下上一頁的紀錄）
+  function bindSceneAnchors(showScript) {
+    if (!qs('.scene-page')) return;
+    const targets = {versions: 'scene-versions', inputs: 'contract-inputs', outputs: 'contract-outputs', steps: 'script', verify: 'script'};
+    const go = (hash, smooth) => {
+      const name = hash.replace(/^#/, '');
+      if (!name) return;
+      if ((name === 'steps' || name === 'verify') && showScript) showScript(name);
+      const target = document.getElementById(targets[name] || name);
+      if (!target) return;
+      target.scrollIntoView({block: 'start', behavior: smooth ? 'smooth' : 'auto'});
+      qsa('.scene-jump a').forEach(link => link.classList.toggle('active', link.getAttribute('href') === '#' + name));
+    };
+    document.addEventListener('click', event => {
+      const link = event.target.closest('a[href^="#"]');
+      if (!link || link.closest('#sidenav, #topnav') || link.classList.contains('skip')) return;
+      event.preventDefault();
+      history.replaceState(null, '', link.getAttribute('href'));
+      go(link.getAttribute('href'), true);
+    });
+    window.addEventListener('hashchange', () => go(location.hash, true));
+    // 等版面（入參與出參的表格）排好再捲動，位置才準
+    requestAnimationFrame(() => go(location.hash, false));
   }
 
   // ---------------------------------------------------------------- 入參與出參的表單
@@ -1456,6 +1533,14 @@
     };
     host.addEventListener('input', markDirty);
     host.addEventListener('change', markDirty);
+    // 同一頁的腳本區存了新版本：接著用那個版本當基準（腳本區只換掉步驟、斷言，入參與出參不變）
+    document.addEventListener('scene-revision', event => {
+      if (event.detail.source === 'contract') return;
+      base = event.detail.number;
+      host.dataset.base = base;
+      if (!dirty) state.textContent = fill(messages.contract_based_on, {number: base});
+      schedulePreviews();
+    });
     window.addEventListener('beforeunload', event => {
       if (dirty) { event.preventDefault(); event.returnValue = ''; }
     });
@@ -1664,6 +1749,7 @@
         qs('#contract-next span').textContent = fill(messages.contract_saved_next, {number: base});
         qs('[data-validate-contract]').href = '/scenes/' + path(scene) + '/run?purpose=validation&revision=' + base;
         qs('#contract-next').hidden = false;
+        document.dispatchEvent(new CustomEvent('scene-revision', {detail: {number: base, source: 'contract'}}));
         await refreshSceneSummary(scene);
       } finally {
         working = false; host.inert = false; busy(saveButton, false);
@@ -3078,6 +3164,27 @@
     });
   }
 
+  // 錄製端（macOS 的 WKWebView）會依系統的「自動將字首大寫」把輸入框的第一個字母改成大寫
+  // （demo-001 變成 Demo-001）。代號、網址、定位器、入參都不該被改：所有文字輸入框關掉自動大寫、
+  // 自動校正與拼字檢查；對話框之類之後才加進來的輸入框也一樣。
+  const TEXT_FIELDS = 'input:not([type]), input[type="text"], input[type="url"], input[type="search"], input[type="email"], input[type="tel"], textarea';
+  function plainTyping(field) {
+    if (!field.matches || !field.matches(TEXT_FIELDS)) return;
+    if (!field.hasAttribute('autocapitalize')) field.setAttribute('autocapitalize', 'off');
+    if (!field.hasAttribute('autocorrect')) field.setAttribute('autocorrect', 'off');
+    if (!field.hasAttribute('spellcheck')) field.spellcheck = false;
+  }
+  function bindPlainTyping() {
+    qsa(TEXT_FIELDS).forEach(plainTyping);
+    new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      plainTyping(node);
+      qsa(TEXT_FIELDS, node).forEach(plainTyping);
+    }))).observe(document.body, {childList: true, subtree: true});
+    document.addEventListener('focusin', event => plainTyping(event.target));
+  }
+
+  bindPlainTyping();
   bindLanguage();
   bindFilters();
   bindPublish();
@@ -3089,7 +3196,7 @@
   bindSync();
   bindSceneSettings();
   bindEditor();
-  bindSection();
+  bindSceneAnchors(bindScripts());
   bindRunForm();
   bindRun();
   bindRoles();

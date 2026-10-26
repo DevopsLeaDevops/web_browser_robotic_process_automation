@@ -101,6 +101,11 @@ def test_chain_ba001_to_ba002(site: str, engine: str, tmp_path: Path) -> None:
         assert (first.directory / name).is_file(), name
     assert all(check.passed for check in first.checks)
     assert [step["status"] for step in first.steps] == ["passed"] * 7
+    # automation.log 是給人讀的逐步紀錄（steplog.py）
+    log = (first.directory / "automation.log").read_text(encoding="utf-8")
+    assert log.startswith("自動化日誌：ba-001 ")
+    assert "第 7/7 步" in log
+    assert "完成：7 步全部通過" in log
 
     second = run(BA_002, {"recordId": first.output["recordId"]}, site, engine, tmp_path)
 
@@ -187,6 +192,8 @@ def test_unknown_record_fails_with_evidence(site: str, engine: str, tmp_path: Pa
     assert result.error
     assert not (result.directory / OUTPUT).exists()
     assert (result.directory / REPORT).is_file()
+    log = (result.directory / "automation.log").read_text(encoding="utf-8")
+    assert "完整的錯誤訊息" in log
     failed = [step for step in result.steps if step["status"] == "failed"]
     assert len(failed) <= 1, failed
     for step in failed:

@@ -38,11 +38,12 @@
       <p class="clamp">{{ scene.description or t("card.no_description") }}</p>
     </div>
     <nav class="card-links even scene-card-links" aria-label="{{ scene.name }}">
-      <a href="/scenes/{{ scene.id }}/edit?{% if scene.kind == 'script' %}file=automation.py{% else %}part=steps{% endif %}">{{ t("card.automation") }}</a>
-      <a href="/scenes/{{ scene.id }}/edit?{% if scene.kind == 'script' %}file=assertion.py{% else %}part=verify{% endif %}">{{ t("card.assertion") }}</a>
-      <a href="/runs?scene={{ scene.id }}">{{ t("card.reports") }}</a>
+      {#- 都跳到場景詳情頁的對應區域（2026-10-25）：自動化腳本、斷言腳本、入參、出參、運行報告 -#}
+      <a href="/scenes/{{ scene.id }}#steps">{{ t("card.automation") }}</a>
+      <a href="/scenes/{{ scene.id }}#verify">{{ t("card.assertion") }}</a>
       <a href="/scenes/{{ scene.id }}#inputs">{{ t("card.inputs") }}</a>
       <a href="/scenes/{{ scene.id }}#outputs">{{ t("card.outputs") }}</a>
+      <a href="/scenes/{{ scene.id }}#runs">{{ t("card.reports") }}</a>
     </nav>
     <div class="scene-card-foot">
       <span class="tag" title="{{ scene.id }}">{{ scene.id }}</span>

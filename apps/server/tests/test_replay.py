@@ -1,4 +1,4 @@
-"""運行回看（M12）：回看頁的資料與頁面、運行回看清單、運行報告的回看欄。
+"""運行回看（M12）：回看頁的資料與頁面、運行報告的錄影欄與「只看有錄影的」篩選。
 
 不需要瀏覽器：假的執行器照 runner 的做法留下場景快照、步驟紀錄、頁面事實與一段最小的影片。
 真實錄影的播放、拖曳與點步驟跳轉在 test_replay_flow.py。
@@ -220,10 +220,18 @@ def test_replay_page_and_lists(client: Client, worker: Worker, executor: StepExe
     assert 'id="replay-data"' in html
     assert "/static/replay.js" in html
     assert "自動化在第 4 步" in html  # 結束卡
-    assert 'href="/replay"' in html  # 選單的「運行回看」
-    listing = client.get("/replay").text
+    # 運行回看的清單併進運行報告（2026-10-25）：回看頁的位置是 運行報告 › 這次運行 › 錄影回看
+    assert 'href="/replay"' not in html
+    assert (
+        f'<a href="/runs">運行報告</a> › <a href="/runs/{run_id}">{run_id}</a> › 錄影回看' in html
+    )
+    moved = client.get("/replay?status=failed", follow_redirects=False)
+    assert moved.status_code == 303
+    assert moved.headers["location"] == "/runs?status=failed&video=1"
+    listing = client.get("/runs?video=1").text
     assert f"/runs/{run_id}/replay" in listing
     assert "錄影開啟" in listing
+    assert 'name="video" value="1" checked' in listing
     assert f"/runs/{run_id}/replay" in client.get("/runs").text
     assert f"/runs/{run_id}/replay" in client.get(f"/runs/{run_id}").text
 
@@ -241,7 +249,7 @@ def test_replay_page_in_other_languages(
     assert page.status_code == 200
     if locale == "en":
         assert "The automation failed at step 1" in page.text
-        assert "Run replay" in page.text
+        assert "› Replay" in page.text
 
 
 def test_replay_without_video_explains_why(
@@ -267,7 +275,7 @@ def test_replay_without_video_explains_why(
     deleted = client.get(f"/runs/{recorded}/replay").text
     assert "錄影已依保留規則刪除（超過保留天數）" in deleted
     assert "已刪除" in client.get("/runs").text
-    assert f"/runs/{recorded}/replay" not in client.get("/replay").text
+    assert f"/runs/{recorded}/replay" not in client.get("/runs?video=1").text
     assert client.get("/api/runs/missing/replay").status_code == 404
 
 
@@ -285,8 +293,8 @@ def test_replay_explains_a_recording_that_was_not_saved(
     assert 'id="replay-video"' not in response.text
 
 
-def test_video_settings_form_is_on_the_replay_page(client: Client) -> None:
-    html = client.get("/replay").text
+def test_video_settings_form_is_on_the_runs_page(client: Client) -> None:
+    html = client.get("/runs").text
     assert "data-video-settings" in html
     assert 'name="keepPassedDays"' in html
     assert 'value="7"' in html

@@ -206,6 +206,13 @@ class SectionSave(_Body):
     note: str | None = Field(default=None, max_length=500)
 
 
+class SectionsSave(_Body):
+    base_revision: int = Field(ge=1)
+    sections: dict[str, str] = Field(max_length=4)
+    """段落 → 原文（steps、verify）；只放有改的段落。"""
+    note: str | None = Field(default=None, max_length=500)
+
+
 class RerunRequest(_Body):
     idempotency_key: str | None = Field(default=None, max_length=100)
 
@@ -732,6 +739,17 @@ def api_router(services: Services) -> APIRouter:
         """直接編輯一段的原文：只換掉這一段，存成新版本。"""
         revision = services.save_section(
             scene_id, key, base=body.base_revision, text=body.text, note=body.note
+        )
+        return revision.to_json()
+
+    @router.put("/scenes/{scene_id}/sections", status_code=201)
+    def save_sections(scene_id: str, body: SectionsSave) -> dict[str, object]:
+        """一次換掉幾段（場景詳情頁的自動化腳本與斷言腳本）：一起校驗，存成一個新版本。"""
+        for text in body.sections.values():
+            if len(text) > 200_000:
+                raise ServiceError(422, "section_too_long", t("error.section_too_long"))
+        revision = services.save_sections(
+            scene_id, body.sections, base=body.base_revision, note=body.note
         )
         return revision.to_json()
 

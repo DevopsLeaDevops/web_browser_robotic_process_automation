@@ -125,12 +125,22 @@
       </section>
       {% endif %}
 
-      {% if files %}
-      <section class="panel">
-        <div class="panel-header"><h2>{{ t("run.files") }} <span class="count">{{ files | length }}</span></h2></div>
-        <ul class="panel-body file-list">
-          {% for path in files %}<li><a href="/runs/{{ run.id }}/files/{{ path }}" target="_blank" rel="noopener">{{ path }}</a></li>{% endfor %}
-        </ul>
+      {% set file_rows = run_file_rows(files) %}
+      {% if file_rows %}
+      <section class="panel" id="run-files">
+        <div class="panel-header"><h2>{{ t("run.files") }} <span class="count">{{ file_rows | length }}</span></h2><span class="muted">{{ t("run.files_hint") }}</span></div>
+        <div class="table-scroll"><table class="wrap file-table">
+          <thead><tr><th>{{ t("run.col_file") }}</th><th>{{ t("run.col_file_note") }}</th><th class="col-actions"><span class="visually-hidden">{{ t("scene.col_actions") }}</span></th></tr></thead>
+          <tbody>
+          {% for row in file_rows %}
+            <tr data-file="{{ row.path }}">
+              <td class="mono">{% if row.kind == "video" %}<a href="/runs/{{ run.id }}/replay" title="{{ t('run.file_replay_title') }}">▶ {{ row.path }}</a>{% else %}<a href="/runs/{{ run.id }}/files/{{ row.path }}" target="_blank" rel="noopener">{{ row.path }}</a>{% endif %}</td>
+              <td>{% if row.note %}{{ t("runfile." + row.note) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="col-actions"><a class="text-btn" href="/runs/{{ run.id }}/files/{{ row.path }}?download=1" download="{{ run.id }}-{{ row.path | replace('/', '-') }}">{{ t("run.download") }}</a></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
       </section>
       {% endif %}
     </div>

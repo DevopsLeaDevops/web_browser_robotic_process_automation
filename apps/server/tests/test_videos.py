@@ -189,8 +189,30 @@ def test_video_file_supports_seeking_and_caching(
     assert whole.status_code == 200
     assert whole.headers["content-type"] == "video/webm"
     assert whole.headers["cache-control"] == "private, max-age=86400"
+    # 直接打開 video.webm 時瀏覽器自己的播放頁也受 CSP 限制：要允許同來源的媒體
+    assert "media-src 'self'" in whole.headers["content-security-policy"]
     assert part.status_code == 206
     assert part.content == whole.content[:10]
+
+
+def test_report_and_run_page_link_to_the_replay(
+    app: FastAPI, client: Client, worker: Worker, executor: VideoExecutor
+) -> None:
+    """有錄影時：Portal 送出的報告最上面有錄影回看；運行詳情的檔案清單裡，影片連到回看、可下載。"""
+    run_id = run_once(client, worker, executor)
+    folder = services(app).storage.run_dir(run_id)
+    (folder / "report.html").write_text(
+        "<!doctype html><html><head></head><body><main>報告</main></body></html>",
+        encoding="utf-8",
+    )
+
+    report = client.get(f"/runs/{run_id}/files/report.html")
+    page = client.get(f"/runs/{run_id}").text
+
+    assert report.text.index(f'href="/runs/{run_id}/replay"') < report.text.index("<main>")
+    assert (folder / "report.html").read_text(encoding="utf-8").count("replay") == 0
+    assert f'<a href="/runs/{run_id}/replay" title=' in page
+    assert f'href="/runs/{run_id}/files/{VIDEO}?download=1" download="{run_id}-{VIDEO}"' in page
 
 
 def test_recording_can_be_turned_off(

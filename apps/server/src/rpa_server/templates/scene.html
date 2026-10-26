@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
+{#- 場景詳情頁（2026-10-25）：一個場景的落地頁，由上到下 運行設定、腳本、入參與出參、版本、驗證、最近運行。
+    卡片的連結都跳到這一頁的區域（#steps、#verify、#inputs、#outputs、#runs），不換頁：錄製端的視窗沒有上一頁。
+    完整場景檔另外以外部連結（另開視窗）出現，和兩段腳本分開。 -#}
 {% block crumb %}{% if domain %}<a href="/domains/{{ domain.id }}">{{ domain.name }}</a>{% else %}<a href="/domains">{{ t("nav.domains") }}</a>{% endif %} › {{ scene.id }}{% endblock %}
 {% block description %}<span class="tag">{{ scene.id }}</span> {{ scene.category or t("scenes.no_category") }} · {{ t("kind." + scene.kind) }}{% if scene.archived %} · {{ t("scene.archived") }}{% endif %}{% endblock %}
 {% block actions %}
-<a class="button" href="/scenes/{{ scene.id }}/edit">{{ t("scene.edit") }}</a>
 <a class="button" href="/recording?scene={{ scene.id }}">{{ t("scene.record") }}</a>
 {% if scene.kind == "dsl" %}{% if here_display %}<a class="button" href="/scenes/{{ scene.id }}/debug">{{ t("scene.debug") }}</a>{% else %}{{ m.no_display(t("scene.debug")) }}{% endif %}{% endif %}
 <a class="button" data-latest-validation href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("scene.validate_latest", number=scene.latest_number) }}</a>
@@ -14,7 +16,7 @@
 {% endif %}
 {% endblock %}
 {% block content %}
-<div class="stack" data-scene="{{ scene.id }}">
+<div class="stack scene-page" data-scene="{{ scene.id }}">
   {% if scene.description %}<p>{{ scene.description }}</p>{% endif %}
   <div id="scene-release-status">
   {% if not scene.published %}
@@ -25,8 +27,135 @@
   </div>
   {{ m.needs_notice(needs) }}
 
-  {% if scenario %}{% include "_contract.html" %}{% endif %}
+  <nav class="scene-jump" aria-label="{{ t('scene.jump') }}">
+    <a href="#settings">{{ t("scene.settings") }}</a>
+    <a href="#steps">{{ t("card.automation") }}</a>
+    <a href="#verify">{{ t("card.assertion") }}</a>
+    {% if scenario %}<a href="#inputs">{{ t("card.inputs") }}</a>
+    <a href="#outputs">{{ t("card.outputs") }}</a>{% endif %}
+    <a href="#versions">{{ t("scene.versions") }}</a>
+    <a href="#verifications">{{ t("scene.verifications") }}</a>
+    <a href="#runs">{{ t("scene.recent_runs") }}</a>
+  </nav>
 
+  {#- 1. 運行設定：起始網址最重要，放在最前面 -#}
+  <section class="panel" id="settings">
+    <div class="panel-header"><h2>{{ t("scene.settings") }}</h2><span class="muted">{{ t("scene.settings_hint") }}</span></div>
+    <form class="panel-body" data-action="scene-settings" data-scene="{{ scene.id }}">
+      <div class="field-row">
+        <label class="field settings-url">{{ t("scene.base_url") }}
+          <input type="url" name="baseUrl" value="{{ scene.base_url or '' }}" placeholder="{{ default_base_url or 'https://' }}">
+        </label>
+        <label class="field settings-domain">{{ t("scene.domain") }}
+          <select name="domainId">
+            {% if not scene.domain_id %}<option value="">{{ t("scene.no_domain") }}</option>{% endif %}
+            {% for item in domains %}<option value="{{ item.id }}"{% if item.id == scene.domain_id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <button class="button" type="submit">{{ t("scene.save_settings") }}</button>
+      </div>
+      <p class="hint">{{ t("scene.base_url_hint", default=default_base_url or "—") }}</p>
+    </form>
+  </section>
+
+  {#- 2. 腳本：自動化腳本與斷言腳本在同一個區域切換，存成一個新版本 -#}
+  {% set dsl = scenario is not none and scenario.script is none %}
+  <section class="panel scene-script" id="script" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-archived="{{ '1' if scene.archived else '0' }}"{% if dsl %} data-editable="1"{% endif %}>
+    <div class="panel-header">
+      <div class="header-main">
+        <h2>{{ t("scene.scripts") }}</h2>
+        <div class="segmented" role="tablist" aria-label="{{ t('scene.scripts') }}">
+          {% if dsl %}
+          <button type="button" role="tab" class="active" aria-selected="true" data-script-tab="steps">{{ t("card.automation") }} <span class="count" id="script-count-steps">{{ script_counts.steps }}</span></button>
+          <button type="button" role="tab" aria-selected="false" data-script-tab="verify">{{ t("card.assertion") }} <span class="count" id="script-count-verify">{{ script_counts.verify }}</span></button>
+          {% else %}
+          {% for name in scripts %}<button type="button" role="tab"{% if loop.first %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %} data-script-tab="{{ 'steps' if name == 'automation.py' else 'verify' }}">{{ t("card.automation") if name == "automation.py" else t("card.assertion") }} <span class="mono">{{ name }}</span></button>{% endfor %}
+          {% endif %}
+        </div>
+      </div>
+      <a class="text-btn external-link" href="/scenes/{{ scene.id }}/edit" target="_blank" rel="noopener" title="{{ t('scene.whole_file_title') }}">{{ t("scene.whole_file") }}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+    </div>
+    {% if dsl %}
+    <form class="panel-body stack" id="script-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-key="steps">
+      <ul class="checklist form-issues issue-links" id="script-issues" role="alert" hidden></ul>
+      <div class="editor-layout">
+        <div class="stack">
+          {% for part in ("steps", "verify") %}
+          <div data-script-part="{{ part }}"{% if part != "steps" %} hidden{% endif %}>
+            <textarea class="code-editor" name="{{ part }}" rows="22" spellcheck="false" aria-label="{{ t('card.automation') if part == 'steps' else t('card.assertion') }}"{% if scene.archived %} disabled{% endif %}>
+{{ scripts[part] }}</textarea>
+            <p class="hint">{{ t("section.hint_" + part) }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        <aside>
+          <section class="panel" data-script-part="verify" hidden>
+            <div class="panel-header"><h2>{{ t("section.add_check") }}</h2></div>
+            <div class="panel-body chip-list">
+              {% for rule in ("notEmpty", "equals", "contains", "matches") %}
+              <button class="button" type="button" data-insert-check="{{ rule }}">{{ t("section.rule_" + rule) }}</button>
+              {% endfor %}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><h2>{{ t("section.facts") }} <span class="count">{{ facts | length }}</span></h2></div>
+            <div class="panel-body chip-list">
+              {% for name, fields in facts %}
+              <button class="chip-btn" type="button" data-insert="{{ '{{ facts.' ~ name ~ ' }}' }}">facts.{{ name }}</button>
+              {% for item in fields %}<button class="chip-btn sub" type="button" data-insert="{{ '{{ facts.' ~ name ~ '.' ~ item ~ ' }}' }}">.{{ item }}</button>{% endfor %}
+              {% else %}<p class="muted">{{ t("section.no_facts") }}</p>{% endfor %}
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><h2>{{ t("spec.inputs") }} <span class="count">{{ scenario.inputs | length }}</span></h2><a class="text-btn" href="#inputs">{{ t("contract.edit") }}</a></div>
+            <div class="panel-body chip-list">
+              {% for name in scenario.inputs %}<button class="chip-btn" type="button" data-insert="{{ '{{ inputs.' ~ name ~ ' }}' }}">inputs.{{ name }}</button>
+              {% else %}<p class="muted">{{ t("spec.no_inputs") }}</p>{% endfor %}
+              {% for name in scenario.secrets %}<button class="chip-btn" type="button" data-insert="{{ '{{ secrets.' ~ name ~ ' }}' }}">secrets.{{ name }}</button>{% endfor %}
+            </div>
+          </section>
+          <section class="panel" data-script-part="verify" hidden>
+            <div class="panel-header"><h2>{{ t("spec.outputs") }}</h2><a class="text-btn" href="#outputs">{{ t("contract.edit") }}</a></div>
+            <div class="panel-body">
+              {% if scenario.outputs %}
+              <dl class="spec-list compact">
+                {% for name, spec in scenario.outputs.items() %}<dt class="mono">{{ name }}</dt><dd class="mono">{{ spec.from_ or "—" }}</dd>{% endfor %}
+              </dl>
+              {% else %}<p class="muted">{{ t("spec.no_outputs") }}</p>{% endif %}
+            </div>
+          </section>
+          <p class="hint">{{ t("section.insert_hint") }}</p>
+        </aside>
+      </div>
+      <div class="field-row script-save">
+        <label class="field">{{ t("edit.note") }}<input name="note" maxlength="500" placeholder="{{ t('edit.note_placeholder') }}"{% if scene.archived %} disabled{% endif %}></label>
+        <span class="muted" id="script-state" role="status">{{ t("scene.scripts_state", number=scene.latest_number) }}</span>
+        <button class="button primary" type="submit" data-action="save-scripts" disabled>{{ t("edit.save") }}</button>
+      </div>
+    </form>
+    {% elif scripts %}
+    <div class="panel-body stack">
+      {% for name, text in scripts.items() %}
+      <div data-script-part="{{ 'steps' if name == 'automation.py' else 'verify' }}"{% if not loop.first %} hidden{% endif %}>
+        <pre class="source code-view">{{ text }}</pre>
+      </div>
+      {% endfor %}
+      <p class="hint">{{ t("scene.script_files_hint") }} <a class="text-btn external-link" href="/scenes/{{ scene.id }}/edit?file=automation.py" target="_blank" rel="noopener">{{ t("scene.open_editor") }}</a></p>
+    </div>
+    {% else %}
+    <div class="empty">{{ t("scene.script_invalid") }}</div>
+    {% endif %}
+  </section>
+
+  {#- 3. 入參與出參 -#}
+  {% if scenario %}
+  <section class="scene-section" id="contract" aria-labelledby="contract-title">
+    <h2 class="scene-section-title" id="contract-title">{{ t("scene.contract") }}</h2>
+    {% include "_contract.html" %}
+  </section>
+  {% endif %}
+
+  {#- 4. 版本 -#}
   <section class="panel" id="scene-versions">
     <div class="panel-header"><h2>{{ t("scene.versions") }}</h2><span class="muted">{{ t("scene.versions_hint") }}</span></div>
     <div class="table-scroll"><table class="wrap">
@@ -43,7 +172,7 @@
           <td><code class="mono" title="{{ revision.content_hash }}">{{ revision.content_hash[:12] }}</code></td>
           <td>{{ revision.note or "—" }}</td>
           <td>
-            <a class="text-btn" href="/scenes/{{ scene.id }}/edit?revision={{ revision.number }}">{{ t("scene.view_content") }}</a>
+            <a class="text-btn external-link" href="/scenes/{{ scene.id }}/edit?revision={{ revision.number }}" target="_blank" rel="noopener" title="{{ t('scene.whole_file_title') }}">{{ t("scene.view_content") }}</a>
             <a class="text-btn" href="/scenes/{{ scene.id }}/run?purpose=validation&amp;revision={{ revision.number }}">{{ t("scene.validate") }}</a>
             {% if revision.verified and not revision.problem and not revision.published %}
             <button class="text-btn" data-action="publish" data-scene="{{ scene.id }}" data-revision="{{ revision.number }}">{{ t("scene.publish") }}</button>
@@ -55,6 +184,7 @@
     </table></div>
   </section>
 
+  {#- 5. 驗證 -#}
   <section class="panel" id="verifications">
     <div class="panel-header"><h2>{{ t("scene.verifications") }} <span class="count">{{ verifications | length }}</span></h2><span class="muted">{{ t("scene.verifications_hint") }}</span></div>
     {% if verifications %}
@@ -79,27 +209,9 @@
     {% else %}<div class="empty">{{ t("scene.no_verifications") }}</div>{% endif %}
   </section>
 
-  <section class="panel" id="settings">
-    <div class="panel-header"><h2>{{ t("scene.settings") }}</h2></div>
-    <form class="panel-body" data-action="scene-settings" data-scene="{{ scene.id }}">
-      <div class="field-row">
-        <label class="field settings-domain">{{ t("scene.domain") }}
-          <select name="domainId">
-            {% if not scene.domain_id %}<option value="">{{ t("scene.no_domain") }}</option>{% endif %}
-            {% for item in domains %}<option value="{{ item.id }}"{% if item.id == scene.domain_id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}
-          </select>
-        </label>
-        <label class="field settings-url">{{ t("scene.base_url") }}
-          <input type="url" name="baseUrl" value="{{ scene.base_url or '' }}" placeholder="{{ default_base_url or 'https://' }}">
-        </label>
-        <button class="button" type="submit">{{ t("scene.save_settings") }}</button>
-      </div>
-      <p class="hint">{{ t("scene.base_url_hint", default=default_base_url or "—") }}</p>
-    </form>
-  </section>
-
-  <section class="panel">
-    <div class="panel-header"><h2>{{ t("scene.recent_runs") }}</h2><a class="text-btn" href="/runs?scene={{ scene.id }}">{{ t("scene.all_runs") }}</a></div>
+  {#- 6. 最近運行：卡片的「運行報告」跳到這裡 -#}
+  <section class="panel" id="runs">
+    <div class="panel-header"><h2>{{ t("scene.recent_runs") }} <span class="count">{{ runs | length }}</span></h2><a class="text-btn" href="/runs?scene={{ scene.id }}">{{ t("scene.all_runs") }} {{ m.arrow() }}</a></div>
     {% if runs %}{{ m.run_rows(runs, show_scene=false, workers=worker_names, agents=agent_names) }}{% else %}<div class="empty">{{ t("scene.no_runs") }}</div>{% endif %}
   </section>
 </div>

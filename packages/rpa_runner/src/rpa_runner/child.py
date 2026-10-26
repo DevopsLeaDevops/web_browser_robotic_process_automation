@@ -3,7 +3,8 @@
     python -m rpa_runner.child --scenario 快照.yaml --input input.json \
         --out 執行目錄 --deadline 秒數 [--video]
 
-寫出 facts.json、steps.json、screenshot.png；失敗時另寫 diagnostic.json。
+寫出 facts.json、steps.json、screenshot.png；失敗時另寫 diagnostic.json。標準輸出是給人讀的逐步紀錄
+（父程序存成 automation.log，格式見 steplog.py）。
 ``--video`` 時錄影到執行目錄的 .video/（M12）：離開時先關 context，影片才寫完；
 由父程序整理成 video.webm（見 video.py）。
 Firefox 從預熱設定檔的複本啟動，避免每次初始化全新設定檔而卡住（見 profiles.py）。
@@ -29,6 +30,7 @@ from rpa_runner.contexts import Engine, open_context
 from rpa_runner.files import DIAGNOSTIC, FACTS, SCREENSHOT, STEPS, VIDEO_TMP, write_json
 from rpa_runner.i18n import t
 from rpa_runner.secrets import mask, read_secrets
+from rpa_runner.steplog import StepLog
 from rpa_runner.video import PageVideos, mark_page, video_size
 
 __all__ = ["EXIT_DEADLINE", "EXIT_FAILED", "main"]
@@ -102,6 +104,8 @@ def run(args: argparse.Namespace) -> int:
     engine = cast("Engine", args.engine or scenario.browser.engine)
     base_url = args.base_url or scenario.browser.base_url
     records = plan_records(scenario)
+    log = StepLog(sys.stdout, secrets=secrets)
+    log.header(scenario, run_id=out.name, engine=engine, headed=args.headed, base_url=base_url)
 
     def save_steps() -> None:
         steps = [record.to_json() for record in records]
@@ -109,6 +113,7 @@ def run(args: argparse.Namespace) -> int:
             if isinstance(step["url"], str):
                 step["url"] = mask(step["url"], secrets)
         write_json(out / STEPS, steps)
+        log.progress(records)
 
     save_steps()
     page: Page | None = None
@@ -125,6 +130,7 @@ def run(args: argparse.Namespace) -> int:
                 storage_state=Path(args.storage_state) if args.storage_state else None,
                 video=out if args.video else None,
             )
+            log.browser_ready(len(records))
             videos = PageVideos(out, page, engine=engine) if args.video else None
             tabs = Tabs(page, identify=videos.identify if videos is not None else None)
             facts = run_steps(
@@ -143,7 +149,7 @@ def run(args: argparse.Namespace) -> int:
             tabs.active.screenshot(
                 path=out / SCREENSHOT, full_page=True, timeout=deadline.budget(10_000)
             )
-            sys.stdout.write(t("child.done") + "\n")
+            log.finished(facts)
             return 0
         except BaseException as error:
             timed_out = isinstance(error, DeadlineExceeded) or deadline.remaining_ms() <= 0
@@ -162,7 +168,7 @@ def run(args: argparse.Namespace) -> int:
             if page is not None and deadline.remaining_ms() > 0:
                 with contextlib.suppress(Exception):  # 失敗截圖盡力而為
                     page.screenshot(path=out / SCREENSHOT, timeout=deadline.budget(5_000))
-            sys.stderr.write(mask(f"{type(error).__name__}: {error}", secrets) + "\n")
+            log.failed(records, error, timed_out=timed_out)
             return EXIT_DEADLINE if timed_out else EXIT_FAILED
 
 

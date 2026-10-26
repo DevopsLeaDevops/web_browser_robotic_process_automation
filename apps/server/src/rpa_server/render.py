@@ -41,6 +41,7 @@ __all__ = [
     "project_page",
     "render",
     "replay_messages",
+    "run_file_rows",
     "run_filters",
     "visible_nav",
     "workflow_messages",
@@ -108,7 +109,8 @@ NAV: Final = (
         "operate",
         "OPERATIONS",
         "/runs",
-        (NavPage("runs", "/runs"), NavPage("replay", "/replay")),
+        # 運行回看併進運行報告（2026-10-25）：每一次運行的錄影從運行報告打開
+        (NavPage("runs", "/runs"),),
     ),
     # 專案空間的二級選單由專案決定（_side_items）
     NavGroup("workspace", "PROJECTS", "/workspace", ()),
@@ -203,6 +205,14 @@ def run_filters(
             chosen("purpose"),
         ),
     ]
+    menus.append(
+        FilterMenu(
+            "video",
+            t("runs.filter_video"),
+            (("1", t("runs.with_video")),),
+            chosen("video"),
+        )
+    )
     if locations:
         menus.append(
             FilterMenu(
@@ -224,7 +234,7 @@ def badge_color(status: str) -> str:
 def _group_of(page: str) -> NavGroup:
     """頁面屬於哪個第一級選單；專案頁（project:代號）屬於專案空間，領域頁（domain:代號）、
     場景頁與登入與憑證屬於場景管理。"""
-    if page.startswith("project:"):
+    if page == "workspace" or page.startswith("project:"):
         return next(group for group in NAV if group.id == "workspace")
     return next((group for group in NAV if any(p.id == page for p in group.pages)), NAV[0])
 
@@ -414,6 +424,11 @@ def js_messages() -> dict[str, str]:
         "js.composite_validate_title",
         "js.composite_validate_body",
         "js.composite_validate_action",
+        "js.scripts_state",
+        "js.scripts_unsaved",
+        "js.script_steps",
+        "js.script_verify",
+        "js.contract_based_on",
     )
     return {key.removeprefix("js."): page_t(key) for key in keys}  # 透過錄製端時換掉用詞
 
@@ -501,6 +516,56 @@ def _expression(text: str) -> Markup:
     return Markup(".<wbr>").join(escape(part) for part in shown.split("."))
 
 
+_FILE_NOTES: Final = {
+    "report.html": "report",
+    "automation.log": "automation_log",
+    "video.webm": "video",
+    "screenshot.png": "screenshot",
+    "input.json": "input",
+    "output.json": "output",
+    "result.json": "result",
+    "facts.json": "facts",
+    "steps.json": "steps",
+    "diagnostic.json": "diagnostic",
+    "candidate-output.json": "candidate",
+    "assertion.log": "assertion_log",
+    "login.json": "login",
+    "login.log": "login_log",
+    "login.png": "login_png",
+    "video.json": "video_info",
+    "run.json": "manifest",
+}
+"""運行檔案的說明（runfile.<說明> 的訊息）；也是檔案清單的順序，先列最常看的。"""
+
+
+def run_file_rows(files: Sequence[str]) -> list[dict[str, str]]:
+    """運行詳情的檔案清單：每個檔案的說明鍵與種類（report、video、image、text）。"""
+    order = list(_FILE_NOTES)
+    rows: list[dict[str, str]] = []
+    for path in sorted(files, key=lambda name: order.index(name) if name in order else len(order)):
+        name = path.rsplit("/", 1)[-1]
+        if path in _FILE_NOTES:
+            note = _FILE_NOTES[path]
+        elif path.startswith("scenario/"):
+            note = "scenario"
+        elif name.endswith(".webm"):
+            note = "video_page"
+        elif name.endswith(".png"):
+            note = "step_png"
+        else:
+            note = ""
+        if name.endswith(".webm"):
+            kind = "video"
+        elif path == "report.html":
+            kind = "report"
+        elif name.endswith(".png"):
+            kind = "image"
+        else:
+            kind = "file"
+        rows.append({"path": path, "note": note, "kind": kind})
+    return rows
+
+
 _env = Environment(
     loader=FileSystemLoader(TEMPLATES),
     autoescape=select_autoescape(["html"]),
@@ -522,6 +587,7 @@ cast("dict[str, object]", _env.globals).update(
     locales=LOCALES,
     version=__version__,
     workflow_preview=workflow_preview,
+    run_file_rows=run_file_rows,
 )
 _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number

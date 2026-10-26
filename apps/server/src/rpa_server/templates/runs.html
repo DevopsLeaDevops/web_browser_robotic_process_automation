@@ -1,8 +1,32 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
+{#- 運行報告：每一次運行的結果與錄影回看（▶）。原本的「運行回看」清單併進來（2026-10-25）：
+    「錄影」篩選只看還有錄影的運行，錄影設定也在這頁。 -#}
 {% block description %}{{ t("runs.description") }}{% endblock %}
+{% block actions %}<button class="button" type="button" data-action="toggle-video-settings" aria-controls="video-settings" aria-expanded="false">{{ t("replays.settings") }}</button>{% endblock %}
 {% block content %}
+{% set usage = video_settings.usage %}
 <div class="stack">
+  <div class="notice{% if not video_settings.enabled %} warn{% endif %}">
+    {% if video_settings.enabled %}{{ t("replays.summary_on", passed=video_settings.keepPassedDays, other=video_settings.keepOtherDays, limit=video_settings.maxTotalGb | num) }}{% else %}{{ t("replays.summary_off") }}{% endif %}
+    {{ t("replays.usage", count=usage.count, size=(usage.bytes / 1048576) | round(1), pinned=usage.pinned) }}
+  </div>
+
+  <section class="panel" id="video-settings" hidden>
+    <div class="panel-header"><h2>{{ t("replays.settings") }}</h2></div>
+    <form class="panel-body replay-settings" data-video-settings>
+      <label class="replay-toggle"><input type="checkbox" name="enabled"{% if video_settings.enabled %} checked{% endif %}> {{ t("replays.enabled") }}</label>
+      <div class="field-row">
+        <label class="field">{{ t("replays.keep_passed") }}<input type="number" name="keepPassedDays" min="0" max="3650" step="1" value="{{ video_settings.keepPassedDays }}" required></label>
+        <label class="field">{{ t("replays.keep_other") }}<input type="number" name="keepOtherDays" min="0" max="3650" step="1" value="{{ video_settings.keepOtherDays }}" required></label>
+        <label class="field">{{ t("replays.max_total") }}<input type="number" name="maxTotalGb" min="0.1" step="0.1" value="{{ video_settings.maxTotalGb | num }}" required></label>
+      </div>
+      <p class="hint">{{ t("replays.settings_hint") }}</p>
+      <p class="form-error" role="alert"></p>
+      <div class="actions"><button class="button primary" type="submit">{{ t("replays.save") }}</button></div>
+    </form>
+  </section>
+
   <section class="panel has-filters">
     <div class="panel-header"><h2>{{ t("runs.records") }}</h2><span class="muted">{{ t("runs.count", count=runs | length, limit=limit) }}</span></div>
     <form class="filters" method="get" action="/runs" data-filters>

@@ -335,8 +335,20 @@ def test_failed_run_keeps_evidence_and_reports(app: FastAPI, client: Client) -> 
     assert report.status_code == 200
     assert report.headers["content-type"].startswith("text/html")
     assert "default-src 'none'" in report.headers["content-security-policy"]
+    # 在 Portal 裡看報告：最上面有回到運行詳情的連結（這次沒有錄影，沒有回看連結）
+    assert f'<a href="/runs/{run["id"]}">' in report.text
+    assert f"/runs/{run['id']}/replay" not in report.text
     data = client.get(f"/runs/{run['id']}/files/input.json")
     assert json.loads(data.text) == {"count": 1}
+    # 標明 UTF-8：沒標的話，簡體中文系統的瀏覽器用 GBK 讀，中文變成亂碼
+    assert data.headers["content-type"] == "application/json; charset=utf-8"
+    assert data.headers["cache-control"] == "no-store"
+    saved = client.get(f"/runs/{run['id']}/files/input.json?download=1")
+    assert saved.headers["content-disposition"] == f'attachment; filename="{run["id"]}-input.json"'
+    log = client.get(f"/runs/{run['id']}/files/report.html?download=1")
+    assert (
+        log.content == (services(app).storage.run_dir(str(run["id"])) / "report.html").read_bytes()
+    )
     assert client.get(f"/runs/{run['id']}/files/%2E%2E/%2E%2E/rpa.db").status_code == 404
     assert client.get(f"/runs/{run['id']}/files/missing.png").status_code == 404
 

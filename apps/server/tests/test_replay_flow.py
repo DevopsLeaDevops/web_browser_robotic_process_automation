@@ -167,8 +167,9 @@ def test_replay_follows_steps_and_seeks(portal: str, page: Page) -> None:
         expected = max(0.0, cast("int", failed_step["startMs"]) / 1000 - 1)
         assert abs(current_time(page) - expected) < 0.15
 
-        # 運行報告與運行回看的清單都連到回看
+        # 運行報告（「只看有錄影的」，舊的運行回看網址轉過來）連到回看
         page.goto(f"{portal}/replay")
+        expect(page).to_have_url(f"{portal}/runs?video=1")
         expect(page.locator(f'a[href="/runs/{failed["id"]}/replay"]')).to_be_visible()
 
 

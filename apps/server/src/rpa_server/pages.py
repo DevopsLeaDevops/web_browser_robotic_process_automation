@@ -4,10 +4,11 @@ import mimetypes
 import os
 from datetime import datetime
 from typing import Annotated, Final, Literal, cast
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from markupsafe import escape
 
 from rpa_core.dsl import ExtractStep, Scenario, validate_text
 from rpa_core.dsl.editing import contract_section, section_text
@@ -15,11 +16,10 @@ from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
 from rpa_runner.installed import DISPLAY_NAMES
-from rpa_runner.video import video_files
 from rpa_server.agents import SCOPES
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
-from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord, now
+from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord, RunRecord, now
 from rpa_server.errors import ServiceError
 from rpa_server.gitsync import GitSource
 from rpa_server.i18n import t
@@ -45,14 +45,53 @@ _TEXT_TYPES: Final = {
     ".log": "text/plain",
     ".py": "text/plain",
     ".yaml": "text/plain",
+    ".json": "application/json",
     ".webm": "video/webm",
 }
+_UTF8_TYPES: Final = frozenset({"application/json"})
+"""不是 text/ 開頭、但內容是文字的類型：一樣標上 UTF-8。
+
+沒標的話，瀏覽器用作業系統語言的預設編碼（簡體中文是 GBK）讀 JSON，中文會變成亂碼。
+"""
 _RECENT_RUNS: Final = 10
-_REPORT_CSP: Final = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'"
+_REPORT_CSP: Final = (
+    "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"
+)
+"""執行目錄的檔案的 CSP：報告是單一 HTML 檔，只有內嵌樣式與同目錄的截圖。
+
+media-src 'self'：直接打開 video.webm 時，瀏覽器自己產生的播放頁也受這個 CSP 限制；
+沒有它，影片載入會被擋，看起來就是「不能播放、也不能下載」。
+"""
 
 
 def _html(content: str) -> HTMLResponse:
     return HTMLResponse(content, headers={"Cache-Control": "no-store"})
+
+
+_PORTAL_BAR: Final = (
+    '<nav style="display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;'
+    "padding:9px 16px;background:#eef6ff;border-bottom:1px solid #dfebf8;"
+    'font:13px/1.6 system-ui,sans-serif">{links}</nav>'
+)
+
+
+def _with_portal_links(report: str, run: RunRecord) -> str:
+    """在 Portal 裡打開 report.html 時，最上面加一列：回到運行詳情、錄影回看（有錄影時）。
+
+    報告是 Runner 產生的單一檔案，離線開啟時沒有 Portal；這列只在 Portal 送出時加上，檔案本身不改。
+    """
+    links = [f'<a href="/runs/{escape(run.id)}">{escape(t("report_bar.back"))}</a>']
+    video = run.video or {}
+    if video.get("url"):
+        links.append(
+            f'<a href="/runs/{escape(run.id)}/replay"><strong>▶ {escape(t("report_bar.replay"))}'
+            "</strong></a>"
+        )
+    elif video.get("deletedAt"):
+        links.append(f"<span>{escape(t('report_bar.replay_deleted'))}</span>")
+    bar = _PORTAL_BAR.format(links="".join(links))
+    head, separator, rest = report.partition("<body>")
+    return head + separator + bar + rest if separator else bar + report
 
 
 _SCRIPT_FILES: Final = ("automation.py", "assertion.py")
@@ -273,13 +312,24 @@ def page_router(services: Services) -> APIRouter:
 
     @router.get("/scenes/{scene_id}", include_in_schema=False)
     def scene(scene_id: str) -> HTMLResponse:
+        """場景詳情頁：一個場景的落地頁，由上到下是運行設定、腳本、入參與出參、版本、驗證、最近運行。"""
         record = services.get_scene(scene_id)
         try:
             scenario = services.revision_scenario(scene_id, record.latest_number)
         except ServiceError:
             scenario = None
+        files = services.revision_files(scene_id, record.latest_number)
+        if scenario is not None and scenario.script is None:
+            scripts = {part: section_text(files[SCENARIO_FILE], part) for part in _PARTS}
+        else:
+            scripts = {name: files[name] for name in _SCRIPT_FILES if name in files}
         return page(
             "scene.html",
+            scripts=scripts,
+            script_counts={
+                "steps": len(scenario.steps or []) if scenario is not None else 0,
+                "verify": len(scenario.verify or []) if scenario is not None else 0,
+            },
             needs=services.scene_needs(scenario) if scenario is not None else None,
             page=domain_page(record.domain_id),
             title=record.name,
@@ -290,9 +340,7 @@ def page_router(services: Services) -> APIRouter:
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
-            contract_data=_contract_data(
-                scenario, services.revision_files(scene_id, record.latest_number)[SCENARIO_FILE]
-            )
+            contract_data=_contract_data(scenario, files[SCENARIO_FILE])
             if scenario is not None
             else {},
             facts=_facts(scenario) if scenario is not None else [],
@@ -306,26 +354,14 @@ def page_router(services: Services) -> APIRouter:
         focus: str = "",
         part: str = "",
         line: int = 0,
-    ) -> HTMLResponse:
+    ) -> Response:
         record = services.get_scene(scene_id)
+        if part in _PARTS:
+            # 自動化腳本、斷言腳本在場景詳情頁的「腳本」區編輯（2026-10-25）；舊網址轉過去
+            return RedirectResponse(f"/scenes/{scene_id}#{part}", 303)
         shown = services.get_revision(scene_id, revision)
         files = services.revision_files(scene_id, shown.number)
-        scenario = services.revision_scenario(scene_id, shown.number)
-        if part in _PARTS and scenario.script is None:
-            # DSL 場景的「自動化腳本」「斷言腳本」：只顯示、只改寫場景檔的那一段
-            return page(
-                "section.html",
-                page=domain_page(record.domain_id),
-                title=t(f"section.title_{part}", name=record.name),
-                scene=record,
-                domain=domain_of(record.domain_id),
-                revision=shown,
-                part=part,
-                text=section_text(files[SCENARIO_FILE], part),
-                scenario=scenario,
-                facts=_facts(scenario),
-            )
-        # 卡片上的「自動化腳本」「斷言腳本」直接打開對應的檔案或段落
+        # 完整場景檔；Python 腳本場景可以直接打開 automation.py、assertion.py
         selected = file if file in files and file in (*_SCRIPT_FILES, "scenario.yaml") else ""
         return page(
             "edit.html",
@@ -377,13 +413,16 @@ def page_router(services: Services) -> APIRouter:
         status: Annotated[list[str] | None, Query()] = None,
         purpose: Annotated[list[str] | None, Query()] = None,
         worker: Annotated[list[str] | None, Query()] = None,
+        video: Annotated[list[str] | None, Query()] = None,
     ) -> HTMLResponse:
+        """運行報告：篩選、每一次運行的錄影回看連結；錄影設定也在這頁（原本的運行回看併進來，2026-10-25）。"""
         selected = {
             "scene": [item for item in scene or [] if item],
             "category": [item for item in category or [] if item],
             "status": [item for item in status or [] if item],
             "purpose": [item for item in purpose or [] if item],
             "worker": [item for item in worker or [] if item],
+            "video": [item for item in video or [] if item == "1"],
         }
         return page(
             "runs.html",
@@ -395,43 +434,7 @@ def page_router(services: Services) -> APIRouter:
                 statuses=selected["status"],
                 purposes=selected["purpose"],
                 workers=selected["worker"],
-            ),
-            filters=run_filters(
-                scenes=services.list_scenes(include_archived=True),
-                categories=services.run_categories(),
-                selected=selected,
-                locations=services.run_locations(),
-            ),
-            limit=200,
-        )
-
-    @router.get("/replay", include_in_schema=False)
-    def replays(
-        scene: Annotated[list[str] | None, Query()] = None,
-        category: Annotated[list[str] | None, Query()] = None,
-        status: Annotated[list[str] | None, Query()] = None,
-        purpose: Annotated[list[str] | None, Query()] = None,
-        worker: Annotated[list[str] | None, Query()] = None,
-    ) -> HTMLResponse:
-        """運行回看（M12）：還有錄影的運行，篩選與運行報告相同；錄影設定也在這頁。"""
-        selected = {
-            "scene": [item for item in scene or [] if item],
-            "category": [item for item in category or [] if item],
-            "status": [item for item in status or [] if item],
-            "purpose": [item for item in purpose or [] if item],
-            "worker": [item for item in worker or [] if item],
-        }
-        return page(
-            "replays.html",
-            page="replay",
-            title=t("nav.replay"),
-            runs=services.list_runs(
-                scenes=selected["scene"],
-                categories=selected["category"],
-                statuses=selected["status"],
-                purposes=selected["purpose"],
-                workers=selected["worker"],
-                with_video=True,
+                with_video=bool(selected["video"]),
             ),
             filters=run_filters(
                 scenes=services.list_scenes(include_archived=True),
@@ -443,6 +446,14 @@ def page_router(services: Services) -> APIRouter:
             limit=200,
         )
 
+    @router.get("/replay", include_in_schema=False)
+    def replays(request: Request) -> RedirectResponse:
+        """原本的「運行回看」清單和運行報告重複，併進運行報告（2026-10-25）：舊網址轉到只看有錄影的運行。"""
+        query = [
+            (key, value) for key, value in request.query_params.multi_items() if key != "video"
+        ]
+        return RedirectResponse("/runs?" + urlencode([*query, ("video", "1")]), 303)
+
     @router.get("/runs/{run_id}/replay", include_in_schema=False)
     def replay(run_id: str) -> HTMLResponse:
         """回看一次運行：影片、縮圖時間軸、和步驟關聯（M12，ADR 0016）。"""
@@ -453,7 +464,7 @@ def page_router(services: Services) -> APIRouter:
         result = services.run_result(run_id) if record.finished else None
         return page(
             "replay.html",
-            page="replay",
+            page="runs",
             title=t("replay.title", id=record.id),
             run=record,
             data=data,
@@ -485,6 +496,7 @@ def page_router(services: Services) -> APIRouter:
             login = services.revision_scenario(record.scene_id, record.revision_number).login
         except ServiceError:
             login = None
+        files = services.storage.run_files(run_id) if record.finished else []
         return page(
             "run.html",
             page="runs",
@@ -493,33 +505,40 @@ def page_router(services: Services) -> APIRouter:
             run=record,
             revision=revision,
             result=services.run_result(run_id) if record.finished else None,
-            files=services.storage.run_files(run_id) if record.finished else [],
+            files=files,
             can_publish=can_publish,
             worker_wait=None if record.finished else services.worker_wait(run_id),
         )
 
     @router.get("/runs/{run_id}/files/{relative:path}", include_in_schema=False)
-    def run_file(run_id: str, relative: str) -> Response:
+    def run_file(run_id: str, relative: str, download: bool = False) -> Response:
+        """執行目錄裡的檔案；``download=1`` 時一律下載（不在瀏覽器裡打開）。"""
         path = services.run_file(run_id, relative)
         if path.suffix == ".html" and relative != REPORT:
             media_type = "text/plain"  # 只有執行報告當成網頁顯示
         else:
             media_type = _TEXT_TYPES.get(path.suffix) or mimetypes.guess_type(path.name)[0]
-        if media_type and media_type.startswith("text/"):
+        if media_type and (media_type.startswith("text/") or media_type in _UTF8_TYPES):
             media_type += "; charset=utf-8"
-        return FileResponse(
-            path,
-            media_type=media_type,
-            headers={
-                # 錄影寫完就不會再變（M12）：讓瀏覽器拖曳時不必重抓同一段
-                "Cache-Control": "private, max-age=86400"
-                if relative in video_files({"file": relative})
-                else "no-store",
-                "X-Content-Type-Options": "nosniff",
-                # 報告是單一 HTML 檔，只有內嵌樣式與同目錄的截圖
-                "Content-Security-Policy": _REPORT_CSP,
-            },
-        )
+        headers = {
+            # 錄影寫完就不會再變（M12）：讓瀏覽器拖曳時不必重抓同一段；其他檔案每次都重抓
+            "Cache-Control": "private, max-age=86400" if path.suffix == ".webm" else "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": _REPORT_CSP,
+        }
+        if download:
+            return FileResponse(
+                path,
+                media_type=media_type,
+                headers=headers,
+                filename=f"{run_id}-{path.name}",
+                content_disposition_type="attachment",
+            )
+        if relative == REPORT:
+            # 在 Portal 裡看報告時，最上面加回到運行詳情與錄影回看的連結（離線開啟的檔案不變）
+            text = path.read_text(encoding="utf-8")
+            return HTMLResponse(_with_portal_links(text, services.get_run(run_id)), headers=headers)
+        return FileResponse(path, media_type=media_type, headers=headers)
 
     @router.get("/recording", include_in_schema=False)
     def recording(scene: str = "") -> HTMLResponse:
@@ -700,10 +719,12 @@ def page_router(services: Services) -> APIRouter:
     projects = services.projects
 
     @router.get("/workspace", include_in_schema=False)
-    def workspace() -> RedirectResponse:
-        """專案空間：到第一個專案；還沒有專案時到專案管理。"""
+    def workspace() -> Response:
+        """專案空間：到第一個專案；還沒有專案時留在專案空間，說明到專案管理建立。"""
         items = projects.list_projects()
-        return RedirectResponse(f"/projects/{items[0].id}" if items else "/projects", 303)
+        if items:
+            return RedirectResponse(f"/projects/{items[0].id}", 303)
+        return page("workspace.html", page="workspace", title=t("nav.workspace"))
 
     @router.get("/composites", include_in_schema=False)
     def composites() -> RedirectResponse:
@@ -770,7 +791,7 @@ def page_router(services: Services) -> APIRouter:
         }
         return page(
             "workflow.html",
-            page="playground",
+            page=project_page(record.project_id) if record.project_id else "playground",
             title=record.name,
             workflow=record,
             project=projects.get_project(record.project_id) if record.project_id else None,
@@ -811,7 +832,7 @@ def page_router(services: Services) -> APIRouter:
             )
         return page(
             "workflow_run.html",
-            page="playground",
+            page=project_page(owner.id) if owner is not None else "playground",
             title=t("workflow_run.title", id=record.id),
             run=record,
             worker_wait=waiting,
