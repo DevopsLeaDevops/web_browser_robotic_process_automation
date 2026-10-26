@@ -2438,3 +2438,20 @@
 {"attempt": 4, "conclusion": "success", "duration_s": 95.0, "job": "伺服器分發包 / 分發包（x64）", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
 {"attempt": 4, "conclusion": "success", "duration_s": 291.0, "job": "伺服器分發包 / 分發包（arm64）", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
 {"attempt": 4, "conclusion": "skipped", "duration_s": 0, "job": "草稿 Release", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "success", "duration_s": 6.0, "job": "確認版本", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "cancelled", "duration_s": 0, "job": "建置與測試 / RPA 錄製端（macOS）", "os": "macos", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "cancelled", "duration_s": 0, "job": "建置與測試 / RPA Worker（macOS）", "os": "macos", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "success", "duration_s": 7.0, "job": "建置與測試 / 執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "success", "duration_s": 7.0, "job": "伺服器分發包 / 執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "success", "duration_s": 95.0, "job": "伺服器分發包 / 分發包（x64）", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "success", "duration_s": 291.0, "job": "伺服器分發包 / 分發包（arm64）", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "success", "duration_s": 266.0, "job": "建置與測試 / RPA Worker（Windows）", "os": "windows", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 5, "conclusion": "skipped", "duration_s": 0, "job": "草稿 Release", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": null, "duration_s": 0, "job": "建置與測試 / RPA 錄製端（macOS）", "os": "macos", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": null, "duration_s": 0, "job": "建置與測試 / RPA Worker（macOS）", "os": "macos", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": "success", "duration_s": 6.0, "job": "確認版本", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": "success", "duration_s": 7.0, "job": "建置與測試 / 執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": "success", "duration_s": 266.0, "job": "建置與測試 / RPA Worker（Windows）", "os": "windows", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": "success", "duration_s": 95.0, "job": "伺服器分發包 / 分發包（x64）", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": "success", "duration_s": 7.0, "job": "伺服器分發包 / 執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 6, "conclusion": "success", "duration_s": 291.0, "job": "伺服器分發包 / 分發包（arm64）", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
