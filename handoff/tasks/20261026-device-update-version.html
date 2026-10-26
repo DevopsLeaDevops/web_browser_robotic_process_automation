@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261026-device-update-version；2026-10-26 04:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261026-device-update-version；2026-10-26 04:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 03:10 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話（見下方「需求」）。驗收：錨點停在區域連結列正下方；之後的版本裝置能跟著伺服器用更新檔升級，升級後不再顯示版本不同。</dd>
         <dt>範圍／不包含</dt><dd>範圍：場景詳情頁的區域捲動；桌面 App 環境代號的算法；和上一次發布比較環境代號（PR 與發布）；裝置頁的更新狀態說明。不包含：rpa_update 套件本身（改它的任何一個檔案都會改變伺服器的環境代號，伺服器就不能用更新檔升級）；已經裝好的 0.6.0／0.6.1 裝置（舊算法算出的代號已經在 App 裡，修好的那一版要再用完整的安裝包裝一次）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；發版：Claude（使用者 2026-10-26 01:03 決定之後由 Claude 操作）。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/server</code>：<code>static/portal.js</code>、<code>static/portal-app.css</code>、<code>device_updates.py</code>、<code>templates/workers.html</code>、訊息目錄（繁中、英文；簡中待 bootstrap）；<code>apps/desktop/packaging/rpa_desktop.spec</code>；<code>tools/build_desktop.py</code>、新 <code>tools/runtime_changes.py</code>；<code>.github/workflows/</code> 的 <code>desktop.yml</code>、<code>server-package.yml</code>、<code>release.yml</code>；測試（<code>test_portal.py</code>、<code>test_render.py</code>、<code>test_device_updates.py</code>、新 <code>tests/ci/test_runtime_changes.py</code>）；文件（ADR 0018、<code>docs/design/desktop.html</code>，繁中與英文）。共用檔案：任務索引。Claude 整合。</dd>
-        <dt>狀態</dt><dd>待審閱：PR #88 已開，等最後一次提交的 CI 與使用者審閱、合併。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #88 在 <code>96822b8</code> 的 CI 全部通過，等使用者審閱、合併。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>fix/device-update-version</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/88">PR #88</a>（一般 PR，對 main）；base main <code>262e107</code>（v0.6.1）。</dd>
         <dt>交接版本／同步狀態</dt><dd>已推送：實作 <code>bd60bda</code>、bootstrap 機器人的簡中 <code>b919cd4</code>，之後的提交只更新本紀錄。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13、uv 0.11.32）；Ruff 0.17.1、Pyright 1.1.414；系統 Playwright（只有 Chromium）。沒有 Mac、Windows，PyInstaller 建置在 CI。</dd>
@@ -53,7 +53,7 @@
           </ol>
         </li>
         <li><strong>對使用者的影響：</strong>修好的那一版（預計 0.6.2）伺服器照樣用更新檔升級；錄製端與兩個 Worker 要再用 0.6.2 的完整安裝包裝一次（App 裡帶的是舊算法算出的代號，換不掉）。之後環境沒變的版本，裝置會跟著伺服器自動更新，版本不同的警告也會消失。</li>
-        <li><strong>未完成／阻礙：</strong>審閱與合併；發 0.6.2。要確認修好之後同一份環境每次建置的代號相同：比較 <code>bd60bda</code> 與本紀錄更新提交兩次桌面端建置的 annotation（見驗證）。</li>
+        <li><strong>未完成／阻礙：</strong>審閱與合併；發 0.6.2；裝置用 0.6.2 完整安裝包重裝後，0.6.3 起才能實際驗證裝置的熱更新。</li>
         <li><strong>決定：</strong>使用者確認的是三項需求；以下是實作選擇，待審閱：過濾放在 spec／tools 而不改 rpa_update；比較只是提示，不擋 PR 與發布；裝置頁有更新狀態時隱藏版本不同的提醒。</li>
         <li><strong>下一個具體動作：</strong>使用者審閱、合併 PR #88；合併後由 Claude 發 0.6.2，Release 說明會寫明裝置要用完整安裝包。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無；重現用的 Playwright 腳本在容器的暫存資料夾，不在倉庫。</li>
@@ -72,7 +72,7 @@
           <tr><td>同上（Chromium）</td><td><code>apps/server/tests/test_portal.py</code>、<code>test_replay_flow.py</code>（不含 Firefox）</td><td><code>test_portal.py</code> 全部通過，含新的 <code>test_scene_anchors_land_below_the_jump_bar</code>（延遲 0.6 秒、1000 與 760 寬、從卡片進來與頁內切換；舊程式碼上失敗）；<code>test_replay_flow.py</code> 兩項失敗，base 上同樣失敗（本機 Playwright 錄不出影片）</td><td>Firefox、Windows、macOS、錄影在 CI</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：<code>bd60bda</code> 的伺服器分發包（x64、arm64）、桌面端建置（Windows、macOS 的 Worker 與錄製端）、Worker 測試（Windows）、靜態檢查通過；測試（Python 3.12）只有簡中兩項失敗（還沒產生，bootstrap 的 <code>b919cd4</code> 補上），3.13 被新的推送取消。環境代號的 annotation：伺服器和 v0.6.1 相同（<code>server-linux-x64</code> <code>b93be424f1f8ff3a</code>、<code>server-linux-arm64</code> <code>de6e7107785c98ba</code>，可以用更新檔）；三個桌面 App 不同（預期：<code>worker-macos-arm64</code> <code>2f68ec4caf41421f</code>、<code>recorder-macos-arm64</code> <code>cd64b7d227542315</code>、<code>worker-windows-x64</code> <code>e4985fdde881ea71</code>）。<code>b919cd4</code>（機器人的提交）：action_required，沒有執行。人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：<code>bd60bda</code> 的伺服器分發包（x64、arm64）、桌面端建置（Windows、macOS 的 Worker 與錄製端）、Worker 測試（Windows）、靜態檢查通過；測試（Python 3.12）只有簡中兩項失敗（還沒產生，bootstrap 的 <code>b919cd4</code> 補上），3.13 被新的推送取消。環境代號的 annotation：伺服器和 v0.6.1 相同（<code>server-linux-x64</code> <code>b93be424f1f8ff3a</code>、<code>server-linux-arm64</code> <code>de6e7107785c98ba</code>，可以用更新檔）；三個桌面 App 不同（預期：<code>worker-macos-arm64</code> <code>2f68ec4caf41421f</code>、<code>recorder-macos-arm64</code> <code>cd64b7d227542315</code>、<code>worker-windows-x64</code> <code>e4985fdde881ea71</code>）。<code>b919cd4</code>（機器人的提交）：action_required，沒有執行。<code>96822b8</code>：13 項全部通過（靜態檢查、測試 Python 3.12／3.13、Worker 測試（Windows）、伺服器分發包 x64／arm64、桌面端建置三個 App）。第二次桌面端建置算出的環境代號和 <code>bd60bda</code> 那次完全相同（三個桌面 App 都一樣），修好之後同一份環境每次建置都是同一個代號；修改前兩版之間就不同。人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -84,6 +84,7 @@
         <li>2026-10-26 03:15 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main 262e107 開分支 <code>fix/device-update-version</code>；下載 v0.6.0、v0.6.1 的更新檔找出環境代號不同的原因。</li>
         <li>2026-10-26 03:40 America/Los_Angeles（PDT，UTC−07:00），Claude：三項實作完成，建立本紀錄，本地檢查中。</li>
         <li>2026-10-26 03:45～04:20 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>bd60bda</code>、開 PR #88；bootstrap 提交 <code>b919cd4</code>（簡中：訊息目錄與兩個文件）。<code>bd60bda</code> 的 CI 結果與環境代號見驗證。推這次的紀錄更新，讓 CI 在最後的提交上再跑一次，也拿第二次桌面端建置的環境代號比對。</li>
+        <li>2026-10-26 04:45 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>96822b8</code> 的 CI 全部通過；兩次桌面端建置的環境代號相同。</li>
       </ul></div>
     </section>
   </div>
