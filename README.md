@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-26 04:58 America/Los_Angeles（PDT，UTC−07:00）。共 492 次運行。
+更新：2026-10-26 05:04 America/Los_Angeles（PDT，UTC−07:00）。共 493 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,7 +9,7 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 214（0） | 112（0） | 3.3 分（0.0 分） | 6.8 分（0.0 分） | 0.0 分（0.0 分） | 1190／482／0 分（0／0／0 分） |
+| CI | 215（0） | 112（0） | 3.3 分（0.0 分） | 6.9 分（0.0 分） | 0.0 分（0.0 分） | 1226／486／0 分（0／0／0 分） |
 | 桌面端建置 | 151（0） | 118（0） | 4.1 分（0.0 分） | 6.5 分（0.0 分） | 0.1 分（0.0 分） | 15／466／647 分（0／0／0 分） |
 | 伺服器分發包 | 49（0） | 44（0） | 2.0 分（0.0 分） | 5.4 分（0.0 分） | 0.1 分（0.0 分） | 195／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 65（0） | 40（0） | 3.2 分（0.0 分） | 15.5 分（0.0 分） | 0.1 分（0.0 分） | 410／273／156 分（0／0／0 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-26 | 31 | 151 | 72 | 92 | 315 |
+| 2026-10-26 | 32 | 187 | 76 | 92 | 355 |
 | 2026-10-25 | 95 | 520 | 335 | 357 | 1212 |
 | 2026-10-24 | 11 | 142 | 132 | 130 | 405 |
 | 2026-10-23 | 33 | 204 | 123 | 115 | 441 |
@@ -71,15 +71,15 @@
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 293.4（254.2） | 16 | `packages\rpa_runner\tests\test_login.py` |
-| 137.3（137.0） | 10 | `packages\rpa_runner\tests\test_frames.py` |
-| 102.5（115.1） | 14 | `packages\rpa_runner\tests\test_video_browser.py` |
-| 91.5（102.7） | 20 | `packages\rpa_runner\tests\test_run.py` |
-| 38.6（42.2） | 8 | `packages\rpa_runner\tests\test_tabs.py` |
+| 293.4（280.5） | 16 | `packages\rpa_runner\tests\test_login.py` |
+| 137.3（138.4） | 10 | `packages\rpa_runner\tests\test_frames.py` |
+| 102.5（116.6） | 14 | `packages\rpa_runner\tests\test_video_browser.py` |
+| 91.5（105.0） | 20 | `packages\rpa_runner\tests\test_run.py` |
+| 38.6（41.6） | 8 | `packages\rpa_runner\tests\test_tabs.py` |
 | 31.9（28.1） | 1 | `packages\rpa_runner\tests\test_profiles.py` |
-| 4.1（5.0） | 2 | `tests\smoke\test_browser.py` |
+| 4.1（4.9） | 2 | `tests\smoke\test_browser.py` |
 | 3.8（4.3） | 1 | `apps\desktop\tests\test_selftest.py` |
-| 2.5（2.9） | 1 | `apps\worker\tests\test_worker.py` |
+| 2.5（3.0） | 1 | `apps\worker\tests\test_worker.py` |
 
 ### 每晚完整測試 · test-results-macos-latest-3.13/pass-1.xml
 
@@ -264,6 +264,7 @@
 | 10-26 04:48 | 桌面端建置 | PR | chore/release-0.6.2 | success | 6.2 分 | 0.1 分 | [#40317826710](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40317826710/attempts/1) |
 | 10-26 04:46 | 伺服器分發包 | 推送 | main | success | 2.9 分 | 0.1 分 | [#40317590910](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40317590910/attempts/1) |
 | 10-26 04:46 | 桌面端建置 | 推送 | main | success | 6.9 分 | 0.1 分 | [#40317590938](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40317590938/attempts/1) |
+| 10-26 04:46 | CI | 推送 | main | cancelled | 17.9 分 | 0.0 分 | [#40317590911](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40317590911/attempts/1) |
 | 10-26 04:17 | 桌面端建置 | PR | fix/device-update-version | success | 0.1 分 | 0.0 分 | [#40313906636](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40313906636/attempts/1) |
 | 10-26 04:17 | 伺服器分發包 | PR | fix/device-update-version | success | 0.1 分 | 0.0 分 | [#40313906714](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40313906714/attempts/1) |
 | 10-26 04:17 | CI | PR | fix/device-update-version | success | 1.8 分 | 0.1 分 | [#40313906715](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40313906715/attempts/1) |
@@ -294,5 +295,4 @@
 | 10-25 22:55 | CI | PR | fix/scene-ux-run-files | failure | 4.3 分 | 0.1 分 | [#40276829752](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40276829752/attempts/1) |
 | 10-25 22:55 | 桌面端建置 | PR | fix/scene-ux-run-files | success | 6.9 分 | 0.1 分 | [#40276829739](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40276829739/attempts/1) |
 | 10-25 22:48 | 伺服器分發包 | PR | fix/scene-ux-run-files | success | 1.9 分 | 0.1 分 | [#40276203190](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40276203190/attempts/1) |
-| 10-25 22:48 | CI | PR | fix/scene-ux-run-files | failure | 4.2 分 | 0.0 分 | [#40276203132](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40276203132/attempts/1) |
 
