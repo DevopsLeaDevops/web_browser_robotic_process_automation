@@ -1,6 +1,6 @@
 [project]
 name = "rpa-cli"
-version = "0.6.2"
+version = "0.6.3"
 description = "命令列工具：rpa validate / run / serve / record / worker / generate / push"
 requires-python = ">=3.12"
 dependencies = [

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-release-0-6-3 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-release-0-6-3：v0.6.3 發布</h1><p>發布 PR #90 的修正：在錄製端調試時可以換版本（Portal「存成新版本並繼續調試」與 Agent API 的 reload），換版本失敗時的說明與「用新版本重新開始調試」。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-release-0-6-3；2026-10-26 08:35 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 06:33 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：「按照你的建議，動手coding，發0.6.3版本」。發版由 Claude 操作，使用者只按合併（2026-10-26 01:03 決定）。驗收：v0.6.3 的 Release 有完整安裝包、更新檔與 SHA256SUMS.txt，說明寫明從 v0.6.2 怎麼升級。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.6.3</code>）、標籤、草稿 Release 的核對與發布；同時把 <a href="20261026-remote-debug-reload.html">20261026-remote-debug-reload</a> 的狀態改為已合併。不包含：功能修改（已在 PR #90）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>八個套件的 pyproject.toml、uv.lock；本紀錄、<code>20261026-remote-debug-reload.html</code> 與任務索引。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待合併：版本號已改，待推送、開 PR 與 CI。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.6.3</code>；PR 未建立；base main <code>84b4611</code>（PR #90 合併）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 <code>84b4611</code>＋版本號，尚未推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器；建置與簽章在 GitHub Actions（<code>release.yml</code>）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>升級要求：</strong>PR #90 的 CI 寫出的環境代號：伺服器（linux-x64、linux-arm64）與 RPA Worker（Windows）都和 v0.6.2 相同，可以用更新檔升級（伺服器 <code>bin/rpa update</code>，Worker 跟著伺服器自動更新）。錄製端（macOS）與 RPA Worker（macOS）在 PR #90 沒有結果：GitHub 的 macOS arm64 機器容量不足，三次都排不到機器被取消；改看本 PR 與發布流程的建置。伺服器先更新、錄製端還沒更新時，調試換版本會回「請更新錄製端」（預期的提示）。</li>
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.6.3</code>（八個套件與 uv.lock），<code>check v0.6.3</code> 一致。</li>
+        <li><strong>下一個具體動作：</strong>推送、開 PR、核對 CI；使用者合併後在 main 打 <code>v0.6.3</code> 標籤並推送，等發布流程建好草稿 Release（含 macOS 的錄製端與 Worker），核對產物與說明後發布。macOS 機器排不到時，等到產物齊全再發布，不發缺少錄製端更新檔的版本。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>84b4611＋版本號</td><td><code>python3 tools/release_version.py check v0.6.3</code></td><td>版本一致</td><td>CI、發布流程</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 08:35 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #90 已在 08:24 合併（<code>84b4611</code>）；從 main 開分支 <code>chore/release-0.6.3</code>，改版本號，建立本紀錄。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
