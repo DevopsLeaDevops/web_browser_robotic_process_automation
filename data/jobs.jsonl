@@ -2482,3 +2482,13 @@
 {"attempt": 9, "conclusion": "success", "duration_s": 95.0, "job": "伺服器分發包 / 分發包（x64）", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
 {"attempt": 9, "conclusion": "success", "duration_s": 7.0, "job": "建置與測試 / 執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 40353916274, "workflow": "發布"}
 {"attempt": 9, "conclusion": "success", "duration_s": 39.0, "job": "草稿 Release", "os": "linux", "queue_s": 3.0, "run_id": 40353916274, "workflow": "發布"}
+{"attempt": 1, "conclusion": "success", "duration_s": 7.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 75.0, "job": "Linux 伺服器（Rocky 8，from-scratch）", "os": "linux", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 67.0, "job": "Linux 伺服器（Rocky 8，in-repo）", "os": "linux", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 255.0, "job": "從零開始（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 1389.0, "job": "專案內執行（macos-latest）", "os": "macos", "queue_s": 3.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 454.0, "job": "從零開始（macos-latest）", "os": "macos", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 1528.0, "job": "專案內執行（windows-latest）", "os": "windows", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 1017.0, "job": "專案內執行（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 515.0, "job": "從零開始（windows-latest）", "os": "windows", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 4.0, "job": "失敗時開 issue", "os": "linux", "queue_s": 2.0, "run_id": 40402544121, "workflow": "一鍵安裝腳本"}
