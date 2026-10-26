@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261025-scene-ux-run-files · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261025-scene-ux-run-files：場景詳情頁、運行檔案與運行報告的集中修正</h1><p>一次修好使用者在 v0.6.0 驗收時回報的介面與互動問題（伺服器網站與錄製端都適用），並以更新檔（熱更新）升級驗收。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261025-scene-ux-run-files；2026-10-25 23:04 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-25 20:55 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話提出 12 項（見下方「需求」）。目標：降低理解成本、操作簡單、伺服器網站與錄製端（沒有上一頁、下一頁）都能用。並要一份用更新檔升級的驗收教學。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：場景詳情頁的版面與入口、專案空間選單反白、錄製端輸入框自動大寫、運行檔案的編碼與錄影播放下載、automation.log 重新設計、運行報告與運行回看的整併。不包含：Python 腳本場景的新設計（#82）、熱更新本身的程式（ADR 0018，已在 v0.6.0）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>apps/server：<code>pages.py</code>、<code>render.py</code>、<code>api.py</code>、<code>services.py</code>、樣板（<code>scene.html</code>、<code>run.html</code>、<code>runs.html</code>、<code>replay.html</code>、<code>domain.html</code>、<code>edit.html</code>、<code>recording.html</code>、新 <code>workspace.html</code>；刪除 <code>section.html</code>、<code>replays.html</code>）、<code>portal.js</code>、<code>portal-app.css</code>、訊息目錄；packages/rpa_runner：新 <code>steplog.py</code>、<code>child.py</code>、訊息目錄；apps/desktop：<code>ui/recorder.html</code>、<code>ui/worker.html</code>；測試；docs/design（portal、architecture、dsl，繁中與英文）。共用檔案：任務索引、訊息目錄（簡中待 bootstrap）。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #86 在 <code>50c8a6e</code> 的 CI 全部通過，等使用者審閱、合併。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/scene-ux-run-files</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/86">PR #86</a>（一般 PR，對 main）；base main <code>f76a950</code>（v0.6.0 標籤）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：實作 <code>6836e95</code>、bootstrap 機器人的簡中 <code>c2361fa</code>，之後的提交只更新本紀錄。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13、uv 0.11.32）；PyPI 連不到，依 uv.lock 版本從 GitHub 取得純 Python 依賴（見 Claude 專案的 dynamic-values-notes 做法）；Ruff 0.17.1、Pyright 1.1.414。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="request">
+      <div class="panel-header"><h2>需求（使用者原文摘要）</h2></div>
+      <div class="panel-body"><ol class="points">
+        <li>不分端 1：baseUrl 提高優先級：場景頁的「運行設定」放最上面；自主腳本錄製也放最上面。</li>
+        <li>不分端 2：每個場景一個「場景詳情頁」：由上到下 運行設定、腳本區（自動化腳本、斷言腳本）、入參與出參、版本、驗證、最近運行；卡片的連結統一跳到詳情頁對應的區域；運行報告不外跳，跳到「最近運行」。</li>
+        <li>不分端 3：場景卡片的連結順序：自動化腳本、斷言腳本、入參設定、出參設定、運行報告。</li>
+        <li>不分端 4：「完整場景檔」和兩個腳本放在一起、點了外跳回不來；改成在詳情頁另外以外部連結的樣式出現。</li>
+        <li>不分端 5：點「專案空間」功能正確，但選單沒有變成藍底的選中狀態。</li>
+        <li>錄製端 1：輸入 demo-001 會被自動改成 Demo-001。</li>
+        <li>場景運行 1：input.json、output.json、result.json 等檔案中文亂碼（例如「CG-001鑴氭湰鍒涘缓…」）。</li>
+        <li>場景運行 2：錄製端、伺服器網站點 video.webm 都不能播放或下載。</li>
+        <li>場景運行 3：automation.log 看不懂，要重新設計。</li>
+        <li>場景運行 4：運行報告與運行回看重複的話，保留運行報告。</li>
+        <li>場景運行 5：運行報告附上錄影回看的連結。</li>
+        <li>熱部署：這次能否用更新檔升級，給驗收教學。</li>
+      </ol></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成（逐項，原因與做法）：</strong>
+          <ol>
+            <li>起始網址：場景詳情頁第一區是「運行設定」，起始網址（baseUrl）是第一個欄位；自主腳本錄製的「起始網址」移到表單最前面。</li>
+            <li>場景詳情頁 <code>/scenes/{id}</code> 改成落地頁：運行設定 → 腳本（自動化腳本／斷言腳本切換，原本的單段編輯頁併進來，一起存成一個新版本：新 API <code>PUT /api/scenes/{id}/sections</code>）→ 入參與出參 → 版本 → 驗證紀錄 → 最近運行；上方固定一排區域連結；同一頁內的 <code>#</code> 連結只捲動、不留下上一頁紀錄。兩個編輯區存檔後互相接著用新版本當基準（避免 409）。舊網址 <code>/scenes/{id}/edit?part=steps|verify</code> 轉到 <code>#steps</code>、<code>#verify</code>。</li>
+            <li>卡片連結順序：自動化腳本、斷言腳本、入參設定、出參設定、運行報告，都跳到詳情頁的區域（運行報告 → <code>#runs</code>）；「執行報告」字樣統一為「運行報告」，「執行設定」「最近執行」改為「運行設定」「最近運行」。</li>
+            <li>「完整場景檔 ↗」從兩段腳本的分頁移出，放在腳本區右上，以外部連結樣式另開視窗（錄製端在 App 內開新視窗）；完整場景檔頁的「返回場景詳情」回到 <code>#script</code>；版本表的「內容」也另開。</li>
+            <li>專案空間選單：伺服器端畫出的選單是對的（有專案時）；找到兩個會標錯的情況並修正：沒有專案時 <code>/workspace</code> 轉到管理後台的專案管理（選單標在管理後台）→ 改成留在專案空間並說明；屬於專案的組合場景畫布與執行頁用 <code>page="playground"</code>（選單跳到場景生產 › 自由試驗場）→ 改成那個專案。使用者看到的是哪一種沒有截圖可確認，人工驗收時確認。</li>
+            <li>自動大寫：原因推定為 macOS WKWebView 依系統的「自動將字首大寫」改寫輸入框；<code>portal.js</code> 對所有文字輸入框（含之後才加入的對話框）設定 <code>autocapitalize="off"</code>、<code>autocorrect="off"</code>、<code>spellcheck=false</code>；錄製端與 Worker App 自己頁面的文字欄位也加上。沒有 Mac 可以重現，待人工驗收。</li>
+            <li>亂碼：<code>application/json</code> 沒有標 charset，簡體中文系統的瀏覽器用 GBK 讀 UTF-8（「腳本」變「鑴氭湰」）。檔案路由對 JSON 也標 <code>charset=utf-8</code>；順便修正「每個檔案都被快取一天」（原本的判斷恆為真），只有 .webm 快取。</li>
+            <li>錄影：執行目錄檔案的 CSP <code>default-src 'none'</code> 沒有 <code>media-src</code>，直接打開 video.webm 時瀏覽器自己的播放頁被 CSP 擋住（Chromium 實測：「violates … default-src 'none'」）。加上 <code>media-src 'self'</code>；檔案清單改成表格：每個檔案一行說明、另開視窗查看、「下載」（<code>download</code> 屬性＋<code>?download=1</code> 回 <code>Content-Disposition: attachment</code>）；影片的檔名連到回看頁。</li>
+            <li>automation.log：原本只是子程序的標準輸出（DSL 場景只有一行「自動化完成」或一段 Playwright 原文）。新 <code>rpa_runner/steplog.py</code>：開頭說明這份檔案、執行編號、瀏覽器、有頭或無頭、起始網址、開始時間（執行那台的當地時間與 UTC 偏移）；每一步一行（時間、第幾步、名稱與動作、通過或失敗、耗時；打開網頁與出錯時加網址，步驟截圖列檔名）；失敗時寫停在哪一步、略過哪些、證據在哪，最後附完整錯誤原文。網址與錯誤遮罩 Secrets，不寫入參的值。Python 腳本場景的 automation.log 照舊是腳本自己的輸出（#82 另行設計）。</li>
+            <li>運行回看清單與運行報告清單重複（同一份運行、同樣的篩選，只差「只列有錄影的」與錄影設定）：移除「場景運行 › 運行回看」選單，運行報告多「錄影：只看有錄影的」篩選與「錄影設定」；<code>/replay</code> 轉到 <code>/runs?video=1</code>（保留其他篩選）。回看頁 <code>/runs/{id}/replay</code> 保留（播放器），麵包屑改成 運行報告 › 這次運行 › 錄影回看。</li>
+            <li>回看連結：運行報告清單的「錄影」欄寫成「▶ 回看 mm:ss」；Portal 送出的 report.html 最上面加一列「回到運行詳情」「錄影回看」（檔案本身不改，離線開啟不受影響）。</li>
+            <li>熱更新驗收教學：Claude 專案對話裡的文件「v0.6.1 熱更新驗收指引」（前提、發版、升級伺服器、裝置跟著更新、12 項驗收清單、出問題時）。這次沒有改 Python、第三方套件、打包設定或 rpa_update，環境代號不變，可以用更新檔；沒有資料庫遷移。</li>
+          </ol>
+        </li>
+        <li><strong>未完成／阻礙：</strong>審閱與合併；發 v0.6.1；人工驗收。使用者的伺服器目前從解壓的分發包資料夾直接執行（<code>/home/admin/RPA-Server-0.6.0-linux-x64/bin/rpa serve</code>），不是 install.sh 的安裝版，<code>bin/rpa update</code> 會拒絕；要先用同一份 0.6.0 執行 <code>bash install.sh --skip-system-packages</code>，再以 <code>~/rpa-server/bin/rpa serve</code> 和原本的參數重新啟動（步驟在驗收指引）。</li>
+        <li><strong>決定：</strong>使用者已確認的是 12 項需求本身；以下是實作選擇，待審閱：腳本區與入參出參分成兩個編輯區、各自存檔；完整場景檔另開視窗；運行回看清單併進運行報告（保留回看頁）；automation.log 的格式；專案空間沒有專案時的空白頁；專案裡的組合場景選單停在專案。</li>
+        <li><strong>下一個具體動作：</strong>使用者把伺服器改成安裝版、審閱合併後發 v0.6.1，照驗收指引用更新檔升級並驗收。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無；本地測試用的 venv 與依賴在容器的 <code>/home/claude/venv</code>、<code>/home/claude/deps</code>，不在倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>base f76a950＋本次工作區差異；Claude 雲端容器（Linux x86_64、Python 3.13.17、依 uv.lock 版本從 GitHub 取得 fastapi 0.148.0、starlette 1.9.0、sqlalchemy 2.1.5、alembic 1.20.0、mako 1.4.3；系統 Playwright 1.63，只有 Chromium）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>（Ruff 0.17.1）</td><td>通過（306 個檔案）</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pyright</code>（1.1.414）</td><td>本次修改的檔案 0 錯誤；全倉庫剩 10 個錯誤，都在 rpa_desktop（本機沒有 keyring、webview、pystray，環境造成）</td><td>CI 的完整 Pyright</td></tr>
+          <tr><td>同上</td><td><code>pytest -m "not browser"</code>（全倉庫）</td><td>1919 通過、6 略過、2 失敗：<code>tests/i18n/test_generated.py</code>（本機沒有 OpenCC）、<code>rpa_update</code> 的 <code>test_installed_distributions_skip_workspace_and_pip</code>（本機 venv 用系統套件，沒有發行資訊）；兩者都是環境造成，不算通過</td><td>簡中產生與 i18n 檢查要在 CI</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/docs tests/i18n</code></td><td>351 通過；1 失敗同上（OpenCC）</td><td>—</td></tr>
+          <tr><td>同上（Chromium）</td><td><code>apps/server/tests/test_portal.py</code>（Chromium 部分）、<code>packages/rpa_runner/tests/test_run.py</code> 的 BA-001→BA-002 與失敗案例</td><td>通過；新增 <code>test_scene_page_saves_scripts_and_contract_in_turn</code>（兩個編輯區接著存、問題連到段落、自動大寫屬性）</td><td>Firefox、Windows、macOS 與錄影（本機 Playwright 版本與瀏覽器不合，錄不出影片）在 CI</td></tr>
+          <tr><td>Chromium 手動</td><td>舊 CSP 與新 CSP 各直接打開一段 WebM</td><td>舊的出現 CSP 違規、載入被擋；新的沒有違規</td><td>實際錄影檔的播放在 CI 與人工驗收</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：PR #86 的 <code>50c8a6e</code> 全部通過（13 項；Windows Worker 測試第 1 次失敗後重跑通過，見追加紀錄）；人工驗收：未執行（步驟見「v0.6.1 熱更新驗收指引」第四步的 12 項）；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-25 21:02 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main f76a950 開分支 <code>fix/scene-ux-run-files</code>，建立本紀錄。</li>
+        <li>2026-10-25 21:50 America/Los_Angeles（PDT，UTC−07:00），Claude：12 項實作完成、本地檢查（見上表）；寫好熱更新驗收指引。本次工作階段以讀取權限取得倉庫，<code>add_repo</code> 的推送權限被自動模式擋下，提交只在本地。</li>
+        <li>2026-10-25 22:47～22:54 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者同意推送；推送 <code>6836e95</code>，bootstrap 成功並提交 <code>c2361fa</code>（只有簡中：兩個訊息目錄與三個設計文件），開 PR #86。使用者說明伺服器的啟動方式（解壓的分發包資料夾直接執行），確認那樣不能用更新檔，驗收指引補上改成安裝版的步驟。</li>
+        <li>2026-10-25 23:04 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #86 的 CI。<code>6836e95</code>：測試（Python 3.12／3.13）只有 <code>tests/i18n/test_generated.py</code> 失敗（簡中還沒產生，1964 個測試的其餘都通過），其他流程通過。<code>c2361fa</code>（機器人的提交）：action_required，沒有執行。<code>50c8a6e</code>：靜態檢查、測試（Python 3.12、3.13）、伺服器分發包（x64、arm64）、桌面端建置（Windows、macOS 的 Worker 與錄製端）通過；「Worker 測試（Windows）」第 1 次只有 <code>packages/rpa_runner/tests/test_video_browser.py::test_cancelled_run_keeps_a_playable_video[chromium]</code> 失敗（影片 <code>unreadable</code>，和 v0.6.0 發布紀錄記下的取消錄影不穩定是同一個測試，這次沒有改錄影的程式），只重跑失敗的工作後通過。根因沒有處理，不能說已解決。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

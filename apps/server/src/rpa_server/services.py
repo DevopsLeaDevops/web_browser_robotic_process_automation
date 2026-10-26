@@ -1770,10 +1770,18 @@ class Services:
             )
         return files
 
-    def _section_files(self, scene_id: str, key: str, base: int, text: str) -> dict[str, str]:
+    def _section_files(
+        self,
+        scene_id: str,
+        key: str,
+        base: int,
+        text: str,
+        files: Mapping[str, str] | None = None,
+    ) -> dict[str, str]:
+        """換掉一段之後的版本檔案；``files`` 給了時在它上面換（一次換幾段），否則用 base 版本的。"""
         if key not in SECTION_KEYS:
             raise _not_found("section_unknown", t("error.section_unknown", key=key))
-        files = dict(self.revision_files(scene_id, base))
+        files = dict(files if files is not None else self.revision_files(scene_id, base))
         if self._load_scenario(scene_id, base).script is not None and key in ("steps", "verify"):
             raise _invalid("section_script", t("error.section_script"))
         section = text.replace("\r\n", "\n").strip("\n")
@@ -1821,6 +1829,46 @@ class Services:
             issues = error.details.get("issues")
             if isinstance(issues, list):
                 _section_lines(cast("list[dict[str, object]]", issues), files[SCENARIO_FILE], key)
+            raise
+
+    def save_sections(
+        self,
+        scene_id: str,
+        sections: Mapping[str, str],
+        *,
+        base: int,
+        note: str | None = None,
+    ) -> RevisionRecord:
+        """一次換掉幾段（場景詳情頁的自動化腳本、斷言腳本一起存）：存成一個新版本。
+
+        兩段一起校驗，步驟改了 extract 的名稱、斷言跟著改時不會卡在中間的版本。校驗問題落在哪一段，
+        就附上那一段（``section``）與段落裡的行號（``sectionLine``）。
+        """
+        if not sections:
+            raise _invalid("section_none", t("error.section_none"))
+        files = dict(self.revision_files(scene_id, base))
+        for key, text in sections.items():
+            files[SCENARIO_FILE] = self._section_files(scene_id, key, base, text, files)[
+                SCENARIO_FILE
+            ]
+        names = t("revision.section_separator").join(t(f"section.{key}") for key in sections)
+        try:
+            return self.save_revision(
+                scene_id,
+                base=base,
+                files=files,
+                note=note or t("revision.note_section", section=names),
+            )
+        except ServiceError as error:
+            issues = error.details.get("issues")
+            if isinstance(issues, list):
+                found = cast("list[dict[str, object]]", issues)
+                for key in sections:
+                    before = {id(issue) for issue in found if "sectionLine" in issue}
+                    _section_lines(found, files[SCENARIO_FILE], key)
+                    for issue in found:
+                        if id(issue) not in before and "sectionLine" in issue:
+                            issue["section"] = key
             raise
 
     def rerun(

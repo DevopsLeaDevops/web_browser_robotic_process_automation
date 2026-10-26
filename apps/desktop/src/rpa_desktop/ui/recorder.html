@@ -34,10 +34,10 @@ __WORKER_CSS__
       <form id="pair-form" class="panel-body">
         <p class="hint" data-text="recorder.pair_intro"></p>
         <label class="field"><span data-text="recorder.invite_label"></span>
-          <textarea id="invite" rows="3" required spellcheck="false" autocomplete="off" data-placeholder="recorder.invite_placeholder"></textarea>
+          <textarea id="invite" rows="3" required spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" data-placeholder="recorder.invite_placeholder"></textarea>
         </label>
         <label class="field"><span data-text="recorder.server_label"></span>
-          <input id="server" type="text" spellcheck="false" autocomplete="off" data-placeholder="recorder.server_placeholder">
+          <input id="server" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" data-placeholder="recorder.server_placeholder">
         </label>
         <div class="checklist"><label><input id="pair-firefox" type="checkbox"> <span data-text="recorder.firefox_label"></span></label></div>
         <div class="form-actions"><button id="pair-button" class="button primary" type="submit" data-text="recorder.pair_button"></button></div>
@@ -80,7 +80,7 @@ __WORKER_CSS__
         </div>
         <div class="field-row">
           <label class="field"><span data-text="recorder.mirror_label"></span>
-            <input id="mirror" type="text" spellcheck="false" autocomplete="off" placeholder="https://mirror.example/playwright">
+            <input id="mirror" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="https://mirror.example/playwright">
           </label>
           <button id="mirror-save" class="button" type="button" data-text="recorder.save"></button>
         </div>

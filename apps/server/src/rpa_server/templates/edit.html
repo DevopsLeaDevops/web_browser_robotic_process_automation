@@ -3,7 +3,7 @@
 {% block crumb %}{{ m.scene_crumb(scene, domain) }} › {{ t("edit.crumb") }}{% endblock %}
 {% block description %}{{ t("edit.description", shown=revision.number, next=scene.latest_number + 1) }}{% endblock %}
 {% block actions %}
-<a class="button" href="/scenes/{{ scene.id }}">{{ t("edit.back") }}</a>
+<a class="button" href="/scenes/{{ scene.id }}#script">{{ t("edit.back") }}</a>
 <button class="button primary" data-action="save-revision">{{ t("edit.save") }}</button>
 {% endblock %}
 {% block content %}

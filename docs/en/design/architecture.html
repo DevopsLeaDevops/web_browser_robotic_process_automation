@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:65c9d8a48cf7d956">
+<meta name="translation-source" content="sha256:11de0b457385800e">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -256,7 +256,8 @@
   screenshot.png, diagnostic.json
   video.webm, video.json  # recording of the automation stage and its description (M12, ADR 0016)
   video-page-N.webm       # recording of each tab opened by a step
-  automation.log, assertion.log
+  automation.log      # automation log: for DSL scenarios, when each step ended, its result, duration, and the error and URL on failure
+  assertion.log       # output of the assertion script in Python script scenarios
   scenario/           # snapshot of the scenario revision used (including Python scripts)
   result.json, report.html, run.json</pre>
       </div>

@@ -329,6 +329,18 @@ CONTRACT: dict[str, object] = {
     "outputs": {"recordId": {"type": "string", "from": "{{ facts.record.recordId }}"}},
 }
 FACTS = [("record", ["recordId", "status"])]
+SCRIPTS = {
+    "steps": "steps:\n  - { id: open, action: goto, url: / }",
+    "verify": "verify:\n  - value: '{{ facts.record.status }}'\n    notEmpty: true",
+}
+SCRIPT_COUNTS = {"steps": 1, "verify": 1}
+VIDEO_SETTINGS: dict[str, object] = {
+    "enabled": True,
+    "keepPassedDays": 7,
+    "keepOtherDays": 30,
+    "maxTotalGb": 20.0,
+    "usage": {"count": 2, "bytes": 3 * 1048576, "pinned": 1},
+}
 
 
 def _m4_pages(scenario: Scenario, *, english: bool = False) -> dict[str, str]:
@@ -821,19 +833,8 @@ def _pages() -> dict[str, str]:
             needs=NEEDS,
             contract_data=CONTRACT,
             facts=FACTS,
-        ),
-        "section": render(
-            "section.html",
-            page="domain:testsite",
-            title="斷言腳本",
-            domains=DOMAINS,
-            domain=DOMAIN,
-            scene=SCENE,
-            revision=REVISIONS[1],
-            part="verify",
-            text="verify:\n  - value: '{{ facts.record.status }}'\n    notEmpty: true",
-            scenario=scenario,
-            facts=FACTS,
+            scripts=SCRIPTS,
+            script_counts=SCRIPT_COUNTS,
         ),
         "edit": render(
             "edit.html",
@@ -889,6 +890,7 @@ def _pages() -> dict[str, str]:
             ],
             filters=run_filters(scenes=[SCENE], categories=[], selected={}),
             limit=200,
+            video_settings=VIDEO_SETTINGS,
             worker_names=WORKER_NAMES,
         ),
         "run-remote": render(
@@ -998,6 +1000,7 @@ def _pages() -> dict[str, str]:
                 scenes=[SCENE], categories=["範例資料"], selected={"scene": ["ba-001"]}
             ),
             limit=200,
+            video_settings=VIDEO_SETTINGS,
         ),
         "run": render(
             "run.html",
@@ -1132,7 +1135,8 @@ def test_top_menu_has_six_groups_on_the_server() -> None:
         "管理後台",
     ]
     assert _menu(pages["recording"], "sidenav") == ["/recording", "/playground"]
-    assert _menu(pages["runs"], "sidenav") == ["/runs", "/replay"]
+    # 運行回看併進運行報告（2026-10-25）：場景運行只剩運行報告
+    assert _menu(pages["runs"], "sidenav") == ["/runs"]
     assert _menu(pages["project"], "sidenav") == ["/projects/composites", "/projects/billing"]
     assert _menu(pages["workers"], "sidenav") == ["/devices"]
     assert _menu(pages["domains"], "sidenav") == ["/domains", "/projects", "/agents"]
@@ -1211,16 +1215,21 @@ def test_scene_card_follows_the_design() -> None:
         html = _pages()["domain"]
     published, draft = html.split('class="panel panel-body scene-card"')[1:3]
     text = _text(published)
-    for label in ("自動化腳本", "斷言腳本", "執行報告", "入參設定", "出參設定", "調試", "運行"):
+    for label in ("自動化腳本", "斷言腳本", "入參設定", "出參設定", "運行報告", "調試", "運行"):
         assert label in text, label
+    # 五個連結的順序：自動化腳本、斷言腳本、入參設定、出參設定、運行報告
+    labels = ("自動化腳本", "斷言腳本", "入參設定", "出參設定", "運行報告")
+    order = [text.index(label) for label in labels]
+    assert order == sorted(order)
     assert 'src="/runs/ba-001-20261010-083000-abcdef/files/screenshot.png"' in published
     assert 'data-status="passed"' in published
-    assert 'href="/scenes/ba-001/edit?part=steps"' in published
-    assert 'href="/scenes/ba-001/edit?part=verify"' in published
+    # 都跳到場景詳情頁的區域，不再外跳
+    for part in ("steps", "verify", "inputs", "outputs", "runs"):
+        assert f'href="/scenes/ba-001#{part}"' in published, part
     assert "暫無執行截圖" in _text(draft)
     assert "未執行" in _text(draft)
     assert 'aria-disabled="true"' in draft
-    assert 'href="/scenes/ba-009/edit?file=assertion.py"' in draft
+    assert 'href="/scenes/ba-009#verify"' in draft
     # 連結列只有設計稿的五項；「調試」：DSL 場景打開逐步調試，腳本場景驗證最新版本
     links = published.split('class="card-links')[1].split("</nav>")[0]
     assert links.count("<a ") == 5
@@ -1361,19 +1370,8 @@ def _english_domain_pages() -> dict[str, str]:
                 needs=None,
                 contract_data=CONTRACT,
                 facts=FACTS,
-            ),
-            "section": render(
-                "section.html",
-                page="domain:testsite",
-                title="Assertions",
-                domains=domains,
-                domain=domain,
-                scene=scene,
-                revision=REVISIONS[1],
-                part="steps",
-                text="steps:\n  - { id: open, action: goto, url: / }",
-                scenario=scenario,
-                facts=FACTS,
+                scripts=SCRIPTS,
+                script_counts=SCRIPT_COUNTS,
             ),
             **_m4_pages(scenario, english=True),
             **_m6_pages(english=True),
@@ -1606,7 +1604,15 @@ def test_run_filters_are_menus_with_checkboxes() -> None:
             categories=["範例資料"],
             selected={"scene": ["ba-001", "ba-002"], "status": ["failed"]},
         )
-        html = render("runs.html", page="runs", title="報告", runs=[], filters=filters, limit=200)
+        html = render(
+            "runs.html",
+            page="runs",
+            title="報告",
+            runs=[],
+            filters=filters,
+            limit=200,
+            video_settings=VIDEO_SETTINGS,
+        )
     assert "<select" not in html.split('class="filters"')[1].split("</form>")[0]
     summaries = [
         _text(part.split("</summary>")[0])
@@ -1617,8 +1623,10 @@ def test_run_filters_are_menus_with_checkboxes() -> None:
         "場景 2 項 ▾",
         "結果 失敗 ▾",
         "目的 全部 ▾",
+        "錄影 全部 ▾",
     ]
-    assert html.count("checked") == 3
+    menus = html.split('class="filters"')[1].split("</form>")[0]
+    assert menus.count("checked") == 3
     assert 'name="scene" value="ba-002" checked' in html
     assert 'href="/runs"' in html  # 有條件時顯示「清除篩選」
 
@@ -1708,11 +1716,19 @@ def test_location_filter_and_local_url_warning() -> None:
             selected={"worker": ["win-01"]},
             locations=[("local", "本機"), ("win-01", "Windows")],
         )
-        html = render("runs.html", page="runs", title="報告", runs=[], filters=filters, limit=200)
+        html = render(
+            "runs.html",
+            page="runs",
+            title="報告",
+            runs=[],
+            filters=filters,
+            limit=200,
+            video_settings=VIDEO_SETTINGS,
+        )
         alone = run_filters(scenes=[SCENE], categories=[], selected={}, locations=[])
         form = _pages()["run-form-remote"]
     assert [menu.name for menu in filters][-1] == "worker"
-    assert len(alone) == 4
+    assert len(alone) == 5  # 分類、場景、結果、目的、錄影
     assert 'name="worker" value="win-01" checked' in html
     assert "執行位置 Windows" in " ".join(_text(html).split())
     assert "data-local-url-warning hidden" in form
