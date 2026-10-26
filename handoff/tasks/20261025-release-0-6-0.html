@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>v0.6.0 發布 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>v0.6.0 發布</h1><p>統一八個套件與鎖檔的版本，建置完整安裝包及第一份有簽章的更新檔。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261025-release-0-6-0；2026-10-25 17:11 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求「幫我打一個新的版本出來」。以主線已整合的功能發布 v0.6.0；版本檢查、建置與必要測試通過，Release 的七份二進位產物與 SHA256SUMS.txt 齊全。</dd>
+        <dt>主責／審閱</dt><dd>Codex；尚未獨立審閱。</dd>
+        <dt>修改範圍／整合者</dt><dd>八個工作區 pyproject.toml、uv.lock、此任務卡與索引；Codex 整合。維持第三方依賴版本。</dd>
+        <dt>狀態</dt><dd>版本準備與 PR #85 的四個流程通過；此卡的文字更新仍需最終 head 檢查。尚未建立版本標籤或發布 Release。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.6.0</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/85">PR #85</a>（一般 PR）；基準 <code>06afe180eb604add26ca7b5050f35a1ab35742b2</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>版本提交 <code>84a5b8bfb045a6ec5529b8b73330f6f57ed5f1f8</code> 已推送；後續此卡更新只記錄驗證結果。</dd>
+        <dt>環境</dt><dd>Windows、Python 3.12.10、uv 0.13.5；獨立 worktree <code>D:\webrpa\release-0.6.0</code>。正式跨平台建置由 GitHub Actions 執行。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>已核對 #81、#82、#83、#84 全部合併；最新已發布版本為 v0.5.0。v0.6.0 是本次版本選擇，涵蓋專案空間、Agent API、熱更新及最近的修復。</li>
+        <li>#82 是 Python 腳本場景設計文件，不能把它列成已完成的新功能。</li>
+        <li>已確認發布所需的 <code>RPA_UPDATE_SIGNING_KEY</code> Secret 存在；未讀取私鑰。簽章與信任公鑰是否匹配由正式發布工作驗證。</li>
+        <li><strong>升級要求：</strong>v0.5.0 沒有更新啟動層；伺服器與桌面端第一次升到 v0.6.0 必須使用完整安裝包。這一版之後、運行環境相容時才使用程式碼更新檔。</li>
+        <li>下一步：完成本地版本驗證，提交一般 PR，核對最終 head 的 CI；整合後推送 v0.6.0 標籤，核對草稿 Release 的建置、產物及說明。</li>
+        <li>版本差異已推送；無 stash。忽略產物：本地 <code>.venv</code>，可用 <code>uv sync --locked</code> 重建。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與缺口</h2></div>
+      <div class="panel-body"><p>本地驗證（基準 SHA＋本次版本與交接文件差異；Windows、Python 3.12.10、uv 0.13.5）：<code>uv sync --locked</code>、<code>python tools/release_version.py check v0.6.0</code>、<code>rpa --version</code> 通過；<code>pytest -q tests/ci/test_release_version.py apps/desktop/tests/test_build_info.py tests/ci/test_build_update.py</code> 為 19 passed；<code>python tools/i18n.py check</code>、<code>git diff --check</code> 及兩份交接 HTML 的相對連結檢查通過。已逐項檢閱 diff：八個套件與鎖檔只改版本，第三方依賴不變。</p><p>本次 PR 的 CI、正式建置、產物核對及真實電腦人工安裝驗收尚未完成。基準已知限制：先前 Windows 本地完整非瀏覽器測試有符號連結權限與 POSIX／換行假設失敗，不能當作全套通過；另有瀏覽器彈出視窗關閉與錄影的既有不穩定測試。發布時以本次最終 head 的 CI 與建置結果為準。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收與發布狀態</h2></div>
+      <div class="panel-body"><p>尚未交接、尚未發布。後續 PR／標籤／Release 狀態以 GitHub 實際結果為準；更新本卡時追加證據。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-25 17:11 America/Los_Angeles（PDT，UTC−07:00），Codex：從最新主線建立獨立發布分支，以既有版本工具統一八個套件和鎖檔到 0.6.0；沒有修改依賴或產品行為。</li>
+        <li>2026-10-25 17:23 America/Los_Angeles（PDT，UTC−07:00），Codex：PR #85 的 <code>84a5b8b</code> 已完成本地 Ruff（304 份檔案格式正確）、Pyright（0 錯誤、0 警告）。<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40248356113">CI</a> 第一次 Python 3.13 有 1953 passed、1 failed、4 skipped，唯一失敗是既有 <code>test_replay_switches_pages_and_returns_to_main</code> 的 popup 關閉時 <code>TargetClosed</code>；只重跑失敗工作後 1954 passed、4 skipped，CI 通過。這次沒有修復該不穩定行為，不能宣稱根因已解決。</li>
+        <li>同一時間：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40248356036">Linux x64／arm64 分發包</a>與<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40248356169">一鍵安裝腳本</a>通過；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40248356081">桌面端建置</a>的 Windows／macOS Worker 通過。錄製端第一次在 hdiutil 生成 DMG 時遇到 <code>Resource busy</code>，重跑後已完成 DMG 建置，窗口與端到端驗證仍在執行。</li>
+        <li>2026-10-25 17:27 America/Los_Angeles（PDT，UTC−07:00），Codex：錄製端重跑的建置、自我測試、更新／退回、窗口及端到端全部通過，四個 PR 流程均通過。這次提交僅回填本卡，重的工作按既有文件規則沿用上次通過結果，最終 head 仍執行靜態與非瀏覽器測試。</li>
+        <li>另外核對基準 main <code>06afe18</code> 的<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40247858783">全量 CI</a>：Python 3.12 為 2044 passed、3 failed、4 skipped。兩項有頭 Chromium 測試缺少 X server，另有取消運行的錄影取幀仍為白色。這是 PR 檢查之外更大測試範圍的既有失敗，本次沒有變更產品或 CI 來修復；保留為發布限制，不把主線全量測試說成通過。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
