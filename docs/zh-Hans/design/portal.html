@@ -174,7 +174,7 @@
     <section class="panel" id="playground">
       <div class="panel-header"><h2>自由试验场与组合场景</h2><span class="muted">DAG：可分叉、可汇合，成功出参传给下游，失败即停</span></div>
       <div class="panel-body prose"><ul>
-        <li><strong>管理与生产。</strong>「项目空间 › 各项目」（2026-10-23 前是「场景管理 › 组合场景自动化」，见<a href="#projects">项目空间</a>）沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场；运行报告与运行回看在「场景运行」，设备（M10.1 前叫「远程 Worker」）在「集群管理」（2026-10-22 调整，见<a href="#menus">菜单与三段分工</a>）。</li>
+        <li><strong>管理与生产。</strong>「项目空间 › 各项目」（2026-10-23 前是「场景管理 › 组合场景自动化」，见<a href="#projects">项目空间</a>）沿用测试网站自动化的卡片风格，以真实节点座标和依赖产生 DAG 缩略图，管理名称、节点、问题与最近运行；卡片的「运行组合场景」可直接选引擎、运行位置与窗口模式；「场景生产 › 自由试验场」创建、打开与编辑画布。场景生产菜单依序为自主脚本录制、自由试验场；运行报告在「场景运行」（2026-10-25 起运行回看并进运行报告），设备（M10.1 前叫「远程 Worker」）在「集群管理」（2026-10-22 调整，见<a href="#menus">菜单与三段分工</a>）。</li>
         <li><strong>依赖画布。</strong>场景库可点击加入或拖入画布。拖动节点或用方向键微调位置；点上游右侧圆点，再点下游左侧圆点创建连接。点连接设置下游入参，也可以从右侧加入上游。缩放与适应只改视角，不改座标。节点座标随组合场景保存；画布位置和节点数组顺序不代表运行顺序。顶部名称与操作合并成一列，说明收在「说明」，运行历史默认折叠。画布下方的全宽参数区独立卷动，并列上游出参、下游入参、匹配方式、取值／来源；点击 DAG 连接会切到该组上游与下游。多上游可切换来源节点。</li>
         <li><strong>四种入参来源。</strong>同名匹配仅搜索直接连接的上游，唯一同名且类型兼容时取其出参，没有命中则用场景默认，多个命中必须指定来源；场景默认强制忽略上游同名值；人工指定只覆盖此节点；指定上游出参可以跨字段绑定。选择出参会创建依赖；一个出参可供多个下游，一个入参只有一个来源。整数可以传给数字，其他类型必须相同。</li>
         <li><strong>参数连接。</strong>拖动出参圆点到入参，或依次用鼠标／键盘选取两端，创建显式绑定；类型不符不修改原值。四种模式以按钮同列呈现，仍可用出参选单精确选择。唯一同名匹配与显式来源画出对应连接；歧义、默认值及人工值不画假连接。契约按钮原地显示该固定版本的唯读原文；编辑场景明示另开分页，并提示验证、发布后回画布选新版本。</li>
@@ -223,7 +223,7 @@
           <li><strong>需要登录与重新运行。</strong>对 <code>testsite-user</code> 按「注销」，再运行 BA-004：停在「需要登录」，没有运行任何步骤；点运行页的登录角色回到「登录与凭证」再登录一次，回到运行页按「重新运行」，结果是「通过」。</li>
           <li><strong>自由试验场。</strong>先验证并发布 BA-001、BA-002，在「管理后台 › 项目管理」添加一个项目。到「项目空间」的那个项目创建组合场景，加入一个 BA-001、两个 BA-002 及另一个 BA-001 作为汇合节点；连接「创建 → 两次查询 → 汇合」，让两个查询的 recordId 同名匹配上游，汇合的 title 与 quantity 分别取自两个查询。拖动节点、保存并重载，确认位置保留。运行后四个节点都通过且实际入参相符；反向连接应被拒绝。从项目空间的项目页卡片打开最近运行，确认报告可追溯。</li>
           <li><strong>远程 worker（两台电脑，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 启动；「集群管理 › 设备」添加 <code>win-01</code>，在另一台电脑用对话框里的邀请启动 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付后改在 App 粘贴；步骤见<a href="../develop/remote-worker.html">远程 worker</a>），设备页变成「在线」。用「远程 worker」、有头模式运行 BA-001：浏览器窗口出现在 worker 机器，这台电脑没有跳出窗口；报告是「通过」，运行页显示「运行的电脑：win-01」，截图看得到。再用「远程 worker」运行第 7 步的组合场景，四个节点都在 win-01。运行中在 worker 机器按 Ctrl+C：Portal 上那次运行变成「已取消」。</li>
-          <li><strong>运行回看（M12）。</strong>运行报告的「回看」栏有 ▶ 与视频长度；打开第 3 步的验证：视频可以播放、暂停、拖曳，滑过时间轴有预览，步骤列表跟着视频走，点一步跳到那一步。运行 BA-002 查询不存在的编号（失败）：打开回看就停在失败步骤之前，结束时有「回到失败的步骤」。在 win-01 用有头、无头各运行一次，运行中取消一次：三段视频都能播放与拖曳。在 Mac 录制端 App 里打开同一页也能播放。</li>
+          <li><strong>运行回看（M12）。</strong>运行报告的「录像」栏有「▶ 回看」与视频长度（「录像」筛选只看还有录像的运行）；打开第 3 步的验证：视频可以播放、暂停、拖曳，滑过时间轴有预览，步骤列表跟着视频走，点一步跳到那一步。运行 BA-002 查询不存在的编号（失败）：打开回看就停在失败步骤之前，结束时有「回到失败的步骤」。在 win-01 用有头、无头各运行一次，运行中取消一次：三段视频都能播放与拖曳。在 Mac 录制端 App 里打开同一页也能播放。</li>
         </ol>
         <p>结束后停止管理 Portal，删掉 <code>data-check</code> 文件夹即可；worker 机器上的 <code>worker-data</code> 文件夹也可以删掉。</p>
       </div>
@@ -237,7 +237,7 @@
           <tbody>
             <tr><td>场景管理（<code>/scenes</code>）</td><td>领域 ×N（依领域管理的顺序）、登录与凭证</td><td>显示</td><td>显示</td></tr>
             <tr><td>场景生产（<code>/recording</code>）</td><td>自主脚本录制、自由试验场</td><td>显示</td><td>显示</td></tr>
-            <tr><td>场景运行（<code>/runs</code>）</td><td>运行报告、运行回看</td><td>显示</td><td>显示</td></tr>
+            <tr><td>场景运行（<code>/runs</code>）</td><td>运行报告（2026-10-25 前另有运行回看，已并进来）</td><td>显示</td><td>显示</td></tr>
             <tr><td>项目空间（<code>/workspace</code>）</td><td>项目 ×N（依项目管理的顺序）</td><td>显示</td><td>显示</td></tr>
             <tr><td>集群管理（<code>/devices</code>）</td><td>设备</td><td>显示</td><td>默认不显示</td></tr>
             <tr><td>管理后台（<code>/domains</code>）</td><td>领域管理、项目管理</td><td>显示</td><td>默认不显示</td></tr>
@@ -249,7 +249,7 @@
           <li><strong>三段。</strong>服务器（直接打开 8080，例如服务器那台或 SSH 通道）看得到全部菜单；录制端（RPA 录制端 App 经由对外端口打开的 Portal）默认只有场景管理、场景生产、场景运行、项目空间；Worker 端的 RPA Worker App 不加载 Portal 的页面，维持原样。</li>
           <li><strong>替个别录制端打开。</strong>「集群管理 › 设备」的录制端清单每台有「另外显示的菜单」：勾「集群管理」「管理后台」，通过那台就看得到（立刻保存，那台刷新页面就生效）。例如服务器是没有桌面的 Linux、管理者用自己的 Mac 录制端管理时。</li>
           <li><strong>只是菜单，不是权限。</strong>录制端的权杖照旧能打开所有页面与 API（2026-10-18 的决定，用户权限在 M8）。看不到的菜单，页面上通往它的按钮也不显示（领域页的「管理领域」、项目页的「管理项目」、等待 worker 时的「查看设备」）；组合场景依赖提示的「从 git 添加」之类的动作链接照旧。</li>
-          <li><strong>网址不变。</strong>只换分组；<code>/runs</code>、<code>/replay</code>、<code>/devices</code>、<code>/domains</code> 等网址与 API 都和之前一样（2026-10-23 起 <code>/composites</code> 转到项目空间）。还没分到领域的场景页停在场景管理、左侧不标示任何一项。</li>
+          <li><strong>网址不变。</strong>只换分组；<code>/runs</code>、<code>/devices</code>、<code>/domains</code> 等网址与 API 都和之前一样（2026-10-23 起 <code>/composites</code> 转到项目空间；2026-10-25 起 <code>/replay</code> 转到 <code>/runs?video=1</code>）。还没分到领域的场景页停在场景管理、左侧不标示任何一项。</li>
         </ul>
       </div>
     </section>
@@ -264,18 +264,18 @@
             <tr><td><code>/domains/{代号}</code></td><td>领域页：场景卡片；添加场景、导入示例（测试网站自动化）</td></tr>
             <tr><td><code>/domains/{代号}/sync</code></td><td>数据源与同步（M11 PR 3）：设置仓库、目录与认证，同步状态与变更清单，测试连接、拉取、推送，冲突时三选一</td></tr>
             <tr><td><code>/domains</code></td><td>领域管理（管理后台）：添加（也可以从 git 添加）、改名、删除、调整顺序；每个领域的数据源与同步状态；这台服务器的名称；还没分到领域的场景</td></tr>
-            <tr><td><code>/scenes/{id}</code></td><td>版本清单与状态、发布、运行前要准备的角色与 Secrets、入参与出参（可以直接编辑）、所属领域与默认网址、最近运行</td></tr>
+            <tr><td><code>/scenes/{id}</code></td><td><strong>场景详情页</strong>（2026-10-25，一个场景的落地页）：由上到下 运行设置（起始网址 baseUrl、所属领域）、脚本（自动化脚本与断言脚本切换编辑，一起存成一个新版本；右侧可插入页面事实、入参与检查；「完整场景文件 ↗」另开窗口）、入参与出参（可以直接编辑）、版本与发布、验证记录、最近运行；运行前要准备的角色与 Secrets 在最上面提示。上方的区域链接与卡片的链接都跳到这一页的区域：<code>#settings</code>、<code>#steps</code>、<code>#verify</code>、<code>#inputs</code>、<code>#outputs</code>、<code>#versions</code>、<code>#verifications</code>、<code>#runs</code>，不换页（录制端的窗口没有上一页）。两个编辑区保存后互相接着用新版本当基准</td></tr>
             <tr><td><code>/scenes/{id}/debug</code></td><td>逐步调试：步骤列表、截图、定位器测试、页面事实、修改 YAML</td></tr>
-            <tr><td><code>/scenes/{id}/edit</code></td><td>编辑 YAML 与脚本，存成新版本；校验问题列在页面上</td></tr>
-            <tr><td><code>/scenes/{id}/edit?part=steps</code>、<code>?part=verify</code></td><td>DSL 场景的自动化脚本、断言脚本：只编辑那一段，右侧可插入页面事实、入参与检查</td></tr>
+            <tr><td><code>/scenes/{id}/edit</code></td><td>完整场景文件：编辑 YAML 与脚本，存成新版本；校验问题列在页面上。从场景详情页以另开窗口打开，「返回场景详情」回到脚本区</td></tr>
+            <tr><td><code>/scenes/{id}/edit?part=steps</code>、<code>?part=verify</code></td><td>旧网址：转到场景详情页的 <code>#steps</code>、<code>#verify</code>（2026-10-25 前是单独的一段编辑页）</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>验证或运行的表单：入参（JSON，已带入默认值）、浏览器、网址</td></tr>
-            <tr><td><code>/runs</code></td><td>运行报告：分类、场景、结果、目的的筛选菜单，每一项都可以复选</td></tr>
-            <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图、运行目录的文件；取消、发布；有录像时「回看」</td></tr>
-            <tr><td><code>/replay</code></td><td>运行回看（M12）：还有录像的运行（筛选同运行报告）、录像设置与目前用量</td></tr>
+            <tr><td><code>/runs</code></td><td>运行报告：分类、场景、结果、目的、录像的筛选菜单，每一项都可以复选；「录像」栏的「▶ 回看」打开那次运行的录像；录像设置与目前用量（原本在运行回看页）</td></tr>
+            <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图；运行目录的文件（每个文件一行说明、另开窗口查看、下载；录像点文件名到回看页）；取消、发布；有录像时「回看」。在 Portal 里打开 report.html 时最上面加一列「回到运行详情」「录像回看」（文件本身不变）。JSON 与文字档标明 UTF-8，直接打开不会乱码；运行目录文件的 CSP 允许同来源的视频（直接打开 video.webm 可以播放）</td></tr>
+            <tr><td><code>/replay</code></td><td>旧网址：转到 <code>/runs?video=1</code>（只看有录像的运行；2026-10-25 前是单独的运行回看清单）</td></tr>
             <tr><td><code>/runs/{运行编号}/replay</code></td><td>回看一次运行：视频（网址列、目前步骤的标签）、控制列（播放、上一步／下一步、逐格、¼×～2×、全屏幕、快捷键）、缩略图时间轴（滑过预览、拖曳、步骤轨）、步骤列表跟着视频走（点一步跳到那一步；详细有错误、定位器、填入的值、抽到的事实、场景文件原文与行号、「在场景中打开」）、断言、运行信息与钉选；失败的运行打开就停在失败步骤之前 1 秒；同一个场景的上一次、下一次、上一次没通过；组合场景的节点之间切换。<code>?t=秒&amp;step=步骤</code> 打开时跳到那一刻</td></tr>
             <tr><td><code>/roles</code></td><td>登录与凭证：登录角色（登录、检查、注销）、Secrets</td></tr>
             <tr><td><code>/recording</code>、<code>/recordings/{录制编号}</code></td><td>自主脚本录制：在这台电脑录制或粘贴录制稿；最近的录制；录制详情（转不了的行、转换结果、遮罩过的原始录制稿）</td></tr>
-            <tr><td><code>/workspace</code></td><td>项目空间：转到第一个项目；还没有项目时转到项目管理。旧网址 <code>/composites</code> 转到这里</td></tr>
+            <tr><td><code>/workspace</code></td><td>项目空间：转到第一个项目；还没有项目时留在项目空间，说明到项目管理添加（菜单标在项目空间）。属于项目的组合场景，画布与运行页的菜单也停在那个项目。旧网址 <code>/composites</code> 转到这里</td></tr>
             <tr><td><code>/projects/{代号}</code></td><td>项目页：这个项目的组合场景卡片、DAG 缩略图、快捷运行、最近报告、打开画布、删除；添加、导入组合场景（放进这个项目）</td></tr>
             <tr><td><code>/projects</code></td><td>项目管理（管理后台）：添加、改名、删除、调整顺序；还没分到项目的组合场景</td></tr>
             <tr><td><code>/playground</code></td><td>自由试验场：创建、导入组合场景与继续编辑画布</td></tr>
@@ -325,6 +325,7 @@
             <tr><td><code>PUT /api/scenes/{id}/contract-yaml</code>；<code>POST …/preview</code></td><td>左右契约一起保存或唯读校验：<code>baseRevision</code>、<code>inputs</code>／<code>outputs</code> 原文、可选的表格 <code>renames</code> 与 <code>note</code>。保存是单一新版本，校验回传解析后契约、不写入；错误包含 <code>section</code>、<code>sectionLine</code></td></tr>
             <tr><td><code>POST /api/contract/render</code></td><td>表格的内容（<code>key</code>、<code>items</code>）转成和保存一样的 YAML 写法，切到原文查看时用</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/scenes/{id}/sections/{段}</code>；<code>POST …/preview</code></td><td>场景文件的一段（<code>steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code>）：读取、只换掉这一段存成新版本（<code>baseRevision</code>、<code>text</code>、<code>note</code>）、换掉后校验但不保存（入参、出参回传表格用的数据）；问题带段落里的行号 <code>sectionLine</code></td></tr>
+            <tr><td><code>PUT /api/scenes/{id}/sections</code></td><td>一次换掉几段（场景详情页的脚本区）：<code>baseRevision</code>、<code>sections</code>（段落 → 原文，只放有改的）、<code>note</code>；一起校验、存成一个新版本；问题带所在段落 <code>section</code> 与段落里的行号 <code>sectionLine</code>；Python 脚本场景不能用（422 <code>section_script</code>）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/roles</code>；<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/roles/{角色}</code></td><td>登录角色：<code>name</code>、<code>loginUrl</code>、<code>checkUrl</code>、<code>check</code>（定位器）、<code>engine</code>、<code>autoLogin</code>；还有场景用到时不能删除</td></tr>
             <tr><td><code>POST /api/roles/{角色}/login</code>、<code>…/login/finish</code>、<code>…/login/cancel</code></td><td>人工登录：开浏览器窗口、完成、取消；进度看角色的 <code>activity</code> 与 <code>session</code></td></tr>
             <tr><td><code>POST /api/roles/{角色}/check</code>、<code>DELETE /api/roles/{角色}/state</code></td><td>在背景检查是否已登录（必要时自动登录），在服务器或发出请求的录制端检查；两边都没有角色用的浏览器时回 422 <code>role_check_unavailable</code>。注销</td></tr>
