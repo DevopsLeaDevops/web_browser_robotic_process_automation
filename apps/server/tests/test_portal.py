@@ -901,3 +901,50 @@ def test_projects_are_managed_and_hold_composites(portal: str, page: Page) -> No
         last.locator('[data-direction="up"]').click()
     assert domain_ids() == [*before[:-2], before[-1], before[-2]]
     assert errors == []
+
+
+@pytest.mark.parametrize("portal", [DEMO], indirect=True)
+def test_debug_page_explains_a_failed_version_switch(portal: str, page: Page, site: str) -> None:
+    """「存成新版本並繼續調試」：新版本存好了、但調試沒有換過去時（例如錄製端的 App 太舊），
+    留下說明，可以用新版本重新開始，不要只閃一下錯誤就重新整理（v0.6.3）。"""
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    api = page.request
+    started = api.post(
+        f"{portal}/api/scenes/ba-001/debug",
+        data={"engine": "chromium", "headless": True, "baseUrl": site, "restart": True},
+    )
+    assert started.status == 202, started.text()
+    page.goto(f"{portal}/scenes/ba-001/debug")
+    form = page.locator("#debug-yaml")
+    save = form.locator('button[type="submit"]')
+    expect(save).to_be_enabled(timeout=RUN_TIMEOUT_MS)
+    expect(form).to_have_attribute("data-revision", "1")
+
+    outdated = "錄製端「測試 Mac」的 App 版本太舊，不支援調試時換版本；請安裝新版的錄製端後再試"
+    page.route(
+        "**/api/debug/*/reload",
+        lambda route: route.fulfill(
+            status=422,
+            content_type="application/json",
+            body=json.dumps({"error": {"code": "recorder_outdated", "message": outdated}}),
+        ),
+    )
+    form.locator("textarea").fill(BA_001.replace("name: 建立範例紀錄", "name: 換版本"))
+    form.locator('input[name="note"]').fill("換版本")
+    save.click()
+    failed = page.locator("#debug-reload-failed")
+    expect(failed).to_be_visible()
+    expect(failed).to_contain_text("已存成 v2，但這個調試沒有換過去")
+    expect(failed).to_contain_text("版本太舊")
+    expect(failed).to_contain_text("從第 1 步重新執行")
+    expect(failed.locator('[data-action="debug-stay"]')).to_have_text("留在 v1")
+    restart = failed.locator('[data-action="debug-restart"]')
+    expect(restart).to_have_text("用 v2 重新開始調試")
+
+    restart.click()
+    page.wait_for_url(f"{portal}/scenes/ba-001/debug")
+    expect(page.locator("#debug-yaml")).to_have_attribute(
+        "data-revision", "2", timeout=RUN_TIMEOUT_MS
+    )
+    assert errors == []

@@ -7,6 +7,7 @@
 import json
 import threading
 import time
+from base64 import b64decode
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Client, Response
 
+from rpa_core.dsl.features import FEATURES
 from rpa_server.config import Settings
 from rpa_worker.environment import PROTOCOL
 from rpa_worker.pairing import CLIENT_API_PREFIX, parse_invite
@@ -468,14 +470,20 @@ class Device:
 
     def answer(self, process: str, call: Callable[[], Response], **reply: object) -> Response:
         """在背景送請求，等它變成給子程序的一行命令，再照命令的 id 回覆。"""
+        return self.exchange(process, call, **reply)[0]
+
+    def exchange(
+        self, process: str, call: Callable[[], Response], **reply: object
+    ) -> tuple[Response, JsonObject]:
+        """同 :meth:`answer`，另外傳回子程序收到的那一行命令。"""
         result: list[Response] = []
         thread = threading.Thread(target=lambda: result.append(call()))
         thread.start()
-        line = json.loads(str(self.next("input")["line"]))
+        line = cast("JsonObject", json.loads(str(self.next("input")["line"])))
         self.output(process, [json.dumps({"id": line["id"], **reply})])
         thread.join(10)
         assert result, "請求沒有結束"
-        return result[0]
+        return result[0], line
 
 
 def paired(client: Client, remote: Client, recorder_id: str = "agent-mac") -> Device:
@@ -611,6 +619,117 @@ def test_debug_runs_on_an_allowed_recorder(app: FastAPI, client: Client, remote:
     assert ("DELETE", "/debug/{session_id}", 200) in [
         (item["method"], item["action"], item["status"]) for item in audit
     ]
+
+
+def test_reload_on_a_recorder_sends_the_scenario_itself(
+    client: Client, remote: Client, settings: Settings
+) -> None:
+    """錄製端在另一台電腦，讀不到伺服器的檔案：換版本的命令直接帶場景內容與入參，不帶伺服器的路徑。
+
+    2026-10-26 America/Los_Angeles（PDT，UTC−07:00）：v0.6.2 換版本時送的是伺服器上的路徑，錄製端
+    讀不到，只回「場景校驗失敗」（Portal 的「存成新版本並繼續調試」與 Agent API 的 reload 都是）。
+    """
+    device = paired(client, remote)
+    device.hello(capabilities=["debugInlineLoad", "debugSnapshot"], features=sorted(FEATURES))
+    body(client.patch("/api/recorders/agent-mac", json={"allowAgent": True}))
+    agent = register(client, remote, scopes=EVERYTHING, recorders=["agent-mac"])
+    body(agent.post("/scenes", {"id": "order-create", "name": "建立訂單"}), 201)
+    first = scene_yaml("order-create")
+    saved: JsonObject = {"baseRevision": 1, "files": {"scenario.yaml": first}}
+    body(agent.post("/scenes/order-create/revisions", saved), 201)
+    session = body(
+        agent.post(
+            "/scenes/order-create/debug", {"revision": 2, "inputs": {"customer": "{{today}}"}}
+        ),
+        202,
+    )
+    session_id = str(session["id"])
+    process = str(device.next("start")["process"])
+    ready = {"event": "ready", "inputs": {"customer": "2026-10-26"}}
+    device.output(process, [json.dumps(ready)])
+    wait_until(lambda: body(agent.get(f"/debug/{session_id}"))["status"] == "ready")
+    step = device.answer(
+        process,
+        lambda: agent.post(f"/debug/{session_id}/steps/0"),
+        ok=True,
+        record={"id": "open", "status": "passed", "durationMs": 5},
+    )
+    body(step)
+
+    second = scene_yaml(
+        "order-create", "  - {id: submit, action: click, target: {role: button, name: 建立}}\n"
+    )
+    saved = {"baseRevision": 2, "files": {"scenario.yaml": second}}
+    body(agent.post("/scenes/order-create/revisions", saved), 201)
+    reloaded, line = device.exchange(
+        process,
+        lambda: agent.post(f"/debug/{session_id}/reload", {"revision": 3}),
+        ok=True,
+        steps=2,
+        inputs={"customer": "2026-10-26"},
+    )
+    assert line["cmd"] == "load"
+    sent = json.dumps(line, ensure_ascii=False)
+    assert str(settings.data_dir) not in sent  # 沒有錄製端讀不到的伺服器路徑
+    assert "scenario" not in line
+    assert "input" not in line
+    assert line["revision"] == 3
+    assert line["scenarioText"] == second
+    # 已經求過值的入參原樣沿用（跳脫後不會再求一次值）
+    assert line["inputs"] == {"customer": "2026-10-26"}
+    state = body(reloaded)
+    assert state["revision"] == 3
+    steps = cast("list[JsonObject]", state["steps"])
+    assert [(item["id"], item["status"]) for item in steps] == [
+        ("open", "passed"),
+        ("submit", "pending"),
+    ]
+    assert state["nextIndex"] == 1  # 執行過的步驟依 id 保留，接著跑新加的步驟
+
+    # 子程序校驗不過時，把具體的問題帶回來（不是只有一句「場景校驗失敗」）
+    issue = {"line": 7, "step": 2, "stepId": "submit", "field": "target", "text": "缺少定位方式"}
+    rejected = device.answer(
+        process,
+        lambda: agent.post(f"/debug/{session_id}/reload", {"revision": 3}),
+        ok=False,
+        error="場景校驗失敗：第 7 行：缺少定位方式",
+        issues=[issue],
+    )
+    failed = error(rejected, 422)
+    assert failed["code"] == "revision_invalid"
+    assert failed["issues"] == [issue]
+    assert "第 7 行" in str(failed["message"])
+
+    # 舊版的錄製端 App 不支援帶內容換版本：說明要更新，不送命令
+    device.hello(capabilities=["debugSnapshot"], features=sorted(FEATURES))
+    outdated = error(agent.post(f"/debug/{session_id}/reload", {"revision": 2}), 422)
+    assert outdated["code"] == "recorder_outdated"
+    assert "調試時換版本" in str(outdated["message"])
+    assert body(agent.get(f"/debug/{session_id}"))["revision"] == 3
+
+    # 調試頁的「用新版本重新開始調試」：開在原本那台錄製端（這個請求不是透過錄製端送的），
+    # 沿用無頭與已求過值的入參，從第 1 步開始
+    result: list[Response] = []
+    restarting = threading.Thread(
+        target=lambda: result.append(
+            client.post(f"/api/debug/{session_id}/restart", json={"revision": 2})
+        )
+    )
+    restarting.start()
+    device.next("close")
+    device.output(process, [], exit_code=0)
+    started = device.next("start")
+    restarting.join(10)
+    assert result, "請求沒有結束"
+    restarted = body(result[0], 202)
+    assert restarted["id"] != session_id
+    assert restarted["deviceId"] == "agent-mac"
+    assert restarted["revision"] == 2
+    assert restarted["headless"] is True
+    assert restarted["clientId"] == "agent-erp"
+    assert "--headed" not in cast("list[str]", started["args"])
+    sent = cast("dict[str, str]", started["files"])
+    assert any("2026-10-26" in b64decode(data).decode() for data in sent.values())
 
 
 # ---------------------------------------------------------------- 管理後台

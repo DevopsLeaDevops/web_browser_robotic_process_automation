@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from rpa_core.dsl import validate_file
 from rpa_core.dsl.dynamic import escape
 from rpa_runner import contract, debug, record
 
@@ -15,6 +16,24 @@ class RecorderTime(datetime):
     @classmethod
     def now(cls, tz: tzinfo | None = None) -> "RecorderTime":
         return cls(2035, 1, 2, 3, 4, 5, tzinfo=tz)
+
+
+def debug_start(scenario: Path, inputs: Path) -> dict[str, object]:
+    """調試子程序開始時的入參：和 ``_Session.__init__`` 相同的步驟。"""
+    valid = debug._valid(validate_file(scenario))  # pyright: ignore[reportPrivateUsage]
+    return debug._resolved(valid, debug._read_inputs(inputs))  # pyright: ignore[reportPrivateUsage]
+
+
+def load_command(form: str, scenario: Path, inputs: Path) -> dict[str, object]:
+    """換版本的命令：``inline`` 帶內容（v0.6.3 起的伺服器），``path`` 帶路徑（之前的伺服器）。"""
+    if form == "inline":
+        return {
+            "cmd": "load",
+            "revision": 2,
+            "scenarioText": scenario.read_text(encoding="utf-8"),
+            "inputs": json.loads(inputs.read_text(encoding="utf-8")),
+        }
+    return {"cmd": "load", "scenario": str(scenario), "input": str(inputs)}
 
 
 @pytest.fixture
@@ -41,7 +60,7 @@ def test_inputs_use_the_recorders_clock_and_evaluate_once(
 ) -> None:
     scenario, inputs = files
     if module == "debug":
-        _, resolved = debug._Session._load(scenario, inputs)  # pyright: ignore[reportPrivateUsage]
+        resolved = debug_start(scenario, inputs)
     else:
         _, resolved = record._load(  # pyright: ignore[reportPrivateUsage]
             argparse.Namespace(scenario=str(scenario), input=str(inputs))
@@ -50,22 +69,26 @@ def test_inputs_use_the_recorders_clock_and_evaluate_once(
     assert resolved == {"title": "2035-01-02", "tomorrow": "2035-01-03", "quantity": 7}
 
 
-def test_debug_reload_preserves_literals_and_existing_values(files: tuple[Path, Path]) -> None:
+@pytest.mark.parametrize("form", ["inline", "path"])
+def test_debug_reload_preserves_literals_and_existing_values(
+    files: tuple[Path, Path], form: str
+) -> None:
     scenario, inputs = files
     inputs.write_text(json.dumps({"title": escape("{{today}}"), "quantity": 9}), encoding="utf-8")
     session = object.__new__(debug._Session)  # pyright: ignore[reportPrivateUsage]
     existing: dict[str, object] = {"title": "{{today}}", "quantity": 9}
     session.inputs = existing
-    first = session.load(str(scenario), str(inputs))
+    first = session.load(load_command(form, scenario, inputs))
     expected = {"title": "{{today}}", "tomorrow": "2035-01-03", "quantity": 9}
     assert first["inputs"] == expected
     inputs.write_text(
         json.dumps({name: escape(value) for name, value in expected.items()}), encoding="utf-8"
     )
-    assert session.load(str(scenario), str(inputs))["inputs"] == expected
+    assert session.load(load_command(form, scenario, inputs))["inputs"] == expected
 
 
-def test_debug_reload_checks_new_dynamic_defaults(files: tuple[Path, Path]) -> None:
+@pytest.mark.parametrize("form", ["inline", "path"])
+def test_debug_reload_checks_new_dynamic_defaults(files: tuple[Path, Path], form: str) -> None:
     scenario, inputs = files
     scenario.write_text(
         scenario.read_text().replace(
@@ -78,7 +101,7 @@ def test_debug_reload_checks_new_dynamic_defaults(files: tuple[Path, Path]) -> N
     existing: dict[str, object] = {"title": "原本的值"}
     session.inputs = existing
     with pytest.raises(ValueError, match="minimum: 10"):
-        session.load(str(scenario), str(inputs))
+        session.load(load_command(form, scenario, inputs))
     assert session.inputs == {"title": "原本的值"}
 
 
@@ -88,7 +111,7 @@ def test_interactive_start_rejects_invalid_inputs(files: tuple[Path, Path], modu
     inputs.write_text('{"quantity": "invalid"}', encoding="utf-8")
     if module == "debug":
         with pytest.raises(ValueError, match="quantity"):
-            debug._Session._load(scenario, inputs)  # pyright: ignore[reportPrivateUsage]
+            debug_start(scenario, inputs)
     else:
         with pytest.raises(ValueError, match="quantity"):
             record._load(  # pyright: ignore[reportPrivateUsage]

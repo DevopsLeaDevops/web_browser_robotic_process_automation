@@ -117,11 +117,16 @@
   </div>
   <section class="panel">
     <div class="panel-header"><h2>{{ t("debug.yaml", number=session.revision) }}</h2><span class="muted">{{ t("debug.yaml_hint") }}</span></div>
-    <form class="panel-body stack" id="debug-yaml" data-base="{{ scene.latest_number }}">
+    <form class="panel-body stack" id="debug-yaml" data-base="{{ scene.latest_number }}" data-revision="{{ session.revision }}">
       {% if session.revision != scene.latest_number %}<div class="notice warn">{{ t("edit.older", shown=session.revision, latest=scene.latest_number) }}</div>{% endif %}
       <textarea class="code-editor" name="scenario.yaml" rows="22" spellcheck="false" aria-label="scenario.yaml">
 {{ yaml }}</textarea>
       <ul class="checklist form-issues" hidden></ul>
+      <div class="notice warn stack" id="debug-reload-failed" role="alert" hidden>
+        <p data-message></p>
+        <p class="hint">{{ t("debug.restart_hint") }}</p>
+        <div class="actions"><button class="button primary" type="button" data-action="debug-restart"></button><button class="button" type="button" data-action="debug-stay"></button></div>
+      </div>
       <label class="field">{{ t("edit.note") }}<input name="note" maxlength="500" placeholder="{{ t('edit.note_placeholder') }}"></label>
       <div><button class="button primary" type="submit"{% if session.status != "ready" %} disabled{% endif %}>{{ t("debug.save") }}</button></div>
     </form>

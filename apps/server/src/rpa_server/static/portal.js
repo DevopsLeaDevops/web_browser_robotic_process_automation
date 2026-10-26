@@ -1246,9 +1246,36 @@
           if (saved.status === 409 && saved.data && saved.data.error && saved.data.error.code === 'stale_base') return toast(messages.stale_base);
           return showIssues(list, saved);
         }
-        const reloaded = await api('POST', base + '/reload', {revision: saved.data.number});
-        flash(reloaded.ok ? messages.saved + ' v' + saved.data.number : errorMessage(reloaded));
-        location.reload();
+        const number = saved.data.number;
+        const reloaded = await api('POST', base + '/reload', {revision: number});
+        if (reloaded.ok) {
+          flash(messages.saved + ' v' + number);
+          return location.reload();
+        }
+        // 新版本已經存好，只是這個調試沒有換過去：留下說明，讓使用者選擇用新版本重新開始或留在原本的版本
+        busy(button, false);
+        yaml.dataset.base = String(number);
+        const failed = qs('#debug-reload-failed', yaml);
+        const current = {number: yaml.dataset.revision};
+        qs('[data-message]', failed).textContent = fill(messages.debug_reload_failed, {number, reason: errorMessage(reloaded)});
+        const restart = qs('[data-action="debug-restart"]', failed);
+        const stay = qs('[data-action="debug-stay"]', failed);
+        restart.textContent = fill(messages.debug_restart, {number});
+        stay.textContent = fill(messages.debug_stay, current);
+        restart.onclick = async () => {
+          busy(restart, true);
+          stay.disabled = true;
+          const restarted = await api('POST', base + '/restart', {revision: number});
+          if (!restarted.ok) {
+            busy(restart, false);
+            stay.disabled = false;
+            return toast(errorMessage(restarted));
+          }
+          location.href = '/scenes/' + path(scene) + '/debug';
+        };
+        stay.onclick = () => location.reload();
+        failed.hidden = false;
+        failed.scrollIntoView({block: 'nearest'});
       });
     }
   }

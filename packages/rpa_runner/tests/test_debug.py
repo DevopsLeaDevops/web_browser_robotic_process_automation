@@ -128,6 +128,37 @@ def test_locator_tester_counts_and_highlights(session: tuple[Session, Path]) -> 
     assert invalid["ok"] is False
 
 
+def test_load_takes_the_scenario_text_and_keeps_the_browser(
+    session: tuple[Session, Path],
+) -> None:
+    """換版本（v0.6.3）：命令直接帶場景內容與入參，子程序不讀伺服器的檔案（它可能在另一台電腦）；
+    瀏覽器與已開的頁面保留，接著執行下一步。"""
+    debug, _ = session
+    assert cast("dict[str, object]", debug.send("step", index=0)["record"])["status"] == "passed"
+    text = BA_001.read_text(encoding="utf-8").replace("name: 建立範例紀錄", "name: 建立範例紀錄 v2")
+    loaded = debug.send(
+        "load", revision=2, scenarioText=text, inputs={"title": "換版本之後", "quantity": 4}
+    )
+    assert loaded["ok"] is True, loaded
+    assert loaded["steps"] == 7
+    assert loaded["inputs"] == {"title": "換版本之後", "quantity": 4}
+    # 頁面還開著：不必重跑第 1 步，直接填寫標題
+    assert cast("dict[str, object]", debug.send("step", index=1)["record"])["status"] == "passed"
+
+    # 校驗失敗：說出哪一行、哪個步驟，不只是「場景校驗失敗」；工作階段照常可用
+    broken = text.replace("action: goto", "action: teleport", 1)
+    rejected = debug.send("load", revision=3, scenarioText=broken, inputs={})
+    assert rejected["ok"] is False
+    assert str(rejected["error"]).startswith("場景校驗失敗：第 52 行"), rejected
+    issues = cast("list[dict[str, object]]", rejected["issues"])
+    assert issues[0]["line"] == 52
+    assert issues[0]["stepId"] == "open"
+    not_object = debug.send("load", revision=3, scenarioText=text, inputs=["x"])
+    assert not_object["ok"] is False
+    assert "issues" not in not_object
+    assert cast("dict[str, object]", debug.send("step", index=2)["record"])["status"] == "passed"
+
+
 def test_reset_and_unknown_command(session: tuple[Session, Path]) -> None:
     debug, _ = session
     debug.send("step", index=0)

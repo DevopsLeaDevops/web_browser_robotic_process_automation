@@ -989,6 +989,11 @@ def api_router(services: Services) -> APIRouter:
     def debug_reload(session_id: str, body: DebugReload) -> dict[str, object]:
         return debug.reload(session_id, body.revision).to_json()
 
+    @router.post("/debug/{session_id}/restart", status_code=202)
+    def debug_restart(session_id: str, body: DebugReload) -> dict[str, object]:
+        """用指定版本重新開始（換版本失敗時）：沿用瀏覽器、模式、網址與入參，從第 1 步開始。"""
+        return debug.restart(session_id, body.revision).to_json()
+
     @router.delete("/debug/{session_id}")
     def close_debug(session_id: str) -> dict[str, object]:
         debug.close(session_id)

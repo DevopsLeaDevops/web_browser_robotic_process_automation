@@ -195,14 +195,33 @@ def test_debug_session_runs_on_the_recorder(
         assert image.status_code == 200
         assert image.content.startswith(b"\x89PNG")  # 錄製端截的圖傳回管理 Portal
 
+        # 存一個新版本再換過去（Portal 的「存成新版本並繼續調試」）：換版本的命令帶場景內容，
+        # 錄製端的子程序不必讀伺服器的檔案（v0.6.3；之前送伺服器上的路徑，兩台電腦時讀不到）
+        text = (DEMO / "ba-001.yaml").read_text(encoding="utf-8")
+        saved = body(
+            browser.post(
+                "/api/scenes/ba-001/revisions",
+                json={
+                    "baseRevision": 1,
+                    "files": {"scenario.yaml": text.replace("name: 建立範例紀錄", "name: 換版本")},
+                },
+                headers={"Origin": gateway.origin},
+            ),
+            201,
+        )
+        assert saved["number"] == 2
         reloaded = body(
             browser.post(
                 f"/api/debug/{session['id']}/reload",
-                json={"revision": 1},
+                json={"revision": 2},
                 headers={"Origin": gateway.origin},
             )
         )
+        assert reloaded["revision"] == 2
         assert reloaded["inputs"] == state["inputs"]
+        kept = cast("list[JsonObject]", reloaded["steps"])
+        assert kept[0]["status"] == "passed"  # 執行過的步驟依 id 保留，不會重跑
+        assert reloaded["nextIndex"] == 1
         finished = body(
             browser.post(f"/api/debug/{session['id']}/run-to/5", headers={"Origin": gateway.origin})
         )
