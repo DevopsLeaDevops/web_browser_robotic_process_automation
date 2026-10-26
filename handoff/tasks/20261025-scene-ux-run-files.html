@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261025-scene-ux-run-files；2026-10-25 22:58 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261025-scene-ux-run-files；2026-10-25 23:04 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-25 20:55 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話提出 12 項（見下方「需求」）。目標：降低理解成本、操作簡單、伺服器網站與錄製端（沒有上一頁、下一頁）都能用。並要一份用更新檔升級的驗收教學。</dd>
         <dt>範圍／不包含</dt><dd>範圍：場景詳情頁的版面與入口、專案空間選單反白、錄製端輸入框自動大寫、運行檔案的編碼與錄影播放下載、automation.log 重新設計、運行報告與運行回看的整併。不包含：Python 腳本場景的新設計（#82）、熱更新本身的程式（ADR 0018，已在 v0.6.0）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd>apps/server：<code>pages.py</code>、<code>render.py</code>、<code>api.py</code>、<code>services.py</code>、樣板（<code>scene.html</code>、<code>run.html</code>、<code>runs.html</code>、<code>replay.html</code>、<code>domain.html</code>、<code>edit.html</code>、<code>recording.html</code>、新 <code>workspace.html</code>；刪除 <code>section.html</code>、<code>replays.html</code>）、<code>portal.js</code>、<code>portal-app.css</code>、訊息目錄；packages/rpa_runner：新 <code>steplog.py</code>、<code>child.py</code>、訊息目錄；apps/desktop：<code>ui/recorder.html</code>、<code>ui/worker.html</code>；測試；docs/design（portal、architecture、dsl，繁中與英文）。共用檔案：任務索引、訊息目錄（簡中待 bootstrap）。Claude 整合。</dd>
-        <dt>狀態</dt><dd>待審閱：PR #86 已開，等最新 head 的 CI 與使用者審閱、合併。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #86 在 <code>50c8a6e</code> 的 CI 全部通過，等使用者審閱、合併。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>fix/scene-ux-run-files</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/86">PR #86</a>（一般 PR，對 main）；base main <code>f76a950</code>（v0.6.0 標籤）。</dd>
         <dt>交接版本／同步狀態</dt><dd>已推送：實作 <code>6836e95</code>、bootstrap 機器人的簡中 <code>c2361fa</code>，之後的提交只更新本紀錄。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13、uv 0.11.32）；PyPI 連不到，依 uv.lock 版本從 GitHub 取得純 Python 依賴（見 Claude 專案的 dynamic-values-notes 做法）；Ruff 0.17.1、Pyright 1.1.414。</dd>
@@ -62,9 +62,9 @@
             <li>熱更新驗收教學：Claude 專案對話裡的文件「v0.6.1 熱更新驗收指引」（前提、發版、升級伺服器、裝置跟著更新、12 項驗收清單、出問題時）。這次沒有改 Python、第三方套件、打包設定或 rpa_update，環境代號不變，可以用更新檔；沒有資料庫遷移。</li>
           </ol>
         </li>
-        <li><strong>未完成／阻礙：</strong>最新 head 的 CI；審閱與合併；發 v0.6.1；人工驗收。使用者的伺服器目前從解壓的分發包資料夾直接執行（<code>/home/admin/RPA-Server-0.6.0-linux-x64/bin/rpa serve</code>），不是 install.sh 的安裝版，<code>bin/rpa update</code> 會拒絕；要先用同一份 0.6.0 執行 <code>bash install.sh --skip-system-packages</code>，再以 <code>~/rpa-server/bin/rpa serve</code> 和原本的參數重新啟動（步驟在驗收指引）。</li>
+        <li><strong>未完成／阻礙：</strong>審閱與合併；發 v0.6.1；人工驗收。使用者的伺服器目前從解壓的分發包資料夾直接執行（<code>/home/admin/RPA-Server-0.6.0-linux-x64/bin/rpa serve</code>），不是 install.sh 的安裝版，<code>bin/rpa update</code> 會拒絕；要先用同一份 0.6.0 執行 <code>bash install.sh --skip-system-packages</code>，再以 <code>~/rpa-server/bin/rpa serve</code> 和原本的參數重新啟動（步驟在驗收指引）。</li>
         <li><strong>決定：</strong>使用者已確認的是 12 項需求本身；以下是實作選擇，待審閱：腳本區與入參出參分成兩個編輯區、各自存檔；完整場景檔另開視窗；運行回看清單併進運行報告（保留回看頁）；automation.log 的格式；專案空間沒有專案時的空白頁；專案裡的組合場景選單停在專案。</li>
-        <li><strong>下一個具體動作：</strong>核對 PR #86 最新 head 的 CI；使用者把伺服器改成安裝版、審閱合併後發 v0.6.1，照驗收指引用更新檔升級並驗收。</li>
+        <li><strong>下一個具體動作：</strong>使用者把伺服器改成安裝版、審閱合併後發 v0.6.1，照驗收指引用更新檔升級並驗收。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無；本地測試用的 venv 與依賴在容器的 <code>/home/claude/venv</code>、<code>/home/claude/deps</code>，不在倉庫。</li>
       </ul></div>
     </section>
@@ -81,7 +81,7 @@
           <tr><td>Chromium 手動</td><td>舊 CSP 與新 CSP 各直接打開一段 WebM</td><td>舊的出現 CSP 違規、載入被擋；新的沒有違規</td><td>實際錄影檔的播放在 CI 與人工驗收</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：PR #86，見追加紀錄；人工驗收：未執行（步驟見「v0.6.1 熱更新驗收指引」第四步的 12 項）；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：PR #86 的 <code>50c8a6e</code> 全部通過（13 項；Windows Worker 測試第 1 次失敗後重跑通過，見追加紀錄）；人工驗收：未執行（步驟見「v0.6.1 熱更新驗收指引」第四步的 12 項）；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -92,7 +92,8 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-25 21:02 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main f76a950 開分支 <code>fix/scene-ux-run-files</code>，建立本紀錄。</li>
         <li>2026-10-25 21:50 America/Los_Angeles（PDT，UTC−07:00），Claude：12 項實作完成、本地檢查（見上表）；寫好熱更新驗收指引。本次工作階段以讀取權限取得倉庫，<code>add_repo</code> 的推送權限被自動模式擋下，提交只在本地。</li>
-        <li>2026-10-25 22:47～22:58 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者同意推送；推送 <code>6836e95</code>，bootstrap 成功並提交 <code>c2361fa</code>（只有簡中：兩個訊息目錄與三個設計文件），開 PR #86。使用者說明伺服器的啟動方式（解壓的分發包資料夾直接執行），確認那樣不能用更新檔，驗收指引補上改成安裝版的步驟。</li>
+        <li>2026-10-25 22:47～22:54 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者同意推送；推送 <code>6836e95</code>，bootstrap 成功並提交 <code>c2361fa</code>（只有簡中：兩個訊息目錄與三個設計文件），開 PR #86。使用者說明伺服器的啟動方式（解壓的分發包資料夾直接執行），確認那樣不能用更新檔，驗收指引補上改成安裝版的步驟。</li>
+        <li>2026-10-25 23:04 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #86 的 CI。<code>6836e95</code>：測試（Python 3.12／3.13）只有 <code>tests/i18n/test_generated.py</code> 失敗（簡中還沒產生，1964 個測試的其餘都通過），其他流程通過。<code>c2361fa</code>（機器人的提交）：action_required，沒有執行。<code>50c8a6e</code>：靜態檢查、測試（Python 3.12、3.13）、伺服器分發包（x64、arm64）、桌面端建置（Windows、macOS 的 Worker 與錄製端）通過；「Worker 測試（Windows）」第 1 次只有 <code>packages/rpa_runner/tests/test_video_browser.py::test_cancelled_run_keeps_a_playable_video[chromium]</code> 失敗（影片 <code>unreadable</code>，和 v0.6.0 發布紀錄記下的取消錄影不穩定是同一個測試，這次沒有改錄影的程式），只重跑失敗的工作後通過。根因沒有處理，不能說已解決。</li>
       </ul></div>
     </section>
   </div>
