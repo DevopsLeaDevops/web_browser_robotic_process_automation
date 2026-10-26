@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:b321633140fd496d">
+<meta name="translation-source" content="sha256:5ea6669b49010c62">
 <title>Agent API · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -198,7 +198,7 @@
             <tr><td><code>POST /debug/{sid}/locate</code></td><td>Test a locator: how many match and the first few texts</td><td>debug</td><td>Existing</td></tr>
             <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>Run one step; a step with side effects that already ran needs <code>force</code></td><td>debug</td><td>Existing</td></tr>
             <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>Run from the next unexecuted step up to a step, stopping at a failure</td><td>debug</td><td>Existing</td></tr>
-            <tr><td><code>POST /debug/{sid}/reload</code></td><td>Switch to the revision just saved, keeping the browser and the steps already run</td><td>debug</td><td>Existing</td></tr>
+            <tr><td><code>POST /debug/{sid}/reload</code></td><td>Switch to the revision just saved, keeping the browser and the steps already run (the command carries the scenario text; the recorder app must support <code>debugInlineLoad</code>, v0.6.3)</td><td>debug</td><td>Existing</td></tr>
             <tr><td><code>POST /debug/{sid}/reset</code>, <code>DELETE /debug/{sid}</code></td><td>Start over; end the session</td><td>debug</td><td>Existing</td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/validate</code></td><td>Have a Worker validate; optional <code>workerId</code>, run location, inputs</td><td>runs:validate</td><td>Existing + <code>workerId</code></td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>Publish a revision that passed validation with a matching hash</td><td>scenes:publish</td><td>Existing</td></tr>

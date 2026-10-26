@@ -198,7 +198,7 @@
             <tr><td><code>POST /debug/{sid}/locate</code></td><td>测试定位器：找到几个、前几个的文字</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>运行一步；有副作用而且跑过的要带 <code>force</code></td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>从下一个还没运行的步骤运行到第几步，失败就停</td><td>debug</td><td>沿用</td></tr>
-            <tr><td><code>POST /debug/{sid}/reload</code></td><td>换到刚存的新版本，浏览器与已运行的步骤保留</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/reload</code></td><td>换到刚存的新版本，浏览器与已运行的步骤保留（命令带场景内容；录制端的 App 要支持 <code>debugInlineLoad</code>，v0.6.3）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reset</code>、<code>DELETE /debug/{sid}</code></td><td>从头开始、结束</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/validate</code></td><td>交给 Worker 验证；选填 <code>workerId</code>、运行位置、入参</td><td>runs:validate</td><td>沿用＋<code>workerId</code></td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>发布验证通过、哈希相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>

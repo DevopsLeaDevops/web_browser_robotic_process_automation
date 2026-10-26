@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-remote-debug-reload · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-remote-debug-reload：在錄製端調試時不能換版本</h1><p>逐步調試在錄製端（另一台電腦）執行時，「換到新版本繼續」一定失敗、只回「場景校驗失敗」：Portal 調試頁的「存成新版本並繼續調試」與 Agent API 的 <code>POST /debug/{id}/reload</code> 都是。修正後一起發 v0.6.3。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-remote-debug-reload；2026-10-26 07:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 06:14 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話回報：照驗收教程關卡 B 請第三方 Agent 建立場景，<code>POST /debug/{id}/reload</code> 一直回 <code>422 revision_invalid</code>「ValueError: 場景校驗失敗」（錄製端 mac-01，0.6.2），重新開調試則正常。Claude 分析原因後提出修正方案（三點選項），使用者 06:33 回覆「按照你的建議，動手coding，發0.6.3版本」。驗收：在 Mac 錄製端調試時，Portal 的「存成新版本並繼續調試」與 Agent API 的 reload 都能換到新版本，執行過的步驟依 id 保留、接著跑新加的步驟；錄製端是舊版時說明要更新；發布 v0.6.3。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：調試子程序的 <code>load</code> 命令改成帶場景內容與入參；錄製端回報新能力 <code>debugInlineLoad</code>，伺服器換版本前檢查；子程序校驗失敗時回傳具體問題；調試頁換版本失敗時的提示與「用新版本重新開始調試」；測試、Agent 使用指南與設計頁；v0.6.3 發版（另一份任務紀錄）。不包含：錄製、人工登入（只在開始時傳檔，不受影響）；其他調試命令（不帶檔案路徑）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）主責；審閱與合併：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/debug.py</code>、runner 訊息目錄；<code>apps/worker/src/rpa_worker/environment.py</code>（CAPABILITIES）；<code>apps/server/src/rpa_server/debugging.py</code>（<code>reload</code>、新的 <code>restart</code>）、<code>api.py</code>（<code>POST /api/debug/{id}/restart</code>）、<code>render.py</code>、<code>static/portal.js</code>、<code>templates/debug.html</code>、伺服器訊息目錄；測試 <code>apps/server/tests/test_agent_api.py</code>、<code>test_portal.py</code>、<code>test_recorder_flow.py</code>、<code>apps/worker/tests/test_protocol.py</code>、<code>packages/rpa_runner/tests/test_debug.py</code>、<code>test_interactive_inputs.py</code>；文檔 <code>docs/develop/agent-api-guide.html</code>、<code>docs/design/agent-api.html</code>、<code>docs/design/portal.html</code> 與英文版（簡中由 bootstrap 產生）；任務索引。Claude 整合。</dd>
+        <dt>狀態</dt><dd>實作完成、本地檢查通過，待推送與 CI。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/remote-debug-reload</code>；PR #90（對 main）；base main <code>8e84c6a</code>（PR #89 v0.6.2 合併）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：實作 <code>3b1fa92</code>、bootstrap 簡中 <code>f290c6d</code>；之後的提交見 PR。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器 Linux x86_64、Python 3.13.17。PyPI 被代理拒絕（<code>uv sync --locked</code> 失敗，files.pythonhosted.org 的 CONNECT 回 403），改用系統 Python 加上依 <code>uv.lock</code> 版本從 GitHub clone 的 fastapi 0.148.0、starlette 1.9.0、sqlalchemy 2.1.5、alembic 1.20.0、mako 1.4.3、annotated-doc 0.0.5；Ruff 0.17.1（GitHub release）、Pyright 1.1.414、pytest 9.1.1（沒有 pytest-xdist）；系統 Playwright 只有 Chromium（chromium-1243），沒有 Firefox。簡中靠 <code>[bootstrap]</code>。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ol class="steps">
+        <li><code>DebugManager.reload</code> 把新版本的場景檔與入參寫進伺服器上這個工作階段的資料夾，再送 <code>{"cmd": "load", "scenario": 伺服器路徑, "input": 伺服器路徑}</code>。</li>
+        <li>工作階段在錄製端時，命令經 <code>RemoteProcess</code> 的標準輸入原樣送出（<code>devices.py</code> 的 <code>_Stdin.write</code>）；路徑轉換與傳檔（<code>_Translator</code>）只在開始調試時做。</li>
+        <li>錄製端把這一行原樣寫給子程序；子程序讀不到伺服器的路徑，<code>validate_file</code> 回「檔案讀不到」，<code>_load</code> 只拋出「場景校驗失敗」，伺服器轉成 <code>422 revision_invalid</code>。</li>
+        <li>CI 沒抓到：<code>test_recorder_flow.py</code> 的錄製端和伺服器在同一台、同一個磁碟，伺服器的路徑剛好讀得到。M10.2（錄製端，2026-10-19）起所有「伺服器沒有瀏覽器、調試在錄製端」的部署都會遇到。</li>
+      </ol></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>(1) 子程序 <code>rpa_runner.debug</code> 的 <code>load</code> 接受 <code>revision</code>、<code>scenarioText</code>、<code>inputs</code>（不讀檔），舊的路徑寫法保留；場景校驗失敗改成 <code>ScenarioInvalidError</code>，訊息寫出第一個問題的行號與說明，回覆帶 <code>issues</code>（欄位同存版本時）。(2) <code>rpa_worker.environment.CAPABILITIES</code> 加 <code>debugInlineLoad</code>。(3) <code>DebugManager.reload</code> 一律送內容；調試在錄製端時先 <code>require(debugInlineLoad)</code>，舊版回 <code>422 recorder_outdated</code>「不支援調試時換版本」；子程序的 <code>issues</code> 轉成 <code>revision_invalid</code> 的 <code>issues</code>。(4) 新的 <code>DebugManager.restart</code> 與 <code>POST /api/debug/{id}/restart</code>：用指定版本重新開始，沿用瀏覽器、模式、網址、入參（跳脫已求值的值），開在原本那台（<code>use_recorder</code> 固定裝置，不看請求從哪裡來）。(5) 調試頁「存成新版本並繼續調試」換版本失敗時，保留提示「已存成 vN，但這個調試沒有換過去：原因」與「用 vN 重新開始調試」「留在 v原本」兩個按鈕，不再閃一下就重新整理。(6) 文檔：Agent 使用指南（換版本需要 0.6.3、舊錄製端的處理、錯誤表）、設計：管理 Portal（調試頁與 API 表）、設計：對外 Agent API（reload 列），繁中與英文（已 stamp）。重現：<code>test_agent_api.py::test_reload_on_a_recorder_sends_the_scenario_itself</code> 在修正前失敗，錄製端收到的命令是 <code>{"cmd": "load", "scenario": "…/data/debug/&lt;id&gt;/scenario-3.yaml", "input": "…/input-3.json"}</code>。</li>
+        <li><strong>未完成／阻礙：</strong>推送（含 <code>[bootstrap]</code> 產生簡中）、PR、CI；v0.6.3 發版（任務 20261026-release-0-6-3）；人工驗收（兩台電腦：Mac 錄製端＋Linux 伺服器）。端對端測試的錄製端與伺服器仍在同一台、讀得到彼此的檔案，所以「讀不到伺服器檔案」只由 <code>test_agent_api.py</code> 檢查送出的命令來防止回歸。</li>
+        <li><strong>決定：</strong>使用者 2026-10-26 06:33 America/Los_Angeles（PDT，UTC−07:00）同意 Claude 的建議：(1) 錄製端是舊版時回 <code>422 recorder_outdated</code> 說明要更新，不自動重開工作階段；(2) 調試頁換版本失敗時保留提示並提供「用新版本重新開始調試」；(3) 合併後馬上發 v0.6.3。實作選擇（Claude，可改）：<code>load</code> 命令帶 <code>revision</code>、<code>scenarioText</code>、<code>inputs</code>，子程序仍接受舊的路徑寫法（相容舊伺服器）；本機與錄製端都送內容，不分兩條路；能力名稱 <code>debugInlineLoad</code>。</li>
+        <li><strong>下一個具體動作：</strong>提交並推送（提交訊息含 <code>[bootstrap]</code>），等機器人的簡中提交後開 PR、確認最新 head 的 CI；使用者合併後開 <code>chore/release-0.6.3</code>。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>本機未提交的修改都在本分支的工作區；無 stash。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>8e84c6a，上述容器環境</td><td><code>python -m pytest -q packages/rpa_runner/tests/test_debug.py apps/server/tests/test_agent_api.py apps/server/tests/test_recorder_flow.py -k "not firefox"</code>（改動前的基準）</td><td>15 passed</td><td>沒有 Firefox</td></tr>
+          <tr><td>8e84c6a＋新測試</td><td><code>python -m pytest -q apps/server/tests/test_agent_api.py -k reload_on_a_recorder</code></td><td>失敗（重現）：送給錄製端的命令含伺服器資料目錄的路徑</td><td>錄製端是測試替身</td></tr>
+          <tr><td>8e84c6a＋本任務的工作區差異（2026-10-26 07:05 PDT）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>（Ruff 0.17.1）</td><td>通過；308 個檔案已格式化</td><td>無</td></tr>
+          <tr><td>同上</td><td><code>pyright</code>（全倉庫，1.1.414）</td><td>變更的檔案 0 錯誤；全倉庫剩 19 個錯誤，都在 <code>apps/desktop</code>（本機沒有 keyring、pywebview、pystray）</td><td>CI 有完整依賴</td></tr>
+          <tr><td>同上</td><td><code>python -m pytest -q -m "not browser"</code></td><td>全部通過，除了 2 項環境造成的失敗（改動前的基準也一樣失敗）：<code>tests/i18n/test_generated.py</code>（沒有 OpenCC）、<code>packages/rpa_update/tests/test_runtime.py::test_installed_distributions_skip_workspace_and_pip</code>（這個 venv 用 .pth 引入依賴，沒有安裝的套件紀錄）</td><td>簡中靠 bootstrap；CI 有完整環境</td></tr>
+          <tr><td>同上，Chromium（chromium-1243）</td><td><code>python -m pytest -q apps/server/tests/test_agent_api.py apps/server/tests/test_portal.py apps/server/tests/test_recorder_flow.py apps/server/tests/test_production_flow.py packages/rpa_runner/tests/test_debug.py packages/rpa_runner/tests/test_interactive_inputs.py apps/worker/tests/test_protocol.py -k "not firefox"</code></td><td>全部通過：錄製端換版本送內容、校驗問題帶回、舊錄製端回 <code>recorder_outdated</code>、重新開始開在原本的錄製端；子程序用內容換版本後瀏覽器保留；真的錄製端（同一台）存 v2 後換過去、第 1 步保留、接著跑完；調試頁換版本失敗時的提示與「用 v2 重新開始調試」（以攔截 <code>reload</code> 回 422 模擬）</td><td>沒有 Firefox；沒有真的兩台電腦</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 06:40 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>8e84c6a</code> 開分支 <code>fix/remote-debug-reload</code>，建立本紀錄，寫出重現測試。</li>
+        <li>2026-10-26 07:10 America/Los_Angeles（PDT，UTC−07:00），Claude：實作、測試與文檔完成，本地檢查通過（見驗證），準備推送。</li>
+        <li>2026-10-26 07:15 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>3b1fa92</code>（<code>[bootstrap]</code>）；機器人提交簡中 <code>f290c6d</code>，但 bootstrap 的「檢查」步驟失敗（工作日誌下載被代理擋下，沒有 annotations），改看 PR 的 CI。</li>
+        <li>2026-10-26 07:25 America/Los_Angeles（PDT，UTC−07:00），Claude：開 PR #90。CI 的「靜態檢查」在 <code>92d8b96</code> 失敗：<code>debugging.py</code> 第 603 行 E501（本地最後一次全倉庫 Ruff 之後改了 <code>restart</code> 的說明），bootstrap 的「檢查」失敗也是這個原因；修正後重跑 Ruff、格式與 Pyright 通過。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

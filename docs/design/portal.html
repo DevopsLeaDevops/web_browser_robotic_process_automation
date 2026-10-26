@@ -152,7 +152,7 @@
           <li><strong>開始。</strong>場景頁的「逐步調試」或卡片的「調試」選版本、入參、瀏覽器與視窗模式。有圖形介面時瀏覽器視窗開在這台電腦上；兩種模式都在頁面上顯示每一步之後的截圖、網址與頁面事實。只支援 DSL 場景。</li>
           <li><strong>執行。</strong>每一步可以「執行這一步」，或「執行到這裡」（只執行還沒執行過的步驟，遇到失敗就停）。有副作用的步驟（點擊、填寫、選擇、勾選、按鍵）執行過一次後，再執行要先確認；不會自動重複任何步驟。「從頭開始」開新的頁面並重新載入登入狀態。</li>
           <li><strong>定位器測試。</strong>輸入 DSL 定位器（例如 <code>{ role: button, name: 登入 }</code>），回報找到幾個元素與前幾個的文字，截圖時以紅框標出。</li>
-          <li><strong>修改。</strong>頁面下方直接編輯 YAML，存成新版本後換到新版本繼續；瀏覽器與頁面事實保留，執行過的步驟依 id 保留狀態。</li>
+          <li><strong>修改。</strong>頁面下方直接編輯 YAML，存成新版本後換到新版本繼續；瀏覽器與頁面事實保留，執行過的步驟依 id 保留狀態。換版本的命令直接帶場景內容與入參，調試在錄製端（另一台電腦）時也能換（v0.6.3 修正；之前送伺服器上的路徑，只回「場景校驗失敗」）。新版本存好、但沒有換過去時（例如錄製端的 App 太舊），頁面留下說明，可以選「用新版本重新開始調試」（關掉目前的瀏覽器、沿用入參與設定，從第 1 步開始）或留在原本的版本。</li>
           <li><strong>限制。</strong>每個場景同一時間一個工作階段；閒置 15 分鐘自動結束，伺服器關閉時全部結束。調試會真的操作目標網站，請用測試環境。</li>
         </ul>
       </div>
@@ -332,7 +332,7 @@
             <tr><td><code>GET</code>、<code>POST /api/recordings</code>、<code>POST /api/recordings/import</code></td><td>錄製清單；在這台電腦錄製（202）；貼上錄製稿直接轉換（201）。都要 <code>target</code>（新場景，或既有場景加 <code>mode</code>：<code>continue</code> 接著現有步驟、<code>replace</code> 整份換掉）、<code>url</code>、<code>engine</code>、選用的 <code>roleId</code></td></tr>
             <tr><td><code>GET /api/recordings/{錄製編號}</code>、<code>…/cancel</code></td><td>錄製狀態、轉不了的行與檔案；取消錄製</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>開始逐步調試（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已經有工作階段時回傳它</td></tr>
-            <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作階段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>調試狀態與結束；執行一步（有副作用而且執行過時 409 <code>confirm_required</code>，帶 <code>force</code> 再送）、執行到第 n 步、測試定位器、截圖、從頭開始、換到新版本</td></tr>
+            <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作階段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code>、<code>…/restart</code></td><td>調試狀態與結束；執行一步（有副作用而且執行過時 409 <code>confirm_required</code>，帶 <code>force</code> 再送）、執行到第 n 步、測試定位器、截圖、從頭開始、換到新版本（錄製端的 App 不支援時 422 <code>recorder_outdated</code>）、用指定版本重新開始（沿用瀏覽器、模式、網址與入參）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>序列清單（含問題、依賴狀態與最近一次執行）；新增序列（<code>name</code>、<code>description</code>、選用的 <code>definition</code>，帶了就是匯入；選用的 <code>code</code>、<code>domainId</code> 與 <code>projectId</code>，沒有那個專案 404 <code>project_not_found</code>）</td></tr>
             <tr><td><code>GET /api/workflows/library</code></td><td>場景庫：發布過的場景版本，以及它們的入參、出參與登入角色</td></tr>
             <tr><td><code>POST /api/workflows/check</code></td><td>檢查一份定義（不存檔），回傳 <code>problems</code></td></tr>

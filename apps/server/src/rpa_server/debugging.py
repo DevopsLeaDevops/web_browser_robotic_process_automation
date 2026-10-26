@@ -6,6 +6,8 @@
 - **有副作用的步驟**（點擊、填寫、選擇、勾選、按鍵）執行過一次後，再執行要使用者明確確認，
   「執行到這一步」只會執行還沒執行過的步驟，不會自動重複任何步驟。
 - 修改 YAML 存成新版本後可以換到新版本繼續（瀏覽器與 facts 保留，執行過的步驟依 id 對應）。
+  換版本的命令直接帶場景內容與入參，不帶伺服器上的路徑：子程序在錄製端時讀不到伺服器的檔案
+  （v0.6.3 修正；錄製端的 App 要支援 ``debugInlineLoad``）。
 - 只支援 DSL 場景；Python 腳本場景請用驗證執行。
 - 在錄製端調試時，場景用到錄製端的 App 看不懂的 DSL 擴充（例如 iframe 的 frame，M7a）就不開始，
   直接說明要更新 RPA 錄製端（見 :meth:`rpa_server.devices.RecorderHub.check`）。
@@ -33,7 +35,7 @@ from rpa_runner.browser import DEFAULT_STEP_TIMEOUT_MS
 from rpa_runner.commands import module_command
 from rpa_runner.contract import prepare_inputs
 from rpa_runner.run import ENV_STORAGE_STATE
-from rpa_server.context import Via
+from rpa_server.context import Via, use_recorder
 from rpa_server.domain import now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
@@ -46,7 +48,14 @@ if TYPE_CHECKING:
     from rpa_server.roles import RoleService
     from rpa_server.services import Services
 
-__all__ = ["IDLE_SECONDS", "SIDE_EFFECTS", "SNAPSHOT", "DebugManager", "DebugSession"]
+__all__ = [
+    "IDLE_SECONDS",
+    "INLINE_LOAD",
+    "SIDE_EFFECTS",
+    "SNAPSHOT",
+    "DebugManager",
+    "DebugSession",
+]
 
 IDLE_SECONDS: Final = 15 * 60.0
 """閒置這麼久就關閉工作階段。"""
@@ -58,6 +67,8 @@ ENGINES: Final = ("chromium", "firefox")
 _ACTIVE: Final = frozenset({"starting", "ready", "busy"})
 SNAPSHOT: Final = "debugSnapshot"
 """讀頁面結構：錄製端的 App 要回報支援這個功能（M14，見 rpa_worker.environment.CAPABILITIES）。"""
+INLINE_LOAD: Final = "debugInlineLoad"
+"""換版本的 ``load`` 命令直接帶場景內容（v0.6.3）：在錄製端調試時，那台的 App 要支援。"""
 _SNAPSHOT_KEYS: Final = ("url", "title", "tabs", "frames", "fields", "aria", "truncated")
 
 
@@ -541,13 +552,15 @@ class DebugManager:
         if session.device is not None and self.hosts is not None:
             via = self.hosts.current()
             if via is None or via.id != session.device:
-                via = Via(session.device, session.device)
+                via = Via(session.device, self.hosts.get_recorder(session.device).name)
             self.hosts.check(
                 via, headed=False, features=scenario_features(scenario) | input_features(raw)
             )
-        files = self.services.revision_files(session.scene_id, revision)
-        path = session.folder / f"scenario-{revision}.yaml"
-        path.write_text(files[SCENARIO_FILE], encoding="utf-8")
+            # 錄製端在另一台電腦：要能接受直接帶內容的 load 命令（v0.6.3），舊版說明要更新
+            self.hosts.require(via, INLINE_LOAD)
+        text = self.services.revision_files(session.scene_id, revision)[SCENARIO_FILE]
+        # 留一份在伺服器的工作階段資料夾，方便查問題；子程序用的是命令裡的內容
+        (session.folder / f"scenario-{revision}.yaml").write_text(text, encoding="utf-8")
         # 既有入參已求值；只讓新版本新增的預設值求值，保留跳脫後的字面文字。
         resolved, problems = prepare_inputs(scenario, raw)
         if problems:
@@ -556,9 +569,16 @@ class DebugManager:
             resolved = defaults | {k: v for k, v in session.inputs.items() if k in scenario.inputs}
         inputs = session.folder / f"input-{revision}.json"
         inputs.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
-        reply = self._command(session, 60, cmd="load", scenario=str(path), input=str(inputs))
+        # 子程序可能在錄製端（另一台電腦），讀不到伺服器的檔案：場景內容與入參直接放在命令裡
+        reply = self._command(
+            session, 60, cmd="load", revision=revision, scenarioText=text, inputs=raw
+        )
         if not reply.get("ok"):
-            raise invalid("revision_invalid", str(reply.get("error") or ""))
+            details: dict[str, object] = {}
+            issues = reply.get("issues")
+            if isinstance(issues, list):
+                details["issues"] = cast("list[object]", issues)
+            raise invalid("revision_invalid", str(reply.get("error") or ""), **details)
         actual = reply.get("inputs")
         if isinstance(actual, dict):
             resolved = cast("dict[str, object]", actual)
@@ -575,6 +595,33 @@ class DebugManager:
         executed = [state.index for state in session.steps if state.runs]
         session.next_index = max(executed) + 1 if executed else 0
         return session
+
+    def restart(self, session_id: str, revision: int) -> DebugSession:
+        """用指定的版本重新開始這個工作階段（換版本失敗時，調試頁的「用新版本重新開始調試」）。
+
+        沿用瀏覽器、有頭／無頭、網址與入參；已求過值的入參跳脫，不再求一次值；新版本沒有的入參不帶。
+        瀏覽器開在原本那台（錄製端或伺服器），不看這次請求從哪裡來。
+        會關掉目前的瀏覽器，從第 1 步開始。
+        """
+        session = self.get(session_id)
+        scenario = self.services.revision_scenario(session.scene_id, revision)
+        inputs = {
+            name: escape(value) for name, value in session.inputs.items() if name in scenario.inputs
+        }
+        via: Via | None = None
+        if session.device is not None and self.hosts is not None:
+            via = Via(session.device, self.hosts.get_recorder(session.device).name)
+        with use_recorder(via):
+            return self.start(
+                session.scene_id,
+                revision=revision,
+                inputs=inputs,
+                engine=session.engine,
+                headless=session.headless,
+                base_url=session.base_url,
+                restart=True,
+                client_id=session.client_id,
+            )
 
     # ------------------------------------------------------------ 結束
 

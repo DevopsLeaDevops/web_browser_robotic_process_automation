@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:64f6c80a38863432">
+<meta name="translation-source" content="sha256:a082e107fdf7d426">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -182,6 +182,7 @@ POST /agent-api/v1/debug/a1b2c3d4e5f6/reload   {"revision": 3}
 POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
 → {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
         <p>The browser and the steps already run are kept; <code>run-to</code> runs only steps that have not run and stops on failure. Fix, save another revision, <code>reload</code> and <code>run-to</code> until every step is <code>passed</code>. Use <code>reset</code> to start over from the beginning.</p>
+        <p>When the recorder is another computer, <code>reload</code> needs both the server and the recorder at 0.6.3 or later: up to 0.6.2, switching revisions on a recorder always returned 422 <code>revision_invalid</code> “Scenario validation failed” (the server handed the recorder a path to its own file, which the recorder cannot read). If the server is updated but the recorder is not yet, you get 422 <code>recorder_outdated</code>; ask a person to update the recorder, or start over with <code>POST /scenes/{id}/debug</code> using the new <code>revision</code> and <code>"restart": true</code> (this runs again from step 1, so side-effect steps happen again).</p>
         <div class="notice warn">Click, fill, select, check and press are side-effect steps: they really happen in the target system. Running a side-effect step again with <code>POST /debug/{sid}/steps/{index}</code> after it has run once returns 409 <code>confirm_required</code> and requires <code>{"force": true}</code>; do this only when you are sure redoing it will not create duplicate data. <code>run-to</code> returns 409 <code>already_executed</code> when its target comes before the next step that has not run.</div>
 
         <h3>5. Complete inputs, outputs and independent checks</h3>
@@ -281,9 +282,9 @@ GET /agent-api/v1/runs/…
             <tr><td>409</td><td><code>workflow_run_active</code>, <code>workflow_not_resumable</code></td><td>The composite run has not finished; there is no node to continue from</td><td>Wait for it to finish; start over instead</td></tr>
             <tr><td>422</td><td><code>request_invalid</code></td><td>The request is malformed; <code>problems</code> lists the fields</td><td>Fix them according to <code>problems</code></td></tr>
             <tr><td>422</td><td><code>recorder_required</code></td><td>The key allows several recorders and no <code>recorderId</code> was given</td><td>Send <code>recorderId</code></td></tr>
-            <tr><td>422</td><td><code>recorder_outdated</code></td><td>The Recorder app is too old (for example, it cannot read page structure or does not understand syntax the scene uses)</td><td>Ask a person to update RPA Recorder</td></tr>
+            <tr><td>422</td><td><code>recorder_outdated</code></td><td>The Recorder app is too old (for example, it cannot read page structure or switch revisions while debugging, or does not understand syntax the scene uses)</td><td>Ask a person to update RPA Recorder</td></tr>
             <tr><td>422</td><td><code>display_unavailable</code></td><td>That machine has no display, so headed mode is unavailable</td><td>Use <code>"headless": true</code></td></tr>
-            <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML validation failed; <code>issues</code> lists where</td><td>Fix according to <code>issues</code> and save again</td></tr>
+            <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML validation failed; <code>issues</code> lists where (when saving a revision, or when the recorder rejects it on <code>reload</code>)</td><td>Fix according to <code>issues</code> and save again</td></tr>
             <tr><td>422</td><td><code>inputs_invalid</code></td><td>Inputs do not match their type or limits; <code>problems</code> lists which</td><td>Fix the inputs</td></tr>
             <tr><td>422</td><td><code>worker_target_mismatch</code></td><td>The chosen worker does not match the run location</td><td>Send only one of them</td></tr>
             <tr><td>429</td><td><code>limit_reached</code></td><td>Over the limit for concurrent debug sessions or queued and running runs (<code>limit</code>)</td><td>Wait for current ones to finish, or end sessions you no longer need</td></tr>

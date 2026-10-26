@@ -182,6 +182,7 @@ POST /agent-api/v1/debug/a1b2c3d4e5f6/reload   {"revision": 3}
 POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
 → {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
         <p>浏览器与已运行的步骤会保留，<code>run-to</code> 只运行还没运行过的步骤，失败就停。改好再存一版、<code>reload</code>、<code>run-to</code>，直到每一步都是 <code>passed</code>。想从头重跑用 <code>reset</code>。</p>
+        <p>录制端在另一台电脑时，<code>reload</code> 要服务器与录制端都是 0.6.3 以上：0.6.2 以前在录制端换版本一定回 422 <code>revision_invalid</code>「场景校验失败」（服务器把自己的文件路径交给录制端，录制端读不到）。服务器已更新、录制端还没更新时回 422 <code>recorder_outdated</code>；这时请人更新录制端，或改用 <code>POST /scenes/{id}/debug</code> 带新的 <code>revision</code> 与 <code>"restart": true</code> 重新开始（从第 1 步重跑，有副作用的步骤会再做一次）。</p>
         <div class="notice warn">点击、填写、选择、勾选、按键是有副作用的步骤，会在目标系统上真的发生。运行过一次的有副作用步骤用 <code>POST /debug/{sid}/steps/{index}</code> 再运行时回 409 <code>confirm_required</code>，必须带 <code>{"force": true}</code>；只在确定重做不会造成重复数据时才这样做。<code>run-to</code> 的目标在下一个还没运行的步骤之前时回 409 <code>already_executed</code>。</div>
 
         <h3>5. 补齐入参、出参与独立断言</h3>
@@ -281,9 +282,9 @@ GET /agent-api/v1/runs/…
             <tr><td>409</td><td><code>workflow_run_active</code>、<code>workflow_not_resumable</code></td><td>组合场景的运行还没结束；没有可以接着的节点</td><td>等它结束；改用从头运行</td></tr>
             <tr><td>422</td><td><code>request_invalid</code></td><td>请求的格式不对，<code>problems</code> 列出字段</td><td>依 <code>problems</code> 修正</td></tr>
             <tr><td>422</td><td><code>recorder_required</code></td><td>这把密钥允许好几台录制端，没给 <code>recorderId</code></td><td>带上 <code>recorderId</code></td></tr>
-            <tr><td>422</td><td><code>recorder_outdated</code></td><td>录制端 App 太旧（例如不支持读页面结构，或看不懂场景用到的写法）</td><td>请人更新 RPA 录制端</td></tr>
+            <tr><td>422</td><td><code>recorder_outdated</code></td><td>录制端 App 太旧（例如不支持读页面结构、调试时换版本，或看不懂场景用到的写法）</td><td>请人更新 RPA 录制端</td></tr>
             <tr><td>422</td><td><code>display_unavailable</code></td><td>那台没有画面，不能有头</td><td>改用 <code>"headless": true</code></td></tr>
-            <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML 校验失败，<code>issues</code> 列出位置</td><td>依 <code>issues</code> 修正后再存</td></tr>
+            <tr><td>422</td><td><code>revision_invalid</code></td><td>YAML 校验失败，<code>issues</code> 列出位置（存版本时，或 <code>reload</code> 时录制端校验不过）</td><td>依 <code>issues</code> 修正后再存</td></tr>
             <tr><td>422</td><td><code>inputs_invalid</code></td><td>入参不符合类型或限制，<code>problems</code> 列出哪一个</td><td>修正入参</td></tr>
             <tr><td>422</td><td><code>worker_target_mismatch</code></td><td>指定的 Worker 和运行位置不一致</td><td>只给其中一个</td></tr>
             <tr><td>429</td><td><code>limit_reached</code></td><td>超过同时调试或排队、运行中的限额（<code>limit</code>）</td><td>等现有的完成，或结束不用的工作阶段</td></tr>

@@ -17,8 +17,11 @@
 
 新分頁（M7b）：步驟開出的新分頁在整個工作階段都在（:class:`rpa_runner.browser.Tabs`）；
 「目前頁面」是最後一步所在（或剛開出）的分頁，截圖、網址與定位器測試都在這個分頁。
-- ``{"cmd": "load", "scenario": 路徑, "input": 路徑}``：換成新的場景版本或入參
-  （瀏覽器與 facts 保留）。
+- ``{"cmd": "load", "revision": 3, "scenarioText": 場景 YAML, "inputs": {…}}``：
+  換成新的場景版本或入參（瀏覽器與 facts 保留）。直接帶內容：這個子程序可能在
+  錄製端（另一台電腦），讀不到伺服器的檔案（v0.6.3）。舊的伺服器送
+  ``"scenario": 路徑, "input": 路徑``，仍然接受。場景校驗失敗時回覆 ``issues``
+  （行號、步驟、欄位與說明）。
 - ``{"cmd": "reset"}``：關掉目前的頁面，從頭開始（facts 清空，重新載入登入狀態）。
 - ``{"cmd": "close"}``：結束。
 
@@ -31,14 +34,15 @@ import contextlib
 import json
 import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Final, cast
 
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 from pydantic import ValidationError
 
-from rpa_core.dsl import Locator, Scenario, validate_file
+from rpa_core.dsl import Locator, Scenario, ValidationResult, validate_file, validate_text
+from rpa_core.dsl.issues import Issue, format_issue
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
 from rpa_runner.browser import Deadline, Tabs, resolve, run_step
 from rpa_runner.contexts import Engine, open_context
@@ -46,7 +50,14 @@ from rpa_runner.contract import check_inputs
 from rpa_runner.i18n import t
 from rpa_runner.secrets import MASK, mask, read_secrets
 
-__all__ = ["COMMAND_SECONDS", "KEEP_SHOTS", "SNAPSHOT_ARIA_CHARS", "SNAPSHOT_FIELDS", "main"]
+__all__ = [
+    "COMMAND_SECONDS",
+    "KEEP_SHOTS",
+    "SNAPSHOT_ARIA_CHARS",
+    "SNAPSHOT_FIELDS",
+    "ScenarioInvalidError",
+    "main",
+]
 
 COMMAND_SECONDS: Final = 600.0
 """一個命令最多執行這麼久（步驟本身另有逾時）。"""
@@ -145,6 +156,73 @@ _DESCRIBE: Final = """
 """
 
 
+class ScenarioInvalidError(ValueError):
+    """場景校驗失敗。訊息寫出第一個問題（行號與說明），``issues`` 是全部問題，欄位和管理 Portal
+    存版本時回報的相同（line、column、step、stepId、field、path、code、message、text）。"""
+
+    def __init__(self, result: ValidationResult) -> None:
+        self.issues: list[dict[str, object]] = [_issue_json(issue) for issue in result.issues]
+        if not result.issues:
+            super().__init__(t("child.invalid_scenario"))
+            return
+        first = result.issues[0]
+        detail = format_issue(first)
+        if first.position is not None:
+            detail = t("debug.issue_at", line=first.position.line, issue=detail)
+        if len(result.issues) > 1:
+            detail = t("debug.more_issues", issue=detail, count=len(result.issues) - 1)
+        super().__init__(t("debug.invalid_scenario", detail=detail))
+
+
+def _issue_json(issue: Issue) -> dict[str, object]:
+    position = issue.position
+    return {
+        "line": position.line if position else None,
+        "column": position.column if position else None,
+        "step": issue.step,
+        "stepId": issue.step_id,
+        "field": issue.field or None,
+        "path": list(issue.path),
+        "code": issue.code,
+        "message": issue.message,
+        "text": format_issue(issue),
+    }
+
+
+def _valid(result: ValidationResult) -> Scenario:
+    if result.scenario is None:
+        raise ScenarioInvalidError(result)
+    return result.scenario
+
+
+def _read_inputs(path: Path) -> dict[str, object]:
+    return _inputs_object(json.loads(path.read_text(encoding="utf-8")))
+
+
+def _inputs_object(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise ValueError(t("debug.inputs_not_object"))
+    return cast("dict[str, object]", value)
+
+
+def _resolved(
+    scenario: Scenario, inputs: Mapping[str, object], *, preserved: frozenset[str] = frozenset()
+) -> dict[str, object]:
+    """入參依場景校驗（動態值在這台求值）；``preserved`` 是已求過值、允許暫時不符合新規則的入參。"""
+    resolved, problems = check_inputs(scenario, inputs)
+    problems = [problem for problem in problems if problem.name not in preserved]
+    if problems:
+        raise ValueError("; ".join(problem.message for problem in problems))
+    return resolved
+
+
+def _error_text(error: Exception) -> str:
+    """回覆給管理 Portal 的錯誤：場景校驗失敗本身就是完整的說明，其他的加上例外的種類。"""
+    if isinstance(error, ScenarioInvalidError):
+        return str(error).splitlines()[0]
+    return f"{type(error).__name__}: {error}".splitlines()[0]
+
+
 class _Session:
     def __init__(self, args: argparse.Namespace, playwright: Playwright) -> None:
         self.args = args
@@ -152,7 +230,8 @@ class _Session:
         self.out = Path(args.out)
         self.out.mkdir(parents=True, exist_ok=True)
         self.engine: Engine = cast("Engine", args.engine)
-        self.scenario, self.inputs = self._load(Path(args.scenario), Path(args.input))
+        self.scenario = _valid(validate_file(Path(args.scenario)))
+        self.inputs = _resolved(self.scenario, _read_inputs(Path(args.input)))
         self.secrets = read_secrets(self.scenario)
         self.facts: dict[str, object] = {}
         self.shots = 0
@@ -161,20 +240,6 @@ class _Session:
         self.page: Page | None = None
         self.tabs: Tabs | None = None
         """整個工作階段的分頁（M7b）：步驟開出的新分頁在步驟之間一直都在。"""
-
-    @staticmethod
-    def _load(
-        scenario_path: Path, input_path: Path, *, preserved: frozenset[str] = frozenset()
-    ) -> tuple[Scenario, dict[str, object]]:
-        validated = validate_file(scenario_path)
-        if validated.scenario is None:
-            raise ValueError(t("child.invalid_scenario"))
-        inputs = cast("dict[str, object]", json.loads(input_path.read_text(encoding="utf-8")))
-        resolved, problems = check_inputs(validated.scenario, inputs)
-        problems = [problem for problem in problems if problem.name not in preserved]
-        if problems:
-            raise ValueError("; ".join(problem.message for problem in problems))
-        return validated.scenario, resolved
 
     # ------------------------------------------------------------ 瀏覽器
 
@@ -372,11 +437,23 @@ class _Session:
             listed.append({"page": name, "url": page.url, "title": title, "active": page == active})
         return listed
 
-    def load(self, scenario: str, input_file: str) -> dict[str, object]:
+    def load(self, command: Mapping[str, object]) -> dict[str, object]:
+        """換成新的場景版本或入參；瀏覽器、分頁與 facts 保留。
+
+        管理 Portal 直接送場景內容（``scenarioText``）與入參（``inputs``）：這個子程序可能在另一台
+        電腦（錄製端），讀不到伺服器的檔案。``scenario``／``input`` 路徑是 v0.6.2 以前的伺服器送的，
+        只在和伺服器同一台時讀得到，保留相容。
+        """
+        text = command.get("scenarioText")
+        if isinstance(text, str):
+            scenario = _valid(validate_text(text))
+            inputs = _inputs_object(command.get("inputs", {}))
+        else:
+            scenario = _valid(validate_file(Path(str(command["scenario"]))))
+            inputs = _read_inputs(Path(str(command["input"])))
         # 保留已求值的舊值（允許與新約束暫時不一致）；新增預設值仍須通過運行態校驗。
-        self.scenario, self.inputs = self._load(
-            Path(scenario), Path(input_file), preserved=frozenset(self.inputs)
-        )
+        self.inputs = _resolved(scenario, inputs, preserved=frozenset(self.inputs))
+        self.scenario = scenario
         self.secrets = read_secrets(self.scenario)
         return {"steps": len(self.scenario.steps or []), "inputs": self.inputs}
 
@@ -387,7 +464,7 @@ class _Session:
             "locate": lambda: self.locate(command.get("locator")),
             "screenshot": lambda: self.page_state(self.active_page()),
             "snapshot": lambda: self.snapshot(command.get("within")),
-            "load": lambda: self.load(str(command["scenario"]), str(command["input"])),
+            "load": lambda: self.load(command),
             "reset": lambda: self.page_state(self.open(), shot=False),
         }
         if name == "close":
@@ -418,7 +495,7 @@ def serve(args: argparse.Namespace) -> int:
             session = _Session(args, playwright)
             session.open()
         except Exception as error:
-            _reply({"event": "error", "error": f"{type(error).__name__}: {error}".splitlines()[0]})
+            _reply({"event": "error", "error": _error_text(error)})
             return 1
         _reply(
             {"event": "ready", "steps": len(session.scenario.steps or []), "inputs": session.inputs}
@@ -435,10 +512,13 @@ def serve(args: argparse.Namespace) -> int:
                 try:
                     reply = session.handle(command)
                 except Exception as error:
-                    message = mask(
-                        f"{type(error).__name__}: {error}".splitlines()[0], session.secrets
-                    )
-                    reply = {"ok": False, "error": message}
+                    failure: dict[str, object] = {
+                        "ok": False,
+                        "error": mask(_error_text(error), session.secrets),
+                    }
+                    if isinstance(error, ScenarioInvalidError):
+                        failure["issues"] = error.issues
+                    reply = failure
                 if reply is None:
                     break
                 _reply({"id": command.get("id"), **reply})
