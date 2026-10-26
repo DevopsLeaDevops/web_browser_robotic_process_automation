@@ -2361,3 +2361,7 @@
 {"attempt": 3, "conclusion": "cancelled", "duration_s": 0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 0.0, "run_id": 40337307053, "workflow": "桌面端建置"}
 {"attempt": 3, "conclusion": "success", "duration_s": 6.0, "job": "執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 40337307053, "workflow": "桌面端建置"}
 {"attempt": 3, "conclusion": "success", "duration_s": 257.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 0.0, "run_id": 40337307053, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 8.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 40349006001, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 295.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 40349006001, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 0.0, "run_id": 40349006001, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 0.0, "run_id": 40349006001, "workflow": "桌面端建置"}
