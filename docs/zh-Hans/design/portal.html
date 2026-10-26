@@ -153,7 +153,7 @@
           <li><strong>开始。</strong>场景页的「逐步调试」或卡片的「调试」选版本、入参、浏览器与窗口模式。有图形界面时浏览器窗口开在这台电脑上；两种模式都在页面上显示每一步之后的截图、网址与页面事实。只支持 DSL 场景。</li>
           <li><strong>运行。</strong>每一步可以「运行这一步」，或「运行到这里」（只运行还没运行过的步骤，遇到失败就停）。有副作用的步骤（点击、填写、选择、勾选、按键）运行过一次后，再运行要先确认；不会自动重复任何步骤。「从头开始」开新的页面并重新加载登录状态。</li>
           <li><strong>定位器测试。</strong>输入 DSL 定位器（例如 <code>{ role: button, name: 登录 }</code>），回报找到几个元素与前几个的文字，截图时以红框标出。</li>
-          <li><strong>修改。</strong>页面下方直接编辑 YAML，存成新版本后换到新版本继续；浏览器与页面事实保留，运行过的步骤依 id 保留状态。</li>
+          <li><strong>修改。</strong>页面下方直接编辑 YAML，存成新版本后换到新版本继续；浏览器与页面事实保留，运行过的步骤依 id 保留状态。换版本的命令直接带场景内容与入参，调试在录制端（另一台电脑）时也能换（v0.6.3 修正；之前送服务器上的路径，只回「场景校验失败」）。新版本存好、但没有换过去时（例如录制端的 App 太旧），页面留下说明，可以选「用新版本重新开始调试」（关掉目前的浏览器、沿用入参与设置，从第 1 步开始）或留在原本的版本。</li>
           <li><strong>限制。</strong>每个场景同一时间一个工作阶段；闲置 15 分钟自动结束，服务器关闭时全部结束。调试会真的操作目标网站，请用测试环境。</li>
         </ul>
       </div>
@@ -333,7 +333,7 @@
             <tr><td><code>GET</code>、<code>POST /api/recordings</code>、<code>POST /api/recordings/import</code></td><td>录制清单；在这台电脑录制（202）；粘贴录制稿直接转换（201）。都要 <code>target</code>（新场景，或既有场景加 <code>mode</code>：<code>continue</code> 接着现有步骤、<code>replace</code> 整份换掉）、<code>url</code>、<code>engine</code>、选用的 <code>roleId</code></td></tr>
             <tr><td><code>GET /api/recordings/{录制编号}</code>、<code>…/cancel</code></td><td>录制状态、转不了的行与文件；取消录制</td></tr>
             <tr><td><code>POST /api/scenes/{id}/debug</code></td><td>开始逐步调试（<code>revision</code>、<code>inputs</code>、<code>engine</code>、<code>headless</code>、<code>baseUrl</code>）；已经有工作阶段时回传它</td></tr>
-            <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作阶段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code></td><td>调试状态与结束；运行一步（有副作用而且运行过时 409 <code>confirm_required</code>，带 <code>force</code> 再送）、运行到第 n 步、测试定位器、截图、从头开始、换到新版本</td></tr>
+            <tr><td><code>GET</code>、<code>DELETE /api/debug/{工作阶段}</code>；<code>POST …/steps/{n}</code>、<code>…/run-to/{n}</code>、<code>…/locate</code>、<code>…/screenshot</code>、<code>…/reset</code>、<code>…/reload</code>、<code>…/restart</code></td><td>调试状态与结束；运行一步（有副作用而且运行过时 409 <code>confirm_required</code>，带 <code>force</code> 再送）、运行到第 n 步、测试定位器、截图、从头开始、换到新版本（录制端的 App 不支持时 422 <code>recorder_outdated</code>）、用指定版本重新开始（沿用浏览器、模式、网址与入参）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/workflows</code></td><td>串行清单（含问题、依赖状态与最近一次运行）；添加串行（<code>name</code>、<code>description</code>、选用的 <code>definition</code>，带了就是导入；选用的 <code>code</code>、<code>domainId</code> 与 <code>projectId</code>，没有那个项目 404 <code>project_not_found</code>）</td></tr>
             <tr><td><code>GET /api/workflows/library</code></td><td>场景库：发布过的场景版本，以及它们的入参、出参与登录角色</td></tr>
             <tr><td><code>POST /api/workflows/check</code></td><td>检查一份定义（不保存），回传 <code>problems</code></td></tr>
