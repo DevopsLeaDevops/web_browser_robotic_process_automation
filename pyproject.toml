@@ -17,6 +17,7 @@ rpa-server = { workspace = true }
 rpa-testsite = { workspace = true }
 rpa-cli = { workspace = true }
 rpa-desktop = { workspace = true }
+rpa-update = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -28,6 +29,7 @@ dev = [
   "rpa-testsite",
   "rpa-cli",
   "rpa-desktop",
+  "rpa-update",
   # 工具鏈
   "ruff>=0.16.10",
   "pyright>=1.1.414",

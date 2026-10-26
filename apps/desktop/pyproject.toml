@@ -8,6 +8,8 @@ dependencies = [
   "rpa-runner",
   "rpa-worker",
   "rpa-testsite",
+  # 啟動器與更新檔（ADR 0018）：跟著 App 的外殼走，不在程式碼層
+  "rpa-update",
   # RPA Worker 的狀態視窗（Windows 的 WebView2，經由 pythonnet）與通知區圖示（M10.1）；
   # RPA 錄製端的視窗（macOS 的 WKWebView，經由 PyObjC，M10.2）。Linux 不裝（CI 用 typings/ 的 stub）。
   "pywebview>=5.4; sys_platform == 'win32' or sys_platform == 'darwin'",
@@ -24,6 +26,7 @@ rpa-core = { workspace = true }
 rpa-runner = { workspace = true }
 rpa-worker = { workspace = true }
 rpa-testsite = { workspace = true }
+rpa-update = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]

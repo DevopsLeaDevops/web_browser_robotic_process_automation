@@ -3,7 +3,8 @@
 - SQLite（預設）與 PostgreSQL 共用模型與遷移；只用兩邊都支援的寫法。
 - 時間一律以 UTC 存放（SQLite 不保存時區，讀回來時補上）。
 - SQLite 每個連線都開啟外鍵檢查與 WAL 模式。
-- 啟動時執行 Alembic 遷移到最新版本（:func:`upgrade`）。
+- 啟動時執行 Alembic 遷移到最新版本（:func:`upgrade`）；遷移前先看有沒有要套用的
+  （:func:`migration_status`），有的話 SQLite 先備份（ADR 0018，rpa_server.updates）。
 """
 
 from datetime import UTC, datetime
@@ -12,6 +13,8 @@ from typing import Final
 
 from alembic import command
 from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import JSON, DateTime, Engine, create_engine, event
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Dialect
@@ -19,7 +22,14 @@ from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.types import TypeDecorator
 
-__all__ = ["NAMING_CONVENTION", "JsonType", "UtcDateTime", "create_db_engine", "upgrade"]
+__all__ = [
+    "NAMING_CONVENTION",
+    "JsonType",
+    "UtcDateTime",
+    "create_db_engine",
+    "migration_status",
+    "upgrade",
+]
 
 NAMING_CONVENTION: Final = {
     "ix": "ix_%(column_0_label)s",
@@ -70,6 +80,17 @@ def create_db_engine(url: str) -> Engine:
         cursor.close()
 
     return engine
+
+
+def migration_status(engine: Engine) -> tuple[bool, bool]:
+    """(有沒有還沒套用的遷移, 資料庫是不是已經有版本)；全新的資料庫是 (True, False)。"""
+    with as_file(files("rpa_server").joinpath("migrations")) as location:
+        config = Config()
+        config.set_main_option("script_location", str(location))
+        heads = set(ScriptDirectory.from_config(config).get_heads())
+    with engine.connect() as connection:
+        current = set(MigrationContext.configure(connection).get_current_heads())
+    return current != heads, bool(current)
 
 
 def upgrade(engine: Engine) -> None:

@@ -6,7 +6,7 @@
 import sys
 import threading
 import types
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import ClassVar
 
@@ -124,6 +124,30 @@ def test_quit_really_closes(tmp_path: Path) -> None:
     desktop.request_quit()
     assert window.calls == ["destroy"]
     assert desktop._on_closing() is True  # pyright: ignore[reportPrivateUsage]
+
+
+def test_update_restarts_in_the_background(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from rpa_update import boot
+
+    desktop, window, _ = app(tmp_path)
+    assert desktop.controller.on_update_ready == desktop.restart_for_update
+    started: list[list[str]] = []
+
+    def relaunch(args: Sequence[str]) -> None:
+        started.append(list(args))
+
+    monkeypatch.setattr(boot, "relaunch", relaunch)
+    assert desktop.restart_for_update() is True
+    assert started == [["--background"]]
+    assert window.calls == ["destroy"]
+
+    def broken(args: object) -> None:
+        raise OSError("no such file")
+
+    other, other_window, _ = app(tmp_path / "other")
+    monkeypatch.setattr(boot, "relaunch", broken)
+    assert other.restart_for_update() is False  # 起不來：照常執行，下次開啟時套用
+    assert other_window.calls == []
 
 
 def test_quit_while_running_asks_in_the_window(

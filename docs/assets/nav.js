@@ -178,6 +178,11 @@ window.DOCS_NAV = {
           "id": "adr-0017",
           "href": "adr/0017-agent-api.html",
           "name": {"zh-Hant": "0017 對外 Agent API", "zh-Hans": "0017 对外 Agent API", "en": "0017 Agent API"}
+        },
+        {
+          "id": "adr-0018",
+          "href": "adr/0018-layered-updates.html",
+          "name": {"zh-Hant": "0018 分層更新", "zh-Hans": "0018 分层更新", "en": "0018 Layered updates"}
         }
       ]
     },

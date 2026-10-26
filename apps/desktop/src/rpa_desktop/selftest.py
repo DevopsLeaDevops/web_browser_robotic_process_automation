@@ -24,7 +24,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-from rpa_desktop.build_info import load
+from rpa_desktop.build_info import load, shell_file
 from rpa_runner.commands import is_frozen, playwright_command
 from rpa_runner.run import execute
 from testsite.server import running
@@ -41,7 +41,7 @@ _TAIL: Final = 2000
 
 def scenario_root() -> Path:
     """範例場景的資料夾：App 裡的那份，沒有就用倉庫的 scenarios/demo。"""
-    bundled = Path(__file__).with_name(BUNDLED_SCENARIOS)
+    bundled = shell_file(BUNDLED_SCENARIOS)
     if bundled.is_dir():
         return bundled
     return Path(__file__).resolve().parents[4] / "scenarios" / "demo"

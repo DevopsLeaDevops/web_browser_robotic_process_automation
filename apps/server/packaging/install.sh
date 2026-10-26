@@ -5,9 +5,13 @@
 # 伺服器不需要 git clone、uv，也不必連到 PyPI。由 tools/build_server.py 放進分發包；
 # 系統辨識與 systemd 的寫法和 scripts/setup-linux.sh 相同（分發包必須能獨立執行，所以各寫一份）。
 #
-# 安裝後的資料夾（預設 ~/rpa-server，--prefix 可改）：
-#   releases/<版本>-<提交>/   每個版本一個資料夾，並排存放
+# 安裝後的資料夾（預設 ~/rpa-server，--prefix 可改；分層見 docs/adr/0018-layered-updates.html）：
+#   runtimes/<環境代號>/python  Python 與第三方套件；環境代號相同的版本共用一份
+#   releases/<版本>-<提交>/   每個版本一個資料夾，並排存放：app/（我們的程式）、bin/rpa、
+#                             python（指向 runtimes/ 的連結）。完整的分發包與更新檔（bin/rpa update）
+#                             都裝成這個樣子
 #   current                   指向使用中的版本（升級時一次換過去）
+#   run/                      更新的狀態：update.state（剛換上、還沒確認能用的版本）、restart.request
 #   bin/rpa-server            啟動器：讀設定檔，以 current 的版本執行 rpa serve（systemd 也用它）
 #   bin/rpa                   current 版本的 rpa 命令
 #   rpa-server.env            設定（資料位置、埠號；升級保留）
@@ -28,6 +32,7 @@ BUNDLE=""
 VERSION=""
 COMMIT=""
 ARCH=""
+RUNTIME=""
 RELEASE=""
 PACKAGE_MANAGER=""
 PREVIOUS=""
@@ -54,6 +59,7 @@ usage() {
 
 一般帳號執行即可；安裝缺少的系統套件與 systemd 服務時會呼叫 sudo。
 升級：解壓新版的分發包，再執行其中的 install.sh。設定、資料與服務沿用；服務正在執行時自動重新啟動。
+只有程式改變的版本也可以用更新檔：<安裝位置>/bin/rpa update RPA-Update-<版本>.zip。
 首次安裝可設定 RPA_DATA_DIR（預設 ~/.local/share/rpa-server）、RPA_PORT（8080）、
 RPA_WORKER_PORT（8081）、RPA_WORKER_HOST（0.0.0.0）、RPA_TESTSITE_HOST（空白＝不啟動測試網站）；
 之後修改安裝位置的 rpa-server.env。之前用 scripts/setup-linux.sh 安裝過時，自動沿用那份設定與資料。
@@ -106,19 +112,22 @@ version_ge() {
 read_bundle() {
   local here="${1:-}" key value
   if [ -z "$here" ]; then here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; fi
-  [ -f "$here/BUILD_INFO" ] && [ -x "$here/bin/rpa" ] && [ -e "$here/python/bin/python3" ] ||
-    die "${here} 不是完整的 RPA 伺服器分發包（缺 BUILD_INFO、bin/rpa 或 python/）。請重新下載並完整解壓。"
+  [ -f "$here/BUILD_INFO" ] && [ -x "$here/bin/rpa" ] && [ -e "$here/python/bin/python3" ] &&
+    [ -d "$here/app" ] ||
+    die "${here} 不是完整的 RPA 伺服器分發包（缺 BUILD_INFO、bin/rpa、app/ 或 python/）。請重新下載並完整解壓。"
   BUNDLE="$here"
   while IFS='=' read -r key value; do
     case "$key" in
       version) VERSION="$value" ;;
       commit) COMMIT="$value" ;;
       arch) ARCH="$value" ;;
+      runtime) RUNTIME="$value" ;;
     esac
   done < "$BUNDLE/BUILD_INFO"
   [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "BUILD_INFO 的版本不對：${VERSION:-空白}"
   [[ "$COMMIT" =~ ^[0-9a-f]*$ ]] || die "BUILD_INFO 的提交不對：${COMMIT}"
   case "$ARCH" in x86_64|aarch64) ;; *) die "BUILD_INFO 的架構不對：${ARCH:-空白}" ;; esac
+  [[ "$RUNTIME" =~ ^[0-9a-f]{16}$ ]] || die "BUILD_INFO 的環境代號不對：${RUNTIME:-空白}"
   RELEASE="$VERSION${COMMIT:+-$COMMIT}"
 }
 
@@ -199,11 +208,17 @@ install_system_packages() {
   as_root "$PACKAGE_MANAGER" install -y "${MISSING[@]}"
 }
 
-# 版本資料夾能不能用：rpa 命令與伺服器的程式載入得了（也確認 Python 在這台系統上能執行）
+# 執行環境能不能用：Python 在這台系統上能執行，標準函式庫與驗證更新檔的 rpa_update 都在
+runtime_works() {
+  env -u PYTHONHOME -u PYTHONPATH PYTHONNOUSERSITE=1 "$1/bin/python3" -c \
+    'import sqlite3, ssl, rpa_update.manifest' >/dev/null 2>&1
+}
+
+# 版本資料夾能不能用：rpa 命令與伺服器的程式載入得了
 verify_release() {
   local dir="$1"
   env -u PYTHONHOME -u PYTHONPATH "$dir/bin/rpa" --version >/dev/null 2>&1 &&
-    env -u PYTHONHOME -u PYTHONPATH PYTHONNOUSERSITE=1 "$dir/python/bin/python3" -c \
+    env -u PYTHONHOME PYTHONPATH="$dir/app" PYTHONNOUSERSITE=1 "$dir/python/bin/python3" -c \
       'import sqlite3, ssl; from rpa_server.app import create_app; from rpa_server.config import Settings' \
       >/dev/null 2>&1
 }
@@ -212,8 +227,29 @@ same_dir() {
   [ -d "$1" ] && [ -d "$2" ] && [ "$(cd "$1" && pwd -P)" = "$(cd "$2" && pwd -P)" ]
 }
 
+# Python 與第三方套件裝到 runtimes/<環境代號>/：已經有同一個環境（之前的版本或更新檔用過）就沿用
+install_runtime() {
+  local target="$PREFIX/runtimes/$RUNTIME" staging
+  mkdir -p "$PREFIX/runtimes"
+  if same_dir "$BUNDLE/python" "$target/python" || runtime_works "$target/python"; then
+    return 0
+  fi
+  info "安裝執行環境 ${RUNTIME}（Python 與第三方套件）"
+  staging="$PREFIX/runtimes/.${RUNTIME}.tmp.$$"
+  rm -rf "$staging"
+  mkdir -p "$staging/python"
+  cp -a "$BUNDLE/python/." "$staging/python/"
+  if ! runtime_works "$staging/python"; then
+    rm -rf "$staging"
+    die "分發包裡的 Python 在這台系統上無法執行（架構、glibc 或檔案不完整）。執行 ${BUNDLE}/bin/rpa --version 查看原因。"
+  fi
+  # 之前沒裝完留下的同名資料夾：能用的話上面已經沿用，到這裡就是壞的，換掉
+  rm -rf "$target"
+  mv "$staging" "$target"
+}
+
 install_release() {
-  local target="$PREFIX/releases/$RELEASE" staging
+  local target="$PREFIX/releases/$RELEASE" staging entry
   mkdir -p "$PREFIX/releases"
   if same_dir "$BUNDLE" "$target"; then
     verify_release "$target" || die "${target} 無法執行（Python 或套件載入失敗）。"
@@ -226,10 +262,14 @@ install_release() {
   info "安裝 ${RELEASE} 到 ${target}"
   staging="$PREFIX/releases/.${RELEASE}.tmp.$$"
   rm -rf "$staging"
-  cp -a "$BUNDLE" "$staging"
+  mkdir -p "$staging"
+  for entry in "$BUNDLE"/*; do
+    [ "${entry##*/}" = python ] || cp -a "$entry" "$staging/"
+  done
+  ln -s "../../runtimes/$RUNTIME/python" "$staging/python"
   if ! verify_release "$staging"; then
     rm -rf "$staging"
-    die "分發包裡的 Python 在這台系統上無法執行（架構、glibc 或檔案不完整）。執行 ${BUNDLE}/bin/rpa --version 查看原因。"
+    die "分發包裡的程式在這台系統上無法執行（檔案不完整）。執行 ${BUNDLE}/bin/rpa --version 查看原因。"
   fi
   # 之前沒裝完（例如中斷）留下的同名資料夾：不是使用中的版本才換掉
   if [ -e "$target" ]; then
@@ -327,8 +367,8 @@ write_launchers() {
     # 較早建立的設定沒有 RPA_TESTSITE_HOST：當成空白，照舊不啟動測試網站。
     printf 'testsite=(--no-testsite)\n'
     printf 'if [ -n "${RPA_TESTSITE_HOST:-}" ]; then testsite=(--testsite-host "$RPA_TESTSITE_HOST"); fi\n'
-    # 在版本資料夾裡啟動：第一次啟動時從 scenarios/demo 匯入範例場景
-    printf 'cd %q\n' "$PREFIX/current"
+    # 在安裝位置啟動，不停在某個版本資料夾裡（舊版本會被刪掉）；範例場景由 bin/rpa 指到版本資料夾
+    printf 'cd %q\n' "$PREFIX"
     printf 'exec %q serve --host 127.0.0.1 --port "$RPA_PORT" --data "$RPA_DATA_DIR" --worker-host "$RPA_WORKER_HOST" --worker-port "$RPA_WORKER_PORT" --no-local-worker "${testsite[@]}"\n' "$PREFIX/current/bin/rpa"
   } > "$launcher.tmp"
   chmod 755 "$launcher.tmp"
@@ -348,13 +388,35 @@ current_release() {
   printf '%s\n' "${link#releases/}"
 }
 
-# 原子地把 current 換到這個版本（新連結先建好再改名蓋過去）
+# 原子地把 current 換到這個版本（新連結先建好再改名蓋過去）。
+# 換成另一個版本時寫下 run/update.state：新版本開始服務之前就結束的話，bin/rpa serve 退回上一版
+# （ADR 0018 決策 5）；伺服器開始服務後刪掉它。
 switch_current() {
   PREVIOUS="$(current_release)"
   [ "$PREVIOUS" != "$RELEASE" ] || PREVIOUS=""
   touch "$PREFIX/releases/$RELEASE"  # 修改時間＝最近一次安裝，舊版本依它刪除
+  if [ -n "$PREVIOUS" ] && [ -d "$PREFIX/releases/$PREVIOUS" ]; then
+    mkdir -p "$PREFIX/run"
+    rm -f "$PREFIX/run/update.failed"
+    printf 'target=%s\nprevious=%s\n' "$RELEASE" "$PREVIOUS" > "$PREFIX/run/update.state.tmp"
+    mv -f "$PREFIX/run/update.state.tmp" "$PREFIX/run/update.state"
+  fi
   ln -sfn "releases/$RELEASE" "$PREFIX/.current.new"
   mv -Tf "$PREFIX/.current.new" "$PREFIX/current"
+}
+
+# 不是 systemd 啟動的伺服器（例如 nohup bin/rpa serve）：請它在沒有進行中的工作時自己重新啟動
+request_restart() {
+  [ -n "$PREVIOUS" ] || return 0
+  mkdir -p "$PREFIX/run"
+  printf 'target=%s\n' "$RELEASE" > "$PREFIX/run/restart.request.tmp"
+  mv -f "$PREFIX/run/restart.request.tmp" "$PREFIX/run/restart.request"
+  RESTART_REQUESTED=1
+}
+
+# 重新啟動之後 current 又指回別的版本：新版本起不來，bin/rpa serve 已經退回
+rolled_back() {
+  [ "$(current_release)" != "$RELEASE" ]
 }
 
 unit_is_ours() {
@@ -379,6 +441,9 @@ wait_until_serving() {
 
 restart_failed() {
   local back=""
+  if rolled_back; then
+    die "新版本 ${RELEASE} 啟動失敗，已自動退回 $(current_release)，服務照常運作。查看 sudo journalctl -u rpa-server -n 100"
+  fi
   [ -z "$PREVIOUS" ] || back="；要退回上一版：ln -sfn releases/${PREVIOUS} ${PREFIX}/current 後 sudo systemctl restart rpa-server"
   die "rpa-server 重新啟動後沒有回應。查看 sudo journalctl -u rpa-server -n 100${back}"
 }
@@ -389,26 +454,29 @@ handle_service() {
     as_root systemctl daemon-reload
     as_root systemctl enable rpa-server.service
     as_root systemctl restart rpa-server.service
-    wait_until_serving || restart_failed
+    wait_until_serving && ! rolled_back || restart_failed
     SERVICE_STATE="已啟動（開機自動啟動）"
     return 0
   fi
   if [ ! -e "$UNIT_PATH" ]; then
     SERVICE_STATE="未安裝"
+    request_restart
     return 0
   fi
   if ! unit_is_ours; then
     SERVICE_STATE="仍是另一份安裝（例如 setup-linux.sh 的 clone）"
+    request_restart
     info "現有的 rpa-server 服務啟動的不是這一份。要改用分發包：bash ${BUNDLE}/install.sh --install-service（設定與資料已沿用）。"
     return 0
   fi
   if service_active; then
     info '重新啟動 rpa-server，改用新的版本。'
     as_root systemctl restart rpa-server.service
-    wait_until_serving || restart_failed
+    wait_until_serving && ! rolled_back || restart_failed
     SERVICE_STATE="已重新啟動"
   else
     SERVICE_STATE="已安裝，目前停止（sudo systemctl start rpa-server）"
+    request_restart
   fi
 }
 
@@ -425,6 +493,27 @@ prune_releases() {
   done < <(ls -1dt "$PREFIX/releases"/*/ 2>/dev/null | sed 's#/$##')
 }
 
+# 沒有任何版本用到的執行環境：刪掉
+prune_runtimes() {
+  local dir name link used
+  for dir in "$PREFIX/runtimes"/*/; do
+    [ -d "$dir" ] || continue
+    dir="${dir%/}"
+    name="${dir##*/}"
+    used=0
+    for link in "$PREFIX/releases"/*/python; do
+      if [ -L "$link" ] && [ "$(readlink "$link")" = "../../runtimes/$name/python" ]; then
+        used=1
+        break
+      fi
+    done
+    if [ "$used" = 0 ]; then
+      info "刪除不再使用的執行環境：${name}"
+      rm -rf "$dir"
+    fi
+  done
+}
+
 summary() {
   local data
   data="$(bash -c 'source "$1" >/dev/null 2>&1; printf %s "${RPA_DATA_DIR:-}"' _ "$PREFIX/rpa-server.env")"
@@ -432,16 +521,20 @@ summary() {
   printf '設定檔：%s；資料目錄：%s（安裝、升級都不會清除）\n' "$PREFIX/rpa-server.env" "${data:-未知}"
   printf '前景啟動：%q\n' "$PREFIX/bin/rpa-server"
   printf '背景服務：%s\n' "$SERVICE_STATE"
+  if [ "$RESTART_REQUESTED" = 1 ]; then
+    printf '正在用 %q serve 執行的伺服器（例如 nohup）會在沒有進行中的錄製、調試、人工登入時自己換成新版本；0.5.0 以前的版本或其他方式啟動的要手動重新啟動。\n' "$PREFIX/bin/rpa"
+  fi
   if [ "$SERVICE_STATE" = 未安裝 ]; then
     printf '需要背景服務時：bash %q --install-service\n' "$BUNDLE/install.sh"
   else
     printf '服務狀態：sudo systemctl status rpa-server；日誌：sudo journalctl -u rpa-server -f\n'
   fi
-  printf '升級：解壓新版的分發包，執行其中的 install.sh（--prefix 相同時設定、資料與服務沿用）。\n'
+  printf '升級：只有程式改變時用更新檔 %q update RPA-Update-<版本>.zip；否則解壓新版的分發包，執行其中的 install.sh（--prefix 相同時設定、資料與服務沿用）。\n' "$PREFIX/bin/rpa"
   printf '首次配對：用 SSH 轉發管理埠，在「裝置」頁建立邀請；錄製端／Worker 連線到伺服器的裝置埠。\n'
 }
 
 SERVICE_STATE=""
+RESTART_REQUESTED=0
 
 main() {
   parse_args "$@"
@@ -449,12 +542,14 @@ main() {
   check_system
   check_service
   install_system_packages
+  install_runtime
   install_release
   write_config
   write_launchers
   switch_current
   handle_service
   prune_releases
+  prune_runtimes
   summary
 }
 

@@ -5,6 +5,9 @@
 #   沒有 git 時用真實 yum 補裝；沿用 setup-linux.sh（clone）留下的設定；冒煙（HTTP、埠隔離、
 #   配對、重新啟動）；啟動器以設定檔的埠號啟動、第一次啟動匯入範例場景；重裝保留設定與資料；
 #   新版本切換 current、舊版本保留；systemd unit 語法。容器沒有 systemd，服務啟停由公司主機驗收。
+#   分層更新（ADR 0018）：用臨時金鑰簽一個「下一個提交」的更新檔，在 nohup 啟動的伺服器上執行
+#   bin/rpa update，確認伺服器自己換成新版本；再裝一個故意壞掉的版本，確認自動退回。
+#   臨時金鑰只在不是推版本標籤的建置使用；發布的分發包只信任 rpa_update.keys 的正式公鑰。
 # 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
 name: 伺服器分發包
 
@@ -21,6 +24,7 @@ on:
       - "!packages/*/tests/**"
       - "scenarios/demo/**"
       - "tools/build_server.py"
+      - "tools/build_update.py"
       - "tools/linux_server_smoke.py"
       - "pyproject.toml"
       - "uv.lock"
@@ -38,6 +42,7 @@ on:
       - "!packages/*/tests/**"
       - "scenarios/demo/**"
       - "tools/build_server.py"
+      - "tools/build_update.py"
       - "tools/linux_server_smoke.py"
       - "pyproject.toml"
       - "uv.lock"
@@ -87,9 +92,38 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.0
+      - name: 測試升級用的臨時金鑰（推版本標籤時不產生）
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          pub="$(PYTHONPATH=packages/rpa_update/src python3 -m rpa_update.build keygen --private "$RUNNER_TEMP/update-test.pem")"
+          echo "RPA_UPDATE_EXTRA_KEYS=$pub" >> "$GITHUB_ENV"
       - name: 建置（系統的 python3 執行，只用標準函式庫）
         id: build
         run: python3 tools/build_server.py
+      - name: 更新檔（模擬下一個提交；另一個故意壞掉）
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        id: update
+        env:
+          RUNTIME: ${{ steps.build.outputs.target }}=${{ steps.build.outputs.runtime }}
+        run: |
+          set -euo pipefail
+          run() { uv run --locked --no-default-groups --package rpa-cli python -m tools.build_update --runtime "$RUNTIME" --key "$RUNNER_TEMP/update-test.pem" "$@"; }
+          run --commit 0000002
+          mkdir -p dist/update-test
+          mv dist/update/RPA-Update-*.zip dist/update-test/next.zip
+          # 壞掉的版本：載入程式沒問題（rpa update 的檢查會過），啟動伺服器時才失敗，bin/rpa serve 要退回
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("apps/server/src/rpa_server/app.py")
+          text = path.read_text(encoding="utf-8")
+          marker = "def create_app(settings: Settings | None = None) -> FastAPI:\n"
+          assert marker in text
+          path.write_text(text.replace(marker, marker + '    raise RuntimeError("broken on purpose (CI)")\n'), encoding="utf-8")
+          PY
+          run --commit 0000003
+          git checkout -- apps/server/src/rpa_server/app.py
+          mv dist/update/RPA-Update-*.zip dist/update-test/broken.zip
+          ls -la dist/update-test
       - name: Rocky 8：安裝、沿用舊設定、冒煙、啟動器、重裝、升級
         env:
           ARTIFACT: ${{ steps.build.outputs.artifact }}
@@ -98,7 +132,7 @@ jobs:
             rockylinux:8 bash -s <<'BASH'
           set -Eeuo pipefail
           # Rocky 8 的 glibc 2.28 是下限。git 不預先安裝：install.sh 要自己用 yum 補上。
-          yum install -y sudo shadow-utils systemd tar gzip curl >/dev/null
+          yum install -y sudo shadow-utils systemd tar gzip curl procps-ng bc >/dev/null
           if command -v git >/dev/null; then echo "映像已經有 git，無法驗證補裝"; exit 1; fi
           useradd --create-home --shell /bin/bash rpa-test
           echo 'rpa-test ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/rpa-test
@@ -166,6 +200,72 @@ jobs:
           rpa-server/current/python/bin/python3 /source/tools/linux_server_smoke.py \
             --rpa "$HOME/rpa-server/bin/rpa" --cwd "$HOME/rpa-server/current"
           cmp rpa-server/rpa-server.env env.before
+
+          # 分層更新（ADR 0018）：只有推版本標籤以外的建置有測試用的更新檔
+          if [ -f /source/dist/update-test/next.zip ]; then
+            serving() { curl -fsS -o /dev/null http://127.0.0.1:8090/api/openapi.json; }
+            # 執行中的伺服器是哪個版本（伺服器程序的 RPA_RELEASE_DIR）
+            running() {
+              local pid
+              pid="$(pgrep -f -n 'python3 -m rpa_cli serve' || true)"
+              [ -n "$pid" ] || return 0
+              tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's|^RPA_RELEASE_DIR=.*/||p'
+            }
+            nohup rpa-server/bin/rpa-server >> update.log 2>&1 < /dev/null &
+            supervisor=$!
+            for _ in $(seq 60); do serving && break; sleep 1; done
+            serving
+            test "$(running)" = "$version-0000001"
+
+            # 更新：裝好、換 current，伺服器沒有進行中的工作，自己重新啟動成新版本
+            rpa-server/bin/rpa update /source/dist/update-test/next.zip
+            test "$(readlink rpa-server/current)" = "releases/$version-0000002"
+            test -L "rpa-server/releases/$version-0000002/python"
+            start=$(date +%s.%N)
+            down=""
+            for _ in $(seq 120); do
+              if ! serving; then down=1; fi
+              if [ "$(running)" = "$version-0000002" ] && serving && [ ! -e rpa-server/run/update.state ]; then break; fi
+              sleep 0.25
+            done
+            test "$(running)" = "$version-0000002"
+            test ! -e rpa-server/run/update.state
+            test ! -e rpa-server/run/restart.request
+            echo "重新啟動完成：$(echo "$(date +%s.%N) - $start" | bc) 秒（期間曾經連不上：${down:-否}）"
+            curl -fsS 'http://127.0.0.1:8090/api/scenes?domain=testsite' | grep -qi 'ba-001'
+            # 同一個更新檔再裝一次：不用更新
+            rpa-server/bin/rpa update /source/dist/update-test/next.zip | grep -q '不用更新'
+
+            # 壞掉的版本：開始服務之前就結束，bin/rpa serve 退回 0000002
+            rpa-server/bin/rpa update --now /source/dist/update-test/broken.zip
+            for _ in $(seq 120); do
+              if [ -e rpa-server/run/update.failed ] && serving && [ "$(running)" = "$version-0000002" ]; then break; fi
+              sleep 0.25
+            done
+            test "$(readlink rpa-server/current)" = "releases/$version-0000002"
+            grep -q "target=$version-0000003" rpa-server/run/update.failed
+            grep -q '退回' update.log
+            serving
+
+            # 清單被改過：簽章不符，拒絕，current 不變
+            rpa-server/current/python/bin/python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile("/source/dist/update-test/next.zip") as source, zipfile.ZipFile("tampered.zip", "w") as out:
+              for info in source.infolist():
+                  data = source.read(info)
+                  if info.filename == "manifest.json":
+                      data = data.replace(b"0000002", b"0000009")
+                  out.writestr(info, data)
+          PY
+            if rpa-server/bin/rpa update tampered.zip; then echo "竄改過的更新檔不該裝得上"; exit 1; fi
+            test "$(readlink rpa-server/current)" = "releases/$version-0000002"
+
+            kill "$supervisor"
+            wait "$supervisor" || true
+            if pgrep -f 'python3 -m rpa_cli serve'; then echo "伺服器沒有跟著結束"; exit 1; fi
+            ls rpa-server/releases rpa-server/runtimes
+            tail -n 40 update.log
+          fi
           CHECK
           # 容器沒有 systemd PID 1，只驗證 unit；真實服務啟停另由公司主機驗收。
           systemd-analyze verify /home/rpa-test/rpa-server/rpa-server.service
@@ -179,7 +279,10 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: server-linux-${{ matrix.label }}
-          path: ${{ steps.build.outputs.artifact }}
+          # runtime-<目標>.json：發布流程產生更新檔時要用（ADR 0018），不上傳到 Release
+          path: |
+            ${{ steps.build.outputs.artifact }}
+            ${{ steps.build.outputs.runtime_file }}
           # 私有倉庫的產物計入 Actions 儲存額度（一次約 500 MB）：發布（標籤）只在同一次執行裡用，留 1 天；
           # PR 與 main 的試用包留 3 天。
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 1 || 3 }}

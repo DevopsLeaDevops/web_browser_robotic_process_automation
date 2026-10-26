@@ -21,6 +21,9 @@
 #   打開 WKWebView 視窗，確認 App 的頁面經由本機閘道載入；建置時也檢查 Info.plist 指的執行檔。
 #   端到端（tools/recorder_e2e.py）：從原始碼啟動管理 Portal、產生錄製端邀請，打包版以 --no-window
 #   配對（權杖存進鑰匙圈），經由本機閘道在錄製端逐步調試 BA-001，無頭與有頭各一次。
+# 程式碼層（ADR 0018，發布的建置不跑）：建置時多信任一把臨時金鑰，用它簽「下一個提交」的更新檔，
+#   rpa-child --install-update 裝好後再跑一次自我測試（子程序也要用同一層）；再裝一個啟動就失敗的
+#   更新檔，確認啟動兩次沒有確認之後自動退回上一層。
 # 兩個 App 都是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
 # 產物（DMG、zip、安裝檔）掛在這次建置上 3 天（發布時 1 天）；MVP 不簽章（docs/design/desktop.html#signing）。
 # 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
@@ -47,6 +50,9 @@ on:
       - "scenarios/examples/iframe-form.yaml"
       - "scenarios/examples/popup-form.yaml"
       - "tools/build_desktop.py"
+      # 程式碼層的更新檔（ADR 0018）：用和伺服器分發包相同的方法建
+      - "tools/build_update.py"
+      - "tools/build_server.py"
       - "tools/desktop_e2e.py"
       - "tools/recorder_e2e.py"
       - "pyproject.toml"
@@ -73,6 +79,9 @@ on:
       - "scenarios/examples/iframe-form.yaml"
       - "scenarios/examples/popup-form.yaml"
       - "tools/build_desktop.py"
+      # 程式碼層的更新檔（ADR 0018）：用和伺服器分發包相同的方法建
+      - "tools/build_update.py"
+      - "tools/build_server.py"
       - "tools/desktop_e2e.py"
       - "tools/recorder_e2e.py"
       - "pyproject.toml"
@@ -160,6 +169,11 @@ jobs:
           set -e
           uv run python tools/ci_annotations.py junit "${{ runner.temp }}/desktop-pytest.xml"
           exit "$code"
+      - name: 測試更新檔用的臨時金鑰（發布的建置不用，App 只信任發布的公鑰）
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          key="$(uv run python -m rpa_update.build keygen --private "${{ runner.temp }}/update-dev.pem")"
+          echo "RPA_UPDATE_EXTRA_KEYS=$key" >> "$GITHUB_ENV"
       - name: 建置
         id: build
         run: uv run python tools/build_desktop.py ${{ matrix.app }}
@@ -183,6 +197,67 @@ jobs:
         if: always()
         # 日誌在 PR 頁面就看得到：每一步的結果、失敗的原因與輸出的最後幾行
         run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/self-test.json" "${{ runner.temp }}/self-test.log"
+      - name: 程式碼層：裝更新檔後再跑一次自我測試，啟動就失敗的更新自動退回
+        id: layer
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
+          # 只有這一步用程式碼層：其他測試照舊測內建的程式
+          RPA_WORKER_HOME: ${{ runner.temp }}/layer-home
+          RPA_RECORDER_HOME: ${{ runner.temp }}/layer-home
+          RUNTIME: ${{ steps.build.outputs.runtime }}
+          KEY: ${{ runner.temp }}/update-dev.pem
+        run: |
+          child="${{ steps.build.outputs.child }}"
+          commit_of() { "$child" --version | uv run python -c 'import json, sys; print(json.load(sys.stdin)["commit"])'; }
+          # 下一個提交：同一份程式，只換提交
+          uv run python -m tools.build_update --runtime "$RUNTIME" --key "$KEY" --commit 0000002
+          "$child" --install-update dist/update/RPA-Update-*.zip
+          test "$(commit_of)" = 0000002
+          # 重新啟動套用更新：新的程序先等舊的結束（Windows 是 WaitForSingleObject）才選層
+          RPA_CHILD="$child" uv run python - <<'EOF'
+          import json, os, subprocess, sys, threading, time
+          old = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(4)"])
+          threading.Thread(target=old.wait, daemon=True).start()  # 結束就收掉，不留殭屍程序
+          started = time.monotonic()
+          env = {**os.environ, "RPA_RESTART_AFTER": str(old.pid)}
+          command = [os.environ["RPA_CHILD"], "--version"]
+          out = subprocess.run(command, env=env, capture_output=True, text=True, check=True).stdout
+          waited = time.monotonic() - started
+          assert old.poll() is not None and 3 <= waited < 60, f"等了 {waited:.1f} 秒"
+          assert json.loads(out)["commit"] == "0000002", out
+          print(f"等舊程序結束：{waited:.1f} 秒")
+          EOF
+          set +e
+          "$child" --self-test --report "${{ runner.temp }}/layer-self-test.json" \
+            > "${{ runner.temp }}/layer-self-test.log" 2>&1
+          code=$?
+          set -e
+          if [ "$code" != 0 ]; then
+            cat "${{ runner.temp }}/layer-self-test.log"
+            exit "$code"
+          fi
+          # 啟動就失敗的更新檔：兩次都失敗，第三次退回 0000002
+          echo 'raise SystemExit(7)' > apps/desktop/src/rpa_desktop/__main__.py
+          uv run python -m tools.build_update --runtime "$RUNTIME" --key "$KEY" --commit 0000003
+          git checkout -- apps/desktop/src/rpa_desktop/__main__.py
+          "$child" --install-update dist/update/RPA-Update-*.zip
+          for attempt in 1 2; do
+            set +e
+            "$child" --version
+            code=$?
+            set -e
+            test "$code" = 7
+          done
+          test "$(commit_of)" = 0000002
+          cat "${{ runner.temp }}/layer-home/app/boot.log"
+          grep -q 0000003 "${{ runner.temp }}/layer-home/app/active.json"
+      - name: 程式碼層自我測試的結果寫成 annotations
+        if: always() && steps.layer.outcome == 'failure'
+        run: |
+          if [ -f "${{ runner.temp }}/layer-self-test.json" ]; then
+            uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/layer-self-test.json" "${{ runner.temp }}/layer-self-test.log"
+          fi
       - name: 視窗自我測試：WebView2 視窗與通知區圖示
         id: smoke
         if: matrix.app == 'worker' && runner.os == 'Windows'
@@ -284,7 +359,7 @@ jobs:
             echo '```'
             echo "$sizes"
             echo '```'
-            for report in self-test smoke e2e; do
+            for report in self-test layer-self-test smoke e2e; do
               if [ -f "${{ runner.temp }}/$report.json" ]; then
                 echo "<details><summary>$report.json</summary>"
                 echo
@@ -299,9 +374,11 @@ jobs:
         with:
           name: ${{ matrix.app }}-${{ matrix.os }}
           # macOS 沒有安裝檔（installer 是空的那行會被略過）
+          # runtime-<目標>.json：發布流程產生更新檔時要用（ADR 0018），不上傳到 Release
           path: |
             ${{ steps.build.outputs.artifact }}
             ${{ steps.build.outputs.installer }}
+            ${{ steps.build.outputs.runtime_file }}
           # 私有倉庫的產物計入 Actions 儲存額度（一次約 500 MB）：發布（標籤）只在同一次執行裡用，留 1 天；
           # PR 與 main 的試用包留 3 天。
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 1 || 3 }}

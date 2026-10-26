@@ -648,12 +648,25 @@ def page_router(services: Services) -> APIRouter:
         port = services.worker_port
         api_url = services.external_url()
         records = services.workers.list_workers()
+        recorders = services.recorders.list_recorders()
+        updates = services.device_updates
         return page(
             "workers.html",
             page="workers",
             title=t("nav.workers"),
             workers=records,
-            recorders=services.recorders.list_recorders(),
+            recorders=recorders,
+            device_updates=updates.summary(),
+            worker_updates={
+                item.id: report
+                for item in records
+                if (report := updates.report("worker", item.id)) is not None
+            },
+            recorder_updates={
+                item.id: report
+                for item in recorders
+                if (report := updates.report("recorder", item.id)) is not None
+            },
             default_target=services.locations()["default"],
             targets=TARGETS,
             local_worker=services.local_worker,

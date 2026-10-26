@@ -5,6 +5,8 @@
   Worker API 的埠也沒有管理頁面（:class:`rpa_server.middleware.PortGateMiddleware`）。
 - 錯誤一律是 ``{"error": {"code": …, "message": …}}``：401 權杖不對、409 這個執行已經不歸你
   （例如被判定失聯）或協定版本不同、413 上傳太大、422 內容不對。
+- ``POST /update``、``GET /update/file``（ADR 0018）：上線前的更新檢查與下載，格式固定、
+  不檢查協定版本（:mod:`rpa_server.device_updates`）。
 """
 
 import uuid
@@ -13,14 +15,16 @@ from typing import Annotated, Final
 
 import anyio
 from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from rpa_server.device_updates import DeviceUpdates
 from rpa_server.dispatch import WorkerHub
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
 from rpa_worker.protocol import API_PREFIX, CLAIM_WAIT_SECONDS, MAX_ARTIFACT_BYTES
 
-__all__ = ["save_upload", "worker_api_router"]
+__all__ = ["save_upload", "update_file_response", "worker_api_router"]
 
 MAX_STATE_BYTES: Final = 5 * 1024 * 1024
 
@@ -72,7 +76,15 @@ async def save_upload(request: Request, limit: int, folder: Path) -> Path:
     return Path(path)
 
 
-def worker_api_router(hub: WorkerHub) -> APIRouter:
+def update_file_response(updates: DeviceUpdates) -> FileResponse:
+    """伺服器的更新檔；沒有時 404（Worker API 與 Client API 共用）。"""
+    path = updates.file()
+    if path is None:
+        raise ServiceError(404, "update_unavailable", t("error.update_unavailable"))
+    return FileResponse(path, media_type="application/zip", filename=path.name)
+
+
+def worker_api_router(hub: WorkerHub, updates: DeviceUpdates) -> APIRouter:
     router = APIRouter(prefix=API_PREFIX)
 
     def current_worker(authorization: Annotated[str | None, Header()] = None) -> str:
@@ -86,6 +98,17 @@ def worker_api_router(hub: WorkerHub) -> APIRouter:
         worker: Annotated[str, Depends(current_worker)], body: dict[str, object]
     ) -> dict[str, object]:
         return hub.hello(worker, body)
+
+    @router.post("/update")
+    def update(
+        worker: Annotated[str, Depends(current_worker)], body: dict[str, object]
+    ) -> dict[str, object]:
+        return updates.offer("worker", worker, body)
+
+    @router.get("/update/file", response_model=None)
+    def update_file(worker: Annotated[str, Depends(current_worker)]) -> FileResponse:
+        del worker  # 只要權杖對
+        return update_file_response(updates)
 
     @router.post("/claim", response_model=None)
     def claim(

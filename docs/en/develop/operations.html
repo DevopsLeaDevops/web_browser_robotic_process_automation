@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:2c5f1dc7d18dbbc3">
+<meta name="translation-source" content="sha256:413d34e860c46a38">
 <title>Deployment &amp; operations · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -131,9 +131,31 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
           <li>Stop the server (Ctrl+C or <code>sudo systemctl stop rpa-portal</code>); a <a href="#backup">backup</a> first is a good idea.</li>
           <li><code>git pull</code>, then run <code>./scripts/setup.sh</code> (it installs only what changed; use <code>uv sync</code> to update just the dependencies). A Linux server installed from the <a href="setup.html#linux-package">package</a> instead: extract the new package and run its <code>install.sh</code>; it puts the new version in place before switching and restarts a running service (this step and the next in one go).</li>
           <li>Start the server. The database is upgraded on start, and existing scenes and history are kept. The first upgrade to M11 moves the old <code>scenes/</code> and the database's validations, publications and composite scenarios into <code>domains/</code>, after a backup to <code>backups/&lt;time&gt;-before-domains/</code> (composite scenarios also <code>-before-composites/</code>); the log prints where the backup is.</li>
-          <li>Bring workers and recorders to the same version: the apps take the installer or DMG of that version, and command-line machines <code>git pull</code> and restart.</li>
+          <li>Bring workers and recorders to the same version: the apps take the installer or DMG of that version, and command-line machines <code>git pull</code> and restart. From 0.6.0 on, the apps update themselves from the server when the runtime has not changed; see <a href="#device-updates">Devices follow the server</a> below.</li>
         </ol>
         <p>When the server restarts, recordings, debugging and manual logins in progress on recorders end; workers and recorders reconnect by themselves without pairing again.</p>
+
+        <h3 id="update-file">Updating the server with an update file (from 0.6.0)</h3>
+        <p>From 0.6.0 on, each release also has an <code>RPA-Update-&lt;version&gt;.zip</code> of about 2 MB that holds only the code (<a href="../adr/0018-layered-updates.html">ADR 0018</a>). On a server installed from the <a href="setup.html#linux-package">package</a>, copy it to the server and run:</p>
+<pre class="source">~/rpa-server/bin/rpa update RPA-Update-0.6.1.zip         # restarts by itself when nothing is in progress
+~/rpa-server/bin/rpa update RPA-Update-0.6.1.zip --now   # restart right away</pre>
+        <ul>
+          <li>It verifies the signature and every file and switches only after the new version folder is in place. The server must be started by the package's <code>bin/rpa serve</code> or <code>bin/rpa-server</code> (under nohup or systemd): it waits until no recording, step debugging, manual login or local run is in progress, then restarts with the new version and the same arguments, so the portal is unreachable for a few seconds. Runs in progress on remote Workers wait for the Worker to report again and are not marked as lost.</li>
+          <li>When the new version migrates the database, SQLite is backed up first (back up PostgreSQL yourself); when the new version exits before it starts serving, it goes back to the previous version and restores the backup.</li>
+          <li>When it says a full package is needed (this release changed Python or third-party packages), use the package's <code>install.sh</code> as described above.</li>
+          <li>A server run from a clone cannot take update files: switch to the package once; the start command only changes <code>.venv-server/bin/rpa</code> to <code>~/rpa-server/bin/rpa</code>, and the arguments and <code>--data</code> stay.</li>
+        </ul>
+
+        <h3 id="device-updates">Devices follow the server (from 0.6.0)</h3>
+        <p>After the server changes version, RPA Worker and RPA Recorder download the same version from the server the next time they connect (over the LAN, no GitHub account needed), verify its signature and install it in the app's data folder; the app itself is not modified:</p>
+        <ul>
+          <li><strong>RPA Worker:</strong> stops claiming new runs and restarts by itself after the current run (a few seconds). Pressing "Resume jobs" in the window cancels this and applies the update on the next start instead; a Worker that was already paused is not restarted.</li>
+          <li><strong>RPA Recorder:</strong> the window says a new version is downloaded; close and reopen it to apply. Recording and debugging are never interrupted.</li>
+          <li>If the new version cannot start on that computer, it goes back to the previous version automatically; the Devices page marks the failed start, and the same version is not installed automatically again.</li>
+          <li>"Device updates" on the Devices page shows the server's version and each device's update state, and has the "Update devices automatically" switch (on by default). A server installed from a full package starts with no update file for devices: run <code>bin/rpa update</code> once with the same version's update file; it says the version is already installed and puts the file in place.</li>
+          <li>When the Devices page says a full installer is needed (the runtime changed), install that computer from the installer or DMG as before.</li>
+          <li>Servers and apps from 0.5.0 and earlier do not have this yet: install each once from the 0.6.0 full packages; pairing, settings and data are kept.</li>
+        </ul>
 
         <h3 id="backup">Backup and moving</h3>
         <p>All data is in the data folder (its contents are in <a href="../design/portal.html#data-folder">Management portal › Data folder</a>). Stop the server and copy the whole folder to back it up, for example <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>. To move to a new server, install the same version there, put the folder back and start with the same <code>--data</code>. Device tokens are in the folder too, so no pairing is needed while the server address stays the same; if the address changes (a new IP), choose “Invite again” on the Devices page and pair that device with the new invitation. The folder holds secret values, sign-in state and git tokens and deploy keys (<code>git/</code>), so keep backups readable only by you.</p>
@@ -176,7 +198,7 @@ sudo systemctl restart rpa-portal          # restart after an update</pre>
       <div class="panel-body prose">
         <ul>
           <li><strong>Add.</strong> “Add device”, choose the kind (RPA Worker or RPA Recorder) and create a one-time invitation (valid for 24 hours) to paste into that computer's app or command line. Steps in <a href="remote-worker.html#register">Remote workers › Add the device</a>.</li>
-          <li><strong>Status.</strong> Online, Busy, Offline or Disabled, plus the operating system, app version and downloaded browsers. A version that differs from the server is flagged.</li>
+          <li><strong>Status.</strong> Online, Busy, Offline or Disabled, plus the operating system, app version and downloaded browsers. A version that differs from the server is flagged, along with the most recent <a href="#device-updates">update state</a>.</li>
           <li><strong>Disable, enable.</strong> A disabled device cannot connect at once. The command-line worker and recorder stop; run them again after enabling. Both apps forget the pairing when they are refused, so after enabling pair them again with a new invitation.</li>
           <li><strong>Invite again.</strong> The old token stops working at once; pair that computer again with the new invitation. Use it when a token may have leaked or the device is replaced.</li>
           <li><strong>Delete.</strong> The device can no longer connect; queued runs assigned to it are marked failed, and run history is kept.</li>

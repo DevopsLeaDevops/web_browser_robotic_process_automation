@@ -47,7 +47,7 @@
           <tbody>
             <tr><td>往 PR 推送、合併到 main</td><td>CI（Linux）每次都跑；整個 PR 改到 Worker 的路徑時加跑 Windows 的 Worker 測試；改到 <code>apps/</code>、<code>packages/</code> 時加跑桌面端建置；改到伺服器用到的套件或依賴時加跑伺服器分發包（建置 x64、arm64，在 Rocky 8 容器裡安裝、啟動、升級）；改到腳本或依賴時加跑一鍵安裝腳本（只驗證腳本與冒煙測試）</td><td>約 4 分（桌面端建置是下限）；不觸發桌面端建置時約 2.5 分</td></tr>
             <tr><td>只改 <code>handoff/</code>、<code>docs/</code> 的推送</td><td>見<a href="#docs-only">下一節</a></td><td>約 1 分</td></tr>
-            <tr><td>推版本標籤 <code>v*</code></td><td>發布：確認版本、建兩個桌面 App、草稿 Release</td><td>約 4 分</td></tr>
+            <tr><td>推版本標籤 <code>v*</code></td><td>發布：確認版本、建桌面 App 與伺服器分發包、產生並簽署更新檔（<a href="#update-key">金鑰</a>）、草稿 Release</td><td>約 4 分</td></tr>
             <tr><td>每天 20:17 UTC</td><td>每晚完整測試：三個系統、兩種瀏覽器、Python 3.12 與 3.13 的全部測試，瀏覽器測試連跑三遍</td><td>約 30 分</td></tr>
             <tr><td>每天 20:47 UTC</td><td>一鍵安裝腳本的完整範圍：專案內執行跑全部測試，加上從零開始</td><td>約 15 分</td></tr>
             <tr><td>每週日 22:17 UTC</td><td>Python 依賴更新：有更新時開 PR 並觸發 CI</td><td>不到 1 分；CI 另計</td></tr>
@@ -98,6 +98,29 @@ gh workflow run server-package.yml --ref 分支名稱</pre>
 gh workflow run cleanup-artifacts.yml
 # 刪掉 3 天以前建立的產物
 gh workflow run cleanup-artifacts.yml -f older-than-days=3 -f dry-run=false</pre>
+    </section>
+
+    <section class="panel" id="update-key">
+      <div class="panel-header"><h2>更新檔的簽署金鑰</h2><span class="muted"><a href="../adr/0018-layered-updates.html">ADR 0018</a></span></div>
+      <div class="panel-body prose">
+        <p>發布時產生的 <code>RPA-Update-&lt;版本&gt;.zip</code> 用 Ed25519 私鑰簽章；伺服器、裝置與桌面 App 的啟動器用安裝包裡的公鑰驗證，驗證不過就不用。私鑰只放在 GitHub Secrets 的 <code>RPA_UPDATE_SIGNING_KEY</code>，不進倉庫、不貼到對話或 issue；公鑰寫在 <code>packages/rpa_update/src/rpa_update/keys.py</code> 的 <code>RELEASE_KEYS</code>，隨完整的安裝包發布。<code>RELEASE_KEYS</code> 是空的、Secret 沒設、或兩者對不上時，發布流程會失敗，不會發出裝置驗證不了的版本。PR 與 main 上的建置每次用臨時金鑰測試，不碰正式金鑰。</p>
+        <h3>第一次產生</h3>
+        <ol>
+          <li>在一台有 OpenSSL 1.1.1 以上的電腦產生私鑰，並印出公鑰（一行 base64）。用 <code>openssl version</code> 查看版本：CentOS 7 的 1.0.2 與 macOS 內建的 LibreSSL 沒有 Ed25519，會顯示 <code>Algorithm ed25519 not found</code>，請換一台電腦或改用下面專案的工具。</li>
+        </ol>
+      </div>
+      <pre class="source">openssl genpkey -algorithm ed25519 -out rpa-update-signing.pem
+openssl pkey -in rpa-update-signing.pem -pubout -outform DER | tail -c 32 | base64</pre>
+      <div class="panel-body prose">
+        <ol start="2">
+          <li>到倉庫的 Settings › Secrets and variables › Actions › New repository secret，名稱填 <code>RPA_UPDATE_SIGNING_KEY</code>，值貼上 <code>rpa-update-signing.pem</code> 的全部內容（含 <code>-----BEGIN PRIVATE KEY-----</code> 與 <code>-----END PRIVATE KEY-----</code> 兩行）。</li>
+          <li>把公鑰加進 <code>RELEASE_KEYS</code>，用 PR 合併。公鑰可以公開。</li>
+          <li>私鑰檔另外備份到只有自己拿得到的地方（例如密碼管理器），再從那台電腦刪掉。遺失私鑰之後的版本簽不了，裝置要重新安裝帶新公鑰的完整安裝包；外洩時也一樣要換。</li>
+        </ol>
+        <p>也可以用專案的工具產生：<code>uv run python -m rpa_update.build keygen --private rpa-update-signing.pem</code>，印出的就是公鑰；格式和 OpenSSL 相同。</p>
+        <h3>換金鑰</h3>
+        <p>先把新的公鑰加進 <code>RELEASE_KEYS</code>（舊的留著），發一版完整的安裝包；等伺服器與裝置都換上這一版，再把 Secret 換成新的私鑰，最後拿掉舊的公鑰。<code>RELEASE_KEYS</code> 改變會改變環境代號，所以這兩版都要用完整的安裝包安裝。</p>
+      </div>
     </section>
 
     <section class="panel" id="metrics">

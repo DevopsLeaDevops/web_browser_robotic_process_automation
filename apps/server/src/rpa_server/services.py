@@ -46,6 +46,7 @@ from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
+from rpa_server.device_updates import DeviceUpdates
 from rpa_server.devices import RecorderHub
 from rpa_server.dispatch import WorkerHub
 from rpa_server.domain import (
@@ -333,6 +334,8 @@ class Services:
         """領域資料夾：伺服器代號、寫入、載入、驗證紀錄、遷移（M11）。"""
         self.recorders = RecorderHub(sessions, locale=locale)
         """錄製端的登記、上線，以及交給它執行的互動子程序（M10.2）。"""
+        self.device_updates = DeviceUpdates.detect(sessions)
+        """裝置跟著伺服器的版本更新（ADR 0018）：更新檔、「自動更新裝置」與裝置的回報。"""
         self.roles = RoleService(
             sessions,
             storage,
@@ -1577,6 +1580,21 @@ class Services:
         )
         if not pending:
             revision.status = "failed"
+
+    def busy(self) -> list[str]:
+        """進行中、伺服器重新啟動會打斷的工作（ADR 0018）：錄製、逐步調試、人工登入。
+
+        回傳要顯示的說明；空的代表可以重新啟動。遠端 worker 執行中的任務不算：重新啟動後
+        :meth:`recover` 給它一次租約的時間重新報到。
+        """
+        reasons: list[str] = []
+        if recordings := self.recordings.active:
+            reasons.append(t("server.busy_recordings", count=len(recordings)))
+        if sessions := self.debug.sessions():
+            reasons.append(t("server.busy_debug", count=len(sessions)))
+        if logins := self.roles.active_logins:
+            reasons.append(t("server.busy_logins", count=len(logins)))
+        return reasons
 
     def recover(self) -> int:
         """伺服器啟動時：上次執行到一半的任務標為失敗（排隊中的會繼續執行）。

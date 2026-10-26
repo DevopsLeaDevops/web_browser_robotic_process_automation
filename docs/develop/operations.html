@@ -130,9 +130,31 @@ sudo systemctl restart rpa-portal          # 更新後重新啟動</pre>
           <li>停止伺服器（Ctrl+C 或 <code>sudo systemctl stop rpa-portal</code>），建議先<a href="#backup">備份</a>。</li>
           <li><code>git pull</code>，再執行 <code>./scripts/setup.sh</code>（依賴與瀏覽器有變動才安裝；只想更新依賴用 <code>uv sync</code>）。用<a href="setup.html#linux-package">分發包</a>安裝的 Linux 伺服器改成：解壓新版的分發包，執行其中的 <code>install.sh</code>；它把新版本放好後才切換，服務正在執行時自動重新啟動（這一步和下一步一起完成）。</li>
           <li>啟動伺服器。資料庫在啟動時自動升級，原有的場景與紀錄都保留。第一次升級到 M11 時，舊的 <code>scenes/</code> 與資料庫裡的驗證、發布、組合場景會搬進 <code>domains/</code>，搬之前先備份到 <code>backups/&lt;時間&gt;-before-domains/</code>（組合場景另有 <code>-before-composites/</code>），日誌會印出備份位置。</li>
-          <li>把運行端與錄製端更新到同一個版本：App 下載同版本的安裝檔或 DMG，命令列的那台 <code>git pull</code> 後重新啟動。</li>
+          <li>把運行端與錄製端更新到同一個版本：App 下載同版本的安裝檔或 DMG，命令列的那台 <code>git pull</code> 後重新啟動。0.6.0 起，執行環境沒變的版本由 App 自己從伺服器更新，見下方<a href="#device-updates">裝置跟著伺服器更新</a>。</li>
         </ol>
         <p>伺服器重新啟動時，錄製端進行中的錄製、調試、人工登入會結束；運行端與錄製端會自己重新連上，不必重新配對。</p>
+
+        <h3 id="update-file">用更新檔升級伺服器（0.6.0 起）</h3>
+        <p>0.6.0 起每個 Release 多一個約 2 MB 的 <code>RPA-Update-&lt;版本&gt;.zip</code>，只含程式碼（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）。用<a href="setup.html#linux-package">分發包</a>安裝的伺服器，把它複製到伺服器後執行：</p>
+<pre class="source">~/rpa-server/bin/rpa update RPA-Update-0.6.1.zip         # 沒有進行中的工作時自己重新啟動
+~/rpa-server/bin/rpa update RPA-Update-0.6.1.zip --now   # 不等，立刻重新啟動</pre>
+        <ul>
+          <li>先驗證簽章與每個檔案，裝成新的版本資料夾後才切換。伺服器要由分發包的 <code>bin/rpa serve</code> 或 <code>bin/rpa-server</code> 啟動（nohup、systemd 都可以）：它等到沒有進行中的錄製、逐步調試、人工登入、本機執行，用新的版本以同樣的參數重新啟動，Portal 有數秒打不開。遠端 Worker 執行中的任務會等它重新報到，不會被標成失聯。</li>
+          <li>新版本要遷移資料庫時先備份 SQLite（PostgreSQL 請自己先備份）；新版本還沒開始服務就結束時，自動退回上一版並還原備份。</li>
+          <li>說要完整的分發包時（這一版換了 Python 或第三方套件），照上面的步驟用分發包的 <code>install.sh</code>。</li>
+          <li>從 clone 執行的伺服器不能用更新檔：先改用分發包一次，啟動命令只把 <code>.venv-server/bin/rpa</code> 換成 <code>~/rpa-server/bin/rpa</code>，參數與 <code>--data</code> 照舊。</li>
+        </ul>
+
+        <h3 id="device-updates">裝置跟著伺服器更新（0.6.0 起）</h3>
+        <p>伺服器換了版本之後，RPA Worker 與 RPA 錄製端下次連上時從伺服器下載同一個版本（區網內，不需要 GitHub 帳號），驗證簽章後裝在 App 的資料夾，App 本身不會被修改：</p>
+        <ul>
+          <li><strong>RPA Worker：</strong>暫停領新任務，目前的任務結束後自己重新啟動（數秒）。在視窗按「繼續接任務」可以取消，改在下次開啟時套用；原本就暫停的 Worker 不會被重新啟動。</li>
+          <li><strong>RPA 錄製端：</strong>視窗顯示已下載新版本，關掉再開啟就會套用，不會打斷錄製與調試。</li>
+          <li>新版本在那台起不來時自動退回原本的版本，裝置頁標出啟動失敗，同一個版本不再自動安裝。</li>
+          <li>裝置頁的「裝置更新」顯示伺服器的版本與每台的更新狀態，可以關掉「自動更新裝置」（預設開）。用完整分發包安裝的伺服器一開始沒有更新檔可以給裝置：拿同一版的更新檔執行一次 <code>bin/rpa update</code>，它會說已經是這個版本，並把更新檔放好。</li>
+          <li>裝置頁說「需要完整安裝包」時（執行環境換了），那台照舊下載安裝檔或 DMG 安裝。</li>
+          <li>0.5.0 以前的伺服器與 App 沒有這套機制，要用 0.6.0 的完整包各安裝一次；配對、設定與資料都保留。</li>
+        </ul>
 
         <h3 id="backup">備份與搬家</h3>
         <p>所有資料都在資料夾裡（裡面有什麼見<a href="../design/portal.html#data-folder">管理 Portal › 資料夾</a>）。停止伺服器後複製整個資料夾就是備份，例如 <code>tar czf rpa-data-$(date +%Y%m%d).tgz -C ~ rpa-data</code>。搬到新的伺服器：在新的那台安裝同一個版本，把資料夾放回去，用同樣的 <code>--data</code> 啟動。裝置的權杖也在資料夾裡，伺服器網址不變時不必重新配對；網址變了（換了 IP）時，在裝置頁按「重新邀請」，到那台用新的邀請重新配對。資料夾裡有 Secrets 的值、登入狀態與 git 的權杖、部署金鑰（<code>git/</code>），備份檔請一樣只有本人能讀。</p>
@@ -175,7 +197,7 @@ sudo systemctl restart rpa-portal          # 更新後重新啟動</pre>
       <div class="panel-body prose">
         <ul>
           <li><strong>新增。</strong>「新增裝置」選種類（RPA Worker 或 RPA 錄製端），產生一次性的邀請（24 小時內有效），貼到那台的 App 或命令列。步驟見<a href="remote-worker.html#register">遠端 worker › 新增裝置</a>。</li>
-          <li><strong>狀態。</strong>線上、執行中、離線、已停用；另外顯示作業系統、App 版本與下載過的瀏覽器。和伺服器版本不同時會標出來。</li>
+          <li><strong>狀態。</strong>線上、執行中、離線、已停用；另外顯示作業系統、App 版本與下載過的瀏覽器。和伺服器版本不同時會標出來，並顯示最近一次的<a href="#device-updates">更新狀態</a>。</li>
           <li><strong>停用、啟用。</strong>停用後那台立刻連不上。命令列的 worker、錄製端會停下來，啟用後重新執行即可；兩個 App 被拒絕時會清掉配對，啟用後要用新的邀請再配對。</li>
           <li><strong>重新邀請。</strong>舊的權杖立刻失效，要用新的邀請在那台重新配對。懷疑權杖外流、換電腦時用。</li>
           <li><strong>刪除。</strong>那台不能再連線；指定給它、還在排隊的執行會標為失敗，執行紀錄保留。</li>

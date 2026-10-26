@@ -385,6 +385,10 @@ class TargetSetting(_Body):
     target: Target
 
 
+class DeviceUpdateSetting(_Body):
+    auto: bool
+
+
 class ServerSetting(_Body):
     name: str = Field(max_length=100)
 
@@ -1202,6 +1206,16 @@ def api_router(services: Services) -> APIRouter:
     def set_default_target(body: TargetSetting) -> dict[str, object]:
         hub.set_default_target(body.target)
         return worker_list()
+
+    @router.get("/settings/device-updates")
+    def get_device_updates() -> dict[str, object]:
+        """裝置更新（ADR 0018）：「自動更新裝置」與伺服器的更新檔。"""
+        return services.device_updates.summary()
+
+    @router.put("/settings/device-updates")
+    def set_device_updates(body: DeviceUpdateSetting) -> dict[str, object]:
+        services.device_updates.set_auto(body.auto)
+        return services.device_updates.summary()
 
     @router.get("/settings/server")
     def get_server() -> dict[str, object]:
