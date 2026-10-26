@@ -1315,7 +1315,7 @@ wheels = [
 
 [[package]]
 name = "rpa-cli"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "apps/cli" }
 dependencies = [
     { name = "click" },
@@ -1338,7 +1338,7 @@ requires-dist = [
 
 [[package]]
 name = "rpa-core"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "packages/rpa_core" }
 dependencies = [
     { name = "jinja2" },
@@ -1355,7 +1355,7 @@ requires-dist = [
 
 [[package]]
 name = "rpa-desktop"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "apps/desktop" }
 dependencies = [
     { name = "keyring" },
@@ -1384,7 +1384,7 @@ requires-dist = [
 
 [[package]]
 name = "rpa-runner"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "packages/rpa_runner" }
 dependencies = [
     { name = "playwright" },
@@ -1399,7 +1399,7 @@ requires-dist = [
 
 [[package]]
 name = "rpa-server"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "apps/server" }
 dependencies = [
     { name = "alembic" },
@@ -1428,17 +1428,17 @@ requires-dist = [
 
 [[package]]
 name = "rpa-testsite"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "apps/testsite" }
 
 [[package]]
 name = "rpa-update"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "packages/rpa_update" }
 
 [[package]]
 name = "rpa-worker"
-version = "0.6.0"
+version = "0.6.1"
 source = { editable = "apps/worker" }
 dependencies = [
     { name = "rpa-core" },
