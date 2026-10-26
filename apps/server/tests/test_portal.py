@@ -790,6 +790,48 @@ def test_scene_page_saves_scripts_and_contract_in_turn(portal: str, page: Page) 
     assert errors == []
 
 
+@pytest.mark.parametrize("portal", [DEMO], indirect=True)
+def test_scene_anchors_land_below_the_jump_bar(portal: str, page: Page) -> None:
+    """卡片的「入參設定」「出參設定」（2026-10-26）：入參與出參比頁面晚載入（遠端伺服器較慢）
+    也停在區域連結列的正下方，不被移到畫面中間；區域連結列換行時也一樣。"""
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+
+    def slow(route: Route) -> None:
+        time.sleep(0.6)
+        route.continue_()
+
+    page.route("**/contract-workspace*", slow)
+
+    def gap(target: str) -> float:
+        offset = page.evaluate(
+            """id => document.getElementById(id).getBoundingClientRect().top
+                 - document.querySelector('.scene-jump').getBoundingClientRect().bottom""",
+            target,
+        )
+        return float(offset)
+
+    for width in (1000, 760):
+        page.set_viewport_size({"width": width, "height": 800})
+        for anchor in ("inputs", "outputs"):
+            page.goto(f"{portal}/domains/testsite")
+            page.locator(f'a[href="/scenes/ba-001#{anchor}"]').first.click()
+            expect(page.locator(f"#contract-{anchor}")).to_have_class(re.compile("anchor-hit"))
+            expect(page.locator("#contract-preview-mapping")).to_have_attribute(
+                "aria-busy", "false"
+            )
+            page.wait_for_timeout(300)
+            assert 0 <= gap(f"contract-{anchor}") <= 24, (width, anchor, gap(f"contract-{anchor}"))
+            expect(page.locator(f'.scene-jump a[href="#{anchor}"]')).to_have_class(
+                re.compile("active")
+            )
+        # 頁內的連結：從出參切回入參
+        page.locator('.scene-jump a[href="#inputs"]').click()
+        page.wait_for_timeout(800)
+        assert 0 <= gap("contract-inputs") <= 24, (width, gap("contract-inputs"))
+    assert errors == []
+
+
 def test_projects_are_managed_and_hold_composites(portal: str, page: Page) -> None:
     """專案空間（2026-10-23）：專案管理新增、編輯、調整順序、刪除；專案頁新增的組合場景放進
     那個專案。領域管理的順序與專案共用同一段程式，也一起確認。"""

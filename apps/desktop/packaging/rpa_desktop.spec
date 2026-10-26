@@ -175,13 +175,19 @@ a = Analysis(
     noarchive=False,
 )
 
-# 執行環境（ADR 0018）：外殼收進去的一切（程式碼層以外）算成環境代號
+# 執行環境（ADR 0018）：外殼收進去的一切（程式碼層以外）算成環境代號。
+# 工作區套件的 *.dist-info 不算（tools/build_desktop.py 的 shell_files，2026-10-26）：
+# 帶著版本號與 uv 留下的時間，每次建置都不同
 from rpa_update.build import make_runtime, shell_components  # noqa: E402
 from rpa_update.runtime import target_name  # noqa: E402
 
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from tools.build_desktop import shell_files  # noqa: E402
+
 components = shell_components(
     [(name, path) for name, path, _ in a.pure],
-    [(name, path) for name, path, _ in [*a.binaries, *a.datas]],
+    shell_files((name, path) for name, path, _ in [*a.binaries, *a.datas]),
     ours=[*CODE_PACKAGES, *CODE_DISTRIBUTIONS],
     shell=f"pyinstaller {PyInstaller.__version__}",
 )

@@ -410,7 +410,10 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .menu-choices input { min-height: 0; margin: 0; }
 /* 場景詳情頁（2026-10-25）：一個場景的落地頁。上方的區域連結固定在頂端；
    區域跳轉時留出頂部選單的高度；完整場景檔等另開視窗的連結帶 ↗，和頁內的切換分開 */
-.scene-page [id]{scroll-margin-top:calc(var(--header) + 52px)}
+.scene-page [id]{scroll-margin-top:calc(var(--header) + var(--scene-jump-height,38px) + 14px)}
+/* 跳到的區塊閃一下外框（入參與出參左右並排時分得出是哪一個；2026-10-26） */
+.scene-page .anchor-hit{animation:anchor-hit 1.8s ease-out}
+@keyframes anchor-hit{from{outline:2px solid var(--blue);outline-offset:2px}to{outline:2px solid #147fe600;outline-offset:2px}}
 .scene-jump{position:sticky;top:var(--header);z-index:5;display:flex;flex-wrap:wrap;gap:2px 4px;padding:6px 8px;margin:-4px 0 0;background:var(--bg);border-bottom:1px solid var(--line);font-size:12px}
 .scene-jump a{padding:3px 9px;border-radius:5px;color:#4f6a8c}
 .scene-jump a:hover{background:#fff;color:var(--blue-strong)}
@@ -421,7 +424,7 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 /* 面板的 overflow:hidden 會讓右欄的 sticky 以面板為基準（右欄被往下推）：腳本區改成 visible */
 .panel.scene-script{overflow:visible}
 .scene-script .editor-layout .code-editor{min-height:40vh}
-.scene-script .editor-layout>aside{top:calc(var(--header) + 52px)}
+.scene-script .editor-layout>aside{top:calc(var(--header) + var(--scene-jump-height,38px) + 14px)}
 .script-save{align-items:center}
 .script-save>label.field{flex:1 1 320px}
 .script-save #script-state{font-size:12px}

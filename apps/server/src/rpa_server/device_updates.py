@@ -178,6 +178,7 @@ class DeviceUpdates:
         offer = self._offer()
         reply: dict[str, object]
         status: Status
+        needed: str | None = None
         if offer is None:
             status, reply = "unavailable", {}
         else:
@@ -202,6 +203,10 @@ class DeviceUpdates:
                 "version": report.version,
                 "failed": report.failed,
                 "target": report.target,
+                # 裝置頁說明「要用完整的安裝包」的原因：這台的環境代號、更新檔要的
+                # （更新檔沒有這個目標時是 None）
+                "runtime": report.runtime,
+                "needed": needed,
                 "at": self.clock(),
             }
         return {"status": status, **reply}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-device-update-version · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-device-update-version：裝置不能熱更新、版本不同的警告，以及入參與出參的錨點</h1><p>v0.6.1 驗收時回報的三項：卡片的「入參設定」「出參設定」跳過去位置不準；錄製端與 macOS Worker 一直顯示「要用完整的安裝包更新到 0.6.1」與「和 Portal 的程式版本不同」，重新啟動也沒有更新。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-device-update-version；2026-10-26 04:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 03:10 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話（見下方「需求」）。驗收：錨點停在區域連結列正下方；之後的版本裝置能跟著伺服器用更新檔升級，升級後不再顯示版本不同。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：場景詳情頁的區域捲動；桌面 App 環境代號的算法；和上一次發布比較環境代號（PR 與發布）；裝置頁的更新狀態說明。不包含：rpa_update 套件本身（改它的任何一個檔案都會改變伺服器的環境代號，伺服器就不能用更新檔升級）；已經裝好的 0.6.0／0.6.1 裝置（舊算法算出的代號已經在 App 裡，修好的那一版要再用完整的安裝包裝一次）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；發版：Claude（使用者 2026-10-26 01:03 決定之後由 Claude 操作）。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/server</code>：<code>static/portal.js</code>、<code>static/portal-app.css</code>、<code>device_updates.py</code>、<code>templates/workers.html</code>、訊息目錄（繁中、英文；簡中待 bootstrap）；<code>apps/desktop/packaging/rpa_desktop.spec</code>；<code>tools/build_desktop.py</code>、新 <code>tools/runtime_changes.py</code>；<code>.github/workflows/</code> 的 <code>desktop.yml</code>、<code>server-package.yml</code>、<code>release.yml</code>；測試（<code>test_portal.py</code>、<code>test_render.py</code>、<code>test_device_updates.py</code>、新 <code>tests/ci/test_runtime_changes.py</code>）；文件（ADR 0018、<code>docs/design/desktop.html</code>，繁中與英文）。共用檔案：任務索引。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #88 在 <code>96822b8</code> 的 CI 全部通過，等使用者審閱、合併。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/device-update-version</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/88">PR #88</a>（一般 PR，對 main）；base main <code>262e107</code>（v0.6.1）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：實作 <code>bd60bda</code>、bootstrap 機器人的簡中 <code>b919cd4</code>，之後的提交只更新本紀錄。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13、uv 0.11.32）；Ruff 0.17.1、Pyright 1.1.414；系統 Playwright（只有 Chromium）。沒有 Mac、Windows，PyInstaller 建置在 CI。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="request">
+      <div class="panel-header"><h2>需求（使用者原文摘要）</h2></div>
+      <div class="panel-body"><ol class="points">
+        <li>點場景的「入參設定」「出參設定」跳過去後錨點不準確。</li>
+        <li>裝置頁（叢集管理）：錄製端升級後也還有警告「和 Portal 的程式版本不同：兩邊更新到同一個版本比較保險。要用完整的安裝包更新到 0.6.1」。</li>
+        <li>mac-worker 重新啟動後沒有更新到 0.6.1；而且即使升級了，也覺得會繼續出現同樣的警告。</li>
+      </ol></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>原因：</strong>
+          <ol>
+            <li>錨點：入參與出參的原文是頁面載入後才向伺服器要的；拿到後 <code>bindContract</code> 自己再把原文框捲到畫面<em>中間</em>（<code>scrollIntoView({block: 'center'})</code>）。本機伺服器回得比第一次畫面更新快，所以測不出來；遠端伺服器慢一點，後面這次捲動就蓋掉區域連結的捲動，入參與出參的標題被往下推約 150 px。用 Playwright 把那個請求延遲 0.6 秒重現（1440 寬：面板停在 261 px，應該是 108 px）。另外，1100 px 以上入參與出參左右並排，「出參設定」跳到的位置和入參相同；區域連結列在窄視窗會換行，原本固定預留 52 px。</li>
+            <li>熱更新：下載 v0.6.0 與 v0.6.1 的更新檔比較清單裡的環境代號。伺服器兩版相同（<code>de6e7107785c98ba</code>、<code>b93be424f1f8ff3a</code>），所以伺服器能用更新檔；三個桌面 App 全都不同（錄製端 macOS <code>664ed2247e8081d1→4880b5543aa109b6</code>、Worker macOS <code>6c5196fdccf828e0→c0e6750e5e85ff00</code>、Worker Windows <code>a393627ee81d9335→0a9b1477abe16480</code>）。<code>rpa_desktop.spec</code> 用 <code>copy_metadata("rpa-update")</code> 把 rpa_update 的 <code>*.dist-info</code> 收進 App，而 rpa_update 屬於外殼、不在 <code>ours</code> 裡，<code>shell_components</code> 就把它的內容雜湊算進環境代號：資料夾名稱與 METADATA 帶著版本號，uv 從原始碼安裝時還寫下記錄時間的 <code>uv_cache.json</code>（uv 原始碼 <code>crates/uv-install-wheel/src/wheel.rs</code>），每次建置都不同。伺服器的代號只算套件名稱與版本、不算這些檔案，所以沒事。結果每台裝置都收到 <code>full</code>，不自動更新，也就一直是 0.6.0、一直顯示版本不同。</li>
+            <li>升級後還會不會有警告：不會。「程式版本不同」比的是程式指紋；0.6.1 更新檔的程式指紋（<code>f3b941e8505c73fc</code>）和原始碼算出的相同，裝置套用更新檔後回報的就是這個值，和 Portal 一樣。</li>
+          </ol>
+        </li>
+        <li><strong>已完成：</strong>
+          <ol>
+            <li>錨點：捲動只在 <code>bindSceneAnchors</code> 做；跳過去後 4 秒內、使用者還沒自己捲動或操作之前，版面一變（<code>ResizeObserver</code>，入參與出參載入後另發 <code>scene-layout</code>）就重新對齊；<code>bindContract</code> 只把游標放進原文（<code>preventScroll</code>）。目標區塊閃一下外框，左右並排時看得出是入參還是出參。預留的高度改成區域連結列的實際高度（CSS 變數 <code>--scene-jump-height</code>），腳本區右欄的 sticky 也一樣。</li>
+            <li>環境代號：<code>tools/build_desktop.py</code> 新增 <code>shell_files</code>，spec 算環境代號前去掉工作區套件的 <code>*.dist-info</code>（rpa_update 的內容已由它的原始碼雜湊代表）。故意不改 <code>rpa_update.build.shell_components</code>：<code>source_digest</code> 涵蓋 rpa_update 的每個 .py，改了伺服器的環境代號也會變。</li>
+            <li>和上一次發布比較：新 <code>tools/runtime_changes.py</code>，拿這次建置的環境代號和最近一次已發布 Release 的更新檔比較。PR 上的桌面端建置與伺服器分發包寫成 annotation（不同是警告）；發布時寫進 Release 說明的「從 v上一版 升級」，標出哪些可以只用更新檔、哪些要完整的安裝包。0.6.1 那時有這個就會在發布前看到。</li>
+            <li>裝置頁：「要用完整的安裝包更新到 X」補上原因（執行環境不同，更新檔換不了），滑過去看這台與更新檔的環境代號（更新檔沒有這種裝置時另有說明）；已經有更新狀態說明（正在更新、要完整安裝包、退回、自動更新關閉）時，不再另外顯示「和 Portal 的程式版本不同」。伺服器記下裝置回報的環境代號與更新檔要的。</li>
+          </ol>
+        </li>
+        <li><strong>對使用者的影響：</strong>修好的那一版（預計 0.6.2）伺服器照樣用更新檔升級；錄製端與兩個 Worker 要再用 0.6.2 的完整安裝包裝一次（App 裡帶的是舊算法算出的代號，換不掉）。之後環境沒變的版本，裝置會跟著伺服器自動更新，版本不同的警告也會消失。</li>
+        <li><strong>未完成／阻礙：</strong>審閱與合併；發 0.6.2；裝置用 0.6.2 完整安裝包重裝後，0.6.3 起才能實際驗證裝置的熱更新。</li>
+        <li><strong>決定：</strong>使用者確認的是三項需求；以下是實作選擇，待審閱：過濾放在 spec／tools 而不改 rpa_update；比較只是提示，不擋 PR 與發布；裝置頁有更新狀態時隱藏版本不同的提醒。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併 PR #88；合併後由 Claude 發 0.6.2，Release 說明會寫明裝置要用完整安裝包。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無；重現用的 Playwright 腳本在容器的暫存資料夾，不在倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>v0.6.0、v0.6.1 的 Release 更新檔</td><td>比較兩個 <code>manifest.json</code> 的 <code>runtimes</code>；0.6.1 更新檔的程式指紋和原始碼的 <code>code_fingerprint()</code></td><td>伺服器相同、三個桌面 App 不同（見上）；程式指紋相同</td><td>—</td></tr>
+          <tr><td>base 262e107＋本次差異；Chromium</td><td>重現腳本：<code>/scenes/ba-001#inputs</code>、<code>#outputs</code>，1440 與 1000 寬，入參與出參的請求延遲 0.6 秒</td><td>修改前面板停在 261 px（區域連結列底部 94 px）；修改後 108 px</td><td>Safari／WKWebView（沒有 Mac），人工驗收</td></tr>
+          <tr><td>同上</td><td><code>ruff check .</code>、<code>ruff format --check .</code>（Ruff 0.17.1）</td><td>通過（308 個檔案）</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pyright</code>（1.1.414）</td><td>9 個錯誤，都在 <code>rpa_desktop/credentials.py</code>（本機沒有 keyring，環境造成）；本次修改的檔案 0 錯誤</td><td>CI 的完整 Pyright</td></tr>
+          <tr><td>同上</td><td><code>pytest -m "not browser"</code>（全倉庫）</td><td>1923 通過、6 略過、3 失敗：<code>tests/i18n</code> 兩項（簡中還沒產生，本機沒有 OpenCC，等 bootstrap）、<code>test_installed_distributions_skip_workspace_and_pip</code>（本機 venv 沒有發行資訊，base 上也失敗）。新增 <code>tests/ci/test_runtime_changes.py</code>（版本號與 uv 時間不同時代號不變、第三方套件一改就變；和上一版比較與 Release 說明）通過</td><td>簡中產生與 i18n 檢查在 CI</td></tr>
+          <tr><td>同上（Chromium）</td><td><code>apps/server/tests/test_portal.py</code>、<code>test_replay_flow.py</code>（不含 Firefox）</td><td><code>test_portal.py</code> 全部通過，含新的 <code>test_scene_anchors_land_below_the_jump_bar</code>（延遲 0.6 秒、1000 與 760 寬、從卡片進來與頁內切換；舊程式碼上失敗）；<code>test_replay_flow.py</code> 兩項失敗，base 上同樣失敗（本機 Playwright 錄不出影片）</td><td>Firefox、Windows、macOS、錄影在 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：<code>bd60bda</code> 的伺服器分發包（x64、arm64）、桌面端建置（Windows、macOS 的 Worker 與錄製端）、Worker 測試（Windows）、靜態檢查通過；測試（Python 3.12）只有簡中兩項失敗（還沒產生，bootstrap 的 <code>b919cd4</code> 補上），3.13 被新的推送取消。環境代號的 annotation：伺服器和 v0.6.1 相同（<code>server-linux-x64</code> <code>b93be424f1f8ff3a</code>、<code>server-linux-arm64</code> <code>de6e7107785c98ba</code>，可以用更新檔）；三個桌面 App 不同（預期：<code>worker-macos-arm64</code> <code>2f68ec4caf41421f</code>、<code>recorder-macos-arm64</code> <code>cd64b7d227542315</code>、<code>worker-windows-x64</code> <code>e4985fdde881ea71</code>）。<code>b919cd4</code>（機器人的提交）：action_required，沒有執行。<code>96822b8</code>：13 項全部通過（靜態檢查、測試 Python 3.12／3.13、Worker 測試（Windows）、伺服器分發包 x64／arm64、桌面端建置三個 App）。第二次桌面端建置算出的環境代號和 <code>bd60bda</code> 那次完全相同（三個桌面 App 都一樣），修好之後同一份環境每次建置都是同一個代號；修改前兩版之間就不同。人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 03:15 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main 262e107 開分支 <code>fix/device-update-version</code>；下載 v0.6.0、v0.6.1 的更新檔找出環境代號不同的原因。</li>
+        <li>2026-10-26 03:40 America/Los_Angeles（PDT，UTC−07:00），Claude：三項實作完成，建立本紀錄，本地檢查中。</li>
+        <li>2026-10-26 03:45～04:20 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>bd60bda</code>、開 PR #88；bootstrap 提交 <code>b919cd4</code>（簡中：訊息目錄與兩個文件）。<code>bd60bda</code> 的 CI 結果與環境代號見驗證。推這次的紀錄更新，讓 CI 在最後的提交上再跑一次，也拿第二次桌面端建置的環境代號比對。</li>
+        <li>2026-10-26 04:45 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>96822b8</code> 的 CI 全部通過；兩次桌面端建置的環境代號相同。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
