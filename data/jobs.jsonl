@@ -2246,3 +2246,6 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 8.0, "job": "執行範圍", "os": "linux", "queue_s": 3.0, "run_id": 40317590910, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "success", "duration_s": 159.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 4.0, "run_id": 40317590910, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "success", "duration_s": 139.0, "job": "分發包（x64）", "os": "linux", "queue_s": 2.0, "run_id": 40317590910, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 7.0, "job": "執行範圍", "os": "linux", "queue_s": 1.0, "run_id": 40317826908, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 93.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 4.0, "run_id": 40317826908, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 106.0, "job": "分發包（x64）", "os": "linux", "queue_s": 2.0, "run_id": 40317826908, "workflow": "伺服器分發包"}
