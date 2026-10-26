@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-25 23:06 America/Los_Angeles（PDT，UTC−07:00）。共 461 次運行。
+更新：2026-10-26 01:02 America/Los_Angeles（PDT，UTC−07:00）。共 462 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -11,7 +11,7 @@
 |---|---|---|---|---|---|---|
 | CI | 205（0） | 107（0） | 3.2 分（0.0 分） | 6.6 分（0.0 分） | 0.0 分（0.0 分） | 1095／453／0 分（0／0／0 分） |
 | 桌面端建置 | 143（0） | 110（0） | 4.0 分（0.0 分） | 6.5 分（0.0 分） | 0.1 分（0.0 分） | 14／434／574 分（0／0／0 分） |
-| 伺服器分發包 | 40（0） | 35（0） | 1.9 分（0.0 分） | 5.4 分（0.0 分） | 0.1 分（0.0 分） | 160／0／0 分（0／0／0 分） |
+| 伺服器分發包 | 41（0） | 36（0） | 1.9 分（0.0 分） | 5.4 分（0.0 分） | 0.1 分（0.0 分） | 164／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 61（0） | 36（0） | 3.2 分（0.0 分） | 15.5 分（0.0 分） | 0.1 分（0.0 分） | 397／266／147 分（0／0／0 分） |
 | 每晚完整測試 | 8（0） | 0（0） | 47.4 分（0.0 分） | 60.2 分（0.0 分） | 0.0 分（0.0 分） | 396／379／232 分（0／0／0 分） |
 | 發布 | 4（0） | 3（0） | 6.4 分（0.0 分） | 8.2 分（0.0 分） | 0.1 分（0.0 分） | 13／17／32 分（0／0／0 分） |
@@ -20,6 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
+| 2026-10-26 | 1 | 5 | 0 | 0 | 5 |
 | 2026-10-25 | 95 | 520 | 335 | 357 | 1212 |
 | 2026-10-24 | 11 | 142 | 132 | 130 | 405 |
 | 2026-10-23 | 33 | 204 | 123 | 115 | 441 |
@@ -255,6 +256,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 10-26 00:58 | 伺服器分發包 | 推送 | main | success | 3.1 分 | 0.1 分 | [#40289136598](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40289136598/attempts/1) |
 | 10-25 23:04 | 伺服器分發包 | PR | fix/scene-ux-run-files | success | 0.1 分 | 0.0 分 | [#40277749013](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40277749013/attempts/1) |
 | 10-25 23:04 | 桌面端建置 | PR | fix/scene-ux-run-files | success | 0.1 分 | 0.0 分 | [#40277748998](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40277748998/attempts/1) |
 | 10-25 23:04 | CI | PR | fix/scene-ux-run-files | success | 1.9 分 | 0.0 分 | [#40277749015](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40277749015/attempts/1) |
@@ -294,5 +296,4 @@
 | 10-25 16:54 | 一鍵安裝腳本 | 推送 | main | success | 3.4 分 | 0.1 分 | [#40246850191](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40246850191/attempts/1) |
 | 10-25 16:54 | CI | 推送 | main | cancelled | 4.2 分 | 0.0 分 | [#40246850367](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40246850367/attempts/1) |
 | 10-25 16:54 | 桌面端建置 | 推送 | main | success | 6.5 分 | 0.1 分 | [#40246850233](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40246850233/attempts/1) |
-| 10-25 14:05 | 一鍵安裝腳本 | 排程 | main | failure | 20.1 分 | 0.0 分 | [#40233823205](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40233823205/attempts/1) |
 
