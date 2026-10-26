@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-release-0-6-2 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-release-0-6-2：v0.6.2 發布</h1><p>發布 PR #88 的修正：裝置能跟著伺服器熱更新（桌面 App 的環境代號每次建置都相同）、裝置頁的更新說明、入參與出參的錨點。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-release-0-6-2；2026-10-26 04:50 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 04:47 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：「發0.6.2」。之後的發版由 Claude 操作，使用者只按合併（2026-10-26 01:03 決定）。驗收：v0.6.2 的 Release 有完整安裝包、更新檔與 SHA256SUMS.txt，說明寫明從 v0.6.1 怎麼升級。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.6.2</code>）、標籤、草稿 Release 的核對與發布。不包含：功能修改（已在 PR #88）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>八個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>；本紀錄與任務索引。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待合併：PR #89 在 <code>e54759b</code> 的 CI 全部通過，等使用者合併；合併後由 Claude 打標籤、核對並發布。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.6.2</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/89">PR #89</a>（一般 PR，對 main）；base main <code>e6b6885</code>（PR #88 合併）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：版本號 <code>e54759b</code>，之後的提交只更新本紀錄。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器；建置與簽章在 GitHub Actions（<code>release.yml</code>）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>升級要求：</strong>PR #88 的 CI 已確認伺服器的環境代號和 v0.6.1 相同，伺服器可以用更新檔（<code>bin/rpa update RPA-Update-0.6.2.zip</code>）升級。錄製端與兩個 Worker 的代號和 v0.6.1 不同（修正環境代號的算法就是這個結果），要用 0.6.2 的完整安裝包重新安裝一次，之後環境沒變的版本就能跟著伺服器自動更新。Release 說明的「從 v0.6.1 升級」由 <code>tools/runtime_changes.py</code> 自動寫出。</li>
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.6.2</code>（八個套件與 <code>uv.lock</code>），<code>check v0.6.2</code> 一致。</li>
+        <li><strong>下一個具體動作：</strong>推送、開 PR、核對 CI；使用者合併後在 main 打 <code>v0.6.2</code> 標籤並推送，核對草稿 Release 的產物與說明後發布。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>e6b6885＋版本號</td><td><code>python3 tools/release_version.py check v0.6.2</code></td><td>版本一致</td><td>CI、發布流程</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：<code>e54759b</code> 全部通過（靜態檢查、測試 Python 3.12／3.13、Worker 測試（Windows）、伺服器分發包 x64／arm64、桌面端建置三個 App、一鍵安裝腳本）。環境代號：伺服器和 v0.6.1 相同；三個桌面 App 和 PR #88 的兩次建置相同（<code>worker-windows-x64</code> <code>e4985fdde881ea71</code>、<code>worker-macos-arm64</code> <code>2f68ec4caf41421f</code>、<code>recorder-macos-arm64</code> <code>cd64b7d227542315</code>），版本號從 0.6.1 改成 0.6.2 也沒有改變代號。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 04:50 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #88 已在 04:46 合併（<code>e6b6885</code>）；從 main 開分支 <code>chore/release-0.6.2</code>，改版本號，建立本紀錄。</li>
+        <li>2026-10-26 05:20 America/Los_Angeles（PDT，UTC−07:00），Claude：開 PR #89，<code>e54759b</code> 的 CI 全部通過（見驗證）。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
