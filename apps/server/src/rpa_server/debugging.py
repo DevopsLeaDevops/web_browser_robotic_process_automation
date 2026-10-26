@@ -600,7 +600,8 @@ class DebugManager:
         """用指定的版本重新開始這個工作階段（換版本失敗時，調試頁的「用新版本重新開始調試」）。
 
         沿用瀏覽器、有頭／無頭、網址與入參；已求過值的入參跳脫，不再求一次值；新版本沒有的入參不帶。
-        瀏覽器開在原本那台（錄製端或伺服器），不看這次請求從哪裡來。會關掉目前的瀏覽器，從第 1 步開始。
+        瀏覽器開在原本那台（錄製端或伺服器），不看這次請求從哪裡來。
+        會關掉目前的瀏覽器，從第 1 步開始。
         """
         session = self.get(session_id)
         scenario = self.services.revision_scenario(session.scene_id, revision)
