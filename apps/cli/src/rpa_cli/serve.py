@@ -60,7 +60,7 @@ FALLBACK_PORTS: Final = 10
 PORTAL_TITLE: Final = "RPA Portal"
 """管理 Portal 的 OpenAPI 標題（rpa_server.app），用來認出已經在執行的 Portal。"""
 
-PROBE_TIMEOUT: Final = 3.0
+PROBE_TIMEOUT: Final = 5.0
 """認 Portal 時等回應（/api/openapi.json）的秒數。
 
 Portal 第一次產生 OpenAPI 文件要花時間，在忙碌的電腦上會超過 1 秒。

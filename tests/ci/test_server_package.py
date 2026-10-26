@@ -10,6 +10,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -30,11 +31,18 @@ RHEL = (
 COMPANY = (
     'NAME=""\nVERSION=""\nID=""\nID_LIKE="rhel fedora centos "\nVERSION_ID="3"\nPRETTY_NAME=""\n'
 )
+# 安裝器只支援 Linux。macOS 的合成測試用 BSD mv -h 表達 GNU mv -T 的
+# 「替換連結本身」語意，仍實際搬移檔案；Linux CI 繼續直接驗證原生 GNU mv。
+HOST_TOOLS = (
+    'mv() { if [ "$1" = -Tf ]; then shift; command mv -hf "$@"; else command mv "$@"; fi; }; '
+    if sys.platform == "darwin"
+    else ""
+)
 STUBS = (
     'uname() { if [ "$1" = -s ]; then echo Linux; else echo "${FAKE_ARCH:-x86_64}"; fi; }; '
     'getconf() { echo "${FAKE_LIBC:-glibc 2.32}"; }; '
     "has_libstdcxx() { return 0; }; has_systemd() { return 1; }; "
-)
+) + HOST_TOOLS
 
 
 RUNTIME = "0123456789abcdef"

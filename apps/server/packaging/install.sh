@@ -134,7 +134,6 @@ read_bundle() {
 check_system() {
   [ "$(uname -s)" = Linux ] || die '這個分發包只適用於 Linux 伺服器。'
   local machine id="" id_like="" pretty="" glibc family
-  local -a fields=()
   machine="$(uname -m)"
   [ "$machine" = "$ARCH" ] ||
     die "這個分發包是 ${ARCH} 版，這台是 ${machine}。請下載 ${machine} 版的分發包。"
@@ -142,8 +141,12 @@ check_system() {
   # 在子 Shell 讀：os-release 也有 VERSION 之類的變數，不能蓋掉分發包的版本。
   # 公司版本可能有自己的 ID，不能只比對 ID=centos 或 VERSION_ID。
   # shellcheck disable=SC1090
-  mapfile -t fields < <(. "$OS_RELEASE" >/dev/null 2>&1; printf '%s\n%s\n%s\n' "${ID:-}" "${ID_LIKE:-}" "${PRETTY_NAME:-}")
-  id="${fields[0]:-}"; id_like="${fields[1]:-}"; pretty="${fields[2]:-}"
+  # read 保留空欄位，並相容 macOS 測試環境的 Bash 3.2（沒有 mapfile）。
+  {
+    IFS= read -r id
+    IFS= read -r id_like
+    IFS= read -r pretty
+  } < <(. "$OS_RELEASE" >/dev/null 2>&1; printf '%s\n%s\n%s\n' "${ID:-}" "${ID_LIKE:-}" "${PRETTY_NAME:-}")
   case " $id $id_like " in
     *' rhel '*|*' centos '*|*' fedora '*) ;;
     *) die "這個分發包適用於 RHEL／CentOS 系（目前：${pretty:-$id}）。" ;;

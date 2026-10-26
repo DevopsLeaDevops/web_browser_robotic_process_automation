@@ -15,15 +15,15 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 05:53 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-hot-update；2026-10-25 17:05 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源</dt><dd>使用者在 Claude 專案對話 2026-10-24 22:43 America/Los_Angeles（PDT，UTC−07:00）提出，原文：「現在的系統Linux伺服器、錄製段、worker段可以做成熱更新嗎。現在每次都要重新下載效率不高。」2026-10-25 01:58（PDT，UTC−07:00）回覆設計提案，原文：「1.升級版本，伺服器需要重啓嗎。2.這份升級寫doc了嗎 3.確認事項接受。確認后再開始coding。」</dd>
         <dt>驗收條件</dt><dd>環境代號沒變的版本：伺服器用一個更新檔升級，不必下載完整包；Worker 與錄製端從伺服器自動取得同一個版本，不打斷執行中的任務、錄製與調試；新版本起不來時自動退回上一版；更新檔有簽章，伺服器、裝置、啟動器都驗證；CI 驗證「上一版完整包＋這一版更新檔」的升級路徑與端到端。</dd>
         <dt>範圍／不包含</dt><dd>範圍：ADR 0018 的第一、二階段（下方「分期」）。不包含：第三階段（伺服器代管完整安裝檔、Portal 上傳更新檔、伺服器兼瀏覽器鏡像，之後再決定）；瀏覽器的下載（已經只在 Playwright 改版時重新下載）；伺服器完全不停機；Developer ID／Authenticode 程式碼簽章；Python 腳本場景的運行環境（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>，待確認）。</dd>
-        <dt>主責／審閱／接收方</dt><dd>主責：Claude（本專案對話）；審閱與合併：使用者；接收方：未指定。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原實作：Claude（本專案對話）；審閱與合併：使用者。Codex 依使用者本次要求接手 PR #83 的主線更新、衝突整合與驗證；不改變產品決定。</dd>
         <dt>修改檔案／整合者</dt><dd>新套件 <code>packages/rpa_update</code>（清單、簽章、環境代號、程式碼層、啟動器）；<code>apps/server/packaging/</code>（<code>bin/rpa</code> 自己重新啟動與退回、<code>install.sh</code> 分層）、<code>rpa_server</code>（<code>updates.py</code>、<code>device_updates.py</code>、Worker API 與 Client API 的 <code>/update</code>、裝置頁、設定）、<code>rpa_cli</code>（<code>rpa update</code>）、<code>apps/desktop/packaging/rpa_desktop.spec</code>、<code>rpa_desktop</code>（<code>build_info.py</code>、<code>updates.py</code>、兩個 controller、<code>gui.py</code>、翻譯）、<code>rpa_worker/remote.py</code>（下載）；<code>tools/build_server.py</code>、<code>tools/build_desktop.py</code>、<code>tools/build_update.py</code>；<code>.github/workflows/desktop.yml</code>、<code>server-package.yml</code>、<code>release.yml</code>；文件：ADR 0018、<code>docs/develop/operations.html</code>、<code>docs/develop/ci.html</code>（三語）、本紀錄、決定紀錄。共用檔案：任務索引與決定紀錄也被 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>、#82 修改，整合時保留各自的列。相依：#79 已用 ADR 0017，本篇用 0018；#82 的 Python 運行環境也會改 PyInstaller 設定與 <code>build_server.py</code>，兩邊開始寫程式前先約定檔案範圍與合併順序。</dd>
-        <dt>狀態</dt><dd>第一、二階段實作完成、待審閱（2026-10-25 05:53 PDT）。正式簽署金鑰的公鑰已加進 <code>RELEASE_KEYS</code>；私鑰要存進 Secret <code>RPA_UPDATE_SIGNING_KEY</code> 才能發 0.6.0（見下方「需要使用者做的事」）。</dd>
+        <dt>狀態</dt><dd>第一、二階段實作完成、待審閱；本次已在本地整合最新主線並處理衝突，驗證結果與限制見下方追加紀錄，推送後核對最新 head 的 CI。PR 維持草稿，尚未合併。正式簽署金鑰的公鑰已加進 <code>RELEASE_KEYS</code>；私鑰要存進 Secret <code>RPA_UPDATE_SIGNING_KEY</code> 才能發 0.6.0（本次未查證 Secret 設定，見下方「需要使用者做的事」）。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-reisy3</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/83">PR #83</a>（draft）；base main 29176b1。</dd>
-        <dt>交接版本／同步狀態</dt><dd>以 PR 的最新提交為準；已推送後可從 GitHub 取得。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本次接收遠端 head <code>e3e1fa30b4ed41095a945c8cd515b80d55a765ce</code>，合入 main <code>4b64adb</code>（已含 #79、#84、#81、#82）；提交中的紀錄為本地整合快照，推送與 CI 狀態以 PR 最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、uv 0.11.32、Python 3.13。</dd>
       </dl></div>
     </section>
@@ -87,7 +87,7 @@
 
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
-      <div class="panel-body"><p>未接收。</p></div>
+      <div class="panel-body"><p>2026-10-25 16:58 America/Los_Angeles（PDT，UTC−07:00），Codex 依使用者要求接收 <code>e3e1fa3</code>，在獨立 Windows 工作區合入 main <code>4b64adb</code>。本次衝突僅有任務索引與 <code>test_server_package.py</code> 的匯入列，保留雙方連結及 <code>sys</code>、<code>time</code>；主線的 Portal 探測 5 秒與 Bash 相容性修復自動整合後另行核對。接收僅限本次整合，完整程式審閱與人工升級驗收仍待完成。</p></div>
     </section>
 
     <section class="panel" id="log">
@@ -102,6 +102,9 @@
         <li>2026-10-25 04:38～04:46（PDT，UTC−07:00），Claude：625f8fc 的「Worker 測試（Windows）」兩次失敗（錄影取消測試，Chromium 一次、Firefox 一次）；同樣的程式在 eac4ff3 全部通過。查到 <code>rpa_runner</code> 的 <code>write_json</code> 在 Windows 上的問題，在 PR 留言附上修正，另開執行緒修。</li>
         <li>2026-10-25 05:52（PDT，UTC−07:00），使用者：貼上正式金鑰的公鑰；Claude 加進 <code>RELEASE_KEYS</code>，文件補上 OpenSSL 1.1.1 以上的要求。</li>
         <li>2026-10-25 07:59（PDT，UTC−07:00），Claude：併入 main（9fd0861：PR #84 的 <code>write_json</code> 改名重試、PR #79 的 Agent API）。衝突：<code>rpa serve</code> 認 Portal 的逾時兩邊都改了，採用 main 的 <code>PROBE_TIMEOUT</code>（3 秒）；伺服器語系檔、頁面測試的資料、ADR 索引與導覽、任務索引兩邊都保留（ADR 0017 在 0018 前面）。</li>
+        <li>2026-10-25 17:05 America/Los_Angeles（PDT，UTC−07:00），Codex：依使用者要求，從 <code>e3e1fa3</code> 合入最新 <code>origin/main</code>（<code>4b64adb</code>），保留任務索引雙方連結，以及 <code>test_server_package.py</code> 的 <code>sys</code> 與 <code>time</code>。主線 #81 的 Portal 探測 5 秒、安裝腳本 Bash 3.2 相容性、macOS 的 mv 適配、回看錯誤提示及 CI 顯示環境修復均保留。#82 已合入的內容只有設計，並未改動打包程式；本紀錄先前提到的 Python 運行環境整合是未來實作事項。ADR 0018 已由本 PR 使用，#82 的暫定編號應在後續設計維護時重新分配。</li>
+        <li>本次驗證版本：<code>e3e1fa3</code>＋合入 <code>4b64adb</code> 的工作樹；Windows、Python 3.12.10、uv 0.13.5、Ruff 0.17.1、Pyright 1.1.414、pytest 9.1.1。<code>uv sync --locked</code>、<code>ruff check .</code>、<code>ruff format --check .</code>、<code>tools/i18n.py check</code> 通過；<code>pyright</code> 為 0 errors、0 warnings。<code>pytest -m "not browser" -n 4</code>：1803 passed、21 failed、98 skipped（372.52 秒）；失敗 19 項為建立符號連結時 WinError 1314，另 2 項為 <code>test_manifest.py</code> 的 Windows 換行／可執行位元假設（文字寫入 CRLF 後與 LF 位元組大小不同；Windows 不提供 POSIX 可執行位元）。相關測試及熱更新核心與接收版本一致，本次未改寫或略過失敗，不把全量結果標成通過。</li>
+        <li>通過項目包含 Portal 的 18 項、Agent API／專案的 9 項、桌面裝置更新的 24 項、伺服器裝置更新的 9 項、文件 326 項及 i18n 26 項。<code>git diff --check</code> 與 119 處交接頁本地連結／錨點通過；索引涵蓋雙親全部連結；原 PR 的 39 個安裝測試函式內容未變，熱更新核心與建置／發布流程未變，相對 main 仍為原 PR 的 87 個檔案。POSIX 安裝測試依原標記在 Windows 略過，瀏覽器、Linux 安裝與跨平台建置交由推送後 CI；程式審閱與人工升級驗收尚未完成。</li>
       </ul></div>
     </section>
   </div>

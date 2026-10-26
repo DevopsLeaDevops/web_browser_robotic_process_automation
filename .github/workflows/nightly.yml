@@ -110,8 +110,10 @@ jobs:
       - name: 全部測試（第 1 遍）
         run: |
           mkdir -p "$REPORTS"
+          display=()
+          if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
           set +e
-          uv run pytest --durations=30 --junitxml="$REPORTS/pass-1.xml" -o junit_family=xunit1
+          "${display[@]}" uv run pytest --durations=30 --junitxml="$REPORTS/pass-1.xml" -o junit_family=xunit1
           code=$?
           set -e
           # 工具印中文；Windows 主控台預設不是 UTF-8
@@ -122,10 +124,12 @@ jobs:
         if: ${{ !cancelled() && matrix.extra > 0 && steps.browsers.outcome == 'success' }}
         run: |
           failed=""
+          display=()
+          if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
           for pass in $(seq 2 $(( ${{ matrix.extra }} + 1 ))); do
             echo "::group::瀏覽器測試第 $pass 遍"
             set +e
-            uv run pytest -m browser --junitxml="$REPORTS/pass-$pass.xml" -o junit_family=xunit1
+            "${display[@]}" uv run pytest -m browser --junitxml="$REPORTS/pass-$pass.xml" -o junit_family=xunit1
             code=$?
             set -e
             echo "::endgroup::"
