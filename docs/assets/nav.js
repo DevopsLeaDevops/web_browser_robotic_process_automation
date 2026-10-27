@@ -183,6 +183,11 @@ window.DOCS_NAV = {
           "id": "adr-0018",
           "href": "adr/0018-layered-updates.html",
           "name": {"zh-Hant": "0018 分層更新", "zh-Hans": "0018 分层更新", "en": "0018 Layered updates"}
+        },
+        {
+          "id": "adr-0019",
+          "href": "adr/0019-composite-report-replay.html",
+          "name": {"zh-Hant": "0019 組合運行的報告與回看", "zh-Hans": "0019 组合运行的报告与回看", "en": "0019 Composite run report and replay"}
         }
       ]
     },

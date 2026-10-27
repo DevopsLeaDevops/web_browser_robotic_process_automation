@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% import "_replay_player.html" as p %}
+{% import "_composite_report.html" as r %}
+{#- 組合運行的合併回看（2026-10-27，ADR 0019）：一個播放器從頭看完整次組合運行。
+    data 是 rpa_server.composite_replay.build_composite_replay 的回看資料，nodes 是匯總報告的節點
+    （代號 → 入參、出參、狀態，卡片的內容用）。沒有影片的時間（轉場、沒有錄影、沿用、沒有執行）
+    由 replay.js 依時間顯示對應的 #replay-card-<段> 樣板。 -#}
+{% block crumb %}{% if project %}<a href="/projects/{{ project.id }}">{{ project.name }}</a> › {% endif %}<a href="/playground/runs/{{ run.id }}">{{ run.id }}</a> › {{ t("replay.crumb") }}{% endblock %}
+{% block description %}{{ run.workflow_name }} · v{{ run.workflow_version }} · {{ t("workflow_run.purpose_" + run.purpose) }} · {{ m.run_badge(run.status) }} · {{ t("composites.node_count", count=run.nodes | length) }}{% if run.duration_seconds is not none %} · {{ run.duration_seconds | duration }}{% endif %}{% endblock %}
+{% block actions %}
+<a class="button" href="/playground/runs/{{ run.id }}">{{ t("creplay.report") }}</a>
+{% if playable %}<a class="button" href="/playground/runs/{{ run.id }}/videos.zip" download="{{ run.id }}-videos.zip" title="{{ t('creplay.download_all_title') }}">{{ t("creplay.download_all") }}</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% set composite = data.composite %}
+<div class="stack" id="replay" data-run="{{ run.id }}" data-composite="{{ run.id }}">
+  {% if not run.finished %}
+  <div class="notice" data-poll-replay data-url="/api/workflow-runs/{{ run.id }}">{{ t("creplay.not_finished") }} <a href="/playground/runs/{{ run.id }}">{{ t("creplay.report") }}</a></div>
+  {% endif %}
+
+  <div class="replay-layout">
+    <div class="replay-main">
+      {% if playable %}
+      {{ p.player(video, data, run.id ~ ".webm", composite=true) }}
+      <p class="notice warn" id="replay-beyond" hidden></p>
+      <p class="hint creplay-hint">{{ t("creplay.hint") }}</p>
+      {% else %}
+      <section class="panel"><div class="empty replay-empty">{{ t("creplay.no_video") if run.finished else t("creplay.no_video_yet") }}</div></section>
+      {% endif %}
+    </div>
+
+    <aside class="panel replay-side" aria-label="{{ t('replay.side') }}">
+      <div class="replay-tabs" role="tablist">
+        <button role="tab" type="button" aria-selected="true" aria-controls="replay-tab-steps" data-replay-tab>{{ t("replay.tab_steps") }}<span class="count">{{ data.steps | length }}</span></button>
+        <button role="tab" type="button" aria-selected="false" aria-controls="replay-tab-checks" data-replay-tab>{{ t("replay.tab_checks") }}<span class="count">{{ data.checks | selectattr("passed") | list | length }} / {{ data.checks | length }}</span></button>
+        <button role="tab" type="button" aria-selected="false" aria-controls="replay-tab-info" data-replay-tab>{{ t("replay.tab_info") }}</button>
+      </div>
+      <div class="replay-tabpanel" id="replay-tab-steps" role="tabpanel"><ol class="replay-steps" id="replay-steps"></ol></div>
+      <div class="replay-tabpanel" id="replay-tab-checks" role="tabpanel" hidden>
+        {% if data.checks %}
+        <ul class="replay-checks">
+          {% for check in data.checks %}
+          <li>{% if check.passed %}{{ m.run_badge("passed") }}{% else %}{{ m.run_badge("failed") }}{% endif %}<div><strong><span class="tag mono">{{ check.node }}</span> {{ check.name }}</strong><div class="muted mono">{{ check.actual if check.actual is not none else "—" }} {{ check.comparison }} {{ check.expected if check.expected is not none else "" }}</div>{% if check.error %}<div class="muted">{{ check.error }}</div>{% endif %}</div></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty">{{ t("replay.no_checks") }}</p>
+        {% endif %}
+        <p class="muted replay-note">{{ t("replay.checks_hint") }}</p>
+      </div>
+      <div class="replay-tabpanel replay-info" id="replay-tab-info" role="tabpanel" hidden>
+        <dl class="replay-kv">
+          <dt>{{ t("creplay.info_run") }}</dt><dd class="mono">{{ run.id }}</dd>
+          <dt>{{ t("creplay.info_videos") }}</dt><dd>{{ t("creplay.video_count", count=video_state.count, size=size) }}{% if video_state.deleted %} · {{ t("creplay.video_deleted", count=video_state.deleted) }}{% endif %}</dd>
+        </dl>
+        <ul class="creplay-node-links">
+          {% for node in composite.nodes %}
+          <li><span class="tag mono">{{ node.id }}</span> {{ node.sceneName }} {{ m.run_badge(node.status) }}
+            <span class="actions">{% if node.replayUrl %}<a class="text-btn" href="{{ node.replayUrl }}">▶ {{ t("creport.node_replay") }}</a>{% endif %}{% if node.reportUrl %}<a class="text-btn" href="{{ node.reportUrl }}" target="_blank" rel="noopener">{{ t("workflow.node_report") }}</a>{% endif %}</span></li>
+          {% endfor %}
+        </ul>
+        {% if video_state.count %}
+        <div class="replay-retain">
+          {% if keep_until %}<span id="replay-keep"{% if video_state.pinned %} hidden{% endif %}>{{ t("replay.keep_until") }} {{ m.time(keep_until) }}</span>{% endif %}
+          <button class="button" type="button" id="replay-pin" data-url="/api/workflow-runs/{{ run.id }}/video" aria-pressed="{{ 'true' if video_state.pinned else 'false' }}" title="{{ t('creplay.pin_title') }}">{{ t("replayjs.pinned") if video_state.pinned else t("replayjs.pin") }}</button>
+        </div>
+        {% endif %}
+      </div>
+    </aside>
+  </div>
+</div>
+
+{#- 卡片：沒有影片的那段時間顯示（轉場、沒有錄影、沿用、沒有執行、還沒結束） -#}
+{% for segment in composite.segments if segment.kind != "video" %}
+{% set node = nodes.get(segment.get("node")) if segment.get("node") else none %}
+{% set before = nodes.get(segment.get("prev")) if segment.get("prev") else none %}
+<template id="replay-card-{{ segment.index }}">
+  <div class="creplay-card {{ segment.kind }}">
+    {% if segment.kind == "transition" and node %}
+    <div class="creplay-card-head"><span class="tag mono">{{ before.id if before else segment.get("prev") }}</span> → <span class="tag mono">{{ node.id }}</span> <strong>{{ node.sceneName }}</strong></div>
+    <div class="creplay-card-flow">
+      {% if before %}
+      <div>
+        <small>{{ t("creplay.card_from", node=before.id) }} {{ r.status_badge(before.status) }}{% if before.checkCounts.total %} · {{ t("creport.checks_short", passed=before.checkCounts.passed, total=before.checkCounts.total) }}{% endif %}</small>
+        <ul>{% for item in before.outputs %}<li><code>{{ item.name }}</code> = {{ r.value(item) }}{% if item.to %} <span class="muted">→ {{ item.to | join(", ") }}</span>{% endif %}</li>{% else %}<li class="muted">{{ t("creplay.no_outputs") }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      <div>
+        <small>{{ t("creplay.card_to", node=node.id) }}</small>
+        <ul>{% for item in node.inputs %}<li><code>{{ item.name }}</code> = {{ r.value(item) }} {{ r.source(item.source) }}</li>{% else %}<li class="muted">{{ t("creplay.no_inputs") }}</li>{% endfor %}</ul>
+      </div>
+    </div>
+    {% if segment.gapMs is not none %}<p class="creplay-card-note">{{ t("creplay.gap", duration=(segment.gapMs / 1000) | duration) }}</p>{% endif %}
+    {% elif segment.kind == "reused" and node %}
+    <div class="creplay-card-head"><span class="tag mono">{{ node.id }}</span> <strong>{{ node.sceneName }}</strong> {{ r.status_badge("reused") }}</div>
+    <p>{{ t("creplay.reused", run=node.reusedFrom or "—") }}</p>
+    <ul>{% for item in node.outputs %}<li><code>{{ item.name }}</code> = {{ r.value(item) }}{% if item.to %} <span class="muted">→ {{ item.to | join(", ") }}</span>{% endif %}</li>{% endfor %}</ul>
+    {% if node.reusedFrom %}<a class="button" href="/playground/runs/{{ node.reusedFrom }}/replay?node={{ node.id }}">▶ {{ t("creplay.reused_replay") }}</a>{% endif %}
+    {% elif segment.kind == "no_video" and node %}
+    <div class="creplay-card-head"><span class="tag mono">{{ node.id }}</span> <strong>{{ node.sceneName }}</strong> {{ r.status_badge(node.status) }}</div>
+    <p>{{ segment.reason }}</p>
+    {% if node.error %}<pre class="creport-error">{{ node.error }}</pre>{% endif %}
+    {% if node.reportUrl %}<a class="button" href="{{ node.reportUrl }}" target="_blank" rel="noopener">{{ t("workflow.node_report") }}</a>{% endif %}
+    {% elif segment.kind == "not_run" %}
+    <div class="creplay-card-head"><strong>{{ t("creplay.not_run_title") }}</strong></div>
+    <p>{{ t("creport.skipped", nodes=segment.nodes | join("、")) }}</p>
+    {% elif segment.kind == "pending" %}
+    <div class="creplay-card-head"><strong>{{ t("creplay.pending_title") }}</strong></div>
+    <p>{{ t("creplay.pending", nodes=segment.nodes | join("、")) }}</p>
+    {% endif %}
+  </div>
+</template>
+{% endfor %}
+<script type="application/json" id="replay-data">{{ data_json | safe }}</script>
+<script type="application/json" id="replay-messages">{{ replay_messages | tojson }}</script>
+<script defer src="/static/replay-media.js"></script>
+<script defer src="/static/replay.js"></script>
+{% endblock %}

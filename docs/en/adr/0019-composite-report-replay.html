@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:b028fd9918ba070f">
+<title>ADR 0019 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0019" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0019: Read reports and recordings per composite run, and join the recordings in the player</h1>
+      <p>A composite run has one summary report and one combined replay. The combined replay makes no new video file: the player places the nodes' recordings one after another on a single timeline and replaces the time between nodes, when nothing is on screen, with short cards. The recordings of a composite run's nodes are kept as a group.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-27</dd>
+        <dt>Status</dt><dd>The user confirmed the design on 2026-10-27 (D1 to D6 as recommended, see the <a href="../../../handoff/decisions.html#decisions">decision log</a>); the summary report and the combined replay are built in two PRs.</dd>
+        <dt>Scope</dt><dd>rpa-server (composite run page, combined replay page, API, Agent API, recording retention and pinning); rpa-runner, rpa-worker and the desktop apps do not change</dd>
+        <dt>Related</dt><dd><a href="0016-run-replay.html">ADR 0016</a> (run replay: each run's recording, per-tab clips, the player), <a href="0018-layered-updates.html">ADR 0018</a> (only the code layer changes, so an update file is enough); <a href="../design/portal.html#composite-report">Admin portal › Composite run summary report</a>, <a href="../design/portal.html#composite-replay">Combined replay</a>; <a href="../../../handoff/tasks/20261027-composite-report-replay.html">task record</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Every node of a composite run (one row in <code>workflow_runs</code>) is a run of its own, with its own report, screenshot and recording. The composite run page used to list only the nodes and links: to find out which step it stopped at, why, and which values were passed, you had to open each node's report; to watch the recordings, you had to open them one by one. On 2026-10-27 the user asked to read reports and recordings from the point of view of one composite run.</p>
+          <p>Nodes run one at a time in the DAG's topological order and the whole run stays on one Worker, so the nodes' recordings form a single line in time and never overlap. Each recording covers only that node's automation stage: queueing, browser start-up, the login check, checks and outputs have nothing on screen.</p>
+          <p>The Linux server has no browser and no ffmpeg (ADR 0016); adding media packages to the server changes the runtime, and then an update file is no longer enough (ADR 0018). Nodes may have different frame sizes (page size, Firefox differences).</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>Summary report.</strong> The composite run page becomes one report: the verdict (all passed, or which node stopped at which step, with the locator, the error, failed checks and the screenshot, plus the nodes that did not run), the numbers, the DAG colored by result and a timeline, and each node's inputs (values and sources), outputs (values and where they go), steps and checks. It is assembled when viewed from the database and each node's <code>result.json</code> and is not stored. It can be downloaded as a single HTML file (with screenshots only for nodes that did not pass, D4); the API and the Agent API return the same JSON.</li>
+            <li><strong>Recordings are joined in the player (D1).</strong> No new video file: each node with a recording is one segment, and its clips and steps are moved to the start of that segment; tab ids get the node as a prefix (<code>n2/page-1</code>). The player reuses the multi-clip clock from ADR 0016: the clock pauses while a clip loads and advances in real time between clips. The download is a zip of the nodes' original recordings with a <code>playlist.json</code> describing the order.</li>
+            <li><strong>Gaps become cards (D2).</strong> Between two recordings there is a 2-second transition card: the previous node's outputs and where they went, the next node's inputs and their sources, and the real gap. A node without a recording (deleted, login required, never started, never reached automation) is a 3-second explanation card. When a run continues from the stopped node, each reused node is one card linking to the original run's replay (D3); nodes that did not run or have not finished are combined into a final card.</li>
+            <li><strong>Steps are renumbered.</strong> One number across the whole run, plus the node and the number within the node (<code>n2·3</code>); step ids get the node as a prefix (<code>n2:search</code>), so <code>?step=</code> points at a step of a node and <code>?node=</code> starts at a node.</li>
+            <li><strong>Recordings are kept as a group (D6).</strong> For the nodes of a composite run, retention follows the whole composite run's result and end time (nothing is deleted while it is still running); pinning one node pins the whole run; over the total limit, the whole run is deleted together. The rules for single runs do not change.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>You know where and why it failed without opening any node, and one player shows the whole run; clicking any step of any node on the right jumps to that frame.</li>
+            <li>Only the server changes: no new third-party package, no database migration, no Worker or recorder change, so an update file is enough.</li>
+            <li>There is no single merged video: to watch outside the portal, the download holds the nodes' videos and a description of their order.</li>
+            <li>Cards replace the real gaps, so the video timeline is not elapsed time; the elapsed time is on the report's timeline and on the transition cards.</li>
+            <li>For a composite run that did not pass, the recordings of nodes that passed are kept for up to 30 days, using somewhat more disk than counting each node separately; the total limit still applies.</li>
+            <li>When nodes have different frame sizes, the player uses the first segment's aspect ratio and scales the others to fit, centered.</li>
+            <li>If parallel nodes are supported later, the timeline needs several lanes; the data keeps each segment's real time, so it can be extended.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>The server joins the segments into one .webm</td><td>The server has no ffmpeg; different frame sizes need re-encoding; media packages mean an update file is no longer enough; one more copy of the video is stored.</td></tr>
+              <tr><td>The Worker joins the videos after the last node</td><td>The Worker does not know when the whole run ends; reruns, reused nodes and cancellations all need handling; it still needs re-encoding.</td></tr>
+              <tr><td>Keep the real gaps</td><td>Queueing, browser start-up and checks often take longer than the actions themselves, leaving long blank stretches in the video.</td></tr>
+              <tr><td>Join the segments directly, without cards</td><td>You cannot see what values passed between nodes, or that the node changed.</td></tr>
+              <tr><td>Store the summary report as a file when the run ends</td><td>It would need a fixed language and regenerating when data changes (for example, a recording is deleted); generating it when viewed is enough for now, and archiving (M11 D4) can store it later.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -20,6 +20,7 @@ import os
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import Final, cast
 from urllib.parse import urlsplit
@@ -44,6 +45,7 @@ from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
+from rpa_server.composite_replay import build_composite_replay
 from rpa_server.composite_report import build_composite_report
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
@@ -81,7 +83,7 @@ from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
-from rpa_server.videos import VideoService, VideoSettings, video_details
+from rpa_server.videos import VideoService, VideoSettings, retention_basis, video_details
 from rpa_server.workflows import WorkflowService
 from rpa_worker.environment import external_url
 from rpa_worker.pairing import Invite
@@ -1532,6 +1534,71 @@ class Services:
         if run is None:
             raise _not_found("run_not_found", t("error.run_not_found", id=run_id))
         return run_record(run)
+
+    # ------------------------------------------------------------ 組合運行的合併回看（2026-10-27）
+
+    def composite_replay(self, run_id: str) -> tuple[dict[str, object], dict[str, object]]:
+        """合併回看的資料與匯總報告（見 composite_replay.py）。"""
+        record, workflow = self.workflows.get_run_with_definition(run_id)
+        with self.sessions() as session:
+            return build_composite_replay(
+                session, self.storage, record, workflow, self.videos.settings()
+            )
+
+    def _composite_runs(self, session: Session, run_id: str) -> list[Run]:
+        """組合運行裡每個節點的運行（含重跑前的），依建立的順序；沿用的節點不算（它屬於原本那次）。"""
+        self.workflows.get_run(run_id)  # 不存在時 404
+        return list(
+            session.scalars(
+                select(Run).where(Run.workflow_run_id == run_id).order_by(Run.created_at, Run.id)
+            )
+        )
+
+    def composite_video(self, run_id: str) -> dict[str, object]:
+        """整次組合運行的錄影：幾段、多大、是否釘選、依保留規則保留到何時（D6，整組一起）。"""
+        settings = self.videos.settings()
+        with self.sessions() as session:
+            runs = [run for run in self._composite_runs(session, run_id) if run.video_seconds]
+            kept = [run for run in runs if run.video_deleted_at is None]
+            pinned = bool(kept) and all(run.video_pinned for run in kept)
+            keep_until = None
+            if kept and not pinned:
+                status, finished = retention_basis(session, kept[0])
+                if finished is not None:
+                    keep_until = finished + timedelta(days=settings.keep_days(status))
+            return {
+                "count": len(kept),
+                "deleted": len(runs) - len(kept),
+                "bytes": sum(run.video_bytes or 0 for run in kept),
+                "pinned": pinned,
+                "keepUntil": keep_until.isoformat(timespec="seconds") if keep_until else None,
+            }
+
+    def pin_composite_video(self, run_id: str, pinned: bool) -> dict[str, object]:
+        """釘選或取消釘選整次組合運行的錄影（每個節點一起）。"""
+        with self.sessions() as session:
+            first = next(iter(self._composite_runs(session, run_id)), None)
+        if first is not None:
+            self.videos.set_pinned(first.id, pinned)
+        return self.composite_video(run_id)
+
+    def composite_video_files(self, run_id: str) -> list[tuple[str, Path]]:
+        """下載全部錄影用：（壓縮檔裡的名稱, 檔案）。依合併回看的順序，每個節點的各分頁片段。"""
+        data, _ = self.composite_replay(run_id)
+        video = cast("dict[str, object] | None", data["video"])
+        files: list[tuple[str, Path]] = []
+        order: dict[str, int] = {}
+        for clip in cast("list[dict[str, object]]", (video or {}).get("clips") or []):
+            node, url = str(clip.get("node")), clip.get("url")
+            if not isinstance(url, str):
+                continue
+            order.setdefault(node, len(order) + 1)
+            _, _, rest = url.partition("/runs/")
+            run, _, name = rest.partition("/files/")
+            path = self.storage.run_file(run, name)
+            if path is not None:
+                files.append((f"{order[node]:02d}-{node}-{name}", path))
+        return files
 
     def cancel_run(self, run_id: str) -> RunRecord:
         """取消：排隊中的直接取消；執行中的通知 worker 終止。不回滾已經發生的外部動作。"""

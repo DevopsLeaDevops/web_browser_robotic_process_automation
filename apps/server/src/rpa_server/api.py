@@ -1284,6 +1284,17 @@ def api_router(services: Services) -> APIRouter:
         """組合運行的匯總報告（2026-10-27）：結論、數字、時間軸、每個節點的入參出參、步驟與斷言。"""
         return report_json(services.composite_report(run_id))
 
+    @router.get("/workflow-runs/{run_id}/replay")
+    def get_workflow_run_replay(run_id: str) -> dict[str, object]:
+        """合併回看的資料（2026-10-27）：各節點的錄影片段、轉場與說明卡、整次運行重新編號的步驟。"""
+        data, _ = services.composite_replay(run_id)
+        return {**data, "videoState": services.composite_video(run_id)}
+
+    @router.put("/workflow-runs/{run_id}/video")
+    def pin_workflow_run_video(run_id: str, body: VideoPin) -> dict[str, object]:
+        """釘選或取消釘選整次組合運行的錄影（每個節點一起，D6）。"""
+        return services.pin_composite_video(run_id, body.pinned)
+
     @router.post("/workflow-runs/{run_id}/cancel", status_code=202)
     def cancel_workflow_run(run_id: str) -> dict[str, object]:
         return workflows.cancel(run_id).to_json()

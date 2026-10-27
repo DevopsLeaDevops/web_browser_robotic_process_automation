@@ -68,7 +68,7 @@
         <div class="actions">
           <a class="button" href="#node-{{ node.id }}" data-open-node="{{ node.id }}">{{ t("creport.show_node", node=node.id) }}</a>
           {% if node.runUrl %}<a class="button" href="{{ node.runUrl }}">{{ t("creport.node_run") }}</a>{% endif %}
-          {% if node.replayUrl %}<a class="button" href="{{ node.replayUrl }}">▶ {{ t("creport.replay_failed") }}</a>{% endif %}
+          {% if node.replayUrl %}<a class="button primary" href="/playground/runs/{{ report.id }}/replay?{% if failure.step %}step={{ node.id }}:{{ failure.step.id }}{% else %}node={{ node.id }}{% endif %}" data-action="replay-failure">▶ {{ t("creport.replay_failed") }}</a>{% endif %}
         </div>
         {% endif %}
       </div>
@@ -138,10 +138,11 @@
 {% endmacro %}
 
 {# 一個節點的內容：說明、入參、出參、階段、步驟、斷言、截圖、問題 #}
-{% macro node_body(node, offline=false, images={}) %}
+{% macro node_body(node, offline=false, images={}, run_id="") %}
 <div class="creport-node-body">
   {% if not offline and node.runId %}
   <div class="actions creport-node-links">
+    {% if node.replayUrl and run_id and node.status != "reused" %}<a class="text-btn" href="/playground/runs/{{ run_id }}/replay?node={{ node.id }}">▶ {{ t("creport.node_in_replay") }}</a>{% endif %}
     <a class="text-btn" href="{{ node.runUrl }}">{{ t("creport.node_run") }}</a>
     {% if node.reportUrl %}<a class="text-btn" href="{{ node.reportUrl }}" target="_blank" rel="noopener">{{ t("workflow.node_report") }}</a>{% endif %}
     {% if node.replayUrl %}<a class="text-btn" href="{{ node.replayUrl }}">▶ {{ t("creport.node_replay") }}</a>{% elif node.videoDeleted %}<span class="muted">{{ t("runs.replay_deleted") }}</span>{% endif %}
