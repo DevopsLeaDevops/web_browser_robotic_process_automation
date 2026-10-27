@@ -226,7 +226,8 @@
             <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>这个用户端看得到的运行（可用领域里的场景）；<code>mine</code> 只列自己触发的</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的状态、开始与结束时间、错误、步骤后的网址；第二期起运行中也实时更新</td><td>一、二</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截图、report.html、result.json、录像等产物（受「回传页面内容」控制）</td><td>一</td></tr>
-            <tr><td><code>GET /composite-runs/{id}</code>、<code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>组合场景的运行：状态、进度（共几个节点、完成几个、通过几个、目前的节点）、每个节点的状态与那次运行（再用 <code>/runs/{id}</code> 读细节）</td><td>一</td></tr>
+            <tr><td><code>GET /composite-runs/{id}</code>、<code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>组合场景的运行：状态、进度（共几个节点、完成几个、通过几个、目前的节点）、每个节点的状态与那次运行（再用 <code>/runs/{id}</code> 读细节）；<code>reportUrl</code> 是汇总报告</td><td>一</td></tr>
+            <tr><td><code>GET /composite-runs/{id}/report</code></td><td>整次组合运行的汇总报告（2026-10-27）：结论（停在哪个节点的哪一步、错误、没通过的断言）、节点与步骤与断言的通过数、时间轴、每个节点的入参（值与来源）、出参（值与流向）、步骤与断言；截图与节点报告的网址是本 API 的路径，没有页面内容权限时是 null。写测试报告时一次读完，不必逐一读节点</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>事件长轮询：有新事件立刻回，没有就最多等 <code>wait</code> 秒</td><td>二</td></tr>
             <tr><td>Webhook</td><td>运行结束时 POST 到用户端登记的网址，带 HMAC 签章，失败会重试</td><td>二</td></tr>
           </tbody>
