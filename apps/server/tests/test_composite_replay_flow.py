@@ -96,6 +96,16 @@ def position(page: Page) -> float:
     return float(page.locator("#replay-timeline").get_attribute("aria-valuenow") or 0)
 
 
+def wait_near(page: Page, seconds: float, about: object) -> None:
+    """等播放位置到 ``seconds`` 附近；等不到時列出位置與目前標示的步驟。"""
+    deadline = time.monotonic() + 20
+    while abs(position(page) - seconds) >= 0.15:
+        shown = page.locator("#replay-chip-n").inner_text()
+        where = f"停在 {position(page)}（{shown}），應該是 {seconds}"
+        assert time.monotonic() < deadline, f"{where}：{about}"
+        page.wait_for_timeout(100)
+
+
 def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
     with running() as site, httpx2.Client(base_url=portal, timeout=30) as client:
         assert client.post("/api/scenes/import").status_code < 400
@@ -191,11 +201,7 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
         steps = cast("list[JsonObject]", data["steps"])
         search = next(step for step in steps if step["node"] == "n2" and step["rawId"] == "search")
         page.locator(f'.replay-row[data-index="{search["index"]}"]').click()
-        target = cast("int", search["startMs"]) / 1000 - 0.4
-        page.wait_for_function(
-            f"Math.abs(Number(document.getElementById('replay-timeline')"
-            f".getAttribute('aria-valuenow')) - {target}) < 0.15"
-        )
+        wait_near(page, cast("int", search["startMs"]) / 1000 - 0.4, search)
         expect(page.locator("#replay-chip-n")).to_have_text(str(search["label"]))
 
         # 釘選整次：兩個節點的錄影都釘選
