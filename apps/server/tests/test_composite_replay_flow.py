@@ -6,6 +6,7 @@ Portal 用 uvicorn 在背景執行緒啟動（含背景 worker）；BA-001 → B
 （整條時間軸的秒數，不是影片元素的）。
 """
 
+import json
 import socket
 import threading
 import time
@@ -103,7 +104,7 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
         created = validate_and_publish(client, "ba-001", {"title": "合併回看", "quantity": 2})
         record = cast("JsonObject", created["output"])
         validate_and_publish(client, "ba-002", {"recordId": record["recordId"]})
-        definition = {
+        definition: JsonObject = {
             "version": 2,
             "mode": "dag",
             "nodes": [
@@ -134,6 +135,25 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
         segments = cast("list[JsonObject]", cast("JsonObject", data["composite"])["segments"])
         assert [segment["kind"] for segment in segments] == ["video", "transition", "video"]
         second_start = cast("int", segments[2]["startMs"]) / 1000
+        nodes = cast("list[JsonObject]", finished["nodes"])
+        first_run, second_run = (cast("JsonObject", node["run"]) for node in nodes)
+        output = cast("JsonObject", first_run["output"])
+        # 轉場卡的實際間隔＝第一段錄影結束到第二段開始：中間至少有開新的子程序與瀏覽器
+        clips = cast("list[JsonObject]", cast("JsonObject", data["video"])["clips"])
+        detail = json.dumps(
+            {
+                "segments": segments,
+                "clips": [
+                    {k: c.get(k) for k in ("pageId", "startedAt", "durationMs", "startMs")}
+                    for c in clips
+                ],
+                "runs": [
+                    {k: run.get(k) for k in ("startedAt", "finishedAt", "durationSeconds")}
+                    for run in (first_run, second_run)
+                ],
+            }
+        )
+        assert cast("int", segments[1]["gapMs"]) >= 300, detail
 
         page.goto(f"{portal}/playground/runs/{run_id}/replay")
         page.wait_for_function("document.querySelectorAll('.replay-tile.ready').length >= 2")
@@ -151,7 +171,7 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
         card = page.locator("#replay-card")
         expect(card).to_be_visible()
         expect(card).to_contain_text("n1 的結果")
-        expect(card).to_contain_text(str(record["recordId"]))
+        expect(card).to_contain_text(str(output["recordId"]))  # 這次 n1 建立的紀錄
 
         # 播放跨過轉場：卡片收起、影片接著播第二段
         page.locator("#replay-play").click()
@@ -182,7 +202,6 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
         page.locator('[data-replay-tab][aria-controls="replay-tab-info"]').click()
         page.locator("#replay-pin").click()
         expect(page.locator("#replay-pin")).to_have_attribute("aria-pressed", "true")
-        nodes = cast("list[JsonObject]", finished["nodes"])
         for node in nodes:
             video = cast(
                 "JsonObject",
