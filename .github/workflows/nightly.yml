@@ -10,6 +10,11 @@
 # - PR 上的測試依生產角色分配（Linux 網站、Windows Worker、macOS 錄製端，docs/develop/ci.html），
 #   其他組合（Firefox 的網站流程、Linux 上的 Worker 測試等）都在這裡跑：這是定時的「大全量」。
 #
+# - macOS 的程式碼層檢查（2026-10-27 起，docs/develop/ci.html#layered）：PR 上的錄製端（macOS）只在
+#   錄製、調試、閘道與 macOS 專屬的程式改了時才建置，Worker（macOS）只在外殼或它的 macOS 部分改了
+#   時。這裡每晚用 main 的程式在兩個 macOS App 上跑一次程式碼層路徑（desktop.yml，外殼來自快取），
+#   一般的程式改動在 macOS 上的問題最晚隔天就看得到；發布一律完整建置。
+#
 # 手動觸發（Actions → 每晚完整測試 → Run workflow）可以選系統與重跑次數，隨時跑一次大全量。
 # 排程失敗時自動開（或更新）一個 ci-schedule 標籤的 issue。
 #
@@ -23,6 +28,10 @@ on:
     # 並行名額（每個帳號最多 5 個）。之前的 07:17 UTC（新加坡 15:17）是最忙的時段之一。
     # 公開倉庫 60 天沒有任何活動時，GitHub 會自動停用排程。
     - cron: "17 20 * * *"
+    # 每週六 22:47 UTC：三個桌面 App 完整建置一次（desktop.yml，build=full），抓 GitHub 映像的變化。
+    # America/Los_Angeles 15:47 PDT（UTC−07:00）／14:47 PST（UTC−08:00），新加坡週日 06:47。
+    # 排在當天的每晚完整測試（20:17，最長約 70 分）與一鍵安裝腳本（20:47）之後，依賴更新（週日 22:17）之前。
+    - cron: "47 22 * * 6"
   # 修改本流程的 PR 先實際跑一次；排程流程要先進 main 才能手動觸發
   pull_request:
     paths:
@@ -39,7 +48,8 @@ on:
         default: 2
 
 concurrency:
-  group: nightly-${{ github.ref }}
+  # 每週的桌面完整建置和每晚完整測試分開：不互相取消
+  group: nightly-${{ github.ref }}-${{ github.event.schedule }}
   cancel-in-progress: true
 
 permissions:
@@ -73,7 +83,9 @@ jobs:
   full:
     name: 完整測試（${{ matrix.os }}，Python ${{ matrix.python }}）
     needs: plan
-    if: needs.plan.outputs.mode != 'docs' && needs.plan.outputs.matrix != '[]'
+    if: >-
+      github.event.schedule != '47 22 * * 6' &&
+      needs.plan.outputs.mode != 'docs' && needs.plan.outputs.matrix != '[]'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -151,10 +163,40 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # macOS 的程式碼層檢查：桌面端建置（desktop.yml）在兩個 macOS App 上走程式碼層路徑
+  # （外殼在快取裡；不在時完整建置並存進快取）。手動觸發時只在選了 macOS（或全部）時跑。
+  desktop-layer:
+    name: macOS 桌面 App（程式碼層）
+    needs: plan
+    if: >-
+      github.event.schedule != '47 22 * * 6' && needs.plan.outputs.mode != 'docs' &&
+      (!inputs.systems || contains(inputs.systems, 'macos'))
+    uses: ./.github/workflows/desktop.yml
+    with:
+      targets: recorder-macos-arm64,worker-macos-arm64
+      build: auto
+    # 快取的外殼信任 RPA_UPDATE_CI_KEY
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+
+  # 每週六：三個桌面 App 完整建置（不用快取、不沿用），成功時更新外殼快取
+  desktop-weekly:
+    name: 桌面 App 每週完整建置
+    if: github.event.schedule == '47 22 * * 6'
+    uses: ./.github/workflows/desktop.yml
+    with:
+      build: full
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+
   # 排程的完整測試失敗時開（或更新）一個 issue，不必去翻 Actions 頁面才知道
   report-failure:
     name: 失敗時開 issue
-    needs: [full]
+    needs: [full, desktop-layer, desktop-weekly]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:

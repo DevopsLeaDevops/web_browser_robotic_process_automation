@@ -40,3 +40,5 @@ runs/
 # 也忽略 --data 另外指定的 data-*（例如 data-m4），避免把登入狀態與 Secrets 提交進去
 /data/
 /data-*/
+# 桌面端建置的外殼快取（tools/desktop_shell.py）
+.shell-cache/

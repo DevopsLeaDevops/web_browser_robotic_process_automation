@@ -15,14 +15,14 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261026-release-0-6-3；2026-10-26 08:35 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261026-release-0-6-3；2026-10-26 19:10 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 06:33 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：「按照你的建議，動手coding，發0.6.3版本」。發版由 Claude 操作，使用者只按合併（2026-10-26 01:03 決定）。驗收：v0.6.3 的 Release 有完整安裝包、更新檔與 SHA256SUMS.txt，說明寫明從 v0.6.2 怎麼升級。</dd>
         <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.6.3</code>）、標籤、草稿 Release 的核對與發布；同時把 <a href="20261026-remote-debug-reload.html">20261026-remote-debug-reload</a> 的狀態改為已合併。不包含：功能修改（已在 PR #90）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd>八個套件的 pyproject.toml、uv.lock；本紀錄、<code>20261026-remote-debug-reload.html</code> 與任務索引。Claude 整合。</dd>
-        <dt>狀態</dt><dd>待合併：版本號已改，待推送、開 PR 與 CI。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.6.3</code>；PR 未建立；base main <code>84b4611</code>（PR #90 合併）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>基準 <code>84b4611</code>＋版本號，尚未推送。</dd>
+        <dt>狀態</dt><dd>待發布：草稿 Release 已建好並核對，等使用者在 GitHub 按「發布」（這個 Claude 工作階段不能推送標籤、也不能建立或修改 Release，GitHub 回 403）。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.6.3</code>；PR #91，2026-10-26 08:45 America/Los_Angeles（PDT，UTC−07:00）由使用者合併（merge <code>066ded2</code>）；標籤 <code>v0.6.3</code> 指向 <code>066ded2</code>（使用者推送）；發布流程 run 40353916274；草稿 Release id 424596747。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已合併與打標籤：<code>066ded2</code>（v0.6.3）。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器；建置與簽章在 GitHub Actions（<code>release.yml</code>）。</dd>
       </dl></div>
     </section>
@@ -31,7 +31,10 @@
       <div class="panel-body"><ul class="points">
         <li><strong>升級要求：</strong>PR #90 的 CI 寫出的環境代號：伺服器（linux-x64、linux-arm64）與 RPA Worker（Windows）都和 v0.6.2 相同，可以用更新檔升級（伺服器 <code>bin/rpa update</code>，Worker 跟著伺服器自動更新）。錄製端（macOS）與 RPA Worker（macOS）在 PR #90 沒有結果：GitHub 的 macOS arm64 機器容量不足，三次都排不到機器被取消；改看本 PR 與發布流程的建置。伺服器先更新、錄製端還沒更新時，調試換版本會回「請更新錄製端」（預期的提示）。</li>
         <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.6.3</code>（八個套件與 uv.lock），<code>check v0.6.3</code> 一致。</li>
-        <li><strong>下一個具體動作：</strong>推送、開 PR、核對 CI；使用者合併後在 main 打 <code>v0.6.3</code> 標籤並推送，等發布流程建好草稿 Release（含 macOS 的錄製端與 Worker），核對產物與說明後發布。macOS 機器排不到時，等到產物齊全再發布，不發缺少錄製端更新檔的版本。</li>
+        <li><strong>已完成（發布流程）：</strong>確認版本、伺服器分發包 x64／arm64、RPA Worker（Windows）、RPA Worker（macOS）、RPA 錄製端（macOS）、草稿 Release 全部通過（run 40353916274，第 9 次嘗試）。macOS 兩個建置在第 1～8 次都因 GitHub macOS arm64 機器容量不足、排隊 15 分鐘後被取消；第 9 次在 2026-10-26 11:03 America/Los_Angeles（PDT，UTC−07:00）排到機器。</li>
+        <li><strong>草稿核對：</strong>8 個檔案與 v0.6.2 相同（RPA-Recorder macos-arm64 DMG、RPA-Worker macos-arm64 DMG、RPA-Worker windows-x64 安裝檔與 zip、RPA-Server linux-x64／arm64、RPA-Update-0.6.3.zip、SHA256SUMS.txt）；SHA256SUMS.txt 列出其餘 7 個；下載更新檔核對 SHA256 相同，內含 manifest.sig，<code>app/rpa_runner/debug.py</code>（scenarioText）、<code>app/rpa_worker/environment.py</code>（debugInlineLoad）、<code>app/rpa_server/debugging.py</code>（INLINE_LOAD、restart）都是修正後的版本。說明的「從 v0.6.2 升級」：錄製端（macOS）、伺服器（Linux arm64、x64）、Worker（macOS、Windows）都只要更新檔。</li>
+        <li><strong>決定：</strong>使用者在選項卡選「繼續等、晚點再試」（不改 workflow、不用付費或自架 macOS 機器、不先發沒有 macOS 的版本）；選項卡在 2026-10-26 10:43 America/Los_Angeles（PDT，UTC−07:00）提出，回覆時間沒有紀錄，Claude 在 19:06 收到。</li>
+        <li><strong>下一個具體動作：</strong>使用者打開草稿 Release（v0.6.3）按「發布」；之後伺服器執行 <code>bin/rpa update RPA-Update-0.6.3.zip</code>，錄製端與 Worker 自動跟著更新；接著做 <a href="20261026-remote-debug-reload.html">20261026-remote-debug-reload</a> 的人工驗收。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -39,9 +42,11 @@
       <div class="panel-header"><h2>驗證與審閱</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
-        <tbody><tr><td>84b4611＋版本號</td><td><code>python3 tools/release_version.py check v0.6.3</code></td><td>版本一致</td><td>CI、發布流程</td></tr></tbody>
+        <tbody><tr><td>84b4611＋版本號</td><td><code>python3 tools/release_version.py check v0.6.3</code></td><td>版本一致</td><td>CI、發布流程</td></tr>
+          <tr><td>main <code>066ded2</code></td><td><code>python3 tools/release_version.py check v0.6.3</code></td><td>版本一致</td><td>無</td></tr>
+          <tr><td>草稿 Release 424596747</td><td>列出檔案、下載 SHA256SUMS.txt 與 RPA-Update-0.6.3.zip，核對雜湊並讀 zip 裡的三個檔案</td><td>齊全、雜湊相同、內容是修正後的版本</td><td>沒有下載 DMG、安裝檔與分發包（由發布流程的自我測試與安裝測試涵蓋）</td></tr></tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：PR #91 的 <code>a9c8538</code>：靜態檢查、測試（Python 3.12）、Worker 測試（Windows）、伺服器分發包、Linux 伺服器安裝（Rocky 8）、專案內執行（Linux、Windows）通過；RPA Worker（Windows）的桌面單元測試失敗一次（<code>test_portal_pages_cannot_drive_the_app</code>，Windows 的 WinError 10053 連線中斷，和本次修改無關，發布流程裡同一個建置通過）；macOS 建置被取消（容量）；使用者在測試（Python 3.13）完成前合併。發布流程見上。人工驗收：未執行。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -51,6 +56,9 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-26 08:35 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #90 已在 08:24 合併（<code>84b4611</code>）；從 main 開分支 <code>chore/release-0.6.3</code>，改版本號，建立本紀錄。</li>
+        <li>2026-10-26 08:54 America/Los_Angeles（PDT，UTC−07:00），使用者：推送標籤 <code>v0.6.3</code>（Claude 推送標籤被 GitHub 拒絕，HTTP 403）；發布流程開始。</li>
+        <li>2026-10-26 10:43 America/Los_Angeles（PDT，UTC−07:00），Claude：macOS 兩個建置連續 7 次排不到機器；用選項卡請使用者決定，同時繼續重新排入（每次排隊 15 分鐘被取消後再排）。</li>
+        <li>2026-10-26 19:10 America/Los_Angeles（PDT，UTC−07:00），Claude：第 9 次（11:03 開始）macOS 建置通過，草稿 Release 建好；收到使用者「繼續等」的回覆；核對完成（見驗證）。Claude 發布被拒（HTTP 403），請使用者按發布。</li>
       </ul></div>
     </section>
   </div>
