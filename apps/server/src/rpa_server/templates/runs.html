@@ -27,14 +27,25 @@
     </form>
   </section>
 
+  {#- 2026-10-27：「場景運行」一列一次場景的運行（組合裡的節點也在，標出屬於哪次組合運行）；
+      「組合運行」一列一次組合運行，點進去是匯總報告 -#}
+  {% set composite_view = (view | default("scene")) == "composite" %}
+  {% set shown = composite_runs if composite_view else runs %}
   <section class="panel has-filters">
-    <div class="panel-header"><h2>{{ t("runs.records") }}</h2><span class="muted">{{ t("runs.count", count=runs | length, limit=limit) }}</span></div>
+    <div class="panel-header"><div class="header-main"><h2>{{ t("runs.records") }}</h2>
+      <nav class="segmented" aria-label="{{ t('runs.view') }}"><a href="/runs"{% if not composite_view %} class="active" aria-current="page"{% endif %}>{{ t("runs.view_scene") }}</a><a href="/runs?view=composite"{% if composite_view %} class="active" aria-current="page"{% endif %}>{{ t("runs.view_composite") }}</a></nav></div>
+      <span class="muted">{{ t("runs.count", count=shown | length, limit=limit) }}</span></div>
     <form class="filters" method="get" action="/runs" data-filters>
+      {% if composite_view %}<input type="hidden" name="view" value="composite">{% endif %}
       <span class="muted">{{ t("runs.filter_by") }}</span>
       {% for menu in filters %}{{ m.filter_menu(menu) }}{% endfor %}
-      {% if filters | selectattr("selected") | list %}<a class="text-btn" href="/runs">{{ t("runs.clear") }}</a>{% endif %}
+      {% if filters | selectattr("selected") | list %}<a class="text-btn" href="/runs{% if composite_view %}?view=composite{% endif %}">{{ t("runs.clear") }}</a>{% endif %}
     </form>
-    {% if runs %}{{ m.run_rows(runs, workers=worker_names, agents=agent_names) }}{% else %}<div class="empty">{{ t("runs.empty") }}</div>{% endif %}
+    {% if composite_view %}
+    {% if shown %}{{ m.workflow_run_rows(shown, agents=agent_names, projects=composite_projects, workers=worker_names) }}{% else %}<div class="empty">{{ t("runs.empty_composite") }}</div>{% endif %}
+    {% else %}
+    {% if shown %}{{ m.run_rows(shown, workers=worker_names, agents=agent_names) }}{% else %}<div class="empty">{{ t("runs.empty") }}</div>{% endif %}
+    {% endif %}
   </section>
 </div>
 {% endblock %}

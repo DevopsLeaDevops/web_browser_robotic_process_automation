@@ -27,7 +27,7 @@ from rpa_server.models import Run
 from rpa_server.storage import Storage
 from rpa_server.videos import VideoSettings, video_details
 
-__all__ = ["NOT_PASSED", "build_replay", "step_sources"]
+__all__ = ["NOT_PASSED", "build_replay", "step_sources", "step_targets"]
 
 NOT_PASSED: Final = ("failed", "timed_out", "cancelled", "needs_login")
 _DETAIL_FIELDS: Final = ("value", "key", "option", "as", "text", "url", "title", "count", "state")
@@ -113,6 +113,12 @@ def _describe(definition: Mapping[str, object]) -> tuple[str | None, str | None]
         if name in definition and not (name == "url" and where == definition[name])
     ]
     return where, "  ".join(details) or None
+
+
+def step_targets(folder: Path) -> list[str | None]:
+    """執行目錄裡場景快照每一步的定位器或網址（場景檔的寫法），依步驟的順序；組合運行的報告用。"""
+    definitions, _ = _definitions(_snapshot(folder))
+    return [_describe(definition)[0] for definition in definitions]
 
 
 def _steps(

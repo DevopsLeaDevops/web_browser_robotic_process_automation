@@ -17,6 +17,7 @@ from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
 from rpa_runner.installed import DISPLAY_NAMES
 from rpa_server.agents import SCOPES
+from rpa_server.composite_report import build_composite_report, embedded_screenshots
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
 from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord, RunRecord, now
@@ -25,6 +26,7 @@ from rpa_server.gitsync import GitSource
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
 from rpa_server.render import (
+    composite_run_filters,
     domain_page,
     project_page,
     render,
@@ -54,6 +56,8 @@ _UTF8_TYPES: Final = frozenset({"application/json"})
 沒標的話，瀏覽器用作業系統語言的預設編碼（簡體中文是 GBK）讀 JSON，中文會變成亂碼。
 """
 _RECENT_RUNS: Final = 10
+_COMPOSITE_RUNS: Final = 200
+"""運行報告的「組合運行」檢視最多列幾次（和場景運行一樣）。"""
 _REPORT_CSP: Final = (
     "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"
 )
@@ -76,7 +80,8 @@ _PORTAL_BAR: Final = (
 
 
 def _with_portal_links(report: str, run: RunRecord) -> str:
-    """在 Portal 裡打開 report.html 時，最上面加一列：回到運行詳情、錄影回看（有錄影時）。
+    """在 Portal 裡打開 report.html 時，最上面加一列：回到運行詳情、錄影回看（有錄影時）、
+    組合運行的匯總報告（組合裡的節點）。
 
     報告是 Runner 產生的單一檔案，離線開啟時沒有 Portal；這列只在 Portal 送出時加上，檔案本身不改。
     """
@@ -89,6 +94,12 @@ def _with_portal_links(report: str, run: RunRecord) -> str:
         )
     elif video.get("deletedAt"):
         links.append(f"<span>{escape(t('report_bar.replay_deleted'))}</span>")
+    if run.workflow_run_id:
+        # 組合裡的節點：連到整次組合運行的匯總報告（2026-10-27）
+        links.append(
+            f'<a href="/playground/runs/{escape(run.workflow_run_id)}">'
+            f"{escape(t('report_bar.composite', node=run.node_id or '—'))}</a>"
+        )
     bar = _PORTAL_BAR.format(links="".join(links))
     head, separator, rest = report.partition("<body>")
     return head + separator + bar + rest if separator else bar + report
@@ -414,8 +425,18 @@ def page_router(services: Services) -> APIRouter:
         purpose: Annotated[list[str] | None, Query()] = None,
         worker: Annotated[list[str] | None, Query()] = None,
         video: Annotated[list[str] | None, Query()] = None,
+        view: str = "",
+        project: Annotated[list[str] | None, Query()] = None,
+        composite: Annotated[list[str] | None, Query()] = None,
     ) -> HTMLResponse:
-        """運行報告：篩選、每一次運行的錄影回看連結；錄影設定也在這頁（原本的運行回看併進來，2026-10-25）。"""
+        """運行報告：篩選、每一次運行的錄影回看連結；錄影設定也在這頁（原本的運行回看併進來，2026-10-25）。
+
+        ``view=composite`` 是「組合運行」檢視（2026-10-27）：一列一次組合運行，點進去是匯總報告。
+        """
+        if view == "composite":
+            return composite_runs(
+                status=status, purpose=purpose, worker=worker, project=project, composite=composite
+            )
         selected = {
             "scene": [item for item in scene or [] if item],
             "category": [item for item in category or [] if item],
@@ -428,6 +449,7 @@ def page_router(services: Services) -> APIRouter:
             "runs.html",
             page="runs",
             title=t("nav.runs"),
+            view="scene",
             runs=services.list_runs(
                 scenes=selected["scene"],
                 categories=selected["category"],
@@ -444,6 +466,55 @@ def page_router(services: Services) -> APIRouter:
             ),
             video_settings=services.video_settings(),
             limit=200,
+        )
+
+    def composite_runs(
+        *,
+        status: list[str] | None,
+        purpose: list[str] | None,
+        worker: list[str] | None,
+        project: list[str] | None,
+        composite: list[str] | None,
+    ) -> HTMLResponse:
+        """運行報告的「組合運行」檢視：專案、組合場景、結果、目的、執行位置的篩選。"""
+        selected = {
+            "project": [item for item in project or [] if item],
+            "composite": [item for item in composite or [] if item.isdigit()],
+            "status": [item for item in status or [] if item],
+            "purpose": [item for item in purpose or [] if item],
+            "worker": [item for item in worker or [] if item],
+        }
+        records = services.workflows.list_workflows()
+        names = {record.id: record.name for record in records}
+        project_names = {item.id: item.name for item in services.projects.list_projects()}
+        return page(
+            "runs.html",
+            page="runs",
+            title=t("nav.runs"),
+            view="composite",
+            runs=[],
+            composite_runs=services.workflows.list_runs(
+                limit=_COMPOSITE_RUNS,
+                projects=selected["project"] or None,
+                statuses=selected["status"],
+                purposes=selected["purpose"],
+                workflow_ids=[int(item) for item in selected["composite"]],
+                workers=selected["worker"],
+            ),
+            composite_projects={
+                record.id: project_names[record.project_id]
+                for record in records
+                if record.project_id in project_names
+            },
+            composite_names=names,
+            filters=composite_run_filters(
+                projects=services.projects.list_projects(),
+                composites=sorted(names.items(), key=lambda item: item[1].casefold()),
+                selected=selected,
+                locations=services.run_locations(),
+            ),
+            video_settings=services.video_settings(),
+            limit=_COMPOSITE_RUNS,
         )
 
     @router.get("/replay", include_in_schema=False)
@@ -805,8 +876,8 @@ def page_router(services: Services) -> APIRouter:
 
     @router.get("/playground/runs/{run_id}", include_in_schema=False)
     def workflow_run(run_id: str) -> HTMLResponse:
-        """一次序列的執行：每個節點的狀態、入參的值與來源、出參、那次執行的報告。"""
-        record = workflows.get_run(run_id)
+        """組合運行的匯總報告（2026-10-27）：結論、數字、流程與時間、每個節點的入參出參、步驟與斷言。"""
+        record, definition = workflows.get_run_with_definition(run_id)
         exists = True
         owner = None
         if record.workflow_id is not None:
@@ -835,11 +906,40 @@ def page_router(services: Services) -> APIRouter:
             page=project_page(owner.id) if owner is not None else "playground",
             title=t("workflow_run.title", id=record.id),
             run=record,
+            report=build_composite_report(record, definition, services.storage),
+            definition=definition,
             worker_wait=waiting,
             workflow_exists=exists and record.workflow_id is not None,
             project=owner,
             role=role,
             messages=workflow_messages(),
+        )
+
+    @router.get("/playground/runs/{run_id}/report.html", include_in_schema=False)
+    def workflow_run_report(run_id: str) -> HTMLResponse:
+        """下載組合運行的匯總報告：單一 HTML、不需要網路，用看的人的語言產生（不另存檔）。
+
+        截圖只嵌入沒通過的節點的（D4）；連到 Portal 的連結都拿掉，離線打開也看得懂。
+        """
+        record, definition = workflows.get_run_with_definition(run_id)
+        report = build_composite_report(record, definition, services.storage)
+        content = render(
+            "composite_report_file.html",
+            page="playground",
+            title=t("workflow_run.title", id=record.id),
+            run=record,
+            report=report,
+            images=embedded_screenshots(report, services.storage),
+            generated=now(),
+        )
+        return HTMLResponse(
+            content,
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Security-Policy": _REPORT_CSP,
+                "X-Content-Type-Options": "nosniff",
+                "Content-Disposition": f'attachment; filename="{record.id}-report.html"',
+            },
         )
 
     return router

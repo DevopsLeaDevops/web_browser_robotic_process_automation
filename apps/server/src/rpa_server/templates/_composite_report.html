@@ -1,0 +1,231 @@
+{#- 組合運行的匯總報告（2026-10-27）：組合運行頁與離線報告共用的片段。
+    資料見 rpa_server.composite_report.build_composite_report；offline 為 true 時是下載的單一 HTML：
+    不連到 Portal、時間顯示 UTC、截圖用嵌入的 data URI（images：節點代號 → data URI，只有沒通過的節點）。 -#}
+
+{% macro status_badge(status) %}<span class="badge {{ badge_color(status) }}" data-status="{{ status }}">{{ t("status." + status) }}</span>{% endmacro %}
+
+{% macro when(value, offline) %}{% if not value %}—{% elif offline %}{{ display_time(value) }}{% else %}<time datetime="{{ iso(value) }}">{{ display_time(value) }}</time>{% endif %}{% endmacro %}
+
+{% macro value(item) %}{% if item.hasValue %}<code>{{ item.value | compact_json }}</code>{% else %}<span class="muted">—</span>{% endif %}{% endmacro %}
+
+{% macro source(source) -%}
+{%- if source.kind == "output" -%}<span class="muted">←</span> <code>{{ source.node }}.{{ source.output }}</code>
+{%- elif source.kind == "value" -%}<span class="muted">{{ t("workflow_run.source_value") }}</span>
+{%- elif source.kind == "default" -%}<span class="muted">{{ t("workflow_run.source_default") }}</span>
+{%- elif source.kind == "auto" -%}<span class="muted">{{ t("creport.source_auto") }}</span>
+{%- else -%}<span class="text-danger">{{ t("workflow_run.source_missing") }}</span>{%- endif -%}
+{%- endmacro %}
+
+{# 一步的標題：名稱，沒有名稱時用動作與步驟代號 #}
+{% macro step_title(step) %}{% if step.name %}{{ step.name }}{% else %}<code>{{ step.action }}</code> <span class="muted">{{ step.id }}</span>{% endif %}{% endmacro %}
+
+{# 結論：全部通過；或停在哪個節點的哪一步、錯誤與截圖；還在執行；後面沒有執行的節點 #}
+{% macro verdict(report, offline=false, images={}) %}
+{% set counts = report.counts %}
+{% set failure = report.failure %}
+<section class="panel creport-verdict" data-verdict="{{ report.status }}" aria-labelledby="creport-verdict-title">
+  <div class="panel-body">
+    <div class="creport-verdict-head">
+      {{ status_badge(report.status) }}
+      <h2 id="creport-verdict-title">
+      {%- if report.status == "passed" -%}
+        {{ t("creport.verdict_passed", nodes=counts.nodes.total, steps=counts.steps.total, checks=counts.checks.total, duration=report.durationSeconds | duration) }}
+      {%- elif report.status == "running" -%}
+        {{ t("creport.verdict_running", done=counts.nodes.total - (report.active | length) - (report.skipped | length), total=counts.nodes.total) }}
+      {%- elif failure and failure.node -%}
+        {{ t("creport.verdict_stopped", node=failure.node.id, scene=failure.node.sceneName) }}
+      {%- else -%}
+        {{ t("creport.verdict_failed") }}
+      {%- endif -%}
+      </h2>
+    </div>
+    {% if failure and failure.node %}
+    {% set node = failure.node %}
+    <div class="creport-failure">
+      <div class="creport-failure-text">
+        <dl class="creport-facts">
+          {% if failure.step %}
+          <dt>{{ t("creport.at_step") }}</dt>
+          <dd><strong>{{ t("creport.step_number", n=failure.step.index) }}</strong> {{ step_title(failure.step) }}{% if failure.step.target %} <code class="creport-target">{{ failure.step.target }}</code>{% endif %}</dd>
+          {% elif failure.stage %}
+          <dt>{{ t("creport.at_stage") }}</dt>
+          <dd><strong>{{ t("stage." + failure.stage.name) }}</strong>{% if failure.stage.message %} · {{ failure.stage.message }}{% endif %}</dd>
+          {% elif not node.runId %}
+          <dt>{{ t("creport.at_stage") }}</dt>
+          <dd>{{ t("creport.not_started") }}</dd>
+          {% endif %}
+          {% if failure.failedChecks %}
+          <dt>{{ t("creport.failed_checks") }}</dt>
+          <dd>{% for check in failure.failedChecks %}<span class="creport-check">{{ check.name }}{% if check.actual is not none %}：<code>{{ check.actual }}</code> {{ check.comparison }} <code>{{ check.expected if check.expected is not none else "" }}</code>{% endif %}</span>{% endfor %}</dd>
+          {% endif %}
+          {% set error = (failure.step.error if failure.step and failure.step.error else none) or failure.error %}
+          {% if error %}
+          <dt>{{ t("creport.error") }}</dt>
+          <dd><pre class="creport-error">{{ error }}</pre></dd>
+          {% endif %}
+        </dl>
+        {% if not offline %}
+        <div class="actions">
+          <a class="button" href="#node-{{ node.id }}" data-open-node="{{ node.id }}">{{ t("creport.show_node", node=node.id) }}</a>
+          {% if node.runUrl %}<a class="button" href="{{ node.runUrl }}">{{ t("creport.node_run") }}</a>{% endif %}
+          {% if node.replayUrl %}<a class="button" href="{{ node.replayUrl }}">▶ {{ t("creport.replay_failed") }}</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% set shot = images.get(node.id) if offline else node.screenshotUrl %}
+      {% if shot %}
+      <figure class="creport-shot">
+        {% if offline %}<img src="{{ shot }}" alt="{{ t('creport.screenshot_of', node=node.id) }}">{% else %}<a href="{{ shot }}" target="_blank" rel="noopener"><img src="{{ shot }}" alt="{{ t('creport.screenshot_of', node=node.id) }}" loading="lazy"></a>{% endif %}
+        <figcaption class="muted">{{ t("creport.screenshot_of", node=node.id) }}</figcaption>
+      </figure>
+      {% endif %}
+    </div>
+    {% elif failure and failure.error %}
+    <pre class="creport-error">{{ failure.error }}</pre>
+    {% endif %}
+    {% if report.skipped %}
+    <p class="creport-note">{{ t("creport.skipped", nodes=report.skipped | join("、")) }}</p>
+    {% endif %}
+    {% if counts.reused %}
+    <p class="creport-note">{{ t("creport.reused_count", count=counts.reused) }}</p>
+    {% endif %}
+  </div>
+</section>
+{% endmacro %}
+
+{# 數字列：節點、步驟、斷言的通過數與總數；總耗時、實際執行時間 #}
+{% macro numbers(report) %}
+{% set counts = report.counts %}
+<div class="result-strip creport-numbers">
+  <div{% if counts.nodes.passed < counts.nodes.total and report.finished %} class="warn"{% endif %}><strong>{{ counts.nodes.passed }} / {{ counts.nodes.total }}</strong><span>{{ t("creport.count_nodes") }}</span></div>
+  <div{% if counts.steps.passed < counts.steps.total and report.finished %} class="warn"{% endif %}><strong>{{ counts.steps.passed }} / {{ counts.steps.total }}</strong><span>{{ t("creport.count_steps") }}</span></div>
+  <div{% if counts.checks.passed < counts.checks.total %} class="warn"{% endif %}><strong>{{ counts.checks.passed }} / {{ counts.checks.total }}</strong><span>{{ t("creport.count_checks") }}</span></div>
+  <div><strong>{{ report.durationSeconds | duration }}</strong><span>{{ t("creport.total_time") }}</span></div>
+  <div><strong>{{ report.busySeconds | duration }}</strong><span>{{ t("creport.busy_time") }}</span></div>
+</div>
+{% endmacro %}
+
+{# 甘特時間軸：這次真的執行的節點在整次運行裡的開始與結束 #}
+{% macro gantt(report, offline=false) %}
+{% set bars = report.timeline.bars %}
+{% if bars %}
+<ol class="creport-gantt" aria-label="{{ t('creport.timeline') }}">
+  {% for bar in bars %}
+  <li data-status="{{ bar.status }}">
+    {% if offline %}<span class="creport-gantt-label mono">{{ bar.id }}</span>{% else %}<a class="creport-gantt-label mono" href="#node-{{ bar.id }}" data-open-node="{{ bar.id }}">{{ bar.id }}</a>{% endif %}
+    <span class="creport-gantt-track"><i class="{{ badge_color(bar.status) }}" style="left:{{ bar.left }}%;width:{{ bar.width }}%" title="{{ bar.id }} · {{ t('status.' + bar.status) }} · {{ bar.seconds | duration }}"></i></span>
+    <span class="creport-gantt-time mono">{{ bar.seconds | duration }}</span>
+  </li>
+  {% endfor %}
+</ol>
+<p class="hint">{{ t("creport.timeline_hint", duration=report.timeline.seconds | duration) }}</p>
+{% else %}
+<p class="muted">{{ t("creport.timeline_empty") }}</p>
+{% endif %}
+{% endmacro %}
+
+{# 一個節點的標題列（<summary> 的內容） #}
+{% macro node_head(node) %}
+<span class="creport-index {{ badge_color(node.status) }}" aria-hidden="true">{{ node.index }}</span>
+<span class="tag mono">{{ node.id }}</span>
+<span class="creport-node-name"><strong>{{ node.sceneName }}</strong> <span class="muted mono">{{ node.sceneId }} · v{{ node.revision }}</span></span>
+{{ status_badge(node.status) }}
+<span class="creport-node-meta">
+  {%- if node.stepCounts.total %}<span>{{ t("creport.steps_short", passed=node.stepCounts.passed, total=node.stepCounts.total) }}</span>{% endif -%}
+  {%- if node.checkCounts.total %}<span>{{ t("creport.checks_short", passed=node.checkCounts.passed, total=node.checkCounts.total) }}</span>{% endif -%}
+  {%- if node.durationSeconds is not none and node.status != "reused" %}<span>{{ node.durationSeconds | duration }}</span>{% endif -%}
+</span>
+{% endmacro %}
+
+{# 一個節點的內容：說明、入參、出參、階段、步驟、斷言、截圖、問題 #}
+{% macro node_body(node, offline=false, images={}) %}
+<div class="creport-node-body">
+  {% if not offline and node.runId %}
+  <div class="actions creport-node-links">
+    <a class="text-btn" href="{{ node.runUrl }}">{{ t("creport.node_run") }}</a>
+    {% if node.reportUrl %}<a class="text-btn" href="{{ node.reportUrl }}" target="_blank" rel="noopener">{{ t("workflow.node_report") }}</a>{% endif %}
+    {% if node.replayUrl %}<a class="text-btn" href="{{ node.replayUrl }}">▶ {{ t("creport.node_replay") }}</a>{% elif node.videoDeleted %}<span class="muted">{{ t("runs.replay_deleted") }}</span>{% endif %}
+  </div>
+  {% endif %}
+  {% if node.status == "reused" %}
+  <p class="notice">{{ t("creport.reused_hint") }}{% if node.reusedFrom %} {% if offline %}<code>{{ node.reusedFrom }}</code>{% else %}<a class="mono" href="{{ node.reusedUrl }}">{{ node.reusedFrom }}</a>{% endif %}{% endif %}</p>
+  {% elif node.status == "skipped" %}
+  <p class="notice">{{ t("creport.skipped_hint") }}</p>
+  {% elif node.status in ("pending", "queued", "running") %}
+  <p class="notice">{{ t("creport.pending_hint") }}</p>
+  {% endif %}
+  {% if node.error %}<pre class="creport-error">{{ node.error }}</pre>{% endif %}
+
+  <div class="creport-io">
+    <div>
+      <h3>{{ t("run.input") }}</h3>
+      {% if node.inputs %}
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>{{ t("creport.col_name") }}</th><th>{{ t("creport.col_value") }}</th><th>{{ t("creport.col_source") }}</th></tr></thead>
+        <tbody>{% for item in node.inputs %}<tr><td><code>{{ item.name }}</code></td><td>{{ value(item) }}</td><td>{{ source(item.source) }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="muted">{{ t("creport.none") }}</p>{% endif %}
+    </div>
+    <div>
+      <h3>{{ t("run.output") }}</h3>
+      {% if node.outputs %}
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>{{ t("creport.col_name") }}</th><th>{{ t("creport.col_value") }}</th><th>{{ t("creport.col_to") }}</th></tr></thead>
+        <tbody>{% for item in node.outputs %}<tr><td><code>{{ item.name }}</code></td><td>{{ value(item) }}</td><td>{% for target in item.to %}<span class="muted">→</span> <code>{{ target }}</code>{% if not loop.last %} {% endif %}{% else %}<span class="muted">—</span>{% endfor %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<p class="muted">{{ t("creport.none") }}</p>{% endif %}
+    </div>
+  </div>
+
+  {% if node.stages %}
+  <div class="creport-stages" aria-label="{{ t('run.stages') }}">
+    {% for stage in node.stages %}<span><small>{{ t("stage." + stage.name) }}</small> {{ status_badge(stage.status) }}{% if stage.message and stage.status not in ("passed", "skipped") %} <span class="muted">{{ stage.message }}</span>{% endif %}</span>{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if node.steps %}
+  <h3>{{ t("creport.steps") }} <span class="count">{{ node.steps | length }}</span></h3>
+  <div class="table-scroll"><table class="wrap creport-steps">
+    <thead><tr><th class="numeric">#</th><th>{{ t("creport.col_step") }}</th><th>{{ t("creport.col_target") }}</th><th>{{ t("runs.col_status") }}</th><th class="numeric">{{ t("runs.col_duration") }}</th></tr></thead>
+    <tbody>
+    {% for step in node.steps %}
+      <tr data-step="{{ step.index }}" data-status="{{ step.status }}"{% if step.status == "failed" %} class="is-failed"{% endif %}>
+        <td class="numeric">{{ step.index }}</td>
+        <td>{{ step_title(step) }}{% if step.error %}<span class="cell-sub text-danger">{{ step.error }}</span>{% endif %}</td>
+        <td>{% if step.target %}<code class="creport-target">{{ step.target }}</code>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="nowrap">{{ status_badge(step.status) }}</td>
+        <td class="numeric nowrap">{% if step.durationMs is not none %}{{ (step.durationMs / 1000) | round(2) }} s{% else %}—{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+
+  {% if node.checks %}
+  <h3>{{ t("run.checks") }} <span class="count">{{ node.checkCounts.passed }} / {{ node.checkCounts.total }}</span></h3>
+  <div class="table-scroll"><table class="wrap">
+    <thead><tr><th>{{ t("run.col_check") }}</th><th>{{ t("runs.col_status") }}</th><th>{{ t("run.col_actual") }}</th><th>{{ t("run.col_expected") }}</th></tr></thead>
+    <tbody>
+    {% for check in node.checks %}
+      <tr{% if not check.passed %} class="is-failed"{% endif %}><td>{{ check.name }}</td><td class="nowrap">{{ status_badge("passed" if check.passed else "failed") }}</td><td><code>{{ check.actual if check.actual is not none else "—" }}</code>{% if check.error %}<span class="cell-sub">{{ check.error }}</span>{% endif %}</td><td>{{ check.comparison }} <code>{{ check.expected if check.expected is not none else "" }}</code></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+
+  {% if node.problems %}
+  <h3>{{ t("run.problems") }}</h3>
+  <ul class="creport-problems">{% for item in node.problems %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  {% set shot = images.get(node.id) if offline else node.screenshotUrl %}
+  {% if shot %}
+  <figure class="creport-shot wide">
+    {% if offline %}<img src="{{ shot }}" alt="{{ t('creport.screenshot_of', node=node.id) }}">{% else %}<a href="{{ shot }}" target="_blank" rel="noopener"><img src="{{ shot }}" alt="{{ t('creport.screenshot_of', node=node.id) }}" loading="lazy"></a>{% endif %}
+    <figcaption class="muted">{{ t("creport.screenshot_of", node=node.id) }}</figcaption>
+  </figure>
+  {% elif offline and node.screenshot %}
+  <p class="muted">{{ t("creport.screenshot_not_embedded") }}</p>
+  {% endif %}
+</div>
+{% endmacro %}
