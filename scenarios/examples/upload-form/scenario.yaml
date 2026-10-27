@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 上傳檔案（M7c）：測試網站的 /upload 有常見的上傳元件。要上傳的檔案一律是入參（type: file）：
+# 預設值是場景附件（這個資料夾的 files/ 底下，跟著版本、納入雜湊），執行時可以換成上傳的檔案。
+# upload 用 target 指向上傳框本身（隱藏的也可以）；點了才會開出選擇檔案視窗的按鈕用 trigger。
+# 網頁收到檔案後顯示 sha256，verify 拿來和入參的 sha256 比對，確認送出的就是這個檔案。
+
+schemaVersion: 1
+id: upload-form
+name: 匯入訂單並上傳商品圖片
+category: 範例
+description: 在上傳頁匯入一份訂單檔、上傳多張商品圖片、用按鈕選擇附件，讀回網頁收到的檔名與 sha256。
+
+inputs:
+  orderFile:
+    type: file
+    description: 要匯入的訂單（Excel 或 CSV）
+    accept: [.xlsx, .xls, .csv]
+    maxSize: 20MB
+    default: { attachment: files/orders.csv, name: 訂單匯入.csv }
+  photos:
+    type: file
+    description: 商品圖片，可以多張
+    multiple: true
+    accept: [image/*]
+    default: [files/product.png]
+
+outputs:
+  importedName:
+    type: string
+    from: '{{ facts.imported.name }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /upload
+
+  - id: choose-orders
+    name: 選擇要匯入的訂單
+    action: upload
+    target: { label: 匯入檔案 }
+    files: '{{ inputs.orderFile }}'
+
+  - id: import
+    action: click
+    target: { role: button, name: 匯入, exact: true }
+
+  - id: read-import
+    name: 讀取網頁收到的訂單檔
+    action: extract
+    target: { css: '#import-result .received' }
+    as: imported
+    fields:
+      name: { target: { css: .name } }
+      sha256: { target: { css: .sha } }
+
+  - id: add-photos
+    name: 上傳商品圖片（隱藏的上傳框）
+    action: upload
+    target: { css: 'input[type=file]', within: { role: button, name: 點擊上傳圖片 } }
+    files: '{{ inputs.photos }}'
+
+  - id: photos-received
+    name: 等網頁收到第一張圖片
+    action: waitFor
+    target: { css: '#photos-result .received', nth: 0 }
+
+  - id: attach
+    name: 用按鈕選擇附件（點擊時才建立的上傳框）
+    action: upload
+    trigger: { role: button, name: 選擇附件 }
+    files: '{{ inputs.orderFile }}'
+
+  - id: read-attachment
+    action: extract
+    target: { css: '#attach-result .sha' }
+    as: attachmentSha
+
+verify:
+  - name: 網頁收到的訂單檔名與入參相同
+    value: '{{ facts.imported.name }}'
+    equals: '{{ inputs.orderFile.name }}'
+  - name: 網頁收到的訂單檔內容與入參相同（sha256）
+    value: '{{ facts.imported.sha256 }}'
+    equals: '{{ inputs.orderFile.sha256 }}'
+  - name: 用按鈕選擇的附件內容也相同
+    value: '{{ facts.attachmentSha }}'
+    equals: '{{ inputs.orderFile.sha256 }}'

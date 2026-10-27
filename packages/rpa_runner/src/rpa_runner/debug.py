@@ -3,7 +3,11 @@
 由管理 Portal 啟動，存在到使用者關閉或閒置太久為止::
 
     python -m rpa_runner.debug --scenario 場景.yaml --input input.json --out 目錄 \
-        [--engine 瀏覽器] [--headed] [--base-url 網址] [--storage-state 登入狀態檔]
+        [--engine 瀏覽器] [--headed] [--base-url 網址] [--storage-state 登入狀態檔] \
+        [--file 入參 檔案 …]
+
+``--file``（M7c，可以重複）：管理 Portal 以原始檔名準備好的檔案入參（上傳檔、場景附件）；
+``path`` 值的檔案在這台找，只能在 ``RPA_INPUT_FOLDERS`` 裡。
 
 標準輸入一行一個 JSON 命令，標準輸出一行一個 JSON 回覆（帶著命令的 id）：
 
@@ -34,6 +38,7 @@ import contextlib
 import json
 import os
 import sys
+import tempfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Final, cast
@@ -48,6 +53,7 @@ from rpa_runner.browser import Deadline, Tabs, resolve, run_step
 from rpa_runner.contexts import Engine, open_context
 from rpa_runner.contract import check_inputs
 from rpa_runner.i18n import t
+from rpa_runner.inputfiles import given_files, remove_staging, session_files
 from rpa_runner.secrets import MASK, mask, read_secrets
 
 __all__ = [
@@ -232,6 +238,20 @@ class _Session:
         self.engine: Engine = cast("Engine", args.engine)
         self.scenario = _valid(validate_file(Path(args.scenario)))
         self.inputs = _resolved(self.scenario, _read_inputs(Path(args.input)))
+        # 檔案入參（M7c）：path 值暫存在系統的暫存資料夾（不在 --out 裡，錄製端不會同步回伺服器）
+        self.staging = Path(tempfile.mkdtemp(prefix="rpa-debug-files-"))
+        prepared = session_files(
+            self.scenario,
+            self.inputs,
+            given_files(cast("list[list[str]] | None", getattr(args, "file", None))),
+            Path(args.scenario).parent,
+            self.staging,
+        )
+        if prepared.problems:
+            remove_staging(self.staging)
+            raise ValueError("; ".join(problem.message for problem in prepared.problems))
+        self.inputs.update(prepared.meta)
+        self.files = prepared.paths
         self.secrets = read_secrets(self.scenario)
         self.facts: dict[str, object] = {}
         self.shots = 0
@@ -328,6 +348,7 @@ class _Session:
             artifacts=self.out,
             deadline=Deadline.after(COMMAND_SECONDS),
             tabs=self.tabs,
+            files=self.files,
         )
         if record.error:
             record.error = mask(record.error, self.secrets)
@@ -524,6 +545,7 @@ def serve(args: argparse.Namespace) -> int:
                 _reply({"id": command.get("id"), **reply})
         finally:
             session.close_browser()
+            remove_staging(session.staging)
     return 0
 
 
@@ -537,6 +559,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base-url")
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--storage-state")
+    parser.add_argument(
+        "--file",
+        nargs=2,
+        action="append",
+        metavar=("INPUT", "PATH"),
+        help="準備好的檔案入參（M7c）",
+    )
     return serve(parser.parse_args(argv))
 
 

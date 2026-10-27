@@ -30,7 +30,7 @@
   "cli.run.short_help": "執行場景。",
   "cli.run.scenario_metavar": "場景檔",
   "cli.run.input_value_metavar": "名稱=值",
-  "cli.run.input_value_help": "一個入參，依宣告的型別轉換；可以重複。優先於 --input。",
+  "cli.run.input_value_help": "一個入參，依宣告的型別轉換；可以重複。檔案入參寫這台電腦上的路徑（或場景附件 files/檔名），多檔的檔案入參同一個名稱寫多次。優先於 --input。",
   "cli.run.input_file_help": "入參 JSON 檔，例如上一個場景的 output.json。",
   "cli.run.input_file_invalid": "入參檔必須是 JSON 物件。",
   "cli.run.input_value_invalid": "{value} 不是「名稱=值」的格式。",

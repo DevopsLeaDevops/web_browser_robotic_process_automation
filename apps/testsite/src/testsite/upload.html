@@ -1,0 +1,83 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>上傳檔案 · 本機範例頁</title><style>body{font:14px/1.6 system-ui;color:#24334a;background:#f5f7fb;margin:0}header{background:white;border-bottom:1px solid #e9edf3;padding:12px 24px;color:#0b69c4;font-weight:700}main{max-width:720px;margin:24px auto;padding:0 16px}h1{font-size:21px}h2{font-size:16px;margin:0 0 8px}.notice{padding:10px;background:#eaf3ff}.panel{padding:20px;background:white;border:1px solid #e9edf3;border-radius:9px;margin:12px 0}.hidden{display:none}.el-upload{display:inline-block;padding:16px 24px;border:1px dashed #8aa4c4;border-radius:6px;cursor:pointer}.zone{padding:28px;border:2px dashed #8aa4c4;border-radius:6px;text-align:center}.result{margin-top:8px;color:#248569}.result:empty{display:none}code{font-size:12px;word-break:break-all}iframe{width:100%;height:150px;border:1px solid #e9edf3;border-radius:6px}</style>
+<header>瀏覽器自動化 · 本機測試頁</header>
+<main>
+<h1>上傳檔案</h1>
+<p class="notice">內部系統常見的上傳元件。檔案送到測試網站後，這裡顯示收到的檔名、大小與 sha256，可以和上傳的檔案比對。</p>
+
+<section class="panel" id="import">
+  <h2>匯入訂單</h2>
+  <form id="import-form">
+    <label>匯入檔案 <input type="file" id="import-file" name="file" accept=".xlsx,.xls"></label>
+    <button type="submit">匯入</button>
+  </form>
+  <div class="result" id="import-result"></div>
+</section>
+
+<section class="panel" id="photos">
+  <h2>商品圖片</h2>
+  <div class="el-upload" id="photo-upload" role="button" tabindex="0">點擊上傳圖片
+    <input type="file" class="el-upload__input hidden" name="file" multiple accept="image/*">
+  </div>
+  <div class="result" id="photos-result"></div>
+</section>
+
+<section class="panel" id="attachments">
+  <h2>附件</h2>
+  <button type="button" id="attach">選擇附件</button>
+  <div class="result" id="attach-result"></div>
+</section>
+
+<section class="panel" id="drop">
+  <h2>拖拽上傳</h2>
+  <div class="zone" id="drop-zone">把檔案拖到這裡</div>
+  <div class="result" id="drop-result"></div>
+</section>
+
+<section class="panel">
+  <h2>iframe 裡的上傳</h2>
+  <iframe id="cert-frame" src="/upload/frame" title="上傳憑證"></iframe>
+</section>
+<p><a href="/">回到範例紀錄</a></p>
+</main>
+<script>
+async function send(files, out) {
+  const data = new FormData();
+  for (const file of files) data.append('file', file);
+  out.textContent = '上傳中…';
+  const reply = await fetch('/api/uploads', { method: 'POST', body: data });
+  const received = await reply.json();
+  out.textContent = '';
+  if (!reply.ok) { out.textContent = received.error; return; }
+  for (const [index, file] of received.entries()) {
+    const line = document.createElement('div');
+    line.className = 'received';
+    line.innerHTML = '已收到 <b class="name"></b>（<span class="size"></span> 位元組）sha256 <code class="sha"></code>';
+    line.querySelector('.name').textContent = file.name;
+    line.querySelector('.size').textContent = file.size;
+    line.querySelector('.sha').textContent = file.sha256;
+    line.dataset.index = index;
+    out.append(line);
+  }
+}
+document.querySelector('#import-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  send(document.querySelector('#import-file').files, document.querySelector('#import-result'));
+});
+const photo = document.querySelector('#photo-upload');
+const photoInput = photo.querySelector('input');
+photo.addEventListener('click', (event) => { if (event.target !== photoInput) photoInput.click(); });
+photoInput.addEventListener('change', () => send(photoInput.files, document.querySelector('#photos-result')));
+document.querySelector('#attach').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = () => send(input.files, document.querySelector('#attach-result'));
+  input.click();
+});
+const zone = document.querySelector('#drop-zone');
+zone.addEventListener('dragover', (event) => event.preventDefault());
+zone.addEventListener('drop', (event) => {
+  event.preventDefault();
+  send(event.dataTransfer.files, document.querySelector('#drop-result'));
+});
+</script>
+</html>

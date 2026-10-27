@@ -5,3 +5,6 @@ docs/design-system/** -text
 
 # MVP 原型同樣原樣收錄，MANIFEST.json 以 sha256 校驗。
 docs/prototypes/** -text
+
+# 場景附件（M7c）納入場景雜湊，要逐位元組不變，不做換行轉換。
+scenarios/**/files/** -text

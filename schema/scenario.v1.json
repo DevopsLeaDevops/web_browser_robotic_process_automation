@@ -768,7 +768,8 @@
             "string",
             "number",
             "integer",
-            "boolean"
+            "boolean",
+            "file"
           ],
           "title": "Type",
           "type": "string"
@@ -866,6 +867,48 @@
         "default": {
           "default": null,
           "title": "Default"
+        },
+        "accept": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accept"
+        },
+        "maxSize": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxsize"
+        },
+        "multiple": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Multiple"
         }
       },
       "title": "InputSpec",
@@ -1607,6 +1650,114 @@
       "title": "SelectStep",
       "type": "object"
     },
+    "UploadStep": {
+      "additionalProperties": false,
+      "description": "把檔案交給網頁的上傳框（M7c）。\n\n檔案一律來自 ``type: file`` 的入參（場景契約的一部分，執行時可以換檔）。三種方式選一種：\n\n- ``target``：上傳框本身 ``<input type=file>``（隱藏的也可以，不檢查可見性）。最常用。\n- ``trigger``：點了會開出「選擇檔案」視窗的元素。給點擊時才臨時建立上傳框的元件。\n- ``dropzone``：只能拖拽、沒有上傳框的元件：把檔案拖放到這個元素上（檔案合計 20 MB 內）。\n\n``upload`` 在檔案交給網頁時就算完成；網頁送到伺服器要多久不一定，之後請用 waitFor／expect\n等畫面上的結果。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "action": {
+          "const": "upload",
+          "title": "Action",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "dropzone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "files": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Files"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "files"
+      ],
+      "title": "UploadStep",
+      "type": "object"
+    },
     "VerifyCheck": {
       "additionalProperties": false,
       "description": "獨立斷言的一條規則：在自動化結束後，比對頁面事實與入參。\n\nvalue 與比較值都以 ``{{ }}`` 代入後的文字比較。",
@@ -1943,6 +2094,7 @@
                 "press": "#/$defs/PressStep",
                 "screenshot": "#/$defs/ScreenshotStep",
                 "select": "#/$defs/SelectStep",
+                "upload": "#/$defs/UploadStep",
                 "waitFor": "#/$defs/WaitForStep"
               },
               "propertyName": "action"
@@ -1977,6 +2129,9 @@
               },
               {
                 "$ref": "#/$defs/ScreenshotStep"
+              },
+              {
+                "$ref": "#/$defs/UploadStep"
               }
             ]
           },

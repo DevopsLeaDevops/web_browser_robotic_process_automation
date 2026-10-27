@@ -27,13 +27,14 @@ OutputFormat = Literal["text", "json"]
 
 def _parse_values(
     ctx: click.Context, param: click.Parameter, values: tuple[str, ...]
-) -> dict[str, str]:
-    parsed: dict[str, str] = {}
+) -> dict[str, list[str]]:
+    """``-i 名稱=值``：同一個名稱可以寫多次（多檔的檔案入參），其他入參用最後一次。"""
+    parsed: dict[str, list[str]] = {}
     for item in values:
         name, sep, value = item.partition("=")
         if not sep or not name:
             raise click.BadParameter(t("cli.run.input_value_invalid", value=item), ctx, param)
-        parsed[name] = value
+        parsed.setdefault(name, []).append(value)
     return parsed
 
 
@@ -97,7 +98,7 @@ def build_run_command() -> click.Command:
     )
     def run(
         scenario: Path,
-        values: dict[str, str],
+        values: dict[str, list[str]],
         input_file: Path | None,
         base_url: str | None,
         browser: str | None,
@@ -117,9 +118,13 @@ def build_run_command() -> click.Command:
             inputs.update(cast("dict[str, object]", loaded))
         checked = validate_file(scenario)
         specs = checked.scenario.inputs if checked.scenario is not None else {}
-        for name, text in values.items():
+        for name, texts in values.items():
             spec = specs.get(name)
-            inputs[name] = parse_cli_value(spec, text) if spec is not None else text
+            if spec is not None and spec.type == "file" and spec.multiple:
+                # 檔案入參（M7c）：-i photos=a.png -i photos=b.png
+                inputs[name] = [parse_cli_value(spec, text) for text in texts]
+            else:
+                inputs[name] = parse_cli_value(spec, texts[-1]) if spec is not None else texts[-1]
         login = None
         if checked.scenario is not None and checked.scenario.login is not None and storage_state:
             # 命令列只載入登入狀態檔，不檢查是否仍然有效（檢查與人工登入在管理 Portal）
@@ -135,6 +140,8 @@ def build_run_command() -> click.Command:
                 deadline_ms=deadline,
                 login=login,
                 record_video=video,
+                # 命令列在使用者自己的電腦上：檔案入參的路徑不限位置（M7c）
+                any_path=True,
             )
         except ScenarioInvalidError as invalid:
             display = display_path(scenario)

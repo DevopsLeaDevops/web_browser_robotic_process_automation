@@ -6,18 +6,25 @@
 - 有副作用的動作（點擊、填寫、勾選、按鍵）不會因為逾時自動重試。
 - 新分頁（M7b）：步驟有 ``popup`` 時，執行動作時等它開出新分頁，以這個名稱記在 :class:`Tabs`；
   步驟有 ``page`` 時在那個分頁執行。逐步調試整個工作階段用同一個 Tabs。
+- 上傳檔案（M7c）：``upload`` 把檔案入參準備好的檔案交給上傳框（``target``）、點擊後開出的
+  選擇檔案視窗（``trigger``），或拖放到元素上（``dropzone``）。每個分頁一開始就監聽選擇檔案的
+  視窗（:class:`Tabs`）：有頭模式不會跳出系統的視窗卡在畫面上；不是 upload 開出的，這一步照樣
+  通過，紀錄多一條提醒（D6）。
 """
 
+import base64
 import contextlib
 import re
 import time
-from collections.abc import Callable, Mapping
+import weakref
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal, cast
 
-from playwright.sync_api import FrameLocator, Page, expect
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import FileChooser, FrameLocator, Page, expect
 from playwright.sync_api import Locator as PwLocator
 from pydantic import TypeAdapter
 
@@ -35,8 +42,11 @@ from rpa_core.dsl import (
     ScreenshotStep,
     SelectStep,
     Step,
+    UploadStep,
     WaitForStep,
 )
+from rpa_core.dsl.files import MAX_DROP_BYTES, format_size, guess_media_type
+from rpa_core.dsl.steps import upload_input_names
 from rpa_runner.i18n import t
 from rpa_runner.templates import Context, render_tree
 
@@ -54,6 +64,10 @@ __all__ = [
 
 DEFAULT_STEP_TIMEOUT_MS: Final = 30_000
 _STEP: Final = TypeAdapter[Step](Step)
+_MAY_OPEN_CHOOSER: Final = frozenset({"click", "press", "check"})
+"""可能開出選擇檔案視窗的動作（M7c）：結束時確認有沒有沒人處理的視窗。"""
+_NOT_RENDERED: Final = frozenset({"name", "files"})
+"""步驟裡不代入 {{ }} 的欄位：name 是給人看的；upload 的 files 是入參的引用（M7c）。"""
 _TABLE_JS: Final = """
 (table) => {
   const rows = [...table.querySelectorAll('tr')];
@@ -123,6 +137,10 @@ class StepRecord:
     url: str | None = None
     page_id: str | None = None
     created_page_id: str | None = None
+    files: list[str] = field(default_factory=list[str])
+    """upload 交給網頁的檔名（M7c）。"""
+    notes: list[str] = field(default_factory=list[str])
+    """不影響結果的提醒，例如開出了沒有指定檔案的選擇檔案視窗（M7c）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -138,6 +156,8 @@ class StepRecord:
             "url": self.url,
             "pageId": self.page_id,
             "createdPageId": self.created_page_id,
+            "files": self.files,
+            "notes": self.notes,
         }
 
 
@@ -315,14 +335,47 @@ def _url(base_url: str | None, url: str) -> str:
     return url
 
 
+_GUARDS: "weakref.WeakKeyDictionary[Page, Tabs]" = weakref.WeakKeyDictionary()
+"""已經在監聽選擇檔案視窗的分頁 → 目前負責記錄的 Tabs（同一個分頁只監聽一次）。"""
+
+
+def _on_chooser(chooser: FileChooser) -> None:
+    tabs = _GUARDS.get(chooser.page)
+    if tabs is not None and not tabs.expecting:
+        tabs.choosers += 1
+
+
 @dataclass(slots=True)
 class Tabs:
-    """場景的分頁（M7b）：一開始的分頁，加上步驟的 popup 開出來的；記得最後用到哪個分頁。"""
+    """場景的分頁（M7b）：一開始的分頁，加上步驟的 popup 開出來的；記得最後用到哪個分頁。
+
+    每個分頁都監聽選擇檔案的視窗（M7c）：``choosers`` 是不是 upload 開出的視窗數。
+    """
 
     main: Page
     named: dict[str, Page] = field(default_factory=dict[str, Page])
     last: Page | None = None
     identify: Callable[[Page], str] | None = None
+    choosers: int = 0
+    expecting: bool = False
+    """upload 的 trigger 正在等選擇檔案的視窗：那個視窗不算提醒。"""
+
+    def __post_init__(self) -> None:
+        self.guard(self.main)
+
+    def guard(self, page: Page) -> None:
+        """開始監聽這個分頁的選擇檔案視窗；有監聽時 Playwright 攔下視窗，不跳出系統的對話框。"""
+        first = page not in _GUARDS
+        _GUARDS[page] = self
+        if first:
+            page.on("filechooser", _on_chooser)
+
+    def release(self) -> None:
+        """不再監聽選擇檔案的視窗（例如接著錄製：錄製時使用者要能在系統的視窗選檔）。"""
+        for page in [page for page, owner in _GUARDS.items() if owner is self]:
+            with contextlib.suppress(Exception):
+                page.remove_listener("filechooser", _on_chooser)
+            _GUARDS.pop(page, None)
 
     def get(self, name: str | None) -> Page:
         """步驟的 page 指的分頁；沒寫是一開始的分頁。"""
@@ -349,24 +402,69 @@ class _Run:
     base_url: str | None
     artifacts: Path
     facts: dict[str, object]
+    files: Mapping[str, Sequence[Path]] = field(default_factory=dict[str, Sequence[Path]])
+    """檔案入參 → 準備好的檔案（M7c）。"""
 
     def execute(self, step: Step, timeout: int, record: StepRecord) -> None:
         page = self.tabs.get(step.page)
         self.tabs.last = page
+        self.tabs.choosers = 0
         if self.tabs.identify is not None:
             record.page_id = self.tabs.identify(page)
-        popup = getattr(step, "popup", None)
-        if not isinstance(popup, str):
-            self._act(page, step, timeout, record)
-            return
-        with page.expect_popup(timeout=timeout) as opened:
-            self._act(page, step, timeout, record)
-        tab = opened.value
-        if self.tabs.identify is not None:
-            record.created_page_id = self.tabs.identify(tab)
-        tab.wait_for_load_state("domcontentloaded", timeout=timeout)
-        self.tabs.named[popup] = tab
-        self.tabs.last = tab
+        try:
+            popup = getattr(step, "popup", None)
+            if not isinstance(popup, str):
+                self._act(page, step, timeout, record)
+                return
+            with page.expect_popup(timeout=timeout) as opened:
+                self._act(page, step, timeout, record)
+            tab = opened.value
+            self.tabs.guard(tab)
+            if self.tabs.identify is not None:
+                record.created_page_id = self.tabs.identify(tab)
+            tab.wait_for_load_state("domcontentloaded", timeout=timeout)
+            self.tabs.named[popup] = tab
+            self.tabs.last = tab
+        finally:
+            if step.action in _MAY_OPEN_CHOOSER and not self.tabs.choosers:
+                # 選擇檔案視窗的事件常在點擊回傳之後才送到：多一次往返（約 1 ms）讓它先到
+                with contextlib.suppress(Exception):
+                    if not page.is_closed():
+                        page.wait_for_timeout(0)
+            if self.tabs.choosers:
+                record.notes.append(t("browser.chooser_unhandled"))
+                self.tabs.choosers = 0
+
+    def _upload_paths(self, step: UploadStep) -> list[Path]:
+        paths: list[Path] = []
+        for name in upload_input_names(step.files):
+            prepared = self.files.get(name)
+            if prepared is None:
+                raise LookupError(t("browser.upload_not_prepared", name=name))
+            paths.extend(prepared)
+        return paths
+
+    def _upload(self, page: Page, step: UploadStep, timeout: int, record: StepRecord) -> None:
+        paths = self._upload_paths(step)
+        record.files = [path.name for path in paths]
+        try:
+            if step.target is not None:
+                locate(page, step.target, timeout).set_input_files(paths, timeout=timeout)
+            elif step.trigger is not None:
+                self.tabs.expecting = True
+                try:
+                    with page.expect_file_chooser(timeout=timeout) as chooser:
+                        locate(page, step.trigger, timeout).click(timeout=timeout)
+                    chooser.value.set_files(paths, timeout=timeout)
+                finally:
+                    self.tabs.expecting = False
+            elif step.dropzone is not None:
+                _drop(locate(page, step.dropzone, timeout), paths, timeout)
+        except PlaywrightError as error:
+            friendly = _upload_error(str(error))
+            if friendly is None:
+                raise
+            raise ValueError(friendly) from error
 
     def _act(self, page: Page, step: Step, timeout: int, record: StepRecord) -> None:
         match step:
@@ -403,6 +501,8 @@ class _Run:
                 _expect(page, step, timeout)
             case ExtractStep():
                 self.facts[step.as_] = _extract(page, step, timeout)
+            case UploadStep():
+                self._upload(page, step, timeout, record)
             case ScreenshotStep():
                 name = f"{step.file or step.id}.png"
                 path = self.artifacts / name
@@ -411,6 +511,48 @@ class _Run:
                 else:
                     page.screenshot(path=path, full_page=step.full_page, timeout=timeout)
                 record.artifacts.append(name)
+
+
+_DROP_JS: Final = """
+(element, files) => {
+  const data = new DataTransfer();
+  for (const file of files) {
+    const bytes = Uint8Array.from(atob(file.data), (c) => c.charCodeAt(0));
+    data.items.add(new File([bytes], file.name, { type: file.type }));
+  }
+  for (const type of ['dragenter', 'dragover', 'drop']) {
+    const init = { bubbles: true, cancelable: true, dataTransfer: data };
+    element.dispatchEvent(new DragEvent(type, init));
+  }
+}
+"""
+
+
+def _drop(element: PwLocator, paths: Sequence[Path], timeout: int) -> None:
+    """拖拽區：在頁面裡做出 DataTransfer，對元素依序發出 dragenter、dragover、drop。"""
+    total = sum(path.stat().st_size for path in paths)
+    if total > MAX_DROP_BYTES:
+        raise ValueError(
+            t("browser.drop_too_large", size=format_size(total), limit=format_size(MAX_DROP_BYTES))
+        )
+    files = [
+        {
+            "name": path.name,
+            "type": guess_media_type(path.name),
+            "data": base64.b64encode(path.read_bytes()).decode("ascii"),
+        }
+        for path in paths
+    ]
+    element.evaluate(_DROP_JS, files, timeout=timeout)
+
+
+def _upload_error(message: str) -> str | None:
+    """Playwright 的上傳錯誤 → 看得懂的說明；不認得時回傳 None（照原本的錯誤）。"""
+    if "Non-multiple file input" in message:
+        return t("browser.upload_single")
+    if "HTMLInputElement" in message or "input[type=file]" in message or "Not an input" in message:
+        return t("browser.upload_not_input")
+    return None
 
 
 def plan_records(scenario: Scenario) -> list[StepRecord]:
@@ -429,13 +571,15 @@ def run_steps(
     deadline: Deadline,
     on_progress: Callable[[], None] = lambda: None,
     tabs: Tabs | None = None,
+    files: Mapping[str, Sequence[Path]] | None = None,
 ) -> dict[str, object]:
     """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。
 
     ``tabs`` 給了時用它（呼叫的人之後要知道最後在哪個分頁，例如失敗截圖）；``page`` 是一開始的分頁。
+    ``files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）。
     """
     facts: dict[str, object] = {}
-    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts)
+    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {})
     for step, record in zip(scenario.steps or [], records, strict=True):
         try:
             _execute_step(run, step, record, context, deadline)
@@ -455,7 +599,7 @@ def _execute_step(
         timeout = deadline.budget(step.timeout or default_ms)
         values: Context = {**context, "facts": run.facts}
         raw = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
-        rendered = _STEP.validate_python(render_tree(raw, values, skip=frozenset({"name"})))
+        rendered = _STEP.validate_python(render_tree(raw, values, skip=_NOT_RENDERED))
         run.execute(rendered, timeout, record)
         record.status = "passed"
     except BaseException as error:
@@ -480,13 +624,14 @@ def run_step(
     artifacts: Path,
     deadline: Deadline,
     tabs: Tabs | None = None,
+    files: Mapping[str, Sequence[Path]] | None = None,
 ) -> StepRecord:
     """只執行一步（調試工作階段用）：facts 就地更新；失敗不拋出，記在回傳的紀錄裡。
 
-    ``tabs`` 是整個工作階段的分頁（M7b），新分頁在步驟之間一直都在。
+    ``tabs`` 是整個工作階段的分頁（M7b），新分頁在步驟之間一直都在；``files`` 見 run_steps。
     """
     record = StepRecord(step.id, step.action, step.name)
-    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts)
+    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {})
     with contextlib.suppress(Exception):
         _execute_step(run, step, record, context, deadline)
     return record

@@ -303,3 +303,125 @@ def test_snapshot_masks_passwords_and_secrets(engine: str, tmp_path: Path) -> No
                 process.stdin.write(json.dumps({"cmd": "close"}) + "\n")
                 process.stdin.flush()
                 process.wait(timeout=30)
+
+
+def test_file_inputs_given_by_the_portal(engine: str, tmp_path: Path) -> None:
+    """M7c：管理 Portal 以原始檔名準備好的檔案用 --file 給；path 值在這台找、只能在允許的資料夾。"""
+    scene = tmp_path / "scene"
+    scene.mkdir()
+    (scene / "scenario.yaml").write_text(
+        "schemaVersion: 1\nid: debug-upload\nname: 調試上傳\n"
+        "browser: { baseUrl: http://127.0.0.1:8765 }\n"
+        "inputs:\n"
+        "  orders: { type: file }\n"
+        "  photos: { type: file, multiple: true }\n"
+        "steps:\n"
+        "  - { id: open, action: goto, url: /upload }\n"
+        "  - { id: pick, action: upload, target: { label: 匯入檔案 },"
+        ' files: "{{ inputs.orders }}" }\n'
+        "  - { id: send, action: click, target: { role: button, name: 匯入, exact: true } }\n"
+        "  - id: read\n"
+        "    action: extract\n"
+        "    target: { css: '#import-result .name' }\n"
+        "    as: imported\n"
+        "  - id: photos\n"
+        "    action: upload\n"
+        "    target: { css: 'input[type=file]', within: { role: button, name: 點擊上傳圖片 } }\n"
+        '    files: "{{ inputs.photos }}"\n',
+        encoding="utf-8",
+    )
+    given = tmp_path / "debug" / "input-files" / "orders" / "0" / "十月訂單.csv"
+    given.parent.mkdir(parents=True)
+    given.write_bytes("編號\nA-1\n".encode())
+    share = tmp_path / "share"
+    share.mkdir()
+    (share / "a.png").write_bytes(b"\x89PNG fake")
+    inputs = tmp_path / "input.json"
+    inputs.write_text(
+        json.dumps(
+            {
+                "orders": {"file": "0123456789abcdef0123456789abcdef", "name": "十月訂單.csv"},
+                "photos": [{"path": str(share / "a.png")}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with running() as site:
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "rpa_runner.debug",
+                "--scenario",
+                str(scene / "scenario.yaml"),
+                "--input",
+                str(inputs),
+                "--out",
+                str(tmp_path / "debug"),
+                "--engine",
+                engine,
+                "--base-url",
+                site,
+                "--file",
+                "orders",
+                str(given),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            env={**os.environ, "RPA_INPUT_FOLDERS": str(share)},
+        )
+        try:
+            debug = Session(process)
+            ready = debug.read()
+            assert ready["event"] == "ready", ready
+            resolved = cast("dict[str, object]", ready["inputs"])
+            assert cast("dict[str, object]", resolved["orders"])["name"] == "十月訂單.csv"
+            assert "path" not in json.dumps(resolved)
+            replies = [debug.send("step", index=index) for index in range(5)]
+            for reply in replies:
+                assert cast("dict[str, object]", reply["record"])["status"] == "passed", reply
+            assert cast("dict[str, object]", replies[3]["facts"])["imported"] == "十月訂單.csv"
+            assert cast("dict[str, object]", replies[4]["record"])["files"] == ["a.png"]
+        finally:
+            if process.poll() is None:
+                assert process.stdin is not None
+                process.stdin.write(json.dumps({"cmd": "close"}) + "\n")
+                process.stdin.flush()
+                process.wait(timeout=30)
+
+
+def test_path_outside_the_allowed_folders_is_refused(tmp_path: Path) -> None:
+    scene = tmp_path / "scenario.yaml"
+    scene.write_text(
+        "schemaVersion: 1\nid: debug-upload\nname: 調試上傳\n"
+        "inputs:\n  f: { type: file }\n"
+        "steps:\n  - { id: open, action: goto, url: about:blank }\n",
+        encoding="utf-8",
+    )
+    inputs = tmp_path / "input.json"
+    inputs.write_text(json.dumps({"f": {"path": str(scene)}}), encoding="utf-8")
+    process = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "rpa_runner.debug",
+            "--scenario",
+            str(scene),
+            "--input",
+            str(inputs),
+            "--out",
+            str(tmp_path / "out"),
+        ],
+        input="",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env={**os.environ, "RPA_INPUT_FOLDERS": "", "RPA_LANG": "zh-Hant"},
+        timeout=120,
+        check=False,
+    )
+    first = json.loads(process.stdout.splitlines()[0])
+    assert first["event"] == "error"
+    assert "不在允許讀取的資料夾裡" in first["error"]

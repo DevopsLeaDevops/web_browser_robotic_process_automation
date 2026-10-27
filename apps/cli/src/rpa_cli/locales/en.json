@@ -30,7 +30,7 @@
   "cli.run.short_help": "Run a scenario.",
   "cli.run.scenario_metavar": "SCENARIO",
   "cli.run.input_value_metavar": "NAME=VALUE",
-  "cli.run.input_value_help": "One input, converted to its declared type; may be repeated. Takes precedence over --input.",
+  "cli.run.input_value_help": "One input, converted to its declared type; may be repeated. For a file input give a path on this computer (or a scene attachment files/name); repeat the name for a file input with several files. Takes precedence over --input.",
   "cli.run.input_file_help": "A JSON file of inputs, for example the previous scenario's output.json.",
   "cli.run.input_file_invalid": "The input file must contain a JSON object.",
   "cli.run.input_value_invalid": "{value} is not in the NAME=VALUE form.",
