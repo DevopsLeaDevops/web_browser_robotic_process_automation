@@ -15,14 +15,14 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261026-layered-ci；2026-10-26 21:30 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261026-layered-ci；2026-10-26 21:25 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 19:40 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：基於伺服器增量更新重新設計 Actions，避免非必要的全量執行與 macOS 排隊；先設計再寫程式。20:04 回覆五項照建議，要求寫進文檔（快速理解、怎麼使用）、PR 1 與 PR 2 一起寫，完成後給人工驗收方案。驗收：PR 的 CI 通過；發布 PR 不再跑桌面與安裝腳本；只改伺服器的 PR 不排 macOS；設定 <code>RPA_UPDATE_CI_KEY</code> 後程式碼層路徑能跑通；人工驗收見下方。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>tools/ci_changes.py</code>（輸入指紋、外殼鍵、通過紀錄）、新的 <code>tools/desktop_shell.py</code>（CI 金鑰、外殼快取、裝上程式碼層並確認）、<code>tools/build_desktop.py</code>（位置寫進 <code>$GITHUB_ENV</code>）、兩個端到端工具的 <code>--update</code>；<code>desktop.yml</code>、<code>server-package.yml</code>、<code>setup-scripts.yml</code>、<code>ci.yml</code>、<code>nightly.yml</code>；測試；<code>docs/develop/ci.html</code>（三語）、共用協作流程第 5 節、決定紀錄。不包含：發布流程（<code>release.yml</code> 照舊完整建置）、伺服器分發包的程式碼層路徑（Linux 已經夠快）、改測試本身。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱、合併、設定 Secret：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd>如上。和 20261026-scheduled-update-tests（PR #93）不共用程式檔，兩個 PR 都改任務索引（各加一行）。Claude 整合。</dd>
-        <dt>狀態</dt><dd>實作中：本地完成，待推送（<code>[bootstrap]</code> 產生簡中）、開 PR 與 CI。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>ci/layered-ci</code>；PR 未建立；base main <code>066ded2</code>。</dd>
-        <dt>交接版本／同步狀態</dt><dd>基準 <code>066ded2</code>＋本分支的修改，尚未推送。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #94 已建立，CI 通過；程式碼層路徑在探測分支上三個 App 都跑通。待使用者設定 <code>RPA_UPDATE_CI_KEY</code>、人工驗收與合併。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>ci/layered-ci</code>；PR #94；base main <code>066ded2</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：<code>8a0ec7f</code>（實作）、<code>1e29f7b</code>（bootstrap 產生簡中）、<code>0a724e5</code>（pyright）、<code>d1d2ad3</code>（程式碼層的更新檔用完整的提交）。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13.17）；連不到 PyPI：只有快取裡的 pytest 9.1.1、ruff 0.16.9（鎖定 0.17.1），工作區套件以原始碼路徑載入；沒有 Pyright、OpenCC，簡中由 bootstrap 產生，型別檢查交給 CI。</dd>
       </dl></div>
     </section>
@@ -40,7 +40,8 @@
       <div class="panel-body"><ul class="points">
         <li><strong>決定：</strong>見<a href="../decisions.html#decisions">決定紀錄</a> 2026-10-26 20:04（五項照建議，你明確決定）；共用協作流程第 5 節的沿用規則已擴大。</li>
         <li><strong>實作選擇：</strong>Windows Worker 走寬的範圍（生產角色），macOS 兩個 App 走窄的範圍；指紋與外殼鍵都只在 <code>tools/ci_changes.py</code> 維護一份，workflow 不再用 <code>paths</code>；程式碼層路徑不重測退回（外殼行為）、不建安裝檔；快取存的是使用者下載的 DMG／zip，取出時和使用者安裝一樣；Secret 沒有時退回每次臨時金鑰、一律完整建置。</li>
-        <li><strong>未完成／阻礙：</strong>使用者確認或設定 <code>RPA_UPDATE_CI_KEY</code> 前，程式碼層路徑只能在單元測試裡驗證。</li>
+        <li><strong>未完成／阻礙：</strong><code>RPA_UPDATE_CI_KEY</code> 還沒設定（PR #94 的三個桌面建置都留下「沒有 RPA_UPDATE_CI_KEY」的警告；同一倉庫的 PR 拿得到 Secrets，所以是沒有設定）。設定前 PR 與 main 一律完整建置，沿用與窄範圍照常生效。探測分支 <code>ci/layered-ci-probe</code> 要由使用者刪除（這個環境沒有刪分支的權限），它的快取只限那個分支，7 天沒用就清掉。</li>
+        <li><strong>探測中發現並修好：</strong>快取的外殼和這次是同一個提交時，更新檔的版本和內建的程式相同，啟動器照 ADR 0018 改回內建的程式，就測不到程式碼層（run 40447732366 三個 App 都在「自我測試用的是這一層」失敗）。改成更新檔用 40 字的提交（和內建的 7 字一定不同），<code>desktop_shell layer</code> 也先擋下相同的情況（<code>d1d2ad3</code>）。</li>
         <li><strong>下一個具體動作：</strong>推送（<code>[bootstrap]</code>）、開 PR、看 CI；Secret 設定後手動觸發 <code>desktop.yml</code>（先 full 存快取、再 auto 走程式碼層路徑）；照下方的人工驗收逐項記錄。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無；<code>.shell-cache/</code> 已加進 .gitignore（只在 CI 上產生）。</li>
       </ul></div>
@@ -67,9 +68,12 @@
           <tr><td>同上；ruff 0.16.9</td><td><code>ruff check</code>、<code>ruff format --check</code>（tools、tests/ci）</td><td>通過</td><td>Pyright 與鎖定版本的 ruff 交給 CI</td></tr>
           <tr><td>同上</td><td>以 main 的歷史重算指紋（v0.6.2、v0.6.3、#81、#86、#88、#90）</td><td>結果見設計摘要</td><td>PR 上多次推送的情況要等 CI</td></tr>
           <tr><td>同上</td><td>七個 workflow 用 PyYAML 載入</td><td>語法正確</td><td>GitHub 的表達式與權限檢查要等 CI</td></tr>
+          <tr><td><code>8a0ec7f</code>；GitHub Actions（PR #94）</td><td>CI、桌面端建置、伺服器分發包、一鍵安裝腳本、每晚完整測試（改了 nightly.yml）</td><td>所有指紋都是新的，全部執行：三個桌面 App 完整建置通過（沒有 CI 金鑰，警告如預期），伺服器、安裝腳本、Windows Worker 通過；CI 的 Linux 測試因簡中還沒產生、pyright 6 個錯誤（測試的 lambda 型別）失敗</td><td>—</td></tr>
+          <tr><td><code>0a724e5</code>；GitHub Actions（PR #94）</td><td>同上</td><td>CI 通過（ruff 0.17.1、pyright、兩個 Python 的測試）。桌面三個 App、伺服器兩個、安裝腳本五個、CI 的 Windows Worker 全部「沿用」<code>8a0ec7f</code> 的運行（指紋相同：只改了測試與簡中），每個流程約 1 分鐘結束</td><td>—</td></tr>
+          <tr><td>探測分支（不合併）：金鑰存在快取裡代替 Secret</td><td>手動觸發 <code>desktop.yml</code>：run 40446795562（<code>build=full</code>，<code>539506f</code>）存快取；run 40448113960（<code>build=auto</code>，<code>271c747</code>）</td><td>full：三個 App 通過並存進快取（建置步驟 macOS 約 50 秒、Windows 約 80 秒；錄製端端到端約 2 分 50 秒是最長的一步）。auto：三個 App 都走程式碼層路徑：取出快取（539506f 建的外殼）→ 建並裝上 271c747 的更新檔 → 自我測試、確認這一層、視窗自我測試、端到端全部通過。工作時間：Windows 4 分 15 秒 → 2 分 28 秒、Worker（macOS）4 分 55 秒 → 3 分 15 秒、錄製端 6 分 39 秒 → 5 分 27 秒；macOS 兩次都排隊 3～4.5 分（GitHub 註記 macOS arm64 容量不足）</td><td>正式的 <code>RPA_UPDATE_CI_KEY</code> 路徑要等 Secret 設定後再跑一次（人工驗收第 3、4 步）</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：PR #94 的 <code>0a724e5</code> 通過（<code>d1d2ad3</code> 待確認）；程式碼層路徑：探測分支通過；人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -78,7 +82,8 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-10-26 21:30 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>066ded2</code> 開分支，實作、測試、寫文檔並建立本紀錄。</li>
+        <li>2026-10-26 21:25 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #94 的 CI 通過；用探測分支驗證程式碼層路徑，修好同一個提交時測不到程式碼層的問題（<code>d1d2ad3</code>），結果寫進驗證表。</li>
+        <li>2026-10-26 20:35 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>066ded2</code> 開分支，實作、測試、寫文檔並建立本紀錄；推送並建立 PR #94。</li>
       </ul></div>
     </section>
   </div>
