@@ -43753,3 +43753,12 @@
 {"attempt": 1, "file": "packages/rpa_runner/tests/test_files.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 40451347675, "seconds": 0.0, "tests": 3, "workflow": "CI"}
 {"attempt": 1, "file": "packages/rpa_core/tests/test_version.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 40451347675, "seconds": 0.0, "tests": 1, "workflow": "CI"}
 {"attempt": 1, "file": "apps/desktop/tests/test_selftest.py", "report": "pytest-report-3.13/pytest-report.xml", "run_id": 40451347675, "seconds": 0.0, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_login.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 227.8, "tests": 16, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_video_browser.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 111.2, "tests": 14, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_frames.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 100.3, "tests": 10, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_run.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 89.5, "tests": 20, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_tabs.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 42.9, "tests": 8, "workflow": "CI"}
+{"attempt": 1, "file": "packages\\rpa_runner\\tests\\test_profiles.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 35.0, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "tests\\smoke\\test_browser.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 4.7, "tests": 2, "workflow": "CI"}
+{"attempt": 1, "file": "apps\\desktop\\tests\\test_selftest.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 4.4, "tests": 1, "workflow": "CI"}
+{"attempt": 1, "file": "apps\\worker\\tests\\test_worker.py", "report": "pytest-report-windows/pytest-report.xml", "run_id": 40451366029, "seconds": 2.3, "tests": 1, "workflow": "CI"}
