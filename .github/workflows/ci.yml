@@ -24,13 +24,15 @@ permissions:
 
 jobs:
   # 這次要跑哪些工作（tools/ci_changes.py，規則見 docs/develop/ci.html）：
-  # mode＝full／normal／docs（只改文件且上一次推送已通過，沿用結果）；worker＝要不要跑 Windows 的 Worker 測試
+  # mode＝full／normal／docs（只改文件且上一次推送已通過，沿用結果）；
+  # worker＝要不要跑 Windows 的 Worker 測試（同一組輸入已經通過就沿用，依層建置，2026-10-27 起）
   changes:
     name: 執行範圍
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.decide.outputs.mode }}
       worker: ${{ steps.decide.outputs.worker }}
+      worker_record: ${{ steps.decide.outputs.worker_record }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -145,11 +147,12 @@ jobs:
           retention-days: 14
 
   # Windows 是 Worker：執行場景、登入、Firefox 設定檔範本、領取任務的瀏覽器測試，兩種瀏覽器都跑。
-  # 只有整個 PR（或這次推送到 main）改到 Worker 的路徑時執行（tools/ci_changes.py 的 WORKER）。
+  # Worker 的輸入（tools/ci_changes.py 的 CI_WORKER）沒有通過紀錄時才執行：只改網站或只改版本號
+  # 的 PR、合併後內容和 PR 相同的 main 都沿用。
   worker-windows:
     name: Worker 測試（Windows）
     needs: changes
-    if: needs.changes.outputs.mode != 'docs' && needs.changes.outputs.worker == 'true'
+    if: needs.changes.outputs.worker == 'true'
     runs-on: windows-latest
     # 卡住時直接失敗（沒有上限時會跑到 GitHub 的 6 小時上限），見 docs/develop/ci.html
     timeout-minutes: 30
@@ -189,3 +192,13 @@ jobs:
           path: pytest-report.xml
           if-no-files-found: ignore
           retention-days: 14
+      - name: 通過紀錄（同一組輸入之後沿用這次的結果）
+        run: |
+          printf '{"record": "%s", "sha": "%s", "run": "%s"}\n' \
+            "${{ needs.changes.outputs.worker_record }}" "$GITHUB_SHA" "$GITHUB_RUN_ID" > "$RUNNER_TEMP/pass.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ needs.changes.outputs.worker_record }}
+          path: ${{ runner.temp }}/pass.json
+          retention-days: 30
+          overwrite: true

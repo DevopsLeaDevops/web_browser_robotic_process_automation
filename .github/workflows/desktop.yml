@@ -1,10 +1,24 @@
-# 桌面端建置（M10，ADR 0014）：建 RPA 錄製端（macOS，Apple 晶片）與 RPA Worker（Windows x64；
-# macOS Apple 晶片 2026-10-22 起），
-# macOS 用 macos-15（arm64）：macos-14 在 2026-11-02 停用，10 月起已經分配不到機器
-# （https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement）；
-# 再用打包後的 App 跑自我測試（rpa_desktop.selftest）：
-#   App 用內附的 Playwright driver 把 Chromium 下載到全新的資料夾 → 啟動測試網站 →
-#   無頭執行 BA-001（子程序走 --rpa-module）與它的 Python 腳本版（走 --rpa-script）。
+# 桌面端建置（M10，ADR 0014）：RPA 錄製端（macOS，Apple 晶片）與 RPA Worker（Windows x64；
+# macOS Apple 晶片 2026-10-22 起）。macOS 用 macos-15（arm64）：macos-14 在 2026-11-02 停用
+# （https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement）。
+#
+# 依層建置（2026-10-27 起，docs/develop/ci.html#layered，ADR 0018 的分層用在 CI）：
+#   執行範圍（tools/ci_changes.py）幫三個 App 各算一個輸入指紋。同一個指紋已經通過就略過
+#   （macOS 不必排隊）；要跑時再看外殼鍵：
+#   - 程式碼層路徑：外殼（Python、第三方套件、PyInstaller 的設定、rpa_update）和快取裡的相同，
+#     從快取取出上次建好的 DMG／zip（tools/desktop_shell.py restore），用這次的程式建更新檔、
+#     裝上去，再跑自我測試、視窗自我測試與端到端。這就是裝置在現場升級的方式：舊外殼＋新程式。
+#     不跑 PyInstaller、不下載瀏覽器（也在快取裡）、不建安裝檔、不上傳試用包。
+#   - 完整建置路徑：外殼變了、快取過期、每週的完整建置（nightly.yml 每週六呼叫）、手動觸發選 full、
+#     推版本標籤（發布）。
+#     下面描述的全部步驟，成功時把 DMG／zip 與瀏覽器存進快取（推版本標籤時不存）。
+#   快取的外殼信任 GitHub Secrets 的 RPA_UPDATE_CI_KEY（CI 專用的測試金鑰，不是發布金鑰）；
+#   沒有這個 Secret 時照舊每次產生臨時金鑰，一律完整建置。
+#
+# 完整建置路徑：
+#   用打包後的 App 跑自我測試（rpa_desktop.selftest）：App 用內附的 Playwright driver 把 Chromium
+#   下載到全新的資料夾 → 啟動測試網站 → 無頭執行 BA-001（子程序走 --rpa-module）與它的 Python
+#   腳本版（走 --rpa-script）。
 # Worker（Windows）另外：
 #   建置前跑 apps/desktop 的單元測試（登錄檔、單一執行、認證管理員用真的）；
 #   視窗自我測試（rpa-worker.exe --smoke-test）：打開 WebView2 視窗與通知區圖示，確認頁面的腳本跑起來；
@@ -21,90 +35,59 @@
 #   打開 WKWebView 視窗，確認 App 的頁面經由本機閘道載入；建置時也檢查 Info.plist 指的執行檔。
 #   端到端（tools/recorder_e2e.py）：從原始碼啟動管理 Portal、產生錄製端邀請，打包版以 --no-window
 #   配對（權杖存進鑰匙圈），經由本機閘道在錄製端逐步調試 BA-001，無頭與有頭各一次。
-# 程式碼層（ADR 0018，發布的建置不跑）：建置時多信任一把臨時金鑰，用它簽「下一個提交」的更新檔，
+# 程式碼層（ADR 0018，發布的建置不跑）：建置時多信任 CI 的測試金鑰，用它簽「下一個提交」的更新檔，
 #   rpa-child --install-update 裝好後再跑一次自我測試（子程序也要用同一層）；再裝一個啟動就失敗的
 #   更新檔，確認啟動兩次沒有確認之後自動退回上一層。
 # 兩個 App 都是視窗程式（沒有標準輸出），--version、--self-test 用同資料夾的 rpa-child。
 # 產物（DMG、zip、安裝檔）掛在這次建置上 3 天（發布時 1 天）；MVP 不簽章（docs/design/desktop.html#signing）。
-# 推 v版本 標籤時 release.yml 也呼叫這個流程（workflow_call），用它的產物建立草稿 Release。
+# 推 v版本 標籤時 release.yml 呼叫這個流程（workflow_call），一律完整建置；每晚完整測試也呼叫它：
+# 每天在 macOS 跑一次程式碼層路徑（macOS 程式碼層檢查），每週六完整建置三個 App（抓 GitHub 映像的
+# 變化）。排程的失敗由 nightly.yml 開 issue：被呼叫的流程不能要求比呼叫者多的權限（issues: write）。
 name: 桌面端建置
 
 on:
+  # 不用 paths：要不要跑由執行範圍依輸入指紋決定（清單只在 tools/ci_changes.py 維護一份）
   pull_request:
-    paths:
-      - "apps/desktop/**"
-      - "apps/worker/**"
-      - "apps/testsite/**"
-      - "apps/server/**"
-      - "apps/cli/**"
-      - "packages/**"
-      # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
-      - "!apps/server/tests/**"
-      # 伺服器的分發包（server-package.yml）不進桌面 App
-      - "!apps/server/packaging/**"
-      - "!apps/cli/tests/**"
-      - "!apps/testsite/tests/**"
-      - "!packages/rpa_core/tests/**"
-      - "scenarios/demo/**"
-      # 端到端在打包版執行 iframe 的範例（M7a）
-      - "scenarios/examples/iframe-form.yaml"
-      - "scenarios/examples/popup-form.yaml"
-      - "tools/build_desktop.py"
-      # 程式碼層的更新檔（ADR 0018）：用和伺服器分發包相同的方法建
-      - "tools/build_update.py"
-      - "tools/build_server.py"
-      - "tools/desktop_e2e.py"
-      - "tools/recorder_e2e.py"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/desktop.yml"
   push:
     branches: [main]
-    paths:
-      - "apps/desktop/**"
-      - "apps/worker/**"
-      - "apps/testsite/**"
-      - "apps/server/**"
-      - "apps/cli/**"
-      - "packages/**"
-      # 只改這些套件的測試不影響兩個 App（App 的建置會跑的測試不在這裡排除）
-      - "!apps/server/tests/**"
-      # 伺服器的分發包（server-package.yml）不進桌面 App
-      - "!apps/server/packaging/**"
-      - "!apps/cli/tests/**"
-      - "!apps/testsite/tests/**"
-      - "!packages/rpa_core/tests/**"
-      - "scenarios/demo/**"
-      # 端到端在打包版執行 iframe 的範例（M7a）
-      - "scenarios/examples/iframe-form.yaml"
-      - "scenarios/examples/popup-form.yaml"
-      - "tools/build_desktop.py"
-      # 程式碼層的更新檔（ADR 0018）：用和伺服器分發包相同的方法建
-      - "tools/build_update.py"
-      - "tools/build_server.py"
-      - "tools/desktop_e2e.py"
-      - "tools/recorder_e2e.py"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/desktop.yml"
   workflow_call:
+    inputs:
+      targets:
+        description: "只建這些目標，逗號分隔（recorder-macos-arm64、worker-windows-x64、worker-macos-arm64）；空白＝全部"
+        type: string
+        default: ""
+      build:
+        description: "auto＝外殼在快取裡就只換程式碼層；full＝完整建置；空白＝依事件決定"
+        type: string
+        default: ""
   workflow_dispatch:
+    inputs:
+      targets:
+        description: "只建這些目標，逗號分隔（recorder-macos-arm64、worker-windows-x64、worker-macos-arm64）；空白＝全部"
+        type: string
+        default: ""
+      build:
+        description: "full＝完整建置（會產生試用包）；auto＝外殼在快取裡就只換程式碼層"
+        type: choice
+        options: [full, auto]
+        default: full
 
 concurrency:
-  group: desktop-${{ github.ref }}
+  # 被每晚完整測試、發布呼叫時 github.workflow 是呼叫者的名稱：不和 main 的推送互相取消
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  actions: read # changes 查詢上一次運行的結果；release.yml 呼叫時也要給
+  actions: read # 執行範圍查詢通過紀錄；release.yml、nightly.yml 呼叫時也要給
 
 jobs:
-  # 只改文件且上一次推送已通過時略過建置、沿用結果（tools/ci_changes.py）；推版本標籤時一律建置
-  changes:
+  # 這次要建哪些 App、走哪條路（tools/ci_changes.py，規則見 docs/develop/ci.html#layered）
+  plan:
     name: 執行範圍
     runs-on: ubuntu-latest
     outputs:
-      mode: ${{ steps.decide.outputs.mode }}
+      matrix: ${{ steps.decide.outputs.matrix }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -112,26 +95,21 @@ jobs:
       - id: decide
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 tools/ci_changes.py --workflow desktop.yml
+          TARGETS: ${{ inputs.targets }}
+          BUILD: ${{ inputs.build }}
+        run: python3 tools/ci_changes.py --workflow desktop.yml --targets "$TARGETS" --build "$BUILD"
 
   build:
-    needs: changes
-    if: needs.changes.outputs.mode != 'docs'
+    needs: plan
+    if: needs.plan.outputs.matrix != '[]'
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - app: recorder
-            os: macos-15
-            name: RPA 錄製端（macOS）
-          - app: worker
-            os: windows-latest
-            name: RPA Worker（Windows）
-          - app: worker
-            os: macos-15
-            name: RPA Worker（macOS）
+        # app、os、name、target、job、fingerprint、record、shell_key、build（tools/ci_changes.py）
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -169,56 +147,104 @@ jobs:
           set -e
           uv run python tools/ci_annotations.py junit "${{ runner.temp }}/desktop-pytest.xml"
           exit "$code"
-      - name: 測試更新檔用的臨時金鑰（發布的建置不用，App 只信任發布的公鑰）
+      - name: 測試更新檔用的金鑰（發布的建置不用：App 只信任發布的公鑰）
+        id: key
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          # CI 專用的測試金鑰（docs/develop/ci.html#ci-key）；沒有時每次產生臨時金鑰、不用快取
+          CI_KEY: ${{ secrets.RPA_UPDATE_CI_KEY }}
+        run: uv run python -m tools.desktop_shell key --out "${{ runner.temp }}/update-ci.pem"
+      - name: 外殼快取（外殼鍵 ${{ matrix.shell_key }}）
+        id: restore
+        if: steps.key.outputs.persistent == 'true' && matrix.build != 'full'
+        uses: actions/cache/restore@v6
+        with:
+          key: desktop-shell-v1-${{ matrix.target }}-${{ matrix.shell_key }}-${{ steps.key.outputs.keyid }}
+          path: |
+            .shell-cache
+            ${{ runner.temp }}/pw-browsers
+      - name: 走哪條路
+        id: path
+        env:
+          HIT: ${{ steps.restore.outputs.cache-hit }}
+          BUILD: ${{ matrix.build }}
+          PERSISTENT: ${{ steps.key.outputs.persistent }}
         run: |
-          key="$(uv run python -m rpa_update.build keygen --private "${{ runner.temp }}/update-dev.pem")"
-          echo "RPA_UPDATE_EXTRA_KEYS=$key" >> "$GITHUB_ENV"
+          if [ "$HIT" = true ]; then
+            path=layer
+            why="外殼鍵 ${{ matrix.shell_key }} 在快取裡：取出 App，只換這次的程式碼層"
+          else
+            path=build
+            if [ "$BUILD" = full ]; then why="完整建置（排程、手動觸發選 full 或發布）"
+            elif [ "$PERSISTENT" != true ]; then why="沒有 RPA_UPDATE_CI_KEY（或推版本標籤）：不用快取"
+            else why="外殼鍵 ${{ matrix.shell_key }} 不在快取裡（外殼變了或快取過期）：完整建置，成功後存進快取"
+            fi
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "SHELL_PATH=$path" >> "$GITHUB_ENV"
+          echo "::notice title=${{ matrix.name }}：$([ "$path" = layer ] && echo 程式碼層路徑 || echo 完整建置)::$why"
+
+      # ---------------------------------------------------------------- 取得 App
       - name: 建置
-        id: build
+        if: steps.path.outputs.path == 'build'
         run: uv run python tools/build_desktop.py ${{ matrix.app }}
+      - name: 從快取取出 App（和使用者一樣從 DMG 或 zip 取出）
+        if: steps.path.outputs.path == 'layer'
+        run: uv run python -m tools.desktop_shell restore ${{ matrix.app }}
       - name: 環境代號和最近一次發布比較（不同時，已經裝好的裝置要用完整的安裝包）
         # 只是提示（annotation）：發布時 release.yml 再比一次，寫進 Release 說明（2026-10-26）
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: uv run python -m tools.runtime_changes --latest --runtime-file "${{ steps.build.outputs.runtime_file }}"
+        run: uv run python -m tools.runtime_changes --latest --runtime-file "$APP_RUNTIME_FILE"
+      - name: 程式碼層路徑：用這次的程式建更新檔，裝進 App 的資料夾
+        if: steps.path.outputs.path == 'layer'
+        run: |
+          uv run python -m tools.build_update --runtime-file "$APP_RUNTIME_FILE" --key "$UPDATE_KEY"
+          update="$(ls dist/update/RPA-Update-*.zip)"
+          echo "UPDATE_ZIP=$update" >> "$GITHUB_ENV"
+          # 預設的資料夾（和雙擊 App 一樣）：自我測試與 macOS 的視窗自我測試都用它
+          UPDATE_ZIP="$update" uv run python -m tools.desktop_shell layer ${{ matrix.app }}
+
+      # ---------------------------------------------------------------- 測試
       - name: 自我測試（打包後的 App）
         env:
-          # 全新的資料夾：確定瀏覽器是打包後的 driver 下載的，不是開發環境留下的
+          # 完整建置：全新的資料夾，確定瀏覽器是打包後的 driver 下載的；程式碼層路徑：快取裡的瀏覽器
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
           # 刻意關掉：App 要靠建置時開的 UTF-8 模式，不能依賴使用者電腦的環境變數
           PYTHONUTF8: "0"
         run: |
           # 用 rpa-child（主控台程式）：RPA Worker 是視窗程式，沒有標準輸出可讀
-          "${{ steps.build.outputs.child }}" --version
+          "$APP_CHILD" --version
           set +e
-          "${{ steps.build.outputs.child }}" --self-test --report "${{ runner.temp }}/self-test.json" \
+          "$APP_CHILD" --self-test --report "${{ runner.temp }}/self-test.json" \
             > "${{ runner.temp }}/self-test.log" 2>&1
           code=$?
           set -e
           cat "${{ runner.temp }}/self-test.log"
           exit "$code"
       - name: 自我測試的結果寫成 annotations
-        if: always()
+        if: always() && steps.path.outcome == 'success'
         # 日誌在 PR 頁面就看得到：每一步的結果、失敗的原因與輸出的最後幾行
         run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/self-test.json" "${{ runner.temp }}/self-test.log"
+      - name: 程式碼層路徑：自我測試用的是這一層，已經確認、沒有退回
+        if: steps.path.outputs.path == 'layer'
+        run: uv run python -m tools.desktop_shell check ${{ matrix.app }} --report "${{ runner.temp }}/self-test.json"
       - name: 程式碼層：裝更新檔後再跑一次自我測試，啟動就失敗的更新自動退回
         id: layer
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        # 完整建置路徑才跑：退回是外殼（rpa_update）的行為，外殼沒變時不必每次重測
+        if: ${{ steps.path.outputs.path == 'build' && !startsWith(github.ref, 'refs/tags/') }}
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
           # 只有這一步用程式碼層：其他測試照舊測內建的程式
           RPA_WORKER_HOME: ${{ runner.temp }}/layer-home
           RPA_RECORDER_HOME: ${{ runner.temp }}/layer-home
-          RUNTIME: ${{ steps.build.outputs.runtime }}
-          KEY: ${{ runner.temp }}/update-dev.pem
         run: |
-          child="${{ steps.build.outputs.child }}"
+          child="$APP_CHILD"
           commit_of() { "$child" --version | uv run python -c 'import json, sys; print(json.load(sys.stdin)["commit"])'; }
           # 下一個提交：同一份程式，只換提交
-          uv run python -m tools.build_update --runtime "$RUNTIME" --key "$KEY" --commit 0000002
+          uv run python -m tools.build_update --runtime "$APP_RUNTIME" --key "$UPDATE_KEY" --commit 0000002
           "$child" --install-update dist/update/RPA-Update-*.zip
           test "$(commit_of)" = 0000002
           # 重新啟動套用更新：新的程序先等舊的結束（Windows 是 WaitForSingleObject）才選層
@@ -246,7 +272,7 @@ jobs:
           fi
           # 啟動就失敗的更新檔：兩次都失敗，第三次退回 0000002
           echo 'raise SystemExit(7)' > apps/desktop/src/rpa_desktop/__main__.py
-          uv run python -m tools.build_update --runtime "$RUNTIME" --key "$KEY" --commit 0000003
+          uv run python -m tools.build_update --runtime "$APP_RUNTIME" --key "$UPDATE_KEY" --commit 0000003
           git checkout -- apps/desktop/src/rpa_desktop/__main__.py
           "$child" --install-update dist/update/RPA-Update-*.zip
           for attempt in 1 2; do
@@ -259,6 +285,8 @@ jobs:
           test "$(commit_of)" = 0000002
           cat "${{ runner.temp }}/layer-home/app/boot.log"
           grep -q 0000003 "${{ runner.temp }}/layer-home/app/active.json"
+          # 存進快取的是內建的程式：dist/update 清掉，之後的步驟不會拿錯更新檔
+          rm -rf dist/update
       - name: 程式碼層自我測試的結果寫成 annotations
         if: always() && steps.layer.outcome == 'failure'
         run: |
@@ -271,12 +299,18 @@ jobs:
         env:
           RPA_WORKER_HOME: ${{ runner.temp }}/smoke-home
         run: |
+          if [ "$SHELL_PATH" = layer ]; then
+            uv run python -m tools.desktop_shell layer worker --home "$RPA_WORKER_HOME"
+          fi
           set +e
-          timeout 300 "${{ steps.build.outputs.executable }}" --smoke-test --report "${{ runner.temp }}/smoke.json"
+          timeout 300 "$APP_EXECUTABLE" --smoke-test --report "${{ runner.temp }}/smoke.json"
           code=$?
           set -e
           cat "${{ runner.temp }}/smoke.json" 2>/dev/null || echo "沒有產生報告（結束碼 $code）"
           cat "${{ runner.temp }}"/smoke-home/logs/worker.log 2>/dev/null | tail -n 40
+          if [ "$code" = 0 ] && [ "$SHELL_PATH" = layer ]; then
+            uv run python -m tools.desktop_shell check worker --home "$RPA_WORKER_HOME"
+          fi
           exit "$code"
       - name: 視窗自我測試的結果寫成 annotations
         if: always() && matrix.app == 'worker' && runner.os == 'Windows' && steps.smoke.outcome != 'skipped'
@@ -292,7 +326,8 @@ jobs:
         run: |
           # 經由 LaunchServices（和在 Finder 雙擊相同）：Info.plist 指錯執行檔時這裡就會失敗。
           # open 不傳環境變數，也不回傳 App 的結束碼：資料夾用預設的位置，結果看報告。
-          app="$(dirname "$(dirname "$(dirname "${{ steps.build.outputs.executable }}")")")"
+          # 程式碼層路徑：前面已經把這次的程式碼層裝進預設的資料夾
+          app="$(dirname "$(dirname "$(dirname "$APP_EXECUTABLE")")")"
           report="${{ runner.temp }}/smoke.json"
           rm -f "$report"
           set +e
@@ -308,6 +343,9 @@ jobs:
           fi
           cat "$report"
           python3 -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))["ok"] else 1)' "$report"
+          if [ "$SHELL_PATH" = layer ]; then
+            uv run python -m tools.desktop_shell check ${{ matrix.app }}
+          fi
       - name: macOS 視窗自我測試的結果寫成 annotations
         if: always() && runner.os == 'macOS' && steps.mac-smoke.outcome != 'skipped'
         run: |
@@ -321,11 +359,14 @@ jobs:
         id: recorder-e2e
         if: matrix.app == 'recorder'
         env:
-          # 沿用自我測試下載的 Chromium
+          # 沿用自我測試下載（或快取取出）的 Chromium
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
         run: |
+          # 程式碼層路徑：先把這次的更新檔裝進端到端用的資料夾
+          update=()
+          if [ "$SHELL_PATH" = layer ]; then update=(--update "$UPDATE_ZIP"); fi
           set +e
-          uv run python tools/recorder_e2e.py "${{ steps.build.outputs.executable }}" \
+          uv run python tools/recorder_e2e.py "$APP_EXECUTABLE" "${update[@]}" \
             --report "${{ runner.temp }}/e2e.json" > "${{ runner.temp }}/e2e.log" 2>&1
           code=$?
           set -e
@@ -334,19 +375,23 @@ jobs:
       - name: 錄製端端到端的結果寫成 annotations
         if: always() && matrix.app == 'recorder' && steps.recorder-e2e.outcome != 'skipped'
         run: uv run python tools/ci_annotations.py self-test "${{ runner.temp }}/e2e.json" "${{ runner.temp }}/e2e.log"
-      - name: 端到端：（Windows 先安裝）用邀請配對並執行範例場景（Windows 再升級、解除安裝）
+      - name: 端到端：（Windows 完整建置先安裝）用邀請配對並執行範例場景（再升級、解除安裝）
         id: e2e
         if: matrix.app == 'worker'
         env:
-          # 沿用自我測試下載的 Chromium；打包版只在沒有設定時改用 Playwright 的預設位置
+          # 沿用自我測試下載（或快取取出）的 Chromium；打包版只在沒有設定時改用 Playwright 的預設位置
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pw-browsers
-          INSTALLER: ${{ steps.build.outputs.installer }}
         run: |
-          # macOS 沒有安裝檔（DMG 拖進「應用程式」）：直接用建好的 App
-          installer=()
-          if [ -n "$INSTALLER" ]; then installer=(--installer "$INSTALLER"); fi
+          # macOS 沒有安裝檔（DMG 拖進「應用程式」）：直接用建好的 App。
+          # 程式碼層路徑沒有新的安裝檔（安裝、升級、解除安裝是外殼的行為）：裝上更新檔再跑
+          extra=()
+          if [ "$SHELL_PATH" = layer ]; then
+            extra=(--update "$UPDATE_ZIP")
+          elif [ -n "${APP_INSTALLER:-}" ]; then
+            extra=(--installer "$APP_INSTALLER")
+          fi
           set +e
-          uv run python tools/desktop_e2e.py "${{ steps.build.outputs.executable }}" "${installer[@]}" \
+          uv run python tools/desktop_e2e.py "$APP_EXECUTABLE" "${extra[@]}" \
             --report "${{ runner.temp }}/e2e.json" > "${{ runner.temp }}/e2e.log" 2>&1
           code=$?
           set -e
@@ -359,10 +404,13 @@ jobs:
         if: always()
         run: |
           sizes="$( { du -sh dist/desktop/* "${{ runner.temp }}/pw-browsers" 2>/dev/null || true; } )"
+          path="$([ "${SHELL_PATH:-}" = layer ] && echo "程式碼層路徑（外殼來自快取：${SHELL_RELEASE:-?}）" || echo 完整建置)"
           # 大小也寫成 annotation，在 PR 頁面就看得到
           echo "::notice title=大小（${{ matrix.app }}）::${sizes//$'\n'/%0A}"
           {
-            echo "### ${{ matrix.name }}"
+            echo "### ${{ matrix.name }}：$path"
+            echo
+            echo "輸入指紋 \`${{ matrix.fingerprint }}\`、外殼鍵 \`${{ matrix.shell_key }}\`"
             echo '```'
             echo "$sizes"
             echo '```'
@@ -378,15 +426,42 @@ jobs:
             done
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
+        # 完整建置才有新的安裝包（試用包、發布）；程式碼層路徑沒有
+        if: steps.path.outputs.path == 'build'
         with:
           name: ${{ matrix.app }}-${{ matrix.os }}
           # macOS 沒有安裝檔（installer 是空的那行會被略過）
           # runtime-<目標>.json：發布流程產生更新檔時要用（ADR 0018），不上傳到 Release
           path: |
-            ${{ steps.build.outputs.artifact }}
-            ${{ steps.build.outputs.installer }}
-            ${{ steps.build.outputs.runtime_file }}
+            ${{ env.APP_ARTIFACT }}
+            ${{ env.APP_INSTALLER }}
+            ${{ env.APP_RUNTIME_FILE }}
           # 私有倉庫的產物計入 Actions 儲存額度（一次約 500 MB）：發布（標籤）只在同一次執行裡用，留 1 天；
           # PR 與 main 的試用包留 3 天。
           retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 1 || 3 }}
           if-no-files-found: error
+
+      # ---------------------------------------------------------------- 外殼快取與通過紀錄
+      - name: 整理要存進快取的外殼（DMG 或 zip、runtime.json）
+        id: shell
+        if: steps.path.outputs.path == 'build' && steps.key.outputs.persistent == 'true'
+        run: uv run python -m tools.desktop_shell save ${{ matrix.app }}
+      - name: 存進外殼快取（之後同一個外殼鍵的建置只換程式碼層）
+        if: steps.shell.outcome == 'success'
+        uses: actions/cache/save@v6
+        with:
+          key: desktop-shell-v1-${{ matrix.target }}-${{ matrix.shell_key }}-${{ steps.key.outputs.keyid }}
+          path: |
+            .shell-cache
+            ${{ runner.temp }}/pw-browsers
+      - name: 通過紀錄（同一組輸入之後沿用這次的結果）
+        run: |
+          printf '{"job": "%s", "fingerprint": "%s", "path": "%s", "sha": "%s", "run": "%s"}\n' \
+            "${{ matrix.job }}" "${{ matrix.fingerprint }}" "$SHELL_PATH" "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            > "${{ runner.temp }}/pass.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.record }}
+          path: ${{ runner.temp }}/pass.json
+          retention-days: 30
+          overwrite: true

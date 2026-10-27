@@ -27,6 +27,9 @@ CI 的桌面端建置在 macOS 建好 RPA 錄製端、跑完自我測試之後�
    （30 秒沒消息），下一步看到的「上線」才是新啟動的那份。
 8. 不給邀請再啟動一次（用鑰匙圈裡存下的配對），上線後送 SIGTERM，結束碼 0；最後結束管理 Portal。
 
+給了 ``--update``（依層建置的程式碼層路徑，docs/develop/ci.html#layered）時，第 3 步之前先把這次的
+更新檔裝進打包版的資料夾（和 desktop_e2e.py 相同）；之後配對、調試的都是這一層。
+
 印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，可以用
 ``tools/ci_annotations.py self-test`` 轉成 annotations）。全部通過才回傳 0。
 """
@@ -57,6 +60,7 @@ from desktop_e2e import (
     StepFailedError,
     create_scene,
     free_port,
+    install_update,
     stop_process,
     tail,
     wait_until,
@@ -136,7 +140,7 @@ def check_browser(headless: bool) -> str:
     return Path(sample.split(" --", 1)[0]).name
 
 
-def run(app: Path, folder: Path) -> JsonObject:
+def run(app: Path, folder: Path, update: Path | None = None) -> JsonObject:
     steps: list[JsonObject] = []
     portal_port, external_port = free_port(), free_port()
     base = f"http://127.0.0.1:{portal_port}"
@@ -179,8 +183,11 @@ def run(app: Path, folder: Path) -> JsonObject:
     def build_info() -> JsonObject:
         """建置資訊：同資料夾的 rpa-child --version（主控台程式，同一份建置）。"""
         if not built:
+            # 用這次的資料夾：裝了更新檔時，版本與程式指紋是那一層的
             child = app.with_name("rpa-child")
-            printed = subprocess.run([str(child), "--version"], capture_output=True, check=True)
+            printed = subprocess.run(
+                [str(child), "--version"], env=env, capture_output=True, check=True
+            )
             built.update(cast("JsonObject", json.loads(printed.stdout)))
         return built
 
@@ -430,9 +437,15 @@ def run(app: Path, folder: Path) -> JsonObject:
         wait_until("管理 Portal 判定錄製端離線", offline, 120)
         return "收到 stop.request 後正常結束，網址檔已刪除；Portal 判定離線"
 
+    def apply_update() -> str:
+        assert update is not None
+        info = install_update(app, update, env)
+        return f"程式碼層 {info.get('version')}-{info.get('commit')}（外殼來自快取）"
+
     plan: list[tuple[str, Callable[[], str]]] = [
         ("portal", start_portal),
         ("invite", invite),
+        *([("update", apply_update)] if update is not None else []),
         ("pair", start_recorder),
         ("gateway", through_gateway),
         ("debug-headless", lambda: debug(True)),
@@ -458,10 +471,12 @@ def run(app: Path, folder: Path) -> JsonObject:
 def main() -> int:
     parser = argparse.ArgumentParser(description="打包版 RPA 錄製端的端到端測試")
     parser.add_argument("app", type=Path, help="App 裡的 Contents/MacOS/rpa-recorder")
+    parser.add_argument("--update", type=Path, help="先裝上這個更新檔（程式碼層路徑）")
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
+    update = cast("Path | None", args.update)
     with tempfile.TemporaryDirectory(prefix="rpa-recorder-e2e-") as folder:
-        summary = run(args.app.resolve(), Path(folder))
+        summary = run(args.app.resolve(), Path(folder), update.resolve() if update else None)
     text = json.dumps(summary, ensure_ascii=False, indent=2)
     if args.report is not None:
         args.report.parent.mkdir(parents=True, exist_ok=True)

@@ -5,39 +5,16 @@
 #   這些腳本裝的是開發環境，生產的主要路徑是 setup-linux.sh 與桌面 App。
 # - 每天一次（排程）與手動觸發（預設 full）：完整範圍，第一次執行跑全部測試，加上從零開始；
 #   也抓外部變化，例如 uv 安裝腳本改版、GitHub 更換 *-latest 的系統、瀏覽器下載方式改變。
-# - 只改文件且上一次推送已通過時（tools/ci_changes.py 的 docs），全部略過、沿用結果。
+# - 依層建置（2026-10-27 起，docs/develop/ci.html#layered）：每個工作的輸入（tools/ci_changes.py 的
+#   SETUP：腳本、依賴、Python 版本與相關工具）算成指紋，同一個指紋已經通過就略過、沿用結果；
+#   只改版本號（發布 PR）不算改動。排程與手動觸發一律執行。
 name: 一鍵安裝腳本
 
 on:
+  # 不用 paths：要不要跑由執行範圍依輸入指紋決定（清單只在 tools/ci_changes.py 的 SETUP 維護）
   push:
     branches: [main]
-    paths:
-      - "scripts/**"
-      - ".github/workflows/setup-scripts.yml"
-      - "pyproject.toml"
-      - "packages/*/pyproject.toml"
-      - "apps/*/pyproject.toml"
-      - "uv.lock"
-      - ".python-version"
-      - "tools/linux_server_smoke.py"
-      - "tools/install_browsers.py"
-      - "tests/ci/test_browser_download.py"
-      - "tests/ci/test_linux_setup.py"
-      - "apps/cli/src/rpa_cli/serve.py"
   pull_request:
-    paths:
-      - "scripts/**"
-      - ".github/workflows/setup-scripts.yml"
-      - "pyproject.toml"
-      - "packages/*/pyproject.toml"
-      - "apps/*/pyproject.toml"
-      - "uv.lock"
-      - ".python-version"
-      - "tools/linux_server_smoke.py"
-      - "tools/install_browsers.py"
-      - "tests/ci/test_browser_download.py"
-      - "tests/ci/test_linux_setup.py"
-      - "apps/cli/src/rpa_cli/serve.py"
   schedule:
     # 每天 20:47 UTC：America/Los_Angeles 13:47 PDT（UTC−07:00）／12:47 PST（UTC−08:00），
     # 新加坡 04:47。倉庫最空閒的時段（過去一週 19～22 UTC 沒有任何運行），排在每晚完整測試之後。
@@ -80,6 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.decide.outputs.mode }}
+      linux: ${{ steps.decide.outputs.linux }}
+      inrepo: ${{ steps.decide.outputs.inrepo }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -92,13 +71,14 @@ jobs:
   linux-server:
     name: Linux 伺服器（Rocky 8，${{ matrix.mode }}）
     needs: changes
-    if: needs.changes.outputs.mode != 'docs'
+    if: needs.changes.outputs.linux != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        mode: [in-repo, from-scratch]
+        # mode（in-repo、from-scratch）、job、fingerprint、record（tools/ci_changes.py）
+        include: ${{ fromJSON(needs.changes.outputs.linux) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -148,11 +128,23 @@ jobs:
           # 容器沒有 systemd PID 1，只驗證 unit；真實服務啟停另由公司主機驗收。
           systemd-analyze verify /home/rpa-test/repo/.venv-server/rpa-server.service
           BASH
+      - name: 通過紀錄（同一組輸入之後沿用這次的結果）
+        shell: bash
+        run: |
+          printf '{"job": "%s", "fingerprint": "%s", "sha": "%s", "run": "%s"}\n' \
+            "${{ matrix.job }}" "${{ matrix.fingerprint }}" "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            > "$RUNNER_TEMP/pass.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.record }}
+          path: ${{ runner.temp }}/pass.json
+          retention-days: 30
+          overwrite: true
 
   in-repo:
     name: 專案內執行（${{ matrix.os }}）
     needs: changes
-    if: needs.changes.outputs.mode != 'docs'
+    if: needs.changes.outputs.inrepo != '[]'
     runs-on: ${{ matrix.os }}
     env:
       # 腳本裡的 pytest 也寫一份 JUnit 報告；失敗時轉成註記，看得到是哪個測試、為什麼失敗。
@@ -161,7 +153,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # os、job、fingerprint、record（tools/ci_changes.py）
+        include: ${{ fromJSON(needs.changes.outputs.inrepo) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -235,6 +228,19 @@ jobs:
           if (-not $uv) { $uv = Join-Path $HOME '.local\bin\uv.exe' }
           if (Test-Path $uv) { & $uv run python tools/ci_annotations.py junit pytest-report.xml }
           exit 0
+
+      - name: 通過紀錄（同一組輸入之後沿用這次的結果）
+        shell: bash
+        run: |
+          printf '{"job": "%s", "fingerprint": "%s", "sha": "%s", "run": "%s"}\n' \
+            "${{ matrix.job }}" "${{ matrix.fingerprint }}" "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            > "$RUNNER_TEMP/pass.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.record }}
+          path: ${{ runner.temp }}/pass.json
+          retention-days: 30
+          overwrite: true
 
       - name: 保留 Portal 瀏覽器軌跡
         if: failure()

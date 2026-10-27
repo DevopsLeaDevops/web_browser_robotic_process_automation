@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-layered-ci · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-layered-ci：CI 依層建置（同一組輸入只驗證一次，外殼沒變不重新打包）</h1><p>把熱更新（ADR 0018）的「外殼／程式碼層」分層用在 GitHub Actions：重的工作依輸入指紋沿用通過的結果；桌面 App 外殼沒變時從快取取出、只換程式碼層測試；macOS 只在需要時排隊。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-layered-ci；2026-10-26 21:30 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 19:40 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：基於伺服器增量更新重新設計 Actions，避免非必要的全量執行與 macOS 排隊；先設計再寫程式。20:04 回覆五項照建議，要求寫進文檔（快速理解、怎麼使用）、PR 1 與 PR 2 一起寫，完成後給人工驗收方案。驗收：PR 的 CI 通過；發布 PR 不再跑桌面與安裝腳本；只改伺服器的 PR 不排 macOS；設定 <code>RPA_UPDATE_CI_KEY</code> 後程式碼層路徑能跑通；人工驗收見下方。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>tools/ci_changes.py</code>（輸入指紋、外殼鍵、通過紀錄）、新的 <code>tools/desktop_shell.py</code>（CI 金鑰、外殼快取、裝上程式碼層並確認）、<code>tools/build_desktop.py</code>（位置寫進 <code>$GITHUB_ENV</code>）、兩個端到端工具的 <code>--update</code>；<code>desktop.yml</code>、<code>server-package.yml</code>、<code>setup-scripts.yml</code>、<code>ci.yml</code>、<code>nightly.yml</code>；測試；<code>docs/develop/ci.html</code>（三語）、共用協作流程第 5 節、決定紀錄。不包含：發布流程（<code>release.yml</code> 照舊完整建置）、伺服器分發包的程式碼層路徑（Linux 已經夠快）、改測試本身。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱、合併、設定 Secret：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>如上。和 20261026-scheduled-update-tests（PR #93）不共用程式檔，兩個 PR 都改任務索引（各加一行）。Claude 整合。</dd>
+        <dt>狀態</dt><dd>實作中：本地完成，待推送（<code>[bootstrap]</code> 產生簡中）、開 PR 與 CI。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>ci/layered-ci</code>；PR 未建立；base main <code>066ded2</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 <code>066ded2</code>＋本分支的修改，尚未推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13.17）；連不到 PyPI：只有快取裡的 pytest 9.1.1、ruff 0.16.9（鎖定 0.17.1），工作區套件以原始碼路徑載入；沒有 Pyright、OpenCC，簡中由 bootstrap 產生，型別檢查交給 CI。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>設計摘要</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>現況（2026-10-20～27 的 ci-metrics）：</strong>桌面端建置 159 次（PR 125、main 34），macOS 657 分，約佔全部 macOS 機器時間的一半半多；main 的 34 次大多和 PR 已測的內容相同（macOS 178 分）。macOS 排隊中位數 0.1 分，但最長 6.9 分（桌面端）、20.6 分（一鍵安裝腳本），v0.6.3 的 PR #90 三次都排不到 macOS arm64 被取消。10-17 起 main 上 45 個會觸發桌面端建置的合併：18 個沒碰 App 會執行的程式、19 個只改程式碼層、8 個真的改了外殼。</li>
+        <li><strong>機制：</strong>輸入指紋（<code>GROUPS</code>）＋通過紀錄（產物 <code>pass-&lt;工作&gt;-&lt;指紋&gt;</code>，30 天，只認本倉庫的運行）；外殼鍵（<code>SHELL</code>）＋ <code>actions/cache</code>（DMG／zip、runtime.json、瀏覽器）。動態矩陣：不跑的項目不排隊。每晚的 macOS 程式碼層檢查與每週六的完整建置由 <code>nightly.yml</code> 呼叫 <code>desktop.yml</code>（被呼叫的流程不能要求 <code>issues: write</code>，失敗由 nightly 開 issue）。</li>
+        <li><strong>以歷史驗證規則：</strong>用 main 上最近的合併算指紋：v0.6.2、v0.6.3 的發布 PR 全部沿用；#90（錄製端調試）只跑錄製端、Windows Worker、伺服器與 CI 的 Windows；#88（改了 build_desktop）三個 App 的外殼鍵都變；#81（腳本）只跑伺服器、一鍵安裝腳本與 CI 的 Windows。</li>
+        <li>文檔：<a href="../../docs/develop/ci.html#layered">CI 與流水線 › 依層建置</a>、<a href="../../docs/develop/ci.html#ci-key">CI 的測試金鑰</a>。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>決定：</strong>見<a href="../decisions.html#decisions">決定紀錄</a> 2026-10-26 20:04（五項照建議，你明確決定）；共用協作流程第 5 節的沿用規則已擴大。</li>
+        <li><strong>實作選擇：</strong>Windows Worker 走寬的範圍（生產角色），macOS 兩個 App 走窄的範圍；指紋與外殼鍵都只在 <code>tools/ci_changes.py</code> 維護一份，workflow 不再用 <code>paths</code>；程式碼層路徑不重測退回（外殼行為）、不建安裝檔；快取存的是使用者下載的 DMG／zip，取出時和使用者安裝一樣；Secret 沒有時退回每次臨時金鑰、一律完整建置。</li>
+        <li><strong>未完成／阻礙：</strong>使用者確認或設定 <code>RPA_UPDATE_CI_KEY</code> 前，程式碼層路徑只能在單元測試裡驗證。</li>
+        <li><strong>下一個具體動作：</strong>推送（<code>[bootstrap]</code>）、開 PR、看 CI；Secret 設定後手動觸發 <code>desktop.yml</code>（先 full 存快取、再 auto 走程式碼層路徑）；照下方的人工驗收逐項記錄。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無；<code>.shell-cache/</code> 已加進 .gitignore（只在 CI 上產生）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="acceptance">
+      <div class="panel-header"><h2>人工驗收</h2></div>
+      <div class="panel-body"><ol>
+        <li>Secret：Settings › Secrets and variables › Actions 有 <code>RPA_UPDATE_CI_KEY</code>（沒有就照 <a href="../../docs/develop/ci.html#ci-key">文檔</a>產生並設定）。</li>
+        <li>本 PR 的運行：每個流程的「執行範圍」摘要有指紋表；桌面端建置的「測試更新檔用的金鑰」註記是固定金鑰（不是警告）。</li>
+        <li>手動觸發 <code>desktop.yml</code>（本分支，<code>build=full</code>）：三個 App 完整建置成功，「存進外殼快取」步驟執行。</li>
+        <li>再手動觸發 <code>build=auto</code>：三個 App 都是「程式碼層路徑」，摘要寫外殼來自哪一版；自我測試、視窗自我測試、端到端通過；macOS 工作的時間比完整建置短。</li>
+        <li>只改文件的推送：桌面端建置、伺服器分發包、一鍵安裝腳本的重工作都是「沿用」。</li>
+        <li>合併後：main 的推送沿用 PR 的結果（不再排 macOS）；下一個只改伺服器的 PR 不排 macOS；下一次發布 PR 只跑 CI 的 Linux。</li>
+        <li>當晚的每晚完整測試有「macOS 桌面 App（程式碼層）」兩個工作並通過；週六 22:47 UTC 之後有一次「桌面 App 每週完整建置」。</li>
+      </ol></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>066ded2＋本分支；Linux、Python 3.13.17、pytest 9.1.1</td><td><code>pytest tests/ci</code></td><td>全部通過（新的 <code>test_ci_changes.py</code> 30 項、<code>test_desktop_shell.py</code> 9 項）</td><td>Windows、macOS；真的 PyInstaller 與 DMG</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/docs tests/i18n</code></td><td>350 passed；2 failed：簡中還沒產生（沒有 OpenCC），交給 bootstrap</td><td>簡中</td></tr>
+          <tr><td>同上；ruff 0.16.9</td><td><code>ruff check</code>、<code>ruff format --check</code>（tools、tests/ci）</td><td>通過</td><td>Pyright 與鎖定版本的 ruff 交給 CI</td></tr>
+          <tr><td>同上</td><td>以 main 的歷史重算指紋（v0.6.2、v0.6.3、#81、#86、#88、#90）</td><td>結果見設計摘要</td><td>PR 上多次推送的情況要等 CI</td></tr>
+          <tr><td>同上</td><td>七個 workflow 用 PyYAML 載入</td><td>語法正確</td><td>GitHub 的表達式與權限檢查要等 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 21:30 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>066ded2</code> 開分支，實作、測試、寫文檔並建立本紀錄。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
