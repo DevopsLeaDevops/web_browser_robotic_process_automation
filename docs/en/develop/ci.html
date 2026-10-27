@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:d35b44ba7887dd18">
+<meta name="translation-source" content="sha256:3ce27f87d0b65f44">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,11 +15,72 @@
   <div class="heading">
     <div>
       <h1>CI &amp; pipelines</h1>
-      <p>When GitHub Actions runs, which tests it runs and roughly how long it takes; how to trigger runs by hand, and where to look up the duration of past runs. Regular PRs only test each system in its production role; every other combination is left to the full run early every morning.</p>
+      <p>When GitHub Actions runs, which tests it runs and roughly how long it takes; how to trigger runs by hand, and where to look up the duration of past runs. Regular PRs only test each system in its production role; every other combination is left to the full run early every morning. The same inputs are verified only once, and desktop apps whose shell did not change are not repackaged.</p>
     </div>
   </div>
 
   <div class="stack">
+    <section class="panel" id="layered">
+      <div class="panel-header"><h2>Layered builds: verify the same inputs only once</h2><span class="badge blue">Since 2026-10-27</span></div>
+      <div class="panel-body prose">
+        <p><a href="../adr/0018-layered-updates.html">ADR 0018</a> splits every package into a <strong>shell</strong> (Python, third-party packages, everything PyInstaller bundles, and <code>rpa_update</code>) and a <strong>code layer</strong> (the seven workspace packages). CI follows the same split:</p>
+        <ul class="points">
+          <li><strong>Inputs that already passed are not run again.</strong> Each heavy job (the three desktop apps, the server packages, the setup scripts and the Windows worker tests in CI) has its own list of inputs; their content becomes an input fingerprint. When the same fingerprint has already passed in this repository, the job is skipped and reuses that result. A PR that only touches the server does not touch macOS, and a merge to main whose content matches what the PR tested does not run again.</li>
+          <li><strong>Version numbers are not changes.</strong> The <code>version</code> in <code>pyproject.toml</code> files and the workspace package versions in <code>uv.lock</code> are left out of the fingerprint, so a release PR that only bumps versions no longer rebuilds three apps, four setup-script runs and the Windows tests.</li>
+          <li><strong>An unchanged shell is not repackaged.</strong> When a desktop app has to run, its shell key is checked first. If the shell matches the cache, the DMG or zip built last time is taken from the cache, an update file is built from this commit's code and installed, and then the tests run (the code-layer path). That is exactly how devices upgrade in the field: an old shell with new code. Only a changed shell triggers a full build.</li>
+          <li><strong>macOS queues only when needed.</strong> The recorder (macOS) runs only when recording, step debugging, the local gateway, macOS-only code or the shell changes; the worker (macOS) only when the shell or its macOS parts change. Other code changes are covered by the nightly macOS code-layer check, visible by the next day at the latest, and every release is a full build.</li>
+        </ul>
+      </div>
+      <pre class="source">Push / PR → scope job (Linux, seconds; tools/ci_changes.py): one input fingerprint per heavy job
+  ├─ the fingerprint already has a pass record → skip, the annotation names the reused run (no macOS queue)
+  └─ needs to run → a desktop app then checks whether its shell key is in the cache
+        ├─ yes → code-layer path: take the cached DMG / zip → build and install this commit's update file
+        │        → self-test, window self-test, end-to-end (no PyInstaller, no browser download)
+        └─ no  → full build (PyInstaller, DMG, installer, upgrade and rollback) → saved to the cache when it passes
+Releases (v* tags) and the Saturday full build: always a full build, nothing reused</pre>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt>Input fingerprint</dt><dd>The first 16 hex characters of the SHA-256 of a job's input files (paths and content) plus the job name. The lists are <code>GROUPS</code> in <code>tools/ci_changes.py</code>; every job includes the dependencies (without version numbers), its own workflow file and <code>tools/ci_changes.py</code> itself.</dd>
+          <dt>Pass record</dt><dd>A tiny artifact <code>pass-&lt;job&gt;-&lt;fingerprint&gt;</code> uploaded when a job succeeds, kept for 30 days. Only runs of this repository count; a PR from a fork cannot claim a pass for anyone else.</dd>
+          <dt>Shell key</dt><dd>A hash of the shell's inputs (dependencies, <code>.python-version</code>, <code>packages/rpa_update/src</code>, <code>apps/desktop/packaging</code>, <code>tools/build_desktop.py</code>) and the target. The cache key is <code>desktop-shell-v1-&lt;target&gt;-&lt;shell key&gt;-&lt;CI key ID&gt;</code>; it holds the DMG or zip, <code>runtime.json</code> and the downloaded browsers.</dd>
+          <dt>Code-layer path</dt><dd>Take the app from the cache (<code>tools/desktop_shell.py restore</code>), build an update file from this commit (<code>tools/build_update.py</code>, signed with the CI key) and install it into the app's folder; the self-test, window self-test and end-to-end tests all use that layer, and afterwards the layer must be confirmed and not rolled back. No installer is built and no trial package is uploaded.</dd>
+          <dt>Full-build path</dt><dd>All the original steps, including the "next commit" update and automatic rollback. When it passes, the DMG or zip is saved to the cache (not for version tags).</dd>
+        </dl>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Job</th><th>Runs when these change (plus dependencies, the workflow and <code>ci_changes.py</code>)</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>RPA Recorder (macOS)</td><td>The shell; recorder code (<code>recorder_*</code>, local gateway, interactive subprocess, pairing, <code>debug.py</code>, <code>record.py</code>, <code>commands.py</code>); code shared by both apps with per-OS branches (entry point, self-test, updates, browser download, keychain); <code>macos.py</code>; the Client API and device update endpoints; the test site and examples; end-to-end tests</td><td>Narrow scope (decided 2026-10-27): other code changes are covered by the Linux <code>role_recorder</code> tests, the Windows code-layer tests and the nightly macOS check</td></tr>
+            <tr><td>RPA Worker (Windows)</td><td>The shell; all code it runs (the sources of <code>rpa_core</code>, <code>rpa_runner</code>, <code>rpa_worker</code>, <code>rpa_desktop</code>, the test site); the Worker API, Client API, device management and update endpoints; examples; the unit tests run before the build</td><td>Production role: runs whenever its code changes (mostly on the code-layer path)</td></tr>
+            <tr><td>RPA Worker (macOS)</td><td>The shell; menu bar, LaunchAgent, keychain and window (<code>macos.py</code>, <code>autostart.py</code>, <code>credentials.py</code>, <code>gui.py</code>); the unit tests run before the build</td><td>Not a production role; the nightly macOS check runs it too</td></tr>
+            <tr><td>Server packages (x64, arm64)</td><td>The previous paths: sources of the server, command line, worker, test site and packages; examples; build tools</td><td>Linux, about 2 min</td></tr>
+            <tr><td>Setup scripts (Rocky 8 in two modes, in-repo on three systems)</td><td>The previous paths: scripts, dependencies, Python version, related tools and tests</td><td>The scheduled run still covers everything</td></tr>
+            <tr><td>Worker tests in CI (Windows)</td><td>The previous worker paths (<code>packages/</code>, <code>apps/worker</code>, <code>apps/cli</code>, <code>apps/testsite</code>, <code>apps/desktop</code>, <code>scenarios/</code> and so on)</td><td>The Linux tests in CI still run every time</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body prose">
+        <h3>When everything runs and nothing is reused</h3>
+        <p>Scheduled runs (nightly tests, setup scripts, the Saturday desktop full build), manual runs and version tags. They still leave pass records, since the full scope covers the regular one. When a pass record expires (30 days) or is deleted by "清理產物" (clean up artifacts), the same inputs are verified once more.</p>
+        <h3>How to use it</h3>
+        <ul class="points">
+          <li><strong>See what ran:</strong> the scope job of every workflow writes a table to the run summary with each job's fingerprint, shell key, and whether it ran or which run it reused (linked); the same goes into annotations. The summary of each desktop app starts with "程式碼層路徑" (code-layer path) or "完整建置" (full build) and which version the shell came from.</li>
+          <li><strong>Need trial packages (DMG, installer):</strong> the code-layer path builds no new packages. A manual desktop build is a full build by default: <code>gh workflow run desktop.yml --ref branch -f build=full</code>; add <code>-f targets=recorder-macos-arm64</code> for a single app.</li>
+          <li><strong>Verify again instead of reusing:</strong> run that workflow by hand (manual runs never reuse).</li>
+          <li><strong>Changed the build steps in <code>desktop.yml</code>:</strong> add 1 to <code>SHELL_EPOCH</code> in <code>tools/ci_changes.py</code> so every cached shell is rebuilt once. When the fingerprint algorithm or the way inputs are written changes, add 1 to <code>EPOCH</code> to invalidate all pass records.</li>
+          <li><strong>New files:</strong> files under a registered folder are included automatically. A new macOS-only module goes into <code>RECORDER</code> or <code>WORKER_MACOS</code>; <code>tests/ci/test_ci_changes.py</code> checks that every pattern still matches a file (a rename cannot silently drop it) and that all desktop app sources are inputs of the Windows worker.</li>
+          <li><strong>Fingerprints locally:</strong> <code>python3 tools/ci_changes.py --workflow desktop.yml --show</code> (also <code>server-package.yml</code>, <code>setup-scripts.yml</code>, <code>ci.yml</code>).</li>
+        </ul>
+        <h3>When the code-layer path fails</h3>
+        <ul class="points">
+          <li><strong>"裝不上更新檔" (cannot install the update file):</strong> the signature or runtime ID does not match. Check that the "測試更新檔用的金鑰" step used <code>RPA_UPDATE_CI_KEY</code>, and the target in <code>runtime.json</code>.</li>
+          <li><strong>"提交不是…" (wrong commit) or "active.json 用的是內建的程式" (the built-in code was used):</strong> the launcher did not use the layer; read <code>app/boot.log</code> in the app's folder.</li>
+          <li><strong>New code cannot import some third-party module:</strong> this is exactly what devices would hit after the upgrade; the shell does not bundle that module. Add it to a list such as <code>FULL_PACKAGES</code> in <code>apps/desktop/packaging/rpa_desktop.spec</code>: the shell key changes, this run is a full build, and that release needs the full installers.</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="roles">
       <div class="panel-header"><h2>Tests assigned by role</h2></div>
       <div class="panel-body prose">
@@ -30,8 +91,8 @@
           <thead><tr><th>System</th><th>Production role</th><th>Runs on PRs and merges to main</th><th>Only in the full run</th></tr></thead>
           <tbody>
             <tr><td>Linux</td><td>Website (management portal)</td><td>Static checks; every test that needs no browser; browser and smoke tests of the website and the recorder protocol, Chromium only (CI, 4 parallel processes)</td><td>Firefox combinations; worker browser tests</td></tr>
-            <tr><td>Windows</td><td>Worker</td><td>Worker browser tests (runs, sign-in, Firefox templates, claiming jobs) and smoke tests in both browsers; packaging, installing and end-to-end tests of the worker app</td><td>Website and recorder browser tests</td></tr>
-            <tr><td>macOS</td><td>Recorder</td><td>Packaging and end-to-end tests of the recorder app (pairing, local gateway, step debugging)</td><td>All of pytest</td></tr>
+            <tr><td>Windows</td><td>Worker</td><td>Worker browser tests (runs, sign-in, Firefox templates, claiming jobs) and smoke tests in both browsers; end-to-end tests of the worker app (only the code layer changes when the shell did not, see <a href="#layered">layered builds</a>)</td><td>Website and recorder browser tests</td></tr>
+            <tr><td>macOS</td><td>Recorder</td><td>End-to-end tests of the recorder app (pairing, local gateway, step debugging): only when recording, debugging, gateway, macOS-only code or the shell changes</td><td>All of pytest; the nightly macOS code-layer check</td></tr>
           </tbody>
         </table>
       </div>
@@ -46,24 +107,27 @@
         <table class="wrap">
           <thead><tr><th>Trigger</th><th>Workflows</th><th>Roughly</th></tr></thead>
           <tbody>
-            <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the Windows worker tests when the PR touches worker paths; the desktop builds when it touches <code>apps/</code> or <code>packages/</code>; the server packages when it touches packages the server uses or dependencies (x64 and arm64 builds, installed, started and upgraded in a Rocky 8 container); the setup scripts when it touches scripts or dependencies (the scripts and smoke tests only)</td><td>About 4 min (the desktop builds are the floor); about 2.5 min when the desktop builds do not run</td></tr>
+            <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the other heavy jobs only when their input fingerprint has not passed yet (<a href="#layered">layered builds</a>): the Windows worker tests, the three desktop apps (only the code layer when the shell did not change), the server packages (x64 and arm64 builds, installed, started and upgraded in a Rocky 8 container), the setup scripts (the scripts and smoke tests only)</td><td>About 2.5–3 min (CI is the floor); about 4 min when a desktop app is built</td></tr>
             <tr><td>Pushes that only change <code>handoff/</code> or <code>docs/</code></td><td>See <a href="#docs-only">the next section</a></td><td>About 1 min</td></tr>
             <tr><td>Version tag <code>v*</code></td><td>Release: check the version, build the desktop apps and server bundles, build and sign the update file (<a href="#update-key">key</a>), draft release</td><td>About 4 min</td></tr>
             <tr><td>Daily 20:17 UTC</td><td>Nightly full tests: all tests on three systems, both browsers, Python 3.12 and 3.13, with the browser tests run three times</td><td>About 30 min</td></tr>
+            <tr><td>Daily 20:17 UTC (same run)</td><td>macOS code-layer check: the nightly workflow calls the desktop build, and both macOS apps take the code-layer path (a full build when the shell is not cached)</td><td>About 3 min</td></tr>
             <tr><td>Daily 20:47 UTC</td><td>Full setup-script run: all tests in the in-repo run, plus from scratch</td><td>About 15 min</td></tr>
+            <tr><td>Saturdays 22:47 UTC</td><td>Weekly desktop full build: all three apps built in full (no cache, nothing reused) to catch changes in GitHub's images; run by the nightly workflow, so a failure goes to the same issue</td><td>About 5 min</td></tr>
             <tr><td>Sundays 22:17 UTC</td><td>Python dependency update: opens a PR and triggers CI when there are updates</td><td>Under 1 min, plus CI</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body prose">
-        <p>The schedules sit in the quietest hours of the repository: 20:17 UTC is 13:17 PDT (UTC−07:00) / 12:17 PST (UTC−08:00) in America/Los_Angeles, 04:17 in Singapore. A failed scheduled run opens (or updates) an issue labeled <code>ci-schedule</code>. Path filters on PRs look at the whole PR; a new push to the same branch cancels the older run. Dependency-update PRs are opened by GitHub Actions and only trigger CI automatically; the other workflows run once someone pushes to that branch. The Linux tests and the Windows worker tests in CI each run for at most 30 minutes, so a stuck run fails instead of running on (since 2026-10-21; before that there was no limit and a stuck run on Windows kept going until GitHub's 6-hour cap).</p>
+        <p>The schedules sit in the quietest hours of the repository: 20:17 UTC is 13:17 PDT (UTC−07:00) / 12:17 PST (UTC−08:00) in America/Los_Angeles, 04:17 in Singapore. A failed scheduled run opens (or updates) an issue labeled <code>ci-schedule</code>. PRs are compared by their merged content (GitHub tests the PR merged into main); a new push to the same branch cancels the older run. Dependency-update PRs are opened by GitHub Actions and only trigger CI automatically; the other workflows run once someone pushes to that branch. The Linux tests and the Windows worker tests in CI each run for at most 30 minutes, so a stuck run fails instead of running on (since 2026-10-21; before that there was no limit and a stuck run on Windows kept going until GitHub's 6-hour cap).</p>
       </div>
     </section>
 
     <section class="panel" id="docs-only">
       <div class="panel-header"><h2>Pushes that only change docs</h2></div>
       <div class="panel-body prose">
-        <p>The first job of every workflow, “執行範圍” (scope, <code>tools/ci_changes.py</code>), compares this push with the previous one. When only <code>handoff/</code>, <code>docs/</code> or <code>*.md</code> changed and the previous push already passed in the same workflow, the code is identical: the heavy jobs are skipped and reuse that result, and an annotation says which run. CI still runs the static checks and the tests that need no browser (including the docs and translation checks). If the previous run failed, was cancelled or has not finished, everything runs as usual. The collaboration rule is in section 5 of the shared collaboration workflow.</p>
+        <p>The Linux tests in CI: the first job of every workflow, “執行範圍” (scope, <code>tools/ci_changes.py</code>), compares this push with the previous one. When only <code>handoff/</code>, <code>docs/</code> or <code>*.md</code> changed and the previous push already passed in the same workflow, only the static checks and the tests that need no browser run (including the docs and translation checks); the browser tests reuse that result, and an annotation says which run. If the previous run failed, was cancelled or has not finished, everything runs as usual.</p>
+        <p>The other heavy jobs need no special case: docs are not inputs of any of them, so their fingerprints stay the same and the result is reused (<a href="#layered">layered builds</a>). The collaboration rule is in section 5 of the shared collaboration workflow.</p>
       </div>
     </section>
 
@@ -80,8 +144,10 @@ gh workflow run nightly.yml --ref branch-name -f systems=windows -f extra=0
 gh workflow run ci.yml --ref branch-name -f scope=full
 # Setup scripts: full (default) = all tests plus from scratch; role = same as PRs
 gh workflow run setup-scripts.yml --ref branch-name
-# Desktop builds
+# Desktop builds: manual runs always run; a full build by default (with trial packages)
 gh workflow run desktop.yml --ref branch-name
+# Recorder only, only the code layer when the shell is cached (no trial packages)
+gh workflow run desktop.yml --ref branch-name -f targets=recorder-macos-arm64 -f build=auto
 # Server packages (Linux x64, arm64)
 gh workflow run server-package.yml --ref branch-name</pre>
       <div class="panel-body prose">
@@ -93,7 +159,8 @@ gh workflow run server-package.yml --ref branch-name</pre>
       <div class="panel-header"><h2>Artifacts and storage quota</h2></div>
       <div class="panel-body prose">
         <p>The repository has been private since 2026-10-22, so Actions artifacts count toward the account plan's storage quota. Once the quota is used up, artifact uploads fail and a release cannot create its draft (this is what happened to v0.5.0). Desktop builds and server packages therefore keep their artifacts for 3 days on PRs and main and for 1 day on releases, and the release workflow deletes its run's artifacts after creating the draft. Test reports and Portal traces are only for diagnosis, so a failed upload does not fail the job.</p>
-        <p>To free the quota in one go, run "清理產物" (<code>cleanup-artifacts.yml</code>) by hand. By default it only lists the artifacts, with counts and sizes by name in the summary; after checking, run it again with "只列出、不刪" (list only) unticked. Deleting cannot be undone; the files of published versions live on Releases and are not affected. The quota goes down only after GitHub recalculates the usage.</p>
+        <p>Layered builds leave two more things behind: pass records (<code>pass-*</code> artifacts, under 1 KB each, kept for 30 days) and the shell cache (the Actions cache, which does not count toward the artifact quota; up to 10 GB per repository, evicted after 7 days without use, and saved again by the next full build).</p>
+        <p>To free the quota in one go, run "清理產物" (<code>cleanup-artifacts.yml</code>) by hand. By default it only lists the artifacts, with counts and sizes by name in the summary; after checking, run it again with "只列出、不刪" (list only) unticked. Deleting cannot be undone; the files of published versions live on Releases and are not affected, and deleting <code>pass-*</code> only means those inputs are verified once more. The quota goes down only after GitHub recalculates the usage.</p>
       </div>
       <pre class="source"># List all artifacts only
 gh workflow run cleanup-artifacts.yml
@@ -104,7 +171,7 @@ gh workflow run cleanup-artifacts.yml -f older-than-days=3 -f dry-run=false</pre
     <section class="panel" id="update-key">
       <div class="panel-header"><h2>Update signing key</h2><span class="muted"><a href="../adr/0018-layered-updates.html">ADR 0018</a></span></div>
       <div class="panel-body prose">
-        <p>The <code>RPA-Update-&lt;version&gt;.zip</code> built by a release is signed with an Ed25519 private key; the server, devices and the desktop launcher verify it with the public key inside their package and refuse it when verification fails. The private key lives only in the GitHub secret <code>RPA_UPDATE_SIGNING_KEY</code>: never in the repository, a chat or an issue. The public key is listed in <code>RELEASE_KEYS</code> in <code>packages/rpa_update/src/rpa_update/keys.py</code> and ships with the full packages. When <code>RELEASE_KEYS</code> is empty, the secret is missing, or the two do not match, the release workflow fails instead of publishing a version devices cannot verify. Builds on pull requests and main test with a temporary key every time and never touch the real one.</p>
+        <p>The <code>RPA-Update-&lt;version&gt;.zip</code> built by a release is signed with an Ed25519 private key; the server, devices and the desktop launcher verify it with the public key inside their package and refuse it when verification fails. The private key lives only in the GitHub secret <code>RPA_UPDATE_SIGNING_KEY</code>: never in the repository, a chat or an issue. The public key is listed in <code>RELEASE_KEYS</code> in <code>packages/rpa_update/src/rpa_update/keys.py</code> and ships with the full packages. When <code>RELEASE_KEYS</code> is empty, the secret is missing, or the two do not match, the release workflow fails instead of publishing a version devices cannot verify. Builds on pull requests and main use the CI test key (<a href="#ci-key">below</a>) and never touch the real one.</p>
         <h3>Creating the key</h3>
         <ol>
           <li>On a computer with OpenSSL 1.1.1 or later, create the private key and print the public key (one line of base64). Check with <code>openssl version</code>: OpenSSL 1.0.2 on CentOS 7 and the LibreSSL built into macOS have no Ed25519 and print <code>Algorithm ed25519 not found</code>; use another computer or the project tool below.</li>
@@ -121,6 +188,16 @@ openssl pkey -in rpa-update-signing.pem -pubout -outform DER | tail -c 32 | base
         <p>The project's own tool works too: <code>uv run python -m rpa_update.build keygen --private rpa-update-signing.pem</code> prints the public key, and the file has the same format as OpenSSL's.</p>
         <h3>Rotating the key</h3>
         <p>Add the new public key to <code>RELEASE_KEYS</code> (keep the old one) and publish a full release; once the server and devices run that release, replace the secret with the new private key, and finally remove the old public key. Changing <code>RELEASE_KEYS</code> changes the runtime ID, so both releases are installed from full packages.</p>
+        <h3 id="ci-key">CI test key (<code>RPA_UPDATE_CI_KEY</code>)</h3>
+        <p>A separate Ed25519 private key used only for testing in CI. Desktop apps built on PRs, main and schedules (trial packages) trust it; release packages do not (the release workflow's <code>--release</code> check makes sure). The <a href="#layered">code-layer path</a> needs it: a cached shell was built earlier, so the key it trusts must still be available in later runs to sign an update file it accepts. Without this secret, the desktop build falls back to a new temporary key every time and always builds in full, and the "測試更新檔用的金鑰" (test update key) step leaves a warning. PRs from forks and Dependabot get no secrets and behave the same way.</p>
+        <p><strong>Check whether it is set:</strong> in the repository's Settings › Secrets and variables › Actions, look for <code>RPA_UPDATE_CI_KEY</code> in the Repository secrets list (only the name and update time are shown, never the value), or run <code>gh secret list</code> on a computer with access. After setting it, run a desktop build: an annotation “測試更新檔的金鑰 &lt;ID&gt;（RPA_UPDATE_CI_KEY）” on that step means it was read.</p>
+        <p><strong>Create and set it</strong> (different from the release key, never shared; the public key does not go into the repository):</p>
+      </div>
+      <pre class="source">uv run python -m rpa_update.build keygen --private rpa-update-ci.pem
+gh secret set RPA_UPDATE_CI_KEY &lt; rpa-update-ci.pem   # or paste it under New repository secret
+rm rpa-update-ci.pem</pre>
+      <div class="panel-body prose">
+        <p>Rotating this key needs no coordination: after the secret changes, the key ID in the cache key differs, so the first build is a full one and saves a new cache entry. A leak only affects CI trial packages (whoever has the key can sign update files they accept); release packages are not affected. Create a new key and replace the secret.</p>
       </div>
     </section>
 

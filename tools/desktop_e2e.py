@@ -31,6 +31,9 @@ CI 的桌面端建置在 Windows（macOS 版 2026-10-22 起也一樣，不含安
 
 安裝檔與解除安裝的日誌（Inno Setup 的 ``/LOG``）在失敗時附在那一步的輸出。
 
+給了 ``--update``（依層建置的程式碼層路徑，docs/develop/ci.html#layered）時，第 3 步之前先把這次的
+更新檔裝進打包版的資料夾，``rpa-child --version`` 要換成更新檔的提交；之後配對、執行的都是這一層。
+
 6. 結束兩個程序（打包版先用資料夾的 ``stop.request`` 請它自己結束：視窗程式收不到 Ctrl+C），
    印出 JSON 摘要（``--report`` 另外寫檔，格式和自我測試相同，
    可以用 ``tools/ci_annotations.py self-test`` 轉成 annotations）。全部通過才回傳 0。
@@ -46,7 +49,8 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+import zipfile
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import IO, Final, cast
 
@@ -70,6 +74,36 @@ POPUP_STATUS: Final = "已儲存：455590002"
 
 class StepFailedError(Exception):
     pass
+
+
+def install_update(app: Path, update: Path, env: Mapping[str, str]) -> JsonObject:
+    """把更新檔（程式碼層）裝進打包版的資料夾（``env`` 指定），回傳之後的建置資訊。
+
+    依層建置的程式碼層路徑用（docs/develop/ci.html#layered）：外殼來自快取，程式是這一次的。
+    裝好之後 ``rpa-child --version`` 的提交要換成更新檔的提交，否則啟動器沒有用這一層。
+    """
+    child = app.with_name("rpa-child" + app.suffix)
+    with zipfile.ZipFile(update) as archive:
+        manifest = cast("JsonObject", json.loads(archive.read("manifest.json")))
+    done = subprocess.run(
+        [str(child), "--install-update", str(update)],
+        env=dict(env),
+        capture_output=True,
+        timeout=300,
+        check=False,
+    )
+    if done.returncode != 0:
+        output = (done.stdout + done.stderr).decode("utf-8", errors="replace")
+        raise StepFailedError(f"裝不上更新檔（結束碼 {done.returncode}）：{output}")
+    printed = subprocess.run(
+        [str(child), "--version"], env=dict(env), capture_output=True, timeout=300, check=True
+    )
+    info = cast("JsonObject", json.loads(printed.stdout))
+    if info.get("commit") != manifest.get("commit"):
+        raise StepFailedError(
+            f"裝好之後的提交是 {info.get('commit')}，更新檔是 {manifest.get('commit')}"
+        )
+    return info
 
 
 def free_port() -> int:
@@ -227,7 +261,9 @@ def _start_menu_shortcut() -> Path:
     )
 
 
-def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
+def run(
+    app: Path, folder: Path, installer: Path | None = None, update: Path | None = None
+) -> JsonObject:
     steps: list[JsonObject] = []
     portal_port, external_port = free_port(), free_port()
     base = f"http://127.0.0.1:{portal_port}"
@@ -272,8 +308,11 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
     def build_info() -> JsonObject:
         """建置資訊：同資料夾的 rpa-child --version（主控台程式，同一份建置）。"""
         if not built:
+            # 用這次的資料夾：裝了更新檔時，版本與程式指紋是那一層的
             child = app.with_name("rpa-child" + app.suffix)
-            printed = subprocess.run([str(child), "--version"], capture_output=True, check=True)
+            printed = subprocess.run(
+                [str(child), "--version"], env=env, capture_output=True, check=True
+            )
             built.update(cast("JsonObject", json.loads(printed.stdout)))
         return built
 
@@ -436,6 +475,11 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
         state["storage"] = storage
         return f"{record.get('os')}；瀏覽器 {record.get('browsers')}；權杖存在{storage}"
 
+    def apply_update() -> str:
+        assert update is not None
+        info = install_update(app, update, env)
+        return f"程式碼層 {info.get('version')}-{info.get('commit')}（外殼來自快取）"
+
     def ba_001() -> str:
         result = _validate(api, "ba-001", {})
         output = cast("JsonObject", result.get("output") or {})
@@ -470,6 +514,8 @@ def run(app: Path, folder: Path, installer: Path | None = None) -> JsonObject:
     plan: list[tuple[str, Callable[[], str]]] = [("portal", start_portal), ("invite", invite)]
     if installer is not None:
         plan.append(("install", install))
+    if update is not None:
+        plan.append(("update", apply_update))
     plan += [("pair", start_worker), ("ba-001", ba_001), ("ba-002", ba_002)]
     plan += [("iframe", iframe), ("popup", popup)]
     if installer is not None:
@@ -491,12 +537,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="打包版 RPA Worker 的端到端測試")
     parser.add_argument("app", type=Path)
     parser.add_argument("--installer", type=Path, help="先安裝、最後升級與解除安裝（Windows）")
+    parser.add_argument("--update", type=Path, help="先裝上這個更新檔（程式碼層路徑）")
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     installer = cast("Path | None", args.installer)
+    update = cast("Path | None", args.update)
     # Windows 上剛結束的程序可能還鎖著檔案：清不掉暫存資料夾不影響結果
     with tempfile.TemporaryDirectory(prefix="rpa-e2e-", ignore_cleanup_errors=True) as folder:
-        summary = run(args.app.resolve(), Path(folder), installer.resolve() if installer else None)
+        summary = run(
+            args.app.resolve(),
+            Path(folder),
+            installer.resolve() if installer else None,
+            update.resolve() if update else None,
+        )
     text = json.dumps(summary, ensure_ascii=False, indent=2)
     if args.report is not None:
         args.report.parent.mkdir(parents=True, exist_ok=True)

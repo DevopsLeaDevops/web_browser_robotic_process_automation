@@ -400,6 +400,11 @@ def main(argv: list[str] | None = None) -> int:
     if output:
         with Path(output).open("a", encoding="utf-8") as stream:
             stream.writelines(f"{key}={value}\n" for key, value in lines.items())
+    # 之後的步驟用 $APP_CHILD 之類：快取取出的 App（tools/desktop_shell.py restore）寫同樣的名稱
+    environment = os.environ.get("GITHUB_ENV")
+    if environment:
+        with Path(environment).open("a", encoding="utf-8") as stream:
+            stream.writelines(f"APP_{key.upper()}={value}\n" for key, value in lines.items())
     return 0
 
 
