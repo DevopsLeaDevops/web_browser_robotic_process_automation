@@ -201,7 +201,10 @@ jobs:
       - name: 程式碼層路徑：用這次的程式建更新檔，裝進 App 的資料夾
         if: steps.path.outputs.path == 'layer'
         run: |
-          uv run python -m tools.build_update --runtime-file "$APP_RUNTIME_FILE" --key "$UPDATE_KEY"
+          # 提交用完整的 40 字：和快取外殼內建的程式（7 字）一定不同。版本相同時啟動器會改回
+          # 內建的程式（ADR 0018），同一個提交重跑時就測不到程式碼層
+          uv run python -m tools.build_update --runtime-file "$APP_RUNTIME_FILE" --key "$UPDATE_KEY" \
+            --commit "$(git rev-parse HEAD)"
           update="$(ls dist/update/RPA-Update-*.zip)"
           echo "UPDATE_ZIP=$update" >> "$GITHUB_ENV"
           # 預設的資料夾（和雙擊 App 一樣）：自我測試與 macOS 的視窗自我測試都用它

@@ -176,3 +176,15 @@ def test_home_env_points_the_app_at_the_folder(
     monkeypatch.setenv("RPA_WORKER_HOME", "/somewhere")
     assert desktop_shell.home_env("worker", tmp_path)["RPA_WORKER_HOME"] == str(tmp_path)
     assert "RPA_WORKER_HOME" not in desktop_shell.home_env("worker", None)
+
+
+def test_layer_refuses_an_update_identical_to_the_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """更新檔就是外殼內建的那一版時，啟動器改回內建的程式：要先擋下，否則測的不是程式碼層。"""
+    update = make_update(tmp_path, commit="aaaaaaa")
+    monkeypatch.setenv("UPDATE_ZIP", str(update))
+    monkeypatch.setenv("SHELL_RELEASE", "0.6.3-aaaaaaa")
+    monkeypatch.setenv("APP_CHILD", str(tmp_path / "rpa-child"))
+    with pytest.raises(SystemExit, match="測不到程式碼層"):
+        desktop_shell.main(["layer", "worker", "--home", str(tmp_path / "home")])

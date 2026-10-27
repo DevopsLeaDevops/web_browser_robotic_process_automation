@@ -307,6 +307,12 @@ def _update() -> Path:
 def layer_command(args: argparse.Namespace) -> int:
     app = cast("App", args.app)
     home = Path(args.home) if args.home else None
+    release = manifest_of(_update()).release
+    if release == os.environ.get("SHELL_RELEASE"):
+        raise SystemExit(
+            f"更新檔和快取外殼內建的程式都是 {release}：啟動器會改回內建的程式，測不到程式碼層。"
+            "建更新檔時用完整的提交（tools/build_update.py --commit）"
+        )
     info = install(app, _update(), Path(os.environ["APP_CHILD"]), home)
     where = home or app_home(app, home_env(app, None))
     print(f"裝好了：{info.get('version')} {info.get('commit')}（{where}）")
