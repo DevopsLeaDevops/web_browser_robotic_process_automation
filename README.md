@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-26 21:09 America/Los_Angeles（PDT，UTC−07:00）。共 553 次運行。
+更新：2026-10-26 21:09 America/Los_Angeles（PDT，UTC−07:00）。共 554 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -13,14 +13,14 @@
 | 桌面端建置 | 167（0） | 126（0） | 4.1 分（0.0 分） | 7.1 分（0.0 分） | 0.1 分（0.0 分） | 17／520／715 分（0／0／0 分） |
 | 伺服器分發包 | 58（0） | 53（0） | 2.0 分（0.0 分） | 5.4 分（0.0 分） | 0.1 分（0.0 分） | 235／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 72（0） | 45（0） | 3.3 分（0.0 分） | 17.1 分（0.0 分） | 0.1 分（0.0 分） | 449／316／195 分（0／0／0 分） |
-| 每晚完整測試 | 12（0） | 0（0） | 47.2 分（0.0 分） | 60.2 分（0.0 分） | 0.0 分（0.0 分） | 478／488／328 分（0／0／0 分） |
+| 每晚完整測試 | 13（0） | 0（0） | 47.2 分（0.0 分） | 60.2 分（0.0 分） | 0.0 分（0.0 分） | 513／506／346 分（0／0／0 分） |
 | 發布 | 15（0） | 7（0） | 11.9 分（0.0 分） | 15.2 分（0.0 分） | 0.1 分（0.0 分） | 92／66／63 分（0／0／0 分） |
 
 ## 每天的機器時間（分鐘，洛杉磯日期，最近 14 天）
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-26 | 92 | 523 | 363 | 316 | 1202 |
+| 2026-10-26 | 93 | 558 | 381 | 334 | 1273 |
 | 2026-10-25 | 95 | 520 | 335 | 357 | 1212 |
 | 2026-10-24 | 11 | 142 | 132 | 130 | 405 |
 | 2026-10-23 | 33 | 204 | 123 | 115 | 441 |
@@ -134,37 +134,37 @@
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.12/pass-1.xml
 
-最近一次：2026-10-26 13:52 America/Los_Angeles（PDT，UTC−07:00），合計 823 秒。
+最近一次：2026-10-26 20:51 America/Los_Angeles（PDT，UTC−07:00），合計 958 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 93.8（68.2） | 14 | `apps/server/tests/test_portal.py` |
-| 76.4（67.6） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 65.8（62.2） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 65.2（60.6） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 62.0（51.5） | 16 | `packages/rpa_runner/tests/test_debug.py` |
-| 43.8（40.7） | 9 | `apps/server/tests/test_production_flow.py` |
-| 43.7（38.7） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 39.0（37.4） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 34.5（32.6） | 4 | `apps/server/tests/test_replay_flow.py` |
-| 19.6（12.2） | 18 | `apps/cli/tests/test_serve.py` |
+| 111.5（68.2） | 14 | `apps/server/tests/test_portal.py` |
+| 81.5（74.2） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 79.3（62.2） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 78.6（60.6） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 65.1（51.5） | 16 | `packages/rpa_runner/tests/test_debug.py` |
+| 55.5（40.7） | 9 | `apps/server/tests/test_production_flow.py` |
+| 51.6（38.7） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 43.6（37.4） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 36.7（32.6） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 21.8（17.3） | 4 | `apps/server/tests/test_recorder_flow.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.13/pass-1.xml
 
-最近一次：2026-10-26 13:52 America/Los_Angeles（PDT，UTC−07:00），合計 952 秒。
+最近一次：2026-10-26 20:51 America/Los_Angeles（PDT，UTC−07:00），合計 740 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 108.8（87.7） | 14 | `apps/server/tests/test_portal.py` |
-| 82.5（72.3） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 82.0（78.2） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 80.0（78.5） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 66.9（56.4） | 16 | `packages/rpa_runner/tests/test_debug.py` |
-| 52.9（52.9） | 9 | `apps/server/tests/test_production_flow.py` |
-| 51.2（50.7） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 45.0（43.7） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 37.3（34.8） | 4 | `apps/server/tests/test_replay_flow.py` |
-| 21.5（21.2） | 4 | `apps/server/tests/test_recorder_flow.py` |
+| 84.5（84.5） | 14 | `apps/server/tests/test_portal.py` |
+| 74.7（74.7） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 57.8（77.1） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 57.3（77.5） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 52.7（54.5） | 16 | `packages/rpa_runner/tests/test_debug.py` |
+| 38.4（49.9） | 9 | `apps/server/tests/test_production_flow.py` |
+| 37.2（49.9） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 36.0（42.3） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 32.7（34.0） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 19.6（19.5） | 18 | `apps/cli/tests/test_serve.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.13/pass-2.xml
 
@@ -264,6 +264,7 @@
 | 10-26 20:53 | 伺服器分發包 | PR | fix/scheduled-update-tests | success | 2.1 分 | 0.1 分 | [#40446668716](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40446668716/attempts/1) |
 | 10-26 20:53 | CI | PR | fix/scheduled-update-tests | success | 4.0 分 | 0.1 分 | [#40446668674](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40446668674/attempts/1) |
 | 10-26 20:53 | 桌面端建置 | PR | fix/scheduled-update-tests | success | 5.7 分 | 0.0 分 | [#40446668801](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40446668801/attempts/1) |
+| 10-26 20:51 | 每晚完整測試 | PR | ci/layered-ci | cancelled | 18.0 分 | 0.0 分 | [#40446418350](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40446418350/attempts/1) |
 | 10-26 20:50 | 桌面端建置 | PR | ci/layered-ci | success | 0.1 分 | 0.0 分 | [#40446418424](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40446418424/attempts/1) |
 | 10-26 20:50 | 一鍵安裝腳本 | PR | ci/layered-ci | success | 0.2 分 | 0.0 分 | [#40446418318](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40446418318/attempts/1) |
 | 10-26 20:50 | CI | PR | ci/layered-ci | success | 3.4 分 | 0.0 分 | [#40446418389](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40446418389/attempts/1) |
@@ -294,5 +295,4 @@
 | 10-26 08:45 | 伺服器分發包 | 推送 | main | success | 1.9 分 | 0.1 分 | [#40352477923](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40352477923/attempts/1) |
 | 10-26 08:45 | CI | 推送 | main | failure | 14.8 分 | 0.0 分 | [#40352478076](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40352478076/attempts/1) |
 | 10-26 08:45 | 一鍵安裝腳本 | 推送 | main | failure | 15.2 分 | 0.0 分 | [#40352478021](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40352478021/attempts/1) |
-| 10-26 08:45 | 桌面端建置 | 推送 | main | failure | 15.2 分 | 0.1 分 | [#40352477751](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40352477751/attempts/1) |
 
