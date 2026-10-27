@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>設計：Claude（Opus 5.5）。審閱與決定：使用者。實作主責：設計確認後預設 Claude。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>本次只有設計：本頁、<a href="index.html">任務索引</a>、<a href="../decisions.html#pending">決定 › 待你決定</a>。實作會改到的檔案列在第 7 節；共用檔案（多語言目錄、<code>schema/scenario.v1.json</code>、資料庫遷移（目前最新 0016）、路線圖、任務索引）由本任務整合，遷移編號在整合前重新確認。開著的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/96">PR #96</a>（組合運行的匯總報告）可能也動到運行報告，後合併的一方解衝突。</dd>
         <dt>狀態</dt><dd>設計待審閱：等使用者回覆第 9 節的 D1～D8。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>m7c/upload</code>，從 <code>30f2290</code>（origin/main，Merge PR #95）開；設計稿的 PR 見追加紀錄。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m7c/upload</code>，從 <code>30f2290</code>（origin/main，Merge PR #95）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/97">PR #97</a>（草稿，只有設計，base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁與索引的提交推送到 <code>m7c/upload</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、Python 3.13.17。PyPI 被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成；調研用系統的 Playwright 1.63.0（專案鎖定 1.64.0）、Chromium（<code>/opt/pw-browsers/chromium-1243</code>）與 Xvfb；沒有 Firefox。實驗腳本不進倉庫，做法寫在第 3 節，實作時改寫成正式測試。</dd>
       </dl></div>
@@ -291,7 +291,7 @@ verify:
           <tr><td><code>m7c/upload</code>，只改 <code>handoff/</code></td><td><code>git diff --check</code>；本頁與索引的相對連結</td><td>見追加紀錄</td><td>只改交接文件，不跑瀏覽器測試</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見設計稿 PR；人工驗收：未執行（只有設計）；審閱：等使用者。</p></div>
+      <div class="panel-body"><p>CI：見 PR #97 最新 head；人工驗收：未執行（只有設計）；審閱：等使用者。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -303,6 +303,7 @@ verify:
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-27 08:04 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁（設計第一版）。從 <code>30f2290</code> 開 <code>m7c/upload</code>；盤點 DSL、錄製稿轉換、Runner、版本存放、Worker 協定、調試與執行表單；本地實測 Playwright 上傳方式與 codegen 錄製稿；寫出設計、分期與 D1～D8。</li>
+        <li>2026-10-27 08:10 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>890431e</code>，建立 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/97">PR #97</a>（草稿）。本地檢查：<code>git diff --check</code>；本頁、任務索引、決定頁的 HTML 結構與相對連結、錨點；Chromium 渲染檢查版面。</li>
       </ul></div>
     </section>
   </div>
