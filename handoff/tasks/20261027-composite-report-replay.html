@@ -22,10 +22,10 @@
           <br>不包含：Runner、Worker、錄影方式、桌面 App（都不改）；產生真正合併的影片檔（D1 不做）；平行節點的多軌回看（目前不會發生）；執行紀錄歸檔與跨伺服器回看（M11 D4）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）主責；審閱與合併：使用者；接收方未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>PR 1（匯總報告）：<code>apps/server/src/rpa_server/composite_report.py</code>（新）、<code>replay.py</code>（<code>step_targets</code>：報告共用步驟的定位器）、<code>services.py</code>、<code>workflows.py</code>（定義快照、組合運行清單的篩選）、<code>domain.py</code>（組合運行的耗時）、<code>pages.py</code>、<code>api.py</code>、<code>agent_projects.py</code>、<code>render.py</code>（<code>duration</code> 篩選器、組合運行的篩選選單）、樣板 <code>workflow_run.html</code>、<code>_composite_report.html</code>（新，頁面與離線報告共用）、<code>composite_report_file.html</code>（新）、<code>runs.html</code>、<code>_macros.html</code>、<code>static/portal.js</code>、<code>static/portal-app.css</code>、伺服器訊息目錄；測試 <code>apps/server/tests/test_composite_report.py</code>（新）、<code>test_render.py</code>、<code>test_portal.py</code>；文檔 <code>docs/design/portal.html</code>、<code>docs/design/agent-api.html</code>、<code>docs/develop/agent-api-guide.html</code> 與英文版（簡中由 bootstrap 產生）。
-          <br>PR 2（合併回看）：<code>composite_replay.py</code>（新）、<code>videos.py</code>（整組保留與釘選）、<code>replay.py</code>（保留看整次組合運行）、<code>services.py</code>、<code>pages.py</code>（合併回看頁、全部錄影 zip）、<code>api.py</code>、<code>agent_projects.py</code>（<code>replayPath</code>）、<code>composite_report.py</code>（節點執行時間算進 0 秒的節點）、樣板 <code>composite_replay.html</code>（新）、<code>_replay_player.html</code>（新，從 <code>replay.html</code> 拆出的播放器，兩頁共用）、<code>replay.html</code>、<code>workflow_run.html</code>、<code>_composite_report.html</code>、<code>_macros.html</code>、<code>static/replay-media.js</code>、<code>static/replay.js</code>、<code>static/portal-app.css</code>、訊息目錄；測試 <code>test_composite_replay.py</code>（新）、<code>test_composite_replay_flow.py</code>（新，真實錄影，CI）；文檔 ADR 0019（新）、ADR 0016 註記、ADR 索引、<code>nav.js</code>、<code>docs/design/portal.html</code>、<code>docs/design/agent-api.html</code> 與英文版。Claude 整合；沒有資料庫遷移、沒有新的第三方套件、不改 Runner 與 Worker。</dd>
-        <dt>狀態</dt><dd>PR 1（#96）待審閱，最新 head 的 CI 通過；PR 2 待審閱（實作、測試、文件完成，本地檢查通過，CI 見 PR）。</dd>
+          <br>PR 2（合併回看）：<code>composite_replay.py</code>（新）、<code>videos.py</code>（整組保留與釘選）、<code>replay.py</code>（保留看整次組合運行）、<code>services.py</code>、<code>pages.py</code>（合併回看頁、全部錄影 zip）、<code>api.py</code>、<code>agent_projects.py</code>（<code>replayPath</code>）、<code>composite_report.py</code>（節點執行時間算進 0 秒的節點）、樣板 <code>composite_replay.html</code>（新）、<code>_replay_player.html</code>（新，從 <code>replay.html</code> 拆出的播放器，兩頁共用）、<code>replay.html</code>、<code>workflow_run.html</code>、<code>_composite_report.html</code>、<code>_macros.html</code>、<code>static/replay-media.js</code>、<code>static/replay.js</code>、<code>static/portal-app.css</code>、訊息目錄；測試 <code>test_composite_replay.py</code>（新）、<code>test_composite_replay_flow.py</code>（新，真實錄影，CI）；CI 工具 <code>tools/ci_annotations.py</code>（錯誤內容縮到 GitHub 保留的 4096 個字元內，否則結尾的斷言被截掉）與 <code>tests/ci/test_ci_annotations.py</code>；文檔 ADR 0019（新）、ADR 0016 註記、ADR 索引、<code>nav.js</code>、<code>docs/design/portal.html</code>、<code>docs/design/agent-api.html</code> 與英文版。Claude 整合；沒有資料庫遷移、沒有新的第三方套件、不改 Runner 與 Worker。</dd>
+        <dt>狀態</dt><dd>PR 1（#96）待審閱，最新 head 的 CI 通過；PR 2（#98）待審閱，最新 head 的 CI 通過（含真實錄影的合併回看瀏覽器測試）。</dd>
         <dt>分支／PR／base SHA</dt><dd>PR 1：<code>feat/composite-report</code>，從 main <code>30f2290</code>（#95 合併後）；PR 見 GitHub（對 main）。PR 2：<code>feat/composite-replay</code>，從 PR 1 的 <code>576fd6e</code> 開，PR 的 base 是 <code>feat/composite-report</code>；PR 1 合併後改 base 為 main（必要時 rebase 到 main）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>PR 1（#96）：實作 <code>26ec76b</code>、bootstrap <code>f3af693</code>、任務紀錄 <code>576fd6e</code>。PR 2：實作 <code>42c1efe</code>、bootstrap <code>10a2ea1</code>，之後的 head 以 PR 為準。</dd>
+        <dt>交接版本／同步狀態</dt><dd>PR 1（#96）：實作 <code>26ec76b</code>、bootstrap <code>f3af693</code>、任務紀錄 <code>576fd6e</code>。PR 2（#98）：實作 <code>42c1efe</code>、bootstrap <code>10a2ea1</code>、CI 找到的修正到 <code>5e35d41</code>，之後的 head 以 PR 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.17、uv 0.11.32。PyPI 無法連線：依 uv.lock 的版本從 GitHub 取得純 Python 依賴（fastapi 0.148.0、starlette 1.9.0、sqlalchemy 2.1.5、alembic 1.20.0、mako 1.4.3、annotated-doc 0.0.5），用 <code>--system-site-packages</code> 的 venv 執行；系統的 Playwright 是 1.63（Chromium 1243，錄影產不出來），錄影相關的瀏覽器測試看 CI。本機的 ruff 是 0.16.9（鎖定 0.17.1，以 CI 為準）。</dd>
       </dl></div>
     </section>
@@ -46,7 +46,7 @@
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>設計（Claude 專案 <code>claude/composite-report-replay-proposal.md</code>，摘要見上一節）；使用者確認。PR 1 匯總報告：組合運行頁改成匯總報告（結論、數字、DAG 與時間軸、節點明細）、下載單一 HTML、<code>GET /api/workflow-runs/{id}/report</code> 與 Agent API 的 <code>/composite-runs/{id}/report</code>（組合運行的 JSON 多 <code>reportUrl</code>）、運行報告頁的「場景運行｜組合運行」切換、節點的 report.html 連回組合運行；三語訊息與設計文件。實作時決定不改 Runner：離線報告的樣式放在伺服器的樣板裡（和 Runner 的 report.html 同一組顏色），Worker 與錄製端的程式指紋不受影響。</li>
         <li><strong>PR 2 已完成：</strong>合併回看頁（各節點錄影接在一條時間軸，轉場卡、說明卡、沿用卡、沒有執行的卡片，節點色帶，步驟依節點分組，N／P，<code>?node=</code>、<code>?step=n2:search</code>）、全部錄影 zip、整組錄影保留與釘選（D6）、API 與 Agent API 的 <code>replayPath</code>、入口連結、ADR 0019。實作選擇：播放器從單一回看頁拆成共用的樣板，兩頁同一套程式；單一節點的回看頁上釘選或取消釘選，也是整次組合運行一起（D6）。</li>
-        <li><strong>未完成／阻礙：</strong>PR 2 的 CI（真實錄影的瀏覽器測試只能在 CI 跑：本機的 Playwright 1.63 錄不出影片）；兩個 PR 的審閱與合併；人工驗收（真實 Worker、Mac 錄製端 App 的 WebM 播放限制照舊）。</li>
+        <li><strong>未完成／阻礙：</strong>兩個 PR 的審閱與合併；人工驗收（真實 Worker、Mac 錄製端 App 的 WebM 播放限制照舊）。</li>
         <li><strong>決定（使用者 2026-10-27 07:05 America/Los_Angeles（PDT，UTC−07:00）回覆「好的。開始coding吧。」，照 Claude 推薦的選項，已確認）：</strong>
           D1 合併錄像：播放器把各節點影片接起來播，不產生新檔案，下載是 zip；
           D2 節點之間的空檔：壓成 2 秒轉場卡，顯示資料流與實際間隔；
@@ -55,7 +55,7 @@
           D5 運行報告頁：加「場景運行｜組合運行」切換，場景運行檢視照舊列出節點並標出屬於哪次組合運行；
           D6 錄影保留：組合裡的節點跟著組合運行的結果算保留天數，釘選與超量刪除整組處理。
           實作選擇（使用者可以改）：報告與離線 HTML 在看的時候用看的人的語言產生，不另存檔；轉場卡 2 秒、缺片卡 3 秒。</li>
-        <li><strong>下一個具體動作：</strong>看 #98 最新 head 的 CI；使用者審閱、先合併 #96，再把 #98 的 base 改成 main（必要時 rebase）後合併；之後人工驗收。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、先合併 #96，再把 #98 的 base 改成 main（必要時 rebase）後合併；之後人工驗收。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無（PR 1 都已推送）；測試用的依賴在容器的 <code>/home/claude/deps</code>，本機預覽用的資料在會話暫存區，都不進倉庫。</li>
       </ul></div>
     </section>
@@ -75,9 +75,10 @@
           <tr><td>同上</td><td><code>pytest apps/server/tests apps/worker apps/cli/tests packages -m "not browser"</code>；<code>pytest tests -m "not browser"</code></td><td>1158 通過、3 略過；失敗的只有本機環境造成的兩項（rpa_update 的已安裝套件清單、需要 OpenCC 的簡中產生）</td><td>以 CI 為準</td></tr>
           <tr><td>同上；容器的 Chromium 1243</td><td><code>pytest apps/server/tests/test_portal.py apps/server/tests/test_replay_flow.py</code>（Chromium）；<code>test_composite_replay_flow.py</code></td><td>test_portal 通過；兩個錄影的回看測試與新的合併回看測試在錄影這一步失敗，在 main 上一樣（這個環境的 Playwright 1.63 錄不出影片）</td><td>真實錄影交給 CI</td></tr>
           <tr><td>同上</td><td>本機起 Portal（假的執行器＋用 Chromium 截圖與 Playwright 的 ffmpeg 做出的真實 WebM），造通過、n2 失敗、從 n2 繼續三次組合運行，Chromium 操作合併回看並截圖（1440、390 寬）</td><td>N 跳到 n2、點轉場色帶出現卡片、播放跨過轉場接到 n2、點步驟跳轉、失敗的運行停在失敗步驟前、沿用卡、手機寬度都正確；沒有頁面錯誤。過程中修正：節點那一段開頭還顯示上一個節點的最後一步、轉場卡被大播放鈕擋住、沿用的狀態寫兩次</td><td>真實執行器的錄影交給 CI</td></tr>
+          <tr><td>PR 2 head <code>5e35d41</code>；GitHub Actions</td><td>CI</td><td>靜態檢查、測試（Python 3.12、3.13；3.13 含 <code>test_composite_replay_flow.py</code> 的真實錄影）通過；其餘依規則略過</td><td>—</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+      <div class="panel-body"><p>CI：#96 head <code>576fd6e</code>、#98 head <code>5e35d41</code> 通過；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -93,6 +94,7 @@
         <li>2026-10-27 07:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR 1 實作完成（<code>26ec76b</code>），推送後 bootstrap 產生簡中（<code>f3af693</code>）；開 PR #96。</li>
         <li>2026-10-27 08:15 America/Los_Angeles（PDT，UTC−07:00），Claude：#96 最新 head 的 CI 通過。PR 2 實作完成（<code>42c1efe</code>），推送後 bootstrap 產生簡中（<code>10a2ea1</code>），但它的檢查失敗、沒有標註；開 PR 2 讓 CI 跑出原因。</li>
         <li>2026-10-27 08:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR 2 是 #98（base <code>feat/composite-report</code>）。CI 找到兩個問題並修正：(1) 瀏覽器測試的定義少了型別標註（pyright；bootstrap 檢查失敗的原因）；(2) 真實錄影時，轉場卡算出的實際間隔只有 0.2 秒——Chromium 錄影的開始時間是第一格的觀測時間，可能差到一秒。改成用上一個節點最後一步結束到下一個節點第一步開始（同一台 Worker 的步驟時間），ADR 0019 註明（<code>95878b8</code>）。同一次 CI 也確認：真實錄影的合併回看在 Chromium 上播得出來、轉場卡顯示正確的出參與入參。</li>
+        <li>2026-10-27 09:00 America/Los_Angeles（PDT，UTC−07:00），Claude：#98 的瀏覽器測試後半段失敗，但 annotation 看不到原因：GitHub 只保留訊息的前 4096 個字元，<code>tools/ci_annotations.py</code> 保留結尾 6000 個字元，最後的斷言正好被截掉。改成 4000 個字元並加測試（<code>27da15e</code>）。看到的原因是測試的預期：本機測試網站很快，n2 的錄影第一格出現前「開啟」「輸入」已經做完，「查詢」離 n2 那一段的開頭只有幾十毫秒，播放器照設計停在那一段的開頭（不跳回轉場卡）；測試改成照這個規則算預期位置（<code>5e35d41</code>）。#98 最新 head 的 CI 通過。</li>
       </ul></div>
     </section>
   </div>
