@@ -213,9 +213,8 @@ def test_videos_are_joined_on_one_timeline(client: Client, worker: Worker, compo
         ("transition", "n3", 2 * VIDEO_MS + 2000, 2000),
         ("video", "n3", 2 * VIDEO_MS + 4000, VIDEO_MS),
     ]
-    assert (
-        segments(data)[1]["gapMs"] == 30000 - VIDEO_MS
-    )  # 實際隔了多久（下一段影片開始 − 上一段結束）
+    # 實際隔了多久：n1 最後一步結束（第 4.4 秒）到 n2 第一步開始（第 31 秒）
+    assert segments(data)[1]["gapMs"] == 26600
     video = cast("JsonObject", data["video"])
     assert video["playable"] is True
     assert video["durationMs"] == 3 * VIDEO_MS + 4000
@@ -246,7 +245,7 @@ def test_videos_are_joined_on_one_timeline(client: Client, worker: Worker, compo
     assert "n1 的結果" in page
     assert "n2 的入參" in page
     assert "<code>recordId</code>" in page
-    assert "實際隔了 24.0 s" in page
+    assert "實際隔了 26.6 s" in page
     assert f'data-url="/api/workflow-runs/{run_id}/video"' in page
     report = client.get(f"/playground/runs/{run_id}").text
     assert f'href="/playground/runs/{run_id}/replay"' in report
@@ -257,7 +256,7 @@ def test_videos_are_joined_on_one_timeline(client: Client, worker: Worker, compo
     client.cookies.delete("rpa_lang")
     assert "Replay of composite run" in english
     assert "Result of n1" in english
-    assert "The real gap was 24.0 s" in english
+    assert "The real gap was 26.6 s" in english
 
     archive = client.get(f"/playground/runs/{run_id}/videos.zip")
     assert archive.status_code == 200

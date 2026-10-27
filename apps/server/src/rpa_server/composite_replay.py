@@ -174,9 +174,14 @@ def build_composite_replay(
             previous = None
             continue
         started = _moment(video.get("startedAt"))
+        steps = cast("list[dict[str, object]]", data.get("steps") or [])
+        first_action = min(
+            (moment for step in steps if (moment := _moment(step.get("startedAt")))), default=None
+        )
         if previous is not None:
             ended = cast("datetime | None", previous["endedAt"])
-            gap = round((started - ended).total_seconds() * 1000) if started and ended else None
+            begun = first_action or started
+            gap = round((begun - ended).total_seconds() * 1000) if begun and ended else None
             line.add(
                 "transition",
                 TRANSITION_MS,
@@ -209,9 +214,16 @@ def build_composite_replay(
         width = width or video.get("width")
         height = height or video.get("height")
         missing_pages = missing_pages or bool(video.get("missingPages"))
+        # 實際間隔用步驟的時間（同一台 Worker 的時鐘）：上一個節點最後一步結束到下一個節點
+        # 第一步開始。影片的開始時間在 Chromium 是第一格的觀測時間，可能差到一秒，不拿來算間隔
+        # （ADR 0016）。
+        last_action = max(
+            (moment for step in steps if (moment := _moment(step.get("endedAt")))), default=None
+        )
         previous = {
             "node": state.id,
-            "endedAt": started + timedelta(milliseconds=duration) if started else None,
+            "endedAt": last_action
+            or (started + timedelta(milliseconds=duration) if started else None),
         }
     if skipped:
         line.add("not_run", NOTE_MS, nodes=skipped)
