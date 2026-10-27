@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-26 20:44 America/Los_Angeles（PDT，UTC−07:00）。共 538 次運行。
+更新：2026-10-26 20:49 America/Los_Angeles（PDT，UTC−07:00）。共 539 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -10,7 +10,7 @@
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
 | CI | 226（0） | 117（0） | 3.3 分（0.0 分） | 7.0 分（0.0 分） | 0.0 分（0.0 分） | 1313／518／0 分（0／0／0 分） |
-| 桌面端建置 | 161（0） | 121（0） | 4.1 分（0.0 分） | 6.9 分（0.0 分） | 0.1 分（0.0 分） | 16／505／679 分（0／0／0 分） |
+| 桌面端建置 | 162（0） | 122（0） | 4.1 分（0.0 分） | 7.1 分（0.0 分） | 0.1 分（0.0 分） | 16／510／690 分（0／0／0 分） |
 | 伺服器分發包 | 56（0） | 51（0） | 2.0 分（0.0 分） | 6.7 分（0.0 分） | 0.1 分（0.0 分） | 232／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 70（0） | 43（0） | 3.3 分（0.0 分） | 17.1 分（0.0 分） | 0.1 分（0.0 分） | 448／316／195 分（0／0／0 分） |
 | 每晚完整測試 | 10（0） | 0（0） | 47.4 分（0.0 分） | 60.2 分（0.0 分） | 0.0 分（0.0 分） | 452／454／305 分（0／0／0 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-26 | 77 | 478 | 311 | 256 | 1045 |
+| 2026-10-26 | 78 | 478 | 316 | 267 | 1061 |
 | 2026-10-25 | 95 | 520 | 335 | 357 | 1212 |
 | 2026-10-24 | 11 | 142 | 132 | 130 | 405 |
 | 2026-10-23 | 33 | 204 | 123 | 115 | 441 |
@@ -256,6 +256,7 @@
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 10-26 20:38 | CI | PR | fix/update-manifest-windows-tests | success | 5.9 分 | 1.3 分 | [#40445278739](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445278739/attempts/1) |
+| 10-26 20:38 | 桌面端建置 | PR | fix/update-manifest-windows-tests | success | 11.3 分 | 5.5 分 | [#40445278672](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445278672/attempts/1) |
 | 10-26 20:38 | CI | PR | ci/layered-ci | failure | 4.3 分 | 0.0 分 | [#40445262306](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445262306/attempts/1) |
 | 10-26 20:38 | 伺服器分發包 | PR | ci/layered-ci | success | 2.2 分 | 0.1 分 | [#40445262236](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445262236/attempts/1) |
 | 10-26 20:38 | 一鍵安裝腳本 | PR | ci/layered-ci | success | 3.5 分 | 1.4 分 | [#40445262229](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445262229/attempts/1) |
@@ -294,5 +295,4 @@
 | 10-26 07:12 | CI | PR | fix/remote-debug-reload | success | 3.7 分 | 0.1 分 | [#40337307103](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40337307103/attempts/1) |
 | 10-26 07:12 | 桌面端建置 | PR | fix/remote-debug-reload | failure | 15.3 分 | 0.0 分 | [#40337307053](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40337307053/attempts/1) |
 | 10-26 07:10 | 桌面端建置 | PR | fix/remote-debug-reload | cancelled | 1.6 分 | 0.0 分 | [#40337150811](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40337150811/attempts/1) |
-| 10-26 07:10 | CI | PR | fix/remote-debug-reload | cancelled | 1.8 分 | 0.1 分 | [#40337151171](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40337151171/attempts/1) |
 

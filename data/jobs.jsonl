@@ -2544,3 +2544,7 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 266.0, "job": "Worker 測試（Windows）", "os": "windows", "queue_s": 80.0, "run_id": 40445278739, "workflow": "CI"}
 {"attempt": 1, "conclusion": "success", "duration_s": 105.0, "job": "測試（Python 3.12）", "os": "linux", "queue_s": 22.0, "run_id": 40445278739, "workflow": "CI"}
 {"attempt": 1, "conclusion": "success", "duration_s": 198.0, "job": "測試（Python 3.13）", "os": "linux", "queue_s": 80.0, "run_id": 40445278739, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 8.0, "job": "執行範圍", "os": "linux", "queue_s": 3.0, "run_id": 40445278672, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 289.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 9.0, "run_id": 40445278672, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 275.0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 330.0, "run_id": 40445278672, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 418.0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 248.0, "run_id": 40445278672, "workflow": "桌面端建置"}
