@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-update-manifest-windows-tests · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-update-manifest-windows-tests：更新檔清單的測試在 Windows 失敗（issue #80、#74 的第三個原因）</h1><p>10-26 的排程在 Windows 上除了 <code>test_updates.py</code>（由任務 20261026-scheduled-update-tests 的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/93">PR #93</a> 處理；它的紀錄在該 PR 合併前只在 <code>fix/scheduled-update-tests</code> 分支上），還有 <code>packages/rpa_update/tests/test_manifest.py</code> 的兩項失敗。本任務只處理這兩項；開工時與 PR #93 不共用程式檔案，但 #93 後續也修正本檔，已在本次合併整合重疊修改。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-update-manifest-windows-tests；2026-10-26 21:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 19:41 America/Los_Angeles（PDT，UTC−07:00）的 Claude 對話要求分析 issue #80、#74 的原因，20:32 要求「開始修復」。開工時發現同一需求已由另一個 Claude 對話開了 PR #93（macOS 的 <code>mv -Tf</code>、Windows 的 <code>Layout.switch</code>），依共用流程不接管該分支，只補它沒有涵蓋的部分。驗收：<code>test_manifest.py</code> 在 Windows 的每晚完整測試與一鍵安裝腳本中不再失敗；Linux、macOS 上原有的檢查（包含可執行位元）照樣執行。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>packages/rpa_update/tests/test_manifest.py</code> 的平台假設（文字模式寫檔的換行、可執行位元）。不包含：<code>rpa_update</code> 的程式碼（行為正確，見原因）；PR #93 的 <code>apps/server/src/rpa_server/updates.py</code>、<code>tests/ci/test_server_package.py</code>；Windows 上偶發的瀏覽器測試（Portal 點擊逾時、TargetClosed）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原實作：Claude；本次 PR #95 衝突整合：ChatGPT／Codex（使用者於本次對話指定）；審閱、合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_update/tests/test_manifest.py</code>、本紀錄、任務索引。本次索引自動合併並保留所有入口；#93 後續也修改 test_manifest.py，造成內容衝突，由 ChatGPT／Codex 整合。</dd>
+        <dt>狀態</dt><dd>待審閱：已合入 main 256918d 並解決衝突，本地 693 項回歸與 38 項 CRLF 模擬測試通過；本次提交準備推送，最新 head 的 CI 待確認。先前 Windows 驗證見下表，未合併。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/update-manifest-windows-tests</code>；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/95">PR #95</a>；原 base main <code>066ded2</code>；本次合入 main <code>256918d</code>（已包含 #93、#94）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：測試修改 <code>2f8b0e6</code>、紀錄 <code>e2e0c9e</code>（CI 對應的 head）；之後只追加本紀錄。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13.17）。連不到 PyPI（DNS 查不到），<code>uv sync --locked</code> 無法執行；改用 uv 快取裡的 pytest 9.1.1、ruff 0.16.9（鎖定 0.17.1 不在快取）、pyright 1.1.414 建立的臨時環境。<code>rpa_update</code> 只用標準函式庫，不受影響。Windows 的驗證交給 GitHub Actions。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>證據：</strong>每晚完整測試 run 40399471079 的「完整測試（windows-latest，Python 3.13）」與一鍵安裝腳本 run 40402544121 的「專案內執行（windows-latest）」，annotations 都列出這兩項；10-24、10-25 的排程沒有，10-26 合併 PR #83（ADR 0018 分層更新）後才出現。</li>
+        <li><strong><code>test_update_file_rejects_changed_content</code>：</strong>測試用 <code>write_text("VALUE = 1\n")</code> 產生來源檔，Windows 以文字模式寫成 CRLF（11 bytes）；替換的內容是 <code>b"VALUE = 2\n"</code>（10 bytes）。測試要驗證的是「大小相同、讀內容才發現不同」，但大小已經不同，<code>UpdateFile()</code> 建構時就在 <code>manifest.py</code> 的大小檢查丟出 <code>file_mismatch</code>，不在預期的 <code>pytest.raises</code> 裡。在 Linux 上把 <code>write_text</code> 改成 CRLF 可重現同一錯誤。</li>
+        <li><strong><code>test_update_file_extracts_verified_tree</code>：</strong>最後檢查解開的 <code>server/bin/rpa</code> 有可執行位元。<code>write_update</code> 依來源檔的 <code>st_mode</code> 記錄 0o755／0o644，Windows 上 <code>chmod(0o755)</code> 只能切換唯讀，沒有副檔名的檔案也不會回報可執行位元，所以來源和解開後都是 0o100666。</li>
+        <li><strong>影響：</strong>正式更新檔由 Linux 的發布流程建置；<code>server/</code> 只在 Linux 伺服器上解開，桌面 App 在 Windows 只解開 <code>app/</code>。這兩項是測試的平台假設，不是 <code>rpa_update</code> 的缺陷。</li>
+        <li><strong>為什麼 PR 上沒抓到：</strong>PR 上的 CI 依生產角色分配，<code>packages/rpa_update</code> 的完整測試只在 Linux 跑；Windows 的全部測試只在每晚與一鍵安裝腳本的排程跑（<a href="../../docs/develop/ci.html">docs/develop/ci.html</a>）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>分析與在 Linux 上重現換行的失敗。<code>_tree()</code> 與 <code>test_verify_tree_rejects_extra_changed_and_missing</code> 改用 <code>write_bytes</code>；<code>test_update_file_extracts_verified_tree</code> 改成比對解開後的內容，可執行位元移到新的 <code>test_update_file_keeps_executable_bit</code>（Windows 略過，另外確認 <code>app/</code> 的檔案沒有被設成可執行）。</li>
+        <li><strong>決定（實作選擇）：</strong>來源檔改用 <code>write_bytes</code>，內容與大小在各系統一致；可執行位元的檢查移到獨立的測試，在 Windows 標成略過（<code>skipif</code>），不用 <code>if</code> 默默跳過，報告看得到。不改 <code>rpa_update</code> 的程式碼。</li>
+        <li><strong>相關發現（交給 PR #93）：</strong>PR #93 修好 <code>Layout.switch</code> 後，<code>apps/server/tests/test_updates.py:149</code> 檢查可執行位元的斷言在 Windows 露出來（#93 的 run 40443170624）。該檔案屬於 #93 的範圍、那邊可能仍在寫入，本任務不改，已在 #93 留言說明。</li>
+        <li><strong>下一個具體動作：</strong>#93、#94 已合併到 main；本次整合推送後確認最新 head 的 CI，再由使用者審閱並合併 #95。issue #74、#80 仍需等待後續 Windows 排程結果。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>臨時環境在容器的 scratchpad，不進倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>066ded2（修改前）；Linux、Python 3.13.17、pytest 9.1.1</td><td><code>pytest packages/rpa_update/tests/test_manifest.py</code>；另以外掛把 <code>Path.write_text</code> 改成 CRLF 再跑一次</td><td>37 passed；CRLF 時 1 failed（<code>test_update_file_rejects_changed_content</code>，<code>file_mismatch</code>，與 CI 相同）</td><td>可執行位元只能在真的 Windows 上確認</td></tr>
+          <tr><td>066ded2＋本分支；同上</td><td>同上兩種方式</td><td>38 passed；CRLF 時也 38 passed（新增 <code>test_update_file_keeps_executable_bit</code>）</td><td>Windows 上的略過與通過交給 CI</td></tr>
+          <tr><td>同上</td><td><code>pytest packages/rpa_update/tests</code></td><td>93 passed、2 failed；2 項是 <code>test_runtime.py</code>，臨時環境沒有 pydantic、pyyaml，main 上同樣 2 failed，與本修改無關</td><td>完整依賴的環境交給 CI</td></tr>
+          <tr><td>同上；ruff 0.16.9</td><td><code>ruff check</code>、<code>ruff format --check</code>（修改的檔案）；<code>git diff --check</code>；交接頁相對連結與錨點檢查（本紀錄、任務索引）</td><td>通過</td><td>鎖定版本 ruff 0.17.1、Pyright 1.1.414（npm 也連不上）交給 CI</td></tr>
+          <tr><td><code>e2e0c9e</code>；GitHub Actions</td><td>PR #95 的 CI（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445278739">40445278739</a>）、桌面端建置（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445278672">40445278672</a>）</td><td>通過（20:44、20:49 America/Los_Angeles（PDT，UTC−07:00））；含鎖定版本的 ruff、Pyright 與 Linux 測試</td><td>PR 上不跑 Windows 的全部測試</td></tr>
+          <tr><td><code>e2e0c9e</code>；windows-latest、Python 3.13</td><td>手動觸發每晚完整測試（systems=windows、extra=0），<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40445285336">40445285336</a></td><td>整體失敗，但 <code>test_manifest.py</code> 不在失敗清單（修改前 2 項失敗）。失敗的 9 項：<code>test_updates.py</code> 8 項 WinError 5（本分支沒有 PR #93 的修正，預期）；<code>test_remote_worker_flow</code> 的瀏覽器測試 1 項（<code>not_validated</code>，10-23 的 macOS 也出現過，與本修改無關的偶發）</td><td><code>test_update_file_keeps_executable_bit</code> 在 Windows 是略過；報告產物在這個環境下載不到，以失敗清單為準</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：PR 的 CI 與桌面端建置通過；Windows 的每晚完整測試見上表（整體失敗，原因不在本 PR）。人工驗收：不需要（只改測試）。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-26 21:45 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex 依使用者本次要求接收 <code>59b6ed0</code>，範圍為合入最新 main、解決 test_manifest.py 衝突並驗證；已完成本地整合與驗證，本次提交準備推送，供使用者審閱。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 21:47 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：在 <code>59b6ed0</code>＋main <code>256918d</code> 的合併工作區驗證。macOS arm64、Python 3.13.16、uv 0.12.24、pytest 9.1.1、Ruff 0.17.1、Pyright 1.1.414；使用 <code>~/.local/bin/uv</code>。<code>uv sync --locked</code> 成功；<code>uv run pytest -q packages/rpa_update/tests apps/server/tests/test_updates.py tests/ci tests/docs tests/i18n</code>：693 passed（45.22 秒）。另以臨時程序將 Path.write_text 的預設 newline 改為 CRLF，<code>test_manifest.py</code>：38 passed（1.46 秒）。Ruff check／format、i18n check、git diff --check、51 個交接本地連結／錨點通過。<code>uv run pyright --pythonplatform Linux</code>：0 errors、3 個既有 pystray warning；本次 pre-commit 的原生 macOS Pyright 再次因未變更的 recorder_gui.py 缺少 Foundation stub 失敗（1 error、3 warnings）；Linux 平台檢查已通過，提交時僅以 SKIP=pyright 略過此環境受阻的本地 hook，其餘 hooks 通過，未聲稱原生檢查通過。未執行 Windows 本機或桌面打包，最新 head 的 GitHub CI 待推送後確認。</li>
+        <li>2026-10-26 21:45 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：使用者要求解決 PR #95 衝突。已 fetch，將 main <code>256918d</code> 合入 <code>59b6ed0</code>；唯一衝突在 <code>test_manifest.py</code>。#93 與本 PR 都已改用 write_bytes，保留本 PR 單一註解、內容位元組檢查，以及獨立的可執行位元測試（Windows 明確 skip）；保留 main 的其餘變更與全部任務索引。驗證及推送待完成。</li>
+        <li>2026-10-26 20:37 America/Los_Angeles（PDT，UTC−07:00），Claude：分析 issue #80、#74 後開工；發現 PR #93 已處理 macOS 與 <code>test_updates.py</code>，改為只處理 <code>test_manifest.py</code>；從 main <code>066ded2</code> 開分支並建立本紀錄。</li>
+        <li>2026-10-26 20:38 America/Los_Angeles（PDT，UTC−07:00），Claude：推送並建立 PR #95，手動觸發每晚完整測試（Windows）。20:39 在 PR #93 留言：#93 的 Windows run 40443170624 剩 <code>test_updates.py:149</code> 的可執行位元與本 PR 處理的 <code>test_manifest.py</code> 兩項。</li>
+        <li>2026-10-26 21:00 America/Los_Angeles（PDT，UTC−07:00），Claude：回填 CI 結果（見驗證），狀態改為待審閱。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

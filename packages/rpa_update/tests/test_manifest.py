@@ -27,8 +27,8 @@ OTHER_SEED = bytes(range(1, 33))
 
 
 def _tree(root: Path) -> Path:
+    # 用 bytes 寫：Windows 的文字模式會把 \n 寫成 \r\n，大小就和各測試假設的不同
     (root / "app" / "rpa_core").mkdir(parents=True)
-    # 寫成位元組：Windows 的 write_text 會換成 CRLF，大小就和下面替換的內容不同
     (root / "app" / "rpa_core" / "__init__.py").write_bytes(b"VALUE = 1\n")
     (root / "app" / "rpa_core-0.6.0.dist-info").mkdir()
     (root / "app" / "rpa_core-0.6.0.dist-info" / "METADATA").write_bytes(b"Name: rpa-core\n")
@@ -161,9 +161,19 @@ def test_update_file_extracts_verified_tree(tmp_path: Path) -> None:
         entries = update.extract("app/", tmp_path / "out" / "app")
         update.extract("server/", tmp_path / "out" / "server")
     verify_tree(tmp_path / "out" / "app", entries)
-    assert (tmp_path / "out" / "app" / "rpa_core" / "__init__.py").read_text() == "VALUE = 1\n"
-    if os.name != "nt":  # Windows 沒有執行權限位元；分發包只在 Linux
-        assert (tmp_path / "out" / "server" / "bin" / "rpa").stat().st_mode & 0o111
+    assert (tmp_path / "out" / "app" / "rpa_core" / "__init__.py").read_bytes() == b"VALUE = 1\n"
+    assert (tmp_path / "out" / "server" / "bin" / "rpa").read_bytes() == b"#!/usr/bin/env bash\n"
+
+
+# Windows 的 chmod 只能切換唯讀，來源檔記不下可執行位元；server/ 也只在 Linux 解開
+@pytest.mark.skipif(os.name == "nt", reason="Windows 沒有可執行位元")
+def test_update_file_keeps_executable_bit(tmp_path: Path) -> None:
+    path, _ = _update(tmp_path)
+    with UpdateFile(path, [KEY]) as update:
+        update.extract("app/", tmp_path / "out" / "app")
+        update.extract("server/", tmp_path / "out" / "server")
+    assert (tmp_path / "out" / "server" / "bin" / "rpa").stat().st_mode & 0o111
+    assert not (tmp_path / "out" / "app" / "rpa_core" / "__init__.py").stat().st_mode & 0o111
 
 
 def test_update_file_rejects_untrusted_key(tmp_path: Path) -> None:
@@ -255,7 +265,7 @@ def test_verify_tree_rejects_extra_changed_and_missing(tmp_path: Path) -> None:
         verify_tree(root, entries)
     (root / "rpa_core" / "evil.so").unlink()
 
-    (root / "rpa_core" / "__init__.py").write_text("VALUE = 2\n")
+    (root / "rpa_core" / "__init__.py").write_bytes(b"VALUE = 2\n")
     with pytest.raises(UpdateError, match="file_mismatch"):
         verify_tree(root, entries)
 
