@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-update-manifest-windows-tests · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-update-manifest-windows-tests：更新檔清單的測試在 Windows 失敗（issue #80、#74 的第三個原因）</h1><p>10-26 的排程在 Windows 上除了 <code>test_updates.py</code>（由任務 20261026-scheduled-update-tests 的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/93">PR #93</a> 處理；它的紀錄在該 PR 合併前只在 <code>fix/scheduled-update-tests</code> 分支上），還有 <code>packages/rpa_update/tests/test_manifest.py</code> 的兩項失敗。本任務只處理這兩項，和 PR #93 不共用程式檔案。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-update-manifest-windows-tests；2026-10-26 20:37 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 19:41 America/Los_Angeles（PDT，UTC−07:00）的 Claude 對話要求分析 issue #80、#74 的原因，20:32 要求「開始修復」。開工時發現同一需求已由另一個 Claude 對話開了 PR #93（macOS 的 <code>mv -Tf</code>、Windows 的 <code>Layout.switch</code>），依共用流程不接管該分支，只補它沒有涵蓋的部分。驗收：<code>test_manifest.py</code> 在 Windows 的每晚完整測試與一鍵安裝腳本中不再失敗；Linux、macOS 上原有的檢查（包含可執行位元）照樣執行。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>packages/rpa_update/tests/test_manifest.py</code> 的平台假設（文字模式寫檔的換行、可執行位元）。不包含：<code>rpa_update</code> 的程式碼（行為正確，見原因）；PR #93 的 <code>apps/server/src/rpa_server/updates.py</code>、<code>tests/ci/test_server_package.py</code>；Windows 上偶發的瀏覽器測試（Portal 點擊逾時、TargetClosed）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱、合併：使用者；未指定接收方。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_update/tests/test_manifest.py</code>、本紀錄、任務索引。任務索引和 PR #93 都會新增一行；本分支插在 20261026-release-0-6-3 之後、PR #93 插在之前，兩邊之間隔著一行未改的內容，預期不會衝突。合併順序不限。</dd>
+        <dt>狀態</dt><dd>實作中：本地修改與檢查完成，待推送、開 PR、在 Windows 實際跑一次。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/update-manifest-windows-tests</code>；PR 未建立；base main <code>066ded2</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 <code>066ded2</code>＋本分支未提交差異，只在本地。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13.17）。連不到 PyPI（DNS 查不到），<code>uv sync --locked</code> 無法執行；改用 uv 快取裡的 pytest 9.1.1、ruff 0.16.9（鎖定 0.17.1 不在快取）、pyright 1.1.414 建立的臨時環境。<code>rpa_update</code> 只用標準函式庫，不受影響。Windows 的驗證交給 GitHub Actions。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>證據：</strong>每晚完整測試 run 40399471079 的「完整測試（windows-latest，Python 3.13）」與一鍵安裝腳本 run 40402544121 的「專案內執行（windows-latest）」，annotations 都列出這兩項；10-24、10-25 的排程沒有，10-26 合併 PR #83（ADR 0018 分層更新）後才出現。</li>
+        <li><strong><code>test_update_file_rejects_changed_content</code>：</strong>測試用 <code>write_text("VALUE = 1\n")</code> 產生來源檔，Windows 以文字模式寫成 CRLF（11 bytes）；替換的內容是 <code>b"VALUE = 2\n"</code>（10 bytes）。測試要驗證的是「大小相同、讀內容才發現不同」，但大小已經不同，<code>UpdateFile()</code> 建構時就在 <code>manifest.py</code> 的大小檢查丟出 <code>file_mismatch</code>，不在預期的 <code>pytest.raises</code> 裡。在 Linux 上把 <code>write_text</code> 改成 CRLF 可重現同一錯誤。</li>
+        <li><strong><code>test_update_file_extracts_verified_tree</code>：</strong>最後檢查解開的 <code>server/bin/rpa</code> 有可執行位元。<code>write_update</code> 依來源檔的 <code>st_mode</code> 記錄 0o755／0o644，Windows 上 <code>chmod(0o755)</code> 只能切換唯讀，沒有副檔名的檔案也不會回報可執行位元，所以來源和解開後都是 0o100666。</li>
+        <li><strong>影響：</strong>正式更新檔由 Linux 的發布流程建置；<code>server/</code> 只在 Linux 伺服器上解開，桌面 App 在 Windows 只解開 <code>app/</code>。這兩項是測試的平台假設，不是 <code>rpa_update</code> 的缺陷。</li>
+        <li><strong>為什麼 PR 上沒抓到：</strong>PR 上的 CI 依生產角色分配，<code>packages/rpa_update</code> 的完整測試只在 Linux 跑；Windows 的全部測試只在每晚與一鍵安裝腳本的排程跑（<a href="../../docs/develop/ci.html">docs/develop/ci.html</a>）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>分析與在 Linux 上重現換行的失敗。<code>_tree()</code> 與 <code>test_verify_tree_rejects_extra_changed_and_missing</code> 改用 <code>write_bytes</code>；<code>test_update_file_extracts_verified_tree</code> 改成比對解開後的內容，可執行位元移到新的 <code>test_update_file_keeps_executable_bit</code>（Windows 略過，另外確認 <code>app/</code> 的檔案沒有被設成可執行）。</li>
+        <li><strong>決定（實作選擇）：</strong>來源檔改用 <code>write_bytes</code>，內容與大小在各系統一致；可執行位元的檢查移到獨立的測試，在 Windows 標成略過（<code>skipif</code>），不用 <code>if</code> 默默跳過，報告看得到。不改 <code>rpa_update</code> 的程式碼。</li>
+        <li><strong>下一個具體動作：</strong>完成修改與本地檢查，推送、開 PR；手動觸發每晚完整測試（systems=windows、extra=0）跑本分支。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>臨時環境在容器的 scratchpad，不進倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>066ded2（修改前）；Linux、Python 3.13.17、pytest 9.1.1</td><td><code>pytest packages/rpa_update/tests/test_manifest.py</code>；另以外掛把 <code>Path.write_text</code> 改成 CRLF 再跑一次</td><td>37 passed；CRLF 時 1 failed（<code>test_update_file_rejects_changed_content</code>，<code>file_mismatch</code>，與 CI 相同）</td><td>可執行位元只能在真的 Windows 上確認</td></tr>
+          <tr><td>066ded2＋本分支；同上</td><td>同上兩種方式</td><td>38 passed；CRLF 時也 38 passed（新增 <code>test_update_file_keeps_executable_bit</code>）</td><td>Windows 上的略過與通過交給 CI</td></tr>
+          <tr><td>同上</td><td><code>pytest packages/rpa_update/tests</code></td><td>93 passed、2 failed；2 項是 <code>test_runtime.py</code>，臨時環境沒有 pydantic、pyyaml，main 上同樣 2 failed，與本修改無關</td><td>完整依賴的環境交給 CI</td></tr>
+          <tr><td>同上；ruff 0.16.9</td><td><code>ruff check</code>、<code>ruff format --check</code>（修改的檔案）；<code>git diff --check</code>；交接頁相對連結與錨點檢查（本紀錄、任務索引）</td><td>通過</td><td>鎖定版本 ruff 0.17.1、Pyright 1.1.414（npm 也連不上）交給 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：不需要（只改測試）；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 20:37 America/Los_Angeles（PDT，UTC−07:00），Claude：分析 issue #80、#74 後開工；發現 PR #93 已處理 macOS 與 <code>test_updates.py</code>，改為只處理 <code>test_manifest.py</code>；從 main <code>066ded2</code> 開分支並建立本紀錄。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
