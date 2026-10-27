@@ -68,9 +68,19 @@ def fake_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, str
     dist, cache = tmp_path / "dist", tmp_path / "cache"
     monkeypatch.setattr(desktop_shell, "DIST", dist)
     monkeypatch.setattr(desktop_shell, "CACHE", cache)
-    monkeypatch.setattr(desktop_shell, "executable", lambda app: dist / "rpa-worker" / "rpa-worker")
-    monkeypatch.setattr(desktop_shell, "child", lambda app: dist / "rpa-worker" / "rpa-child")
-    monkeypatch.setattr(desktop_shell, "runtime_copy", lambda runtime: dist / "runtime-copy.json")
+
+    def executable(app: str) -> Path:
+        return dist / "rpa-worker" / "rpa-worker"
+
+    def child(app: str) -> Path:
+        return dist / "rpa-worker" / "rpa-child"
+
+    def runtime_copy(runtime: Runtime) -> Path:
+        return dist / "runtime-copy.json"
+
+    monkeypatch.setattr(desktop_shell, "executable", executable)
+    monkeypatch.setattr(desktop_shell, "child", child)
+    monkeypatch.setattr(desktop_shell, "runtime_copy", runtime_copy)
     built = tmp_path / "built"
     built.mkdir()
     archive = built / "RPA-Worker-0.6.3-windows-x64.zip"
