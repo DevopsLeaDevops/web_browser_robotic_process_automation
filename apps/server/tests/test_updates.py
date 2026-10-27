@@ -146,7 +146,8 @@ def test_install_switches_current_and_asks_for_restart(tmp_path: Path) -> None:
     release = prefix / "releases" / "0.6.0-bbbbbbb"
     assert (prefix / "current").readlink().as_posix() == "releases/0.6.0-bbbbbbb"
     assert (release / "app" / "rpa_core" / "__init__.py").read_text("utf-8") == "VALUE = 2\n"
-    assert (release / "bin" / "rpa").stat().st_mode & 0o111
+    if os.name != "nt":  # Windows 沒有執行權限位元；分發包只在 Linux
+        assert (release / "bin" / "rpa").stat().st_mode & 0o111
     assert (release / "python").readlink().as_posix() == f"../../runtimes/{RUNTIME_ID}/python"
     assert f"runtime={RUNTIME_ID}" in (release / "BUILD_INFO").read_text("utf-8")
     assert (release / "update.zip").read_bytes() == update.read_bytes()
