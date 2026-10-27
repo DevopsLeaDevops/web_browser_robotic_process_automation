@@ -20,9 +20,9 @@
         <dt>範圍／不包含</dt><dd>範圍：<code>rpa_server.updates.Layout.switch</code> 在 Windows 上換連結；<code>tests/ci/test_server_package.py</code> 在 macOS 執行真的 <code>bin/rpa</code> 時的 mv。不包含：<code>bin/rpa</code>、<code>install.sh</code> 的 Linux 行為（GNU mv 不變）；PR #81 記下仍待觀察的 Ubuntu 偶發 TargetClosed（10-26 沒有再出現）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱、合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/updates.py</code>、<code>tests/ci/test_server_package.py</code>、<code>apps/server/tests/test_updates.py</code>、<code>packages/rpa_update/tests/test_manifest.py</code>、本紀錄與任務索引。和同時進行的 20261026-layered-ci（CI 依層建置）不共用檔案。</dd>
-        <dt>狀態</dt><dd>實作中：本地完成，待推送、開 PR、在 Windows 與 macOS 實際跑一次。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>fix/scheduled-update-tests</code>；PR 未建立；base main <code>066ded2</code>。</dd>
-        <dt>交接版本／同步狀態</dt><dd>基準 <code>066ded2</code>＋本分支的修改，尚未推送。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #93 的 CI 通過；手動觸發的每晚完整測試 macOS 通過，Windows 只剩舊的偶發競態（第三個原因，另開任務）。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/scheduled-update-tests</code>；PR #93；base main <code>066ded2</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：<code>81844b8</code>、<code>3f5013a</code>。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13.17）；連不到 PyPI，只有快取裡的 pytest 9.1.1、ruff 0.16.9。Windows、macOS 的驗證在 GitHub Actions。</dd>
       </dl></div>
     </section>
@@ -33,6 +33,7 @@
         <li><strong>macOS：</strong><code>tests/ci/test_server_package.py::test_serve_rolls_back_when_the_new_version_cannot_start</code> 執行真的 <code>bin/rpa serve</code>，退回時用 <code>mv -Tf</code> 換 current 連結。macOS 的 BSD mv 沒有 <code>-T</code>（「illegal option -- T」），結束碼 3。PR #81 已經為 install.sh 的合成測試加了 mv 的替身（<code>HOST_TOOLS</code>），但那是 Bash 函式，只在 <code>source install.sh</code> 的同一個程序裡有效；這個測試另外啟動 <code>bin/rpa</code>，用不到。每晚 run 40399471079 的 macOS、一鍵安裝腳本 run 40402544121 的兩個 macOS 工作都是這一個測試。生產環境是 Linux（GNU mv），不受影響。</li>
         <li><strong>Windows：</strong><code>apps/server/tests/test_updates.py</code> 裡會安裝更新檔的測試（7 項以上）都在 <code>Layout.switch</code> 失敗：<code>.current.new</code> 改名蓋過 <code>current</code> 時 WinError 5（存取被拒）。Windows 的改名（MoveFileEx）蓋不過指向資料夾的連結。每晚 run 40399471079 的 Windows、一鍵安裝腳本的「專案內執行（windows-latest）」都是這些測試。「從零開始（windows-latest）」只留下結束碼 1；它的日誌在這個環境下載不到（Azure blob 被代理擋），推測是同一批測試（它也跑全部測試，10-24、10-25 沒有失敗，10-26 PR #83 之後才失敗）。分發包只支援 Linux，不影響生產。</li>
         <li><strong>修好 switch 之後在 Windows 多看到的三項（同樣只是測試的寫法）：</strong>手動觸發的每晚完整測試（run 40443170624，Windows）：<code>test_install_switches_current_and_asks_for_restart</code> 與 <code>test_update_file_extracts_verified_tree</code> 檢查執行權限位元（Windows 沒有）；<code>test_update_file_rejects_changed_content</code> 的樣本用 <code>write_text</code> 寫，Windows 換成 CRLF 後比替換的內容多 1 位元組，大小不同就在打開時被擋下，而不是測試要的「大小相同、讀內容才發現」。之前這些測試在 switch 那一步就失敗，所以沒看到。</li>
+        <li><strong>第三個原因（偶發，舊的，本 PR 沒有改）：</strong>Windows 上「驗證通過後馬上發布」偶爾回 409 <code>not_validated</code>：10-23、10-25 的 <code>test_playground_chains_published_scenarios</code>，以及本分支手動觸發的 run 40446663520 的 <code>test_remote_worker_runs_validation_and_playground[firefox-False]</code>。測試先確認執行的狀態是 passed 才發布，所以不是驗證失敗，而是競態：<code>JobQueue.complete()</code>（<code>apps/server/src/rpa_server/jobs.py</code>）先提交 <code>status=passed</code>，之後才呼叫 <code>on_finished</code> → <code>run_finished</code> → <code>packs.record_run</code> 把驗證紀錄寫進領域資料夾；<code>publish()</code> 看的是領域資料夾的驗證紀錄。這段空檔裡 <code>GET /api/runs/{id}</code> 已經是通過、發布卻找不到紀錄；Windows 寫檔較慢（中間還有登入狀態的紀錄），空檔較長。使用者在畫面上看到通過後立刻按發布也可能遇到。建議另開任務修：<code>publish()</code> 找不到紀錄時，先替這個版本已結束、通過但還沒寫紀錄的驗證執行補寫一次再判斷（<code>packs.lock</code> 是 RLock，可以重入），並加一個重現的回歸測試。</li>
         <li><strong>為什麼 PR 上沒抓到：</strong>PR 上的 CI 依生產角色分配，Linux 跑網站、Windows 只跑 Worker 的瀏覽器測試，macOS 不跑 pytest（docs/develop/ci.html）。這兩個測試在 Linux 通過，只有每晚與一鍵安裝腳本在 macOS、Windows 跑全部測試，所以隔天才出現。</li>
       </ul></div>
     </section>
@@ -55,7 +56,7 @@
           <tr><td>同上</td><td><code>apps/server/tests/test_updates.py</code></td><td>未執行：本機連不到 PyPI，沒有 SQLAlchemy</td><td>交給 CI 的 Linux 與手動觸發的每晚完整測試</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：PR #93 通過；每晚完整測試（手動觸發，本分支）：macOS 通過、Windows 剩偶發競態；人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -64,6 +65,7 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
+        <li>2026-10-26 21:45 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>3f5013a</code> 手動觸發的每晚完整測試（run 40446663520，macOS、Windows，不重跑）：macOS 通過；Windows 的 <code>test_updates.py</code>、<code>test_manifest.py</code> 不再失敗，只剩上面第三個原因的偶發競態（<code>test_remote_worker_runs_validation_and_playground[firefox-False]</code>）。</li>
         <li>2026-10-26 21:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #93 的 CI 通過；手動觸發的每晚完整測試（macOS、Windows，不重跑，run 40443170624）macOS 通過、Windows 剩上面三項測試寫法的問題，一併修改。</li>
         <li>2026-10-26 20:20 America/Los_Angeles（PDT，UTC−07:00），Claude：讀 issue #74、#80 與 10-22～10-26 每次排程的 annotations，分析原因；從 main <code>066ded2</code> 開分支，修改並建立本紀錄。</li>
       </ul></div>
