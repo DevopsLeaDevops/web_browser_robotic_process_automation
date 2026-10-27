@@ -141,12 +141,21 @@ class Layout:
         return (self.prefix / "current").readlink().name
 
     def switch(self, release: str) -> None:
-        """原子地把 ``current`` 換成 ``release``（新連結先建好再改名蓋過去）。"""
+        """原子地把 ``current`` 換成 ``release``（新連結先建好再改名蓋過去）。
+
+        Windows 的改名蓋不過指向資料夾的連結（WinError 5，存取被拒）：先刪掉舊的連結再改名，
+        不是原子的。分發包只支援 Linux，這只讓 Windows 上的開發環境與測試能跑
+        （2026-10-27，每晚完整測試 issue #80、一鍵安裝腳本 issue #74）。
+        """
         temporary = self.prefix / ".current.new"
+        current = self.prefix / "current"
         with contextlib.suppress(FileNotFoundError):
             temporary.unlink()
-        temporary.symlink_to(f"releases/{release}")
-        temporary.replace(self.prefix / "current")
+        temporary.symlink_to(f"releases/{release}", target_is_directory=True)
+        if os.name == "nt":
+            with contextlib.suppress(FileNotFoundError):
+                current.unlink()
+        temporary.replace(current)
 
 
 # ---------------------------------------------------------------- 安裝更新檔

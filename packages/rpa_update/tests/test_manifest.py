@@ -1,4 +1,5 @@
 import json
+import os
 import zipfile
 from pathlib import Path
 
@@ -27,12 +28,13 @@ OTHER_SEED = bytes(range(1, 33))
 
 def _tree(root: Path) -> Path:
     (root / "app" / "rpa_core").mkdir(parents=True)
-    (root / "app" / "rpa_core" / "__init__.py").write_text("VALUE = 1\n")
+    # 寫成位元組：Windows 的 write_text 會換成 CRLF，大小就和下面替換的內容不同
+    (root / "app" / "rpa_core" / "__init__.py").write_bytes(b"VALUE = 1\n")
     (root / "app" / "rpa_core-0.6.0.dist-info").mkdir()
-    (root / "app" / "rpa_core-0.6.0.dist-info" / "METADATA").write_text("Name: rpa-core\n")
+    (root / "app" / "rpa_core-0.6.0.dist-info" / "METADATA").write_bytes(b"Name: rpa-core\n")
     (root / "server" / "bin").mkdir(parents=True)
     script = root / "server" / "bin" / "rpa"
-    script.write_text("#!/usr/bin/env bash\n")
+    script.write_bytes(b"#!/usr/bin/env bash\n")
     script.chmod(0o755)
     return root
 
@@ -160,7 +162,8 @@ def test_update_file_extracts_verified_tree(tmp_path: Path) -> None:
         update.extract("server/", tmp_path / "out" / "server")
     verify_tree(tmp_path / "out" / "app", entries)
     assert (tmp_path / "out" / "app" / "rpa_core" / "__init__.py").read_text() == "VALUE = 1\n"
-    assert (tmp_path / "out" / "server" / "bin" / "rpa").stat().st_mode & 0o111
+    if os.name != "nt":  # Windows 沒有執行權限位元；分發包只在 Linux
+        assert (tmp_path / "out" / "server" / "bin" / "rpa").stat().st_mode & 0o111
 
 
 def test_update_file_rejects_untrusted_key(tmp_path: Path) -> None:
