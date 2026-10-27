@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261026-scheduled-update-tests · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261026-scheduled-update-tests：排程失敗（issue #80、#74）剩下的兩個原因</h1><p>PR #81 修好 10-22～10-25 的失敗之後，10-26 的排程只剩伺服器分層更新（PR #83）帶進來的兩個測試問題：macOS 的 BSD mv 沒有 -T、Windows 的改名蓋不過指向資料夾的連結。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261026-scheduled-update-tests；2026-10-26 20:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-26 20:04 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：「當下有兩個 issue 的問題是什麼，分析原因」。驗收：每晚完整測試與一鍵安裝腳本的排程在 macOS、Windows 不再因這兩個原因失敗；之後由使用者關閉 issue。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>rpa_server.updates.Layout.switch</code> 在 Windows 上換連結；<code>tests/ci/test_server_package.py</code> 在 macOS 執行真的 <code>bin/rpa</code> 時的 mv。不包含：<code>bin/rpa</code>、<code>install.sh</code> 的 Linux 行為（GNU mv 不變）；PR #81 記下仍待觀察的 Ubuntu 偶發 TargetClosed（10-26 沒有再出現）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱、合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/updates.py</code>、<code>tests/ci/test_server_package.py</code>、本紀錄與任務索引。和同時進行的 20261026-layered-ci（CI 依層建置）不共用檔案。</dd>
+        <dt>狀態</dt><dd>實作中：本地完成，待推送、開 PR、在 Windows 與 macOS 實際跑一次。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/scheduled-update-tests</code>；PR 未建立；base main <code>066ded2</code>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>基準 <code>066ded2</code>＋本分支的修改，尚未推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、Python 3.13.17）；連不到 PyPI，只有快取裡的 pytest 9.1.1、ruff 0.16.9。Windows、macOS 的驗證在 GitHub Actions。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="analysis">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>時間線：</strong>issue #74（一鍵安裝腳本）10-22 起、#80（每晚完整測試）10-23 起，每天失敗都追加一則留言。10-22～10-25 的失敗（macOS 的 Bash 3.2 沒有 mapfile、Ubuntu 有頭 Chromium 沒有 X server、Windows Portal 辨識的 1 秒上限等）由 PR #81 修好，10-26 合併。同一天合併的 PR #83（伺服器分層更新，ADR 0018）新增的測試在 macOS、Windows 上失敗，所以 10-26 晚上的排程仍然失敗，只是原因換了。</li>
+        <li><strong>macOS：</strong><code>tests/ci/test_server_package.py::test_serve_rolls_back_when_the_new_version_cannot_start</code> 執行真的 <code>bin/rpa serve</code>，退回時用 <code>mv -Tf</code> 換 current 連結。macOS 的 BSD mv 沒有 <code>-T</code>（「illegal option -- T」），結束碼 3。PR #81 已經為 install.sh 的合成測試加了 mv 的替身（<code>HOST_TOOLS</code>），但那是 Bash 函式，只在 <code>source install.sh</code> 的同一個程序裡有效；這個測試另外啟動 <code>bin/rpa</code>，用不到。每晚 run 40399471079 的 macOS、一鍵安裝腳本 run 40402544121 的兩個 macOS 工作都是這一個測試。生產環境是 Linux（GNU mv），不受影響。</li>
+        <li><strong>Windows：</strong><code>apps/server/tests/test_updates.py</code> 裡會安裝更新檔的測試（7 項以上）都在 <code>Layout.switch</code> 失敗：<code>.current.new</code> 改名蓋過 <code>current</code> 時 WinError 5（存取被拒）。Windows 的改名（MoveFileEx）蓋不過指向資料夾的連結。每晚 run 40399471079 的 Windows、一鍵安裝腳本的「專案內執行（windows-latest）」都是這些測試。「從零開始（windows-latest）」只留下結束碼 1；它的日誌在這個環境下載不到（Azure blob 被代理擋），推測是同一批測試（它也跑全部測試，10-24、10-25 沒有失敗，10-26 PR #83 之後才失敗）。分發包只支援 Linux，不影響生產。</li>
+        <li><strong>為什麼 PR 上沒抓到：</strong>PR 上的 CI 依生產角色分配，Linux 跑網站、Windows 只跑 Worker 的瀏覽器測試，macOS 不跑 pytest（docs/develop/ci.html）。這兩個測試在 Linux 通過，只有每晚與一鍵安裝腳本在 macOS、Windows 跑全部測試，所以隔天才出現。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>macOS：<code>host_env()</code> 在 PATH 最前面放一個 mv，把 <code>-Tf</code> 換成 BSD 的 <code>-hf</code>（和 PR #81 的 <code>HOST_TOOLS</code> 同一個做法），用在 <code>supervise()</code> 與退回的測試；Linux 不加，繼續直接驗證 GNU mv。Windows：<code>Layout.switch</code> 在 Windows 先刪掉舊連結再改名（不是原子的，註解寫明只為開發環境與測試），連結加上 <code>target_is_directory=True</code>。</li>
+        <li><strong>決定（實作選擇）：</strong>Windows 改程式而不是略過測試：<code>test_updates.py</code> 測的是等閒置、遷移前備份、確認新版本這些和系統無關的邏輯，略過整個檔案會少掉 Windows 開發環境的覆蓋。</li>
+        <li><strong>下一個具體動作：</strong>推送、開 PR；手動觸發每晚完整測試（<code>systems=macos,windows</code>、<code>extra=0</code>）跑這個分支，確認兩個原因都消失。合併後下一次排程通過再關閉 issue #74、#80。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>066ded2＋本分支；Linux、Python 3.13.17、pytest 9.1.1</td><td><code>pytest tests/ci/test_server_package.py</code></td><td>60 passed（Linux 走原生 GNU mv，替身不加）</td><td>macOS 的 BSD mv、Windows</td></tr>
+          <tr><td>同上；ruff 0.16.9（鎖定 0.17.1 不在快取）</td><td><code>ruff check</code>、<code>ruff format --check</code>（兩個檔案）</td><td>通過</td><td>Pyright、鎖定版本的 ruff 交給 CI</td></tr>
+          <tr><td>同上</td><td><code>apps/server/tests/test_updates.py</code></td><td>未執行：本機連不到 PyPI，沒有 SQLAlchemy</td><td>交給 CI 的 Linux 與手動觸發的每晚完整測試</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-26 20:20 America/Los_Angeles（PDT，UTC−07:00），Claude：讀 issue #74、#80 與 10-22～10-26 每次排程的 annotations，分析原因；從 main <code>066ded2</code> 開分支，修改並建立本紀錄。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

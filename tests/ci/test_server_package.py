@@ -585,6 +585,27 @@ def point_current(prefix: Path, name: str) -> None:
     current.symlink_to(f"releases/{name}")
 
 
+def host_env(folder: Path, environ: dict[str, str]) -> dict[str, str]:
+    """執行真的 bin/rpa 時的環境變數。
+
+    bin/rpa 只在 Linux 的分發包裡執行，退回時用 GNU 的 ``mv -Tf`` 換掉 current 連結。macOS 的
+    BSD mv 沒有 -T：和上面的 HOST_TOOLS 一樣，在 PATH 最前面放一個 mv，把它換成意思相同的
+    ``mv -hf``（2026-10-27，每晚完整測試 issue #80）。Linux 不加，繼續直接驗證 GNU mv。
+    """
+    if sys.platform != "darwin":
+        return environ
+    tools = folder / "host-tools"
+    tools.mkdir(exist_ok=True)
+    mv = tools / "mv"
+    mv.write_text(
+        '#!/bin/bash\nif [ "$1" = -Tf ]; then shift; exec /bin/mv -hf "$@"; fi\n'
+        'exec /bin/mv "$@"\n',
+        encoding="utf-8",
+    )
+    mv.chmod(0o755)
+    return {**environ, "PATH": f"{tools}{os.pathsep}{environ.get('PATH', '')}"}
+
+
 def test_wrapper_uses_the_bundled_python(tmp_path: Path) -> None:
     root = make_release(
         tmp_path,
@@ -620,7 +641,7 @@ def supervise(prefix: Path, *args: str, timeout: float = 30) -> subprocess.Compl
     environ = {k: v for k, v in os.environ.items() if not k.startswith(("RPA_", "PYTHON"))}
     return subprocess.run(
         [str(prefix / "current" / "bin" / "rpa"), "serve", *args],
-        env={**environ, "LOG": str(prefix / "log.txt")},
+        env=host_env(prefix.parent, {**environ, "LOG": str(prefix / "log.txt")}),
         cwd=prefix / "current",
         capture_output=True,
         text=True,
@@ -667,7 +688,7 @@ def test_serve_rolls_back_when_the_new_version_cannot_start(tmp_path: Path) -> N
     environ = {k: v for k, v in os.environ.items() if not k.startswith(("RPA_", "PYTHON"))}
     result = subprocess.run(
         [str(prefix / "current" / "bin" / "rpa"), "serve"],
-        env={**environ, "LOG": str(prefix / "log.txt"), "DB": str(database)},
+        env=host_env(tmp_path, {**environ, "LOG": str(prefix / "log.txt"), "DB": str(database)}),
         capture_output=True,
         text=True,
         timeout=30,
