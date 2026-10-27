@@ -80,7 +80,15 @@ def test_data_features_reads_raw_settings() -> None:
 
 
 def test_missing_features() -> None:
-    assert {"frame", "anyFrame", "page", "popup", "dynamicValues"} == FEATURES
+    assert {
+        "frame",
+        "anyFrame",
+        "page",
+        "popup",
+        "dynamicValues",
+        "upload",
+        "fileInputs",
+    } == FEATURES
     # M7a 之前的 App 沒有回報 features：一個都不懂
     assert missing_features({"frame"}, None) == ["frame"]
     assert missing_features({"anyFrame", "frame"}, "frame") == ["anyFrame", "frame"]

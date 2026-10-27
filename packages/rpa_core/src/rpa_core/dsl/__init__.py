@@ -34,6 +34,7 @@ from rpa_core.dsl.steps import (
     SelectStep,
     Step,
     StepBase,
+    UploadStep,
     WaitForStep,
 )
 from rpa_core.dsl.validation import (
@@ -74,6 +75,7 @@ __all__ = [
     "SelectStep",
     "Step",
     "StepBase",
+    "UploadStep",
     "ValidationResult",
     "ValueSpec",
     "VerifyCheck",

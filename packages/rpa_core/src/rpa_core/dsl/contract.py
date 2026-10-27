@@ -17,6 +17,7 @@ from pydantic import AfterValidator, Field, model_validator
 
 from rpa_core.dsl.dynamic import DynamicValueError, has_dynamic, parse
 from rpa_core.dsl.fields import DslModel, NonEmptyStr, dsl_error
+from rpa_core.dsl.files import FileValueError, accept_rule_ok, file_values, parse_size
 
 __all__ = [
     "InputSpec",
@@ -30,7 +31,8 @@ __all__ = [
     "spec_json_schema",
 ]
 
-InputType = Literal["string", "number", "integer", "boolean"]
+InputType = Literal["string", "number", "integer", "boolean", "file"]
+"""``file``（M7c）：要上傳的檔案，值的寫法見 :mod:`rpa_core.dsl.files`。"""
 OutputType = Literal["string", "number", "integer", "boolean", "array", "object"]
 
 _STRING_ONLY: Final = (
@@ -63,6 +65,8 @@ def matches_type(value: object, value_type: str) -> bool:
             return isinstance(value, list)
         case "object":
             return isinstance(value, dict)
+        case "file":
+            return isinstance(value, str | dict | list)
         case _:
             return False
 
@@ -89,7 +93,7 @@ class ValueSpec(DslModel):
         for attr, alias in _NUMBER_ONLY:
             if getattr(self, attr) is not None and self.type not in ("number", "integer"):
                 raise dsl_error("value.not_applicable", at=[alias], field=alias, type=self.type)
-        if self.enum is not None and self.type in ("array", "object"):
+        if self.enum is not None and self.type in ("array", "object", "file"):
             raise dsl_error("value.not_applicable", at=["enum"], field="enum", type=self.type)
         pairs = (("min_length", "max_length", "maxLength"), ("minimum", "maximum", "maximum"))
         for low, high, alias in pairs:
@@ -140,8 +144,35 @@ class InputSpec(ValueSpec):
     """預設值，要符合型別與限制；沒有預設值代表執行時必須提供。
 
     可以是動態值（例如 ``{{today}}``、``{{random:10:30}}``，見 :mod:`rpa_core.dsl.dynamic`），
-    每次執行開始時求值。
+    每次執行開始時求值。``type: file`` 的預設值是場景附件或那台電腦上的路徑，不能是上傳檔。
     """
+    accept: Annotated[list[NonEmptyStr], Field(min_length=1)] | None = None
+    """``type: file``：接受的檔案，``.副檔名`` 或 MIME（``image/png``、``image/*``）。"""
+    max_size: NonEmptyStr | None = None
+    """``type: file``：單一檔案的上限，例如 ``20MB``（單位 B、KB、MB、GB）。"""
+    multiple: bool | None = None
+    """``type: file``：true 時一次可以有多個檔案，值是清單；沒寫是單一檔案。"""
+
+    @model_validator(mode="after")
+    def _check_file(self) -> Self:
+        if self.type != "file":
+            for attr, alias in (("accept", "accept"), ("max_size", "maxSize")):
+                if getattr(self, attr) is not None:
+                    raise dsl_error("value.not_applicable", at=[alias], field=alias, type=self.type)
+            if self.multiple is not None:
+                raise dsl_error(
+                    "value.not_applicable", at=["multiple"], field="multiple", type=self.type
+                )
+            return self
+        for index, rule in enumerate(self.accept or ()):
+            if not accept_rule_ok(rule):
+                raise dsl_error("file.accept_format", at=["accept", index], value=rule)
+        if self.max_size is not None:
+            try:
+                parse_size(self.max_size)
+            except FileValueError as error:
+                raise dsl_error("file.max_size", at=["maxSize"], detail=error.message) from error
+        return self
 
     @model_validator(mode="after")
     def _check_default(self) -> Self:
@@ -150,15 +181,43 @@ class InputSpec(ValueSpec):
                 rules = self.check_value(self.default)
             except DynamicValueError as error:
                 raise dsl_error(f"dynamic.{error.code}", at=["default"], **error.params) from error
+            if self.type == "file" and not rules:
+                for item in file_values(self.default, multiple=bool(self.multiple)):
+                    if item.source == "upload":
+                        raise dsl_error("file.default_upload", at=["default"])
             for rule in rules:
                 raise dsl_error("value.default_invalid", at=["default"], rule=rule)
         return self
+
+    @property
+    def max_bytes(self) -> int | None:
+        """``maxSize`` 的位元組數；沒寫時是 None（用伺服器的上限）。"""
+        return parse_size(self.max_size) if self.max_size is not None else None
+
+    def violations(self, value: object) -> Iterator[str]:
+        """值不符合的限制；``type: file`` 時是值的寫法錯在哪裡（目前語言的說明）。"""
+        if self.type != "file":
+            yield from super().violations(value)
+            return
+        try:
+            file_values(value, multiple=bool(self.multiple))
+        except FileValueError as error:
+            yield error.message
 
     def check_value(self, value: object) -> list[str]:
         """存檔與排隊前的校驗：動態值只檢查語法，普通值檢查型別與限制。
 
         不讀時鐘、不抽隨機數，也不推測所有可能的結果；動態值的約束在實際執行開始時校驗。
+        ``type: file`` 只檢查寫法（路徑裡的動態值檢查語法），檔案在不在、多大、類型對不對
+        要到執行的那台才知道。
         """
+        if self.type == "file":
+            rules = list(self.violations(value))
+            if not rules:
+                for item in file_values(value, multiple=bool(self.multiple)):
+                    if item.source == "path" and has_dynamic(item.ref):
+                        parse(item.ref)
+            return rules
         if isinstance(value, str) and has_dynamic(value):
             parse(value)
             return []
@@ -255,6 +314,15 @@ def spec_json_schema(spec: ValueSpec) -> dict[str, object]:
         schema["minimum"] = _number(spec.minimum)
     if spec.maximum is not None:
         schema["maximum"] = _number(spec.maximum)
+    if isinstance(spec, InputSpec) and spec.type == "file":
+        # 檔案入參的值有三種寫法（見 rpa_core.dsl.files），不是單一 JSON 型別：用擴充欄位說明
+        del schema["type"]
+        info: dict[str, object] = {"multiple": bool(spec.multiple)}
+        if spec.accept is not None:
+            info["accept"] = list(spec.accept)
+        if spec.max_size is not None:
+            info["maxSize"] = spec.max_size
+        schema["x-rpa-file"] = info
     if isinstance(spec, InputSpec) and spec.default is not None:
         if has_dynamic(spec.default):
             # 動態值每次執行才求值，不是 JSON Schema 的 default（整數入參的寫法還是文字）

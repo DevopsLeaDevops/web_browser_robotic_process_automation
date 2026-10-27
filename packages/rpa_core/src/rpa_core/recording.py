@@ -17,7 +17,12 @@
   略過並列在警告中（不然草稿會引用沒開的分頁）。
 - 填寫前點同一個欄位的那一步保留（可能是展開選單、載入候選）；逐字輸入的 ``type``、
   ``press_sequentially`` 轉成 fill（DSL 沒有逐鍵輸入）並列在警告中。
-- 轉不了的行（例如 hover、上傳檔案、自己開的新分頁）以註解留在草稿裡，並列在警告中。
+- 上傳檔案（M7c）：``set_input_files("檔名")`` 轉成 ``upload`` 步驟與一個 ``type: file`` 的入參
+  （``accept`` 取錄到的副檔名，多個檔案時 ``multiple: true``）。錄製稿只有檔名、沒有內容，
+  入參沒有預設值，草稿裡留一行註解提醒執行前要上傳檔案（不算轉不了）。前一步是點擊上傳框、
+  或點擊包著上傳框的元素（例如 Element UI 的 el-upload）時，合併成這一步、不保留那次點擊，
+  不然執行時會再開一次選擇檔案的視窗。``set_input_files([])`` 轉成清空（``files: []``）。
+- 轉不了的行（例如 hover、自己開的新分頁）以註解留在草稿裡，並列在警告中。
 - **自動參數化**：每個 fill 的值變成一個入參，預設值是錄到的值，名稱取自欄位的英數名稱
   （test id、CSS 的 #id 等），沒有英數名稱時依欄位種類叫 text、number…，欄位的標籤寫在入參說明；
   數字欄位（spinbutton）填的是整數時入參是 integer。
@@ -37,6 +42,7 @@ import re
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
 from typing import Final, cast
 from urllib.parse import urlsplit
 
@@ -129,6 +135,8 @@ class Conversion:
     steps: int
     outputs: tuple[str, ...] = ()
     """由 assert text、assert value 產生的出參名稱。"""
+    files: tuple[str, ...] = ()
+    """上傳檔案產生的檔案入參（M7c）：調試、驗證或執行前要上傳檔案。"""
     parts: "ConversionParts | None" = None
     """各段落的內容，接在既有場景後面時用（:func:`merge_recording`）。"""
 
@@ -138,6 +146,7 @@ class Conversion:
             "inputs": list(self.inputs),
             "secrets": list(self.secrets),
             "outputs": list(self.outputs),
+            "files": list(self.files),
             "steps": self.steps,
         }
 
@@ -510,14 +519,21 @@ class _Step:
     name: str
 
 
+@dataclass(frozen=True, slots=True)
+class _Note:
+    """草稿裡的一行註解（例如上傳檔案的提醒）；不是轉不了，不算警告。"""
+
+    message: str
+
+
 @dataclass(slots=True)
 class _State:
     scene_id: str
     origin: str | None
     source: str
     masked: set[Span] = field(default_factory=set[Span])
-    entries: list[_Step | ConversionWarning] = field(
-        default_factory=list[_Step | ConversionWarning]
+    entries: list[_Step | ConversionWarning | _Note] = field(
+        default_factory=list[_Step | ConversionWarning | _Note]
     )
     warnings: list[ConversionWarning] = field(default_factory=list[ConversionWarning])
     inputs: dict[str, dict[str, object]] = field(default_factory=dict[str, dict[str, object]])
@@ -545,6 +561,8 @@ class _State:
     """``with …expect_popup()`` 區塊裡，還在等第一個可以加上 popup 的步驟。"""
     page: str | None = None
     """目前這一行在哪個分頁（DSL 的分頁名稱）；None 是一開始的分頁。"""
+    files: list[str] = field(default_factory=list[str])
+    """上傳檔案產生的檔案入參（M7c）。"""
 
     def warn(self, node: ast.AST, message: str) -> None:
         line = cast("int", getattr(node, "lineno", 0))
@@ -826,7 +844,7 @@ def _action(state: _State, statement: ast.Expr, segments: list[_Segment]) -> Non
         case "hover":
             state.warn(statement, catalog("recording.unsupported.hover"))
         case "set_input_files":
-            state.warn(statement, catalog("recording.unsupported.upload"))
+            _upload(state, statement, action, target, described)
         case _:
             state.warn(statement, catalog("recording.unsupported.method", name=name))
 
@@ -863,6 +881,89 @@ def _click(
         # 點的是 iframe 元素本身：執行時點在 iframe 的正中央，不是錄製時的那個欄位或按鈕
         state.warn(statement, catalog("recording.frame_click", target=css))
     state.add("click", fields, described)
+
+
+_FRAME_KEYS: Final = ("frame", "anyFrame")
+
+
+def _without_frame(locator: object) -> object:
+    if not isinstance(locator, dict):
+        return locator
+    values = cast("dict[str, object]", locator)
+    return {key: value for key, value in values.items() if key not in _FRAME_KEYS}
+
+
+def _merge_click(state: _State, target: dict[str, object]) -> None:
+    """前一步是點擊這個上傳框、或包著它的元素（el-upload 等）：那次點擊只是開選擇檔案的視窗，
+    執行時由 upload 直接交檔案，刪掉它才不會再開一次視窗。"""
+    if not state.entries:
+        return
+    last = state.entries[-1]
+    if not isinstance(last, _Step) or last.action != "click":
+        return
+    if set(last.fields) - {"target", "page"} or last.fields.get("page") != state.page:
+        return
+    click = last.fields.get("target")
+    if not isinstance(click, dict):
+        return
+    clicked = cast("dict[str, object]", click)
+    if any(clicked.get(key) != target.get(key) for key in _FRAME_KEYS):
+        return
+    inner = _without_frame(target)
+    outer = _without_frame(clicked)
+    within = target.get("within")
+    if inner == outer or (within is not None and _without_frame(within) == outer):
+        state.entries.pop()
+
+
+def _upload_name(target: Mapping[str, object], used: set[str]) -> str:
+    candidates = (_identifier_from(word) for word in _words(target))
+    found = next((item for item in candidates if item), None)
+    if found is None and isinstance(target.get("within"), dict):
+        outer = cast("dict[str, object]", target["within"])
+        found = next((item for item in map(_identifier_from, _words(outer)) if item), None)
+    return _unique(found or "file", used)
+
+
+def _upload(
+    state: _State,
+    statement: ast.Expr,
+    action: _Segment,
+    target: dict[str, object],
+    described: str,
+) -> None:
+    """``set_input_files("檔名")`` → upload 步驟與一個檔案入參（M7c）。"""
+    first = action.args[0] if action.args else action.kwargs.get("files")
+    value = _literal(first) if first is not None else ...
+    if isinstance(value, str):
+        names = [value]
+    elif isinstance(value, list | tuple) and all(
+        isinstance(item, str) for item in cast("list[object]", value)
+    ):
+        names = [str(item) for item in cast("list[object]", value)]
+    else:
+        # 位元組（FilePayload）、變數或路徑物件：錄製稿不會產生，手寫的轉不了
+        state.warn(statement, catalog("recording.unsupported.arguments", name=action.name))
+        return
+    if not names:
+        state.add("upload", {"target": target, "files": []}, described)
+        return
+    _merge_click(state, target)
+    name = _upload_name(target, state.used_inputs)
+    shown = ", ".join(PurePosixPath(item.replace("\\", "/")).name for item in names)
+    spec: dict[str, object] = {
+        "type": "file",
+        "description": catalog("recording.upload_input", target=described, files=shown),
+    }
+    if len(names) > 1:
+        spec["multiple"] = True
+    suffixes = [PurePosixPath(item.replace("\\", "/")).suffix.lower() for item in names]
+    if all(len(suffix) > 1 for suffix in suffixes):
+        spec["accept"] = list(dict.fromkeys(suffixes))
+    state.inputs[name] = spec
+    state.files.append(name)
+    state.add("upload", {"target": target, "files": f"{{{{ inputs.{name} }}}}"}, described)
+    state.entries.append(_Note(catalog("recording.upload_note", files=shown, input=name)))
 
 
 def _fill(state: _State, target: dict[str, object], text: str, described: str) -> None:
@@ -1096,6 +1197,7 @@ def convert_recording(
         secrets=tuple(state.secrets),
         steps=len(state.steps),
         outputs=tuple(state.outputs),
+        files=tuple(state.files),
         parts=ConversionParts(
             step_lines=tuple(step_lines),
             inputs=state.inputs,
@@ -1111,6 +1213,9 @@ def _step_lines(state: _State) -> list[str]:
     lines: list[str] = []
     number = state.first_number
     for entry in state.entries:
+        if isinstance(entry, _Note):
+            lines.append(f"  # {entry.message}")
+            continue
         if isinstance(entry, ConversionWarning):
             note = catalog("recording.comment", line=entry.line, message=entry.message)
             lines.append(f"  # {note}")

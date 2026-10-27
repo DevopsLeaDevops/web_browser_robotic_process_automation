@@ -319,7 +319,6 @@ def test_unsupported_lines_stay_as_comments_with_warnings() -> None:
         page1 = context.new_page()
         page1.goto("http://127.0.0.1:8765/help")
         page1.get_by_role("button", name="關閉").click()
-        page.locator("#file").set_input_files("a.txt")
         """
     )
     data, result = convert(source)
@@ -327,12 +326,12 @@ def test_unsupported_lines_stay_as_comments_with_warnings() -> None:
     # 自己開的新分頁（context.new_page）還不支援；錄到的新分頁（expect_popup）見下面的測試
     assert [step["action"] for step in steps_of(data)] == ["goto"]
     warnings = result.warnings
-    assert [warning.line for warning in warnings] == [2, 4, 5, 6]
+    assert [warning.line for warning in warnings] == [2, 4, 5]
     assert warnings[0].source == 'page.get_by_text("選單").hover()'
     text = result.scenario
     assert "# 錄製稿第 2 行轉不了" in text
     assert '#   page.get_by_text("選單").hover()' in text
-    assert "有 4 行轉不了" in text
+    assert "有 3 行轉不了" in text
 
 
 def test_actions_on_a_popup_tab_get_page() -> None:
@@ -673,3 +672,109 @@ def test_continue_recording_without_new_steps_is_an_error() -> None:
         convert_recording(
             "page.close()\n", scene_id="rec-demo", name="x", existing=existing, prepend_goto=False
         )
+
+
+# ---------------------------------------------------------------- 上傳檔案（M7c）
+
+_EL_UPLOAD = 'page.get_by_role("button", name="點擊上傳").locator("input[name=\\"file\\"]")'
+_IN_FRAME = 'page.locator("#frm").content_frame.get_by_role("button", name="附件")'
+UPLOADS = "\n".join(
+    [
+        'page.goto("http://127.0.0.1:8798/")',
+        'page.get_by_role("button", name="匯入檔案").set_input_files("訂單匯入.xlsx")',
+        'page.get_by_role("button", name="點擊上傳").click()',
+        _EL_UPLOAD + '.set_input_files(["訂單匯入.xlsx", "商品圖.png"])',
+        'page.get_by_role("button", name="選擇圖片").click()',
+        _IN_FRAME + '.set_input_files("訂單匯入.xlsx")',
+        'page.get_by_role("button", name="匯入檔案").set_input_files([])',
+    ]
+)
+"""2026-10-27 以 Playwright 1.63 的錄製器（enableRecorder）在五種上傳元件上實際錄到的寫法。"""
+
+
+def test_uploads_from_a_real_recording() -> None:
+    data, result = convert(UPLOADS)
+
+    assert not result.warnings
+    steps = steps_of(data)
+    # 點外層（el-upload）那一步併進上傳；點擊時才建立上傳框的按鈕只錄到點擊，照樣是 click
+    assert [step["action"] for step in steps] == [
+        "goto",
+        "upload",
+        "upload",
+        "click",
+        "upload",
+        "upload",
+    ]
+    inputs = cast("dict[str, dict[str, object]]", data["inputs"])
+    assert list(inputs) == ["file", "file_2", "file_3"]
+    assert inputs["file"]["type"] == "file"
+    assert inputs["file"]["accept"] == [".xlsx"]
+    assert "multiple" not in inputs["file"]
+    assert "default" not in inputs["file"]
+    assert inputs["file"]["description"] == "「匯入檔案」要上傳的檔案（錄製時選的是 訂單匯入.xlsx）"
+    assert inputs["file_2"]["multiple"] is True
+    assert inputs["file_2"]["accept"] == [".xlsx", ".png"]
+    assert steps[1] == {
+        "id": "upload-2",
+        "name": "上傳檔案到「匯入檔案」",
+        "action": "upload",
+        "target": {"role": "button", "name": "匯入檔案"},
+        "files": ["{{ inputs.file }}"],
+    }
+    assert 'files: "{{ inputs.file }}"' in result.scenario
+    assert steps[2]["target"] == {
+        "css": 'input[name="file"]',
+        "within": {"role": "button", "name": "點擊上傳"},
+    }
+    assert steps[4]["target"] == {
+        "role": "button",
+        "name": "附件",
+        "frame": {"css": "#frm"},
+    }
+    assert steps[5]["files"] == []
+    assert result.files == ("file", "file_2", "file_3")
+    assert result.to_json()["files"] == ["file", "file_2", "file_3"]
+    # 提醒寫成註解，不算轉不了
+    assert "錄製時選的檔案（訂單匯入.xlsx）不會隨錄製稿保存" in result.scenario
+    assert "轉不了" not in result.scenario
+
+
+def test_click_on_another_element_before_an_upload_is_kept() -> None:
+    source = dedent(
+        """\
+        page.goto("https://example.test/")
+        page.get_by_role("button", name="新增").click()
+        page.get_by_label("附件").set_input_files("a.pdf")
+        page.get_by_label("附件").click(button="right")
+        page.locator("#photo").set_input_files("相片")
+        """
+    )
+    data, result = convert(source)
+
+    assert not result.warnings
+    assert [step["action"] for step in steps_of(data)] == [
+        "goto",
+        "click",
+        "upload",
+        "click",
+        "upload",
+    ]
+    inputs = cast("dict[str, dict[str, object]]", data["inputs"])
+    # 沒有副檔名時不限制類型；CSS 的 #id 當入參名稱
+    assert list(inputs) == ["file", "photo"]
+    assert "accept" not in inputs["photo"]
+
+
+def test_upload_arguments_that_are_not_file_names() -> None:
+    source = dedent(
+        """\
+        page.goto("https://example.test/")
+        page.get_by_label("附件").set_input_files(files=[{"name": "a.txt", "buffer": b"x"}])
+        page.get_by_label("附件").set_input_files(path)
+        """
+    )
+    data, result = convert(source)
+
+    assert [step["action"] for step in steps_of(data)] == ["goto"]
+    assert [warning.line for warning in result.warnings] == [2, 3]

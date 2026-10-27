@@ -5,6 +5,7 @@
 - 步驟 id、secrets 名稱、extract 的 as 不能重複
 - goto 的網址以 / 開頭時，要有 browser.baseUrl
 - 新分頁（M7b）：page 要是「之前」某一步的 popup 開出來的分頁；popup 的名稱不能重複
+- 上傳（M7c）：upload 的 files 要引用 type: file 的入參；Python 腳本場景還不能有 file 入參
 - ``{{ }}``：以 Jinja2 解析，語法要正確；只能用 inputs、secrets、facts、env；
   inputs、secrets 要宣告，facts 要由「之前」的 extract 產生；
   寫了入參值的動態值（today、now、random）時，說明要改寫在入參
@@ -22,6 +23,7 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from rpa_core.dsl.dynamic import NAMES as DYNAMIC_NAMES
 from rpa_core.dsl.dynamic import dynamic_expression
+from rpa_core.dsl.steps import upload_input_names
 from rpa_core.dsl.yaml_loader import DataPath
 
 if TYPE_CHECKING:
@@ -54,6 +56,7 @@ def cross_check(scenario: "Scenario") -> list[CrossIssue]:
     issues.extend(_duplicate_names(scenario))
     issues.extend(_relative_urls(scenario))
     issues.extend(_tabs(scenario))
+    issues.extend(_uploads(scenario))
     issues.extend(_templates(scenario))
     return issues
 
@@ -136,6 +139,25 @@ def _tabs(scenario: "Scenario") -> Iterator[CrossIssue]:
             )
         else:
             opened[popup] = index
+
+
+def _uploads(scenario: "Scenario") -> Iterator[CrossIssue]:
+    if scenario.script is not None:
+        for name, spec in scenario.inputs.items():
+            if spec.type == "file":
+                yield CrossIssue(("inputs", name, "type"), "script.file_input", {"name": name})
+    for index, step in enumerate(scenario.steps or ()):
+        if step.action != "upload":
+            continue
+        for position, name in enumerate(upload_input_names(step.files)):
+            spec = scenario.inputs.get(name)
+            # 沒有宣告的入參由 {{ }} 的檢查指出，這裡只看型別
+            if spec is not None and spec.type != "file":
+                yield CrossIssue(
+                    ("steps", index, "files", position),
+                    "upload.not_file_input",
+                    {"name": name, "type": spec.type},
+                )
 
 
 # ---------------------------------------------------------------- {{ }}
