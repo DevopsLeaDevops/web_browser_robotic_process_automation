@@ -197,11 +197,13 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
             == "visible"
         )
 
-        # 點 n2 的「查詢」那一步：跳到它開始前 0.4 秒
+        # 點 n2 的「查詢」那一步：跳到它開始前 0.4 秒，但不早於 n2 那一段的開頭（不跳回轉場卡）。
+        # 本機的測試網站很快，n2 的錄影開始時（第一格）前幾步可能已經做完，「查詢」離開頭很近。
         steps = cast("list[JsonObject]", data["steps"])
         search = next(step for step in steps if step["node"] == "n2" and step["rawId"] == "search")
         page.locator(f'.replay-row[data-index="{search["index"]}"]').click()
-        wait_near(page, cast("int", search["startMs"]) / 1000 - 0.4, search)
+        target = max(second_start, cast("int", search["startMs"]) / 1000 - 0.4)
+        wait_near(page, target, search)
         expect(page.locator("#replay-chip-n")).to_have_text(str(search["label"]))
 
         # 釘選整次：兩個節點的錄影都釘選
