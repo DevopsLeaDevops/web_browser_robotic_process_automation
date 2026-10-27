@@ -30,7 +30,7 @@
   "cli.run.short_help": "运行场景。",
   "cli.run.scenario_metavar": "场景文件",
   "cli.run.input_value_metavar": "名称=值",
-  "cli.run.input_value_help": "一個入參，依宣告的型別轉換；可以重複。檔案入參寫這台電腦上的路徑（或場景附件 files/檔名），多檔的檔案入參同一個名稱寫多次。優先於 --input。",
+  "cli.run.input_value_help": "一个入参，依声明的类型转换；可以重复。文件入参写这台电脑上的路径（或场景附件 files/文件名），多档的文件入参同一个名称写多次。优先于 --input。",
   "cli.run.input_file_help": "入参 JSON 文件，例如上一个场景的 output.json。",
   "cli.run.input_file_invalid": "入参文件必须是 JSON 对象。",
   "cli.run.input_value_invalid": "{value} 不是「名称=值」的格式。",
