@@ -2821,3 +2821,5 @@
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "Linux 伺服器（Rocky 8，${{ matrix.mode }}）", "os": "linux", "queue_s": 0.0, "run_id": 40530741469, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "success", "duration_s": 16.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 40530741686, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "分發包（${{ matrix.label }}）", "os": "linux", "queue_s": 0.0, "run_id": 40530741686, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 18.0, "job": "執行範圍", "os": "linux", "queue_s": 12.0, "run_id": 40530741295, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "matrix.name", "os": "linux", "queue_s": 0.0, "run_id": 40530741295, "workflow": "桌面端建置"}
