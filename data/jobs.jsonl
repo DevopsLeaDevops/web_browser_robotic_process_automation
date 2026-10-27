@@ -2680,3 +2680,5 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 231.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 1.0, "run_id": 40450579685, "workflow": "桌面端建置"}
 {"attempt": 1, "conclusion": "success", "duration_s": 376.0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 40450579685, "workflow": "桌面端建置"}
 {"attempt": 1, "conclusion": "success", "duration_s": 289.0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 2.0, "run_id": 40450579685, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 10.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 40451347544, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "matrix.name", "os": "linux", "queue_s": 0.0, "run_id": 40451347544, "workflow": "桌面端建置"}
