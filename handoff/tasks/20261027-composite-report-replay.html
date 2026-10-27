@@ -55,7 +55,7 @@
           D5 運行報告頁：加「場景運行｜組合運行」切換，場景運行檢視照舊列出節點並標出屬於哪次組合運行；
           D6 錄影保留：組合裡的節點跟著組合運行的結果算保留天數，釘選與超量刪除整組處理。
           實作選擇（使用者可以改）：報告與離線 HTML 在看的時候用看的人的語言產生，不另存檔；轉場卡 2 秒、缺片卡 3 秒。</li>
-        <li><strong>下一個具體動作：</strong>看 PR 2 最新 head 的 CI（bootstrap 的檢查在 <code>42c1efe</code> 失敗，原因要看 PR 的 CI 標註）；使用者審閱、先合併 #96，再把 PR 2 的 base 改成 main。</li>
+        <li><strong>下一個具體動作：</strong>看 #98 最新 head 的 CI；使用者審閱、先合併 #96，再把 #98 的 base 改成 main（必要時 rebase）後合併；之後人工驗收。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無（PR 1 都已推送）；測試用的依賴在容器的 <code>/home/claude/deps</code>，本機預覽用的資料在會話暫存區，都不進倉庫。</li>
       </ul></div>
     </section>
@@ -92,6 +92,7 @@
         <li>2026-10-27 約 07:10 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，從 main <code>30f2290</code> 開 <code>feat/composite-report</code>；GitHub 上沒有開著的 PR。</li>
         <li>2026-10-27 07:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR 1 實作完成（<code>26ec76b</code>），推送後 bootstrap 產生簡中（<code>f3af693</code>）；開 PR #96。</li>
         <li>2026-10-27 08:15 America/Los_Angeles（PDT，UTC−07:00），Claude：#96 最新 head 的 CI 通過。PR 2 實作完成（<code>42c1efe</code>），推送後 bootstrap 產生簡中（<code>10a2ea1</code>），但它的檢查失敗、沒有標註；開 PR 2 讓 CI 跑出原因。</li>
+        <li>2026-10-27 08:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR 2 是 #98（base <code>feat/composite-report</code>）。CI 找到兩個問題並修正：(1) 瀏覽器測試的定義少了型別標註（pyright；bootstrap 檢查失敗的原因）；(2) 真實錄影時，轉場卡算出的實際間隔只有 0.2 秒——Chromium 錄影的開始時間是第一格的觀測時間，可能差到一秒。改成用上一個節點最後一步結束到下一個節點第一步開始（同一台 Worker 的步驟時間），ADR 0019 註明（<code>95878b8</code>）。同一次 CI 也確認：真實錄影的合併回看在 Chromium 上播得出來、轉場卡顯示正確的出參與入參。</li>
       </ul></div>
     </section>
   </div>
