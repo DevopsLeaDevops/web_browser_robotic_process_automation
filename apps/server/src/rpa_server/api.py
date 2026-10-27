@@ -24,12 +24,16 @@ M10.2：錄製端的登記與邀請（/api/recorders）。錄製端自己用的 
 M14：對外 Agent API 的用戶端與稽核（/api/agents，金鑰只在建立與重新產生時回傳一次）；
 錄製端允不允許 Agent 調試（PATCH /api/recorders/{代號} 的 allowAgent、agentHeadlessOnly）。
 Agent 自己用的 API 在 /agent-api/v1（agent_api.py）。
+
+M7c：上傳的檔案（POST /api/files?name=檔名，本體就是檔案內容；GET /api/files/{代號} 的說明與
+/content 的內容）。執行、驗證、調試與組合場景的檔案入參寫 ``{"file": 代號, "name": …}``。
 """
 
 from datetime import datetime
 from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Query, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -37,12 +41,13 @@ from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
 from rpa_server.domain import Engine, Target
-from rpa_server.errors import ServiceError
+from rpa_server.errors import ServiceError, not_found
 from rpa_server.gitsync import Auth, GitSource
 from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services, render_contract
 from rpa_server.storage import SCENARIO_FILE
+from rpa_server.uploads import upload_json
 from rpa_server.videos import VideoSettings
 
 __all__ = ["api_router"]
@@ -427,6 +432,29 @@ def _values(body: RoleBody) -> dict[str, object]:
 
 def api_router(services: Services) -> APIRouter:
     router = APIRouter()
+
+    # ------------------------------------------------------------ 上傳的檔案（M7c）
+
+    @router.post("/files", status_code=201)
+    async def upload_file(
+        request: Request, name: Annotated[str, Query(min_length=1, max_length=255)]
+    ) -> dict[str, object]:
+        return await services.uploads.receive(request, name)
+
+    @router.get("/files/{file_id}")
+    def file_info(file_id: str) -> dict[str, object]:
+        row = services.uploads.get(file_id)
+        if row is None:
+            raise not_found("upload_not_found", t("error.upload_not_found", id=file_id))
+        return upload_json(row)
+
+    @router.get("/files/{file_id}/content", response_model=None)
+    def file_content(file_id: str) -> FileResponse:
+        row = services.uploads.get(file_id)
+        path = services.uploads.path(file_id)
+        if row is None or path is None:
+            raise not_found("upload_not_found", t("error.upload_not_found", id=file_id))
+        return FileResponse(path, media_type=row.media_type, filename=row.name)
 
     # ------------------------------------------------------------ 領域
 

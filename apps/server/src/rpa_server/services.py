@@ -80,6 +80,7 @@ from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
+from rpa_server.uploads import UploadLimits, UploadService
 from rpa_server.videos import VideoService, VideoSettings, video_details
 from rpa_server.workflows import WorkflowService
 from rpa_worker.environment import external_url
@@ -316,9 +317,13 @@ class Services:
         worker_port: int | None = None,
         worker_host: str = "0.0.0.0",
         portal_port: int | None = None,
+        upload_limits: UploadLimits | None = None,
+        input_folders: Sequence[Path] = (),
     ) -> None:
         self.sessions = sessions
         self.storage = storage
+        self.uploads = UploadService(sessions, storage.root, upload_limits)
+        """上傳的檔案（M7c）：檔案入參參照的檔案、執行前檢查與保留規則。"""
         self.examples_dir = examples_dir
         self.display = display
         """這台電腦能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。"""
@@ -375,7 +380,14 @@ class Services:
         self.workflows = WorkflowService(sessions, self)
         self.videos = VideoService(sessions, storage)
         """錄影的設定、釘選與保留規則（M12）。"""
-        self.queue = RunQueue(sessions, storage, self.roles, self.videos)
+        self.queue = RunQueue(
+            sessions,
+            storage,
+            self.roles,
+            self.videos,
+            uploads=self.uploads,
+            input_folders=tuple(input_folders),
+        )
         """執行佇列：本機 worker 的任務來源；遠端 worker 經由 workers 領取（M9a）。"""
         self.queue.on_finished = self.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
         self.workers = WorkerHub(
@@ -1241,6 +1253,10 @@ class Services:
                     t("error.inputs_invalid", count=len(problems)),
                     problems=[{"name": item.name, "message": item.message} for item in problems],
                 )
+            # 檔案入參（M7c）：上傳檔在不在、大小與類型；檔名、大小、sha256 以伺服器的為準
+            inputs = self.uploads.require(
+                scenario, inputs, self.storage.attachments(scene_id, revision.number)
+            )
             run = Run(
                 id=new_run_id(scene_id),
                 scene_id=scene_id,
@@ -1275,6 +1291,7 @@ class Services:
                     raise
                 return run_record(existing)
             record = run_record(run)
+        self.uploads.touch(inputs.values())
         self.on_queued()
         return record
 

@@ -22,7 +22,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Final, cast
@@ -33,6 +33,7 @@ from rpa_worker.protocol import (
     API_PREFIX,
     CLAIM_WAIT_SECONDS,
     HEARTBEAT_SECONDS,
+    InputFile,
     JobPayload,
     is_safe_path,
     pack_directory,
@@ -370,6 +371,8 @@ class RemoteJobSource:
             _write_private(state_path, payload.login_state)
         self.runs_dir.mkdir(parents=True, exist_ok=True)
         shutil.rmtree(self.runs_dir / payload.run_id, ignore_errors=True)
+        # 上傳檔（M7c）：位置先決定，心跳開始之後才下載（大檔下載時租約不會過期）
+        inputs_dir = folder / "inputs"
         job = Job(
             run_id=payload.run_id,
             scenario=scenario_dir / payload.scenario_file,
@@ -383,6 +386,9 @@ class RemoteJobSource:
             secrets=dict(payload.secrets),
             locale=payload.locale,
             record_video=payload.record_video,
+            uploads={item.id: inputs_dir / item.id for item in payload.input_files},
+            max_file_bytes=payload.max_file_bytes,
+            max_run_bytes=payload.max_run_bytes,
         )
         active = _Active(job, folder, state_path, _digest(state_path))
         active.thread = threading.Thread(
@@ -391,8 +397,32 @@ class RemoteJobSource:
         with self._lock:
             self._active[job.run_id] = active
         active.thread.start()
+        if payload.input_files:
+            try:
+                self._download_inputs(job.run_id, payload.input_files, inputs_dir)
+            except (ConnectionLostError, WorkerApiError, OSError, ValueError) as error:
+                logger.warning("下載上傳檔失敗（%s）：%s", job.run_id, error)
+                self._send_fail(job.run_id, "input_files", str(error), retry=True)
+                self._done(active, keep_run=False)
+                return None
         self.notify("claimed", {"run": job.run_id, "headless": job.headless, "engine": job.engine})
         return job
+
+    def _download_inputs(self, run_id: str, files: Sequence[InputFile], folder: Path) -> None:
+        """下載任務用到的上傳檔（M7c），比對大小與 sha256；不符就拋出 ValueError。"""
+        folder.mkdir(parents=True, exist_ok=True)
+        for item in files:
+            target = folder / item.id
+            size = self.client.download(
+                f"/runs/{run_id}/files/{item.id}", target, limit=item.size, timeout=120
+            )
+            digest = hashlib.sha256()
+            with target.open("rb") as handle:
+                while chunk := handle.read(1024 * 1024):
+                    digest.update(chunk)
+            if size != item.size or digest.hexdigest() != item.sha256:
+                target.unlink(missing_ok=True)
+                raise ValueError(f"file {item.id} does not match its sha256")
 
     def progress(self, job: Job, stage: StageName) -> None:
         active = self._get(job.run_id)

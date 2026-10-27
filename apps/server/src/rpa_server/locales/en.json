@@ -1649,5 +1649,14 @@
   "runs.replay_link": "Replay",
   "runs.filter_video": "Recording",
   "runs.with_video": "Only runs with a recording",
-  "replay.crumb": "Replay"
+  "replay.crumb": "Replay",
+  "error.file_too_large": "The file is too large: each file can be at most {limit}",
+  "error.upload_not_found": "Uploaded file {id} was not found (it may have been deleted after the retention period)",
+  "error.file_missing": "The uploaded file \"{file}\" of input {name} does not exist or was deleted after the retention period; upload it again",
+  "error.file_attachment": "The scene attachment {file} of input {name} is not in this revision",
+  "error.file_input_too_large": "The file \"{file}\" of input {name} is too large: {size}; the limit is {limit}",
+  "error.file_input_type": "The file \"{file}\" of input {name} is not an accepted type (accept: {accept})",
+  "error.files_too_large": "The files of this run are too large in total: {size}; the limit is {limit}",
+  "run.input_files_failed": "The computer running it could not get the files of this run: {detail}",
+  "error.file_mixed": "When debugging, input {name} cannot mix paths on that computer with uploaded files or attachments; use only one kind"
 }

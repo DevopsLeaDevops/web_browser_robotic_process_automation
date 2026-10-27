@@ -45,6 +45,7 @@ from rpa_server.render import render
 from rpa_server.services import Services
 from rpa_server.storage import Storage
 from rpa_server.updates import before_upgrade, mark_started
+from rpa_server.uploads import UploadLimits
 from rpa_server.worker_api import worker_api_router
 from rpa_worker import Worker
 
@@ -76,6 +77,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         worker_port=settings.worker_port,
         worker_host=settings.worker_host,
         portal_port=settings.portal_port,
+        upload_limits=UploadLimits(
+            max_file=settings.upload_max_file,
+            max_run=settings.upload_max_run,
+            keep_days=settings.upload_keep_days,
+            max_total=settings.upload_max_total,
+        ),
+        input_folders=settings.input_folders,
     )
     worker = Worker(services.queue, locale=settings.locale)
     hub = services.workers
@@ -110,6 +118,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 worker.start()
             hub.start_reaper()
             services.videos.start()  # 錄影的保留規則：啟動時與每小時清理（M12）
+            services.uploads.start()  # 上傳檔的保留規則：啟動時與每小時清理（M7c）
             services.recorders.start_reaper()
             services.debug.start_reaper()
 
@@ -126,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             hub.close()
             services.videos.close()
+            services.uploads.close()
             services.recorders.close()
             worker.stop()
             services.debug.close_all()

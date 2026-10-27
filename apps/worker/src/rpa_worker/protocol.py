@@ -5,6 +5,8 @@
 - 任務（:class:`JobPayload`）：場景檔與腳本以 base64 傳送，worker 照位元組寫出——
   發布門檻比對的雜湊是對位元組算的，Windows 的換行轉換不能碰它。
 - 執行目錄打包成 zip 上傳；解開時只接受安全的相對路徑、限制檔案數與大小。
+- 檔案入參（M7c，D8）：任務只帶上傳檔的清單（:class:`InputFile`），內容由 worker 另外用
+  ``GET /runs/<執行>/files/<代號>`` 逐一下載、比對 sha256，不放進任務的 JSON。
 """
 
 import base64
@@ -16,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Final, cast
 
+from rpa_core.dsl.files import FILE_ID
 from rpa_core.i18n import Locale, parse_locale
 from rpa_runner.login import LoginSettings
 
@@ -27,6 +30,7 @@ __all__ = [
     "MAX_ARTIFACT_BYTES",
     "MAX_ARTIFACT_FILES",
     "ArtifactError",
+    "InputFile",
     "JobPayload",
     "is_safe_path",
     "pack_directory",
@@ -65,6 +69,32 @@ def _unb64(text: object) -> bytes:
 
 
 @dataclass(frozen=True, slots=True)
+class InputFile:
+    """任務用到的一個上傳檔（M7c）：代號、大小、sha256（下載後比對）。"""
+
+    id: str
+    size: int
+    sha256: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"id": self.id, "size": self.size, "sha256": self.sha256}
+
+    @classmethod
+    def from_json(cls, data: object) -> "InputFile":
+        if not isinstance(data, dict):
+            raise ValueError("invalid input file")
+        values = cast("dict[str, object]", data)
+        file_id, size, digest = values.get("id"), values.get("size"), values.get("sha256")
+        if not isinstance(file_id, str) or not FILE_ID.fullmatch(file_id):
+            raise ValueError("invalid input file id")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise ValueError("invalid input file size")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError("invalid input file sha256")
+        return cls(file_id, size, digest)
+
+
+@dataclass(frozen=True, slots=True)
 class JobPayload:
     """管理 Portal 交給遠端 worker 的一個任務。"""
 
@@ -85,6 +115,11 @@ class JobPayload:
     secrets: Mapping[str, str] = field(default_factory=dict[str, str])
     record_video: bool = False
     """錄影（M12）；舊版管理 Portal 不會送這個欄位，就不錄。"""
+    input_files: tuple[InputFile, ...] = ()
+    """要另外下載的上傳檔（M7c）。"""
+    max_file_bytes: int | None = None
+    max_run_bytes: int | None = None
+    """檔案入參的上限（管理 Portal 的設定）；沒有時用 runner 的預設。"""
 
     def to_json(self) -> dict[str, object]:
         login = None
@@ -105,6 +140,9 @@ class JobPayload:
             "loginState": _b64(self.login_state) if self.login_state is not None else None,
             "secrets": dict(self.secrets),
             "recordVideo": self.record_video,
+            "inputFiles": [item.to_json() for item in self.input_files],
+            "maxFileBytes": self.max_file_bytes,
+            "maxRunBytes": self.max_run_bytes,
         }
 
     @classmethod
@@ -136,6 +174,13 @@ class JobPayload:
         deadline = data.get("deadlineMs")
         engine = data.get("engine")
         base_url = data.get("baseUrl")
+        raw_files = data.get("inputFiles")
+        input_files = tuple(
+            InputFile.from_json(item)
+            for item in (cast("list[object]", raw_files) if isinstance(raw_files, list) else [])
+        )
+        max_file = data.get("maxFileBytes")
+        max_run = data.get("maxRunBytes")
         return cls(
             run_id=run_id,
             files=files,
@@ -154,6 +199,9 @@ class JobPayload:
             if isinstance(secrets, dict)
             else {},
             record_video=data.get("recordVideo") is True,
+            input_files=input_files,
+            max_file_bytes=max_file if isinstance(max_file, int) and max_file > 0 else None,
+            max_run_bytes=max_run if isinstance(max_run, int) and max_run > 0 else None,
         )
 
 

@@ -42,6 +42,7 @@ from rpa_core.dsl.features import (
     missing_features,
     scenario_features,
 )
+from rpa_core.dsl.files import uploaded_ids
 from rpa_core.i18n import Locale, use_locale
 from rpa_server import __version__
 from rpa_server.domain import (
@@ -65,6 +66,7 @@ from rpa_worker.protocol import (
     CLAIM_WAIT_SECONDS,
     LEASE_SECONDS,
     ArtifactError,
+    InputFile,
     JobPayload,
     unpack_directory,
 )
@@ -594,9 +596,13 @@ class WorkerHub:
             state = None
             if login is not None and login.state.exists():
                 state = login.state.read_bytes()
+            input_files, max_file, max_run = self._input_files(run)
             payload = JobPayload(
                 run_id=run.id,
                 files=files,
+                input_files=input_files,
+                max_file_bytes=max_file,
+                max_run_bytes=max_run,
                 inputs=dict(run.input),
                 engine=run.engine,
                 base_url=run.base_url,
@@ -612,6 +618,31 @@ class WorkerHub:
             self.queue.fail_run(run.id, t("run.crashed", detail=f"{type(error).__name__}: {error}"))
             return None
         return payload.to_json()
+
+    def _input_files(self, run: Run) -> tuple[tuple[InputFile, ...], int | None, int | None]:
+        """任務用到的上傳檔清單與上限（M7c）；內容由 worker 另外下載。"""
+        uploads = self.queue.uploads
+        if uploads is None:
+            return (), None, None
+        rows = uploads.rows(uploaded_ids(run.input.values()))
+        files = tuple(
+            InputFile(row.id, row.size, row.sha256)
+            for row in rows.values()
+            if row.deleted_at is None
+        )
+        return files, uploads.limits.max_file, uploads.limits.max_run
+
+    def input_file(self, worker_id: str, run_id: str, file_id: str) -> Path:
+        """worker 下載任務用到的上傳檔（M7c）：只能是派給它、執行中的這個執行用到的檔案。"""
+        with self.sessions() as session:
+            self._touch(session, worker_id)
+            run = self._owned_run(session, worker_id, run_id)
+            used = uploaded_ids(run.input.values())
+            session.commit()
+        path = self.queue.uploads.path(file_id) if self.queue.uploads is not None else None
+        if file_id not in used or path is None:
+            raise not_found("upload_not_found", t("error.upload_not_found", id=file_id))
+        return path
 
     def _owned_run(self, session: Session, worker_id: str, run_id: str) -> Run:
         run = session.get(Run, run_id)
@@ -682,6 +713,8 @@ class WorkerHub:
             except ValueError:
                 count = 1
             message = t("run.scenario_invalid", count=count)
+        elif kind == "input_files":
+            message = t("run.input_files_failed", detail=detail[:2000])
         else:
             message = t("run.crashed", detail=detail[:2000])
         if not self.queue.fail_run(run_id, message, worker_id=worker_id):

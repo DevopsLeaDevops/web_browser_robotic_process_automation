@@ -1649,5 +1649,14 @@
   "runs.replay_link": "回看",
   "runs.filter_video": "录像",
   "runs.with_video": "只看有录像的",
-  "replay.crumb": "录像回看"
+  "replay.crumb": "录像回看",
+  "error.file_too_large": "檔案太大：每個檔案最多 {limit}",
+  "error.upload_not_found": "找不到上傳的檔案 {id}（可能已經過了保留期限被刪除）",
+  "error.file_missing": "入參 {name} 的上傳檔「{file}」不存在，或已經過了保留期限被刪除；請重新上傳",
+  "error.file_attachment": "入參 {name} 的場景附件 {file} 不在這個版本裡",
+  "error.file_input_too_large": "入參 {name} 的檔案「{file}」太大：{size}，上限是 {limit}",
+  "error.file_input_type": "入參 {name} 的檔案「{file}」不是接受的類型（accept: {accept}）",
+  "error.files_too_large": "這次執行的檔案合計太大：{size}，上限是 {limit}",
+  "run.input_files_failed": "執行的那台無法取得這次執行的檔案：{detail}",
+  "error.file_mixed": "調試時入參 {name} 不能同時有那台電腦上的路徑與上傳檔或附件；請只用其中一種"
 }

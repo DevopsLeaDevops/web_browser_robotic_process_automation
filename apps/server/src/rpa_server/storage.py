@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Final
 
 from rpa_core.dsl import Issue, Scenario, validate_file
-from rpa_core.dsl.sources import scenario_digest, scenario_sources
+from rpa_core.dsl.sources import attachment_files, scenario_digest, scenario_sources
 from rpa_core.pack import COMPOSITES_DIR, REVISIONS_DIR, SCENES_DIR
 from rpa_server.i18n import t
 
@@ -298,6 +298,15 @@ class Storage:
             path.relative_to(folder).as_posix(): _read_text(path)
             for path in sorted(folder.rglob("*"))
             if path.is_file()
+        }
+
+    def attachments(self, scene_id: str, number: int) -> dict[str, int]:
+        """版本的場景附件（M7c）：``files/檔名`` → 大小。"""
+        folder = self.revision_dir(scene_id, number)
+        return {
+            name: (folder / name).stat().st_size
+            for name in attachment_files(folder)
+            if (folder / name).is_file()
         }
 
     def digest(self, scene_id: str, number: int) -> str | None:

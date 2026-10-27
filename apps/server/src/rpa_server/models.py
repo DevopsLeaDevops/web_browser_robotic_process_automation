@@ -6,6 +6,7 @@ M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄
 專案 projects 與組合場景所屬的專案 workflows.project_id（專案空間，2026-10-23）。
 M14：對外 Agent API 的用戶端 api_clients 與稽核 api_audit；執行記下觸發的用戶端 runs.client_id，
 錄製端加上允不允許 Agent 調試 recorders.allow_agent、agent_headless_only（ADR 0017）。
+M7c：上傳的檔案 uploaded_files（內容以 sha256 存在資料目錄的 input-files/，同內容只存一份）。
 
 M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資料夾（rpa_server.packs）；這幾張表是
 資料夾的**索引**，載入時依資料夾重建。只在資料庫的欄位（網址覆寫、排序、登入檢查的結果）
@@ -46,6 +47,7 @@ __all__ = [
     "Run",
     "Scene",
     "Setting",
+    "UploadedFile",
     "Workflow",
     "WorkflowRevision",
     "WorkflowRun",
@@ -469,3 +471,31 @@ class ApiAudit(Base):
     code: Mapped[str | None] = mapped_column(String(60))
     """失敗時的錯誤代碼。"""
     ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class UploadedFile(Base):
+    """上傳到伺服器的檔案（M7c）：檔案入參的值 ``{"file": id, …}`` 參照它。
+
+    內容放在資料目錄的 ``input-files/<sha256 前兩碼>/<sha256>``，同內容只存一份
+    （不同的檔名各一列）。
+    保留（D7）：上傳後 24 小時沒被用到就刪；用過的保留到最後一次使用後的保留天數，總量超過上限時
+    從最久沒用的開始刪；組合場景的固定入參用到的不刪。刪除只刪內容，這一列留著（運行紀錄看得到
+    當時的檔名），``deleted_at`` 記下時間與原因。
+    """
+
+    __tablename__ = "uploaded_files"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    """上傳時的檔名（已清理）；網頁看到的檔名預設是它。"""
+    size: Mapped[int] = mapped_column(BigInteger)
+    media_type: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
+    used_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), index=True)
+    """最後一次被執行、調試或組合場景用到的時間；None 代表還沒用過。"""
+    client_id: Mapped[str | None] = mapped_column(String(64))
+    """由哪個 API 用戶端上傳（M14）；在 Portal 上傳的是 None。"""
+    deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    deleted_reason: Mapped[str | None] = mapped_column(String(20))
+    """unused（上傳後沒用到）、expired（超過保留天數）、quota（超過總量上限）。"""

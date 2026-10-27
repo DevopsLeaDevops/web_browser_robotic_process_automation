@@ -157,6 +157,11 @@ class DebugSession:
     last_used: float = field(default_factory=time.monotonic)
     lock: threading.Lock = field(default_factory=threading.Lock)
     counter: int = 0
+    files: list[tuple[str, Path]] = field(default_factory=list[tuple[str, Path]])
+    """檔案入參（M7c）：在工作階段資料夾以原始檔名準備好的檔案，給子程序的 --file。"""
+    file_inputs: dict[str, object] = field(default_factory=dict[str, object])
+    """檔案入參原本的值（上傳檔、附件或路徑）；inputs 裡的是名稱、大小、sha256，
+    重新開始時用這個。"""
 
     @property
     def active(self) -> bool:
@@ -289,6 +294,9 @@ class DebugManager:
                 t("error.inputs_invalid", count=len(problems)),
                 problems=[{"name": item.name, "message": item.message} for item in problems],
             )
+        # 檔案入參（M7c）：上傳檔在不在、大小與類型（同執行）
+        uploads = self.services.uploads
+        inputs = uploads.require(scenario, inputs, self.storage.attachments(scene_id, number))
         if existing is not None:
             self.close(existing.id)
         session_id = uuid.uuid4().hex[:12]
@@ -296,6 +304,13 @@ class DebugManager:
         folder.mkdir(parents=True)
         files = self.services.revision_files(scene_id, number)
         (folder / SCENARIO_FILE).write_text(files[SCENARIO_FILE], encoding="utf-8")
+        prepared = uploads.prepare(
+            scenario,
+            inputs,
+            self.storage.revision_dir(scene_id, number),
+            folder / "input-files",
+        )
+        uploads.touch(inputs.values())
         raw = {
             name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
         }
@@ -316,6 +331,12 @@ class DebugManager:
             device=via.id if via is not None else None,
             launcher=launcher,
             client_id=client_id,
+            files=prepared,
+            file_inputs={
+                name: value
+                for name, value in inputs.items()
+                if name in scenario.inputs and scenario.inputs[name].type == "file"
+            },
         )
         with self._lock:
             self._sessions[session_id] = session
@@ -344,6 +365,8 @@ class DebugManager:
         )
         command += [] if session.headless else ["--headed"]
         command += ["--base-url", session.base_url] if session.base_url else []
+        for name, path in session.files:  # 檔案入參（M7c）
+            command += ["--file", name, str(path)]
         extra = self.roles.secret_values(scenario.secrets)
         if session.role is not None:
             state = self.storage.role_state(session.role)
@@ -608,6 +631,13 @@ class DebugManager:
         inputs = {
             name: escape(value) for name, value in session.inputs.items() if name in scenario.inputs
         }
+        # 檔案入參（M7c）：用原本的值（inputs 裡的是名稱、大小、sha256）；新版本不再是檔案的不帶
+        for name, value in session.file_inputs.items():
+            spec = scenario.inputs.get(name)
+            if spec is not None and spec.type == "file":
+                inputs[name] = value
+            else:
+                inputs.pop(name, None)
         via: Via | None = None
         if session.device is not None and self.hosts is not None:
             via = Via(session.device, self.hosts.get_recorder(session.device).name)
