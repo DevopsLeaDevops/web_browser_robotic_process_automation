@@ -32,6 +32,7 @@ M7c：上傳的檔案（POST /api/files?name=檔名，本體就是檔案內容�
 from datetime import datetime
 from typing import Annotated, Literal, cast
 
+import anyio
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -39,6 +40,7 @@ from pydantic.alias_generators import to_camel
 
 from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
+from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, guess_media_type
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError, not_found
@@ -47,7 +49,7 @@ from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services, render_contract
 from rpa_server.storage import SCENARIO_FILE
-from rpa_server.uploads import upload_json
+from rpa_server.uploads import read_body, upload_json
 from rpa_server.videos import VideoSettings
 
 __all__ = ["api_router"]
@@ -660,6 +662,41 @@ def api_router(services: Services) -> APIRouter:
         revision = services.save_revision(
             scene_id, base=body.base_revision, files=body.files, note=body.note
         )
+        return revision.to_json()
+
+    # ------------------------------------------------------------ 場景附件（M7c）
+
+    @router.get("/scenes/{scene_id}/revisions/{number}/attachments")
+    def list_attachments(scene_id: str, number: int) -> dict[str, object]:
+        return {"attachments": services.revision_attachments(scene_id, number)}
+
+    @router.get("/scenes/{scene_id}/revisions/{number}/attachments/{name}", response_model=None)
+    def attachment_content(scene_id: str, number: int, name: str) -> FileResponse:
+        path = services.attachment_path(scene_id, number, name)
+        return FileResponse(path, media_type=guess_media_type(name), filename=name)
+
+    @router.put("/scenes/{scene_id}/attachments/{name}")
+    async def save_attachment(
+        scene_id: str,
+        name: str,
+        request: Request,
+        base: Annotated[int, Query(ge=1)],
+        note: Annotated[str | None, Query(max_length=500)] = None,
+    ) -> dict[str, object]:
+        data = await read_body(request, MAX_ATTACHMENT_BYTES)
+        revision = await anyio.to_thread.run_sync(
+            lambda: services.save_attachment(scene_id, base=base, name=name, data=data, note=note)
+        )
+        return revision.to_json()
+
+    @router.delete("/scenes/{scene_id}/attachments/{name}")
+    def delete_attachment(
+        scene_id: str,
+        name: str,
+        base: Annotated[int, Query(ge=1)],
+        note: Annotated[str | None, Query(max_length=500)] = None,
+    ) -> dict[str, object]:
+        revision = services.delete_attachment(scene_id, base=base, name=name, note=note)
         return revision.to_json()
 
     @router.post("/scenes/{scene_id}/revisions/{number}/validate", status_code=202)

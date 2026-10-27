@@ -1658,5 +1658,12 @@
   "error.file_input_type": "入參 {name} 的檔案「{file}」不是接受的類型（accept: {accept}）",
   "error.files_too_large": "這次執行的檔案合計太大：{size}，上限是 {limit}",
   "run.input_files_failed": "執行的那台無法取得這次執行的檔案：{detail}",
-  "error.file_mixed": "調試時入參 {name} 不能同時有那台電腦上的路徑與上傳檔或附件；請只用其中一種"
+  "error.file_mixed": "調試時入參 {name} 不能同時有那台電腦上的路徑與上傳檔或附件；請只用其中一種",
+  "revision.attachment_missing": "入參的預設值用到附件 {path}，但這個版本沒有它",
+  "revision.attachment_too_large": "附件 {path} 太大：每個附件最多 {limit}",
+  "revision.attachments_too_large": "附件合計太大：一個版本最多 {limit}",
+  "revision.note_attachment_saved": "上傳附件 {name}",
+  "revision.note_attachment_deleted": "刪除附件 {name}",
+  "error.attachment_not_found": "這個版本沒有附件 {name}",
+  "error.attachment_name": "附件的檔名 {name} 不符：只能用英文字母、數字、底線、點與連字號（要讓網頁看到中文檔名，請在入參的預設值寫 name）"
 }

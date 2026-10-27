@@ -1658,5 +1658,12 @@
   "error.file_input_type": "The file \"{file}\" of input {name} is not an accepted type (accept: {accept})",
   "error.files_too_large": "The files of this run are too large in total: {size}; the limit is {limit}",
   "run.input_files_failed": "The computer running it could not get the files of this run: {detail}",
-  "error.file_mixed": "When debugging, input {name} cannot mix paths on that computer with uploaded files or attachments; use only one kind"
+  "error.file_mixed": "When debugging, input {name} cannot mix paths on that computer with uploaded files or attachments; use only one kind",
+  "revision.attachment_missing": "An input default uses attachment {path}, but this revision does not have it",
+  "revision.attachment_too_large": "Attachment {path} is too large: each attachment can be at most {limit}",
+  "revision.attachments_too_large": "The attachments are too large in total: at most {limit} per revision",
+  "revision.note_attachment_saved": "Uploaded attachment {name}",
+  "revision.note_attachment_deleted": "Deleted attachment {name}",
+  "error.attachment_not_found": "This revision has no attachment {name}",
+  "error.attachment_name": "Attachment name {name} is not valid: use only letters, digits, underscores, dots and hyphens (to show the web page another name, write name in the input default)"
 }

@@ -53,6 +53,7 @@ __all__ = [
     "UNUSED_HOURS",
     "UploadLimits",
     "UploadService",
+    "read_body",
     "upload_json",
 ]
 
@@ -91,6 +92,19 @@ def upload_json(row: UploadedFile) -> dict[str, object]:
         "createdAt": row.created_at.isoformat(timespec="seconds"),
         "deleted": row.deleted_at is not None,
     }
+
+
+async def read_body(request: Request, limit: int) -> bytes:
+    """讀完請求的本體（例如場景附件）；超過 ``limit`` 位元組就拒絕。"""
+    length = request.headers.get("content-length")
+    if length is not None and length.isdigit() and int(length) > limit:
+        raise _too_large(limit)
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > limit:
+            raise _too_large(limit)
+    return bytes(data)
 
 
 def _too_large(limit: int) -> ServiceError:
