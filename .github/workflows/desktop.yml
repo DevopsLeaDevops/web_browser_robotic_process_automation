@@ -147,22 +147,27 @@ jobs:
           set -e
           uv run python tools/ci_annotations.py junit "${{ runner.temp }}/desktop-pytest.xml"
           exit "$code"
-      - name: 測試更新檔用的金鑰（發布的建置不用：App 只信任發布的公鑰）
-        id: key
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        env:
-          # CI 專用的測試金鑰（docs/develop/ci.html#ci-key）；沒有時每次產生臨時金鑰、不用快取
-          CI_KEY: ${{ secrets.RPA_UPDATE_CI_KEY }}
-        run: uv run python -m tools.desktop_shell key --out "${{ runner.temp }}/update-ci.pem"
-      - name: 外殼快取（外殼鍵 ${{ matrix.shell_key }}）
+      # 探測分支（不合併）：金鑰存在快取裡，不需要 RPA_UPDATE_CI_KEY，驗證程式碼層路徑
+      - name: 外殼快取（探測）
         id: restore
-        if: steps.key.outputs.persistent == 'true' && matrix.build != 'full'
+        if: matrix.build != 'full'
         uses: actions/cache/restore@v6
         with:
-          key: desktop-shell-v1-${{ matrix.target }}-${{ matrix.shell_key }}-${{ steps.key.outputs.keyid }}
+          key: desktop-shell-probe1-${{ matrix.target }}-${{ matrix.shell_key }}
           path: |
             .shell-cache
             ${{ runner.temp }}/pw-browsers
+      - name: 測試更新檔用的金鑰（探測：存在快取裡）
+        id: key
+        run: |
+          if [ -f .shell-cache/probe-key.pem ]; then
+            CI_KEY="$(cat .shell-cache/probe-key.pem)"
+          else
+            uv run python -m rpa_update.build keygen --private "$RUNNER_TEMP/probe.pem" > /dev/null
+            CI_KEY="$(cat "$RUNNER_TEMP/probe.pem")"
+          fi
+          export CI_KEY
+          uv run python -m tools.desktop_shell key --out "${{ runner.temp }}/update-ci.pem"
       - name: 走哪條路
         id: path
         env:
@@ -448,12 +453,14 @@ jobs:
       - name: 整理要存進快取的外殼（DMG 或 zip、runtime.json）
         id: shell
         if: steps.path.outputs.path == 'build' && steps.key.outputs.persistent == 'true'
-        run: uv run python -m tools.desktop_shell save ${{ matrix.app }}
+        run: |
+          uv run python -m tools.desktop_shell save ${{ matrix.app }}
+          cp "${{ runner.temp }}/update-ci.pem" .shell-cache/probe-key.pem
       - name: 存進外殼快取（之後同一個外殼鍵的建置只換程式碼層）
         if: steps.shell.outcome == 'success'
         uses: actions/cache/save@v6
         with:
-          key: desktop-shell-v1-${{ matrix.target }}-${{ matrix.shell_key }}-${{ steps.key.outputs.keyid }}
+          key: desktop-shell-probe1-${{ matrix.target }}-${{ matrix.shell_key }}
           path: |
             .shell-cache
             ${{ runner.temp }}/pw-browsers
@@ -464,7 +471,7 @@ jobs:
             > "${{ runner.temp }}/pass.json"
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.record }}
+          name: probe-${{ matrix.record }}
           path: ${{ runner.temp }}/pass.json
           retention-days: 30
           overwrite: true
