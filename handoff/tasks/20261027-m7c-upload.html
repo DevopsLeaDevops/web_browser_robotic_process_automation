@@ -10,17 +10,17 @@
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>M7c：上傳檔案（設計，M7 提前的一部分）</h1><p>業務系統裡的「匯入 Excel」「上傳圖片」現在錄得到、轉不了、也執行不了：錄製稿的 <code>set_input_files</code> 被標成「上傳檔案還不支援（M7）」。把 M7 的上傳拿出來先做：入參多一種 <code>file</code> 型別、步驟多一個 <code>upload</code>，檔案在執行時從管理 Portal 上傳，交給執行的那台電腦。<strong>本頁只有設計，等使用者確認第 9 節的 D1～D8 之後才寫程式。</strong></p></div></div>
+  <div class="heading"><div><h1>M7c：上傳檔案（M7 提前的一部分）</h1><p>業務系統裡的「匯入 Excel」「上傳圖片」現在錄得到、轉不了、也執行不了：錄製稿的 <code>set_input_files</code> 被標成「上傳檔案還不支援（M7）」。把 M7 的上傳拿出來先做：入參多一種 <code>file</code> 型別、步驟多一個 <code>upload</code>，檔案在執行時從管理 Portal 上傳，交給執行的那台電腦。<strong>使用者 2026-10-27 08:20 America/Los_Angeles（PDT，UTC−07:00）確認 D1～D8 全照建議，第一期與第二期一起做。</strong></p></div></div>
   <div class="stack">
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261027-m7c-upload；2026-10-27 08:04 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261027-m7c-upload；2026-10-27 08:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 對話（2026-10-27 07:53 America/Los_Angeles（PDT，UTC−07:00））：「現在的 RPA 系統中不支援文件上傳能力，我的系統裡有很多 Excel 導入、圖片上傳的功能，現在是沒法使用 RPA 實現的。這個能力可以實現嗎，請調研和制定方案。我們一起 review 沒問題後，然後開始 coding。」驗收條件（草案，隨 D1 確認）：錄製含 Excel 匯入與多張圖片上傳的操作，轉換後沒有「上傳檔案還不支援」的警告；在錄製端逐步調試到最後一步；在執行表單上傳檔案後，以遠端 Worker（Windows）驗證、發布、執行成功，目標網站收到的檔案和上傳的位元組相同（sha256 一致）；舊版 App 收到用到上傳的場景時提示更新。</dd>
         <dt>範圍／不包含</dt><dd>第一期（M7c，D1）：<code>file</code> 型別的入參、<code>upload</code> 步驟、錄製稿轉換、Runner、檔案從管理 Portal 到 Worker／錄製端、執行與驗證表單的選檔、運行報告、測試網站與範例場景。不包含（第二期，第 5 節）：場景附帶的預設檔案、組合場景節點與 Agent API 的檔案入參、只有拖拽區沒有上傳框的元件、Worker 本機資料夾、下載步驟（M7 其餘部分）、Python 腳本場景的檔案入參（與 <a href="20261024-python-scripts.html">Python 腳本場景設計</a> 的 D9 一起決定）。</dd>
-        <dt>主責／審閱／接收方</dt><dd>設計：Claude（Opus 5.5）。審閱與決定：使用者。實作主責：設計確認後預設 Claude。接收方：未指定。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）。審閱與決定：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>本次只有設計：本頁、<a href="index.html">任務索引</a>、<a href="../decisions.html#pending">決定 › 待你決定</a>。實作會改到的檔案列在第 7 節；共用檔案（多語言目錄、<code>schema/scenario.v1.json</code>、資料庫遷移（目前最新 0016）、路線圖、任務索引）由本任務整合，遷移編號在整合前重新確認。開著的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/96">PR #96</a>（組合運行的匯總報告）可能也動到運行報告，後合併的一方解衝突。</dd>
-        <dt>狀態</dt><dd>設計待審閱：等使用者回覆第 9 節的 D1～D8。</dd>
+        <dt>狀態</dt><dd>實作中：第一期與第二期一起做（使用者 2026-10-27 08:20 確認）。第二期的 (6) Python 腳本場景的檔案入參、(7) 下載步驟的檔案接到上傳依賴尚未實作的功能，留好介面、另行排程。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>m7c/upload</code>，從 <code>30f2290</code>（origin/main，Merge PR #95）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/97">PR #97</a>（草稿，只有設計，base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁與索引的提交推送到 <code>m7c/upload</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、Python 3.13.17。PyPI 被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成；調研用系統的 Playwright 1.63.0（專案鎖定 1.64.0）、Chromium（<code>/opt/pw-browsers/chromium-1243</code>）與 Xvfb；沒有 Firefox。實驗腳本不進倉庫，做法寫在第 3 節，實作時改寫成正式測試。</dd>
@@ -254,18 +254,18 @@ verify:
     </section>
 
     <section class="panel" id="decisions">
-      <div class="panel-header"><h2>9. 待你決定</h2></div>
+      <div class="panel-header"><h2>9. 決定（2026-10-27 全照建議）</h2></div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>#</th><th>事項</th><th>建議</th><th>其他選項</th></tr></thead>
+        <thead><tr><th>#</th><th>事項</th><th>決定（原建議）</th><th>其他選項（未採用）</th></tr></thead>
         <tbody>
-          <tr><td>D1</td><td><span class="kind pending">待你決定</span>範圍與排程</td><td>第一期如第 5 節（執行時上傳），里程碑叫 M7c，和 M7a、M7b 一樣排在 M5 之前、現在開始；場景附帶的預設檔案等放第二期</td><td>(a) 第一期就做場景附件（多約三分之一的工作量，動到版本存放、雜湊、git 同步），驗證時不必每次選檔；(b) 第一期再加組合場景節點的固定檔案</td></tr>
-          <tr><td>D2</td><td><span class="kind pending">待你決定</span>DSL 寫法</td><td>檔案一律是入參（<code>type: file</code>），<code>upload</code> 用 <code>files: "{{ inputs.名稱 }}"</code> 引用；<code>target</code>（上傳框）與 <code>trigger</code>（點了開出選擇視窗）二選一（4.1）</td><td><code>upload</code> 直接寫檔案、不經過入參（少一層，但執行時不能換檔、不在場景契約裡）</td></tr>
-          <tr><td>D3</td><td><span class="kind pending">待你決定</span>錄製稿轉換</td><td>「點外層＋對裡面的 input 選檔」合併成一步、不留那次點擊；<code>accept</code> 取錄到的副檔名；入參沒有預設值，每個上傳一條提醒（4.2）</td><td>(a) 保留那次點擊（執行時多開一次選擇視窗，由攔截吃掉）；(b) 不推 <code>accept</code>（任何檔案都收）</td></tr>
-          <tr><td>D4</td><td><span class="kind pending">待你決定</span>大小上限</td><td>單檔 50 MB、一次執行合計 200 MB，伺服器設定可以改；場景的 <code>maxSize</code> 只能更小</td><td>單檔 100 MB、合計 500 MB（大圖、大報表多的話）</td></tr>
-          <tr><td>D5</td><td><span class="kind pending">待你決定</span>Worker 本機的檔案（例如共用磁碟上的每日報表）</td><td>第一期不支援，入參只能是上傳到伺服器的檔案；第二期在 Worker App 設定「允許讀取的資料夾」，入參才可以寫那些資料夾裡的路徑</td><td>第一期就允許入參寫 Worker 上的路徑（和 Python 腳本設計 D9 的第一版相同；能執行場景的人就能把 Worker 上任何檔案傳到外部網站）</td></tr>
-          <tr><td>D6</td><td><span class="kind pending">待你決定</span>不是 upload 開出的選擇檔案視窗</td><td>一律攔下，步驟照常通過，記一條提醒並在調試畫面顯示（4.3）</td><td>讓那一步失敗（較早發現，但會讓現有「點到上傳按鈕」的場景開始失敗）</td></tr>
-          <tr><td>D7</td><td><span class="kind pending">待你決定</span>上傳檔案保留多久</td><td>被執行用到就保留（和運行紀錄一樣目前不刪）；上傳後 24 小時沒用到就刪；第二期加總量上限與保留天數</td><td>第一期就加保留天數（例如 30 天，過期的執行不能重新執行）</td></tr>
-          <tr><td>D8</td><td><span class="kind pending">待你決定</span>檔案怎麼交給 Worker</td><td>任務只帶清單，Worker 另外逐一下載、比對 sha256（4.4）</td><td>放進領取任務的 JSON（base64，改動最少；但大檔佔記憶體、多 33%，檔名限制英數字）</td></tr>
+          <tr><td>D1</td><td><span class="kind user">你明確決定</span>範圍與排程</td><td>第一期如第 5 節（執行時上傳），里程碑叫 M7c，和 M7a、M7b 一樣排在 M5 之前、現在開始；場景附帶的預設檔案等放第二期</td><td>(a) 第一期就做場景附件（多約三分之一的工作量，動到版本存放、雜湊、git 同步），驗證時不必每次選檔；(b) 第一期再加組合場景節點的固定檔案</td></tr>
+          <tr><td>D2</td><td><span class="kind user">你明確決定</span>DSL 寫法</td><td>檔案一律是入參（<code>type: file</code>），<code>upload</code> 用 <code>files: "{{ inputs.名稱 }}"</code> 引用；<code>target</code>（上傳框）與 <code>trigger</code>（點了開出選擇視窗）二選一（4.1）</td><td><code>upload</code> 直接寫檔案、不經過入參（少一層，但執行時不能換檔、不在場景契約裡）</td></tr>
+          <tr><td>D3</td><td><span class="kind user">你明確決定</span>錄製稿轉換</td><td>「點外層＋對裡面的 input 選檔」合併成一步、不留那次點擊；<code>accept</code> 取錄到的副檔名；入參沒有預設值，每個上傳一條提醒（4.2）</td><td>(a) 保留那次點擊（執行時多開一次選擇視窗，由攔截吃掉）；(b) 不推 <code>accept</code>（任何檔案都收）</td></tr>
+          <tr><td>D4</td><td><span class="kind user">你明確決定</span>大小上限</td><td>單檔 50 MB、一次執行合計 200 MB，伺服器設定可以改；場景的 <code>maxSize</code> 只能更小</td><td>單檔 100 MB、合計 500 MB（大圖、大報表多的話）</td></tr>
+          <tr><td>D5</td><td><span class="kind user">你明確決定</span>Worker 本機的檔案（例如共用磁碟上的每日報表）</td><td>第一期不支援，入參只能是上傳到伺服器的檔案；第二期在 Worker App 設定「允許讀取的資料夾」，入參才可以寫那些資料夾裡的路徑</td><td>第一期就允許入參寫 Worker 上的路徑（和 Python 腳本設計 D9 的第一版相同；能執行場景的人就能把 Worker 上任何檔案傳到外部網站）</td></tr>
+          <tr><td>D6</td><td><span class="kind user">你明確決定</span>不是 upload 開出的選擇檔案視窗</td><td>一律攔下，步驟照常通過，記一條提醒並在調試畫面顯示（4.3）</td><td>讓那一步失敗（較早發現，但會讓現有「點到上傳按鈕」的場景開始失敗）</td></tr>
+          <tr><td>D7</td><td><span class="kind user">你明確決定</span>上傳檔案保留多久</td><td>被執行用到就保留（和運行紀錄一樣目前不刪）；上傳後 24 小時沒用到就刪；第二期加總量上限與保留天數</td><td>第一期就加保留天數（例如 30 天，過期的執行不能重新執行）</td></tr>
+          <tr><td>D8</td><td><span class="kind user">你明確決定</span>檔案怎麼交給 Worker</td><td>任務只帶清單，Worker 另外逐一下載、比對 sha256（4.4）</td><td>放進領取任務的 JSON（base64，改動最少；但大檔佔記憶體、多 33%，檔名限制英數字）</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -275,7 +275,7 @@ verify:
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>現況盤點（第 2 節）；Playwright 上傳方式的實測 13 項、codegen 錄製稿的實測（第 3 節）；設計與分期（第 4～8 節）。</li>
         <li><strong>未完成／阻礙：</strong>等使用者回覆 D1～D8。Firefox 的行為沒有在本環境實測（沒有 Firefox），寫程式時由 CI 的瀏覽器測試確認。</li>
-        <li><strong>決定：</strong>本頁的 D1～D8 都是建議，尚未確認；第 4 節其餘內容是依建議寫的設計，D 項改了就跟著改。</li>
+        <li><strong>決定：</strong>D1～D8 使用者確認全照建議；D1 的範圍改成第一期與第二期一起做（<a href="../decisions.html#decisions">決定紀錄</a>）。</li>
         <li><strong>下一個具體動作：</strong>使用者回覆 D1～D8 後，更新本頁與 <a href="../decisions.html">決定</a>，在同一分支開始第一期：先 <code>rpa_core</code>（DSL、錄製稿轉換）→ <code>rpa_runner</code>（upload、攔截）→ 伺服器檔案區 → Worker／錄製端下載 → 表單與報告 → 文件。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。實驗腳本在工作區的暫存資料夾，不進倉庫。</li>
       </ul></div>
@@ -304,7 +304,8 @@ verify:
       <div class="panel-body"><ul class="points">
         <li>2026-10-27 08:04 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁（設計第一版）。從 <code>30f2290</code> 開 <code>m7c/upload</code>；盤點 DSL、錄製稿轉換、Runner、版本存放、Worker 協定、調試與執行表單；本地實測 Playwright 上傳方式與 codegen 錄製稿；寫出設計、分期與 D1～D8。</li>
         <li>2026-10-27 08:10 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>890431e</code>，建立 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/97">PR #97</a>（草稿）。本地檢查：<code>git diff --check</code>；本頁、任務索引、決定頁的 HTML 結構與相對連結、錨點；Chromium 渲染檢查版面。</li>
-      </ul></div>
+          <li>2026-10-27 08:20 America/Los_Angeles（PDT，UTC−07:00），使用者：回覆「好的，按照建議。一期二期一起做。」Claude 據此把 D1～D8 記為已確認、狀態改為實作中；第二期 (6)、(7) 依賴尚未實作的功能（新版 Python 腳本場景、下載步驟），先說明並留介面。</li>
+    </ul></div>
     </section>
   </div>
 </main>
