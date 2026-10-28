@@ -30,11 +30,11 @@
       <h1>對外 Agent API</h1>
       <p>第三方 Agent 系統只透過伺服器的 <code>/agent-api/v1</code>：寫場景與入參出參、指定錄製端開瀏覽器逐步調試、交給 Worker 驗證與執行，在專案裡組合場景並執行，並取得運行過程。新的一層只做認證、權限與稽核，業務規則與發布門檻沿用現有服務。</p>
     </div>
-    <span class="badge blue">第一期實作中</span>
+    <span class="badge green">第一期已發布（v0.6.0）</span>
   </div>
 
   <div class="stack">
-    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作（審閱中）；2026-10-24 使用者要求把專案與組合場景併入第一期，並給 Agent 寫<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>與<a href="../develop/agent-test-report-guide.html">測試報告指南</a>；端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
+    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作，PR #79 於 2026-10-25 合併、隨 v0.6.0 發布（人工驗收未執行）；2026-10-24 使用者要求把專案與組合場景併入第一期，並給 Agent 寫<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>與<a href="../develop/agent-test-report-guide.html">測試報告指南</a>；端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>範圍</h2><span class="muted">Agent 從空白做到可以正式執行的場景</span></div>

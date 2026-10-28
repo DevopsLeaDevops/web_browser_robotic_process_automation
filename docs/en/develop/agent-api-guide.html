@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:7c9e02766fbd6b24">
+<meta name="translation-source" content="sha256:a4f95ab93cd71838">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -17,11 +17,11 @@
       <h1>Agent API guide</h1>
       <p>For agent systems that connect to the platform, and the people who write their integrations: how to use <code>/agent-api/v1</code> to build a scene from nothing, debug it on a recorder, have workers validate it, publish and run it, combine scenes into composites in a project and run them, and what to do when something goes wrong.</p>
     </div>
-    <span class="badge blue">Phase 1 in progress</span>
+    <span class="badge green">Phase 1 released (v0.6.0)</span>
   </div>
 
   <div class="stack">
-    <div class="notice">This guide follows the <a href="../design/agent-api.html">design</a> confirmed on 2026-10-23 and the phase 1 implementation (2026-10-23, in review); projects and composites were added on 2026-10-24. When testing through the API, see the <a href="agent-test-plan-guide.html">test plan guide</a> and the <a href="agent-test-report-guide.html">test report guide</a> for writing test plans and test reports. The server's <code>GET /agent-api/v1/openapi.json</code> is the source of truth for fields; <code>/agent-api/v1/docs</code> is interactive documentation you can try directly. Neither needs a key.</div>
+    <div class="notice">This guide follows the <a href="../design/agent-api.html">design</a> confirmed on 2026-10-23 and the phase 1 implementation (2026-10-23; PR #79 was merged on 2026-10-25 and released in v0.6.0); projects and composites were added on 2026-10-24. When testing through the API, see the <a href="agent-test-plan-guide.html">test plan guide</a> and the <a href="agent-test-report-guide.html">test report guide</a> for writing test plans and test reports. The server's <code>GET /agent-api/v1/openapi.json</code> is the source of truth for fields; <code>/agent-api/v1/docs</code> is interactive documentation you can try directly. Neither needs a key.</div>
 
     <section class="panel" id="basics">
       <div class="panel-header"><h2>Basics</h2></div>

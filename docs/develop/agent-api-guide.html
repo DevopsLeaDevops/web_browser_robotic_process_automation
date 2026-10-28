@@ -16,11 +16,11 @@
       <h1>Agent 使用指南</h1>
       <p>寫給接入平台的 Agent 系統（以及替它寫整合的人）：怎麼用 <code>/agent-api/v1</code> 從空白建立場景、在錄製端調試、交給 Worker 驗證、發布並正式執行，在專案裡把場景組成組合場景並執行，遇到錯誤時怎麼處理。</p>
     </div>
-    <span class="badge blue">第一期實作中</span>
+    <span class="badge green">第一期已發布（v0.6.0）</span>
   </div>
 
   <div class="stack">
-    <div class="notice">本指南依 2026-10-23 確認的<a href="../design/agent-api.html">設計</a>與第一期的實作撰寫（2026-10-23，審閱中）；專案與組合場景 2026-10-24 加入。用 API 做測試時，測試方案與測試報告的寫法見<a href="agent-test-plan-guide.html">測試方案指南</a>與<a href="agent-test-report-guide.html">測試報告指南</a>。欄位以伺服器的 <code>GET /agent-api/v1/openapi.json</code> 為準；<code>/agent-api/v1/docs</code> 是可以直接試的互動式文件，兩者都不需要金鑰。</div>
+    <div class="notice">本指南依 2026-10-23 確認的<a href="../design/agent-api.html">設計</a>與第一期的實作撰寫（2026-10-23；PR #79 於 2026-10-25 合併，隨 v0.6.0 發布）；專案與組合場景 2026-10-24 加入。用 API 做測試時，測試方案與測試報告的寫法見<a href="agent-test-plan-guide.html">測試方案指南</a>與<a href="agent-test-report-guide.html">測試報告指南</a>。欄位以伺服器的 <code>GET /agent-api/v1/openapi.json</code> 為準；<code>/agent-api/v1/docs</code> 是可以直接試的互動式文件，兩者都不需要金鑰。</div>
 
     <section class="panel" id="basics">
       <div class="panel-header"><h2>基本約定</h2></div>
