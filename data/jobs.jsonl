@@ -3129,3 +3129,5 @@
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 40655695780, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "success", "duration_s": 10.0, "job": "執行範圍", "os": "linux", "queue_s": 3.0, "run_id": 40655695742, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "分發包（${{ matrix.label }}）", "os": "linux", "queue_s": 0.0, "run_id": 40655695742, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 9.0, "job": "執行範圍", "os": "linux", "queue_s": 7.0, "run_id": 40655727302, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "matrix.name", "os": "linux", "queue_s": 0.0, "run_id": 40655727302, "workflow": "桌面端建置"}
