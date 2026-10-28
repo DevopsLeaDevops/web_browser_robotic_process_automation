@@ -417,13 +417,47 @@ class PackStore:
             ):
                 return
             with self.lock:
-                record = self.verification(session, run, by=self.operator())
+                self._write_verification(session, run, revision)
+
+    def settle_verification(self, run_id: str) -> bool:
+        """驗證執行的結果已經提交、驗證紀錄還沒寫時先補寫；回傳是否補寫。
+
+        :meth:`rpa_server.jobs.RunQueue.complete` 先提交結果，之後才由 on_finished 呼叫
+        :meth:`record_run`。這段空檔裡畫面與 API 已經是「通過」，發布卻找不到紀錄（2026-10-28，
+        main 的 CI 與每晚測試偶爾在「驗證通過後馬上發布」失敗）。運行頁與發布前呼叫它；紀錄已經
+        寫過、不是驗證、還沒結束或不在領域裡時不做事。之後 on_finished 照常再寫一次，內容相同。
+        """
+        with self.sessions() as session:
+            run = session.get(Run, run_id)
+            if (
+                run is None
+                or run.purpose != "validation"
+                or run.status not in FINISHED
+                or run.started_at is None
+            ):
+                return False
+            scene = session.get(Scene, run.scene_id)
+            revision = session.get(Revision, run.revision_id)
+            if revision is None or scene is None or scene.domain_id is None:
+                return False
+            with self.lock:
                 path = self.verification_path(run.scene_id, run.revision_number, run.id)
-                write_model(path, record)
-                passed = run.status == "passed" and run.scenario_hash == revision.content_hash
-                if passed and revision.problem is None:
-                    revision.verified = True
-                    session.commit()
+                if path.exists():
+                    return False
+                self._write_verification(session, run, revision)
+                return True
+
+    def _write_verification(self, session: Session, run: Run, revision: Revision) -> None:
+        """寫驗證紀錄；通過而且雜湊相同時，版本記成「有通過的驗證紀錄」。
+
+        呼叫者持有 :attr:`lock`。
+        """
+        record = self.verification(session, run, by=self.operator())
+        write_model(self.verification_path(run.scene_id, run.revision_number, run.id), record)
+        passed = run.status == "passed" and run.scenario_hash == revision.content_hash
+        if passed and revision.problem is None:
+            revision.verified = True
+            session.commit()
 
     def verification_path(self, scene_id: str, number: int, run_id: str) -> Path:
         folder = self.storage.scene_dir(scene_id) / VERIFICATIONS_DIR / str(number)

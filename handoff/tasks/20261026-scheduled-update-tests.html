@@ -65,6 +65,7 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
+        <li>2026-10-28 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：「第三個原因」（驗證通過後馬上發布的空檔）由 <a href="20261028-main-ci-red.html">20261028-main-ci-red</a> 修正：運行頁與發布前先補寫還沒寫的驗證紀錄，附回歸測試。</li>
         <li>2026-10-26 21:45 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>3f5013a</code> 手動觸發的每晚完整測試（run 40446663520，macOS、Windows，不重跑）：macOS 通過；Windows 的 <code>test_updates.py</code>、<code>test_manifest.py</code> 不再失敗，只剩上面第三個原因的偶發競態（<code>test_remote_worker_runs_validation_and_playground[firefox-False]</code>）。</li>
         <li>2026-10-26 21:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #93 的 CI 通過；手動觸發的每晚完整測試（macOS、Windows，不重跑，run 40443170624）macOS 通過、Windows 剩上面三項測試寫法的問題，一併修改。</li>
         <li>2026-10-26 20:20 America/Los_Angeles（PDT，UTC−07:00），Claude：讀 issue #74、#80 與 10-22～10-26 每次排程的 annotations，分析原因；從 main <code>066ded2</code> 開分支，修改並建立本紀錄。</li>
