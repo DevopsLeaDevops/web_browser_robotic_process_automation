@@ -83,19 +83,22 @@ uv run rpa --version</pre>
       <div class="panel-body">
         <p>下載 <code>RPA-Server-版本-linux-x64.tar.gz</code>（aarch64 用 <code>linux-arm64</code>），解壓後執行裡面的 <code>install.sh</code>。分發包內含 Python 3.13 與照 <code>uv.lock</code> 裝好的所有套件：伺服器不需要 git clone、uv，也不必連到 GitHub 或 PyPI；在能上網的電腦下載一個檔案、複製到伺服器就能安裝。適用的系統和<a href="#linux-server">從原始碼安裝</a>相同：RHEL／CentOS 衍生版、x86_64 或 aarch64、glibc 2.28 以上。</p>
 <pre class="source"># 檔名裡的版本換成實際下載的
-tar -xzf RPA-Server-0.4.1-linux-x64.tar.gz
-bash RPA-Server-0.4.1-linux-x64/install.sh --install-service
+tar -xzf RPA-Server-0.6.3-linux-x64.tar.gz
+bash RPA-Server-0.6.3-linux-x64/install.sh --install-service
 sudo systemctl status rpa-server
 
 # 不用 systemd（例如容器）：前景啟動
 ~/rpa-server/bin/rpa-server
 
-# 升級：解壓新版的分發包，再執行一次；服務正在執行時自動重新啟動
-tar -xzf RPA-Server-0.4.2-linux-x64.tar.gz
-bash RPA-Server-0.4.2-linux-x64/install.sh</pre>
+# 升級（0.6.0 起，執行環境沒變時）：用約 2 MB 的更新檔，見部署與操作
+~/rpa-server/bin/rpa update RPA-Update-0.6.4.zip
+
+# 升級（要完整的分發包時）：解壓新版的分發包，再執行一次；服務正在執行時自動重新啟動
+tar -xzf RPA-Server-0.6.4-linux-x64.tar.gz
+bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
         <dl class="spec-list">
-          <dt>取得</dt><dd>GitHub Release 附 x64、arm64 兩個分發包與 <code>SHA256SUMS.txt</code>（<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>）；加入分發包之後的第一個發布才有。在那之前，或要試尚未發布的版本，從 GitHub Actions「伺服器分發包」那次運行的產物下載（需要登入 GitHub）。</dd>
-          <dt>安裝位置</dt><dd>預設 <code>~/rpa-server</code>（<code>--prefix</code> 或 <code>RPA_SERVER_HOME</code> 可改）。每個版本放在 <code>releases/版本-提交/</code>，<code>current</code> 指向使用中的版本；<code>bin/rpa-server</code> 是啟動器（systemd 也用它），<code>bin/rpa</code> 是 rpa 命令。新版本先放好、確認包內的 Python 在這台能執行，才把 <code>current</code> 換過去；保留最近 3 個版本（<code>--keep</code>）。</dd>
+          <dt>取得</dt><dd>GitHub Release 附 x64、arm64 兩個分發包與 <code>SHA256SUMS.txt</code>（<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>），v0.5.0 起每個發布都有；0.6.0 起另附簽章的更新檔 <code>RPA-Update-版本.zip</code>（<a href="operations.html#update-file">用更新檔升級伺服器</a>）。要試尚未發布的版本時，從 GitHub Actions「伺服器分發包」那次運行的產物下載（需要登入 GitHub）。</dd>
+          <dt>安裝位置</dt><dd>預設 <code>~/rpa-server</code>（<code>--prefix</code> 或 <code>RPA_SERVER_HOME</code> 可改）。每個版本放在 <code>releases/版本-提交/</code>（我們的程式 <code>app/</code>、<code>bin/rpa</code>），Python 與第三方套件放在 <code>runtimes/環境代號/</code>，環境代號相同的版本共用一份（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；<code>current</code> 指向使用中的版本；<code>bin/rpa-server</code> 是啟動器（systemd 也用它），<code>bin/rpa</code> 是 rpa 命令。新版本先放好、確認包內的 Python 在這台能執行，才把 <code>current</code> 換過去；保留最近 3 個版本（<code>--keep</code>）。</dd>
           <dt>設定與資料</dt><dd>設定檔 <code>~/rpa-server/rpa-server.env</code>，變數和下方的 <code>.rpa-server.env</code> 相同（<code>RPA_DATA_DIR</code>、<code>RPA_PORT</code>、<code>RPA_WORKER_PORT</code>、<code>RPA_WORKER_HOST</code>、<code>RPA_TESTSITE_HOST</code>）；首次安裝時可以用環境變數指定，之後修改檔案再重新啟動服務。資料預設在 <code>~/.local/share/rpa-server</code>，安裝、升級與重裝都不會清除。</dd>
           <dt>從 clone 安裝改過來</dt><dd>第一次安裝時自動沿用 <code>setup-linux.sh</code> 的設定：先找 systemd 服務啟動的那份 <code>.rpa-server.env</code>，再找預設的 clone 位置；也可以用 <code>--import-env</code> 指定。資料目錄照舊，不搬動資料。現有服務仍指向 clone 的那份時，安裝程式不動它；加上 <code>--install-service</code> 才換成分發包並重新啟動。換過去之後，clone 與 <code>.venv-server</code> 可以保留或刪除。</dd>
           <dt>系統套件</dt><dd>只補裝缺少的 <code>libstdc++</code> 與 <code>git</code>（git 只有領域資料夾的 git 同步要用），所以升級通常不用 sudo 裝套件；管理員已備妥時加 <code>--skip-system-packages</code>。安裝 unit 與重新啟動服務需要 sudo。</dd>

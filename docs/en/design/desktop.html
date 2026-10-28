@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:03df5f7c061546cd">
+<meta name="translation-source" content="sha256:ad92ffa32abce552">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -34,7 +34,7 @@
       <h1>Desktop distribution</h1>
       <p>M10: the server and database are deployed on one computer (it can be a Linux host without a screen); recorders and execution machines each install a desktop app and paste an invitation. The app window reuses the server's existing pages; the browser for recording, step-by-step debugging and manual login opens on the computer the person is using. Decision in <a href="../adr/0014-desktop-apps.html">ADR 0014</a>.</p>
     </div>
-    <span class="badge green">M10.0–M10.2 done (v0.4.0)</span>
+    <span class="badge green">M10.0–M10.2 done; currently v0.6.3</span>
   </div>
 
   <div class="stack">
@@ -45,7 +45,7 @@
           <thead><tr><th>Component</th><th>macOS</th><th>Windows</th><th>Notes</th></tr></thead>
           <tbody>
             <tr><td>RPA Recorder</td><td><span class="badge green">Delivered</span> (from v0.3.0)</td><td><span class="badge">Planned option</span></td><td>Recording, step-by-step debugging, manual login and the rest of the portal; Apple silicon (arm64)</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge blue">Implemented</span> (2026-10-22, from the next release)</td><td><span class="badge green">Delivered</span> (from v0.2.0)</td><td>Runs scenarios (headed mode and video included); Windows x64, macOS (Apple silicon)</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge green">Delivered</span> (from v0.5.0)</td><td><span class="badge green">Delivered</span> (from v0.2.0)</td><td>Runs scenarios (headed mode and video included); Windows x64, macOS (Apple silicon)</td></tr>
             <tr><td>Server (rpa serve)</td><td colspan="2"><span class="badge blue">Linux package</span>: on Linux (RHEL-compatible) a tar.gz with its own Python (x64, arm64); extract it and run <code>install.sh</code>, with an optional systemd service (<a href="../develop/setup.html#linux-package">package</a>). Installing from source (<code>scripts/setup-linux.sh</code>) still works. On macOS and Windows the server is still installed from source with the setup scripts</td><td>First tuned on the user's own computer; now also runs on a Linux host without a screen (see <a href="../develop/operations.html">Deployment and operations</a>)</td></tr>
             <tr><td>Database</td><td colspan="2"><span class="badge">No separate binary</span></td><td>SQLite is embedded in the server; production PostgreSQL uses the official installers or Docker (M8, M9)</td></tr>
           </tbody>
@@ -344,7 +344,7 @@
           <ul>
             <li><strong>Inside is the existing RemoteWorker.</strong>Only the token now comes from pairing; claiming, heartbeats, uploads and the test site behave exactly like <code>rpa worker</code> (the run loop lives in <code>rpa_worker.service</code>, shared by both).</li>
             <li><strong>Delivered in two steps</strong> (decided 2026-10-16). Step one is a console build: double-click <code>rpa-worker.exe</code>, paste the invitation, download the browser and take jobs; CI pairs the packaged build for real and runs BA-001 → BA-002 with it. Step two (approved 2026-10-17) adds the status window, notification area, auto-start, single instance and Credential Manager described below; the console build stays available as <code>rpa-child.exe --worker</code> in the same folder, for troubleshooting. The <a href="#installer">installer</a> comes next (approved 2026-10-18).</li>
-            <li><strong>Status window.</strong>pywebview (WebView2) loads a page bundled in the app (the design system's CSS inlined, the original unchanged): pairing (paste the invitation; enter the server separately only when pasting just the code), browser download progress, server, online status, current run, the last 10 runs, app version and where the token is stored; a version different from the server's is flagged, with a Download the new version button that opens the latest GitHub release. Settings: auto-start, Firefox, an internal mirror, language (Traditional Chinese by default and not following the OS, per <a href="../adr/0007-i18n.html">ADR 0007</a>; the choice is kept in <code>settings.json</code> in the data folder), open the log folder, and pair again. The window does not link to portal pages: management pages are only on the server's 127.0.0.1, and the external port opens to recorders only in M10.2.</li>
+            <li><strong>Status window.</strong>pywebview (WebView2) loads a page bundled in the app (the design system's CSS inlined, the original unchanged): pairing (paste the invitation; enter the server separately only when pasting just the code), browser download progress, server, online status, current run, the last 10 runs, app version and where the token is stored; a version different from the server's is flagged, with a Download the new version button that opens the latest GitHub release (from v0.6.0 the app first updates from the server; see <a href="#updates">Updates</a>). Settings: auto-start, Firefox, an internal mirror, language (Traditional Chinese by default and not following the OS, per <a href="../adr/0007-i18n.html">ADR 0007</a>; the choice is kept in <code>settings.json</code> in the data folder), the folders file inputs may read (one per line, effective from the next job; M7c, on main and not yet released), open the log folder, and pair again. The window does not link to portal pages: management pages are only on the server's 127.0.0.1, and the external port opens to recorders only in M10.2.</li>
             <li><strong>Notification-area icon.</strong>Closing the window minimizes it to the notification area (with a hint the first time); the menu has "Open window", "Pause jobs" and "Quit", and a dot on the icon shows the status. Quitting while a job runs asks first, then cancels and reports it. "Pause jobs" means no new jobs after the current one: the server is unchanged, and the portal shows the worker offline after about a minute (decided 2026-10-17).</li>
             <li><strong>Start at sign-in.</strong>Written to the current user's run-at-sign-in list (<code>HKCU\…\Run</code>, with <code>--background</code> so only the tray icon appears; the window still opens if not paired). On after the first successful pairing, then following the user's choice in Settings; on each start the path is updated to the current location (the unzipped folder may be moved). Headed mode needs a signed-in desktop, so it is not a system service.</li>
             <li><strong>Single instance.</strong>An exclusive lock on <code>instance.lock</code> in the data folder keeps the window version, <code>--no-window</code> and the console version from running together; opening it again brings up the running copy. The copy holding the lock also creates the named mutex <code>RPAWorker.App</code> so the installer can tell the app is running; a <code>stop.request</code> file in the data folder asks it to cancel its job, report and quit.</li>
@@ -386,11 +386,11 @@
     </section>
 
     <section class="panel" id="release-flow">
-      <div class="panel-header"><h2>From source to installers</h2><span class="muted">Currently v0.5.0 (published 2026-10-23 01:01 PDT); earlier v0.4.0, v0.3.0, v0.2.0</span></div>
+      <div class="panel-header"><h2>From source to installers</h2><span class="muted">Currently v0.6.3 (published 2026-10-26 19:20 PDT); earlier v0.6.2, v0.6.1, v0.6.0, v0.5.0, v0.4.0, v0.3.0, v0.2.0</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="rel-title rel-desc">
           <title id="rel-title">From source to installers</title>
-          <desc id="rel-desc">Bump the version with release_version.py on a feature branch; after the PR is merged, tag main; the release workflow checks the version, builds both apps and the server packages and runs end-to-end tests, and creates a draft release that a maintainer publishes; the apps' Download new version opens the latest release.</desc>
+          <desc id="rel-desc">Bump the version with release_version.py on a feature branch; after the PR is merged, tag main; the release workflow checks the version, builds both apps and the server packages, runs end-to-end tests and signs the update file, and creates a draft release that a maintainer publishes; the apps' Download new version opens the latest release.</desc>
           <defs>
             <marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -401,7 +401,7 @@
           <text class="step" x="26" y="42">1</text>
           <text class="title" x="40" y="42">Bump version</text>
           <text class="mono" x="26" y="64">release_version.py</text>
-          <text class="mono" x="26" y="82">bump 0.5.0</text>
+          <text class="mono" x="26" y="82">bump 0.6.3</text>
           <text class="sub" x="26" y="100">All packages, uv.lock</text>
           <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="223" y="42">2</text>
@@ -413,14 +413,14 @@
           <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="420" y="42">3</text>
           <text class="title" x="434" y="42">Tag</text>
-          <text class="mono" x="420" y="64">v0.5.0</text>
+          <text class="mono" x="420" y="64">v0.6.3</text>
           <text class="sub" x="420" y="82">Must be on main</text>
           <text class="sub" x="420" y="100">Matches package versions</text>
           <path class="link" d="M390 76H404" marker-end="url(#rel-arrow)"/>
           <rect class="box key" x="603" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="617" y="42">4</text>
           <text class="title" x="631" y="42">Release workflow</text>
-          <text class="sub" x="617" y="64">Apps and server packages</text>
+          <text class="sub" x="617" y="64">Apps, server, update file</text>
           <text class="sub" x="617" y="82">Install, run, upgrade,</text>
           <text class="sub" x="617" y="100">remove; draft release</text>
           <path class="link" d="M587 76H601" marker-end="url(#rel-arrow)"/>
@@ -433,7 +433,7 @@
           <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
         </svg>
       </div>
-      <div class="diagram-caption">Server: on Linux, the package of the same version (built by the server package workflow and attached to the release); elsewhere, update it from the source of the same version. Known issues of v0.5.0 (video and replay, browser tests on Windows, download access to the private repository, and more) are listed in the task record.</div>
+      <div class="diagram-caption">Server: on Linux, the package of the same version (built by the server package workflow and attached to the release); elsewhere, update it from the source of the same version. From v0.6.0 each version also ships a signed update file of about 2 MB, <code>RPA-Update-&lt;version&gt;.zip</code>; while the runtime stays the same, that is all the server and devices need (see <a href="#updates">Updates</a>); 0.5.0 and earlier must first install the 0.6.0 full package once. Known issues of each version are in its release notes and release task record (for example <a href="../../../handoff/tasks/20261026-release-0-6-3.html">v0.6.3</a>).</div>
     </section>
 
     <div class="two-col">
@@ -447,7 +447,7 @@
             <li><strong>WebView2.</strong>Without the Runtime, setup runs Microsoft's Evergreen bootstrapper shipped with it (its Microsoft signature is checked at build time); if that fails it explains, and the app can still take jobs from the notification area.</li>
             <li><strong>Uninstalling.</strong>Only after the user confirms the uninstall (Inno Setup's <code>usAppMutexCheck</code>; cancelling leaves the app running) does it ask whether to also delete pairing, settings and logs (including the token in Credential Manager): kept by default; a silent uninstall does not ask and keeps them, and <code>/REMOVEDATA=yes</code> on the command line deletes them. It then stops the app and removes the program, shortcuts and the run-at-sign-in entry. Only the app's own files are deleted: the data folder can be anywhere <code>RPA_WORKER_HOME</code> points to, and the browser and Firefox template caches are shared with other programs.</li>
             <li><strong>Build and CI.</strong><code>tools/build_desktop.py worker</code> builds the app and zip on Windows and then calls ISCC (Inno Setup is installed on GitHub's Windows runners). End to end: silent install → check the files, shortcut and uninstall entry's version → pair the installed app and run BA-001 → BA-002 → install again while the app runs (the app must exit with code 0) → uninstall and confirm the program, shortcut, uninstall entry and auto-start are gone while the pairing stays → install again and uninstall with <code>/REMOVEDATA=yes</code>, confirming the data folder and the token in Credential Manager are gone. Inno Setup's logs are attached on failure.</li>
-            <li><strong>Not included.</strong>Code signing, automatic updates, an offline installer with Chromium inside.</li>
+            <li><strong>Not included.</strong>Code signing and an offline installer with Chromium inside. From v0.6.0 code updates are distributed by the server (<a href="#updates">Updates</a>), not through the installer.</li>
           </ul>
         </div>
       </section>
@@ -458,11 +458,26 @@
             <li><strong>One version.</strong>The server, worker, recorder and every package share one version (<code>MAJOR.MINOR.PATCH</code>, numbers only), tagged like <code>v0.2.0</code> (decided 2026-10-18). <code>python3 tools/release_version.py bump 0.2.0</code> changes every package and <code>uv.lock</code> at once.</li>
             <li><strong>Process.</strong>Bump the version on a feature branch → merge the PR → tag on <code>main</code> and push the tag → the Release workflow (<code>.github/workflows/release.yml</code>) checks that the tag matches the package versions and is on <code>main</code>, calls the desktop build (including the install, upgrade and uninstall end-to-end test) and the server package build (installed, started and upgraded in a Rocky 8 container), and creates a <strong>draft</strong> release with the worker's Windows installer, portable zip and macOS DMG, the recorder's DMG (from M10.2), the server packages (Linux x64, arm64) and <code>SHA256SUMS.txt</code>. The Release notes get an "Upgrading from vX" section that compares runtime IDs with the latest published release and names which targets can use the update file and which need the full installer (<code>tools/runtime_changes.py</code>, 2026-10-26). Once the draft exists, the run's artifacts are deleted so they do not take up Actions storage (see <a href="../develop/ci.html#artifacts">Artifacts and storage quota</a>).</li>
             <li><strong>Drafts.</strong>The repository has been private since 2026-10-22, so only signed-in GitHub accounts with access can download a published release (and without an invitation nothing can reach a portal); a maintainer still checks the draft before choosing Publish. A rerun replaces the same draft's files; a published version is never replaced, so use a new version instead.</li>
-            <li><strong>Download the new version.</strong>When the app's version differs from the server's, the window's Download the new version opens the latest release (<code>…/releases/latest</code>, which counts only published ones); since the repository is private, the browser must be signed in to a GitHub account with access, or the page is a 404.</li>
+            <li><strong>Update file (from v0.6.0).</strong>The release workflow uses the <code>RPA_UPDATE_SIGNING_KEY</code> secret to build and sign <code>RPA-Update-&lt;version&gt;.zip</code>, and checks that every installer trusts exactly the public keys in <code>RELEASE_KEYS</code> of <code>rpa_update/keys.py</code> (creating the key: <a href="../develop/ci.html#update-key">CI &amp; pipelines › Update signing key</a>).</li>
+            <li><strong>Download the new version.</strong>When the app's version differs from the server's, the window's Download the new version opens the latest release (<code>…/releases/latest</code>, which counts only published ones); since the repository is private, the browser must be signed in to a GitHub account with access, or the page is a 404. From v0.6.0 devices update from the server first; a download is only needed when the runtime changes (a full installer).</li>
           </ul>
         </div>
       </section>
     </div>
+
+    <section class="panel" id="updates">
+      <div class="panel-header"><h2>Updates</h2><span class="muted">From v0.6.0; <a href="../adr/0018-layered-updates.html">ADR 0018</a></span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>Layers.</strong>The code layer is our own seven workspace packages (one copy for all platforms, about 2 MB); the runtime is Python, the third-party packages needed at run time and the PyInstaller shell, one per platform, summed up as a runtime ID. Only the code layer can be swapped while the ID stays the same; a different ID needs a full installer. Browsers are still downloaded again only when the Playwright version changes.</li>
+          <li><strong>Server.</strong><code>bin/rpa update RPA-Update-&lt;version&gt;.zip</code> in the server package checks the signature and every file, installs a new version folder and switches <code>current</code>; <code>bin/rpa serve</code> waits until no recording, step debugging, manual login or local run is in progress and restarts on the new version, and if that version fails to start it goes back to the previous one and restores the SQLite backup taken before migrating. A server run from a clone cannot use update files; switch to the package once.</li>
+          <li><strong>Devices follow the server.</strong>Workers and Recorders check with the server when they come online (the Worker API and the Client API each have an update endpoint), download the server's current version (not necessarily the newest), verify it and keep it in the app's folder (Windows <code>%LOCALAPPDATA%\rpa\worker\app\</code>, macOS <code>~/Library/Application Support/rpa/{worker,recorder}/app/</code>). The app itself is not modified, so its macOS signature stays intact.</li>
+          <li><strong>When it applies.</strong>A Worker finishes its current job, stops claiming and restarts itself; a Recorder does not interrupt recording or debugging and says the update applies after reopening. A new layer that keeps failing to start falls back to the previous one, the devices page shows the failure, and that version is not installed automatically again. “Update devices automatically” on the devices page can be turned off (on by default).</li>
+          <li><strong>Launcher.</strong>The PyInstaller entry point is now a small launcher (<code>rpa_update</code>) that checks the manifest's Ed25519 signature, the runtime ID and every file's hash on each start before loading the code layer; child processes use the same layer.</li>
+          <li><strong>Operations.</strong>Steps are in <a href="../develop/operations.html#update-file">Deployment and operations › Updating the server with an update file</a> and <a href="../develop/operations.html#device-updates">Devices follow the server</a>.</li>
+        </ul>
+      </div>
+    </section>
 
     <div class="two-col">
       <section class="panel" id="signing">
@@ -496,7 +511,7 @@
       <div class="panel-header"><h2>Phases and acceptance</h2><span class="muted">Worker before recorder: the worker is almost all reuse, so it proves packaging, installation and pairing first</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>Phase</th><th>Content</th><th>Acceptance</th><th>Status (2026-10-21)</th></tr></thead>
+          <thead><tr><th>Phase</th><th>Content</th><th>Acceptance</th><th>Status (2026-10-28)</th></tr></thead>
           <tbody>
             <tr><td><span class="milestone">M10.0</span></td><td>Packaging groundwork: child-process commands in one place, build info, the rpa-desktop skeleton and packaged entry point, PyInstaller configuration for both apps, CI builds and self-test</td><td>The packaged macOS recorder and Windows worker run BA-001 in CI; every development-environment test still passes</td><td><span class="badge green">Done</span> #30</td></tr>
             <tr><td><span class="milestone">M10.1</span></td><td>Windows worker: devices page and invitations, Client API pairing, status window, notification area, start at sign-in, browser download, installer; the three remaining M9a items</td><td>On a Windows machine with no development tools: install → paste the invitation → download browsers → run BA-001 → BA-002 headed, reports back in the portal; online again automatically after a restart and sign-in</td><td><span class="badge green">Done</span> #31–#34, v0.2.0; manual acceptance: overall flow passed, details in progress</td></tr>
@@ -505,7 +520,7 @@
           </tbody>
         </table>
       </div>
-      <div class="panel-body"><p class="muted">Desktop-related changes after M10.2: with no browser on the server, login checks go to the Recorder, manual logins are confirmed on the computer that opened the window, and login errors are readable (#50); Firefox no longer stalls in the background during manual login (#51); apps report the DSL extensions they understand and older apps are not given scenarios that use newer syntax (M7a, #62); the Worker records video, and on Windows cancelling ends only the browser first so the video is finished (M12, #61). 2026-10-22: the macOS worker (a planned option done early; see <a href="#worker">RPA Worker</a>).</p></div>
+      <div class="panel-body"><p class="muted">Desktop-related changes after M10.2: with no browser on the server, login checks go to the Recorder, manual logins are confirmed on the computer that opened the window, and login errors are readable (#50); Firefox no longer stalls in the background during manual login (#51); apps report the DSL extensions they understand and older apps are not given scenarios that use newer syntax (M7a, #62); the Worker records video, and on Windows cancelling ends only the browser first so the video is finished (M12, #61). 2026-10-22: the macOS worker (a planned option done early; see <a href="#worker">RPA Worker</a>) and the Linux server package (#70), released in v0.5.0. v0.6.0: layered hot updates, with the server distributing updates to devices (#83, <a href="../adr/0018-layered-updates.html">ADR 0018</a>); v0.6.2: the same runtime now gets the same runtime ID on every build, so devices can hot-update (#88); v0.6.3: versions can be changed while debugging on a Recorder (#90). On main, not yet released: the Worker's folders that file inputs may read, and Workers and Recorders downloading file inputs (M7c, #97).</p></div>
     </section>
 
     <div class="two-col">
@@ -517,7 +532,7 @@
             <tbody>
               <tr><td>Recorder for Windows</td><td>Same code, one more build combination plus acceptance</td></tr>
               <tr><td>Server on macOS, Windows</td><td>Linux already has a package with its own Python (<a href="../develop/setup.html#linux-package">package</a>); other systems can be built the same way when needed; M9's Docker Compose is separate</td></tr>
-              <tr><td>Auto-update</td><td>The MVP only flags and links to the download page; later Sparkle and WinSparkle</td></tr>
+              <tr><td>Auto-update</td><td><span class="badge green">Done (v0.6.0)</span> Replaced by layered hot updates: the server distributes signed update files to devices, without Sparkle or WinSparkle (<a href="#updates">Updates</a>, <a href="../adr/0018-layered-updates.html">ADR 0018</a>)</td></tr>
               <tr><td>HTTPS</td><td>The server creates a self-signed certificate, the invitation carries its fingerprint, and the gateway and workers pin it; no purchased certificate needed</td></tr>
               <tr><td>Offline installers</td><td>Chromium bundled in the installer, for intranets that cannot reach the download site</td></tr>
               <tr><td>Recorder that also executes</td><td>One more run location, "this recorder", reusing the pinned-worker mechanism of sequences</td></tr>

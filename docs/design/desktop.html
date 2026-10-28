@@ -33,7 +33,7 @@
       <h1>桌面端分發</h1>
       <p>M10：伺服器與資料庫部署在一台電腦（可以是沒有螢幕的 Linux），錄製者與執行機各裝一個桌面 App，貼上邀請就能用。App 的視窗沿用伺服器現有的頁面；錄製、逐步調試、人工登入的瀏覽器開在操作的那台電腦。決策見 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
     </div>
-    <span class="badge green">M10.0～M10.2 已完成（v0.4.0）</span>
+    <span class="badge green">M10.0～M10.2 已完成；目前 v0.6.3</span>
   </div>
 
   <div class="stack">
@@ -44,7 +44,7 @@
           <thead><tr><th>元件</th><th>macOS</th><th>Windows</th><th>說明</th></tr></thead>
           <tbody>
             <tr><td>RPA 錄製端</td><td><span class="badge green">已交付</span>（v0.3.0 起）</td><td><span class="badge">保留方案</span></td><td>錄製、逐步調試、人工登入，以及 Portal 的其他功能；Apple 晶片（arm64）</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge blue">已實作</span>（2026-10-22，下一個發布起）</td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>執行場景（含有頭模式、錄影）；Windows x64、macOS（Apple 晶片）</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge green">已交付</span>（v0.5.0 起）</td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>執行場景（含有頭模式、錄影）；Windows x64、macOS（Apple 晶片）</td></tr>
             <tr><td>伺服器（rpa serve）</td><td colspan="2"><span class="badge blue">Linux 分發包</span>：Linux（RHEL 衍生版）用自帶 Python 的 tar.gz（x64、arm64），解壓後執行 <code>install.sh</code>，可用 systemd 開機啟動（<a href="../develop/setup.html#linux-package">分發包</a>）；也可以從原始碼安裝（<code>scripts/setup-linux.sh</code>）。macOS、Windows 照舊從原始碼安裝，一鍵安裝腳本</td><td>先在使用者自己的電腦調試；現在也放在沒有螢幕的 Linux 主機（見<a href="../develop/operations.html">部署與操作</a>）</td></tr>
             <tr><td>資料庫</td><td colspan="2"><span class="badge">不另做二進位</span></td><td>SQLite 內嵌在伺服器裡；正式環境的 PostgreSQL 用官方安裝包或 Docker（M8、M9）</td></tr>
           </tbody>
@@ -344,7 +344,7 @@
           <ul>
             <li><strong>內部就是現有的 RemoteWorker。</strong>權杖改從配對取得；領取、心跳、上傳、測試網站的行為都和 <code>rpa worker</code> 一樣（執行迴圈在 <code>rpa_worker.service</code>，兩邊共用）。</li>
             <li><strong>分兩步交付</strong>（2026-10-16 決定）。第一步是主控台版：雙擊 <code>rpa-worker.exe</code> 貼上邀請、下載瀏覽器、接任務；CI 用打包版實際配對並執行 BA-001 → BA-002。第二步（2026-10-17 核准）加上下面的狀態視窗、通知區、自動啟動、只執行一份與認證管理員；主控台版保留為同資料夾的 <code>rpa-child.exe --worker</code>，排查問題用。之後是<a href="#installer">安裝檔</a>（2026-10-18 核准）。</li>
-            <li><strong>狀態視窗。</strong>pywebview（WebView2）載入 App 內的頁面（設計系統的 CSS 內嵌，原檔不改）：配對（貼邀請，只貼代碼時另外填伺服器）、下載瀏覽器的進度、伺服器、線上狀態、目前執行、最近 10 筆、App 版本、權杖存放；版本與伺服器不同時提醒，附「下載新版」打開最新的 GitHub Release。「設定」：自動啟動、Firefox、內部鏡像、語言（依 <a href="../adr/0007-i18n.html">ADR 0007</a> 預設繁中、不跟作業系統，選擇記在資料夾的 <code>settings.json</code>）、開啟日誌資料夾、重新配對。視窗不連到 Portal 的頁面：管理頁只在伺服器那台的 127.0.0.1，對外埠要到 M10.2 才開放給錄製端。</li>
+            <li><strong>狀態視窗。</strong>pywebview（WebView2）載入 App 內的頁面（設計系統的 CSS 內嵌，原檔不改）：配對（貼邀請，只貼代碼時另外填伺服器）、下載瀏覽器的進度、伺服器、線上狀態、目前執行、最近 10 筆、App 版本、權杖存放；版本與伺服器不同時提醒，附「下載新版」打開最新的 GitHub Release（v0.6.0 起先從伺服器更新，見<a href="#updates">更新</a>）。「設定」：自動啟動、Firefox、內部鏡像、語言（依 <a href="../adr/0007-i18n.html">ADR 0007</a> 預設繁中、不跟作業系統，選擇記在資料夾的 <code>settings.json</code>）、檔案入參可以讀的資料夾（一行一個，下一個任務開始時生效；M7c，在 main、尚未發布）、開啟日誌資料夾、重新配對。視窗不連到 Portal 的頁面：管理頁只在伺服器那台的 127.0.0.1，對外埠要到 M10.2 才開放給錄製端。</li>
             <li><strong>通知區圖示。</strong>關掉視窗是縮到通知區（第一次提示）；選單有「開啟視窗」「暫停接任務」「結束」，圖示的圓點表示狀態。有任務在執行時結束要先確認，取消後回報。「暫停接任務」是做完目前的任務後不再領取：伺服器不改，Portal 約一分鐘後顯示離線（2026-10-17 決定）。</li>
             <li><strong>自動啟動。</strong>寫入目前使用者的「登入時執行」（<code>HKCU\…\Run</code>，加上 <code>--background</code> 只出現在通知區；還沒配對時仍打開視窗）。第一次配對成功後預設開啟，之後照使用者在設定裡的選擇；每次啟動時把路徑更新成目前的位置（免安裝的資料夾可能被搬走）。有頭模式需要使用者登入桌面，所以不做成系統服務。</li>
             <li><strong>只執行一份。</strong>資料夾裡 <code>instance.lock</code> 的獨占鎖，視窗版、<code>--no-window</code> 與主控台版互斥；重複開啟時叫出已經在跑的那份。拿到鎖的那份另外建立具名 mutex <code>RPAWorker.App</code>，讓安裝檔知道 App 正在執行；資料夾的 <code>stop.request</code> 請它取消任務、回報後結束。</li>
@@ -386,11 +386,11 @@
     </section>
 
     <section class="panel" id="release-flow">
-      <div class="panel-header"><h2>從原始碼到安裝檔</h2><span class="muted">目前 v0.5.0（2026-10-23 01:01 PDT 發布）；之前 v0.4.0、v0.3.0、v0.2.0</span></div>
+      <div class="panel-header"><h2>從原始碼到安裝檔</h2><span class="muted">目前 v0.6.3（2026-10-26 19:20 PDT 發布）；之前 v0.6.2、v0.6.1、v0.6.0、v0.5.0、v0.4.0、v0.3.0、v0.2.0</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="rel-title rel-desc">
           <title id="rel-title">從原始碼到安裝檔</title>
-          <desc id="rel-desc">在功能分支用 release_version.py 統一版本，PR 合併後在 main 打標籤，發布流程確認版本、建置兩個 App 與伺服器分發包並跑端到端，產生草稿 Release，由維護者確認後發布；App 的「下載新版」連到最新的 Release。</desc>
+          <desc id="rel-desc">在功能分支用 release_version.py 統一版本，PR 合併後在 main 打標籤，發布流程確認版本、建置兩個 App 與伺服器分發包並跑端到端、產生簽章的更新檔，產生草稿 Release，由維護者確認後發布；App 的「下載新版」連到最新的 Release。</desc>
           <defs>
             <marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -401,7 +401,7 @@
           <text class="step" x="26" y="42">1</text>
           <text class="title" x="40" y="42">統一版本</text>
           <text class="mono" x="26" y="64">release_version.py</text>
-          <text class="mono" x="26" y="82">bump 0.5.0</text>
+          <text class="mono" x="26" y="82">bump 0.6.3</text>
           <text class="sub" x="26" y="100">全部套件與 uv.lock</text>
           <rect class="box" x="209" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="223" y="42">2</text>
@@ -413,14 +413,14 @@
           <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="420" y="42">3</text>
           <text class="title" x="434" y="42">打標籤</text>
-          <text class="mono" x="420" y="64">v0.5.0</text>
+          <text class="mono" x="420" y="64">v0.6.3</text>
           <text class="sub" x="420" y="82">必須在 main 上</text>
           <text class="sub" x="420" y="100">和套件版本一致</text>
           <path class="link" d="M390 76H404" marker-end="url(#rel-arrow)"/>
           <rect class="box key" x="603" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="617" y="42">4</text>
           <text class="title" x="631" y="42">發布流程</text>
-          <text class="sub" x="617" y="64">建置 App 與伺服器包</text>
+          <text class="sub" x="617" y="64">App、伺服器包、更新檔</text>
           <text class="sub" x="617" y="82">安裝→執行→升級→移除</text>
           <text class="sub" x="617" y="100">產生草稿 Release</text>
           <path class="link" d="M587 76H601" marker-end="url(#rel-arrow)"/>
@@ -433,7 +433,7 @@
           <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
         </svg>
       </div>
-      <div class="diagram-caption">伺服器：Linux 用同一個版本的分發包（「伺服器分發包」流程建置，發布時一起附上）；其他系統用同一個版本的原始碼更新。v0.5.0 的已知問題（錄影與回看、Windows 上的瀏覽器測試、私有倉庫的下載權限等）記在任務紀錄。</div>
+      <div class="diagram-caption">伺服器：Linux 用同一個版本的分發包（「伺服器分發包」流程建置，發布時一起附上）；其他系統用同一個版本的原始碼更新。v0.6.0 起每個版本多一個約 2 MB 的簽章更新檔 <code>RPA-Update-&lt;版本&gt;.zip</code>，執行環境沒變時伺服器與裝置只要它（見<a href="#updates">更新</a>）；0.5.0 以前要先用 0.6.0 的完整包安裝一次。各版的已知問題記在 Release 說明與發布的任務紀錄（例如 <a href="../../handoff/tasks/20261026-release-0-6-3.html">v0.6.3</a>）。</div>
     </section>
 
     <div class="two-col">
@@ -447,7 +447,7 @@
             <li><strong>WebView2。</strong>沒有 Runtime 時執行建置時附上的 Microsoft Evergreen 引導程式（建置時核對 Microsoft 的數位簽章）；失敗時說明，App 仍可只用通知區接任務。</li>
             <li><strong>解除安裝。</strong>使用者確認要解除安裝後（Inno Setup 的 <code>usAppMutexCheck</code>，取消時 App 不受影響）才詢問是否也刪除配對、設定與日誌（含認證管理員裡的權杖）：預設保留；靜默解除安裝不問、保留，命令列 <code>/REMOVEDATA=yes</code> 才刪除。接著停止 App，刪除程式、捷徑與「登入時執行」的項目。只刪 App 自己的檔案：資料夾可能是 <code>RPA_WORKER_HOME</code> 指定的任何地方，瀏覽器與 Firefox 範本的快取別的程式也在用。</li>
             <li><strong>建置與 CI。</strong><code>tools/build_desktop.py worker</code> 在 Windows 上建好 App 與 zip 後呼叫 ISCC（GitHub 的 Windows 執行環境已裝 Inno Setup）。端到端：靜默安裝 → 檢查檔案、捷徑、解除安裝項目的版本 → 用裝好的 App 配對並執行 BA-001 → BA-002 → App 執行中再安裝一次（App 要以結束碼 0 結束）→ 解除安裝，確認程式、捷徑、解除安裝項目與自動啟動已刪、配對保留 → 再安裝一次並以 <code>/REMOVEDATA=yes</code> 解除安裝，確認資料夾與認證管理員裡的權杖已刪。失敗時附上 Inno Setup 的日誌。</li>
-            <li><strong>不包含。</strong>程式碼簽章、自動更新、內含 Chromium 的離線安裝檔。</li>
+            <li><strong>不包含。</strong>程式碼簽章、內含 Chromium 的離線安裝檔。程式的更新從 v0.6.0 起由伺服器分發（<a href="#updates">更新</a>），不經過安裝檔。</li>
           </ul>
         </div>
       </section>
@@ -458,11 +458,26 @@
             <li><strong>同一個版本。</strong>伺服器、Worker、錄製端與所有套件用同一個版本（<code>主.次.修</code>，數字），標籤是 <code>v0.2.0</code> 這種格式（2026-10-18 決定）。<code>python3 tools/release_version.py bump 0.2.0</code> 一次改全部套件與 <code>uv.lock</code>。</li>
             <li><strong>流程。</strong>在功能分支 bump 版本 → PR 合併 → 在 <code>main</code> 上打標籤並推送 → 「發布」流程（<code>.github/workflows/release.yml</code>）確認標籤和套件版本一致、標籤在 <code>main</code> 上，呼叫桌面端建置（含安裝、升級、解除安裝的端到端）與伺服器分發包的建置（在 Rocky 8 容器裡安裝、啟動、升級），建立<strong>草稿</strong> Release：Worker 的 Windows 安裝檔、免安裝 zip 與 macOS DMG、錄製端的 DMG（M10.2 起）、伺服器的分發包（Linux x64、arm64）、<code>SHA256SUMS.txt</code>。Release 說明附上「從 v上一版 升級」：和最近一次發布比較環境代號，哪些可以只用更新檔、哪些要完整的安裝包（<code>tools/runtime_changes.py</code>，2026-10-26）。草稿建好後刪掉這次執行的產物，免得佔用 Actions 的儲存額度（見<a href="../develop/ci.html#artifacts">產物與儲存額度</a>）。</li>
             <li><strong>草稿。</strong>倉庫在 2026-10-22 改成私有，發布後只有登入且有權限的 GitHub 帳號下載得到（沒有邀請也連不上 Portal）；草稿仍由維護者確認內容後才按「發布」。重新執行時換掉同一個草稿的檔案；已經發布的版本不換，改用新的版本。</li>
-            <li><strong>下載新版。</strong>App 的版本和伺服器不同時，視窗的「下載新版」打開最新的 Release（<code>…/releases/latest</code>，只算已發布的）；倉庫是私有的，瀏覽器要先登入有權限的 GitHub 帳號，否則是 404。</li>
+            <li><strong>更新檔（v0.6.0 起）。</strong>發布流程用 Secrets 的 <code>RPA_UPDATE_SIGNING_KEY</code> 產生並簽署 <code>RPA-Update-&lt;版本&gt;.zip</code>，並確認每個安裝包信任的公鑰都是 <code>rpa_update/keys.py</code> 的 <code>RELEASE_KEYS</code>（金鑰的產生見<a href="../develop/ci.html#update-key">CI 與流水線 › 更新檔的簽署金鑰</a>）。</li>
+            <li><strong>下載新版。</strong>App 的版本和伺服器不同時，視窗的「下載新版」打開最新的 Release（<code>…/releases/latest</code>，只算已發布的）；倉庫是私有的，瀏覽器要先登入有權限的 GitHub 帳號，否則是 404。v0.6.0 起裝置先從伺服器更新，只有要換執行環境（完整安裝包）時才需要下載。</li>
           </ul>
         </div>
       </section>
     </div>
+
+    <section class="panel" id="updates">
+      <div class="panel-header"><h2>更新</h2><span class="muted">v0.6.0 起；<a href="../adr/0018-layered-updates.html">ADR 0018</a></span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>分層。</strong>程式層是我們自己的七個工作區套件（各平台共用一份，約 2 MB）；執行環境是 Python、執行時的第三方套件與 PyInstaller 外殼，各平台一份，算成一個環境代號。代號相同才能只換程式層，不同就要完整的安裝包；瀏覽器照舊只在 Playwright 版本改變時重新下載。</li>
+          <li><strong>伺服器。</strong>分發包的 <code>bin/rpa update RPA-Update-&lt;版本&gt;.zip</code> 驗證簽章與每個檔案，裝成新的版本資料夾、換掉 <code>current</code>；<code>bin/rpa serve</code> 等到沒有進行中的錄製、逐步調試、人工登入、本機執行，用新版本重新啟動，起不來時退回上一版並還原遷移前的 SQLite 備份。從 clone 執行的伺服器不能用更新檔，要先改用分發包一次。</li>
+          <li><strong>裝置跟著伺服器。</strong>Worker 與錄製端上線時向伺服器檢查（Worker API 與 Client API 各有一個更新端點），下載伺服器現在的版本（不一定是最新版），驗證後放在 App 的資料夾（Windows <code>%LOCALAPPDATA%\rpa\worker\app\</code>、macOS <code>~/Library/Application Support/rpa/{worker,recorder}/app/</code>），App 本身不被修改，macOS 的簽章也不受影響。</li>
+          <li><strong>套用的時機。</strong>Worker 做完目前的任務、暫停領取後自己重新啟動；錄製端不打斷錄製與調試，提示關掉再開啟就會套用。新的一層連續起不來時退回上一層，裝置頁標出失敗，同一個版本不再自動安裝。裝置頁可以關掉「自動更新裝置」（預設開）。</li>
+          <li><strong>啟動器。</strong>PyInstaller 的入口改成一個很小的啟動器（<code>rpa_update</code>），每次啟動驗證清單的 Ed25519 簽章、環境代號與每個檔案的雜湊才載入程式層；子程序用同一層。</li>
+          <li><strong>操作。</strong>升級的步驟見<a href="../develop/operations.html#update-file">部署與操作 › 用更新檔升級伺服器</a>與<a href="../develop/operations.html#device-updates">裝置跟著伺服器更新</a>。</li>
+        </ul>
+      </div>
+    </section>
 
     <div class="two-col">
       <section class="panel" id="signing">
@@ -496,7 +511,7 @@
       <div class="panel-header"><h2>分期與驗收</h2><span class="muted">先 Worker 再錄製端：Worker 幾乎全是沿用，先把打包、安裝、配對走通</span></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>階段</th><th>內容</th><th>驗收</th><th>狀態（2026-10-21）</th></tr></thead>
+          <thead><tr><th>階段</th><th>內容</th><th>驗收</th><th>狀態（2026-10-28）</th></tr></thead>
           <tbody>
             <tr><td><span class="milestone">M10.0</span></td><td>打包地基：子程序命令集中、建置資訊、rpa-desktop 骨架與打包後的入口、兩個 App 的 PyInstaller 設定、CI 建置與自我測試</td><td>macOS 的錄製端與 Windows 的 Worker 打包版在 CI 跑通 BA-001；開發環境的測試全部照舊通過</td><td><span class="badge green">已完成</span> #30</td></tr>
             <tr><td><span class="milestone">M10.1</span></td><td>Windows Worker：裝置頁與邀請、Client API 的配對、狀態視窗、通知區、自動啟動、下載瀏覽器、安裝檔；M9a 剩下的三項</td><td>在沒裝過開發工具的 Windows 上：安裝 → 貼邀請 → 下載瀏覽器 → 以有頭模式跑 BA-001 → BA-002，報告回到 Portal；重開機登入後自動上線</td><td><span class="badge green">已完成</span> #31～#34，v0.2.0；人工驗收：整體流程通過，細節驗收中</td></tr>
@@ -505,7 +520,7 @@
           </tbody>
         </table>
       </div>
-      <div class="panel-body"><p class="muted">M10.2 之後和桌面端有關的修改：伺服器沒有瀏覽器時「檢查」交給錄製端、人工登入在開視窗的那台確認、看得懂的登入錯誤（#50）；人工登入的 Firefox 在背景不再停住（#51）；App 回報看得懂的 DSL 擴充，舊 App 拿不到用了新寫法的場景（M7a，#62）；Worker 錄影，Windows 上取消時先只結束瀏覽器，讓影片寫完（M12，#61）。2026-10-22：macOS 版 Worker（保留方案提前做，見<a href="#worker">RPA Worker</a>）。</p></div>
+      <div class="panel-body"><p class="muted">M10.2 之後和桌面端有關的修改：伺服器沒有瀏覽器時「檢查」交給錄製端、人工登入在開視窗的那台確認、看得懂的登入錯誤（#50）；人工登入的 Firefox 在背景不再停住（#51）；App 回報看得懂的 DSL 擴充，舊 App 拿不到用了新寫法的場景（M7a，#62）；Worker 錄影，Windows 上取消時先只結束瀏覽器，讓影片寫完（M12，#61）。2026-10-22：macOS 版 Worker（保留方案提前做，見<a href="#worker">RPA Worker</a>）、Linux 伺服器分發包（#70），隨 v0.5.0 發布。v0.6.0：分層熱更新，伺服器把更新分發給裝置（#83，<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；v0.6.2：同一個執行環境每次建置都是同一個環境代號，裝置才能熱更新（#88）；v0.6.3：在錄製端調試時可以換版本（#90）。main（尚未發布）：Worker 的「檔案入參可以讀的資料夾」、Worker 與錄製端下載檔案入參（M7c，#97）。</p></div>
     </section>
 
     <div class="two-col">
@@ -517,7 +532,7 @@
             <tbody>
               <tr><td>錄製端 Windows 版</td><td>同一份程式碼，多一個建置組合與驗收</td></tr>
               <tr><td>macOS、Windows 的伺服器</td><td>Linux 已有自帶 Python 的分發包（<a href="../develop/setup.html#linux-package">分發包</a>）；其他系統需要時用同樣的方式另建；M9 的 Docker Compose 另做</td></tr>
-              <tr><td>自動更新</td><td>MVP 只提醒並連到下載頁；之後用 Sparkle、WinSparkle</td></tr>
+              <tr><td>自動更新</td><td><span class="badge green">已做（v0.6.0）</span> 改用分層熱更新：伺服器把簽章的更新檔分發給裝置，不用 Sparkle、WinSparkle（<a href="#updates">更新</a>、<a href="../adr/0018-layered-updates.html">ADR 0018</a>）</td></tr>
               <tr><td>HTTPS</td><td>伺服器產生自簽憑證，邀請裡帶憑證指紋，閘道與 worker 釘選；不必購買憑證</td></tr>
               <tr><td>離線安裝檔</td><td>安裝檔內含 Chromium，給連不到下載站的內網</td></tr>
               <tr><td>錄製端兼當執行機</td><td>執行位置多一個「這台錄製端」，沿用序列固定 worker 的機制</td></tr>

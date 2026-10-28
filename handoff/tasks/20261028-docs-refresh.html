@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文檔站對齊 main（v0.6.3 之後） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>文檔站對齊 main（v0.6.3 之後）</h1><p>把 <code>docs/</code> 裡落後的頁面改成和 main <code>a26b929</code>（#97 合併後）一致：路線圖與首頁的狀態、系統架構、技術選型、桌面端分發、產品定位、遠端 Worker、開發環境、本機從零運行、Agent 使用指南、ADR 索引。只改文件，不改程式。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261028-docs-refresh；2026-10-28 02:33 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 對話（2026-10-28 00:51 America/Los_Angeles（PDT，UTC−07:00））：「現在 docs 的文檔是落後的，幫我更新到最新的 docs 文檔，也就是包含 main 分支的最近改動的最新版出來。」完成＝<code>docs/</code> 的各頁和 main 的實作、已合併的 PR、已發布的版本一致；繁中、英文同步並 stamp，簡中由工具產生；文檔測試通過；人工驗收的狀態照任務紀錄寫，不寫成已驗收。</dd>
+        <dt>範圍／不包含</dt><dd><code>docs/</code> 的繁中與英文頁（簡中由 bootstrap 產生）。已隨各 PR 更新的 DSL、管理 Portal、對外 Agent API 設計、多用戶不動。不包含：<code>handoff/</code> 的狀態總表與驗收紀錄（10-14 的快照，另行整理）、其他任務紀錄的狀態欄、程式與 <code>schema/</code>。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原文檔更新：Claude（Opus 5.5）；本次衝突整合：ChatGPT／Codex（使用者本次對話指定）；審閱與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>docs/index.html</code>、<code>docs/roadmap.html</code>、<code>docs/adr/index.html</code>、<code>docs/assets/nav.js</code>（頁首標籤）、<code>docs/design/</code> 的 architecture、tech-stack、desktop、positioning，以及 portal、agent-api 的開頭狀態，<code>docs/develop/</code> 的 remote-worker、setup、quickstart、macos、agent-api-guide、agent-test-plan-guide、agent-test-report-guide，以及 <code>docs/en/</code> 的同一頁；本頁與任務索引。共用檔案（任務索引）由本任務整合；目前沒有開著的 PR。</dd>
+        <dt>狀態</dt><dd>實作完成、待審閱；本次合入最新 <code>main@469c3be</code>（含 #101、#102），解決任務索引衝突。繁中與英文已 stamp、簡中已由 bootstrap 產生；本次驗證與最新 head 的 CI 見追加紀錄。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-main</code>，從 <code>a26b929</code>（origin/main，Merge PR #97）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/100">PR #100</a>（base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送到 <code>docs/refresh-main</code>；以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、系統 Python 3.13.18、pytest 9.1.1。PyPI 被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成；沒有 OpenCC，簡中靠提交訊息的 <code>[bootstrap]</code> 產生。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>盤點（main a26b929）：</strong>路線圖的 M7a、M7b、M7c、M11、M12、M14 仍寫「PR 審閱中／實作中」，實際都已合併；首頁仍是「目前階段 M4、10 個里程碑、11 項 ADR、M10 進行中」；ADR 索引寫 13 項，實際 18 項。系統架構與技術選型對照 v0.5.0，沒有熱更新（ADR 0018）、Agent API、專案空間、上傳檔案區、組合運行的報告與回看。桌面端分發的發布歷史只到 v0.5.0，「自動更新」仍列在保留方案，macOS Worker 寫「下一個發布起」。遠端 Worker 的升級只寫安裝檔、設定沒有「檔案入參可以讀的資料夾」。產品定位的「專案」仍是 M8 的權限單位。Agent 使用指南沒有檔案入參。開發環境、本機從零運行的版本範例是 0.3.0、分發包的資料夾沒有 <code>runtimes/</code>。</li>
+        <li><strong>已完成：</strong>路線圖（目前狀態、七個進行中里程碑的合併與發布、新面板「里程碑之外的改動」）、首頁（版本、里程碑與 ADR 數、套件與命令）、ADR 索引數量、頁首標籤改為 v0.6.3；系統架構（部署圖加上 Agent API、更新與上傳檔案，資料目錄、套件表加上 <code>rpa-update</code>、資料流）；技術選型（程式更新、上傳檔案、CI、版本 0.6.3）；產品定位（專案、檔案入參）；桌面端分發（新面板「更新」、發布歷史到 v0.6.3、macOS Worker 已交付、Worker 的檔案入參資料夾、保留方案的自動更新已做）；遠端 Worker、開發環境、本機從零運行、macOS 開發環境（從伺服器更新、分發包的 <code>runtimes/</code> 與更新檔、版本範例）；Agent 使用指南（上傳檔案）、測試報告指南（匯總報告端點）與 Agent 文件的狀態；管理 Portal 的開頭。</li>
+        <li><strong>未完成／阻礙：</strong>原雲端環境無法安裝依賴；本次 macOS 整合環境已完成鎖定依賴安裝及完整文檔、多語言檢查（360 passed）。最新整合提交的 CI 與使用者審閱待確認。</li>
+        <li><strong>決定：</strong>實作選擇：狀態以 GitHub 的合併紀錄與各任務紀錄為準；「已合併」「自動測試通過」「人工驗收通過」分開寫，沒有紀錄的人工驗收寫「未執行」或「沒有紀錄」。v0.6.3 之後才合併的（M7c、組合運行的匯總報告與合併回看、CI 依層建置）標為「main 上、尚未發布」。</li>
+        <li><strong>下一個具體動作：</strong>確認本次合併提交的文檔、多語言檢查與最新 head 的 CI；使用者審閱、合併。之後可另開任務整理 <code>handoff/</code> 的狀態總表與驗收紀錄（仍是 10-14 的快照）以及各任務紀錄的狀態欄。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>本分支 11f8fa9＋任務紀錄、雲端 Linux、系統 Python 3.13.18、pytest 9.1.1</td><td><code>python3 tools/i18n.py stamp</code>（每頁英文）；<code>pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁與任務索引的相對連結；Playwright 1.63 的 Chromium 截圖檢查系統架構的部署圖（繁中、英文）、發布流程圖與「更新」面板</td><td>356 項通過；4 項失敗都是簡中還沒產生（三頁新錨點、<code>test_simplified_chinese_is_generated</code>），由 bootstrap 產生；圖的文字沒有重疊；連結都存在</td><td>沒有 OpenCC，簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI；只改文件，不跑程式與瀏覽器測試</td></tr><tr><td><code>eac87b9</code>＋<code>469c3be</code> 的合併工作區；macOS arm64、Python 3.13.16、uv 0.12.24</td><td><code>uv sync --locked</code>；<code>python tools/release_version.py check v0.7.0</code>；<code>python tools/i18n.py check</code>；<code>pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁與任務索引的相對連結／錨點與任務入口去重檢查；比對 <code>apps/</code>、<code>packages/</code>、<code>tools/</code>、<code>tests/</code>、<code>.github/</code>、<code>uv.lock</code>、根 <code>pyproject.toml</code> 與最新 main</td><td>全部通過，文檔與多語言 360 passed；程式與鎖檔和 main 完全一致，版本維持 v0.7.0；衝突索引保留雙方任務入口及 M7c 已合併的說明。</td><td>只整合文檔衝突，未重跑完整程式與瀏覽器矩陣；最新 head 的 CI 待確認。</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：<code>d5e4897</code>（運行 40654955730）的靜態檢查通過；兩個測試工作失敗：簡中還沒產生（<code>test_simplified_chinese_is_generated</code>、簡中頁的錨點），以及 Python 3.13 的兩個瀏覽器測試（<code>test_composite_replay_flow</code>、<code>test_replay_flow::test_replay_switches_pages_and_returns_to_main</code>，都和分頁關閉有關）。main <code>a26b929</code> 的 CI（運行 40652237272）同樣有分頁關閉相關的瀏覽器測試失敗，本 PR 只改文件，判斷是既有的不穩定，不在本任務處理。簡中由 bootstrap 產生（<code>ff6dcf8</code>）之後，最新 head 的 CI 見 PR。人工驗收：不適用（只改文件）；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-28 02:33 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex 依使用者要求取得 <code>docs/refresh-main@eac87b9</code>，接收範圍為 PR #100 的衝突解決、相關驗證與推送。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-28 00:58 America/Los_Angeles（PDT，UTC−07:00），Claude：開工。從 <code>a26b929</code> 開 <code>docs/refresh-main</code>；盤點 <code>docs/</code> 各頁與 main、GitHub 的 PR 合併紀錄（#62～#98）與 Release（v0.2.0～v0.6.3）的落差。</li>
+        <li>2026-10-28 01:10 America/Los_Angeles（PDT，UTC−07:00），Claude：逐頁提交（c211294～11f8fa9，每個主題一個提交）；推送本提交並帶 <code>[bootstrap]</code> 產生簡中。PR 的合併與發布時間依 GitHub 的 merged_at／published_at 換算；包含哪個版本用 <code>git merge-base --is-ancestor</code> 對版本標籤確認。</li>
+        <li>2026-10-28 01:17 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>d5e4897</code>，建立 PR #100。bootstrap（運行 40654902868）通過並提交簡中 <code>ff6dcf8</code>（2026-10-28 01:15 PDT）；本機在 <code>ff6dcf8</code> 上 <code>pytest -q tests/docs tests/i18n</code> 359 項通過，只剩需要 OpenCC 的 <code>test_simplified_chinese_is_generated</code> 不能在本機跑。<code>d5e4897</code> 的 CI 結果見上方驗證；推送本提交讓 CI 在最新 head 執行。</li>
+        <li>2026-10-28 02:33 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：使用者要求解決 PR #100 衝突；以 <code>eac87b9</code> 為起點，合入 <code>origin/main@469c3be</code>（#102 已合併）。唯一文字衝突在 <code>handoff/tasks/index.html</code>，保留文檔更新、v0.7.0 發布、main CI 修復三個入口，M7c 保留 PR #97 已合併的較新說明。沿用先前已完成任務的乾淨 worktree，在 <code>fix/pr100-conflicts</code> 整合，不重寫原分支歷史；目前僅本地，驗證與推送結果後續追加。</li>
+        <li>2026-10-28 02:34 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：本次驗證全部通過（360 項文檔與多語言測試，詳見上表）。已確認 PR 相對最新 main 仍只有文檔差異，#101 的修正與 #102 的 v0.7.0 版本完整保留；將以合併提交推送至 <code>docs/refresh-main</code>／PR #100，推送後核對無衝突狀態與最新 head 的 CI，合併仍由使用者決定。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

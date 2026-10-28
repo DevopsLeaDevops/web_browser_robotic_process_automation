@@ -31,11 +31,11 @@
       <h1>对外 Agent API</h1>
       <p>第三方 Agent 系统只通过服务器的 <code>/agent-api/v1</code>：写场景与入参出参、指定录制端开浏览器逐步调试、交给 Worker 验证与运行，在项目里组合场景并运行，并取得运行过程。新的一层只做认证、权限与审核，业务规则与发布门槛沿用现有服务。</p>
     </div>
-    <span class="badge blue">第一期实现中</span>
+    <span class="badge green">第一期已发布（v0.6.0）</span>
   </div>
 
   <div class="stack">
-    <div class="notice">决策与没有选的方案见 <a href="../adr/0017-agent-api.html">ADR 0017</a>；给 Agent 的调用方式见 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。设计 2026-10-23 由用户确认，第一期同日实现（审阅中）；2026-10-24 用户要求把项目与组合场景并入第一期，并给 Agent 写<a href="../develop/agent-test-plan-guide.html">测试方案指南</a>与<a href="../develop/agent-test-report-guide.html">测试报告指南</a>；端点以服务器的 <code>/agent-api/v1/openapi.json</code> 为准，<code>/agent-api/v1/docs</code> 可以直接试。</div>
+    <div class="notice">决策与没有选的方案见 <a href="../adr/0017-agent-api.html">ADR 0017</a>；给 Agent 的调用方式见 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。设计 2026-10-23 由用户确认，第一期同日实现，PR #79 于 2026-10-25 合并、随 v0.6.0 发布（人工验收未运行）；2026-10-24 用户要求把项目与组合场景并入第一期，并给 Agent 写<a href="../develop/agent-test-plan-guide.html">测试方案指南</a>与<a href="../develop/agent-test-report-guide.html">测试报告指南</a>；端点以服务器的 <code>/agent-api/v1/openapi.json</code> 为准，<code>/agent-api/v1/docs</code> 可以直接试。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>范围</h2><span class="muted">Agent 从空白做到可以正式运行的场景</span></div>

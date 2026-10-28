@@ -134,12 +134,12 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
     <section class="panel" id="done">
       <div class="panel-header"><h2>成功的樣子</h2></div>
       <div class="panel-body">
-        <p>最後一步印出版本、全部測試只有 <code>passed</code>，接著是「完成」與接下來可以用的命令：</p>
+        <p>最後一步印出版本、全部測試只有 <code>passed</code>（測試數量與時間隨版本與電腦不同，目前一千多項，含 Chromium 與 Firefox 的瀏覽器測試），接著是「完成」與接下來可以用的命令：</p>
 <pre class="source" translate="no">[7/7] 確認能運行
-  ✓ rpa 0.3.0（rpa-core 0.3.0）
+  ✓ rpa 0.6.3（rpa-core 0.6.3）
   $ env RPA_REQUIRE_BROWSER=1 uv run pytest
 …
-============================= 46 passed in 2.91s ==============================
+============================= … passed in …s ==============================
   ✓ 全部測試通過
 
 完成！本機環境已經可以運行。
