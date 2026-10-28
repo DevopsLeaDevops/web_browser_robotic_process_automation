@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>主責 Claude（Opus 5.5）；審閱與合併：使用者；接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>docs/index.html</code>、<code>docs/roadmap.html</code>、<code>docs/adr/index.html</code>、<code>docs/assets/nav.js</code>（頁首標籤）、<code>docs/design/</code> 的 architecture、tech-stack、desktop、positioning，以及 portal、agent-api 的開頭狀態，<code>docs/develop/</code> 的 remote-worker、setup、quickstart、macos、agent-api-guide、agent-test-plan-guide、agent-test-report-guide，以及 <code>docs/en/</code> 的同一頁；本頁與任務索引。共用檔案（任務索引）由本任務整合；目前沒有開著的 PR。</dd>
         <dt>狀態</dt><dd>實作完成、待審閱：繁中與英文已改完並 stamp，簡中由 bootstrap 產生；PR 與 CI 見追加紀錄。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-main</code>，從 <code>a26b929</code>（origin/main，Merge PR #97）開；PR 未建立。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-main</code>，從 <code>a26b929</code>（origin/main，Merge PR #97）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/100">PR #100</a>（base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>已推送到 <code>docs/refresh-main</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、系統 Python 3.13.18、pytest 9.1.1。PyPI 被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成；沒有 OpenCC，簡中靠提交訊息的 <code>[bootstrap]</code> 產生。</dd>
       </dl></div>
@@ -43,7 +43,7 @@
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody><tr><td>本分支 11f8fa9＋任務紀錄、雲端 Linux、系統 Python 3.13.18、pytest 9.1.1</td><td><code>python3 tools/i18n.py stamp</code>（每頁英文）；<code>pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁與任務索引的相對連結；Playwright 1.63 的 Chromium 截圖檢查系統架構的部署圖（繁中、英文）、發布流程圖與「更新」面板</td><td>356 項通過；4 項失敗都是簡中還沒產生（三頁新錨點、<code>test_simplified_chinese_is_generated</code>），由 bootstrap 產生；圖的文字沒有重疊；連結都存在</td><td>沒有 OpenCC，簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI；只改文件，不跑程式與瀏覽器測試</td></tr></tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：不適用（只改文件）；審閱者／SHA／發現與處理：未審閱。</p></div>
+      <div class="panel-body"><p>CI：<code>d5e4897</code>（運行 40654955730）的靜態檢查通過；兩個測試工作失敗：簡中還沒產生（<code>test_simplified_chinese_is_generated</code>、簡中頁的錨點），以及 Python 3.13 的兩個瀏覽器測試（<code>test_composite_replay_flow</code>、<code>test_replay_flow::test_replay_switches_pages_and_returns_to_main</code>，都和分頁關閉有關）。main <code>a26b929</code> 的 CI（運行 40652237272）同樣有分頁關閉相關的瀏覽器測試失敗，本 PR 只改文件，判斷是既有的不穩定，不在本任務處理。簡中由 bootstrap 產生（<code>ff6dcf8</code>）之後，最新 head 的 CI 見 PR。人工驗收：不適用（只改文件）；審閱者／SHA／發現與處理：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -54,6 +54,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-28 00:58 America/Los_Angeles（PDT，UTC−07:00），Claude：開工。從 <code>a26b929</code> 開 <code>docs/refresh-main</code>；盤點 <code>docs/</code> 各頁與 main、GitHub 的 PR 合併紀錄（#62～#98）與 Release（v0.2.0～v0.6.3）的落差。</li>
         <li>2026-10-28 01:40 America/Los_Angeles（PDT，UTC−07:00），Claude：逐頁提交（c211294～11f8fa9，每個主題一個提交）；推送本提交並帶 <code>[bootstrap]</code> 產生簡中。PR 的合併與發布時間依 GitHub 的 merged_at／published_at 換算；包含哪個版本用 <code>git merge-base --is-ancestor</code> 對版本標籤確認。</li>
+        <li>2026-10-28 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>d5e4897</code>，建立 PR #100。bootstrap（運行 40654902868）通過並提交簡中 <code>ff6dcf8</code>（2026-10-28 01:15 PDT）；本機在 <code>ff6dcf8</code> 上 <code>pytest -q tests/docs tests/i18n</code> 359 項通過，只剩需要 OpenCC 的 <code>test_simplified_chinese_is_generated</code> 不能在本機跑。<code>d5e4897</code> 的 CI 結果見上方驗證；推送本提交讓 CI 在最新 head 執行。</li>
       </ul></div>
     </section>
   </div>
