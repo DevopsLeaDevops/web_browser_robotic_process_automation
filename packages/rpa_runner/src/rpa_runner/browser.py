@@ -65,8 +65,9 @@ __all__ = [
 DEFAULT_STEP_TIMEOUT_MS: Final = 30_000
 _STEP: Final = TypeAdapter[Step](Step)
 _MAY_OPEN_CHOOSER: Final = frozenset({"click", "press", "check"})
-_CHOOSER_FLUSHES: Final = 3
-"""點擊後最多往返瀏覽器幾次等選擇檔案視窗的事件（Playwright 收到後還要向瀏覽器查元素才送出）。"""
+_CHOOSER_WAITS_MS: Final = (0, 10, 20)
+"""點擊後等選擇檔案視窗事件的幾段時間（合計最多 30 ms）：Playwright 收到視窗後還要向瀏覽器查元素
+才送出事件。只等、不碰頁面（在頁面裡執行程式碼會卡在換頁中）。"""
 """可能開出選擇檔案視窗的動作（M7c）：結束時確認有沒有沒人處理的視窗。"""
 _NOT_RENDERED: Final = frozenset({"name", "files"})
 """步驟裡不代入 {{ }} 的欄位：name 是給人看的；upload 的 files 是入參的引用（M7c）。"""
@@ -442,12 +443,12 @@ class _Run:
                 self.tabs.trigger = record
 
     def _flush_choosers(self, page: Page) -> None:
-        """選擇檔案視窗的事件常在點擊回傳之後才到：往返瀏覽器幾次（每次約 1 ms），到了就停。"""
+        """選擇檔案視窗的事件常在點擊回傳之後才到：等一小段時間，到了就停。"""
         with contextlib.suppress(Exception):
-            for _ in range(_CHOOSER_FLUSHES):
+            for wait in _CHOOSER_WAITS_MS:
                 if page.is_closed() or self.tabs.choosers:
                     return
-                page.evaluate("0")
+                page.wait_for_timeout(wait)
 
     def _upload_paths(self, step: UploadStep) -> list[Path]:
         paths: list[Path] = []
