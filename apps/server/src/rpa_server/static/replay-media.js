@@ -49,11 +49,13 @@ class ReplayMedia extends EventTarget {
   get paused() { return !this.playing; }
   get playbackRate() { return this.rate; }
   set playbackRate(value) { this.rate = value; this.element.playbackRate = value; }
+  // 兩段相接的那一刻算後面那一段：開頭與結尾都留 1 毫秒，浮點數相加（開始＋長度）略大於下一段的
+  // 開始時，跳到下一段開頭（N、點節點色帶）不會還停在前面的卡片上（2026-10-28）
   segmentAt(seconds) {
-    return this.segments.find(segment => seconds >= segment.start - 0.001 && seconds < segment.start + segment.length) || null;
+    return this.segments.find(segment => seconds >= segment.start - 0.001 && seconds < segment.start + segment.length - 0.001) || null;
   }
   cardAt(seconds) {
-    return this.cards.find(card => seconds >= card.start - 0.001 && seconds < card.start + card.length) || null;
+    return this.cards.find(card => seconds >= card.start - 0.001 && seconds < card.start + card.length - 0.001) || null;
   }
   pageAt(seconds) {
     const segment = this.segmentAt(seconds);
