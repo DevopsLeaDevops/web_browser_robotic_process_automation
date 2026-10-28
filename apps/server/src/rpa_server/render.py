@@ -19,6 +19,7 @@ from typing import Final, cast
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 from markupsafe import Markup, escape
 
+from rpa_core.dsl.files import format_size
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_core.workflow import Workflow
 from rpa_server import __version__
@@ -325,6 +326,27 @@ def js_messages() -> dict[str, str]:
         "js.issues",
         "js.problems",
         "js.json_invalid",
+        "js.file_uploaded",
+        "js.file_attachment",
+        "js.file_path",
+        "js.file_unknown",
+        "js.file_none",
+        "js.file_default",
+        "js.file_remove",
+        "js.file_too_large",
+        "js.file_upload_failed",
+        "js.file_uploading",
+        "js.attachment_rename_title",
+        "js.attachment_rename_body",
+        "js.attachment_rename_label",
+        "js.attachment_save",
+        "js.attachment_name_invalid",
+        "js.attachment_saved",
+        "js.attachment_too_large",
+        "js.attachment_delete_title",
+        "js.attachment_delete_body",
+        "js.attachment_delete_action",
+        "js.attachment_deleted",
         "js.create_title",
         "js.create_action",
         "js.save",
@@ -596,6 +618,7 @@ _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number
 _env.filters["compact_json"] = _compact_json
 _env.filters["expression"] = _expression
+_env.filters["filesize"] = format_size
 
 
 def render(

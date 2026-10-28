@@ -30,7 +30,18 @@ from rpa_server.videos import VideoSettings, video_details
 __all__ = ["NOT_PASSED", "build_replay", "step_sources"]
 
 NOT_PASSED: Final = ("failed", "timed_out", "cancelled", "needs_login")
-_DETAIL_FIELDS: Final = ("value", "key", "option", "as", "text", "url", "title", "count", "state")
+_DETAIL_FIELDS: Final = (
+    "value",
+    "key",
+    "option",
+    "files",
+    "as",
+    "text",
+    "url",
+    "title",
+    "count",
+    "state",
+)
 
 
 def _moment(value: object) -> datetime | None:
@@ -103,7 +114,10 @@ def _definitions(snapshot: Path | None) -> tuple[list[dict[str, object]], list[t
 
 def _describe(definition: Mapping[str, object]) -> tuple[str | None, str | None]:
     """(定位器或網址, 其他重點)：例如 ``{ label: 標題 }`` 與 ``value: '{{ inputs.title }}'``。"""
-    target = definition.get("target")
+    # upload 用 trigger（點了才開選擇檔案視窗的元素）或 dropzone（拖放區）定位（M7c）
+    target = next(
+        (definition[key] for key in ("target", "trigger", "dropzone") if key in definition), None
+    )
     where = flow(target) if target is not None else None
     if where is None and isinstance(definition.get("url"), str):
         where = str(definition["url"])
@@ -159,6 +173,9 @@ def _steps(
                 "line": line,
                 "source": text,
                 "artifacts": record.get("artifacts") or [],
+                # 上傳的檔案（網頁看到的檔名）與提醒，例如攔下的選擇檔案視窗（M7c）
+                "files": record.get("files") or [],
+                "notes": record.get("notes") or [],
             }
         )
     return steps

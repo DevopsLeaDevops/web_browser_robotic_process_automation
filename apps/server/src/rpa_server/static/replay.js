@@ -107,6 +107,7 @@
       (step.durationMs != null ? ' · ' + fill(messages.took, {seconds: (step.durationMs / 1000).toFixed(2)}) : ''));
     add(messages.target, step.target, true);
     add(messages.detail, step.detail, true);
+    if (step.files && step.files.length) add(messages.files, step.files.join(messages.list_separator));
     if (step.hasFact) add(messages.fact, JSON.stringify(step.fact), true);
     add(messages.url_after, step.url, true);
     const source = step.source
@@ -123,7 +124,8 @@
       actions.push('<a class="button" href="' + esc(data.editUrl + '&line=' + step.line) + '">' +
         esc(fill(messages.open_in_scene, {line: step.line})) + '</a>');
     }
-    box.innerHTML = (step.error ? '<div class="replay-error">' + esc(step.error) + '</div>' : '') +
+    const notes = (step.notes || []).map(text => '<div class="notice warn replay-note">' + esc(text) + '</div>').join('');
+    box.innerHTML = (step.error ? '<div class="replay-error">' + esc(step.error) + '</div>' : '') + notes +
       '<dl class="replay-kv">' + rows.join('') + '</dl>' + source +
       (actions.length ? '<div class="actions">' + actions.join('') + '</div>' : '');
     return box;

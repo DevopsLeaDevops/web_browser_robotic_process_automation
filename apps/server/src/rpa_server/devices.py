@@ -863,7 +863,7 @@ class RecorderHub:
         if not isinstance(env, ChildEnv):
             # 伺服器自己的環境（PATH、HOME…）不能送到錄製端：只送 child_env() 另外給的
             raise TypeError("env for a recorder must come from child_env()")
-        values = {
+        values: dict[str, object] = {
             "module": module,
             "args": [translate(arg) for arg in args],
             "env": {

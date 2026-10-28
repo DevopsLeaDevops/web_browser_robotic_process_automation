@@ -82,7 +82,7 @@ from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
-from rpa_server.uploads import UploadLimits, UploadService
+from rpa_server.uploads import UploadLimits, UploadService, definition_uploads
 from rpa_server.videos import VideoService, VideoSettings, video_details
 from rpa_server.workflows import WorkflowService
 from rpa_worker.environment import external_url
@@ -124,6 +124,9 @@ _CONTRACT_KEYS: Final = frozenset(
         "pattern",
         "minimum",
         "maximum",
+        "accept",
+        "maxSize",
+        "multiple",
         "from",
     }
 )
@@ -380,6 +383,8 @@ class Services:
         self.projects = ProjectService(sessions)
         """專案空間的專案：組合場景的分組，只在資料庫（2026-10-23）。"""
         self.workflows = WorkflowService(sessions, self)
+        # 組合場景節點固定值用到的上傳檔不因保留期限刪除（M7c D7）
+        self.uploads.pinned = self._pinned_uploads
         self.videos = VideoService(sessions, storage)
         """錄影的設定、釘選與保留規則（M12）。"""
         self.queue = RunQueue(
@@ -1168,6 +1173,23 @@ class Services:
             return revision_record(revision, scene)
 
     # ------------------------------------------------------------ 場景附件（M7c）
+
+    def _pinned_uploads(self) -> set[str]:
+        """組合場景固定入參用到的上傳檔：每個組合場景的最新定義與已發布的版本（沒封存的）。"""
+        with self.sessions() as session:
+            columns = (WorkflowRow.definition, WorkflowRow.code, WorkflowRow.published_number)
+            rows = session.execute(select(*columns).where(WorkflowRow.archived.is_(False))).all()
+        found: set[str] = set()
+        for definition, code, published in rows:
+            found.update(definition_uploads(definition))
+            if published is None:
+                continue
+            try:
+                workflow = self.workflows.revision_workflow(code, published)
+            except ServiceError:
+                continue
+            found.update(definition_uploads(workflow.model_dump(mode="json", by_alias=True)))
+        return found
 
     def revision_attachments(self, scene_id: str, number: int) -> list[dict[str, object]]:
         """版本的場景附件：路徑、大小、sha256（給頁面與 API）。"""

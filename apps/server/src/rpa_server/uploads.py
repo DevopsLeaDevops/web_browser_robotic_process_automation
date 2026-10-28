@@ -53,6 +53,7 @@ __all__ = [
     "UNUSED_HOURS",
     "UploadLimits",
     "UploadService",
+    "definition_uploads",
     "read_body",
     "upload_json",
 ]
@@ -79,6 +80,22 @@ class UploadLimits:
     max_run: int = MAX_RUN_BYTES
     keep_days: int = DEFAULT_KEEP_DAYS
     max_total: int = DEFAULT_MAX_TOTAL_BYTES
+
+
+def definition_uploads(definition: Mapping[str, object]) -> list[str]:
+    """組合場景定義裡，節點固定值用到的上傳檔代號（第二期 (2)）。"""
+    values: list[object] = []
+    nodes = definition.get("nodes")
+    for node in cast("list[object]", nodes) if isinstance(nodes, list) else []:
+        if not isinstance(node, Mapping):
+            continue
+        inputs = cast("Mapping[str, object]", node).get("inputs")
+        if not isinstance(inputs, Mapping):
+            continue
+        for binding in cast("Mapping[str, object]", inputs).values():
+            if isinstance(binding, Mapping) and "value" in binding:
+                values.append(cast("Mapping[str, object]", binding)["value"])
+    return uploaded_ids(values)
 
 
 def upload_json(row: UploadedFile) -> dict[str, object]:
@@ -268,8 +285,6 @@ class UploadService:
                 else:
                     # 那台電腦上的路徑：在不在、多大、在不在允許的資料夾由執行的那台檢查
                     normalized.append(item.to_json())
-                    continue
-                if size is None:  # pragma: no cover - 上面兩種來源都有大小
                     continue
                 if size > limit:
                     problems.append(

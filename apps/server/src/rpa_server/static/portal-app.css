@@ -428,3 +428,18 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .script-save{align-items:center}
 .script-save>label.field{flex:1 1 320px}
 .script-save #script-state{font-size:12px}
+/* 檔案入參（M7c）：執行、驗證、調試表單選檔上傳或選場景附件；場景詳情頁的附件區 */
+.file-input{display:grid;gap:6px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.file-input:last-of-type{border-bottom:0;padding-bottom:0}
+.file-input-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.file-input-head .cell-sub{flex-basis:100%}
+.file-chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px;font-size:12px}
+.file-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 6px;border:1px solid var(--line);border-radius:6px;background:#f8fafd;max-width:100%}
+.file-chip>span:not(.tag),.file-chip>a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.file-chip .icon-btn{width:22px;height:22px}
+.file-input-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.file-input-actions label.button{cursor:pointer;position:relative}
+.file-input-actions label.button:focus-within{outline:3px solid #87c1fa;outline-offset:3px}
+.file-progress{width:100%;height:6px}
+.inline-fields label.check input{width:auto;min-height:auto}
+.replay-note{margin-bottom:6px;overflow-wrap:anywhere}

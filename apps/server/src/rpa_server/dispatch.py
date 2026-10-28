@@ -42,7 +42,7 @@ from rpa_core.dsl.features import (
     missing_features,
     scenario_features,
 )
-from rpa_core.dsl.files import uploaded_ids
+from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES, uploaded_ids
 from rpa_core.i18n import Locale, use_locale
 from rpa_server import __version__
 from rpa_server.domain import (
@@ -630,7 +630,10 @@ class WorkerHub:
             for row in rows.values()
             if row.deleted_at is None
         )
-        return files, uploads.limits.max_file, uploads.limits.max_run
+        # 上限和 runner 的預設相同時不送：worker 用自己的預設，沒有檔案入參的任務和舊版相同
+        max_file = uploads.limits.max_file if uploads.limits.max_file != MAX_FILE_BYTES else None
+        max_run = uploads.limits.max_run if uploads.limits.max_run != MAX_RUN_BYTES else None
+        return files, max_file, max_run
 
     def input_file(self, worker_id: str, run_id: str, file_id: str) -> Path:
         """worker 下載任務用到的上傳檔（M7c）：只能是派給它、執行中的這個執行用到的檔案。"""

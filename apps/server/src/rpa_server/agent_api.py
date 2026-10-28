@@ -17,7 +17,7 @@
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Annotated, Final, Literal, cast
 
@@ -34,6 +34,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from rpa_core.dsl import scenario_json_schema, validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
 from rpa_core.dsl.features import FEATURES
+from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, uploaded_ids
 from rpa_runner.files import REPORT, RESULT, STEPS, VIDEO, read_json_or
 from rpa_server import __version__
 from rpa_server.agents import ApiClientRecord
@@ -46,6 +47,7 @@ from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services
 from rpa_server.storage import SCENARIO_FILE
+from rpa_server.uploads import read_body, upload_json
 
 __all__ = [
     "AGENT_PREFIX",
@@ -270,6 +272,7 @@ Debugger = Annotated[ApiClientRecord, Depends(_scoped("debug"))]
 Validator = Annotated[ApiClientRecord, Depends(_scoped("runs:validate"))]
 Publisher = Annotated[ApiClientRecord, Depends(_scoped("scenes:publish"))]
 Executor = Annotated[ApiClientRecord, Depends(_scoped("runs:execute"))]
+FileWriter = Annotated[ApiClientRecord, Depends(_scoped("files:write"))]
 RunReader = Annotated[ApiClientRecord, Depends(_scoped("runs:read"))]
 Placer = Annotated[ApiClientRecord, Depends(_scoped("runs:validate", "runs:execute"))]
 """驗證或執行其中一個（看 Worker、取消、重跑；實際要哪一個依運行的目的再檢查）。"""
@@ -340,6 +343,15 @@ def agent_api(services: Services) -> FastAPI:
             raise forbidden(
                 "domain_forbidden", t("error.agent_domain_forbidden", id=domain_id or "-")
             )
+
+    def own_uploads(client: ApiClientRecord, inputs: Mapping[str, object] | None) -> None:
+        """入參參照的上傳檔（M7c）只能是這個用戶端自己傳的；別人的當成不存在（404）。"""
+        ids = uploaded_ids((inputs or {}).values())
+        rows = services.uploads.rows(ids)
+        for file_id in ids:
+            row = rows.get(file_id)
+            if row is None or row.client_id != client.id:
+                raise not_found("upload_not_found", t("error.upload_not_found", id=file_id))
 
     def scene_for(client: ApiClientRecord, scene_id: str) -> SceneRecord:
         scene = services.get_scene(scene_id)
@@ -449,6 +461,7 @@ def agent_api(services: Services) -> FastAPI:
         number: int | None = None,
     ) -> dict[str, object]:
         scene_for(client, scene_id)
+        own_uploads(client, body.inputs)
         key = scoped_key(client, body.idempotency_key)
         existing = queued_check(client, key)
         if existing is not None:
@@ -737,6 +750,62 @@ def agent_api(services: Services) -> FastAPI:
         )
         return record.to_json()
 
+    # ------------------------------------------------------------ 檔案（M7c）
+
+    @app.post("/files", status_code=201)
+    async def upload_file(
+        client: FileWriter,
+        request: Request,
+        name: Annotated[str, Query(min_length=1, max_length=255)],
+    ) -> dict[str, object]:
+        """上傳一個檔案（本體就是檔案內容）；回傳的 file、name、size、sha256 就是檔案入參的值。"""
+        return await services.uploads.receive(request, name, client_id=client.id)
+
+    @app.get("/files/{file_id}")
+    def file_info(client: FileWriter, file_id: str) -> dict[str, object]:
+        """自己上傳的檔案的說明；過了保留期限時 deleted 是 true。"""
+        row = services.uploads.get(file_id)
+        if row is None or row.client_id != client.id:
+            raise not_found("upload_not_found", t("error.upload_not_found", id=file_id))
+        return upload_json(row)
+
+    @app.get("/scenes/{scene_id}/revisions/{number}/attachments")
+    def list_attachments(client: Reader, scene_id: str, number: int) -> dict[str, object]:
+        """版本的場景附件：files/檔名、大小、sha256。"""
+        scene_for(client, scene_id)
+        return {"attachments": services.revision_attachments(scene_id, number)}
+
+    @app.put("/scenes/{scene_id}/attachments/{name}", status_code=201)
+    async def save_attachment(
+        client: Writer,
+        scene_id: str,
+        name: str,
+        request: Request,
+        base: Annotated[int, Query(ge=1)],
+        note_text: Annotated[str | None, Query(alias="note", max_length=500)] = None,
+    ) -> dict[str, object]:
+        """加上或換掉一個附件（本體就是檔案內容），存成新版本。"""
+        scene_for(client, scene_id)
+        data = await read_body(request, MAX_ATTACHMENT_BYTES)
+        text = note(client, note_text, t("revision.note_attachment_saved", name=name))
+        revision = await anyio.to_thread.run_sync(
+            lambda: services.save_attachment(scene_id, base=base, name=name, data=data, note=text)
+        )
+        return revision.to_json()
+
+    @app.delete("/scenes/{scene_id}/attachments/{name}")
+    def delete_attachment(
+        client: Writer,
+        scene_id: str,
+        name: str,
+        base: Annotated[int, Query(ge=1)],
+        note_text: Annotated[str | None, Query(alias="note", max_length=500)] = None,
+    ) -> dict[str, object]:
+        """拿掉一個附件，存成新版本。"""
+        scene_for(client, scene_id)
+        text = note(client, note_text, t("revision.note_attachment_deleted", name=name))
+        return services.delete_attachment(scene_id, base=base, name=name, note=text).to_json()
+
     # ------------------------------------------------------------ 調試
 
     @app.post("/scenes/{scene_id}/debug", status_code=202)
@@ -767,6 +836,7 @@ def agent_api(services: Services) -> FastAPI:
         limit = client.policy.max_debug_sessions
         if len(mine) >= limit:
             raise limit_reached(t("error.agent_debug_limit", limit=limit), limit)
+        own_uploads(client, body.inputs)
         with use_recorder(Via(recorder.id, recorder.name)):
             session = debug.start(
                 scene_id,

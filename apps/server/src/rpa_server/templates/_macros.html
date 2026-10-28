@@ -6,6 +6,9 @@
 {% if spec.pattern is not none %}{% set _ = items.append("pattern: " ~ spec.pattern) %}{% endif %}
 {% if spec.minimum is not none %}{% set _ = items.append("minimum: " ~ (spec.minimum | num)) %}{% endif %}
 {% if spec.maximum is not none %}{% set _ = items.append("maximum: " ~ (spec.maximum | num)) %}{% endif %}
+{% if spec.accept is defined and spec.accept is not none %}{% set _ = items.append("accept: " ~ spec.accept | join(", ")) %}{% endif %}
+{% if spec.max_size is defined and spec.max_size is not none %}{% set _ = items.append("maxSize: " ~ spec.max_size) %}{% endif %}
+{% if spec.multiple is defined and spec.multiple %}{% set _ = items.append("multiple") %}{% endif %}
 {% if items %}<span class="rule-list">{% for item in items %}<code>{{ item }}</code>{% endfor %}</span>{% else %}—{% endif %}
 {% endmacro %}
 
@@ -98,6 +101,36 @@
     {% else %}<div class="empty">{{ t("spec.no_outputs") }}</div>{% endif %}
   </section>
 </div>
+{% endmacro %}
+
+{# 檔案入參（M7c）：選檔上傳到伺服器、或選這個版本的場景附件，寫進上面的入參 JSON。
+   入參 JSON 仍是唯一的來源；這裡只是幫忙填值、顯示目前的值。 #}
+{% macro file_inputs(inputs, attachments, limit) %}
+{% if inputs %}
+<section class="panel" id="file-inputs" data-file-inputs data-limit="{{ limit }}">
+  <div class="panel-header"><h2>{{ t("files.title") }} <span class="count">{{ inputs | length }}</span></h2><span class="muted">{{ t("files.limit", size=limit | filesize) }}</span></div>
+  <div class="panel-body stack">
+    {% for name, spec in inputs %}
+    <div class="file-input" data-file-input="{{ name }}" data-multiple="{{ '1' if spec.multiple else '' }}" data-max="{{ spec.max_bytes or '' }}" data-default="{{ '1' if spec.default is not none else '' }}">
+      <div class="file-input-head"><code>{{ name }}</code>{% if spec.default is none %} <span class="tag">{{ t("spec.required") }}</span>{% endif %}<span class="rules">{{ rules(spec) }}</span>{% if spec.description %}<span class="cell-sub">{{ spec.description }}</span>{% endif %}</div>
+      <ul class="file-chips" data-file-value aria-live="polite"></ul>
+      <div class="file-input-actions">
+        <label class="button">{{ t("files.choose_multiple" if spec.multiple else "files.choose") }}<input class="visually-hidden" type="file"{% if spec.accept %} accept="{{ spec.accept | join(',') }}"{% endif %}{% if spec.multiple %} multiple{% endif %} data-file-pick></label>
+        {% if attachments %}
+        <select data-file-attachment aria-label="{{ t('files.use_attachment') }}">
+          <option value="">{{ t("files.use_attachment") }}</option>
+          {% for item in attachments %}<option value="{{ item.path }}" data-size="{{ item.size }}">{{ item.name }} · {{ item.size | filesize }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        <button class="button" type="button" data-file-clear>{{ t("files.reset" if spec.default is not none else "files.clear") }}</button>
+      </div>
+      <progress class="file-progress" max="1" value="0" hidden></progress>
+    </div>
+    {% endfor %}
+    <span class="cell-sub">{{ t("files.hint") }}</span>
+  </div>
+</section>
+{% endif %}
 {% endmacro %}
 
 {# 篩選選單：按鈕顯示「標籤 目前選擇」，點開可以勾選多項；關閉時有變動就套用。 #}

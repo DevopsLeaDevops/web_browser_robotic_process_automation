@@ -108,6 +108,23 @@
           <pre class="source">{{ run.output | pretty_json if run.output is not none else "—" }}</pre>
         </section>
       </div>
+
+      {% if file_inputs is defined and file_inputs %}
+      <section class="panel" id="run-file-inputs">
+        <div class="panel-header"><h2>{{ t("files.title") }} <span class="count">{{ file_inputs | length }}</span></h2><span class="muted">{{ t("run.file_inputs_hint", days=keep_days) }}</span></div>
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("run.col_file") }}</th><th class="numeric">{{ t("attachments.col_size") }}</th><th>{{ t("run.file_source") }}</th></tr></thead>
+          <tbody>
+          {% for row in file_inputs %}
+            <tr><td><code>{{ row.input }}</code></td>
+              <td>{% if row.href %}<a href="{{ row.href }}" download="{{ row.name }}">{{ row.name }}</a>{% else %}{{ row.name }}{% endif %}{% if row.sha256 %}<span class="cell-sub mono" title="sha256 {{ row.sha256 }}">sha256 {{ row.sha256[:12] }}</span>{% endif %}</td>
+              <td class="numeric">{{ row.size | filesize if row.size is not none else "—" }}</td>
+              <td>{{ t("run.file_source_" + row.source) }}{% if row.default %} · {{ t("run.file_default") }}{% endif %}{% if row.gone %}<span class="cell-sub">{{ t("run.file_gone") }}</span>{% endif %}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </section>
+      {% endif %}
     </div>
 
     <div class="stack">

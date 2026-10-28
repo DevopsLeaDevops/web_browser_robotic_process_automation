@@ -183,6 +183,10 @@ class ContractItem(_Body):
     pattern: str | None = Field(default=None, max_length=500)
     minimum: float | int | None = None
     maximum: float | int | None = None
+    accept: list[str] | None = Field(default=None, max_length=50)
+    """檔案入參（M7c）接受的類型：``.副檔名`` 或 MIME。"""
+    max_size: str | None = Field(default=None, max_length=20)
+    multiple: bool | None = None
     from_: str | None = Field(default=None, alias="from", max_length=500)
 
 
