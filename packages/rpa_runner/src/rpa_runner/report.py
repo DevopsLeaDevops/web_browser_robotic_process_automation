@@ -6,7 +6,7 @@
 
 import html
 import json
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 from rpa_core.i18n import get_locale
 from rpa_runner.i18n import t
@@ -48,6 +48,19 @@ def _json(value: object) -> str:
     return f"<pre>{_e(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
 
 
+def _step_detail(step: dict[str, object]) -> str:
+    """步驟的錯誤，加上 upload 交出的檔案與提醒（M7c）。"""
+    parts = [_e(step.get("error") or "")]
+    files = step.get("files")
+    if isinstance(files, list) and files:
+        names = ", ".join(str(name) for name in cast("list[object]", files))
+        parts.append(f"<div class='muted'>{_e(t('report.step_files', files=names))}</div>")
+    notes = step.get("notes")
+    for note in cast("list[object]", notes) if isinstance(notes, list) else []:
+        parts.append(f"<div class='badge cancelled'>{_e(note)}</div>")
+    return "".join(part for part in parts if part)
+
+
 def render_report(result: "RunResult") -> str:
     """產生 report.html 的內容（目前語言）。"""
     stages = "".join(
@@ -58,7 +71,7 @@ def render_report(result: "RunResult") -> str:
     steps = "".join(
         f"<tr><td class='mono'>{_e(step.get('id'))}</td><td class='mono'>{_e(step.get('action'))}</td>"
         f"<td>{_e(step.get('name') or '')}</td><td>{_badge(str(step.get('status')))}</td>"
-        f"<td class='mono'>{_e(step.get('durationMs'))} ms</td><td>{_e(step.get('error') or '')}</td></tr>"
+        f"<td class='mono'>{_e(step.get('durationMs'))} ms</td><td>{_step_detail(step)}</td></tr>"
         for step in result.steps
     )
     checks = "".join(

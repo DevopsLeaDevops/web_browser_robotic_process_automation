@@ -6,7 +6,7 @@ worker（權杖不對、協定版本不同）。停止時取消執行中的任�
 """
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Final
 
@@ -32,14 +32,22 @@ def run_remote_worker(
     poll_seconds: float = 0.5,
     paused: threading.Event | None = None,
     stop_seconds: Callable[[], float] = lambda: STOP_SECONDS,
+    input_folders: Callable[[], Sequence[Path]] | None = None,
 ) -> str | None:
     """執行到 ``stop`` 被設定為止；管理 Portal 拒絕這台 worker 時回傳拒絕的訊息，否則回傳 None。
 
     ``paused`` 設定時做完目前的任務後不再領取（Worker App 的「暫停接任務」）。
     ``stop_seconds`` 在停止時才呼叫：停止時最多等執行中的任務多久（Windows 關機時要很短）。
+    ``input_folders``：檔案入參的 path 可以讀的資料夾（Worker App 的設定，M7c）。
     """
     source = RemoteJobSource(
-        client, info, work_dir, keep_runs=keep_runs, notify=notify, paused=paused
+        client,
+        info,
+        work_dir,
+        keep_runs=keep_runs,
+        notify=notify,
+        paused=paused,
+        input_folders=input_folders,
     )
     runner = Worker(source, poll_seconds=poll_seconds)
     source.on_cancel = runner.cancel

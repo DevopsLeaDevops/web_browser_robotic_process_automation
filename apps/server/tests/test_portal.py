@@ -794,6 +794,75 @@ def test_scene_page_saves_scripts_and_contract_in_turn(portal: str, page: Page) 
     assert errors == []
 
 
+def test_file_inputs_from_the_run_form_and_attachments(
+    portal: str, page: Page, site: str, tmp_path: Path
+) -> None:
+    """M7c：場景附件當預設值；執行表單選檔上傳，網頁收到的是選的檔案，運行頁可以下載；
+    場景頁的附件區加上附件，中文檔名先換成英文名稱。"""
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    api = page.request
+    example = ROOT / "scenarios" / "examples" / "upload-form"
+    assert api.post(f"{portal}/api/scenes", data={"id": "upload-form", "name": "上傳"}).ok
+    number = 1
+    for name in ("orders.csv", "product.png"):
+        url = f"{portal}/api/scenes/upload-form/attachments/{name}?base={number}"
+        saved = api.put(url, data=(example / "files" / name).read_bytes())
+        assert saved.ok, saved.text()
+        number = int(saved.json()["number"])
+    files = {"scenario.yaml": (example / "scenario.yaml").read_text(encoding="utf-8")}
+    saved = api.post(
+        f"{portal}/api/scenes/upload-form/revisions",
+        data={"baseRevision": number, "files": files},
+    )
+    assert saved.ok, saved.text()
+    number = int(saved.json()["number"])
+
+    page.goto(f"{portal}/scenes/upload-form/run?purpose=validation&revision={number}")
+    box = page.locator('[data-file-input="orderFile"]')
+    expect(box.locator("[data-file-value]")).to_contain_text("訂單匯入.csv")  # 預設值是附件
+    chosen = tmp_path / "十月訂單.csv"
+    chosen.write_text("編號,數量\nB-7,1\n", encoding="utf-8")
+    box.locator("[data-file-pick]").set_input_files(str(chosen))
+    expect(box.locator("[data-file-value]")).to_contain_text("十月訂單.csv")
+    form = page.locator("#run-form")
+    form.locator('select[name="engine"]').select_option("chromium")
+    form.locator('input[name="baseUrl"]').fill(site)
+    form.locator('input[name="headless"][value="1"]').check()
+    form.locator('[data-action="submit-run"]').click()
+    run_id = wait_for_run(page)
+    assert api.get(f"{portal}/api/runs/{run_id}").json()["output"] == {
+        "importedName": "十月訂單.csv"
+    }
+    panel = page.locator("#run-file-inputs")
+    expect(panel).to_contain_text("product.png")
+    href = panel.get_by_role("link", name="十月訂單.csv").get_attribute("href")
+    assert href is not None
+    assert api.get(portal + href).body() == chosen.read_bytes()
+
+    # 場景頁的附件區：英文檔名直接存；中文檔名先換名稱
+    page.goto(f"{portal}/scenes/upload-form#attachments")
+    attachments = page.locator("#attachments")
+    expect(attachments).to_contain_text("files/orders.csv")
+    notes = tmp_path / "notes.txt"
+    notes.write_text("說明", encoding="utf-8")
+    with page.expect_navigation():
+        attachments.locator("[data-attachment-pick]").set_input_files(str(notes))
+    expect(page.locator("#attachments")).to_contain_text("files/notes.txt")
+    chinese = tmp_path / "說明.txt"
+    chinese.write_text("說明", encoding="utf-8")
+    page.locator("#attachments [data-attachment-pick]").set_input_files(str(chinese))
+    dialog = page.locator("#dialog")
+    expect(dialog.locator("#attachment-name")).to_have_value("file.txt")
+    dialog.locator("#attachment-name").fill("guide.txt")
+    with page.expect_navigation():
+        dialog.locator("#dialog-action").click()
+    expect(page.locator("#attachments")).to_contain_text("files/guide.txt")
+    latest = api.get(f"{portal}/api/scenes/upload-form").json()["latestRevision"]
+    assert latest == number + 2
+    assert errors == []
+
+
 @pytest.mark.parametrize("portal", [DEMO], indirect=True)
 def test_scene_anchors_land_below_the_jump_bar(portal: str, page: Page) -> None:
     """卡片的「入參設定」「出參設定」（2026-10-26）：入參與出參比頁面晚載入（遠端伺服器較慢）

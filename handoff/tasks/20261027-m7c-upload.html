@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M7c 上傳檔案 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M7c：上傳檔案（M7 提前的一部分）</h1><p>業務系統裡的「匯入 Excel」「上傳圖片」現在錄得到、轉不了、也執行不了：錄製稿的 <code>set_input_files</code> 被標成「上傳檔案還不支援（M7）」。把 M7 的上傳拿出來先做：入參多一種 <code>file</code> 型別、步驟多一個 <code>upload</code>，檔案在執行時從管理 Portal 上傳，交給執行的那台電腦。<strong>使用者 2026-10-27 08:20 America/Los_Angeles（PDT，UTC−07:00）確認 D1～D8 全照建議，第一期與第二期一起做。</strong></p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261027-m7c-upload；2026-10-28 00:42 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 對話（2026-10-27 07:53 America/Los_Angeles（PDT，UTC−07:00））：「現在的 RPA 系統中不支援文件上傳能力，我的系統裡有很多 Excel 導入、圖片上傳的功能，現在是沒法使用 RPA 實現的。這個能力可以實現嗎，請調研和制定方案。我們一起 review 沒問題後，然後開始 coding。」驗收條件（草案，隨 D1 確認）：錄製含 Excel 匯入與多張圖片上傳的操作，轉換後沒有「上傳檔案還不支援」的警告；在錄製端逐步調試到最後一步；在執行表單上傳檔案後，以遠端 Worker（Windows）驗證、發布、執行成功，目標網站收到的檔案和上傳的位元組相同（sha256 一致）；舊版 App 收到用到上傳的場景時提示更新。</dd>
+        <dt>範圍／不包含</dt><dd>第一期（M7c，D1）：<code>file</code> 型別的入參、<code>upload</code> 步驟、錄製稿轉換、Runner、檔案從管理 Portal 到 Worker／錄製端、執行與驗證表單的選檔、運行報告、測試網站與範例場景。不包含（第二期，第 5 節）：場景附帶的預設檔案、組合場景節點與 Agent API 的檔案入參、只有拖拽區沒有上傳框的元件、Worker 本機資料夾、下載步驟（M7 其餘部分）、Python 腳本場景的檔案入參（與 <a href="20261024-python-scripts.html">Python 腳本場景設計</a> 的 D9 一起決定）。<strong>2026-10-27 起一期二期一起做：</strong>第二期的 (1)～(5) 已一起實作；(6) Python 腳本場景的檔案入參、(7) 下載步驟的檔案接到上傳依賴尚未實作的功能，另行排程（校驗擋下腳本場景的檔案入參並說明）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計與原實作：Claude（Opus 5.5）。本次衝突整合：ChatGPT／Codex（使用者本次對話指定）。審閱與合併決定：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>實作改到的檔案見第 7 節（第二期另外動到 <code>rpa_server/storage.py</code>、<code>pack.py</code>、<code>agent_api.py</code>、<code>workflows</code> 的保留、Worker App 的設定）。共用檔案由本任務整合：多語言目錄、<code>schema/scenario.v1.json</code>、資料庫遷移 <code>0017_uploaded_files</code>（合併前確認 main 沒有別的 0017）、路線圖、DSL／管理 Portal／Agent API 設計文件、任務索引。開著的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/96">PR #96</a>（組合運行的匯總報告）可能也動到運行報告，後合併的一方解衝突。</dd>
+        <dt>狀態</dt><dd>實作完成；原版本 <code>d1066a1</code> 的 CI 全部通過。本次合入 main（#98）並解決衝突，本地驗證通過，最新合併提交的 CI 待推送後確認；等審閱與人工驗收：第一期與第二期 (1)～(5) 一起做（使用者 2026-10-27 08:20 確認）。第二期的 (6) Python 腳本場景的檔案入參、(7) 下載步驟的檔案接到上傳依賴尚未實作的功能，留好介面、另行排程。合併由使用者決定。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m7c/upload</code>，從 <code>30f2290</code>（origin/main，Merge PR #95）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/97">PR #97</a>（base main；設計＋實作）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本頁與索引的提交推送到 <code>m7c/upload</code>；以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、Python 3.13.17。PyPI 被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成；調研用系統的 Playwright 1.63.0（專案鎖定 1.64.0）、Chromium（<code>/opt/pw-browsers/chromium-1243</code>）與 Xvfb；沒有 Firefox。實驗腳本不進倉庫，做法寫在第 3 節，實作時改寫成正式測試。實作時本地沒有 FastAPI 與 SQLAlchemy（同樣裝不到），伺服器的程式只做 ruff、編譯與 Jinja 樣板解析，伺服器測試（含 Portal 端到端）由 CI 跑；Portal 的檔案入參 JavaScript 另用一個本地頁面與 Playwright 實測。</dd>
+      </dl></div>
+    </section>
+
+    <section class="panel" id="summary">
+      <div class="panel-header"><h2>1. 結論</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>可以做，不需要新的外部元件。</strong>Playwright 本身就能把檔案交給網頁的上傳框，隱藏的、iframe 裡的、點擊時才建立的都行；錄製端（codegen）也已經錄得到選檔，只是轉換時被丟掉。第 3 節的實驗 13 項全部通過。</li>
+        <li><strong>做法：</strong>每個要上傳的檔案是場景的一個入參（新型別 <code>file</code>），步驟多一個 <code>upload</code>，指定交給哪個上傳框，或點哪個元素會開出選擇檔案的視窗。檔案在執行時從管理 Portal 上傳，伺服器存一份；執行的那台 Worker（或調試的錄製端）下載到自己的暫存資料夾，保留原始檔名，再交給瀏覽器。</li>
+        <li><strong>沿用 M7a／M7b 的模式：</strong>只多一種入參型別和一個步驟，不改場景契約與發布門檻；舊的 App 看不懂時提示更新，不會只回「場景校驗失敗」。</li>
+        <li><strong>分兩期（D1）：</strong>第一期打通「錄製 → 調試 → 驗證 → 發布 → 執行」；第二期做場景附帶的預設檔案、組合場景與 Agent API、拖拽區、Worker 本機資料夾。</li>
+        <li><strong>有一種情況錄製稿看不出來：</strong>點擊時才臨時建立、不放進頁面的上傳框，codegen 只錄到那一下點擊。Runner 會攔下這個選擇檔案的視窗，並在調試與驗證時提示把那一步改成 <code>upload</code>（第 4.3 節）。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="gaps">
+      <div class="panel-header"><h2>2. 現況與缺口</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>環節</th><th>現況（main <code>30f2290</code>）</th><th>缺口</th></tr></thead>
+        <tbody>
+          <tr><td>錄製（codegen）</td><td>原生、隱藏、iframe 裡的上傳框都錄成 <code>set_input_files("檔名")</code>（第 3.2 節）</td><td>只有檔名，沒有路徑與內容；點擊時才建立的上傳框只錄到點擊</td></tr>
+          <tr><td>錄製稿轉換 <code>rpa_core/recording.py</code></td><td><code>set_input_files</code> 一律警告「上傳檔案還不支援（M7）」，留成註解</td><td>要轉成 <code>upload</code> 步驟與檔案入參</td></tr>
+          <tr><td>DSL <code>dsl/steps.py</code>、<code>dsl/contract.py</code></td><td>十個動作，沒有上傳；入參型別只有 string、number、integer、boolean</td><td>新增 <code>upload</code> 與 <code>type: file</code></td></tr>
+          <tr><td>Runner <code>rpa_runner/browser.py</code></td><td>沒有上傳；點到上傳按鈕時，有頭模式會跳出系統的選擇檔案視窗並一直開著</td><td>執行 <code>upload</code>；攔下沒人處理的選擇檔案視窗</td></tr>
+          <tr><td>版本資料夾 <code>rpa_server/storage.py</code></td><td>只存文字檔，最多 20 個、每個 1 MB；不在場景來源清單裡的檔案算「多餘的檔案」</td><td>場景不能附帶 Excel、圖片（第二期）</td></tr>
+          <tr><td>Worker 任務 <code>rpa_worker/protocol.py</code></td><td>場景檔以 base64 放在領取任務的 JSON 裡；檔名只能是英數字、底線、點、連字號</td><td>大檔、中文檔名不適合放這裡，另開下載（D8）</td></tr>
+          <tr><td>執行與驗證表單 <code>run_form.html</code></td><td>入參是一個 JSON 文字框，預設值是場景的 <code>default</code></td><td>檔案入參要有選檔與上傳</td></tr>
+          <tr><td>錄製端調試 <code>rpa_worker/interactive.py</code></td><td>啟動子程序時可以帶檔案，放在 <code>.inputs/</code>，不同步回伺服器</td><td>可沿用位置，下載方式同 Worker</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="research">
+      <div class="panel-header"><h2>3. 調研與實測</h2></div>
+      <div class="panel-body">
+        <h3>3.1 Playwright 交檔案給網頁的方式</h3>
+        <p>本機網站放了五種常見的上傳元件，伺服器收到檔案後回傳名稱、大小與 sha256，和本機的檔案比對（Playwright 1.63.0、Chromium、無頭）。官方說明見 <a href="https://playwright.dev/python/docs/input">Playwright › Upload files</a>：一般用 <code>set_input_files</code>，點擊時才建立的上傳框用 <code>expect_file_chooser</code>。</p>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>#</th><th>情況</th><th>做法</th><th>結果</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>原生 <code>&lt;input type=file accept=.xlsx&gt;</code>，表單送出</td><td><code>get_by_label("匯入檔案").set_input_files(路徑)</code></td><td>通過；伺服器收到「訂單匯入.xlsx」（中文檔名保留），sha256 相同</td></tr>
+          <tr><td>1b</td><td>同上，給 .png</td><td>同上</td><td>通過：<code>accept</code> 只是系統對話框的篩選，不會擋 → 類型要由我們自己檢查</td></tr>
+          <tr><td>1c</td><td>單檔上傳框給兩個檔案</td><td>同上</td><td>報錯「Non-multiple file input can only accept single file」→ 要翻成看得懂的訊息</td></tr>
+          <tr><td>2</td><td>隱藏的上傳框（<code>display:none</code>，Element UI <code>el-upload</code> 的結構），選了就自動上傳，多檔</td><td>直接對隱藏的 input <code>set_input_files</code></td><td>通過；不需要先點外層，兩個檔案都收到</td></tr>
+          <tr><td>2b</td><td>同上，改成點外層</td><td><code>expect_file_chooser</code> ＋ 點外層 ＋ <code>set_files</code></td><td>通過；選擇視窗被攔下，知道是多檔、是哪個 input</td></tr>
+          <tr><td>3</td><td>點按鈕時才 <code>createElement('input')</code>，不放進頁面</td><td><code>expect_file_chooser</code> ＋ 點按鈕 ＋ <code>set_files</code></td><td>通過；這種只能用選擇視窗</td></tr>
+          <tr><td>4</td><td>只有拖拽區、沒有 input</td><td>在頁面裡建 <code>DataTransfer</code>，對拖拽區發出 <code>drop</code></td><td>通過；檔案內容要先送進頁面（base64），只適合小檔（第二期）</td></tr>
+          <tr><td>5</td><td>iframe 裡的上傳框</td><td><code>locator("#frm").content_frame…set_input_files</code></td><td>通過；沿用 M7a 的 <code>frame</code></td></tr>
+          <tr><td>6</td><td>120 MB 的檔案，用路徑</td><td><code>set_input_files(路徑)</code></td><td>通過，0.04 秒（瀏覽器直接讀檔）</td></tr>
+          <tr><td>6b</td><td>120 MB 的檔案，用位元組</td><td><code>set_input_files({name, mimeType, buffer})</code></td><td>被拒：「Cannot set buffer larger than 50Mb」→ Worker 一定先寫成檔案再交路徑</td></tr>
+          <tr><td>7</td><td>頁面一開始就監聽 <code>filechooser</code>，再點兩個上傳按鈕</td><td><code>page.on("filechooser", …)</code></td><td>通過；兩個視窗都被攔下，不會出現系統視窗（有頭模式也一樣）</td></tr>
+          <tr><td>8</td><td>對不是上傳框的元素 <code>set_input_files</code></td><td>對外層 div</td><td>報錯「Node is not an HTMLInputElement」→ 要翻成「這個元素不是上傳框，請指到 input，或改用 trigger」</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <h3>3.2 codegen 實際錄出的寫法</h3>
+        <p>用專案「接著錄製」同一個方式（<code>enableRecorder</code>，見 <code>rpa_runner/record.py</code>）在 Xvfb 裡開有頭的錄製，模擬使用者點擊、在選擇視窗選檔。對頁面來說，「使用者在系統視窗選檔」和「攔下視窗再 <code>set_files</code>」是同一組事件（點擊，接著 input 的 input、change）。錄到的 Python：</p>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>情況</th><th>錄製稿</th><th>對轉換的意思</th></tr></thead>
+        <tbody>
+          <tr><td>A 原生上傳框</td><td><code>page.get_by_role("button", name="匯入檔案").set_input_files("訂單匯入.xlsx")</code></td><td>點 input 本身不會錄；只有檔名，沒有路徑</td></tr>
+          <tr><td>B 隱藏上傳框（el-upload）</td><td><code>page.get_by_role("button", name="點擊上傳").click()</code><br><code>page.get_by_role("button", name="點擊上傳").locator("input[name=\"file\"]").set_input_files(["訂單匯入.xlsx", "商品圖.png"])</code></td><td>點外層也錄了。上傳框的定位器就是「那個外層裡面的 input」，可以據此把兩行合併成一步（D3）；保留那次點擊的話，執行時會再開一次選擇視窗</td></tr>
+          <tr><td>C 點擊時才建立</td><td><code>page.get_by_role("button", name="選擇圖片").click()</code></td><td>選檔完全沒錄到；轉換看不出來，靠第 4.3 節的執行時偵測</td></tr>
+          <tr><td>D iframe 裡</td><td><code>page.locator("#frm").content_frame.get_by_role("button", name="附件").set_input_files("訂單匯入.xlsx")</code></td><td>照 M7a 轉成 <code>frame</code></td></tr>
+          <tr><td>E 清空</td><td><code>page.get_by_role("button", name="匯入檔案").set_input_files([])</code></td><td>轉成 <code>files: []</code></td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>其他觀察：codegen 把上傳框錄成 <code>get_by_role("button", …)</code>。Playwright 的 <code>get_by_role</code> 用自己的規則計算角色、不讀瀏覽器的無障礙樹，所以 Firefox 應該相同；本環境沒有 Firefox，由 CI 的瀏覽器測試確認。</p></div>
+    </section>
+
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>4. 設計</h2></div>
+      <div class="panel-body">
+        <h3>4.1 DSL：檔案入參與 upload 步驟（D2）</h3>
+        <pre><code>inputs:
+  orderFile:
+    type: file
+    description: 訂單匯入檔
+    accept: [.xlsx, .xls]         # 副檔名，或 MIME：image/*、image/png
+    maxSize: 20MB                  # 單位 KB、MB、GB；沒寫用伺服器的上限（D4）
+  photos:
+    type: file
+    multiple: true                 # 值是清單
+    accept: [image/*]
+steps:
+  - id: import-orders
+    action: upload
+    target: { role: button, name: 匯入檔案 }          # 上傳框本身（隱藏的也可以）
+    files: "{{ inputs.orderFile }}"
+  - id: wait-imported
+    action: expect
+    target: { text: 匯入完成 }
+    state: visible
+  - id: add-photos
+    action: upload
+    trigger: { role: button, name: 選擇圖片 }          # 點了會開出選擇檔案視窗
+    files: "{{ inputs.photos }}"
+verify:
+  - name: 頁面顯示匯入的檔名
+    value: "{{ facts.importedName }}"
+    equals: "{{ inputs.orderFile.name }}"</code></pre>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>欄位</th><th>規則</th></tr></thead>
+        <tbody>
+          <tr><td>入參 <code>type: file</code></td><td>新的入參型別。可以寫 <code>accept</code>（清單；<code>.副檔名</code> 或 MIME，可用 <code>image/*</code>）、<code>maxSize</code>（文字，例如 <code>20MB</code>）、<code>multiple</code>（預設 false）、<code>description</code>。不能寫 <code>enum</code>、<code>pattern</code>、長度與數值範圍。第一期不能寫 <code>default</code>（場景附件在第二期，D1）。<em>一期二期一起做後：</em>預設值可以是場景附件或那台電腦上的路徑，不能是上傳檔（會過期）。出參沒有 file 型別（等 M7 的下載）。</td></tr>
+          <tr><td>入參的值</td><td>管理 Portal 與 API：檔案參照 <code>{"file": "f_…", "name": "訂單匯入.xlsx", "size": 20000, "sha256": "aad9…"}</code>，<code>multiple</code> 時是清單；只能參照已上傳到伺服器的檔案，不接受路徑（D5）。命令列 <code>rpa run -i orderFile=./訂單.xlsx</code> 給本機路徑，多檔就寫多次 <code>-i</code>。</td></tr>
+          <tr><td>表達式裡的檔案入參</td><td><code>{{ inputs.orderFile }}</code> 在表達式裡是 <code>name</code>、<code>size</code>、<code>sha256</code> 三個欄位（沒有路徑），verify 與出參可以引用 <code>{{ inputs.orderFile.name }}</code>。本機路徑只有 Runner 內部知道。</td></tr>
+          <tr><td><code>upload</code> 的 <code>target</code>／<code>trigger</code></td><td>恰好一個。<code>target</code> 指向上傳框 <code>&lt;input type=file&gt;</code>（隱藏的也可以，不檢查可見性）；<code>trigger</code> 指向點了會開出選擇檔案視窗的元素（點擊時才建立上傳框的元件）。兩者都可以有 <code>frame</code>、<code>within</code>、<code>fallback</code>；步驟可以有 <code>page</code>（M7b），不能有 <code>popup</code>。</td></tr>
+          <tr><td><code>upload</code> 的 <code>files</code></td><td>必填。整個值是一個 <code>{{ inputs.名稱 }}</code>，或這種寫法的清單；名稱必須是 file 型別的入參，校驗時檢查（同 <code>facts</code> 的前後關係檢查）。<code>[]</code> 代表清空已選的檔案，只能搭配 <code>target</code>。單檔上傳框配到 <code>multiple</code> 入參或清單時，執行時才知道上傳框收不收多檔，報看得懂的錯。</td></tr>
+          <tr><td>等上傳完成</td><td><code>upload</code> 在檔案交給網頁時就算完成；網頁之後送到伺服器要多久不一定，照 DSL 的原則用後面的 <code>waitFor</code>／<code>expect</code> 等畫面上的結果，不加固定秒數。</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="panel-body"><h3>4.2 錄製稿轉換（D3）</h3></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>錄製稿</th><th>草稿</th></tr></thead>
+        <tbody>
+          <tr><td><code>X.set_input_files("訂單匯入.xlsx")</code></td><td>新增入參 <code>importFile: { type: file, accept: [.xlsx], description: "匯入檔案（錄製時選的是 訂單匯入.xlsx）" }</code>，步驟 <code>{ action: upload, target: X, files: "{{ inputs.importFile }}" }</code>。入參名稱照 fill 的規則（欄位的英數名稱，沒有就叫 <code>file</code>、<code>file2</code>…）；<code>accept</code> 取錄到的副檔名。</td></tr>
+          <tr><td><code>X.set_input_files(["a.png", "b.png"])</code></td><td>入參加 <code>multiple: true</code>，<code>accept</code> 是錄到的副檔名合起來</td></tr>
+          <tr><td>前一步是點擊，而上傳框的定位器是「那個元素」或「那個元素裡面的 input」（3.2 的 B）</td><td>合併成一步 <code>upload</code>，不保留那次點擊</td></tr>
+          <tr><td><code>X.set_input_files([])</code></td><td><code>{ action: upload, target: X, files: [] }</code></td></tr>
+          <tr><td>iframe、新分頁上的上傳</td><td>照 M7a 的 <code>frame</code>、M7b 的 <code>page</code></td></tr>
+          <tr><td>每一個錄到的上傳</td><td>一條提醒：「第 N 行選的檔案（訂單匯入.xlsx）不會隨錄製稿保存；調試、驗證或執行前，要在入參 importFile 上傳檔案」</td></tr>
+          <tr><td>點擊時才建立的上傳框（3.2 的 C，只錄到點擊）</td><td>轉換看不出來，照樣是 <code>click</code>；由第 4.3 節的執行時偵測提示</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="panel-body">
+        <h3>4.3 Runner</h3>
+        <ul class="points">
+          <li><strong>入參校驗（啟動瀏覽器之前）：</strong>每個檔案存在、大小不超過 <code>maxSize</code> 與伺服器上限、副檔名或 MIME 符合 <code>accept</code>、單檔入參只有一個；不符合就不啟動瀏覽器，和現在的入參錯誤一樣。</li>
+          <li><strong>執行 <code>upload</code>：</strong><code>target</code> → <code>locate(…).set_input_files(路徑, timeout)</code>；<code>trigger</code> → <code>expect_file_chooser</code> 裡點擊，再 <code>set_files</code>。都交路徑（3.1 的 6b）。Playwright 的錯誤翻成看得懂的訊息（3.1 的 1c、8）。</li>
+          <li><strong>原始檔名：</strong>網頁看到的檔名就是磁碟上的檔名，所以每個檔案放在 <code>暫存資料夾/inputs/入參名稱/序號/原始檔名</code>。</li>
+          <li><strong>攔下沒人處理的選擇檔案視窗（D6）：</strong>每個分頁（含 popup 開出的）一開始就監聽 <code>filechooser</code>。有頭模式不會再跳出系統視窗、卡在 Worker 的畫面上（3.1 的 7）。不是 <code>upload</code> 開出的視窗：這一步照樣通過，但步驟紀錄、<code>automation.log</code> 與調試畫面多一條提醒「這一步開出了選擇檔案的視窗，沒有指定檔案；如果這裡要上傳，把這一步改成 upload，用 trigger 指定這個元素」。這也補上 3.2 的 C。</li>
+          <li><strong>紀錄與報告：</strong><code>input.json</code>、<code>steps.json</code>、報告只寫名稱、大小、sha256，不寫本機路徑；報告列出這次上傳了哪些檔案，在 Portal 上可以下載伺服器那份。上傳的檔案不複製進執行目錄（不重複上傳回伺服器、不佔 512 MB 的產物上限）。</li>
+          <li><strong>Python 腳本場景：</strong>第一期的 <code>file</code> 入參只給 DSL 步驟；腳本場景用到時校驗擋下並說明，等 <a href="20261024-python-scripts.html">Python 腳本場景設計</a> 的 D9 一起做（那邊拿到的是本機路徑）。</li>
+        </ul>
+
+        <h3>4.4 檔案怎麼到執行的那台（D4、D7、D8）</h3>
+        <svg viewBox="0 0 880 250" role="img" aria-label="上傳檔案的資料流" style="width:100%;max-width:880px;height:auto;margin:6px 0 10px;font-size:13px">
+          <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+          <g fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="10" y="20" width="170" height="70" rx="8"/><rect x="250" y="20" width="200" height="70" rx="8"/>
+            <rect x="530" y="10" width="330" height="58" rx="8"/><rect x="530" y="86" width="330" height="58" rx="8"/><rect x="530" y="162" width="330" height="58" rx="8"/>
+            <path d="M180 55H246" marker-end="url(#arrow)"/><path d="M450 45L526 40" marker-end="url(#arrow)"/><path d="M450 60L526 115" marker-end="url(#arrow)"/><path d="M450 75L526 190" marker-end="url(#arrow)"/>
+          </g>
+          <g fill="currentColor">
+            <text x="22" y="47">執行／驗證／調試表單</text><text x="22" y="70" font-size="12">選檔 → POST /api/files</text>
+            <text x="262" y="47">伺服器檔案區</text><text x="262" y="70" font-size="12">uploads/sha256 ＋ 資料表</text>
+            <text x="191" y="46" font-size="11">串流上傳</text>
+            <text x="542" y="34">本機執行（伺服器自己）</text><text x="542" y="55" font-size="12">硬連結（不行就複製）到執行的暫存資料夾</text>
+            <text x="542" y="110">遠端 Worker</text><text x="542" y="131" font-size="12">任務只帶清單；GET /worker-api/v1/runs/…/files/…</text>
+            <text x="542" y="186">錄製端調試</text><text x="542" y="207" font-size="12">同一種下載（Client API），放進 .inputs/</text>
+          </g>
+        </svg>
+        <ul class="points">
+          <li><strong>上傳：</strong>表單選檔後馬上以串流上傳到 <code>POST /api/files</code>（沿用 Worker API 的 <code>save_upload</code> 做法，不整個放進記憶體），邊寫邊算 sha256，超過上限就拒絕。檔案存成 <code>資料目錄/input-files/前兩碼/sha256</code>（實作時改名：<code>uploads/</code> 已是 Client API 的暫存資料夾），同內容只存一份；資料表 <code>uploaded_files</code> 記 id、sha256、原始檔名、大小、類型、上傳時間。回傳的參照填進入參。</li>
+          <li><strong>建立執行時：</strong>檢查每個參照存在、大小與類型（同 Runner 的規則，早一點擋下），在 <code>run.input</code> 存參照，並記下這個執行用到哪些檔案（用來判斷保留）。重新執行沿用同一份參照。</li>
+          <li><strong>交給遠端 Worker（D8）：</strong>領取任務的 JSON 多一個 <code>inputFiles</code> 清單（入參、序號、id、原始檔名、大小、sha256），不帶內容。Worker 用 <code>GET /worker-api/v1/runs/&lt;執行&gt;/files/&lt;id&gt;</code> 逐一下載（只能下載派給自己、執行中的這個執行用到的檔案），比對 sha256 後放到 <code>jobs/&lt;執行&gt;/inputs/…</code>，再把入參換成本機路徑交給 Runner。下載失敗照 M9a 的規則回報失敗（「準備檔案失敗」），不執行任何步驟。</li>
+          <li><strong>本機執行：</strong>伺服器把檔案硬連結（不行就複製）到這次執行的暫存資料夾，用原始檔名。</li>
+          <li><strong>錄製端調試：</strong>開始調試前選檔（同執行表單）；錄製端用 Client API 的同一種下載放進 <code>.inputs/</code>（不同步回伺服器）。換版本、接著錄製沿用這次調試的檔案。<em>實作：</em>檔案合計 20 MB 以內跟著啟動指令一起送，更大的放進 <code>downloads</code> 清單，錄製端用 <code>GET /client-api/v1/processes/&lt;程序&gt;/downloads/&lt;序號&gt;</code> 下載並比對 sha256。</li>
+          <li><strong>保留（D7）：</strong>被任何執行用到的檔案一直保留（運行紀錄目前也不刪）；上傳後 24 小時沒被用到的刪除。第二期加總量上限與保留天數，規則比照 M12 的錄影。<em>已實作（第二期 (5)）：</em>用過的保留到最後一次使用後 90 天，全部超過 10 GB 時從最久沒用的開始刪，組合場景節點固定值用到的不刪；只刪內容，資料表那一列留著。</li>
+        </ul>
+
+        <h3>4.5 管理 Portal 與 API</h3>
+        <ul class="points">
+          <li><strong>執行與驗證表單：</strong>JSON 文字框上方，每個 file 入參一個選檔區（按鈕或拖曳），顯示上傳進度、檔名與大小；<code>accept</code> 交給 <code>&lt;input accept&gt;</code>。上傳完把參照寫進 JSON，JSON 仍然是送出的內容。沒有選檔就送出時，照現在的入參錯誤提示。</li>
+          <li><strong>運行頁與報告：</strong>入參表格顯示檔名與大小，可以下載；步驟清單裡的 <code>upload</code> 顯示交了哪些檔案；選擇檔案視窗的提醒顯示在那一步。</li>
+          <li><strong>場景詳情與入參編輯（M4 的表單編輯）：</strong>型別多 <code>file</code>，可以編輯 <code>accept</code>、<code>maxSize</code>、<code>multiple</code>；<code>rpa schema --part inputs</code> 輸出 <code>{"type": "object", "format": "x-rpa-file", …}</code>。</li>
+          <li><strong>Portal 內部 API：</strong>新增 <code>POST /api/files</code>（multipart，回傳參照；<em>實作改成請求本體就是檔案內容、檔名放在 <code>?name=</code>，不用 multipart，不必多裝 python-multipart</em>）與 <code>GET /api/files/&lt;id&gt;</code>（下載）；建立執行與調試的 API 接受參照。Agent API 在第二期（加 files 權限範圍）。</li>
+        </ul>
+
+        <h3>4.6 相容與安全</h3>
+        <ul class="points">
+          <li><strong>舊 App：</strong><code>rpa_core.dsl.features</code> 加上 <code>upload</code>（步驟）與 <code>fileInputs</code>（入參），App 上線時回報。用到的場景不交給沒回報的 Worker／錄製端，直接說明要更新哪個 App（同 M7a）。沒用到的場景照舊。</li>
+          <li><strong>不能指定任意路徑（D5）：</strong>Portal 與 API 的入參只接受伺服器上的檔案參照，不接受路徑；不然能執行場景的人就能把 Worker 或伺服器上的任何檔案上傳到外部網站。本機路徑只有命令列 <code>rpa run</code>（使用者自己的電腦）。<em>第二期 (4) 已實作：</em>值可以寫 <code>{"path": …}</code>，但只能讀允許的資料夾（RPA Worker App 設定的「檔案入參可以讀的資料夾」或環境變數 <code>RPA_INPUT_FOLDERS</code>）；沒有設定時不能用。</li>
+          <li><strong>檔名：</strong>網頁看到原始檔名，但寫到磁碟前檢查：去掉路徑、控制字元、Windows 保留名稱（CON、NUL、COM1…）與結尾的點或空白，長度不超過 200 位元組，換不掉的字元換成 <code>_</code>。存放一律用 sha256，不用原始檔名；Unicode 檔名先轉成 NFC（macOS 與 Windows 寫法不同）。</li>
+          <li><strong>大小（D4）：</strong>單檔預設 50 MB、一次執行合計 200 MB，伺服器設定可以改；場景的 <code>maxSize</code> 只能更小。</li>
+          <li><strong>內容：</strong>只計 sha256，不解析、不執行、不預覽。</li>
+          <li><strong>權限：</strong>M8 之前沒有使用者權限，檔案和現在的入參一樣，能進 Portal 的人都看得到；M8 再加上「只有能看這個執行的人能下載」。日誌與錯誤訊息不寫本機路徑。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="phases">
+      <div class="panel-header"><h2>5. 分期（D1）</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>期</th><th>內容</th><th>為什麼這樣分</th></tr></thead>
+        <tbody>
+          <tr><td>第一期 M7c</td><td>第 4 節全部：<code>file</code> 入參、<code>upload</code>（target／trigger）、錄製稿轉換、攔下選擇檔案視窗、伺服器檔案區與 <code>/api/files</code>、Worker 與錄製端下載、執行／驗證／調試表單的選檔、報告、測試網站 <code>/upload</code> 與範例場景、文件</td><td>打通從錄製到執行的整條鏈，業務上「每次換一份 Excel／圖片」的用法就能跑。只碰入參與一個新步驟，不改版本存放、發布門檻、雜湊。</td></tr>
+          <tr><td>第二期</td><td>(1) 場景附帶的預設檔案：版本資料夾存二進位檔，<code>default: files/範本.xlsx</code>，納入場景雜湊（沒有附件的場景雜湊不變）、git 同步、<code>rpa pack check</code>、編輯頁上傳；(2) 組合場景節點的固定檔案、Agent API 的檔案上傳；(3) 只有拖拽區的元件（<code>dropzone</code>，小檔）；(4) Worker 本機的允許資料夾（D5）；(5) 檔案區的總量上限與保留天數；(6) Python 腳本場景的檔案入參；(7) M7 下載步驟產生的檔案接到上傳</td><td>(1) 動到版本存放、雜湊、git 同步與領域資料夾校驗，影響面最大，獨立審閱比較安全。沒有它時，每次驗證要手動選一次檔案。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="example">
+      <div class="panel-header"><h2>6. 第一期的範例與測試網站</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>測試網站 <code>/upload</code>：</strong>第 3.1 節的五種元件（原生、隱藏多檔、點擊時建立、iframe、拖拽區），收到後在頁面顯示檔名、大小與 sha256，可以用 <code>extract</code> 讀回來比對。</li>
+        <li><strong>範例場景 <code>scenarios/examples/upload-form.yaml</code>：</strong>匯入一個 Excel、上傳多張圖片、點擊時建立的上傳框用 <code>trigger</code>；verify 比對頁面顯示的 sha256 等於 <code>{{ inputs.orderFile.sha256 }}</code>。測試資料放在 <code>tests/</code> 底下的小檔。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="files">
+      <div class="panel-header"><h2>7. 第一期會改到的檔案</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>位置</th><th>內容</th></tr></thead>
+        <tbody>
+          <tr><td><code>packages/rpa_core</code></td><td><code>dsl/contract.py</code>（<code>file</code> 型別、<code>accept</code>、<code>maxSize</code>、<code>multiple</code>）、<code>dsl/steps.py</code>（<code>UploadStep</code>）、<code>dsl/checks.py</code>（<code>files</code> 只能引用 file 入參）、<code>dsl/features.py</code>、<code>recording.py</code>、新的 <code>files.py</code>（檔案參照、檔名清理、accept 比對，伺服器與 Runner 共用）、三語 <code>locales</code>、測試</td></tr>
+          <tr><td><code>packages/rpa_runner</code></td><td><code>browser.py</code>（執行 upload、攔下選擇視窗、提醒）、<code>contract.py</code>（檔案入參校驗、表達式裡的檔案欄位）、<code>run.py</code>、<code>debug.py</code>、<code>steplog.py</code>、<code>report.py</code>、命令列 <code>-i</code> 的路徑、測試（<code>test_upload.py</code>，Chromium 與 Firefox）</td></tr>
+          <tr><td><code>apps/worker</code></td><td><code>protocol.py</code>（<code>inputFiles</code>）、<code>remote.py</code>（下載、sha256、換成本機路徑）、<code>recorder.py</code>／<code>gateway.py</code>（調試時下載）、測試</td></tr>
+          <tr><td><code>apps/server</code></td><td>新的 <code>uploads.py</code>（檔案區、保留與清理）、<code>models.py</code> 與遷移 <code>0017_uploaded_files</code>、<code>api.py</code>（<code>/api/files</code>、建立執行的檢查）、<code>worker_api.py</code>、<code>client_api.py</code>、<code>dispatch.py</code>、<code>services.py</code>、<code>debugging.py</code>、<code>run_form.html</code> 與 <code>static/portal.js</code>、運行頁與報告、三語 <code>locales</code>、測試（含 Portal 端到端）</td></tr>
+          <tr><td><code>apps/testsite</code>、<code>scenarios/examples</code></td><td><code>/upload</code> 頁面、範例場景、<code>tests/examples</code></td></tr>
+          <tr><td>文件</td><td><code>docs/design/dsl.html</code>（入參型別、動作表、錄製轉換）、<code>docs/design/portal.html</code>、<code>docs/roadmap.html</code>（插入 M7c）、英文版；簡中由工具產生；<code>schema/scenario.v1.json</code>（<code>rpa schema</code> 產生）</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="test-plan">
+      <div class="panel-header"><h2>8. 驗證計畫</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>自動測試：</strong>DSL 模型與校驗（type: file 的欄位組合、<code>files</code> 引用、<code>target</code>／<code>trigger</code> 二選一、清空只能配 target）；錄製稿轉換用第 3.2 節真的錄製稿（A～E）；Runner 在 Chromium 與 Firefox 跑測試網站的每一種元件、多檔、清空、中文檔名、accept 與大小不符、單檔配多檔、選擇視窗的提醒；Worker 協定（清單、下載只限自己的執行、sha256 不符、下載失敗）；伺服器（串流上傳與上限、建立執行的檢查、重新執行、24 小時清理、舊 App 的 features）；Portal 端到端（表單選檔 → 執行 → 報告下載）。CI 的 Windows Worker 測試帶上 <code>test_upload.py</code>。</li>
+        <li><strong>基本檢查：</strong>ruff、格式、pyright strict、<code>pytest -m "not browser"</code>、<code>tools/i18n.py check</code>、<code>tests/docs</code>。</li>
+        <li><strong>人工驗收（三台）：</strong>Linux 伺服器＋macOS 錄製端＋Windows Worker，裝新建置的 App：錄製測試網站 <code>/upload</code>（Excel 匯入、多張圖片、點擊時建立的上傳框），轉換沒有「還不支援」的警告；錄製端調試到最後一步；以 Worker 有頭、無頭各驗證一次、發布、執行；報告的 sha256 與頁面收到的相同；用舊 App 時提示更新。最後在使用者的真實業務系統各做一次 Excel 匯入與圖片上傳。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>9. 決定（2026-10-27 全照建議）</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>#</th><th>事項</th><th>決定（原建議）</th><th>其他選項（未採用）</th></tr></thead>
+        <tbody>
+          <tr><td>D1</td><td><span class="kind user">你明確決定</span>範圍與排程</td><td>第一期如第 5 節（執行時上傳），里程碑叫 M7c，和 M7a、M7b 一樣排在 M5 之前、現在開始；場景附帶的預設檔案等放第二期</td><td>(a) 第一期就做場景附件（多約三分之一的工作量，動到版本存放、雜湊、git 同步），驗證時不必每次選檔；(b) 第一期再加組合場景節點的固定檔案</td></tr>
+          <tr><td>D2</td><td><span class="kind user">你明確決定</span>DSL 寫法</td><td>檔案一律是入參（<code>type: file</code>），<code>upload</code> 用 <code>files: "{{ inputs.名稱 }}"</code> 引用；<code>target</code>（上傳框）與 <code>trigger</code>（點了開出選擇視窗）二選一（4.1）</td><td><code>upload</code> 直接寫檔案、不經過入參（少一層，但執行時不能換檔、不在場景契約裡）</td></tr>
+          <tr><td>D3</td><td><span class="kind user">你明確決定</span>錄製稿轉換</td><td>「點外層＋對裡面的 input 選檔」合併成一步、不留那次點擊；<code>accept</code> 取錄到的副檔名；入參沒有預設值，每個上傳一條提醒（4.2）</td><td>(a) 保留那次點擊（執行時多開一次選擇視窗，由攔截吃掉）；(b) 不推 <code>accept</code>（任何檔案都收）</td></tr>
+          <tr><td>D4</td><td><span class="kind user">你明確決定</span>大小上限</td><td>單檔 50 MB、一次執行合計 200 MB，伺服器設定可以改；場景的 <code>maxSize</code> 只能更小</td><td>單檔 100 MB、合計 500 MB（大圖、大報表多的話）</td></tr>
+          <tr><td>D5</td><td><span class="kind user">你明確決定</span>Worker 本機的檔案（例如共用磁碟上的每日報表）</td><td>第一期不支援，入參只能是上傳到伺服器的檔案；第二期在 Worker App 設定「允許讀取的資料夾」，入參才可以寫那些資料夾裡的路徑</td><td>第一期就允許入參寫 Worker 上的路徑（和 Python 腳本設計 D9 的第一版相同；能執行場景的人就能把 Worker 上任何檔案傳到外部網站）</td></tr>
+          <tr><td>D6</td><td><span class="kind user">你明確決定</span>不是 upload 開出的選擇檔案視窗</td><td>一律攔下，步驟照常通過，記一條提醒並在調試畫面顯示（4.3）</td><td>讓那一步失敗（較早發現，但會讓現有「點到上傳按鈕」的場景開始失敗）</td></tr>
+          <tr><td>D7</td><td><span class="kind user">你明確決定</span>上傳檔案保留多久</td><td>被執行用到就保留（和運行紀錄一樣目前不刪）；上傳後 24 小時沒用到就刪；第二期加總量上限與保留天數</td><td>第一期就加保留天數（例如 30 天，過期的執行不能重新執行）</td></tr>
+          <tr><td>D8</td><td><span class="kind user">你明確決定</span>檔案怎麼交給 Worker</td><td>任務只帶清單，Worker 另外逐一下載、比對 sha256（4.4）</td><td>放進領取任務的 JSON（base64，改動最少；但大檔佔記憶體、多 33%，檔名限制英數字）</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成（設計）：</strong>現況盤點（第 2 節）；Playwright 上傳方式的實測 13 項、codegen 錄製稿的實測（第 3 節）；設計與分期（第 4～8 節）。</li>
+        <li><strong>已完成（第一期）：</strong><code>rpa_core</code>：<code>type: file</code>（accept、maxSize、multiple）、<code>upload</code>（target、trigger、dropzone、清空）、校驗、features（<code>upload</code>、<code>fileInputs</code>）、錄製稿 <code>set_input_files</code> 的轉換（拿掉前一個 click）、JSON Schema。<code>rpa_runner</code>：入參階段準備檔案（暫存資料夾在執行目錄外、以網頁要看到的名稱放置、執行完刪除）、三種 upload、每個分頁攔下選擇檔案視窗並記提醒、步驟紀錄與報告的檔案、調試與接著錄製的 <code>--file</code>、<code>rpa run -i 名稱=路徑</code>。伺服器：檔案區（串流上傳、上限、<code>uploaded_files</code> 表與遷移 0017）、建立執行與調試前的檢查（檔名、大小、sha256 以伺服器的為準）、本機執行交檔案位置、遠端 Worker 的 <code>inputFiles</code> 與下載端點、錄製端的 inline／downloads。Worker：下載、比對 sha256、失敗時回報「準備檔案失敗」。Portal：執行、驗證、調試表單的選檔區（上傳進度、場景附件、清除、上傳中不能送出）、規則欄、運行頁的檔案入參與下載、運行回看的 upload 檔案與提醒。測試網站 <code>/upload</code> 與範例場景 <code>scenarios/examples/upload-form/</code>。</li>
+        <li><strong>已完成（第二期 (1)～(5)）：</strong>(1) 場景附件：版本資料夾的 <code>files/</code>、納入雜湊（沒有附件的場景雜湊不變）、git 同步、<code>rpa pack check</code>、預設值引用、場景詳情頁的附件區（中文檔名先換名）、API；(2) 組合場景節點的固定檔案（編排頁選檔上傳、固定值用到的上傳檔不刪）、Agent API 的 <code>files:write</code>、<code>/files</code> 與附件端點（入參只能參照自己上傳的檔案）；(3) <code>dropzone</code>；(4) 允許讀取的資料夾：RPA Worker App 的設定與 <code>RPA_INPUT_FOLDERS</code>；(5) 保留 90 天與總量 10 GB（環境變數可改）。入參表單編輯器支援 file 型別。文件：路線圖（插入 M7c）、DSL、管理 Portal、Agent API 設計與英文版。</li>
+        <li><strong>未完成／阻礙：</strong>人工驗收（第 8 節的三台）未執行，需要新建置的錄製端與 Worker App；第二期 (6)、(7) 依賴尚未實作的功能（腳本場景的新版設計、M7 下載步驟），另行排程；Firefox 只在 CI 跑過（本環境沒有 Firefox）。</li>
+        <li><strong>決定：</strong>D1～D8 使用者確認全照建議；D1 的範圍改成第一期與第二期一起做（<a href="../decisions.html#decisions">決定紀錄</a>）。實作時的調整（不改決定）：上傳 API 用請求本體而不是 multipart；檔案區資料夾叫 <code>input-files/</code>；錄製端 20 MB 以上的檔案另外下載；執行器只收到和預設不同的檔案選項。</li>
+        <li><strong>下一個具體動作：</strong>確認本次衝突整合提交的 CI，請使用者審閱 PR #97；合併後建置新的錄製端與 Worker App，照第 8 節做三台的人工驗收，再在使用者的業務系統各做一次 Excel 匯入與圖片上傳。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。實驗腳本與 Portal JavaScript 的測試頁在工作區的暫存資料夾，不進倉庫。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>本地實驗（不在倉庫）：Linux、Python 3.13.17、Playwright 1.63.0、Chromium、無頭</td><td>本機 HTTP 伺服器（五種上傳元件，回傳收到檔案的 sha256），逐項執行第 3.1 節的做法</td><td>13／13 通過（第 3.1 節）</td><td>Firefox；Windows、macOS；鎖定的 Playwright 1.64.0</td></tr>
+          <tr><td>同上，Xvfb、有頭</td><td><code>enableRecorder</code>（同 <code>rpa_runner/record.py</code>）錄製五種情況</td><td>錄製稿見第 3.2 節</td><td>Firefox 的 codegen；macOS 錄製端 App 裡的 codegen</td></tr>
+          <tr><td><code>m7c/upload</code>，只改 <code>handoff/</code></td><td><code>git diff --check</code>；本頁與索引的相對連結</td><td>見追加紀錄</td><td>只改交接文件，不跑瀏覽器測試</td></tr>
+          <tr><td>本地：Linux、Python 3.13、Playwright 1.63、Chromium（沒有 FastAPI、SQLAlchemy、OpenCC）</td><td><code>pytest</code>：<code>packages/rpa_core</code>、<code>packages/rpa_runner</code>（含 <code>test_upload.py</code> 的 Chromium）、<code>apps/cli</code>、<code>apps/worker</code>、<code>apps/desktop</code>、根目錄 <code>tests</code>（不含簡中產生的檢查）；ruff、格式；改到的非伺服器檔案 pyright</td><td><code>rpa_core</code>＋<code>rpa_runner</code>＋<code>apps/cli</code>：686 通過、47 略過、12 失敗，失敗都是本環境的問題：錄影的瀏覽器測試 8 個（換成 main 的程式也一樣失敗）、命令列的 serve／update 4 個（需要 FastAPI、SQLAlchemy）；<code>apps/worker</code>＋<code>apps/desktop</code> 338 通過、3 略過；根目錄 <code>tests</code> 600 通過；ruff 與格式通過</td><td>伺服器的測試與型別（本地沒有依賴，交給 CI）；Firefox；簡中產生（交給 bootstrap）</td></tr>
+          <tr><td>本地：Portal 的檔案入參 JavaScript</td><td>用樣板巨集產生的測試頁＋假的 <code>/api/files</code>，Playwright 選檔、超過上限、多檔、場景附件、移除、清除與預設值、上傳失敗、手改 JSON、JSON 寫錯</td><td>全部符合預期，沒有頁面錯誤；截圖檢查版面</td><td>真的伺服器（由 CI 的 Portal 端到端測試涵蓋）</td></tr>
+          <tr><td>CI：PR #97</td><td>靜態檢查、Linux 測試（Python 3.12、3.13，含伺服器與 Portal 端到端）、Windows Worker 測試（Chromium、Firefox）</td><td><code>d1066a1</code>（已合併 main 的 #96）全部通過：靜態檢查、Linux 測試（Python 3.12、3.13，含 <code>test_uploads.py</code> 與 Portal 端到端）、Windows Worker 測試（含 <code>test_upload.py</code> 的 Chromium、Firefox）、伺服器分發包、桌面端建置、一鍵安裝腳本。之前的失敗與修正見追加紀錄</td><td>macOS 錄製端（CI 依角色）；人工驗收</td></tr>
+          <tr><td><code>e7eeb54</code>＋<code>56953fc</code> 的合併工作區；macOS arm64、Python 3.13.16、uv 0.12.24、Playwright 1.64.0</td><td><code>uv sync --locked</code>；<code>ruff check .</code>；<code>ruff format --check .</code>；<code>pyright --pythonplatform Linux</code>；<code>python tools/i18n.py check</code>；<code>pytest -q -n 4 --dist loadfile -m 'not browser'</code>；<code>RPA_REQUIRE_BROWSER=1 pytest -q -n 2 --dist loadfile apps/server/tests/test_composite_replay_flow.py apps/server/tests/test_replay_flow.py apps/server/tests/test_production_flow.py -k 'replay or file_inputs'</code>；<code>RPA_REQUIRE_BROWSER=1 pytest -q apps/server/tests/test_portal.py::test_file_inputs_from_the_run_form_and_attachments</code>；修正測試執行器後重跑 <code>pytest -q apps/server/tests/test_composite_replay.py</code>；<code>git diff --check</code> 與交接頁相對連結／錨點檢查</td><td>依賴、Ruff、格式、多語言通過；Linux 目標型別檢查 0 errors、3 個既有 pystray 平台警告；非瀏覽器 2034 passed、4 skipped；真實 Chromium 回看 5 passed、檔案入參與附件 1 passed；組合回看單元測試 4 passed。合併後補齊新測試執行器的檔案參數介面；確認 main 仍以 0016 為最新遷移，0017 沒有撞號。</td><td>4 個 skipped 都是 Windows 專屬測試；直接在 macOS 跑全專案 Pyright 會遇到原有 Foundation 缺少型別 stub（recorder_gui.py:130，兩邊均未修改），故本次以 Linux 目標檢查並在提交 hook 略過重複的原生 Pyright。最新 head 的 CI、Firefox／Windows 與三台人工驗收尚待確認。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR #97 最新 head；人工驗收：未執行；審閱：等使用者。</p></div>
+    </section>
+
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-27 08:04 America/Los_Angeles（PDT，UTC−07:00），Claude：建立本頁（設計第一版）。從 <code>30f2290</code> 開 <code>m7c/upload</code>；盤點 DSL、錄製稿轉換、Runner、版本存放、Worker 協定、調試與執行表單；本地實測 Playwright 上傳方式與 codegen 錄製稿；寫出設計、分期與 D1～D8。</li>
+        <li>2026-10-27 08:10 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>890431e</code>，建立 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/97">PR #97</a>（草稿）。本地檢查：<code>git diff --check</code>；本頁、任務索引、決定頁的 HTML 結構與相對連結、錨點；Chromium 渲染檢查版面。</li>
+          <li>2026-10-27 08:20 America/Los_Angeles（PDT，UTC−07:00），使用者：回覆「好的，按照建議。一期二期一起做。」Claude 據此把 D1～D8 記為已確認、狀態改為實作中；第二期 (6)、(7) 依賴尚未實作的功能（新版 Python 腳本場景、下載步驟），先說明並留介面。</li>
+        <li>2026-10-27 08:53 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>3f9fe15</code>（rpa_core）與 <code>065ce19</code>（runner、命令列、測試網站、範例場景）；bootstrap 產生 <code>6ad5eeb</code>（簡中）。</li>
+        <li>2026-10-27 09:09 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>dc4d967</code>（伺服器檔案區、執行前檢查、Worker 與錄製端下載）、<code>a05c313</code>（場景附件）。CI：伺服器測試的假執行器不接受新的檔案選項而失敗、兩處 pyright；下一次推送改成只傳和預設不同的選項並修正。</li>
+        <li>2026-10-27 17:27 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>abde7e0</code>（Portal 選檔、附件區、運行頁、組合場景固定檔案與保留、Agent API、測試）；CI 2063 個測試只剩簡中未產生與 Agent API 測試的權限範圍順序兩項，另有一處 pyright。</li>
+        <li>2026-10-27 17:35 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>1e2a1ba</code>（Worker App 的允許資料夾、設計文件與路線圖、CI 修正）；更新本頁的狀態、進度與驗證。</li>
+        <li>2026-10-27 17:51 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>97eb673</code>（逐步調試的步驟顯示上傳的檔案與提醒）、<code>8054452</code>（多用戶設計的能力表）。main 合併了 #96（組合運行的匯總報告）使 PR 有衝突、CI 沒有觸發：<code>be2934b</code> 合併 main，三語訊息目錄與 portal-app.css 兩邊都保留、英文設計頁重新 stamp、決定頁與任務索引兩邊的新列都保留；bootstrap 產生 <code>c405072</code>。</li>
+        <li>2026-10-27 17:59 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>be2934b</code> 的 CI：Linux 只差簡中（已由 <code>c405072</code> 補上）；Windows Worker 的 <code>test_file_chooser_without_upload_is_closed_with_a_note</code> 兩種瀏覽器都沒有記到提醒（<code>1e2a1ba</code> 時通過，時序問題）：Playwright 收到選擇檔案視窗後還要向瀏覽器查元素才送出事件，點擊後一次往返不夠。改成點擊後最多往返瀏覽器三次、事件到了就停；仍然晚到時算在前一個可能開視窗的步驟（<code>e72f08f</code>）。</li>
+        <li>2026-10-27 18:16 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>e72f08f</code> 的 Linux 測試全部通過、Windows Worker 這次通過了選擇檔案視窗的測試，但 Firefox 設定檔範本的測試逾時；重跑失敗的工作時換成 <code>test_run</code>、<code>test_login</code>、<code>test_frames</code> 逾時。點擊後在頁面裡執行程式碼（<code>page.evaluate</code>）在換頁中可能要等，懷疑拖慢了 Windows 上的執行，改成只等一小段時間（0、10、20 ms，事件到了就停）、不碰頁面；晚到的仍算在前一個可能開視窗的步驟。本地 Chromium：<code>test_upload</code>、<code>test_frames</code>、<code>test_run</code>、<code>test_login</code>、<code>test_tabs</code> 40 通過。</li>
+        <li>2026-10-27 18:23 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>d1066a1</code> 的 CI 全部通過（靜態檢查、Linux 測試 Python 3.12／3.13、Windows Worker 測試、伺服器分發包、桌面端建置、一鍵安裝腳本）；PR #97 與 main 沒有衝突，改成可審閱（不再是草稿）。合併由使用者決定。</li>
+        <li>2026-10-28 00:38 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：使用者要求解決 PR #97 衝突；已取得遠端 <code>m7c/upload@e7eeb54</code>，在獨立 worktree 的 <code>fix/pr97-conflicts</code> 接續本任務，合入 <code>origin/main@56953fc</code>（#98 組合運行的合併回看）。責任範圍為這次合併的衝突、多語言生成檔與相關整合驗證；保留上傳檔案與組合回看兩邊的能力，不重寫歷史。開工時僅本地整合，驗證與推送結果後續追加。</li>
+        <li>2026-10-28 00:42 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：本次 10 個衝突檔已整合，保留兩邊新增的匯入、訊息、樣式與文檔，英文重新 stamp、簡中由工具產生。另修正 #98 新增 <code>ClockExecutor</code> 與 M7c 擴充的 Executor 參數不相容（沿用其他測試執行器的 <code>**_files</code> 寫法）。本地驗證結果見上表；這份紀錄隨合併提交推送到原 <code>m7c/upload</code>／PR #97，最新 CI 結果以該提交在 GitHub 的檢查為準，合併仍由使用者決定。</li>
+    </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

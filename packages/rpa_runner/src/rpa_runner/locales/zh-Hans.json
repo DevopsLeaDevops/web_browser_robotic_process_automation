@@ -101,5 +101,21 @@
   "steplog.failed_before": "失败：在第一步之前（例如浏览器没有开起来），耗时 {seconds} 秒。",
   "steplog.timed_out_before": "超时：总期限在第一步之前用完，耗时 {seconds} 秒。",
   "steplog.evidence": "出错当下的画面在 screenshot.png；错误与网址在 diagnostic.json。",
-  "steplog.details": "完整的错误消息（浏览器自动化工具的原文）："
+  "steplog.details": "完整的错误消息（浏览器自动化工具的原文）：",
+  "contract.file_upload": "入参 {name} 的文件「{file}」没有送到这台电脑（可能已经过了保留期限被删除）；请重新上传",
+  "contract.file_attachment": "入参 {name} 的场景附件 {file} 不在这个版本里",
+  "contract.file_not_found": "入参 {name} 的文件 {file} 不存在，或不是一个文件",
+  "contract.file_not_allowed": "入参 {name} 的文件 {file} 不在允许读取的文件夹里；请在运行的那台 Worker App 的设置加上它所在的文件夹",
+  "contract.file_unreadable": "入参 {name} 的文件「{file}」读不到：{detail}",
+  "contract.file_too_large": "入参 {name} 的文件「{file}」太大：{size}，上限是 {limit}",
+  "contract.file_type": "入参 {name} 的文件「{file}」不是接受的类型（accept: {accept}）",
+  "contract.files_too_large": "这次运行的文件合计太大：{size}，上限是 {limit}",
+  "steplog.files": "交出文件 {files}",
+  "steplog.note": "提醒 {note}",
+  "browser.chooser_unhandled": "这一步开出了选择文件的窗口，没有指定文件（已自动关掉）；如果这里要上传，把这一步改成 upload，用 trigger 指定这个元素",
+  "browser.upload_not_prepared": "入参 {name} 没有准备好的文件；请先在入参上传或指定文件",
+  "browser.upload_single": "这个上传框一次只能选一个文件，但要交的文件有好几个；请改成单一文件，或确认定位到的是可以多选的上传框",
+  "browser.upload_not_input": "这个元素不是上传框（<input type=file>）：请把 target 指到上传框本身；点了才会开出选择文件窗口的按钮请改用 trigger",
+  "browser.drop_too_large": "拖放的文件合计 {size}，超过拖拽区的上限 {limit}；请改用 target 或 trigger",
+  "report.step_files": "交出文件：{files}"
 }

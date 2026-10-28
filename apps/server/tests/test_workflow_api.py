@@ -62,6 +62,7 @@ class FakeExecutor:
         login: LoginSettings | None = None,
         secrets: Mapping[str, str] | None = None,
         record_video: bool = False,
+        **_files: object,
     ) -> RunResult:
         scenario = validate_file(path).scenario
         assert scenario is not None

@@ -39,8 +39,11 @@ INPUT_KEYS: Final = (
     "pattern",
     "minimum",
     "maximum",
+    "accept",
+    "maxSize",
+    "multiple",
 )
-"""寫出入參時欄位的順序。"""
+"""寫出入參時欄位的順序（accept、maxSize、multiple 是檔案入參的，M7c）。"""
 OUTPUT_KEYS: Final = (
     "type",
     "description",

@@ -7,6 +7,8 @@
   （例如被判定失聯）或協定版本不同、413 上傳太大、422 內容不對。
 - ``POST /update``、``GET /update/file``（ADR 0018）：上線前的更新檢查與下載，格式固定、
   不檢查協定版本（:mod:`rpa_server.device_updates`）。
+- ``GET /runs/<執行>/files/<代號>``（M7c）：下載任務用到的上傳檔；只能是派給這台、執行中的
+  執行用到的檔案，worker 下載後比對 sha256。
 """
 
 import uuid
@@ -125,6 +127,13 @@ def worker_api_router(hub: WorkerHub, updates: DeviceUpdates) -> APIRouter:
         body: HeartbeatBody | None = None,
     ) -> dict[str, object]:
         return hub.heartbeat(worker, run_id, body.stage if body is not None else None)
+
+    @router.get("/runs/{run_id}/files/{file_id}", response_model=None)
+    def input_file(
+        worker: Annotated[str, Depends(current_worker)], run_id: str, file_id: str
+    ) -> FileResponse:
+        path = hub.input_file(worker, run_id, file_id)
+        return FileResponse(path, media_type="application/octet-stream")
 
     @router.put("/runs/{run_id}/artifacts", status_code=204)
     async def artifacts(

@@ -114,7 +114,7 @@ verify:
       <div class="panel-header"><h2>场景契约</h2><span class="muted">入参 → 步骤 → 页面事实 → 独立断言 → 出参</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean，默认 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制；可以是<a href="#dynamic">动态值</a>（例如 <code>{{today}}</code>），每次运行时求值。</dd>
+          <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean、<a href="#upload">file</a>，默认 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制；可以是<a href="#dynamic">动态值</a>（例如 <code>{{today}}</code>），每次运行时求值。</dd>
           <dt><code>facts</code></dt><dd>页面事实：<code>extract</code> 以 <code>as: 名称</code> 存成 <code>facts.名称</code>。步骤只能引用前面步骤产生的事实；verify 与 outputs 可以引用全部。</dd>
           <dt><code>verify</code></dt><dd>每一条有 <code>value</code>（必须含 <code>{{ }}</code>）与 <code>equals</code>、<code>contains</code>、<code>matches</code>（正则表达式）、<code>notEmpty: true</code> 其中一种比较；<code>name</code> 会出现在报告。比较时两边都以代入后的文字比较。</dd>
           <dt><code>outputs</code></dt><dd>类型多了 array、object，限制同入参；<code>from</code> 指定取值，例如 <code>{{ facts.record.recordId }}</code>。只有一个 <code>{{ }}</code> 时保留原本的类型（例如列表），否则依 type 转换文字。</dd>
@@ -155,6 +155,48 @@ verify:
   purchaseQuantity: { type: integer, minimum: 10, maximum: 30, default: "{{random:10:30}}" }
   remark: { default: "CG-001脚本创建{{today}}日期" }</pre>
         <p class="muted">YAML 里以 <code>{</code> 开头的值要加引号。也可以在管理 Portal 场景页的「入参」按「编辑」，把默认值改成 <code>{{today}}</code>，保存时会自动加引号。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="upload">
+      <div class="panel-header"><h2>上传文件</h2><span class="muted">M7c：入参的 <code>type: file</code> 与 <code>upload</code> 步骤</span></div>
+      <div class="panel-body stack">
+        <p>要上传的文件一律是入参：场景里只写「这一步上传哪个入参」，每次运行再决定是哪个文件。网页看到的是文件原本的名称（或入参指定的 <code>name</code>），不会看到运行那台电脑上的暂存路径。</p>
+<pre class="source">inputs:
+  orderFile:
+    type: file
+    accept: [.xlsx, .xls, .csv]
+    maxSize: 20MB
+    default: { attachment: files/orders.csv, name: 订单导入.csv }
+  photos: { type: file, multiple: true, accept: [image/*], default: [files/product.png] }
+steps:
+  - { id: open, action: goto, url: /upload }
+  - id: choose-orders
+    action: upload
+    target: { label: 导入文件 }            # 上传框本身，隐藏的也可以
+    files: '{{ inputs.orderFile }}'
+  - id: attach
+    action: upload
+    trigger: { role: button, name: 选择附件 }   # 点了才开出选择文件窗口的按钮
+    files: '{{ inputs.orderFile }}'
+  - id: drop
+    action: upload
+    dropzone: { text: 把文件拖到这里 }      # 只有拖放区、没有上传框
+    files: '{{ inputs.photos }}'</pre>
+        <dl class="spec-list">
+          <dt><code>type: file</code></dt><dd>可以写 <code>accept</code>（清单；<code>.扩展名</code> 或 MIME，例如 <code>image/*</code>）、<code>maxSize</code>（例如 <code>20MB</code>、<code>500KB</code>）、<code>multiple</code>（一次多个文件，默认 false）、<code>description</code> 与 <code>default</code>；不能写 enum、pattern、长度与数值范围。出参没有 file 类型（等 M7 的下载）。</dd>
+          <dt>值的写法</dt><dd>三种来源：上传到管理 Portal 的文件 <code>{"file": "代号", "name": "十月订单.xlsx"}</code>（代号由上传回传，大小与 sha256 以服务器的为准）；这个版本的场景附件 <code>files/文件名</code> 或 <code>{"attachment": "files/文件名", "name": "网页看到的名称"}</code>；运行那台电脑上的路径 <code>{"path": "D:/报表/{{today}}.xlsx"}</code>（路径可以有<a href="#dynamic">动态值</a>）。<code>multiple: true</code> 时写成列表，同一个入参不能混用上传档与路径。默认值不能是上传档（上传档会过期）。</dd>
+          <dt>场景附件</dt><dd>放在版本文件夹的 <code>files/</code> 底下，跟着版本存放、git 同步，并纳入场景哈希（没有附件的场景哈希不变），验证的文件就是发布的文件。文件名只能用英文字母、数字、<code>_</code>、<code>.</code>、<code>-</code>；网页要看到中文文件名时在值里写 <code>name</code>。每个附件最多 20 MB、一个版本合计最多 50 MB。在管理 Portal 场景页的「场景附件」上传与删除，<code>rpa pack check</code> 也检查。</dd>
+          <dt>那台电脑上的路径</dt><dd>只能读允许的文件夹：RPA Worker App 的设置「文件入参可以读的文件夹」，或 Worker 与服务器本机的环境变量 <code>RPA_INPUT_FOLDERS</code>（多个用路径分隔符号隔开）；都没有设置时不能用 path。<code>rpa run</code> 在自己的电脑运行，不受限制。</dd>
+          <dt><code>upload</code></dt><dd><code>files</code> 是 <code>'{{ inputs.名称 }}'</code> 或这种引用的清单（只能引用 file 入参）；写 <code>[]</code> 代表清空上传框，只能配 target。<code>target</code> 指向 <code>input type=file</code>（隐藏的、在 iframe 里的都可以；<code>within</code> 指向外层的按钮也行）；<code>trigger</code> 点击后等选择文件窗口再交出文件；<code>dropzone</code> 在页面里模拟拖放，文件要先送进页面，合计最多 20 MB。上传框一次只能选一个文件时给它多个会失败并说明。</dd>
+          <dt>等上传完成</dt><dd>upload 在文件交给网页时就算完成；网页之后送到服务器要多久不一定，用后面的 <code>waitFor</code>／<code>expect</code> 等画面上的结果，不加固定秒数。</dd>
+          <dt>运行时</dt><dd>入参阶段（启动浏览器之前）找出每个文件、检查 accept、maxSize 与合计上限，以网页要看到的名称放进暂存文件夹，运行完删除。<code>input.json</code>、报告与 <code>{{ inputs.名称 }}</code> 看到的是 <code>{name, size, sha256}</code>（清单时是清单），没有本机路径；verify 可以拿 <code>{{ inputs.orderFile.sha256 }}</code> 和网页收到的比较。</dd>
+          <dt>选择文件窗口</dt><dd>每一页都会拦下选择文件的窗口：不是 upload 开出来的（例如录制时点了上传按钮，录制稿只有 click）会自动关掉，步骤照常继续，记一条提醒「把这一步改成 upload，用 trigger 指定这个元素」。</dd>
+          <dt>录制稿转换</dt><dd><code>set_input_files</code> 转成 upload 加一个 file 入参（名称取自元素，accept 取自录到的扩展名，多个文件时 <code>multiple: true</code>），前一个点同一个元素的 click 会拿掉；录制稿只有文件名，要在入参放文件（例如加成场景附件）。</dd>
+          <dt>上限与保留</dt><dd>上传档单一文件默认最多 50 MB、一次运行合计 200 MB（<code>RPA_UPLOAD_MAX_FILE_MB</code>、<code>RPA_UPLOAD_MAX_RUN_MB</code>）。上传后 24 小时没被用到就删；用过的保留到最后一次使用后 90 天（<code>RPA_UPLOAD_KEEP_DAYS</code>）；全部超过 10 GB（<code>RPA_UPLOAD_MAX_TOTAL_GB</code>）时从最久没用的开始删；组合场景节点的固定文件不删。只删内容，运行记录仍看得到当时的文件名与 sha256。</dd>
+          <dt>命令行</dt><dd><code>rpa run 场景 -i orderFile=data/十月订单.xlsx -i photos=files/a.png -i photos=b.png</code>：值是 <code>files/…</code> 时是场景附件，其他是这台电脑上的路径；同一个 multiple 入参重复写就是多个文件。</dd>
+          <dt>远程运行</dt><dd>上传档由 Worker 与录制端另外下载并比较大小与 sha256；场景附件跟着版本的文件送过去。用到 upload 或文件入参的场景只交给回报看得懂 <code>upload</code>、<code>fileInputs</code> 的 App，旧的 App 看到要更新的说明。Python 脚本场景还不能用文件入参（与脚本场景的新版设计一起做）。</dd>
+        </dl>
       </div>
     </section>
 
@@ -234,6 +276,7 @@ verify:
             <tr><td><code>waitFor</code></td><td>等待条件成立</td><td>target + state（visible、hidden、attached、detached）、url + match、loadState</td><td>三种条件恰好选一种</td></tr>
             <tr><td><code>expect</code></td><td>步骤内的检查，不成立即判定失败</td><td>target + state、text、value、count 其一；或不给 target，检查 url、title 其一；match</td><td>state 可用 visible、hidden、enabled、disabled、checked、unchecked、editable</td></tr>
             <tr><td><code>extract</code></td><td>抽取页面事实</td><td><strong>target</strong>、<strong>as</strong>、get、attribute、multiple、fields</td><td>见下方说明</td></tr>
+            <tr><td><code>upload</code></td><td>把文件交给网页（M7c）</td><td><strong>files</strong>，加上 target、trigger、dropzone 恰好一种</td><td>files 引用 <code>type: file</code> 的入参；见下方<a href="#upload">上传文件</a></td></tr>
             <tr><td><code>screenshot</code></td><td>截图存为产物</td><td>file、target、fullPage</td><td>file 是不含扩展名的文件名，没写就用步骤 id；fullPage 不能搭配 target</td></tr>
           </tbody>
         </table>
@@ -246,7 +289,7 @@ verify:
           <dt>extract 的 fields</dt><dd>每个元素抽成一笔记录，键是字段名称，值可写 target（相对于该元素）、get、attribute。有 fields 时不写外层的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。download、upload、条件与循环等在 M7 加入；iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分页用步骤的 <a href="#tabs">popup 与 page</a>（M7b）。</div>
+      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。download、条件与循环等在 M7 加入；upload 提前到 M7c（<a href="#upload">上传文件</a>）；iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分页用步骤的 <a href="#tabs">popup 与 page</a>（M7b）。</div>
     </section>
 
     <div class="two-col">

@@ -25,7 +25,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Final, Literal, Protocol
 
@@ -106,6 +106,7 @@ class RunWorker(Protocol):
         poll_seconds: float = 0.5,
         paused: threading.Event | None = None,
         stop_seconds: Callable[[], float] = ...,
+        input_folders: Callable[[], Sequence[Path]] | None = None,
     ) -> str | None: ...
 
 
@@ -353,6 +354,7 @@ class WorkerController:
                     "language": self.locale,
                     "firefox": self.settings.firefox,
                     "downloadHost": self.settings.download_host,
+                    "inputFolders": list(self.settings.input_folders),
                     "autostart": self.autostart.enabled(),
                     "autostartSupported": self.autostart.supported,
                 },
@@ -461,6 +463,17 @@ class WorkerController:
             self.environ.pop(DOWNLOAD_HOST_ENV, None)
         self._changed()
 
+    def set_input_folders(self, text: str) -> None:
+        """檔案入參的 path 可以讀的資料夾（M7c D5）：一行一個；下一個任務開始時生效。"""
+        folders = tuple(dict.fromkeys(line.strip() for line in text.splitlines() if line.strip()))
+        self._save(input_folders=folders)
+        self._changed()
+
+    def _input_folders(self) -> tuple[Path, ...]:
+        with self._lock:
+            folders = self.settings.input_folders
+        return tuple(Path(item).expanduser() for item in folders)
+
     def set_autostart(self, enabled: bool) -> None:
         try:
             if enabled:
@@ -489,9 +502,13 @@ class WorkerController:
         download_host: str | None = None,
         autostart_offered: bool | None = None,
         tray_hint_shown: bool | None = None,
+        input_folders: tuple[str, ...] | None = None,
     ) -> None:
         with self._lock:
             self._save_locked(language, firefox, download_host, autostart_offered, tray_hint_shown)
+            if input_folders is not None:
+                self.settings = replace(self.settings, input_folders=input_folders)
+                self._write_settings()
 
     def _save_locked(
         self,
@@ -510,7 +527,11 @@ class WorkerController:
                 current.autostart_offered if autostart_offered is None else autostart_offered
             ),
             tray_hint_shown=current.tray_hint_shown if tray_hint_shown is None else tray_hint_shown,
+            input_folders=current.input_folders,
         )
+        self._write_settings()
+
+    def _write_settings(self) -> None:
         try:
             save_settings(self.settings_path, self.settings)
         except OSError as error:
@@ -656,6 +677,7 @@ class WorkerController:
                 keep_runs=self.keep_runs,
                 paused=self._paused,
                 stop_seconds=lambda: QUICK_STOP_SECONDS if self._quick else STOP_SECONDS,
+                input_folders=self._input_folders,
             )
         finally:
             with self._lock:

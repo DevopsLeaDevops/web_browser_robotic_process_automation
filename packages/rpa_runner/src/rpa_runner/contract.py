@@ -6,12 +6,14 @@
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
+from pathlib import Path
 from typing import Final, Literal
 
 from rpa_core.dsl import InputSpec, OutputSpec, Scenario
 from rpa_core.dsl.dynamic import DynamicValueError, Pick, evaluate
+from rpa_core.dsl.files import FileValueError, file_values, is_attachment_path
 from rpa_runner.i18n import t
 from rpa_runner.templates import Context, TemplateEvaluationError, render, render_native
 
@@ -50,8 +52,15 @@ class CheckResult:
 
 
 def parse_cli_value(spec: InputSpec, text: str) -> object:
-    """命令列 ``-i 名稱=值`` 的文字依入參型別轉換；轉不了就原樣回傳，交給校驗回報。"""
+    """命令列 ``-i 名稱=值`` 的文字依入參型別轉換；轉不了就原樣回傳，交給校驗回報。
+
+    檔案入參（M7c）：``files/檔名`` 是場景附件，其他是這台電腦上的路徑（轉成絕對路徑）。
+    """
     match spec.type:
+        case "file":
+            if is_attachment_path(text):
+                return text
+            return {"path": str(Path(text).expanduser().absolute())}
         case "integer" if _INTEGER.fullmatch(text.strip()):
             return int(text)
         case "number" if _NUMBER.fullmatch(text.strip()):
@@ -111,7 +120,10 @@ def _check_inputs(
             continue
         try:
             if resolve:
-                value = evaluate(value, spec.type, now=moment, pick=pick)
+                if spec.type == "file":
+                    value = _resolve_file(value, bool(spec.multiple), moment, pick)
+                else:
+                    value = evaluate(value, spec.type, now=moment, pick=pick)
                 rules = list(spec.violations(value))
             else:
                 rules = spec.check_value(value)
@@ -125,6 +137,22 @@ def _check_inputs(
         ]
         resolved[name] = value
     return resolved, problems
+
+
+def _resolve_file(value: object, multiple: bool, now: datetime | None, pick: Pick | None) -> object:
+    """檔案入參：``path`` 裡的動態值（例如 ``{{today}}``）在這裡求值；寫法不對時原樣回傳，
+    由 violations 指出。"""
+    try:
+        items = file_values(value, multiple=multiple)
+    except FileValueError:
+        return value
+    resolved = [
+        replace(item, ref=str(evaluate(item.ref, now=now, pick=pick))).to_json()
+        if item.source == "path"
+        else item.to_json()
+        for item in items
+    ]
+    return resolved if multiple else resolved[0]
 
 
 def run_verify(scenario: Scenario, context: Context) -> list[CheckResult]:

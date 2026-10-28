@@ -4,17 +4,17 @@
 步驟內欄位之間的規則（例如 waitFor 三選一）在各模型的 model_validator 檢查；
 跨步驟的規則（id 重複、引用未宣告的參數）在 rpa_core.dsl.checks。
 
-retry、onError、download、upload、條件與迴圈在 M7 加入（路線圖 v2）；
+retry、onError、download、條件與迴圈在 M7 加入（路線圖 v2）；
 iframe 在 M7a 以定位器的 frame 支援（見 locators.py）；新分頁（彈出視窗）在 M7b 以步驟的
 ``popup``（這一步開出新分頁，取個名稱）與 ``page``（在哪個分頁執行）支援，
-名稱的前後關係在 checks.py 檢查。
+名稱的前後關係在 checks.py 檢查；上傳檔案在 M7c 以 ``upload`` 步驟與 ``type: file`` 的入參支援。
 """
 
 import re
 from collections.abc import Iterable
 from typing import Annotated, Final, Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import BeforeValidator, Field, model_validator
 
 from rpa_core.dsl.fields import (
     ABSOLUTE_URL,
@@ -45,7 +45,9 @@ __all__ = [
     "SelectStep",
     "Step",
     "StepBase",
+    "UploadStep",
     "WaitForStep",
+    "upload_input_names",
 ]
 
 Match = Literal["contains", "equals", "regex"]
@@ -324,6 +326,63 @@ class ScreenshotStep(StepBase):
         return self
 
 
+_UPLOAD_REFERENCE: Final = re.compile(r"\{\{\s*inputs\.([A-Za-z_][A-Za-z0-9_]{0,63})\s*\}\}")
+"""``files`` 的每一項：整個值只有一個 ``{{ inputs.名稱 }}``。"""
+
+
+def _upload_files(value: object) -> object:
+    """``files`` 可以寫一個或一串引用；單一字串視為只有一項的清單（空清單代表清空）。"""
+    if isinstance(value, str):
+        return [value]
+    return value
+
+
+def upload_input_names(files: Iterable[str]) -> list[str]:
+    """``files`` 引用的入參名稱（寫法不對的略過；校驗另外會指出）。"""
+    names: list[str] = []
+    for item in files:
+        match = _UPLOAD_REFERENCE.fullmatch(item.strip())
+        if match is not None:
+            names.append(match.group(1))
+    return names
+
+
+class UploadStep(StepBase):
+    """把檔案交給網頁的上傳框（M7c）。
+
+    檔案一律來自 ``type: file`` 的入參（場景契約的一部分，執行時可以換檔）。三種方式選一種：
+
+    - ``target``：上傳框本身 ``<input type=file>``（隱藏的也可以，不檢查可見性）。最常用。
+    - ``trigger``：點了會開出「選擇檔案」視窗的元素。給點擊時才臨時建立上傳框的元件。
+    - ``dropzone``：只能拖拽、沒有上傳框的元件：把檔案拖放到這個元素上（檔案合計 20 MB 內）。
+
+    ``upload`` 在檔案交給網頁時就算完成；網頁送到伺服器要多久不一定，之後請用 waitFor／expect
+    等畫面上的結果。
+    """
+
+    action: Literal["upload"]
+    target: Locator | None = None
+    trigger: Locator | None = None
+    dropzone: Locator | None = None
+    files: Annotated[
+        list[str], BeforeValidator(_upload_files, json_schema_input_type=str | list[str])
+    ]
+    """要交的檔案：``{{ inputs.名稱 }}``（type: file 的入參），多個入參寫清單；
+    ``[]`` 清空已選的檔案。"""
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        used = _require_one(
+            self, [("target", "target"), ("trigger", "trigger"), ("dropzone", "dropzone")]
+        )
+        for index, item in enumerate(self.files):
+            if _UPLOAD_REFERENCE.fullmatch(item.strip()) is None:
+                raise dsl_error("upload.files_format", at=["files", index], value=item)
+        if not self.files and used != "target":
+            raise dsl_error("upload.clear_requires_target", at=["files"])
+        return self
+
+
 Step = Annotated[
     GotoStep
     | ClickStep
@@ -334,7 +393,8 @@ Step = Annotated[
     | WaitForStep
     | ExpectStep
     | ExtractStep
-    | ScreenshotStep,
+    | ScreenshotStep
+    | UploadStep,
     Field(discriminator="action"),
 ]
 """任一種步驟，依 action 區分。"""
@@ -350,5 +410,6 @@ ACTIONS: Final = (
     "expect",
     "extract",
     "screenshot",
+    "upload",
 )
 """支援的動作。"""

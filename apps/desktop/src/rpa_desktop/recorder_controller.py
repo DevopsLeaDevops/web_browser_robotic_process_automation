@@ -400,6 +400,7 @@ class RecorderController:
                 download_host=current.download_host if download_host is None else download_host,
                 autostart_offered=current.autostart_offered,
                 tray_hint_shown=current.tray_hint_shown,
+                input_folders=current.input_folders,
             )
             try:
                 save_settings(self.settings_path, self.settings)

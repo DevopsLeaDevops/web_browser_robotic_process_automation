@@ -101,5 +101,21 @@
   "steplog.failed_before": "Failed before the first step (for example the browser did not start) after {seconds} s.",
   "steplog.timed_out_before": "Timed out: the run deadline ran out before the first step, after {seconds} s.",
   "steplog.evidence": "The screen at the failure is in screenshot.png; the error and URL are in diagnostic.json.",
-  "steplog.details": "Full error message (as reported by the browser automation library):"
+  "steplog.details": "Full error message (as reported by the browser automation library):",
+  "contract.file_upload": "The file \"{file}\" of input {name} was not delivered to this computer (it may have been deleted after the retention period); upload it again",
+  "contract.file_attachment": "The scene attachment {file} of input {name} is not in this revision",
+  "contract.file_not_found": "The file {file} of input {name} does not exist or is not a file",
+  "contract.file_not_allowed": "The file {file} of input {name} is not in an allowed folder; add its folder in the settings of the Worker app that runs it",
+  "contract.file_unreadable": "The file \"{file}\" of input {name} cannot be read: {detail}",
+  "contract.file_too_large": "The file \"{file}\" of input {name} is too large: {size}; the limit is {limit}",
+  "contract.file_type": "The file \"{file}\" of input {name} is not an accepted type (accept: {accept})",
+  "contract.files_too_large": "The files of this run are too large in total: {size}; the limit is {limit}",
+  "steplog.files": "Files {files}",
+  "steplog.note": "Note {note}",
+  "browser.chooser_unhandled": "This step opened a file chooser without any file to choose (it was closed automatically); if a file should be uploaded here, change the step to upload and use trigger for this element",
+  "browser.upload_not_prepared": "Input {name} has no prepared file; upload or choose a file for the input first",
+  "browser.upload_single": "This file input accepts a single file, but several files were given; use a single file, or check that the locator points to an input that accepts several files",
+  "browser.upload_not_input": "This element is not a file input (<input type=file>): point target at the file input itself; use trigger for a button that opens a file chooser when clicked",
+  "browser.drop_too_large": "The dropped files total {size}, more than the drop zone limit of {limit}; use target or trigger instead",
+  "report.step_files": "Files: {files}"
 }

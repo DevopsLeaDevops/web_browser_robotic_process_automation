@@ -6,6 +6,11 @@
 | ``RPA_DATABASE_URL`` | ``sqlite:///<資料目錄>/rpa.db`` | 正式環境改成 PostgreSQL（M8，ADR 0008） |
 | ``RPA_LANG`` | ``zh-Hant`` | 頁面的預設語言，也是執行報告的語言 |
 | ``RPA_EXAMPLES_DIR`` | ``scenarios/demo``（存在時） | 「測試網站自動化」領域的範例場景 |
+| ``RPA_UPLOAD_MAX_FILE_MB`` | ``50`` | 上傳檔（檔案入參）單一檔案的上限（M7c，D4） |
+| ``RPA_UPLOAD_MAX_RUN_MB`` | ``200`` | 一次執行的檔案合計上限 |
+| ``RPA_UPLOAD_KEEP_DAYS`` | ``90`` | 上傳檔在最後一次使用後保留幾天（D7） |
+| ``RPA_UPLOAD_MAX_TOTAL_GB`` | ``10`` | 上傳檔合計的上限，超過時從最久沒用的開始刪 |
+| ``RPA_INPUT_FOLDERS`` | （無） | 本機執行時檔案入參的 ``path`` 可以讀的資料夾（os.pathsep 分隔） |
 
 Worker API 的埠與要不要跑本機 worker（M9a）由 ``rpa serve --worker-port``、
 ``--no-local-worker`` 決定。
@@ -21,6 +26,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES
 from rpa_core.i18n import DEFAULT_LOCALE, Locale, parse_locale
 from rpa_worker.environment import has_display as worker_has_display
 
@@ -82,6 +88,14 @@ class Settings:
     """要不要在這台電腦執行（本機 worker）；False 時只有遠端 worker 執行。"""
     portal_port: int | None = None
     """管理頁面實際聽的埠（``rpa serve`` 填入）；用來擋下把 Portal 自己當成錄製的起始網址。"""
+    upload_max_file: int = MAX_FILE_BYTES
+    """上傳檔單一檔案的上限（位元組，M7c）。"""
+    upload_max_run: int = MAX_RUN_BYTES
+    """一次執行的檔案合計上限（位元組）。"""
+    upload_keep_days: int = 90
+    upload_max_total: int = 10 * 1024**3
+    input_folders: tuple[Path, ...] = ()
+    """本機執行時檔案入參的 path 可以讀的資料夾；空的代表不能用 path。"""
 
     @property
     def uses_sqlite(self) -> bool:
@@ -108,4 +122,19 @@ class Settings:
             locale=parse_locale(env.get("RPA_LANG", "")) or DEFAULT_LOCALE,
             examples_dir=examples_dir,
             display=has_display(env),
+            upload_max_file=_number(env, "RPA_UPLOAD_MAX_FILE_MB", 50) * 1024**2,
+            upload_max_run=_number(env, "RPA_UPLOAD_MAX_RUN_MB", 200) * 1024**2,
+            upload_keep_days=_number(env, "RPA_UPLOAD_KEEP_DAYS", 90),
+            upload_max_total=_number(env, "RPA_UPLOAD_MAX_TOTAL_GB", 10) * 1024**3,
+            input_folders=tuple(
+                Path(item).expanduser()
+                for item in env.get("RPA_INPUT_FOLDERS", "").split(os.pathsep)
+                if item.strip()
+            ),
         )
+
+
+def _number(env: Mapping[str, str], name: str, default: int) -> int:
+    """正整數的環境變數；沒設或寫錯時用預設值。"""
+    text = env.get(name, "").strip()
+    return int(text) if text.isdigit() and int(text) > 0 else default

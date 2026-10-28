@@ -44,6 +44,7 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "runs",
             "scenes",
             "settings",
+            "uploaded_files",
             "workers",
             "workflow_revisions",
             "workflow_runs",

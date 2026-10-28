@@ -4,6 +4,7 @@
 """
 
 import base64
+import hashlib
 import io
 import json
 import threading
@@ -21,7 +22,7 @@ from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, StageName, scenario_digest
 from rpa_worker import Worker
 from rpa_worker.environment import WorkerInfo
-from rpa_worker.protocol import API_PREFIX, JobPayload
+from rpa_worker.protocol import API_PREFIX, InputFile, JobPayload
 from rpa_worker.remote import RemoteJobSource, WorkerClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -44,6 +45,8 @@ class FakeApi:
     cancel: set[str] = field(default_factory=set[str])
     gone: set[str] = field(default_factory=set[str])
     """這些執行回 409（例如已經判定 worker 失聯）。"""
+    downloads: dict[str, bytes] = field(default_factory=dict[str, bytes])
+    """上傳檔（M7c）：代號 → 內容；GET /runs/<執行>/files/<代號> 回傳它。"""
     reject_token: bool = False
     fingerprint: str = "same"
     done: threading.Event = field(default_factory=threading.Event)
@@ -64,6 +67,11 @@ class FakeApi:
         run_id, action = parts[2], parts[3]
         if run_id in self.gone:
             return 409, {"error": {"code": "run_not_assigned", "message": "gone"}}
+        if method == "GET" and action == "files":
+            content = self.downloads.get(parts[4])
+            if content is None:
+                return 404, {"error": {"code": "upload_not_found", "message": parts[4]}}
+            return 200, content
         if action == "heartbeat":
             self.heartbeats.append((run_id, json.loads(body).get("stage")))
             return 200, {"cancel": run_id in self.cancel}
@@ -94,9 +102,18 @@ def serving(api: FakeApi) -> Generator[str]:
             token = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
             path = self.path.removeprefix(API_PREFIX)
             status, data = api.handle(self.command, path, body, token)
-            raw = b"" if data is None else json.dumps(data).encode()
+            binary = isinstance(data, bytes)
+            raw = (
+                data
+                if isinstance(data, bytes)
+                else b""
+                if data is None
+                else json.dumps(data).encode()
+            )
             self.send_response(status)
-            self.send_header("Content-Type", "application/json")
+            self.send_header(
+                "Content-Type", "application/octet-stream" if binary else "application/json"
+            )
             self.send_header("Content-Length", str(len(raw)))
             self.end_headers()
             self.wfile.write(raw)
@@ -105,6 +122,9 @@ def serving(api: FakeApi) -> Generator[str]:
             self.reply()
 
         def do_PUT(self) -> None:
+            self.reply()
+
+        def do_GET(self) -> None:
             self.reply()
 
         def log_message(self, format: str, *args: object) -> None:
@@ -377,3 +397,88 @@ def test_offline_server_is_retried_and_reported_once(tmp_path: Path) -> None:
         assert source.claim() is None
 
     assert [event for event, _ in events] == ["offline"]
+
+
+# ---------------------------------------------------------------- 上傳檔（M7c）
+
+FILE_ID = "0123456789abcdef0123456789abcdef"
+ORDERS = "編號,數量\nA-1,2\n".encode()
+
+
+class FileExecutor:
+    """假的執行器：記下收到的上傳檔位置與內容（檔案入參的 kwargs）。"""
+
+    def __init__(self) -> None:
+        self.seen: dict[str, bytes] = {}
+        self.options: dict[str, object] = {}
+
+    def __call__(
+        self,
+        path: Path,
+        inputs: Mapping[str, object],
+        *,
+        out_root: Path,
+        run_id: str | None = None,
+        uploads: Mapping[str, Path] | None = None,
+        **options: object,
+    ) -> RunResult:
+        assert run_id is not None
+        self.seen = {key: value.read_bytes() for key, value in (uploads or {}).items()}
+        self.options = dict(options)
+        folder = out_root / run_id
+        folder.mkdir(parents=True)
+        return RunResult(
+            run_id=run_id,
+            scenario_id="ba-001",
+            scenario_name="x",
+            scenario_hash="h",
+            kind="dsl",
+            engine="chromium",
+            directory=folder,
+            started_at="2026-10-27T00:00:00+00:00",
+            status="passed",
+        )
+
+
+def file_job(run_id: str, content: bytes = ORDERS) -> dict[str, object]:
+    digest = hashlib.sha256(content).hexdigest()
+    return job_json(
+        run_id,
+        inputs={"orders": {"file": FILE_ID, "name": "訂單.csv"}},
+        input_files=(InputFile(FILE_ID, len(content), digest),),
+        max_file_bytes=1024,
+    )
+
+
+def test_input_files_are_downloaded_before_the_run(tmp_path: Path) -> None:
+    api = FakeApi(jobs=[file_job("ba-001-files-1")], downloads={FILE_ID: ORDERS})
+    executor = FileExecutor()
+    with serving(api) as url:
+        assert Worker(make_source(url, tmp_path, []), executor=executor).run_once()
+
+    assert ("GET", f"/runs/ba-001-files-1/files/{FILE_ID}") in api.calls
+    assert executor.seen == {FILE_ID: ORDERS}
+    assert executor.options["max_file_bytes"] == 1024
+    assert "max_run_bytes" not in executor.options  # 沒給的不傳，runner 用自己的預設
+    assert api.finished["ba-001-files-1"]["status"] == "passed"
+    assert not (tmp_path / "work" / "jobs" / "ba-001-files-1").exists()
+
+
+def test_input_file_that_does_not_match_fails_the_run(tmp_path: Path) -> None:
+    api = FakeApi(
+        jobs=[file_job("ba-001-files-2"), file_job("ba-001-files-3")],
+        downloads={FILE_ID: ORDERS.replace(b"2", b"3")},
+    )
+    executor = FileExecutor()
+    with serving(api) as url:
+        source = make_source(url, tmp_path, [])
+        # 下載不符時任務回報失敗、不交給執行器（這一輪沒有執行）
+        assert Worker(source, executor=executor).run_once() is False
+        api.downloads.clear()  # 第二個：伺服器上已經沒有這個檔案
+        assert Worker(source, executor=executor).run_once() is False
+
+    assert executor.seen == {}  # 沒有開始執行
+    assert api.failed["ba-001-files-2"]["kind"] == "input_files"
+    assert "sha256" in str(api.failed["ba-001-files-2"]["detail"])
+    assert api.failed["ba-001-files-3"]["kind"] == "input_files"
+    assert not list((tmp_path / "work" / "jobs").glob("*/inputs/*"))

@@ -71,6 +71,7 @@ def executor(
     login: LoginSettings | None = None,
     secrets: Mapping[str, str] | None = None,
     record_video: bool = False,
+    **_files: object,
 ) -> RunResult:
     """假的執行器：一律通過，出參取同名的入參；回報磁碟上場景版本的真實雜湊。"""
     scenario = validate_file(path).scenario

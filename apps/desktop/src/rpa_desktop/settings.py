@@ -34,6 +34,9 @@ class Settings:
     """第一次配對成功時已經依預設開啟過自動啟動；之後只照使用者在設定裡的選擇。"""
     tray_hint_shown: bool = False
     """第一次關閉視窗時已經提示過「仍在通知區執行」。"""
+    input_folders: tuple[str, ...] = ()
+    """檔案入參的 path 可以讀的資料夾（M7c D5）。空的時候不能用 path，除非設了環境變數
+    RPA_INPUT_FOLDERS。"""
 
 
 def load_settings(path: Path) -> Settings:
@@ -56,6 +59,12 @@ def load_settings(path: Path) -> Settings:
 
     language = values.get("language")
     host = values.get("download_host")
+    folders = values.get("input_folders")
+    folder_list = [
+        item.strip()
+        for item in (cast("list[object]", folders) if isinstance(folders, list) else [])
+        if isinstance(item, str) and item.strip()
+    ]
     return Settings(
         language=(parse_locale(language) if isinstance(language, str) else None)
         or defaults.language,
@@ -63,6 +72,7 @@ def load_settings(path: Path) -> Settings:
         download_host=host.strip() if isinstance(host, str) else defaults.download_host,
         autostart_offered=flag("autostart_offered", defaults.autostart_offered),
         tray_hint_shown=flag("tray_hint_shown", defaults.tray_hint_shown),
+        input_folders=tuple(folder_list),
     )
 
 

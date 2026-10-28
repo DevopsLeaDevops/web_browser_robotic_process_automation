@@ -4,6 +4,7 @@ import json
 import mimetypes
 import os
 import zipfile
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Annotated, Final, Literal, cast
 from urllib.parse import urlencode, urlsplit
@@ -15,6 +16,15 @@ from starlette.background import BackgroundTask
 
 from rpa_core.dsl import ExtractStep, Scenario, validate_text
 from rpa_core.dsl.editing import contract_section, section_text
+from rpa_core.dsl.files import (
+    ATTACHMENT_DIR,
+    MAX_ATTACHMENT_BYTES,
+    MAX_ATTACHMENTS_BYTES,
+    FileValueError,
+    attachment_names,
+    file_values,
+    uploaded_ids,
+)
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import REPORT
@@ -235,6 +245,102 @@ def _location_context(services: Services) -> dict[str, object]:
     return {"locations": locations, "display": display[str(locations["default"])]}
 
 
+def _scene_attachments(
+    services: Services, scene_id: str, number: int, scenario: Scenario | None
+) -> list[dict[str, object]]:
+    """場景詳情頁的附件區（M7c）：每個附件的大小，以及哪些檔案入參的預設值用到它。"""
+    used: dict[str, list[str]] = {}
+    inputs = scenario.inputs if scenario is not None else {}
+    for name, spec in inputs.items():
+        if spec.type == "file" and spec.default is not None:
+            for path in attachment_names([spec.default]):
+                used.setdefault(path, []).append(name)
+    return [
+        {
+            "path": path,
+            "name": path.removeprefix(f"{ATTACHMENT_DIR}/"),
+            "size": size,
+            "inputs": used.get(path, []),
+        }
+        for path, size in sorted(services.storage.attachments(scene_id, number).items())
+    ]
+
+
+def _run_file_inputs(
+    services: Services,
+    record: RunRecord,
+    scenario: Scenario | None,
+    result: Mapping[str, object] | None,
+) -> list[dict[str, object]]:
+    """運行詳情頁的檔案入參（M7c）：每個檔案的入參、網頁看到的檔名、大小、sha256、來源與下載連結。
+
+    值以這次執行送出的為準（沒給的用場景預設值）；跑完後大小與 sha256 以執行目錄的 input.json 為準。
+    上傳檔過了保留期限只剩紀錄，不給下載連結。
+    """
+    if scenario is None:
+        return []
+    executed = result.get("input") if result is not None else None
+    empty: dict[str, object] = {}
+    meta = cast("Mapping[str, object]", executed) if isinstance(executed, Mapping) else empty
+    found = services.uploads.rows(uploaded_ids(record.input.values()))
+    rows: list[dict[str, object]] = []
+    for name, spec in scenario.inputs.items():
+        if spec.type != "file":
+            continue
+        given = name in record.input
+        raw = record.input[name] if given else spec.default
+        if raw is None:
+            continue
+        try:
+            items = file_values(raw, multiple=bool(spec.multiple))
+        except FileValueError:
+            continue
+        seen = meta.get(name)
+        details = cast("list[object]", seen) if isinstance(seen, list) else [seen]
+        for index, item in enumerate(items):
+            detail = details[index] if index < len(details) else None
+            info = cast("Mapping[str, object]", detail) if isinstance(detail, Mapping) else empty
+            row: dict[str, object] = {
+                "input": name,
+                "source": item.source,
+                "name": info.get("name") or item.display_name,
+                "size": info.get("size", item.size),
+                "sha256": info.get("sha256", item.sha256),
+                "default": not given,
+                "href": None,
+                "gone": False,
+            }
+            if item.source == "upload":
+                upload = found.get(item.ref)
+                row["gone"] = upload is None or upload.deleted_at is not None
+                if not row["gone"]:
+                    row["href"] = f"/api/files/{item.ref}/content"
+            elif item.source == "attachment":
+                attachment = item.ref.removeprefix(f"{ATTACHMENT_DIR}/")
+                row["href"] = (
+                    f"/api/scenes/{record.scene_id}/revisions/{record.revision_number}"
+                    f"/attachments/{attachment}"
+                )
+            rows.append(row)
+    return rows
+
+
+def _file_context(
+    services: Services, scene_id: str, number: int, scenario: Scenario
+) -> dict[str, object]:
+    """執行、驗證、調試表單的檔案入參（M7c）：哪些入參是檔案、這個版本有哪些場景附件、單檔上限。"""
+    inputs = [(name, spec) for name, spec in scenario.inputs.items() if spec.type == "file"]
+    attachments = services.storage.attachments(scene_id, number) if inputs else {}
+    return {
+        "file_inputs": inputs,
+        "attachments": [
+            {"path": path, "name": path.removeprefix(f"{ATTACHMENT_DIR}/"), "size": size}
+            for path, size in sorted(attachments.items())
+        ],
+        "upload_limit": services.uploads.limits.max_file,
+    }
+
+
 def page_router(services: Services) -> APIRouter:
     router = APIRouter()
 
@@ -354,6 +460,8 @@ def page_router(services: Services) -> APIRouter:
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
+            attachments=_scene_attachments(services, scene_id, record.latest_number, scenario),
+            attachment_limits={"file": MAX_ATTACHMENT_BYTES, "total": MAX_ATTACHMENTS_BYTES},
             contract_data=_contract_data(scenario, files[SCENARIO_FILE])
             if scenario is not None
             else {},
@@ -418,6 +526,7 @@ def page_router(services: Services) -> APIRouter:
             engines=ENGINES,
             base_url=record.base_url or scenario.browser.base_url,
             **_location_context(services),
+            **_file_context(services, scene_id, shown.number, scenario),
         )
 
     @router.get("/runs", include_in_schema=False)
@@ -567,10 +676,12 @@ def page_router(services: Services) -> APIRouter:
             and record.scenario_hash == revision.content_hash
         )
         try:
-            login = services.revision_scenario(record.scene_id, record.revision_number).login
+            scenario = services.revision_scenario(record.scene_id, record.revision_number)
         except ServiceError:
-            login = None
+            scenario = None
+        login = scenario.login if scenario is not None else None
         files = services.storage.run_files(run_id) if record.finished else []
+        result = services.run_result(run_id) if record.finished else None
         return page(
             "run.html",
             page="runs",
@@ -578,8 +689,10 @@ def page_router(services: Services) -> APIRouter:
             role=login.role if login is not None else None,
             run=record,
             revision=revision,
-            result=services.run_result(run_id) if record.finished else None,
+            result=result,
             files=files,
+            file_inputs=_run_file_inputs(services, record, scenario, result),
+            keep_days=services.uploads.limits.keep_days,
             can_publish=can_publish,
             worker_wait=None if record.finished else services.worker_wait(run_id),
         )
@@ -716,6 +829,7 @@ def page_router(services: Services) -> APIRouter:
             engines=ENGINES,
             base_url=record.base_url or scenario.browser.base_url,
             idle_minutes=int(IDLE_SECONDS // 60),
+            **_file_context(services, scene_id, shown, scenario),
         )
 
     @router.get("/debug/{session_id}/files/{name}", include_in_schema=False)

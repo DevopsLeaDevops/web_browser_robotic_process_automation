@@ -47,6 +47,7 @@ SCOPES: Final = (
     "scenes:read",
     "scenes:write",
     "debug",
+    "files:write",
     "runs:validate",
     "scenes:publish",
     "runs:execute",

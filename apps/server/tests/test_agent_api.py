@@ -43,6 +43,7 @@ EVERYTHING = [
     "scenes:publish",
     "runs:execute",
     "runs:read",
+    "files:write",
 ]
 
 

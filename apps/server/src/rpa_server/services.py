@@ -14,6 +14,7 @@ M6 的自由試驗場序列（workflows.py）是 ``services.workflows``；專案
 M14 的對外 Agent API 用戶端（agents.py）是 ``services.agents``；路由在 agent_api.py。
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -37,7 +38,8 @@ from rpa_core.dsl.editing import (
     replace_contract,
     replace_section,
 )
-from rpa_core.dsl.sources import scenario_sources
+from rpa_core.dsl.files import ATTACHMENT_DIR, is_attachment_path
+from rpa_core.dsl.sources import attachment_files, scenario_sources
 from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_core.pack import PackSource, PublishedRef, SceneManifest, parse_timestamp, timestamp
 from rpa_runner.contract import prepare_inputs
@@ -83,6 +85,7 @@ from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
 from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
+from rpa_server.uploads import UploadLimits, UploadService, definition_uploads
 from rpa_server.videos import VideoService, VideoSettings, retention_basis, video_details
 from rpa_server.workflows import WorkflowService
 from rpa_worker.environment import external_url
@@ -124,6 +127,9 @@ _CONTRACT_KEYS: Final = frozenset(
         "pattern",
         "minimum",
         "maximum",
+        "accept",
+        "maxSize",
+        "multiple",
         "from",
     }
 )
@@ -319,9 +325,13 @@ class Services:
         worker_port: int | None = None,
         worker_host: str = "0.0.0.0",
         portal_port: int | None = None,
+        upload_limits: UploadLimits | None = None,
+        input_folders: Sequence[Path] = (),
     ) -> None:
         self.sessions = sessions
         self.storage = storage
+        self.uploads = UploadService(sessions, storage.root, upload_limits)
+        """上傳的檔案（M7c）：檔案入參參照的檔案、執行前檢查與保留規則。"""
         self.examples_dir = examples_dir
         self.display = display
         """這台電腦能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。"""
@@ -376,9 +386,18 @@ class Services:
         self.projects = ProjectService(sessions)
         """專案空間的專案：組合場景的分組，只在資料庫（2026-10-23）。"""
         self.workflows = WorkflowService(sessions, self)
+        # 組合場景節點固定值用到的上傳檔不因保留期限刪除（M7c D7）
+        self.uploads.pinned = self._pinned_uploads
         self.videos = VideoService(sessions, storage)
         """錄影的設定、釘選與保留規則（M12）。"""
-        self.queue = RunQueue(sessions, storage, self.roles, self.videos)
+        self.queue = RunQueue(
+            sessions,
+            storage,
+            self.roles,
+            self.videos,
+            uploads=self.uploads,
+            input_folders=tuple(input_folders),
+        )
         """執行佇列：本機 worker 的任務來源；遠端 worker 經由 workers 領取（M9a）。"""
         self.queue.on_finished = self.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
         self.workers = WorkerHub(
@@ -961,8 +980,10 @@ class Services:
         note: str | None,
         *,
         domain_id: str | None = None,
+        attachments: Mapping[str, bytes] | None = None,
     ) -> SceneRecord:
-        checked = self.storage.check(files, scene_id=scene_id)
+        attachments = dict(attachments or {})
+        checked = self.storage.check(files, scene_id=scene_id, attachments=attachments)
         if not checked.ok or checked.scenario is None or checked.digest is None:
             raise _invalid(
                 "revision_invalid",
@@ -1005,7 +1026,13 @@ class Services:
             )
             self.storage.place_scene(scene_id, domain_id)
             self._write_revision(
-                session, scene_id, 1, checked.files, [scene, revision], new_scene=True
+                session,
+                scene_id,
+                1,
+                checked.files,
+                [scene, revision],
+                new_scene=True,
+                attachments=attachments,
             )
             return scene_record(scene, revision)
 
@@ -1018,6 +1045,7 @@ class Services:
         rows: Sequence[Scene | Revision],
         *,
         new_scene: bool = False,
+        attachments: Mapping[str, bytes] | None = None,
     ) -> None:
         """寫入資料庫列與領域資料夾裡的版本，一起提交；任何一步失敗都不留下半個版本。
 
@@ -1040,7 +1068,7 @@ class Services:
         revision = next(row for row in rows if isinstance(row, Revision))
         self.storage.discard(scene_id, number)
         try:
-            self.storage.save(scene_id, number, files)
+            self.storage.save(scene_id, number, files, attachments)
             self.packs.write_revision_info(
                 scene_id, number, revision.content_hash, revision.note, revision.created_at
             )
@@ -1092,8 +1120,13 @@ class Services:
         base: int,
         files: Mapping[str, str],
         note: str | None = None,
+        attachments: Mapping[str, bytes] | None = None,
     ) -> RevisionRecord:
-        """以最新版本為基礎存成新版本；base 不是最新版本時回 409（別人已經存過）。"""
+        """以最新版本為基礎存成新版本；base 不是最新版本時回 409（別人已經存過）。
+
+        ``attachments`` 是新版本的場景附件（M7c）；沒給時沿用 base 版本的附件（編輯場景檔不會
+        弄丟附件）。
+        """
         with self.packs.lock, self.sessions() as session:
             scene = self._scene(session, scene_id)
             if scene.archived:
@@ -1104,7 +1137,9 @@ class Services:
                     t("error.stale_base", base=base, latest=scene.latest_number),
                     latest=scene.latest_number,
                 )
-            checked = self.storage.check(files, scene_id=scene_id)
+            if attachments is None:
+                attachments = self.storage.load_attachments(scene_id, base)
+            checked = self.storage.check(files, scene_id=scene_id, attachments=attachments)
             if not checked.ok or checked.scenario is None or checked.digest is None:
                 raise _invalid(
                     "revision_invalid",
@@ -1130,8 +1165,90 @@ class Services:
             scene.category = scenario.category
             scene.description = scenario.description
             scene.updated_at = moment
-            self._write_revision(session, scene_id, number, checked.files, [scene, revision])
+            self._write_revision(
+                session,
+                scene_id,
+                number,
+                checked.files,
+                [scene, revision],
+                attachments=attachments,
+            )
             return revision_record(revision, scene)
+
+    # ------------------------------------------------------------ 場景附件（M7c）
+
+    def _pinned_uploads(self) -> set[str]:
+        """組合場景固定入參用到的上傳檔：每個組合場景的最新定義與已發布的版本（沒封存的）。"""
+        with self.sessions() as session:
+            columns = (WorkflowRow.definition, WorkflowRow.code, WorkflowRow.published_number)
+            rows = session.execute(select(*columns).where(WorkflowRow.archived.is_(False))).all()
+        found: set[str] = set()
+        for definition, code, published in rows:
+            found.update(definition_uploads(definition))
+            if published is None:
+                continue
+            try:
+                workflow = self.workflows.revision_workflow(code, published)
+            except ServiceError:
+                continue
+            found.update(definition_uploads(workflow.model_dump(mode="json", by_alias=True)))
+        return found
+
+    def revision_attachments(self, scene_id: str, number: int) -> list[dict[str, object]]:
+        """版本的場景附件：路徑、大小、sha256（給頁面與 API）。"""
+        self.get_scene(scene_id)
+        return [
+            {
+                "path": name,
+                "name": name.removeprefix(f"{ATTACHMENT_DIR}/"),
+                "size": len(data),
+                "sha256": hashlib.sha256(data).hexdigest(),
+            }
+            for name, data in self.storage.load_attachments(scene_id, number).items()
+        ]
+
+    def attachment_path(self, scene_id: str, number: int, name: str) -> Path:
+        """版本裡一個附件在伺服器的位置；不在時 404。"""
+        self.get_scene(scene_id)
+        relative = f"{ATTACHMENT_DIR}/{name}"
+        path = self.storage.revision_dir(scene_id, number) / relative
+        if not is_attachment_path(relative) or not path.is_file():
+            raise _not_found("attachment_not_found", t("error.attachment_not_found", name=name))
+        return path
+
+    def save_attachment(
+        self, scene_id: str, *, base: int, name: str, data: bytes, note: str | None = None
+    ) -> RevisionRecord:
+        """加上或換掉一個附件，存成新版本（場景檔不變；版本不可變，附件跟著版本）。"""
+        relative = f"{ATTACHMENT_DIR}/{name}"
+        if not is_attachment_path(relative):
+            raise _invalid("attachment_name", t("error.attachment_name", name=name))
+        attachments = self.storage.load_attachments(scene_id, base)
+        attachments[relative] = data
+        return self.save_revision(
+            scene_id,
+            base=base,
+            files=self.revision_files(scene_id, base),
+            note=note or t("revision.note_attachment_saved", name=name),
+            attachments=attachments,
+        )
+
+    def delete_attachment(
+        self, scene_id: str, *, base: int, name: str, note: str | None = None
+    ) -> RevisionRecord:
+        """拿掉一個附件，存成新版本；入參的預設值還在用時，校驗會指出。"""
+        relative = f"{ATTACHMENT_DIR}/{name}"
+        attachments = self.storage.load_attachments(scene_id, base)
+        if relative not in attachments:
+            raise _not_found("attachment_not_found", t("error.attachment_not_found", name=name))
+        del attachments[relative]
+        return self.save_revision(
+            scene_id,
+            base=base,
+            files=self.revision_files(scene_id, base),
+            note=note or t("revision.note_attachment_deleted", name=name),
+            attachments=attachments,
+        )
 
     def import_examples(self, domain_id: str | None = None) -> ImportReport:
         """匯入範例資料夾的場景（已存在的 id 略過），每個場景建立第 1 版草稿。
@@ -1155,11 +1272,14 @@ class Services:
             if scenario is None:
                 report.skipped.append(t("import.invalid", path=path.name))
                 continue
+            sources = scenario_sources(path, scenario)
+            attachments = set(attachment_files(path.parent))
             files = {
                 (SCENARIO_FILE if relative == path.name else relative): (
                     path.parent / relative
                 ).read_text(encoding="utf-8")
-                for relative in scenario_sources(path, scenario)
+                for relative in sources
+                if relative not in attachments
             }
             try:
                 self.add_scene(
@@ -1167,6 +1287,9 @@ class Services:
                     files,
                     note=t("revision.note_imported", path=path.name),
                     domain_id=domain_id,
+                    attachments={
+                        relative: (path.parent / relative).read_bytes() for relative in attachments
+                    },
                 )
             except ServiceError as error:
                 report.skipped.append(f"{scenario.id}：{error.message}")
@@ -1244,6 +1367,10 @@ class Services:
                     t("error.inputs_invalid", count=len(problems)),
                     problems=[{"name": item.name, "message": item.message} for item in problems],
                 )
+            # 檔案入參（M7c）：上傳檔在不在、大小與類型；檔名、大小、sha256 以伺服器的為準
+            inputs = self.uploads.require(
+                scenario, inputs, self.storage.attachments(scene_id, revision.number)
+            )
             run = Run(
                 id=new_run_id(scene_id),
                 scene_id=scene_id,
@@ -1278,6 +1405,7 @@ class Services:
                     raise
                 return run_record(existing)
             record = run_record(run)
+        self.uploads.touch(inputs.values())
         self.on_queued()
         return record
 

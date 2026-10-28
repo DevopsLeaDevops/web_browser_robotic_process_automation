@@ -112,6 +112,7 @@ class Fakes:
             poll_seconds: float = 0.5,
             paused: threading.Event | None = None,
             stop_seconds: Callable[[], float] = lambda: 120.0,
+            input_folders: object = None,
         ) -> str | None:
             record: dict[str, object] = {
                 "server": client.server,
@@ -120,6 +121,7 @@ class Fakes:
                 "paused": paused,
                 "stop": stop,
                 "stop_seconds": stop_seconds,
+                "input_folders": input_folders,
             }
             self.runs.append(record)
             for event, details in self.events:
@@ -464,6 +466,24 @@ def test_saved_download_host_is_applied_at_start(tmp_path: Path, store: MemorySt
         services=Fakes().services(),
     )
     assert environ["PLAYWRIGHT_DOWNLOAD_HOST"] == "http://mirror"
+
+
+def test_input_folders_apply_to_the_next_job(
+    tmp_path: Path, fakes: Fakes, store: MemoryStore
+) -> None:
+    """檔案入參可以讀的資料夾（M7c D5）：一行一個、去掉空行與重複；接任務的迴圈每次任務開始時讀。"""
+    controller = make(tmp_path, fakes, store)
+    controller.pair(LINE)
+    wait_for(fakes.started.is_set)
+    folders = fakes.runs[0]["input_folders"]
+    assert callable(folders)
+    assert folders() == ()
+    controller.set_input_folders(" D:/報表 \n\nD:/報表\n//nas/share\n")
+    assert folders() == (Path("D:/報表"), Path("//nas/share"))
+    assert controller.snapshot()["settings"]["inputFolders"] == ["D:/報表", "//nas/share"]  # pyright: ignore[reportIndexIssue]
+    assert make(tmp_path, Fakes(), store).settings.input_folders == ("D:/報表", "//nas/share")
+    controller.stop()
+    controller.wait(5)
 
 
 def test_tray_hint_only_once(tmp_path: Path, fakes: Fakes, store: MemoryStore) -> None:

@@ -16,26 +16,38 @@ from typing import Final, cast
 
 from rpa_core.dsl.dynamic import FEATURE as DYNAMIC_VALUES
 from rpa_core.dsl.dynamic import uses_dynamic
+from rpa_core.dsl.files import attachment_names, uploaded_ids
 from rpa_core.dsl.scenario import Scenario
 
 __all__ = [
     "FEATURES",
+    "FILE_INPUTS",
+    "UPLOAD",
     "data_features",
     "input_features",
     "missing_features",
     "scenario_features",
 ]
 
-FEATURES: Final[frozenset[str]] = frozenset({"frame", "anyFrame", "page", "popup", DYNAMIC_VALUES})
+UPLOAD: Final = "upload"
+"""``upload`` 步驟（M7c）。"""
+FILE_INPUTS: Final = "fileInputs"
+"""``type: file`` 的入參、檔案入參的值與下載入參檔案（M7c）。"""
+
+FEATURES: Final[frozenset[str]] = frozenset(
+    {"frame", "anyFrame", "page", "popup", DYNAMIC_VALUES, UPLOAD, FILE_INPUTS}
+)
 """這份程式看得懂的擴充：定位器的 ``frame``、``anyFrame``（M7a，iframe）；
-步驟的 ``page``、``popup``（M7b，新分頁）；入參的 ``dynamicValues``（日期、隨機數）。"""
+步驟的 ``page``、``popup``（M7b，新分頁）；入參的 ``dynamicValues``（日期、隨機數）；
+``upload`` 步驟與 ``fileInputs``（M7c，上傳檔案）。"""
 
 
 def data_features(data: object) -> frozenset[str]:
     """DSL 資料（camelCase 的 dict／list，例如場景、角色的登入檢查與自動登入步驟）用到的擴充。
 
     任何一層的 dict 有 ``frame: {…}`` 就是 ``frame``，有 ``anyFrame: true`` 就是 ``anyFrame``；
-    有 ``page: 名稱``、``popup: 名稱``（步驟）就是 ``page``、``popup``。
+    有 ``page: 名稱``、``popup: 名稱``（步驟）就是 ``page``、``popup``；``action: upload`` 就是
+    ``upload``。
     """
     found: set[str] = set()
     pending: list[object] = [data]
@@ -50,6 +62,8 @@ def data_features(data: object) -> frozenset[str]:
             for key in ("page", "popup"):
                 if isinstance(values.get(key), str):
                     found.add(key)
+            if values.get("action") == UPLOAD:
+                found.add(UPLOAD)
             pending.extend(values.values())
         elif isinstance(item, list | tuple):
             pending.extend(cast("Iterable[object]", item))
@@ -57,16 +71,25 @@ def data_features(data: object) -> frozenset[str]:
 
 
 def scenario_features(scenario: Scenario) -> frozenset[str]:
-    """場景用到的擴充；入參的預設值用了動態值時加上 ``dynamicValues``。"""
+    """場景用到的擴充；入參的預設值用了動態值時加上 ``dynamicValues``，有檔案入參時加上
+    ``fileInputs``。"""
     found = data_features(scenario.model_dump(mode="json", by_alias=True, exclude_none=True))
     if uses_dynamic(spec.default for spec in scenario.inputs.values()):
         found |= {DYNAMIC_VALUES}
+    if any(spec.type == "file" for spec in scenario.inputs.values()):
+        found |= {FILE_INPUTS}
     return found
 
 
 def input_features(values: Mapping[str, object] | None) -> frozenset[str]:
-    """一次執行給的入參用到的擴充：有動態值就是 ``dynamicValues``（求值在執行的那台裝置）。"""
-    return frozenset({DYNAMIC_VALUES}) if values and uses_dynamic(values.values()) else frozenset()
+    """一次執行給的入參用到的擴充：有動態值就是 ``dynamicValues``（求值在執行的那台裝置）；
+    有上傳檔或場景附件就是 ``fileInputs``。"""
+    found: set[str] = set()
+    if values and uses_dynamic(values.values()):
+        found.add(DYNAMIC_VALUES)
+    if values and (uploaded_ids(values.values()) or attachment_names(values.values())):
+        found.add(FILE_INPUTS)
+    return frozenset(found)
 
 
 def missing_features(required: Iterable[str], reported: object) -> list[str]:

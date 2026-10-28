@@ -148,6 +148,7 @@
     $("firefox").checked = settings.firefox;
     show("firefox-setting", s.paired); // 還沒配對時在配對表單裡選
     if (document.activeElement !== $("mirror")) $("mirror").value = settings.downloadHost || "";
+    if (document.activeElement !== $("input-folders")) $("input-folders").value = (settings.inputFolders || []).join("\n");
     $("language").value = settings.language;
     show("reset", s.paired);
   }
@@ -241,6 +242,7 @@
     $("autostart").addEventListener("change", (event) => call("set_setting", "autostart", event.target.checked).then(refresh));
     $("firefox").addEventListener("change", (event) => call("set_setting", "firefox", event.target.checked).then(refresh));
     $("mirror-save").addEventListener("click", () => call("set_setting", "download_host", $("mirror").value).then(refresh));
+    $("input-folders-save").addEventListener("click", () => call("set_setting", "input_folders", $("input-folders").value).then(refresh));
     $("language").addEventListener("change", (event) => call("set_setting", "language", event.target.value));
     $("open-logs").addEventListener("click", () => call("open_logs"));
     $("download").addEventListener("click", () => call("open_download"));

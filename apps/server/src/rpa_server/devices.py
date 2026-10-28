@@ -24,6 +24,7 @@
 錄製端每次輪詢附上正在執行的子程序，確認收到「啟動」卻不在裡面的也視為結束。
 """
 
+import hashlib
 import logging
 import secrets
 import subprocess
@@ -57,6 +58,7 @@ from rpa_worker.interactive import (
     CONTROL_WAIT_SECONDS,
     INPUTS,
     LOST_SECONDS,
+    MAX_SYNC_BYTES,
     WORK,
     SyncError,
     b64encode,
@@ -173,6 +175,8 @@ class RemoteProcess:
         self._lock = threading.Lock()
         self.start_seq: int | None = None
         """「啟動」指令的序號：錄製端確認收到之後，還在跑的清單裡沒有它就是不見了。"""
+        self.downloads: list[Path] = []
+        """讓錄製端下載的檔案（M7c），依啟動指令 downloads 的順序。"""
 
     @property
     def stdin(self) -> _Stdin | None:
@@ -266,6 +270,8 @@ class _Translator:
         self.workdir = workdir.absolute()
         self._resolved = workdir.resolve()
         self.files: dict[str, bytes] = {}
+        self.sources: dict[str, Path] = {}
+        """送過去的檔案在這台的位置（太大的改成讓錄製端下載，M7c）。"""
         self._outside: dict[Path, str] = {}
 
     def relative(self, path: Path) -> str | None:
@@ -290,12 +296,41 @@ class _Translator:
                 name = f"{INPUTS}/{len(self._outside)}-{path.name}"
                 self._outside[path] = name
                 self.files[name] = path.read_bytes()
+                self.sources[name] = path
             return f"{WORK}/{name}"
         if relative == ".":
             return WORK
         if path.is_file():
             self.files[relative] = path.read_bytes()
+            self.sources[relative] = path
         return f"{WORK}/{relative}"
+
+
+_INLINE_FILE_BYTES: Final = 1024 * 1024
+"""內嵌檔案合計超過 MAX_INPUT_BYTES 時，大於這個的檔案改成讓錄製端下載。"""
+
+
+def _split_files(
+    translate: _Translator,
+) -> tuple[dict[str, bytes], list[tuple[str, bytes, Path]]]:
+    """要送的檔案分成內嵌（base64 放在指令裡）與讓錄製端下載的（M7c）。
+
+    合計在 MAX_INPUT_BYTES 以內時全部內嵌（舊的錄製端看得懂）；超過時從最大的檔案開始改成下載，
+    下載的合計超過 MAX_SYNC_BYTES 就拒絕。只有檔案入參會有大檔，用到檔案入參的場景只交給看得懂
+    的錄製端（features 的 fileInputs）。
+    """
+    inline = dict(translate.files)
+    downloads: list[tuple[str, bytes, Path]] = []
+    total = sum(len(data) for data in inline.values())
+    for name in sorted(inline, key=lambda item: len(inline[item]), reverse=True):
+        if total <= MAX_INPUT_BYTES or len(inline[name]) <= _INLINE_FILE_BYTES:
+            break
+        data = inline.pop(name)
+        total -= len(data)
+        downloads.append((name, data, translate.sources[name]))
+    if total > MAX_INPUT_BYTES or sum(len(data) for _, data, _ in downloads) > MAX_SYNC_BYTES:
+        raise invalid("files_invalid", t("error.files_invalid", detail="inputs too large"))
+    return inline, downloads
 
 
 def _menus(value: Collection[str] | None) -> tuple[str, ...]:
@@ -720,6 +755,16 @@ class RecorderHub:
             with self._lock:
                 self._processes.pop(process_id, None)
 
+    def download_path(self, recorder_id: str, process_id: str, index: int) -> Path:
+        """錄製端下載啟動指令列的檔案（M7c）：只能是派給它的子程序的。"""
+        with self._lock:
+            process = self._processes.get(process_id)
+        if process is None or process.device != recorder_id:
+            raise not_found("process_not_found", t("error.process_not_found", id=process_id))
+        if not 0 <= index < len(process.downloads) or not process.downloads[index].is_file():
+            raise not_found("process_not_found", t("error.process_not_found", id=process_id))
+        return process.downloads[index]
+
     def store_files(self, recorder_id: str, process_id: str, archive: Path) -> list[str]:
         process = self._process(recorder_id, process_id)
         try:
@@ -818,7 +863,7 @@ class RecorderHub:
         if not isinstance(env, ChildEnv):
             # 伺服器自己的環境（PATH、HOME…）不能送到錄製端：只送 child_env() 另外給的
             raise TypeError("env for a recorder must come from child_env()")
-        values = {
+        values: dict[str, object] = {
             "module": module,
             "args": [translate(arg) for arg in args],
             "env": {
@@ -828,14 +873,20 @@ class RecorderHub:
             "pipes": pipes,
             "log": log_name,
         }
-        if sum(len(data) for data in translate.files.values()) > MAX_INPUT_BYTES:
-            raise invalid("files_invalid", t("error.files_invalid", detail="inputs too large"))
-        values["files"] = {name: b64encode(data) for name, data in translate.files.items()}
+        inline, downloads = _split_files(translate)
+        values["files"] = {name: b64encode(data) for name, data in inline.items()}
+        if downloads:
+            # 檔案入參的大檔（M7c）：啟動指令只帶清單，錄製端另外下載、比對 sha256
+            values["downloads"] = [
+                {"name": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+                for name, data, _ in downloads
+            ]
         process_id = uuid.uuid4().hex[:16]
         workdir.mkdir(parents=True, exist_ok=True)
         process = RemoteProcess(
             self, recorder_id, process_id, workdir=workdir, log=log, pipes=pipes
         )
+        process.downloads = [path for _, _, path in downloads]
         with self._lock:  # 可重入：enqueue 也拿這個鎖
             self._processes[process_id] = process
             process.start_seq = self.enqueue(

@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>上傳憑證</title><style>body{font:14px/1.6 system-ui;color:#24334a;margin:12px}.result{margin-top:8px;color:#248569}.result:empty{display:none}code{font-size:12px;word-break:break-all}</style>
+<form id="cert-form">
+  <label>憑證檔案 <input type="file" id="cert-file" name="file"></label>
+  <button type="submit">送出憑證</button>
+</form>
+<div class="result" id="cert-result"></div>
+<script>
+document.querySelector('#cert-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const data = new FormData();
+  for (const file of document.querySelector('#cert-file').files) data.append('file', file);
+  const reply = await fetch('/api/uploads', { method: 'POST', body: data });
+  const received = await reply.json();
+  const out = document.querySelector('#cert-result');
+  out.textContent = '';
+  for (const file of received) {
+    const line = document.createElement('div');
+    line.className = 'received';
+    line.innerHTML = '已收到 <b class="name"></b> sha256 <code class="sha"></code>';
+    line.querySelector('.name').textContent = file.name;
+    line.querySelector('.sha').textContent = file.sha256;
+    out.append(line);
+  }
+});
+</script>
+</html>

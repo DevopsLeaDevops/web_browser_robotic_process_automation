@@ -537,3 +537,28 @@ def test_undeclared_domain_is_a_warning(tmp_path: Path) -> None:
 
     assert [issue.code for issue in pack.issues] == ["pack.requires_not_declared"]
     assert pack.ok
+
+
+def test_revision_attachments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """M7c：附件在 files/ 底下、納入雜湊；檔名與大小有限制。"""
+    folder = make_pack(tmp_path)
+    source = tmp_path / "with-files"
+    source.mkdir()
+    shutil.copyfile(DEMO / "ba-001.yaml", source / "scenario.yaml")
+    (source / "files").mkdir()
+    (source / "files" / "orders.xlsx").write_bytes(b"x" * 10)
+    digest = add_revision(folder, "ba-001", 2, source)
+    pack = read_pack(folder)
+    assert pack.ok, pack.issues
+    assert pack.scenes["ba-001"].revisions[2].digest == digest
+
+    target = folder / "scenes" / "ba-001" / "revisions" / "2" / "files"
+    monkeypatch.setattr("rpa_core.pack.MAX_ATTACHMENT_BYTES", 5)
+    assert "pack.attachment_too_large" in codes(folder)
+    monkeypatch.setattr("rpa_core.pack.MAX_ATTACHMENT_BYTES", 100)
+    monkeypatch.setattr("rpa_core.pack.MAX_ATTACHMENTS_BYTES", 5)
+    assert "pack.attachments_too_large" in codes(folder)
+    monkeypatch.setattr("rpa_core.pack.MAX_ATTACHMENTS_BYTES", 100)
+    (target / "訂單.xlsx").write_bytes(b"y")
+    assert "pack.attachment_bad_name" in codes(folder)
+    assert read_pack(folder).scenes["ba-001"].revisions[2].problem == "pack.attachment_invalid"

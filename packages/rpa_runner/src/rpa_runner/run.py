@@ -11,6 +11,9 @@
 - 可以從別的執行緒取消（``cancel``，例如管理介面的 worker）：立即終止程序群組，狀態為 cancelled。
 - ``record_video`` 時 DSL 場景的自動化階段錄影（M12，見 video.py）：終止時讓錄影寫完
   （:func:`_stop_gracefully`），結束後整理成 video.webm 與 video.json。
+- 檔案入參（M7c）：入參階段把檔案準備在執行目錄旁邊的暫存資料夾（見 inputfiles.py），
+  input.json 只有名稱、大小與 sha256；結束時刪掉暫存資料夾。場景附件不複製進執行目錄的快照，
+  雜湊照場景資料夾裡的原檔計算。
 """
 
 import contextlib
@@ -29,7 +32,8 @@ from pathlib import Path
 from typing import Final, Literal, cast
 
 from rpa_core.dsl import Issue, Scenario, validate_file
-from rpa_core.dsl.sources import scenario_digest, scenario_sources
+from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES
+from rpa_core.dsl.sources import attachment_files, scenario_digest, scenario_sources
 from rpa_core.i18n import ENV_VAR, get_locale
 from rpa_runner.browser import Deadline
 from rpa_runner.commands import module_command, no_window_flags, script_command
@@ -62,6 +66,13 @@ from rpa_runner.files import (
     write_json,
 )
 from rpa_runner.i18n import t
+from rpa_runner.inputfiles import (
+    PATHS_FILE,
+    FileSources,
+    env_folders,
+    prepare_files,
+    remove_staging,
+)
 from rpa_runner.installed import missing_browser_hint
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_runner.proctree import descendants, terminate, wait_exit
@@ -412,15 +423,22 @@ def new_run_id(scenario_id: str, now: datetime | None = None) -> str:
 
 
 def _snapshot(path: Path, scenario: Scenario, folder: Path) -> tuple[Path, str]:
-    """把場景檔（與腳本）複製進執行目錄，回傳 (快照路徑, 雜湊)。"""
+    """把場景檔（與腳本）複製進執行目錄，回傳 (快照路徑, 雜湊)。
+
+    場景附件（M7c）不複製：執行目錄會上傳回伺服器、一直保留，附件每次都一樣；
+    雜湊照場景資料夾裡的原檔計算（同一組位元組，結果相同）。
+    """
     target = folder / SCENARIO_DIR
     target.mkdir()
+    attachments = set(attachment_files(path.parent))
     for relative in scenario_sources(path, scenario):
+        if relative in attachments:
+            continue
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path.parent / relative, destination)
     snapshot = target / path.name
-    return snapshot, scenario_digest(snapshot, scenario)
+    return snapshot, scenario_digest(path, scenario)
 
 
 def _environment(
@@ -463,6 +481,11 @@ def execute(
     login: LoginSettings | None = None,
     secrets: Mapping[str, str] | None = None,
     record_video: bool = False,
+    uploads: Mapping[str, Path] | None = None,
+    input_folders: Sequence[Path] | None = None,
+    any_path: bool = False,
+    max_file_bytes: int = MAX_FILE_BYTES,
+    max_run_bytes: int = MAX_RUN_BYTES,
 ) -> RunResult:
     """執行場景檔，回傳結果；場景本身沒通過校驗時拋出 ScenarioInvalidError。
 
@@ -472,6 +495,9 @@ def execute(
     - ``login``：場景有 login 時，這個角色的登入設定（管理 Portal 登記的角色）。
     - ``secrets``：Secrets 的值（例如管理 Portal 保存的）；沒有的再從同名的環境變數找。
     - ``record_video``：自動化階段錄影（M12；只有 DSL 場景，Python 腳本場景不錄）。
+    - 檔案入參（M7c）：``uploads`` 是上傳檔代號 → 這台電腦上的檔案；``path`` 值只能在
+      ``input_folders`` 裡（沒給時用環境變數 RPA_INPUT_FOLDERS），``any_path`` 時不限（命令列）；
+      ``max_file_bytes``、``max_run_bytes`` 是單檔與合計的上限。
     """
     validated = validate_file(path)
     if validated.scenario is None:
@@ -482,6 +508,16 @@ def execute(
     run_id = run_id or new_run_id(scenario.id, now)
     folder = out_root / run_id
     folder.mkdir(parents=True)
+    staging = out_root / f".files-{run_id}"
+    sources = FileSources(
+        scenario_dir=path.parent,
+        uploads=uploads or {},
+        folders=None
+        if any_path
+        else tuple(input_folders if input_folders is not None else env_folders()),
+        max_file=max_file_bytes,
+        max_total=max_run_bytes,
+    )
     snapshot, digest = _snapshot(path, scenario, folder)
     result = RunResult(
         run_id=run_id,
@@ -519,7 +555,7 @@ def execute(
 
     try:
         enter("input")
-        _input_stage(scenario, inputs, result, folder, environ)
+        _input_stage(scenario, inputs, result, folder, environ, sources, staging)
         state: Path | None = None
         if scenario.login is not None:
             enter("login")
@@ -546,6 +582,7 @@ def execute(
             result,
             state,
             video=video,
+            files=staging / PATHS_FILE,
         )
         enter("verify")
         _verify_stage(scenario, snapshot, folder, deadline, secrets, cancel, result)
@@ -569,6 +606,7 @@ def execute(
         result.status = "cancelled"
         result.error = current.message
     finally:
+        remove_staging(staging)
         if video:
             finalize_video(folder, engine=result.engine)
         (folder / CANDIDATE).unlink(missing_ok=True)
@@ -596,9 +634,15 @@ def _input_stage(
     result: RunResult,
     folder: Path,
     environ: Mapping[str, str],
+    sources: FileSources,
+    staging: Path,
 ) -> None:
     started = time.monotonic()
     resolved, problems = check_inputs(scenario, inputs)
+    if not problems and any(spec.type == "file" for spec in scenario.inputs.values()):
+        prepared = prepare_files(scenario, resolved, sources, staging)
+        resolved.update(prepared.meta)
+        problems += prepared.problems
     problems += [
         Problem(name, t("contract.secret_missing", name=name))
         for name in missing_secrets(scenario, environ)
@@ -685,6 +729,7 @@ def _automation_stage(
     state: Path | None = None,
     *,
     video: bool = False,
+    files: Path | None = None,
 ) -> None:
     started = time.monotonic()
     stage = result.stage("automation")
@@ -722,6 +767,7 @@ def _automation_stage(
         command += ["--headed"] if headed else []
         command += ["--storage-state", str(state)] if state is not None else []
         command += ["--video"] if video else []
+        command += ["--files", str(files)] if files is not None and files.is_file() else []
     hint: str | None = None
     record = folder / VIDEO_TMP / VIDEO_STOP if video else None
     try:

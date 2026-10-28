@@ -329,11 +329,17 @@ class RecordingService:
             raise invalid("recording_continue_needs", t("recording.continue_needs", names=names))
         text = self.services.revision_files(scene_id, number)[SCENARIO_FILE]
         # 保留動態值寫法，接著錄製的子程序才依錄製端當地時間求值。
-        return _Replay(number, scenario, text, defaults, self.services.get_scene(scene_id).base_url)
+        return _Replay(
+            number,
+            scenario,
+            text,
+            defaults,
+            self.services.get_scene(scene_id).base_url,
+            self.services.storage.revision_dir(scene_id, number),
+        )
 
-    @staticmethod
     def _replay_command(
-        folder: Path, replay: "_Replay", engine: str, storage: Path | None
+        self, folder: Path, replay: "_Replay", engine: str, storage: Path | None
     ) -> list[str]:
         (folder / _BASE_FILE).write_text(replay.text, encoding="utf-8")
         (folder / "input.json").write_text(
@@ -358,6 +364,12 @@ class RecordingService:
             command += ["--base-url", replay.base_url]
         if storage is not None:
             command += ["--storage-state", str(storage)]
+        # 檔案入參（M7c）：預設值的附件以網頁要看到的檔名準備好，交給回放既有步驟
+        prepared = self.services.uploads.prepare(
+            replay.scenario, replay.inputs, replay.revision_dir, folder / "input-files"
+        )
+        for name, path in prepared:
+            command += ["--file", name, str(path)]
         return command
 
     @staticmethod
@@ -624,6 +636,8 @@ class _Replay:
     text: str
     inputs: dict[str, object]
     base_url: str | None
+    revision_dir: Path
+    """版本資料夾：檔案入參的預設值（場景附件）在它的 files/（M7c）。"""
 
 
 def _has_actions(source: str) -> bool:

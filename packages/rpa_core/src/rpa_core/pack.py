@@ -42,6 +42,13 @@ from typing import Annotated, Final, Literal, cast
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError
 
 from rpa_core.dsl.fields import DslModel, NonEmptyStr, Slug, catalog, dsl_error
+from rpa_core.dsl.files import (
+    ATTACHMENT_DIR,
+    MAX_ATTACHMENT_BYTES,
+    MAX_ATTACHMENTS_BYTES,
+    format_size,
+    is_attachment_path,
+)
 from rpa_core.dsl.issues import (
     Issue,
     format_issue,
@@ -49,7 +56,7 @@ from rpa_core.dsl.issues import (
     issues_from_validation_error,
 )
 from rpa_core.dsl.scenario import Scenario
-from rpa_core.dsl.sources import scenario_digest, scenario_sources
+from rpa_core.dsl.sources import attachment_files, scenario_digest, scenario_sources
 from rpa_core.dsl.validation import validate_data, validate_file
 from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.dsl.yaml_writer import block, key
@@ -768,6 +775,8 @@ def _read_revision(reader: _Reader, scene_id: str, number: int, folder: Path) ->
         revision.problem = revision.problem or "pack.revision_invalid"
         return revision
     used = set(scenario_sources(scenario_path, scenario))
+    if _check_attachments(reader, folder, number):
+        revision.problem = revision.problem or "pack.attachment_invalid"
     for path in sorted(folder.rglob("*")):
         relative = path.relative_to(folder).as_posix()
         if path.is_file() and relative not in used and not path.name.startswith("."):
@@ -778,6 +787,38 @@ def _read_revision(reader: _Reader, scene_id: str, number: int, folder: Path) ->
         reader.add(info_path, "revision_hash_mismatch", number=number)
         revision.problem = revision.problem or "pack.revision_hash_mismatch"
     return revision
+
+
+def _check_attachments(reader: _Reader, folder: Path, number: int) -> bool:
+    """場景附件（M7c）：檔名、單檔與合計大小；有問題時回傳 True。"""
+    bad = False
+    total = 0
+    for relative in attachment_files(folder):
+        path = folder / relative
+        if not is_attachment_path(relative):
+            reader.add(path, "attachment_bad_name", number=number, file=relative)
+            bad = True
+            continue
+        size = path.stat().st_size
+        total += size
+        if size > MAX_ATTACHMENT_BYTES:
+            reader.add(
+                path,
+                "attachment_too_large",
+                number=number,
+                file=relative,
+                limit=format_size(MAX_ATTACHMENT_BYTES),
+            )
+            bad = True
+    if total > MAX_ATTACHMENTS_BYTES:
+        reader.add(
+            folder / ATTACHMENT_DIR,
+            "attachments_too_large",
+            number=number,
+            limit=format_size(MAX_ATTACHMENTS_BYTES),
+        )
+        bad = True
+    return bad
 
 
 def _read_verifications(

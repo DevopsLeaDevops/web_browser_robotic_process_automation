@@ -18,6 +18,7 @@
 """
 
 import contextlib
+import hashlib
 import logging
 import os
 import shutil
@@ -155,6 +156,7 @@ class _Child:
             target = self.folder / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(b64decode(content))
+        self._download(cast("list[object]", spec.get("downloads") or []))
         self.snapshot = scan(self.folder)
         """已經在管理 Portal 那邊的檔案（送來的輸入檔）：沒有改就不傳回。"""
         module = self.module
@@ -178,6 +180,32 @@ class _Child:
                 start_new_session=os.name != "nt",
                 creationflags=no_window_flags(),
             )
+
+    def _download(self, items: list[object]) -> None:
+        """啟動指令裡太大、改成下載的檔案（M7c，檔案入參）：下載後比對大小與 sha256。"""
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise ValueError("invalid download")
+            spec = cast("dict[str, object]", item)
+            name, size, digest = spec.get("name"), spec.get("size"), spec.get("sha256")
+            if not isinstance(name, str) or not is_safe_relative(name):
+                raise ValueError(f"unsafe file name: {name!r}")
+            if not isinstance(size, int) or not isinstance(digest, str):
+                raise ValueError("invalid download")
+            target = self.folder / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                self.host.client.download(
+                    f"/processes/{self.id}/downloads/{index}", target, limit=size, timeout=120
+                )
+            except (WorkerApiError, ConnectionLostError) as error:
+                raise OSError(f"download {name}: {error}") from error
+            sha = hashlib.sha256()
+            with target.open("rb") as handle:
+                while chunk := handle.read(1024 * 1024):
+                    sha.update(chunk)
+            if target.stat().st_size != size or sha.hexdigest() != digest:
+                raise ValueError(f"{name} does not match its sha256")
 
     # ------------------------------------------------------------ 輸入
 

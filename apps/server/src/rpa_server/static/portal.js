@@ -144,7 +144,7 @@
     const response = await fetch('/scenes/' + path(scene));
     if (!response.ok) return;
     const page = new DOMParser().parseFromString(await response.text(), 'text/html');
-    for (const id of ['scene-versions', 'scene-release-status', 'page-actions', 'script-count-steps', 'script-count-verify']) {
+    for (const id of ['scene-versions', 'scene-release-status', 'page-actions', 'script-count-steps', 'script-count-verify', 'attachments']) {
       const next = qs('#' + id, page), current = qs('#' + id);
       if (next && current) current.replaceWith(next);
     }
@@ -765,14 +765,265 @@
     update();
   }
 
+  // ---------------------------------------------------------------- 檔案入參（M7c）
+
+  // 傳一個檔案到伺服器（POST /api/files?name=檔名，本體就是檔案內容）；用 XHR 才看得到上傳進度
+  function uploadFile(file, progress) {
+    return new Promise(resolve => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/files?name=' + path(file.name));
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.upload.addEventListener('progress', event => {
+        if (event.lengthComputable && event.total) progress(event.loaded / event.total);
+      });
+      xhr.addEventListener('load', () => {
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch { data = null; }
+        resolve({ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data});
+      });
+      xhr.addEventListener('error', () => resolve({ok: false, status: 0, data: null}));
+      xhr.send(file);
+    });
+  }
+
+  const formatSize = size => {
+    for (const [unit, base] of [['GB', 1024 ** 3], ['MB', 1024 ** 2], ['KB', 1024]]) {
+      if (size >= base) return (size / base).toFixed(1).replace(/\.0$/, '') + ' ' + unit;
+    }
+    return size + ' B';
+  };
+
+  // 執行、驗證、調試表單的檔案入參：選檔上傳或選場景附件，值寫進入參 JSON。
+  // 入參 JSON 仍是送出時唯一的來源；手改 JSON 時，這裡顯示的目前值跟著更新。
+  // 回傳 pending()：還有檔案在上傳時，送出前要先擋下。
+  function bindFileInputs(form) {
+    const panel = qs('[data-file-inputs]', form);
+    const textarea = form.elements.namedItem('inputs');
+    if (!panel || !textarea) return {pending: () => false};
+    const limit = Number(panel.dataset.limit) || 0;
+    let uploading = 0;
+    const read = () => {
+      try {
+        const value = JSON.parse(textarea.value.trim() || '{}');
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+      } catch {
+        return null;
+      }
+    };
+    const write = inputs => {
+      textarea.value = JSON.stringify(inputs, null, 2);
+      render();
+    };
+    const listOf = value => (value === undefined || value === null || value === '' ? [] : Array.isArray(value) ? value : [value]);
+    // 改一個入參的值；JSON 寫錯時不動，提示先修正
+    const change = (box, update) => {
+      const inputs = read();
+      if (inputs === null) return toast(messages.json_invalid);
+      const name = box.dataset.fileInput;
+      const next = update(listOf(inputs[name]), name in inputs);
+      if (next === undefined) delete inputs[name];
+      else inputs[name] = box.dataset.multiple ? next : (next.length ? next[next.length - 1] : '');
+      write(inputs);
+    };
+    const attachmentSize = (box, value) => {
+      const option = qsa('[data-file-attachment] option', box).find(item => item.value === value);
+      return option && option.dataset.size ? Number(option.dataset.size) : null;
+    };
+    const describe = (box, item) => {
+      if (typeof item === 'string') {
+        return {kind: messages.file_attachment, label: item.replace(/^files\//, ''), size: attachmentSize(box, item)};
+      }
+      if (item && typeof item === 'object') {
+        if (typeof item.file === 'string') {
+          return {kind: messages.file_uploaded, label: item.name || item.file, size: item.size, href: '/api/files/' + path(item.file) + '/content'};
+        }
+        if (typeof item.attachment === 'string') {
+          const label = item.name ? item.name + ' ← ' + item.attachment.replace(/^files\//, '') : item.attachment.replace(/^files\//, '');
+          return {kind: messages.file_attachment, label, size: attachmentSize(box, item.attachment)};
+        }
+        if (typeof item.path === 'string') return {kind: messages.file_path, label: item.name ? item.name + ' ← ' + item.path : item.path};
+      }
+      return {kind: messages.file_unknown, label: JSON.stringify(item)};
+    };
+    const render = () => {
+      const inputs = read();
+      qsa('[data-file-input]', panel).forEach(box => {
+        const list = qs('[data-file-value]', box);
+        list.textContent = '';
+        const note = text => {
+          const item = document.createElement('li');
+          item.className = 'muted';
+          item.textContent = text;
+          list.append(item);
+        };
+        if (inputs === null) return note(messages.json_invalid);
+        const name = box.dataset.fileInput;
+        const values = listOf(inputs[name]);
+        if (!values.length) return note(name in inputs ? messages.file_none : messages.file_default);
+        values.forEach((value, index) => {
+          const info = describe(box, value);
+          const item = document.createElement('li');
+          item.className = 'file-chip';
+          const kind = document.createElement('span');
+          kind.className = 'tag';
+          kind.textContent = info.kind;
+          const label = document.createElement(info.href ? 'a' : 'span');
+          label.textContent = info.label;
+          if (info.href) {
+            label.href = info.href;
+            label.target = '_blank';
+            label.rel = 'noopener';
+          }
+          item.append(kind, label);
+          if (typeof info.size === 'number') {
+            const size = document.createElement('span');
+            size.className = 'muted';
+            size.textContent = formatSize(info.size);
+            item.append(size);
+          }
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'icon-btn';
+          remove.title = messages.file_remove;
+          remove.setAttribute('aria-label', messages.file_remove + ' ' + info.label);
+          remove.textContent = '✕';
+          remove.addEventListener('click', () => change(box, items => items.filter((_, at) => at !== index)));
+          item.append(remove);
+          list.append(item);
+        });
+      });
+    };
+    qsa('[data-file-input]', panel).forEach(box => {
+      const picker = qs('[data-file-pick]', box);
+      const progress = qs('.file-progress', box);
+      const max = Number(box.dataset.max) || 0;
+      picker.addEventListener('change', async () => {
+        const files = [...picker.files];
+        picker.value = '';
+        if (!files.length) return;
+        const tooLarge = files.find(file => (limit && file.size > limit) || (max && file.size > max));
+        if (tooLarge) {
+          const cap = max && (!limit || max < limit) ? max : limit;
+          return toast(fill(messages.file_too_large, {name: tooLarge.name, size: formatSize(tooLarge.size), limit: formatSize(cap)}));
+        }
+        uploading += 1;
+        progress.hidden = false;
+        progress.value = 0;
+        const total = files.reduce((sum, file) => sum + file.size, 0) || 1;
+        let done = 0;
+        const added = [];
+        try {
+          for (const file of files) {
+            const result = await uploadFile(file, part => { progress.value = (done + part * file.size) / total; });
+            if (!result.ok) {
+              toast(fill(messages.file_upload_failed, {name: file.name, error: errorMessage(result)}));
+              break;
+            }
+            done += file.size;
+            const {file: id, name, size, sha256} = result.data;
+            added.push({file: id, name, size, sha256});
+          }
+        } finally {
+          uploading -= 1;
+          progress.hidden = true;
+        }
+        if (added.length) change(box, items => (box.dataset.multiple ? [...items, ...added] : added));
+      });
+      const attachment = qs('[data-file-attachment]', box);
+      if (attachment) {
+        attachment.addEventListener('change', () => {
+          const value = attachment.value;
+          attachment.value = '';
+          if (value) change(box, items => (box.dataset.multiple ? [...items, value] : [value]));
+        });
+      }
+      const reset = qs('[data-file-clear]', box);
+      // 有預設值的入參：拿掉這個鍵就用預設值；沒有預設值的：清成空的，送出時提示要選
+      reset.addEventListener('click', () => change(box, () => (box.dataset.default ? undefined : [])));
+    });
+    textarea.addEventListener('input', render);
+    render();
+    return {pending: () => uploading > 0};
+  }
+
+  // 場景詳情頁的附件區（M7c）：加上、換掉、刪除附件都存成新版本，完成後重新載入（有沒存的編輯時瀏覽器會先問）。
+  // 附件區會被 refreshSceneSummary 換掉（基準版本跟著更新），所以事件掛在 document 上。
+  const ATTACHMENT_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}$/;
+
+  function suggestAttachmentName(name) {
+    const dot = name.lastIndexOf('.');
+    const extension = dot > 0 && /^\.[A-Za-z0-9]{1,10}$/.test(name.slice(dot)) ? name.slice(dot).toLowerCase() : '';
+    const stem = (dot > 0 ? name.slice(0, dot) : name).normalize('NFKD').replace(/[^A-Za-z0-9_.-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 80);
+    return (stem || 'file') + extension;
+  }
+
+  function bindAttachments() {
+    if (!qs('#attachments')) return;
+    const saveAttachment = async (file, name) => {
+      const panel = qs('#attachments');
+      const url = '/api/scenes/' + path(panel.dataset.scene) + '/attachments/' + path(name) + '?base=' + path(panel.dataset.base);
+      let response;
+      try {
+        response = await fetch(url, {method: 'PUT', headers: {Accept: 'application/json', 'Content-Type': 'application/octet-stream'}, body: file});
+      } catch {
+        return toast(messages.network_error);
+      }
+      let data = null;
+      try { data = await response.json(); } catch { data = null; }
+      const result = {ok: response.ok, status: response.status, data};
+      if (!result.ok) return toast(errorMessage(result));
+      flash(fill(messages.attachment_saved, {name, number: data.number}));
+      location.reload();
+    };
+    document.addEventListener('change', event => {
+      const picker = event.target.closest('[data-attachment-pick]');
+      if (!picker) return;
+      const file = picker.files[0];
+      picker.value = '';
+      if (!file) return;
+      const limit = Number(qs('#attachments').dataset.limit) || 0;
+      if (limit && file.size > limit) {
+        return toast(fill(messages.attachment_too_large, {name: file.name, size: formatSize(file.size), limit: formatSize(limit)}));
+      }
+      if (ATTACHMENT_NAME.test(file.name)) return saveAttachment(file, file.name);
+      // 附件的檔名只能用英文（跨平台、放進 Git 都不會出問題）；網頁要看到原本的檔名時，在入參的預設值寫 name
+      modal(messages.attachment_rename_title,
+        '<p class="hint">' + esc(fill(messages.attachment_rename_body, {name: file.name})) + '</p>'
+        + '<label class="field">' + esc(messages.attachment_rename_label)
+        + '<input id="attachment-name" class="mono" maxlength="100" value="' + esc(suggestAttachmentName(file.name)) + '"></label>',
+        {label: messages.attachment_save, run: () => {
+          const name = qs('#attachment-name').value.trim();
+          if (!ATTACHMENT_NAME.test(name)) return toast(messages.attachment_name_invalid);
+          $('#dialog').close();
+          saveAttachment(file, name);
+        }});
+    });
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-action="delete-attachment"]');
+      if (!button) return;
+      const name = button.dataset.name;
+      confirmDialog(messages.attachment_delete_title, fill(messages.attachment_delete_body, {name}), messages.attachment_delete_action, async () => {
+        const panel = qs('#attachments');
+        const result = await api('DELETE', '/api/scenes/' + path(panel.dataset.scene) + '/attachments/' + path(name) + '?base=' + path(panel.dataset.base));
+        $('#dialog').close();
+        if (!result.ok) return toast(errorMessage(result));
+        flash(fill(messages.attachment_deleted, {name, number: result.data.number}));
+        location.reload();
+      });
+    });
+  }
+
   function bindRunForm() {
     const form = qs('#run-form');
     if (!form) return;
     bindTargetChoice(form);
+    const files = bindFileInputs(form);
     const key = newKey();
     const button = qs('[data-action="submit-run"]', form);
     form.addEventListener('submit', async event => {
       event.preventDefault();
+      if (files.pending()) return toast(messages.file_uploading);
       const field = name => form.elements.namedItem(name);
       let inputs;
       try {
@@ -1135,8 +1386,10 @@
     const session = root.dataset.session;
     const start = qs('#debug-start');
     if (start) {
+      const files = bindFileInputs(start);
       start.addEventListener('submit', async event => {
         event.preventDefault();
+        if (files.pending()) return toast(messages.file_uploading);
         const field = name => start.elements.namedItem(name);
         let inputs;
         try {
@@ -1481,13 +1734,14 @@
     return value.split(/[,，\n]/).map(item => item.trim()).filter(Boolean).map(item => typed(item, type));
   }
 
-  const RULE_KEYS = ['minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'enum'];
+  const RULE_KEYS = ['minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'enum', 'accept', 'maxSize', 'multiple'];
 
   // 一列的限制摘要（DSL 的寫法，各語言相同）；沒有限制時顯示 —
   function ruleSummary(row) {
     const parts = RULE_KEYS.filter(key => {
       const field = qs('[name="' + key + '"]', row.nextElementSibling);
-      return field && !field.closest('label').hidden && field.value.trim() !== '';
+      if (!field || field.closest('label').hidden) return false;
+      return field.type === 'checkbox' ? field.checked : field.value.trim() !== '';
     });
     return parts.length ? parts.join(' · ') : '—';
   }
@@ -1519,7 +1773,9 @@
     const rules = qs('tr.rule-row', fragment);
     const set = (root, key, value) => {
       const field = qs('[name="' + key + '"]', root);
-      if (field && value !== undefined && value !== null) field.value = typeof value === 'string' ? value : JSON.stringify(value);
+      if (!field || value === undefined || value === null) return;
+      if (field.type === 'checkbox') field.checked = value === true;
+      else field.value = typeof value === 'string' ? value : JSON.stringify(value);
     };
     row.dataset.previous = name || '';
     set(row, 'name', name);
@@ -1532,7 +1788,7 @@
       qs('[name="required"]', row).checked = name !== '' && (spec.default === undefined || spec.default === null);
       set(row, 'default', spec.default);
     }
-    RULE_KEYS.forEach(key => set(rules, key, key === 'enum' && Array.isArray(spec.enum) ? spec.enum.join(', ') : spec[key]));
+    RULE_KEYS.forEach(key => set(rules, key, (key === 'enum' || key === 'accept') && Array.isArray(spec[key]) ? spec[key].join(', ') : spec[key]));
     return fragment;
   }
 
@@ -1555,7 +1811,12 @@
       pattern: get(rules, 'pattern').trim() || null,
       minimum: number('minimum'),
       maximum: number('maximum'),
+      // 檔案入參（M7c）：accept 是清單，multiple 沒勾就不寫
+      accept: get(rules, 'accept').split(/[,，\s]+/).map(item => item.trim()).filter(Boolean),
+      maxSize: get(rules, 'maxSize').trim() || null,
+      multiple: type === 'file' && qs('[name="multiple"]', rules).checked ? true : null,
     };
+    if (!item.accept.length) item.accept = null;
     const required = qs('[name="required"]', row);
     if (required) {
       // 必填＝沒有預設值；不是必填的文字入參，預設值可以是空字串
@@ -2137,6 +2398,16 @@
         .filter(upstream => (revisionOf(upstream)?.outputs || []).some(([key, out]) => key === name && compatible(out.type, spec.type)));
     }
 
+    // 檔案值給人看的寫法：網頁看到的檔名，或附件、路徑
+    function fileText(value) {
+      const items = Array.isArray(value) ? value : [value];
+      return items.map(item => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') return item.name || item.attachment || item.path || item.file || json(item);
+        return json(item);
+      }).join(messages.list_separator);
+    }
+
     function bindingText(node, name, spec) {
       const binding = node.inputs[name];
       if (binding?.auto) {
@@ -2145,7 +2416,7 @@
         if (sources.length === 1) return fill(text.binding_output, {name, node: sources[0].id, output: name});
         return fill(hasDefault(spec) ? text.binding_default : text.binding_missing, {name, value: json(spec.default)});
       }
-      if (binding && 'value' in binding) return fill(text.binding_value, {name, value: json(binding.value)});
+      if (binding && 'value' in binding) return fill(text.binding_value, {name, value: spec.type === 'file' ? fileText(binding.value) : json(binding.value)});
       if (binding) return fill(text.binding_output, {name, node: binding.node, output: binding.output});
       if (hasDefault(spec)) return fill(text.binding_default, {name, value: json(spec.default)});
       return fill(text.binding_missing, {name});
@@ -2229,6 +2500,13 @@
     function valueField(name, spec, binding) {
       const current = binding && 'value' in binding ? binding.value : '';
       const attrs = ' data-value="' + esc(name) + '" aria-label="' + esc(fill(text.value_label, {name})) + '"';
+      if (spec.type === 'file') {
+        // 檔案入參（M7c）的固定值：選檔上傳到伺服器，或寫這個場景版本的附件 files/檔名
+        const accept = Array.isArray(spec.accept) ? ' accept="' + esc(spec.accept.join(',')) + '"' : '';
+        return '<label class="button">' + esc(spec.multiple ? text.file_choose_multiple : text.file_choose) +
+          '<input class="visually-hidden" type="file" data-node-file="' + esc(name) + '"' + (spec.multiple ? ' multiple' : '') + accept + '></label>' +
+          '<input type="text"' + attrs + ' placeholder="files/…" value="' + esc(typeof current === 'string' ? current : '') + '">';
+      }
       if (spec.type === 'boolean') {
         const values = [true, false];
         return '<select' + attrs + '>' + values.map((value, index) =>
@@ -2601,6 +2879,21 @@
     });
     qs('[data-reset-inputs]').addEventListener('click', () => { const node = definition.nodes[selected]; if (node) { resetInputs(node); changed(); } });
 
+    // 節點固定值的檔案：一個一個傳到伺服器，全部成功才寫進定義（組合場景存檔後，這些檔案不會被清掉）
+    async function uploadNodeFiles(node, name, spec, files) {
+      const added = [];
+      toast(messages.working);
+      for (const file of files) {
+        const result = await uploadFile(file, () => {});
+        if (!result.ok) return toast(fill(messages.file_upload_failed, {name: file.name, error: errorMessage(result)}));
+        const {file: id, name: shown, size, sha256} = result.data;
+        added.push({file: id, name: shown, size, sha256});
+      }
+      node.inputs[name] = {value: spec.multiple ? added : added[0]};
+      toast(fill(text.file_uploaded, {count: added.length}));
+      changed();
+    }
+
     function setBinding(node, name, value) {
       const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
       wirePending.delete(node.id + ':' + name);
@@ -2629,6 +2922,14 @@
       const node = definition.nodes[selected];
       if (!node) return;
       const target = event.target;
+      if (target.dataset.nodeFile !== undefined) {
+        const name = target.dataset.nodeFile;
+        const spec = new Map((revisionOf(node) || {inputs: []}).inputs).get(name) || {};
+        const files = [...target.files];
+        target.value = '';
+        if (files.length) uploadNodeFiles(node, name, spec, files);
+        return;
+      }
       if (target.hasAttribute('data-parameter-source')) { selectedSource = target.value; render(); }
       else if (target.dataset.field === 'revision') {
         node.revision = Number(target.value);
@@ -3285,6 +3586,7 @@
   bindEditor();
   bindSceneAnchors(bindScripts());
   bindRunForm();
+  bindAttachments();
   bindRun();
   bindRoles();
   bindRecording();

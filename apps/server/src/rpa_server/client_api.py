@@ -5,7 +5,8 @@
 - ``POST /pair``（M10.1）：用裝置頁產生的邀請代碼換權杖；不需要權杖。
 - 錄製端（M10.2）：其他路徑都要 ``Authorization: Bearer <錄製端的權杖>``。``/hello`` 上線、
   ``/control`` 長輪詢取得指令，``/processes/<代號>/files`` 與 ``/output`` 傳回互動子程序的
-  檔案與輸出。格式見 :mod:`rpa_worker.interactive`。
+  檔案與輸出。格式見 :mod:`rpa_worker.interactive`。``/processes/<代號>/downloads/<序號>``
+  （M7c）：啟動指令裡太大、改成下載的檔案（檔案入參）。
 - 錯誤一律是 ``{"error": {"code": …, "message": …}}``：401 代碼或權杖不對、已用過或過期；
   404 子程序已經結束（例如判定失聯，錄製端要結束它）；409 邀請的 App 種類不對
   （``invite_wrong_app``，代碼保留）、裝置已停用或協定版本不同；413 上傳太大；422 內容不對。
@@ -103,6 +104,13 @@ def client_api_router(
     ) -> Response:
         recorders.output(recorder.id, process_id, body.lines, body.exit, body.error)
         return Response(status_code=204)
+
+    @router.get("/processes/{process_id}/downloads/{index}", response_model=None)
+    def download(
+        recorder: Annotated[Via, Depends(current_recorder)], process_id: str, index: int
+    ) -> FileResponse:
+        path = recorders.download_path(recorder.id, process_id, index)
+        return FileResponse(path, media_type="application/octet-stream")
 
     @router.put("/processes/{process_id}/files", status_code=204)
     async def files(

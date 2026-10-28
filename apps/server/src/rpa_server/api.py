@@ -24,26 +24,33 @@ M10.2：錄製端的登記與邀請（/api/recorders）。錄製端自己用的 
 M14：對外 Agent API 的用戶端與稽核（/api/agents，金鑰只在建立與重新產生時回傳一次）；
 錄製端允不允許 Agent 調試（PATCH /api/recorders/{代號} 的 allowAgent、agentHeadlessOnly）。
 Agent 自己用的 API 在 /agent-api/v1（agent_api.py）。
+
+M7c：上傳的檔案（POST /api/files?name=檔名，本體就是檔案內容；GET /api/files/{代號} 的說明與
+/content 的內容）。執行、驗證、調試與組合場景的檔案入參寫 ``{"file": 代號, "name": …}``。
 """
 
 from datetime import datetime
 from typing import Annotated, Literal, cast
 
+import anyio
 from fastapi import APIRouter, Query, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
+from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, guess_media_type
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
 from rpa_server.composite_report import report_json
 from rpa_server.domain import Engine, Target
-from rpa_server.errors import ServiceError
+from rpa_server.errors import ServiceError, not_found
 from rpa_server.gitsync import Auth, GitSource
 from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services, render_contract
 from rpa_server.storage import SCENARIO_FILE
+from rpa_server.uploads import read_body, upload_json
 from rpa_server.videos import VideoSettings
 
 __all__ = ["api_router"]
@@ -177,6 +184,10 @@ class ContractItem(_Body):
     pattern: str | None = Field(default=None, max_length=500)
     minimum: float | int | None = None
     maximum: float | int | None = None
+    accept: list[str] | None = Field(default=None, max_length=50)
+    """檔案入參（M7c）接受的類型：``.副檔名`` 或 MIME。"""
+    max_size: str | None = Field(default=None, max_length=20)
+    multiple: bool | None = None
     from_: str | None = Field(default=None, alias="from", max_length=500)
 
 
@@ -429,6 +440,29 @@ def _values(body: RoleBody) -> dict[str, object]:
 def api_router(services: Services) -> APIRouter:
     router = APIRouter()
 
+    # ------------------------------------------------------------ 上傳的檔案（M7c）
+
+    @router.post("/files", status_code=201)
+    async def upload_file(
+        request: Request, name: Annotated[str, Query(min_length=1, max_length=255)]
+    ) -> dict[str, object]:
+        return await services.uploads.receive(request, name)
+
+    @router.get("/files/{file_id}")
+    def file_info(file_id: str) -> dict[str, object]:
+        row = services.uploads.get(file_id)
+        if row is None:
+            raise not_found("upload_not_found", t("error.upload_not_found", id=file_id))
+        return upload_json(row)
+
+    @router.get("/files/{file_id}/content", response_model=None)
+    def file_content(file_id: str) -> FileResponse:
+        row = services.uploads.get(file_id)
+        path = services.uploads.path(file_id)
+        if row is None or path is None:
+            raise not_found("upload_not_found", t("error.upload_not_found", id=file_id))
+        return FileResponse(path, media_type=row.media_type, filename=row.name)
+
     # ------------------------------------------------------------ 領域
 
     @router.get("/domains")
@@ -633,6 +667,41 @@ def api_router(services: Services) -> APIRouter:
         revision = services.save_revision(
             scene_id, base=body.base_revision, files=body.files, note=body.note
         )
+        return revision.to_json()
+
+    # ------------------------------------------------------------ 場景附件（M7c）
+
+    @router.get("/scenes/{scene_id}/revisions/{number}/attachments")
+    def list_attachments(scene_id: str, number: int) -> dict[str, object]:
+        return {"attachments": services.revision_attachments(scene_id, number)}
+
+    @router.get("/scenes/{scene_id}/revisions/{number}/attachments/{name}", response_model=None)
+    def attachment_content(scene_id: str, number: int, name: str) -> FileResponse:
+        path = services.attachment_path(scene_id, number, name)
+        return FileResponse(path, media_type=guess_media_type(name), filename=name)
+
+    @router.put("/scenes/{scene_id}/attachments/{name}")
+    async def save_attachment(
+        scene_id: str,
+        name: str,
+        request: Request,
+        base: Annotated[int, Query(ge=1)],
+        note: Annotated[str | None, Query(max_length=500)] = None,
+    ) -> dict[str, object]:
+        data = await read_body(request, MAX_ATTACHMENT_BYTES)
+        revision = await anyio.to_thread.run_sync(
+            lambda: services.save_attachment(scene_id, base=base, name=name, data=data, note=note)
+        )
+        return revision.to_json()
+
+    @router.delete("/scenes/{scene_id}/attachments/{name}")
+    def delete_attachment(
+        scene_id: str,
+        name: str,
+        base: Annotated[int, Query(ge=1)],
+        note: Annotated[str | None, Query(max_length=500)] = None,
+    ) -> dict[str, object]:
+        revision = services.delete_attachment(scene_id, base=base, name=name, note=note)
         return revision.to_json()
 
     @router.post("/scenes/{scene_id}/revisions/{number}/validate", status_code=202)

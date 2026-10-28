@@ -7,6 +7,8 @@
 
 - 瀏覽器視窗與 Playwright Inspector 開在這台電腦上（有頭模式）。
 - 先依序執行既有的步驟（``{{ }}`` 以入參的預設值與 Secrets 代入）；任何一步失敗就結束，不錄製。
+  檔案入參（M7c）同調試：``--file 入參 檔案`` 是管理 Portal 準備好的檔案。執行既有步驟時攔下
+  選擇檔案的視窗，開始錄製前解除，使用者錄製時才能在系統的視窗選檔。
 - 之後開始錄製：使用者的操作由 Playwright 的錄製器寫進 ``--output``，寫法和 ``playwright codegen``
   相同。既有的步驟不會出現在錄製稿（也不會出現在 Inspector）裡；轉換後由管理 Portal 接在既有
   場景的最後。
@@ -24,6 +26,7 @@ import contextlib
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Final, cast
 
@@ -31,10 +34,11 @@ from playwright.sync_api import BrowserContext, sync_playwright
 
 from rpa_core.dsl import Scenario, validate_file
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
-from rpa_runner.browser import Deadline, plan_records, run_steps
+from rpa_runner.browser import Deadline, Tabs, plan_records, run_steps
 from rpa_runner.contexts import Engine, open_context
 from rpa_runner.contract import check_inputs
 from rpa_runner.i18n import t
+from rpa_runner.inputfiles import given_files, remove_staging, session_files
 from rpa_runner.secrets import mask, read_secrets
 
 __all__ = ["EXIT_REPLAY_FAILED", "REPLAY_SECONDS", "enable_recorder", "main"]
@@ -89,10 +93,36 @@ def _load(args: argparse.Namespace) -> tuple[Scenario, dict[str, object]]:
     return validated.scenario, resolved
 
 
+def _files(
+    args: argparse.Namespace, scenario: Scenario, inputs: dict[str, object], staging: Path
+) -> dict[str, list[Path]]:
+    """檔案入參（M7c）：準備好的檔案；input.json 與表達式裡換成名稱、大小、sha256。"""
+    prepared = session_files(
+        scenario,
+        inputs,
+        given_files(cast("list[list[str]] | None", getattr(args, "file", None))),
+        Path(args.scenario).parent,
+        staging,
+    )
+    if prepared.problems:
+        raise ValueError("; ".join(problem.message for problem in prepared.problems))
+    inputs.update(prepared.meta)
+    return prepared.paths
+
+
 def record(args: argparse.Namespace) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix="rpa-record-files-"))
+    try:
+        return _record(args, out, staging)
+    finally:
+        remove_staging(staging)
+
+
+def _record(args: argparse.Namespace, out: Path, staging: Path) -> int:
     scenario, inputs = _load(args)
+    files = _files(args, scenario, inputs, staging)
     (out / "input.json").write_text(json.dumps(inputs, ensure_ascii=False), encoding="utf-8")
     secrets = read_secrets(scenario)
     with sync_playwright() as playwright, contextlib.ExitStack() as stack:
@@ -109,6 +139,7 @@ def record(args: argparse.Namespace) -> int:
             storage_state=Path(args.storage_state) if args.storage_state else None,
         )
         page = context.pages[0] if context.pages else context.new_page()
+        tabs = Tabs(page)
         records = plan_records(scenario)
         _emit("replaying", steps=len(records))
         seconds = scenario.deadline / 1000 if scenario.deadline else REPLAY_SECONDS
@@ -121,12 +152,15 @@ def record(args: argparse.Namespace) -> int:
                 base_url=args.base_url or scenario.browser.base_url,
                 artifacts=out,
                 deadline=Deadline.after(seconds),
+                tabs=tabs,
+                files=files,
             )
         except Exception as error:
             failed = next((item for item in records if item.status == "failed"), None)
             message = mask(f"{type(error).__name__}: {error}".splitlines()[0], secrets)
             _emit("error", step=failed.id if failed else None, message=message)
             return EXIT_REPLAY_FAILED
+        tabs.release()
         enable_recorder(context, Path(args.output))
         _emit("recording")
         _wait_closed(context)
@@ -143,6 +177,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", choices=["chromium", "firefox", "webkit"], default="chromium")
     parser.add_argument("--base-url")
     parser.add_argument("--storage-state")
+    parser.add_argument(
+        "--file",
+        nargs=2,
+        action="append",
+        metavar=("INPUT", "PATH"),
+        help="準備好的檔案入參（M7c）",
+    )
     args = parser.parse_args(argv)
     try:
         return record(args)

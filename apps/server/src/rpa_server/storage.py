@@ -38,7 +38,15 @@ from pathlib import Path
 from typing import Final
 
 from rpa_core.dsl import Issue, Scenario, validate_file
-from rpa_core.dsl.sources import scenario_digest, scenario_sources
+from rpa_core.dsl.files import (
+    ATTACHMENT_DIR,
+    MAX_ATTACHMENT_BYTES,
+    MAX_ATTACHMENTS_BYTES,
+    attachment_names,
+    format_size,
+    is_attachment_path,
+)
+from rpa_core.dsl.sources import attachment_files, scenario_digest, scenario_sources
 from rpa_core.pack import COMPOSITES_DIR, REVISIONS_DIR, SCENES_DIR
 from rpa_server.i18n import t
 
@@ -227,14 +235,25 @@ class Storage:
     def drop_snapshot(self, run_id: str) -> None:
         _remove_tree(self.work / run_id)
 
-    def check(self, files: Mapping[str, str], *, scene_id: str | None = None) -> CheckedRevision:
-        """檢查一組版本檔案：路徑、場景校驗、場景 id、是否有多餘的檔案。"""
-        problems = self._check_paths(files)
+    def check(
+        self,
+        files: Mapping[str, str],
+        *,
+        scene_id: str | None = None,
+        attachments: Mapping[str, bytes] | None = None,
+    ) -> CheckedRevision:
+        """檢查一組版本檔案：路徑、場景校驗、場景 id、是否有多餘的檔案。
+
+        ``attachments`` 是場景附件（M7c，``files/檔名`` → 內容）：給了時一起檢查（檔名、大小、
+        入參預設值用到的附件都在），雜湊也包含它們；沒給時（例如預覽一段）不檢查附件。
+        """
+        problems = self._check_paths(files) + _check_attachments(attachments or {})
         if problems:
             return CheckedRevision(dict(files), issues=tuple(problems))
         with tempfile.TemporaryDirectory(prefix="rpa-revision-") as temp:
             folder = Path(temp)
             _write_files(folder, files)
+            _write_attachments(folder, attachments or {})
             validated = validate_file(folder / SCENARIO_FILE)
             scenario = validated.scenario
             if scenario is None:
@@ -249,6 +268,13 @@ class Storage:
                 _issue("server.extra_file", t("revision.extra_file", path=path))
                 for path in sorted(set(files) - used)
             ]
+            if attachments is not None:
+                defaults = [spec.default for spec in scenario.inputs.values() if spec.default]
+                issues += [
+                    _issue("server.attachment_missing", t("revision.attachment_missing", path=name))
+                    for name in attachment_names(defaults)
+                    if name not in attachments
+                ]
             if issues:
                 return CheckedRevision(dict(files), issues=tuple(issues))
             digest = scenario_digest(folder / SCENARIO_FILE, scenario)
@@ -262,22 +288,29 @@ class Storage:
         if len(files) > _MAX_FILES:
             problems.append(_issue("server.too_many_files", t("revision.too_many_files")))
         for path, text in files.items():
-            if not _FILE_PATH.fullmatch(path):
+            if not _FILE_PATH.fullmatch(path) or path.startswith(f"{ATTACHMENT_DIR}/"):
                 problems.append(_issue("server.bad_path", t("revision.bad_path", path=path)))
             elif len(text.encode("utf-8")) > _MAX_BYTES:
                 problems.append(_issue("server.too_large", t("revision.too_large", path=path)))
         return problems
 
-    def save(self, scene_id: str, number: int, files: Mapping[str, str]) -> Path:
+    def save(
+        self,
+        scene_id: str,
+        number: int,
+        files: Mapping[str, str],
+        attachments: Mapping[str, bytes] | None = None,
+    ) -> Path:
         """寫入新版本（先寫暫存目錄再改名，不會留下寫到一半的版本）。
 
-        場景要先用 :meth:`place_scene` 登記在某個領域資料夾。
+        場景要先用 :meth:`place_scene` 登記在某個領域資料夾。``attachments`` 是場景附件（M7c）。
         """
         if self.scene_domain(scene_id) is None:
             raise LookupError(f"scene {scene_id} is not placed in any domain")
         target = self.revision_dir(scene_id, number)
         target.parent.mkdir(parents=True, exist_ok=True)
         staging = target.with_name(f".{number}-{uuid.uuid4().hex[:8]}")
+        _write_attachments(staging, attachments or {})
         _write_files(staging, files)
         try:
             if target.exists():
@@ -292,12 +325,28 @@ class Storage:
         """移除沒有寫進資料庫的版本目錄（例如資料庫交易失敗）。"""
         shutil.rmtree(self.revision_dir(scene_id, number), ignore_errors=True)
 
+    def load_attachments(self, scene_id: str, number: int) -> dict[str, bytes]:
+        """版本的場景附件（M7c）：``files/檔名`` → 內容。"""
+        folder = self.revision_dir(scene_id, number)
+        return {name: (folder / name).read_bytes() for name in attachment_files(folder)}
+
     def load(self, scene_id: str, number: int) -> dict[str, str]:
+        """版本的文字檔（場景檔與腳本）；場景附件另外用 :meth:`load_attachments`。"""
         folder = self.revision_dir(scene_id, number)
         return {
             path.relative_to(folder).as_posix(): _read_text(path)
             for path in sorted(folder.rglob("*"))
             if path.is_file()
+            and not path.relative_to(folder).as_posix().startswith(f"{ATTACHMENT_DIR}/")
+        }
+
+    def attachments(self, scene_id: str, number: int) -> dict[str, int]:
+        """版本的場景附件（M7c）：``files/檔名`` → 大小。"""
+        folder = self.revision_dir(scene_id, number)
+        return {
+            name: (folder / name).stat().st_size
+            for name in attachment_files(folder)
+            if (folder / name).is_file()
         }
 
     def digest(self, scene_id: str, number: int) -> str | None:
@@ -339,6 +388,40 @@ def _read_text(path: Path) -> str:
     """讀回原本的內容（保留換行字元，不轉換 CRLF）。"""
     with path.open(encoding="utf-8", newline="") as handle:
         return handle.read()
+
+
+def _check_attachments(attachments: Mapping[str, bytes]) -> list[Issue]:
+    """場景附件（M7c）的檔名與大小。"""
+    problems: list[Issue] = []
+    for name, data in attachments.items():
+        if not is_attachment_path(name):
+            problems.append(_issue("server.bad_path", t("revision.bad_path", path=name)))
+        elif len(data) > MAX_ATTACHMENT_BYTES:
+            problems.append(
+                _issue(
+                    "server.attachment_too_large",
+                    t(
+                        "revision.attachment_too_large",
+                        path=name,
+                        limit=format_size(MAX_ATTACHMENT_BYTES),
+                    ),
+                )
+            )
+    if sum(len(data) for data in attachments.values()) > MAX_ATTACHMENTS_BYTES:
+        problems.append(
+            _issue(
+                "server.attachments_too_large",
+                t("revision.attachments_too_large", limit=format_size(MAX_ATTACHMENTS_BYTES)),
+            )
+        )
+    return problems
+
+
+def _write_attachments(folder: Path, attachments: Mapping[str, bytes]) -> None:
+    for name, data in attachments.items():
+        path = folder / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
 
 
 def _write_files(folder: Path, files: Mapping[str, str]) -> None:

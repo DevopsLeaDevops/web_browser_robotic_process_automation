@@ -215,6 +215,7 @@ class Harness:
             poll_seconds: float = 0.5,
             paused: threading.Event | None = None,
             stop_seconds: Callable[[], float] = lambda: 120.0,
+            input_folders: object = None,
         ) -> str | None:
             reported = False
             while not stop.wait(0.01):

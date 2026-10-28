@@ -6,25 +6,38 @@
 - 取消：:meth:`Worker.cancel` 讓執行中的任務立即終止程序群組；任務還沒開始時先記下來，
   一開始就取消（領取與開始執行之間的空檔不會漏掉）。
 - 任務來源拋出的例外只記錄、不中斷迴圈；worker 一直跑到 :meth:`Worker.stop`。
+- 檔案入參（M7c）：任務帶著上傳檔在這台的位置、允許的資料夾與上限（:class:`FileOptions`），
+  只在有設定時才交給執行器（舊的執行器不必認得這些參數）。
 """
 
 import logging
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Final, Protocol
+from typing import Final, Protocol, TypedDict
 
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, StageName, execute
 
-__all__ = ["Executor", "Job", "JobSource", "Worker"]
+__all__ = ["Executor", "FileOptions", "Job", "JobSource", "Worker"]
 
 logger = logging.getLogger("rpa_worker")
 
 POLL_SECONDS: Final = 2.0
 """沒有被喚醒時，每隔這麼久向任務來源要一次任務。"""
+
+
+class FileOptions(TypedDict, total=False):
+    """檔案入參的執行選項（M7c，見 :func:`rpa_runner.run.execute`）。"""
+
+    uploads: Mapping[str, Path]
+    """上傳檔代號 → 這台電腦上的檔案。"""
+    input_folders: Sequence[Path] | None
+    """path 值可以讀的資料夾；None 時用環境變數 RPA_INPUT_FOLDERS。"""
+    max_file_bytes: int
+    max_run_bytes: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +61,25 @@ class Job:
     """報告與訊息的語言；None 用 worker 的語言（遠端任務帶著管理 Portal 的語言，M9a）。"""
     record_video: bool = False
     """自動化階段錄影（M12，管理 Portal 的錄影設定）。"""
+    uploads: Mapping[str, Path] = field(default_factory=dict[str, Path])
+    """上傳檔代號 → 這台電腦上的檔案（M7c）。"""
+    input_folders: Sequence[Path] | None = None
+    """檔案入參的 path 可以讀的資料夾；None 時用環境變數 RPA_INPUT_FOLDERS。"""
+    max_file_bytes: int | None = None
+    max_run_bytes: int | None = None
+
+    def file_options(self) -> FileOptions:
+        """有設定的檔案選項（沒有的不放，執行器用自己的預設）。"""
+        options: FileOptions = {}
+        if self.uploads:
+            options["uploads"] = self.uploads
+        if self.input_folders is not None:
+            options["input_folders"] = self.input_folders
+        if self.max_file_bytes is not None:
+            options["max_file_bytes"] = self.max_file_bytes
+        if self.max_run_bytes is not None:
+            options["max_run_bytes"] = self.max_run_bytes
+        return options
 
 
 class JobSource(Protocol):
@@ -89,6 +121,10 @@ class Executor(Protocol):
         login: LoginSettings | None = None,
         secrets: Mapping[str, str] | None = None,
         record_video: bool = False,
+        uploads: Mapping[str, Path] | None = None,
+        input_folders: Sequence[Path] | None = None,
+        max_file_bytes: int = ...,
+        max_run_bytes: int = ...,
     ) -> RunResult: ...
 
 
@@ -217,6 +253,7 @@ class Worker:
                 login=job.login,
                 secrets=job.secrets,
                 record_video=job.record_video,
+                **job.file_options(),
             )
         except Exception as error:
             logger.warning("任務 %s 無法執行：%s", job.run_id, error)

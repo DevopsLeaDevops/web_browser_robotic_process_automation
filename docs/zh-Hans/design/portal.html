@@ -107,6 +107,7 @@
           <li><strong>不重复送出。</strong>表单每次加载产生一个 <code>idempotencyKey</code>，重复送出只会得到同一个运行。</li>
           <li><strong>重新运行。</strong>结束的运行都可以用同样的入参与选项再运行一次（验证用同一个版本，正式运行用目前发布的版本）。</li>
           <li><strong>服务器重启。</strong>启动时把上次运行到一半的任务标为失败；排队中的会继续运行。</li>
+          <li id="files"><strong>上传文件（M7c）。</strong>场景有 <code>type: file</code> 的入参时，运行、验证与调试表单多一区「文件入参」：每个入参可以选档上传（看得到进度；上传中不能送出）或选这个版本的场景附件，值写进入参 JSON，入参 JSON 仍是送出的唯一来源，也可以直接写附件或运行那台电脑上的路径（见 <a href="dsl.html#upload">DSL › 上传文件</a>）。上传的文件存在文件区（同内容只存一份），请求运行时检查在不在、类型与大小、一次运行的合计，网页看到的文件名、大小与 sha256 以服务器的为准；不合规则直接回 422。本机运行把文件位置交给 runner；远程 worker 与录制端另外下载、比较 sha256；旧的 App 看不懂上传时提示更新。运行详情页列出这次用的文件（来源、大小、sha256、下载），运行回看显示 upload 步骤的文件与拦下选择文件窗口的提醒。场景详情页的「场景附件」加上、换掉、删除附件，每次都存成新版本；中文文件名先换成英文名称，默认值还在用的附件不能删。组合场景节点的固定值也可以选档上传。上传后 24 小时没用到就删；用过的保留到最后一次使用后 90 天；全部超过 10 GB 时从最久没用的开始删；组合场景节点的固定文件不删。只删内容，运行记录仍看得到当时的文件名。</li>
           <li id="video"><strong>录像（M12）。</strong>DSL 场景的自动化阶段录像，有头、无头都录，存成运行目录的 <code>video.webm</code> 与 <code>video.json</code>；<code>steps.json</code> 记下每一步的开始、结束时间、步骤后的网址与所在分页（<code>pageId</code>），回看时和视频对上。画面跟页面一样大，宽度最多 1280。取消、超时、失败的运行也有完整的视频（Windows 上取消时先只结束浏览器，让 Playwright 把视频写完；写坏的视频用 Playwright 自带的 ffmpeg 重新封装）。登录检查、逐步调试、录制与 Python 脚本场景不录。步骤开出的新分页（M7b）各录一段，存成 <code>video-page-N.webm</code>；回看依步骤所在的分页换片段，回到一开始的分页时换回去。某段时间没有那个分页的录像时显示缺片，不沿用其他分页的画面；各分页的原始录像可分别下载。浏览器播不了 WebM 时提示改用 Chrome、Edge 或 Firefox，或下载录像。默认全部录；通过的运行保留 7 天，失败、超时、取消、需要登录的保留 30 天，全部最多 20 GB（超过时从最旧的删起；一次运行的所有分页合计），钉选的不删。清理只删视频（一次运行的所有片段一起删），运行记录、报告、截图都留着。组合运行里的节点整组处理（2026-10-27）：保留天数看整次组合运行的结果与结束时间（还在运行就不删），钉选一个节点就是钉选整次，超过总量时整次一起删，合并回看才不会缺前面通过的节点。见 <a href="../adr/0016-run-replay.html">ADR 0016</a>、<a href="../adr/0019-composite-report-replay.html">ADR 0019</a>。</li>
         </ul>
       </div>
@@ -318,10 +319,14 @@
             <tr><td><code>GET</code>、<code>PATCH /api/scenes/{id}</code></td><td>场景与版本清单；修改所属领域、默认网址、封存</td></tr>
             <tr><td><code>GET /api/scenes/{id}/revisions/{n}</code></td><td>版本与文件内容</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions</code></td><td>存成新版本：<code>baseRevision</code>、<code>files</code>、<code>note</code>；409 不是最新版、422 校验问题（含行号）</td></tr>
+            <tr><td><code>GET /api/scenes/{id}/revisions/{n}/attachments</code>、<code>…/attachments/{文件名}</code></td><td>场景附件（M7c）：清单（<code>path</code>、<code>name</code>、<code>size</code>、<code>sha256</code>）；下载一个附件</td></tr>
+            <tr><td><code>PUT</code>、<code>DELETE /api/scenes/{id}/attachments/{文件名}?base={n}</code></td><td>加上或换掉（本体就是文件内容，最多 20 MB）、删除一个附件，以版本 n 为基准存成新版本；可带 <code>note</code>。文件名不符 422 <code>attachment_name</code>；默认值还在用时 422 <code>revision_invalid</code></td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/validate</code></td><td>验证；202 回运行</td></tr>
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>发布；不符合发布门槛时 409</td></tr>
             <tr><td><code>GET /api/scenes/{id}/verifications</code></td><td>验证记录（领域文件夹里的，不管是哪一台服务器），最新的在前</td></tr>
             <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已发布版本运行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不写时运行的地方有图形界面就用有头模式）、<code>target</code>（运行位置，不写用默认）、<code>idempotencyKey</code>；验证也接受同样的字段</td></tr>
+            <tr><td><code>POST /api/files?name={文件名}</code></td><td>上传一个文件（M7c）：本体就是文件内容（不用 multipart），一段一段写入、边写边算 sha256；回 201 与 <code>file</code>（代号）、<code>name</code>、<code>size</code>、<code>sha256</code>、<code>mediaType</code>，前四项就是文件入参的值。超过单档上限 413 <code>file_too_large</code></td></tr>
+            <tr><td><code>GET /api/files/{代号}</code>、<code>…/content</code></td><td>上传档的说明（<code>deleted</code>：过了保留期限，内容已删除）；下载内容</td></tr>
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{运行编号}</code></td><td>报告清单（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重复）；单次状态、<code>result.json</code> 与文件清单；<code>video</code> 是录像的长度、大小、钉选、删除的时间与原因、视频网址（M12，没有录像时是 null）</td></tr>
             <tr><td><code>PUT /api/runs/{运行编号}/video</code></td><td>钉选或取消钉选录像（<code>pinned</code>）；钉选的不依保留规则删除（M12）</td></tr>
             <tr><td><code>POST /api/runs/{运行编号}/cancel</code></td><td>取消</td></tr>
@@ -360,7 +365,7 @@
             <tr><td><code>GET</code>、<code>PUT /api/settings/server</code></td><td>这台服务器的代号与名称（<code>name</code>）；写进版本、验证、发布的记录</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/video</code></td><td>录像设置（M12）：<code>enabled</code>、<code>keepPassedDays</code>、<code>keepOtherDays</code>（0～3650）、<code>maxTotalGb</code>；回应另有 <code>usage</code>（几段、多大、钉选几段）。改了之后新的任务照新设置，保留规则立刻应用</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>只在对外端口、不需要权杖（M10.1）：<code>code</code>、<code>app</code> 换权杖，回应设备代号、名称、<code>token</code> 与服务器的协定、指纹、版本；代码不对或已用过 401 <code>invite_invalid</code>、过期 401 <code>invite_expired</code>、App 种类不对 409 <code>invite_wrong_app</code>（代码保留）、设备禁用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
-            <tr><td><code>/worker-api/v1/…</code></td><td>只在对外端口、要权杖：<code>hello</code>、<code>claim</code>、<code>runs/{运行编号}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>；格式在 <code>rpa_worker.protocol</code></td></tr>
+            <tr><td><code>/worker-api/v1/…</code></td><td>只在对外端口、要权杖：<code>hello</code>、<code>claim</code>、<code>runs/{运行编号}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>、<code>…/files/{代号}</code>（下载任务用到的上传档，M7c）；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -374,10 +379,11 @@
           <p>默认是项目里的 <code>data/</code>；用 <code>--data</code> 指定时是那个文件夹（见<a href="#data-folder">文件夹</a>）。里面有：</p>
           <dl class="spec-list">
             <dt><code>rpa.db</code></dt><dd>SQLite 数据库（各表见下方）</dd>
-            <dt><code>domains/<wbr>&lt;领域&gt;/</code></dt><dd>领域文件夹（M11）：<code>pack.yaml</code>；<code>scenes/&lt;场景&gt;/</code> 里的 <code>scene.yaml</code>、<code>revisions/&lt;版本&gt;/</code>（scenario.yaml，脚本场景另有两支脚本）与版本说明档 <code>revisions/&lt;版本&gt;.yaml</code>、验证记录 <code>verifications/&lt;版本&gt;/</code>；角色定义 <code>roles/&lt;角色&gt;.yaml</code>；组合场景 <code>composites/&lt;代号&gt;/</code>（<code>composite.yaml</code>、<code>revisions/&lt;版本&gt;/workflow.json</code> 与版本说明档、验证记录）。格式见 <code>rpa_core.pack</code></dd>
+            <dt><code>domains/<wbr>&lt;领域&gt;/</code></dt><dd>领域文件夹（M11）：<code>pack.yaml</code>；<code>scenes/&lt;场景&gt;/</code> 里的 <code>scene.yaml</code>、<code>revisions/&lt;版本&gt;/</code>（scenario.yaml，脚本场景另有两支脚本）与版本说明档 <code>revisions/&lt;版本&gt;.yaml</code>、验证记录 <code>verifications/&lt;版本&gt;/</code>；角色定义 <code>roles/&lt;角色&gt;.yaml</code>；组合场景 <code>composites/&lt;代号&gt;/</code>（<code>composite.yaml</code>、<code>revisions/&lt;版本&gt;/workflow.json</code> 与版本说明档、验证记录）。格式见 <code>rpa_core.pack</code>；场景附件在版本文件夹的 <code>files/</code>（M7c）</dd>
             <dt><code>runs/<wbr>&lt;运行编号&gt;/</code></dt><dd>M2 的运行目录（input.json、report.html…）；<code>run.json</code> 记下服务器、领域、场景、版本、哈希、时间与每个文件的 sha256；录像 <code>video.webm</code>、新分页的 <code>video-page-N.webm</code> 与 <code>video.json</code>（M12；依保留规则删除视频时，<code>run.json</code> 的 <code>removed</code> 记下删除的时间与原因）</dd>
             <dt><code>workflow-runs/<wbr>&lt;运行编号&gt;/</code></dt><dd>组合场景的运行（M11 PR 2）：<code>run.json</code> 记下定义快照、版本、目的、每个节点的状态与运行编号</dd>
             <dt><code>work/<wbr>&lt;运行编号&gt;/</code></dt><dd>本机运行中的版本文件快照（M11 收尾）：开始时从领域文件夹拷贝，运行中拉取或重新加载不影响；结束就删，服务器启动时清空</dd>
+            <dt><code>input-files/<wbr>&lt;sha256 前两码&gt;/<wbr>&lt;sha256&gt;</code></dt><dd>上传的文件（M7c）：依内容存放，同内容只存一份；保留规则见<a href="#files">运行</a></dd>
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登录状态（只有本人能读写）</dd>
             <dt><code>recordings/<wbr>&lt;录制编号&gt;/</code></dt><dd>遮罩过的原始录制稿与转换结果</dd>
             <dt><code>debug/<wbr>&lt;工作阶段&gt;/</code></dt><dd>调试的截图（工作阶段结束就删除）</dd>
@@ -400,6 +406,7 @@
             <dt>workers</dt><dd>远程 worker：代号、名称、权杖的哈希、禁用、上线时回报的信息（M10.1 加上 App 版本）、目前的运行、最后回报时间</dd>
             <dt>recorders</dt><dd>录制端（M10.2）：代号、名称、权杖的哈希、禁用、上线时回报的信息、最后回报时间；通过这台时另外显示的菜单（2026-10-22）</dd>
             <dt>device_invites</dt><dd>设备邀请（M10.1）：代码的哈希、App 种类、设备代号、产生时间、期限、使用时间</dd>
+            <dt>uploaded_files</dt><dd>上传的文件（M7c）：代号、sha256、文件名、大小、类型、上传与最后使用的时间、上传的 API 用户端；内容删除的时间与原因（没用到、过期、超过总量）</dd>
             <dt>settings</dt><dd>设置（默认运行位置、服务器代号与名称、文件夹的格式、录像）</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，结构变更走 Alembic 迁移（服务器启动时自动升级）；测试会比较迁移与模型是否一致。</p>
@@ -418,6 +425,9 @@
             <dt>Secrets</dt><dd>在「登录与凭证」设置；没有设置的，从服务器进程的同名环境变量读取（远程 worker 运行时，从 worker 进程的环境变量读取）</dd>
             <dt><code>--worker-port</code>、<code>--worker-host</code></dt><dd>开放对外端口给设备（M9a；M10 起称「对外端口」）：另一个端口，默认听 <code>0.0.0.0</code>；只有 <code>/worker-api</code>（要权杖）与 <code>/client-api</code>（配对用邀请代码）。邀请里的服务器网址：听所有界面时猜这台的区网地址，听特定地址时就用那个地址</dd>
             <dt><code>--no-local-worker</code></dt><dd>这台电脑不运行，全部交给远程 worker</dd>
+            <dt><code>RPA_UPLOAD_MAX_FILE_MB</code>、<code>RPA_UPLOAD_MAX_RUN_MB</code></dt><dd>上传档单一文件、一次运行合计的上限，默认 50、200（M7c）</dd>
+            <dt><code>RPA_UPLOAD_KEEP_DAYS</code>、<code>RPA_UPLOAD_MAX_TOTAL_GB</code></dt><dd>上传档在最后一次使用后保留几天、全部合计的上限，默认 90、10</dd>
+            <dt><code>RPA_INPUT_FOLDERS</code></dt><dd>本机运行时文件入参的 <code>path</code> 可以读的文件夹（用路径分隔符号隔开）；没设时不能用 path。远程 worker 在 RPA Worker App 的设置里指定</dd>
           </dl>
         </div>
       </section>

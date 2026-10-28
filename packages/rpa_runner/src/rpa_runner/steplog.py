@@ -141,6 +141,10 @@ class StepLog:
             lines.append(_INDENT + t("steplog.url", url=self._mask(record.url)))
         for name in record.artifacts:
             lines.append(_INDENT + t("steplog.artifact", file=name))
+        if record.files:
+            lines.append(_INDENT + t("steplog.files", files=", ".join(record.files)))
+        for note in record.notes:
+            lines.append(_INDENT + t("steplog.note", note=note))
         if record.status != "passed" and number < total:
             first, last = number + 1, total
             key = "steplog.skipped_one" if first == last else "steplog.skipped"

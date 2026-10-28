@@ -9,6 +9,9 @@
   （``/frames/note``，送出前要勾選「我已確認」）；只在瀏覽器裡運作，不寫入資料
 - 新分頁（M7b）：``/popup`` 的連結在新分頁打開 ``/popup/items``（新增商品行、填商品編號、儲存）；
   只在瀏覽器裡運作，不寫入資料
+- 上傳檔案（M7c）：``/upload`` 有常見的上傳元件（原生上傳框、隱藏的多檔上傳框、點擊時才建立的
+  上傳框、只有拖拽區），``/upload/frame`` 是 iframe 裡的上傳框。``POST /api/uploads``
+  （multipart）回傳收到的檔名、大小與 sha256，頁面顯示出來；檔案本身不保存
 - ``GET /api/about``：回傳 ``{"name": "rpa-testsite"}``，讓 ``rpa serve`` 認出已經在執行的測試網站
 - 預設只綁定 127.0.0.1；``rpa serve --testsite-host 0.0.0.0`` 可以讓其他電腦（錄製端、Worker）
   連到同一個測試網站，資料與登入共用。不連線任何外部系統
@@ -19,6 +22,7 @@
 """
 
 import errno
+import hashlib
 import html
 import json
 import os
@@ -29,6 +33,8 @@ import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from email.parser import BytesParser
+from email.policy import default as email_policy
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -73,6 +79,13 @@ POPUP_PAGES: Final = {
     "/popup/items": Path(__file__).with_name("popup-items.html"),
 }
 """新分頁範例頁（M7b）。"""
+UPLOAD_PAGES: Final = {
+    "/upload": Path(__file__).with_name("upload.html"),
+    "/upload/frame": Path(__file__).with_name("upload-frame.html"),
+}
+"""上傳檔案範例頁（M7c）。"""
+MAX_UPLOAD: Final = 64 * 1024 * 1024
+"""``POST /api/uploads`` 一次最多收這麼多。"""
 MAX_QUANTITY: Final = 30
 SESSION_COOKIE: Final = "rpa_testsite_session"
 _MAX_BODY: Final = 8192
@@ -173,6 +186,32 @@ def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
                 raise TypeError("資料格式不符")
             return cast("dict[str, object]", data)
 
+        def _uploads(self) -> None:
+            """multipart 的檔案 → 每個檔案的檔名、大小、sha256（不保存內容）。"""
+            size = int(self.headers.get("Content-Length", "0"))
+            kind = self.headers.get("Content-Type", "")
+            if not 0 < size <= MAX_UPLOAD or not kind.startswith("multipart/form-data"):
+                self._json(400, {"error": "上傳的資料不符"})
+                return
+            raw = f"Content-Type: {kind}\r\n\r\n".encode() + self.rfile.read(size)
+            message = BytesParser(policy=email_policy).parsebytes(raw)
+            received: list[dict[str, object]] = []
+            for part in message.iter_parts():
+                name = part.get_filename()
+                if not name:
+                    continue
+                data = part.get_payload(decode=True)
+                content = data if isinstance(data, bytes) else b""
+                received.append(
+                    {
+                        "name": name,
+                        "size": len(content),
+                        "sha256": hashlib.sha256(content).hexdigest(),
+                    }
+                )
+            body = json.dumps(received, ensure_ascii=False).encode()
+            self._reply(200, body, "application/json; charset=utf-8")
+
         def _account(self) -> None:
             username = self._user()
             if username is None:
@@ -227,6 +266,8 @@ def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
                 self._reply(200, FRAME_PAGES[path].read_bytes(), "text/html; charset=utf-8")
             elif path in POPUP_PAGES:
                 self._reply(200, POPUP_PAGES[path].read_bytes(), "text/html; charset=utf-8")
+            elif path in UPLOAD_PAGES:
+                self._reply(200, UPLOAD_PAGES[path].read_bytes(), "text/html; charset=utf-8")
             elif path == "/api/about":
                 self._json(200, {"name": NAME})
             elif path.startswith("/api/records/"):
@@ -250,6 +291,9 @@ def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
                     for token in [key for key, value in sessions.items() if value == username]:
                         del sessions[token]
                 self._json(200, {"loggedOut": username is not None})
+                return
+            if path == "/api/uploads":
+                self._uploads()
                 return
             if path == "/api/sessions/expire":
                 with lock:

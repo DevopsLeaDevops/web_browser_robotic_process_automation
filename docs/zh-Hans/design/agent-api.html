@@ -149,6 +149,7 @@
             <tr><td><code>scenes:read</code></td><td>读领域、场景、版本、角色的登录状态、Secrets 的名称</td></tr>
             <tr><td><code>scenes:write</code></td><td>创建场景、存新版本、改入参出参、导入 Playwright 脚本</td></tr>
             <tr><td><code>debug</code></td><td>在允许的录制端开调试工作阶段</td></tr>
+            <tr><td><code>files:write</code></td><td>上传文件入参要用的文件（M7c）；入参只能参照自己上传的文件，场景附件属于 scenes:write</td></tr>
             <tr><td><code>runs:validate</code></td><td>验证场景或组合场景的任一版本</td></tr>
             <tr><td><code>scenes:publish</code></td><td>发布验证通过、哈希相符的版本；默认不给</td></tr>
             <tr><td><code>runs:execute</code></td><td>正式运行已发布版本（场景与组合场景）、取消、重跑</td></tr>
@@ -191,6 +192,9 @@
             <tr><td><code>GET</code>、<code>PUT /scenes/{id}/sections/{key}</code></td><td>只读写一段：steps、verify、inputs、outputs</td><td>scenes:read／write</td><td>沿用</td></tr>
             <tr><td><code>PUT /scenes/{id}/contract</code></td><td>用表格形式改入参与出参</td><td>scenes:write</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/import</code></td><td>导入 Playwright 脚本，转成 DSL 草稿并回传转不了的警告</td><td>scenes:write</td><td>沿用录制稿导入</td></tr>
+            <tr><td><code>GET /scenes/{id}/revisions/{n}/attachments</code></td><td>版本的场景附件（M7c）</td><td>scenes:read</td><td>沿用</td></tr>
+            <tr><td><code>PUT</code>、<code>DELETE /scenes/{id}/attachments/{文件名}?base={n}</code></td><td>加上或换掉（本体是文件内容）、删除一个附件，存成新版本</td><td>scenes:write</td><td>沿用</td></tr>
+            <tr><td><code>POST /files?name={文件名}</code>、<code>GET /files/{代号}</code></td><td>上传文件入参要用的文件（本体是文件内容），回传的 <code>file</code>、<code>name</code>、<code>size</code>、<code>sha256</code> 就是入参的值；查自己上传的文件（过了保留期限时 <code>deleted</code>）。验证、运行与调试的入参参照别人上传的文件时 404 <code>upload_not_found</code></td><td>files:write</td><td>沿用（M7c）</td></tr>
             <tr><td><code>POST /scenes/{id}/debug</code></td><td>在 <code>recorderId</code> 那台开调试工作阶段；选填版本、入参、浏览器、有头或无头、网址</td><td>debug</td><td>沿用＋新参数</td></tr>
             <tr><td><code>GET /debug/{sid}</code></td><td>状态、每一步的结果、目前网址与标题、页面事实</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>目前页面的结构：无障碍树、表单字段、iframe 与标签页清单</td><td>debug＋回传页面内容</td><td>新（录制端 App 要更新）</td></tr>

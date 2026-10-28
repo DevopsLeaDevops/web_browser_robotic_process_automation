@@ -22,6 +22,7 @@ from sqlalchemy import CursorResult, or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario, validate_file
+from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES, uploaded_ids
 from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, ScenarioInvalidError, StageName
 from rpa_server.domain import LOCAL_WORKER, now
@@ -29,8 +30,10 @@ from rpa_server.i18n import t
 from rpa_server.models import Revision, Run, WorkflowRun
 from rpa_server.roles import RoleService
 from rpa_server.storage import Storage
+from rpa_server.uploads import UploadService
 from rpa_server.videos import VideoService
 from rpa_worker import Job
+from rpa_worker.worker import FileOptions
 
 __all__ = ["Outcome", "RunQueue"]
 
@@ -98,11 +101,18 @@ class RunQueue:
         storage: Storage,
         roles: RoleService | None = None,
         videos: VideoService | None = None,
+        *,
+        uploads: UploadService | None = None,
+        input_folders: tuple[Path, ...] = (),
     ) -> None:
         self.sessions = sessions
         self.storage = storage
         self.roles = roles
         self.videos = videos
+        self.uploads = uploads
+        """上傳的檔案（M7c）：本機執行時直接用伺服器檔案區裡的內容。"""
+        self.input_folders = input_folders
+        """本機執行時檔案入參的 path 可以讀的資料夾（RPA_INPUT_FOLDERS）。"""
         self.on_finished: Callable[[str], None] = lambda run_id: None
         """任務結束（資料庫已更新）之後呼叫，參數是執行編號。"""
 
@@ -211,7 +221,33 @@ class RunQueue:
             login=login,
             secrets=secrets,
             record_video=self.record_video(),
+            **self.file_options(run.input),
         )
+
+    def file_options(self, inputs: Mapping[str, object]) -> FileOptions:
+        """本機執行的檔案入參（M7c）：上傳檔在檔案區的位置、允許的資料夾、上限。
+
+        只放和執行器預設不同的：沒有檔案入參的執行與舊的執行器都不受影響。允許的資料夾沒設時
+        執行器讀同一個環境變數（RPA_INPUT_FOLDERS），結果相同。
+        """
+        uploads = self.uploads
+        if uploads is None:
+            return {}
+        options: FileOptions = {}
+        paths: dict[str, Path] = {}
+        for file_id in uploaded_ids(inputs.values()):
+            path = uploads.path(file_id)
+            if path is not None:  # 找不到的由 runner 在入參階段說明
+                paths[file_id] = path
+        if paths:
+            options["uploads"] = paths
+        if self.input_folders:
+            options["input_folders"] = self.input_folders
+        if uploads.limits.max_file != MAX_FILE_BYTES:
+            options["max_file_bytes"] = uploads.limits.max_file
+        if uploads.limits.max_run != MAX_RUN_BYTES:
+            options["max_run_bytes"] = uploads.limits.max_run
+        return options
 
     # ------------------------------------------------------------ 進度與結果
 

@@ -7,6 +7,9 @@
 <label data-types="number integer">minimum<input name="minimum" type="number" step="any"></label>
 <label data-types="number integer">maximum<input name="maximum" type="number" step="any"></label>
 <label data-types="string number integer" class="wide">enum<input name="enum" class="mono" placeholder="a, b, c"></label>
+<label data-types="file" class="wide">accept<input name="accept" class="mono" placeholder=".xlsx, .csv, image/*"></label>
+<label data-types="file">maxSize<input name="maxSize" class="mono" placeholder="20MB"></label>
+<label data-types="file" class="check">multiple<input name="multiple" type="checkbox"></label>
 <span data-types="boolean array object" class="muted">{{ t("contract.no_rules") }}</span>
 {%- endmacro %}
 
@@ -75,7 +78,8 @@
   <div class="notice contract-next" id="contract-next" hidden><span></span> <a class="button" data-validate-contract href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("contract.validate_next") }}</a></div>
   <ul class="checklist form-issues" id="contract-issues" role="alert" hidden></ul>
   <div class="contract-editors">
-    {{ editor("inputs", ("string", "number", "integer", "boolean"), scenario.script) }}
+    {#- file：檔案入參（M7c）。Python 腳本場景還不能用（校驗會說明），仍列出來，已有的檔案入參才不會被改掉 #}
+    {{ editor("inputs", ("string", "number", "integer", "boolean", "file"), scenario.script) }}
     {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object"), scenario.script) }}
   </div>
   <div class="contract-previews">

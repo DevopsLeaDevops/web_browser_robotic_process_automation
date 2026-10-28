@@ -33,6 +33,7 @@
     <a href="#verify">{{ t("card.assertion") }}</a>
     {% if scenario %}<a href="#inputs">{{ t("card.inputs") }}</a>
     <a href="#outputs">{{ t("card.outputs") }}</a>{% endif %}
+    {% if scenario is not none and scenario.script is none and attachments is defined %}<a href="#attachments">{{ t("attachments.title") }}</a>{% endif %}
     <a href="#versions">{{ t("scene.versions") }}</a>
     <a href="#verifications">{{ t("scene.verifications") }}</a>
     <a href="#runs">{{ t("scene.recent_runs") }}</a>
@@ -152,6 +153,34 @@
   <section class="scene-section" id="contract" aria-labelledby="contract-title">
     <h2 class="scene-section-title" id="contract-title">{{ t("scene.contract") }}</h2>
     {% include "_contract.html" %}
+  </section>
+  {% endif %}
+
+  {#- 場景附件（M7c）：跟著版本存放的檔案，檔案入參的預設值用 files/檔名 指到它 -#}
+  {% if dsl and attachments is defined %}
+  <section class="panel" id="attachments" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-limit="{{ attachment_limits.file }}">
+    <div class="panel-header"><h2>{{ t("attachments.title") }} <span class="count">{{ attachments | length }}</span></h2>
+      {% if not scene.archived %}<label class="button">{{ t("attachments.add") }}<input class="visually-hidden" type="file" data-attachment-pick></label>{% endif %}
+    </div>
+    <div class="panel-body stack">
+      <span class="cell-sub">{{ t("attachments.hint", file=attachment_limits.file | filesize, total=attachment_limits.total | filesize) }}</span>
+      {% if attachments %}
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>{{ t("spec.name") }}</th><th>{{ t("attachments.col_size") }}</th><th>{{ t("attachments.col_used") }}</th><th>{{ t("scene.col_actions") }}</th></tr></thead>
+        <tbody>
+        {% for item in attachments %}
+          <tr><td><code>{{ item.path }}</code></td>
+            <td>{{ item.size | filesize }}</td>
+            <td>{% for name in item.inputs %}<code>{{ name }}</code>{% if not loop.last %} {% endif %}{% else %}—{% endfor %}</td>
+            <td>
+              <a class="text-btn" href="/api/scenes/{{ scene.id }}/revisions/{{ scene.latest_number }}/attachments/{{ item.name }}" download>{{ t("attachments.download") }}</a>
+              {% if not scene.archived %}<button class="text-btn" type="button" data-action="delete-attachment" data-name="{{ item.name }}">{{ t("attachments.delete") }}</button>{% endif %}
+            </td></tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<div class="empty">{{ t("attachments.empty") }}</div>{% endif %}
+    </div>
   </section>
   {% endif %}
 
