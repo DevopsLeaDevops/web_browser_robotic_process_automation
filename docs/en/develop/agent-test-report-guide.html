@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c8328433d8031917">
+<meta name="translation-source" content="sha256:312292ec19bf3213">
 <title>Test report guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -131,6 +131,7 @@ GET /agent-api/v1/composite-runs?project=order-regression&amp;mine=true&amp;stat
           <tbody>
             <tr><td>TestCase</td><td>The test plan</td><td>ID, priority, composite code and revision</td></tr>
             <tr><td>Composite run</td><td><code>GET /composite-runs/{id}</code></td><td>Run ID, purpose, status, created and finished times, stopping node, <code>portalPath</code></td></tr>
+            <tr><td>Summary report</td><td><code>GET /composite-runs/{id}/report</code></td><td>The whole composite run in one read (from 2026-10-27): the conclusion (which node and step it stopped at, the error, failed assertions), <code>counts</code>, <code>timeline</code>, and each node's inputs and outputs, steps and assertions; read it first when writing the report, then drill down as needed</td></tr>
             <tr><td>Node</td><td><code>nodes</code> of the same response</td><td>Node ID, scene and revision, status, input sources (<code>sources</code>), ID of its run</td></tr>
             <tr><td>Run</td><td><code>GET /runs/{id}</code></td><td>Status, stage it stopped at, error, inputs, outputs, duration, worker</td></tr>
             <tr><td>Stages</td><td><code>result.stages</code></td><td>Status, message and duration of input, login, automation, verify and output</td></tr>
