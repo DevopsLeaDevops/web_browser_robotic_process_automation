@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title }} · {{ t("app.title") }}</title>
-<link rel="stylesheet" href="/static/portal.css">
-<link rel="stylesheet" href="/static/portal-app.css">
-<script defer src="/static/shell.js"></script>
-<script defer src="/static/portal.js"></script>
+<link rel="stylesheet" href="{{ static_url("portal.css") }}">
+<link rel="stylesheet" href="{{ static_url("portal-app.css") }}">
+<script defer src="{{ static_url("shell.js") }}"></script>
+<script defer src="{{ static_url("portal.js") }}"></script>
 </head>
 <body data-page="{{ page }}">
 <a href="#main" class="skip">{{ t("app.skip") }}</a>

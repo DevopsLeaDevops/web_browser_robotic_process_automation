@@ -23,6 +23,13 @@
   const playable = Boolean(element && data.video && data.video.playable);
   const video = playable ? new ReplayMedia(element, data.video, data.steps, $('replay-gap')) : null;
   const numberOf = step => step.label || String(step.index).padStart(2, '0');
+  // 合併回看：每個節點一個顏色，用在清單的節點標題與左側色條、時間軸的節點色帶、畫面上的步驟編號，
+  // 一眼看出這一段是哪個場景在跑（2026-10-28 驗收）。和結果的顏色（綠、紅）分開。
+  const NODE_COLORS = ['#2f6fdb', '#7c4dcc', '#0e8a8f', '#c26a10', '#b8407a', '#546479'];
+  const nodeColor = id => {
+    const index = composite ? composite.nodes.findIndex(node => node.id === id) : -1;
+    return index < 0 ? '' : NODE_COLORS[index % NODE_COLORS.length];
+  };
 
   const steps = data.steps.map(step => ({
     ...step,
@@ -30,6 +37,15 @@
     end: step.endMs == null ? null : Math.max(0, step.endMs / 1000),
   }));
   const timed = steps.filter(step => step.start != null);
+  // 點一步跳到哪裡：「開始前 PREROLL 秒」與「同一段裡上一步結束」較晚的那一刻。步驟常常只有幾十毫秒，
+  // 固定往前 0.4 秒時，前幾步都跳回開頭，時間軸與畫面看起來沒動（2026-10-28 驗收）
+  const leadIn = step => {
+    const before = timed[timed.indexOf(step) - 1];
+    const same = before && (!composite || before.node === step.node) ? before : null;
+    if (!same) return step.start - PREROLL;
+    const end = same.end != null ? same.end : same.start;
+    return Math.max(step.start - PREROLL, Math.min(end, step.start));
+  };
   const failedStep = steps.find(step => step.status === 'failed') || null;
   let duration = 0;
   let selected = failedStep ? failedStep.index : null;
@@ -102,7 +118,10 @@
     item.querySelector('strong').textContent = title(step);
     item.querySelector('small').textContent = [step.action, step.target].filter(Boolean).join(' · ');
     item.querySelector('[data-n]').className = 'replay-n ' + (step.status || '');
-    if (step.index === selected) item.appendChild(detail(step));
+    if (composite && step.node) {
+      item.className = 'in-node';
+      item.style.setProperty('--node', nodeColor(step.node));
+    }
     const canvas = item.querySelector('canvas');
     if (canvas) {
       thumbs.set(step.index, canvas);
@@ -152,6 +171,7 @@
     const item = document.createElement('li');
     item.className = 'replay-node-head';
     item.dataset.node = node.id;
+    item.style.setProperty('--node', nodeColor(node.id));
     const special = {reused: messages.node_reused, skipped: messages.node_skipped}[node.status];
     const note = special || (node.segment == null ? messages.node_waiting
       : !steps.some(step => step.node === node.id && step.start != null) ? messages.node_no_video
@@ -159,7 +179,7 @@
     const status = special ? '' : messages['status_' + node.status] || node.status;
     item.innerHTML = '<button type="button" class="replay-node-button"' + (node.startMs == null ? ' disabled' : '') + '>' +
       '<span class="replay-n ' + esc(node.status) + '">' + esc(node.id) + '</span><strong></strong></button>' +
-      '<small>' + esc([status, note].filter(Boolean).join(' · ')) + '</small>';
+      '<small class="' + esc(node.status) + '">' + esc([status, note].filter(Boolean).join(' · ')) + '</small>';
     item.querySelector('strong').textContent = node.sceneName;
     return item;
   }
@@ -186,6 +206,7 @@
     const node = composite && composite.nodes.find(each => each.id === id);
     if (!node || node.startMs == null || !playable) return;
     selected = null;
+    closeDetail({focus: false});
     seek(node.startMs / 1000);
     renderSteps();
   };
@@ -202,37 +223,111 @@
     });
   }
 
-  function choose(index, {seekTo = true} = {}) {
+  function choose(index, {seekTo = true, focus = true} = {}) {
     selected = index;
     const step = steps[index - 1];
-    if (seekTo && playable && step.start != null) seek(step.start - PREROLL, step);
+    if (seekTo && playable && step.start != null) seek(leadIn(step), step);
     renderSteps();
-    const target = list.querySelector('.replay-row[data-index="' + index + '"]');
-    if (target) target.focus({preventScroll: true});
+    openDetail(step, {focus});
   }
 
-  list.addEventListener('click', async event => {
-    const action = event.target.closest('[data-act]');
-    if (action) {
-      const step = steps[selected - 1];
-      if (action.dataset.act === 'play') {
-        seek(step.start - PREROLL, step);
-        video.play();
-      } else if (action.dataset.act === 'link') {
-        const url = new URL(location.href);
-        url.search = '';
-        url.hash = '';
-        url.searchParams.set('t', video.currentTime.toFixed(2));
-        url.searchParams.set('step', step.id);
-        try {
-          await navigator.clipboard.writeText(url.href);
-          toast(messages.copied);
-        } catch {
-          toast(fill(messages.copy_failed, {link: url.href}));
-        }
+  // ---------------------------------------------------------------- 步驟詳情（從右側滑出，蓋住清單）
+  // 2026-10-28 驗收：詳情原本在那一步底下展開，把後面的步驟往下推；改成在右側欄裡滑出的一張卡，
+  // 清單不動。上一步／下一步直接換內容，「← 步驟清單」或 Esc 收回；換到「斷言」「運行資訊」也收回。
+  const side = list.closest('.replay-side');
+  const tabs = side ? side.querySelector('.replay-tabs') : null;
+  const arrow = path => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="' + path + '"/></svg>';
+  const drawer = document.createElement('section');
+  drawer.className = 'replay-drawer';
+  drawer.id = 'replay-drawer';
+  drawer.setAttribute('aria-label', messages.step_detail || '');
+  drawer.inert = true;
+  drawer.innerHTML =
+    '<div class="replay-drawer-head">' +
+    '<button type="button" class="text-btn replay-drawer-back" data-drawer="back">' + arrow('M15 6l-6 6 6 6') + esc(messages.back_to_steps || '') + '</button>' +
+    '<span class="replay-grow"></span>' +
+    '<button type="button" class="replay-icon" data-drawer="prev" aria-label="' + esc(messages.prev_step || '') + '" title="' + esc(messages.prev_step || '') + '">' + arrow('M6 15l6-6 6 6') + '</button>' +
+    '<button type="button" class="replay-icon" data-drawer="next" aria-label="' + esc(messages.next_step || '') + '" title="' + esc(messages.next_step || '') + '">' + arrow('M6 9l6 6 6-6') + '</button>' +
+    '</div><div class="replay-drawer-title"></div><div class="replay-drawer-body"></div>';
+  if (side) side.appendChild(drawer);
+  let shown = null;
+  const drawerOpen = () => drawer.classList.contains('open');
+
+  function openDetail(step, {focus = true} = {}) {
+    if (!side || !step) return;
+    shown = step;
+    const head = drawer.querySelector('.replay-drawer-title');
+    head.innerHTML = '<span class="replay-n ' + esc(step.status || '') + '">' + esc(numberOf(step)) + '</span>' +
+      '<span class="replay-title"><strong></strong><small></small></span>';
+    head.querySelector('strong').textContent = title(step);
+    const node = composite && composite.nodes.find(each => each.id === step.node);
+    head.querySelector('small').textContent = node
+      ? node.id + ' · ' + node.sceneName
+      : [step.action, step.target].filter(Boolean).join(' · ');
+    head.classList.toggle('node', Boolean(node));
+    head.style.setProperty('--node', node ? nodeColor(node.id) : '');
+    const body = drawer.querySelector('.replay-drawer-body');
+    body.textContent = '';
+    body.appendChild(detail(step));
+    body.scrollTop = 0;
+    drawer.querySelector('[data-drawer="prev"]').disabled = step.index <= 1;
+    drawer.querySelector('[data-drawer="next"]').disabled = step.index >= steps.length;
+    drawer.style.top = (tabs ? tabs.offsetTop + tabs.offsetHeight : 0) + 'px';
+    const opening = !drawerOpen();
+    drawer.classList.add('open');
+    side.classList.add('detail-open');
+    drawer.inert = false;
+    if (opening && focus) drawer.querySelector('[data-drawer="back"]').focus({preventScroll: true});
+  }
+  function closeDetail({focus = true} = {}) {
+    if (!drawerOpen()) return;
+    drawer.classList.remove('open');
+    if (side) side.classList.remove('detail-open');
+    drawer.inert = true;
+    const row = shown && list.querySelector('.replay-row[data-index="' + shown.index + '"]');
+    shown = null;
+    if (row && focus) row.focus({preventScroll: true});
+  }
+
+  drawer.addEventListener('click', async event => {
+    const control = event.target.closest('[data-drawer]');
+    if (control) {
+      if (control.dataset.drawer === 'back') closeDetail();
+      else if (shown) {
+        const next = steps[shown.index - 1 + (control.dataset.drawer === 'next' ? 1 : -1)];
+        if (next) choose(next.index, {focus: false});
       }
       return;
     }
+    const action = event.target.closest('[data-act]');
+    if (!action || !shown) return;
+    const step = shown;
+    if (action.dataset.act === 'play') {
+      closeDetail({focus: false});
+      seek(leadIn(step), step);
+      video.play();
+    } else if (action.dataset.act === 'link') {
+      const url = new URL(location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('t', video.currentTime.toFixed(2));
+      url.searchParams.set('step', step.id);
+      try {
+        await navigator.clipboard.writeText(url.href);
+        toast(messages.copied);
+      } catch {
+        toast(fill(messages.copy_failed, {link: url.href}));
+      }
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && drawerOpen() && !document.fullscreenElement) {
+      event.preventDefault();
+      closeDetail();
+    }
+  });
+
+  list.addEventListener('click', event => {
     const target = event.target.closest('.replay-row');
     if (target && !event.target.closest('a')) choose(Number(target.dataset.index));
   });
@@ -249,6 +344,7 @@
 
   document.querySelectorAll('[data-replay-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
+      closeDetail({focus: false});
       document.querySelectorAll('[data-replay-tab]').forEach(other => {
         const active = other === tab;
         other.setAttribute('aria-selected', String(active));
@@ -301,6 +397,7 @@
 
   if (!playable) {
     renderSteps();
+    if (failedStep) openDetail(failedStep, {focus: false});
     return;
   }
 
@@ -320,7 +417,34 @@
     target.addEventListener('error', fail, {once: true});
     try { action(); } catch { fail(); }
   });
+  // 卡片那段時間沒有影片：縮圖與預覽畫成淺色的卡片（「n1 → n2」），不是黑的，免得看起來像黑屏
+  // （2026-10-28 驗收）
+  function cardFrame(card) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 384;
+    canvas.height = 216;
+    const context = canvas.getContext('2d');
+    const segment = composite ? composite.segments[card.index] : null;
+    const label = card.kind === 'transition'
+      ? [segment && segment.prev, card.node].filter(Boolean).join(' → ')
+      : card.node || ((segment && segment.nodes) || []).join(', ');
+    context.fillStyle = '#f4f7fb';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = nodeColor(card.node) || '#546479';
+    context.fillRect(0, 0, 10, canvas.height);
+    context.font = '600 52px ui-monospace, SFMono-Regular, Consolas, monospace';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(label, canvas.width / 2 + 5, canvas.height / 2);
+    return canvas;
+  }
   function grab(seconds, pageId) {
+    const card = !pageId && video.cardAt ? video.cardAt(seconds) : null;
+    if (card) {
+      const key = 'card:' + card.index;
+      if (!frames.has(key)) frames.set(key, cardFrame(card));
+      return Promise.resolve(frames.get(key));
+    }
     const clip = video.clipAt(seconds, pageId);
     const local = clip ? Math.max(0, seconds - clip.start) : 0;
     const key = (clip ? clip.pageId : 'gap') + ':' + Math.round(local * 10);
@@ -437,7 +561,13 @@
           : fill(messages['card_' + segment.kind] || '', {node: segment.node || '', nodes: (segment.nodes || []).join(', ')});
         band.tabIndex = -1;
         band.addEventListener('pointerdown', event => event.stopPropagation());
-        band.addEventListener('click', () => { selected = null; seek(segment.startMs / 1000); renderSteps(); });
+        if (segment.node && segment.kind !== 'transition') band.style.setProperty('--node', nodeColor(segment.node));
+        band.addEventListener('click', () => {
+          selected = null;
+          closeDetail({focus: false});
+          seek(segment.startMs / 1000);
+          renderSteps();
+        });
         bands.appendChild(band);
       }
     }
@@ -511,7 +641,7 @@
     const card = video.cardAt ? video.cardAt(seconds) : null;
     $('replay-preview-step').textContent = card ? cardTitle(card) : step ? numberOf(step) + ' · ' + title(step) : messages.open_browser;
     const context = previewCanvas.getContext('2d');
-    const near = nearest(seconds);
+    const near = card ? null : nearest(seconds);
     if (near) context.drawImage(near, 0, 0, previewCanvas.width, previewCanvas.height);
     clearTimeout(hoverTimer);
     hoverTimer = setTimeout(() => grab(seconds).then(frame => {
@@ -540,6 +670,7 @@
     const step = card ? null : shownAt(seconds);
     const state = step ? stateOf(step, seconds) : 'upcoming';
     $('replay-chip-n').textContent = step ? numberOf(step) : '—';
+    $('replay-chip-n').style.background = composite && step ? nodeColor(step.node) : '';
     $('replay-chip-state').className = 'replay-chip-state ' + (step ? state : '');
     $('replay-chip-text').textContent = card ? cardTitle(card) : step
       ? [title(step), [step.action, step.target].filter(Boolean).join(' ')].join(' · ')
@@ -630,8 +761,9 @@
     else target = position > 0 ? timed[position - 1] : null;
     if (target) {
       selected = target.index;
-      seek(target.start - PREROLL, target);
+      seek(leadIn(target), target);
       renderSteps();
+      if (drawerOpen()) openDetail(target, {focus: false});
     } else if (direction < 0) {
       seek(0);
     }
@@ -736,9 +868,10 @@
       seek(Number(params.get('t')) || 0, asked);
       renderSteps();
     } else if (asked && asked.start != null) {
-      choose(asked.index);
+      choose(asked.index, {focus: false});
     } else if (failedStep && failedStep.start != null) {
       seek(failedStep.start - 1, failedStep);
+      openDetail(failedStep, {focus: false});
       const located = $('replay-located');
       located.textContent = fill(messages.located_failed, {n: failedStep.label || failedStep.index});
       located.hidden = false;

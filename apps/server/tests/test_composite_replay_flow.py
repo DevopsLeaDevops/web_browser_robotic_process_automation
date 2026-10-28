@@ -197,14 +197,21 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
             == "visible"
         )
 
-        # 點 n2 的「查詢」那一步：跳到它開始前 0.4 秒，但不早於 n2 那一段的開頭（不跳回轉場卡）。
-        # 本機的測試網站很快，n2 的錄影開始時（第一格）前幾步可能已經做完，「查詢」離開頭很近。
+        # 點 n2 的「查詢」那一步：跳到它開始前（最多 0.4 秒、不早於 n2 上一步結束，2026-10-28），
+        # 也不早於 n2 那一段的開頭（不跳回轉場卡）。本機的測試網站很快，n2 的錄影開始時（第一格）
+        # 前幾步可能已經做完，「查詢」離開頭很近。詳情從右側滑出，標出節點。
         steps = cast("list[JsonObject]", data["steps"])
         search = next(step for step in steps if step["node"] == "n2" and step["rawId"] == "search")
+        before = steps[cast("int", search["index"]) - 2]
+        start = cast("int", search["startMs"]) / 1000
+        lead = start - 0.4
+        if before["node"] == "n2" and before["endMs"] is not None:
+            lead = max(lead, min(cast("int", before["endMs"]) / 1000, start))
         page.locator(f'.replay-row[data-index="{search["index"]}"]').click()
-        target = max(second_start, cast("int", search["startMs"]) / 1000 - 0.4)
-        wait_near(page, target, search)
+        wait_near(page, max(second_start, lead), search)
         expect(page.locator("#replay-chip-n")).to_have_text(str(search["label"]))
+        expect(page.locator(".replay-drawer-title")).to_contain_text(str(search["label"]))
+        expect(page.locator(".replay-drawer-title")).to_contain_text("n2 ·")
 
         # 釘選整次：兩個節點的錄影都釘選
         page.locator('[data-replay-tab][aria-controls="replay-tab-info"]').click()

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:5ed6b54f7a7b1378">
+<meta name="translation-source" content="sha256:c4e2c42839ecce8c">
 <title>ADR 0018 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -76,6 +76,7 @@
           <li><strong>Recorder.</strong> It only says "close and reopen to apply" and never restarts itself.</li>
           <li><strong>Setting and pages.</strong> "Update devices automatically" is stored in the <code>settings</code> table (<code>device_updates</code>) and is on by default. The Devices page shows the server's update file and each device's most recent update state (kept in memory only; after a server restart it waits for devices to report again). "Needs the full installer" explains that the runtime differs, and hovering shows the device's and the update file's runtime IDs; when an update state explains the difference, the separate "Differs from the portal's code" warning is not shown (2026-10-26).</li>
           <li><strong>Release.</strong> <code>release.yml</code> builds and signs <code>RPA-Update-&lt;version&gt;.zip</code> with the <code>RPA_UPDATE_SIGNING_KEY</code> secret and checks that every package trusts exactly the public keys in <code>rpa_update/keys.py</code> (<code>RELEASE_KEYS</code>); without a real key the release fails. How to create the key: <a href="../develop/ci.html#update-key">CI and pipelines › Update signing key</a>. Builds on pull requests test with a temporary key.</li>
+          <li><strong>Page assets carry a content hash (2026-10-28).</strong> After an update file replaces the code layer, browsers kept using cached copies of files whose address had not changed, such as <code>/static/replay.js</code> (there was no Cache-Control, so browsers guessed how long to cache): during the v0.7.0 acceptance the page was new but the player script was old. Templates now use <code>static_url()</code>, which adds a hash of the content (<code>?v=…</code>); versioned addresses are cached for a long time, plain ones are revalidated every time (<code>no-cache</code>).</li>
           <li><strong>Measured (local Linux x86_64 build).</strong> The update file is about 1.9 MB (the seven packages compiled to .pyc). The packaged Worker loads a newly installed layer, confirms it, rolls back after two failed starts, and a restarted process waits for the old one to exit (taking over within about 0.5 seconds).</li>
         </ul>
       </div>

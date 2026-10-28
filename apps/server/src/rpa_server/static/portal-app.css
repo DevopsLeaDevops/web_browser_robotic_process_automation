@@ -367,6 +367,24 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .replay-steps:not(:has(canvas)) .replay-row{grid-template-columns:22px minmax(0,1fr) auto}
 .replay-row:hover{background:#f6f9fd}
 .replay-row.current{background:var(--active)}
+/* 步驟詳情（2026-10-28）：在右側欄裡從右往左滑出、蓋住清單；清單不動 */
+.replay-drawer{position:absolute;left:0;right:0;bottom:0;top:0;z-index:4;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--line);box-shadow:-12px 0 24px #24334a1a;transform:translateX(104%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
+.replay-drawer.open{transform:none;visibility:visible;transition:transform .22s ease}
+/* 步驟少、右側欄矮時，詳情也有足夠的高度（上限照右側欄的 max-height） */
+.replay-side.detail-open{min-height:560px}
+.replay-drawer-head{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.replay-drawer-back{display:inline-flex;align-items:center;gap:2px;font-size:13px}
+.replay-drawer-back svg{width:16px;height:16px}
+.replay-drawer-head .replay-icon{width:30px;height:28px}
+.replay-drawer-head .replay-icon:disabled{opacity:.4;cursor:default}
+.replay-drawer-title{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;padding:12px 12px 4px}
+.replay-drawer-title .replay-n{width:auto;min-width:24px;height:24px;padding:0 7px;border-radius:12px}
+.replay-drawer-title.node .replay-n{background:var(--node);color:#fff;border:0}
+.replay-drawer-title strong{display:block;font-size:14px;overflow-wrap:anywhere}
+.replay-drawer-title small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.replay-drawer-body{flex:1;min-height:0;overflow:auto;padding:8px 12px 14px}
+.replay-drawer .replay-detail{margin:0;padding:0;border:0;background:none}
+@media(prefers-reduced-motion:reduce){.replay-drawer,.replay-drawer.open{transition:none}}
 .replay-n{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;font:600 11px ui-monospace,SFMono-Regular,Consolas,monospace;background:#eef2f7;color:var(--muted)}
 .replay-n.passed{background:#e7f6ef;color:var(--success)}
 .replay-n.failed{background:var(--danger);color:#fff}
@@ -396,7 +414,7 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .replay-settings{display:grid;gap:12px}
 .replay-toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px}
 .replay-toggle input{min-height:0}
-@media(max-width:1180px){.replay-layout{grid-template-columns:1fr}.replay-side{position:static;max-height:none}.replay-tabpanel{max-height:520px}}
+@media(max-width:1180px){.replay-layout{grid-template-columns:1fr}.replay-side{position:relative;max-height:none}.replay-tabpanel{max-height:520px}}
 @media(max-width:700px){.replay-row{grid-template-columns:22px minmax(0,1fr) auto}.replay-thumb{display:none}.replay-detail{margin-left:6px}.replay-address small{display:none}.replay-stages>div{flex-basis:45%}}
 @media(prefers-reduced-motion:reduce){.replay-tile{animation:none}.replay-tile canvas{transition:none}}
 
@@ -520,9 +538,12 @@ details.creport-node.anchor-hit{animation:anchor-hit 1.6s ease-out}
 .replay-bands{position:relative;height:20px;margin-top:6px}
 .replay-band{position:absolute;top:0;bottom:0;min-width:3px;padding:0 4px;border:1px solid #c3d4e8;border-radius:4px;background:#e4eefa;color:#315b89;font:600 10px/18px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:clip;cursor:pointer}
 .replay-band:hover{border-color:var(--blue)}
-.replay-band.video.passed{background:#e7f6ef;border-color:#7cc2a2;color:var(--success)}
-.replay-band.video.failed,.replay-band.video.timed_out{background:#fff0ef;border-color:#e3a19c;color:var(--danger)}
-.replay-band.video.cancelled{background:#fff7e8;border-color:#e2c27f;color:var(--warn)}
+/* 節點色帶用節點的顏色（同步驟清單），結果是前面的小圓點（2026-10-28） */
+.replay-band.video{background:#eef3fb;background:color-mix(in srgb,var(--node,#2f6fdb) 14%,#fff);border-color:color-mix(in srgb,var(--node,#2f6fdb) 55%,#fff);color:var(--node,#315b89)}
+.replay-band.video::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:1px;background:currentColor}
+.replay-band.video.passed::before{background:var(--success)}
+.replay-band.video.failed::before,.replay-band.video.timed_out::before{background:var(--danger)}
+.replay-band.video.cancelled::before,.replay-band.video.needs_login::before{background:var(--warn)}
 .replay-band.transition{background:repeating-linear-gradient(135deg,#f1f4f8 0 4px,#e3e9f1 4px 8px);border-color:#d6dee9}
 .replay-band.no_video,.replay-band.not_run,.replay-band.pending{background:#f5f7fa;border-style:dashed;color:var(--muted)}
 .replay-band.reused{background:#eef6f2;border-style:dashed;color:var(--success)}
@@ -539,15 +560,20 @@ details.creport-node.anchor-hit{animation:anchor-hit 1.6s ease-out}
 .creplay-card-note{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:8px;margin-top:12px!important}
 .creplay-card.no_video .creport-error{margin-top:8px}
 .creplay-hint{margin:2px 2px 0}
-.replay-node-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;padding:10px 6px 4px;border-top:1px solid var(--line);margin-top:4px}
-.replay-node-head:first-child{border-top:0;margin-top:0;padding-top:4px}
+/* 合併回看的步驟清單（2026-10-28）：每個節點一組，標題列用節點的顏色打底，下面的步驟左側一條同色的
+   色條，組和組之間留空；顏色和時間軸的節點色帶、畫面上的步驟編號相同 */
+.replay-node-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;padding:8px 8px 7px;margin:14px 0 2px 2px;border-left:3px solid var(--node,#c3d4e8);border-radius:0 7px 7px 0;background:#f4f7fb;background:color-mix(in srgb,var(--node,#c3d4e8) 9%,#fff)}
+.replay-node-head:first-child{margin-top:0}
+.replay-node-head .replay-node-button .replay-n{background:var(--node,#eef2f7);color:#fff}
+.replay-node-head small.passed{color:var(--success)}
+.replay-node-head small.failed,.replay-node-head small.timed_out{color:var(--danger)}
+.replay-node-head small.cancelled,.replay-node-head small.needs_login{color:var(--warn)}
+.replay-steps li.in-node{margin-left:2px;border-left:3px solid var(--node,#c3d4e8);padding-left:3px}
+.replay-steps li.in-node .replay-row{border-radius:0 7px 7px 0}
 .replay-node-head.current .replay-node-button strong{color:var(--blue-strong)}
 .replay-node-button{display:inline-flex;align-items:center;gap:8px;border:0;background:none;padding:0;text-align:left;font-size:13px;min-width:0}
 .replay-node-button:disabled{cursor:default;opacity:1}
 .replay-node-button .replay-n{width:auto;min-width:22px;padding:0 6px;border-radius:11px}
-.replay-node-button .replay-n.reused{background:#eef6f2;color:var(--success)}
-.replay-node-button .replay-n.needs_login,.replay-node-button .replay-n.cancelled{background:#fff7e8;color:var(--warn)}
-.replay-node-button .replay-n.timed_out{background:var(--danger);color:#fff}
 .replay-node-head small{color:var(--muted);font-size:11px}
 .creplay-node-links{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px;font-size:12px}
 .creplay-node-links li{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}

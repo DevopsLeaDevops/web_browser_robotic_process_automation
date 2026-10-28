@@ -1822,5 +1822,9 @@
   "replayjs.card_no_video": "{{node}} 沒有錄影",
   "replayjs.card_not_run": "沒有執行：{{nodes}}",
   "replayjs.card_pending": "還沒結束：{{nodes}}",
-  "creplay.download_node": "下載這個節點的錄影："
+  "creplay.download_node": "下載這個節點的錄影：",
+  "replayjs.step_detail": "步驟詳情",
+  "replayjs.back_to_steps": "步驟清單",
+  "replayjs.prev_step": "上一步（J）",
+  "replayjs.next_step": "下一步（L）"
 }
