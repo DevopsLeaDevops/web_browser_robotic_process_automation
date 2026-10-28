@@ -1,7 +1,9 @@
 """HTML 頁面：取資料、交給樣板（render.py）。寫入操作由頁面上的 JavaScript 呼叫 /api。"""
 
+import json
 import mimetypes
 import os
+import zipfile
 from datetime import datetime
 from typing import Annotated, Final, Literal, cast
 from urllib.parse import urlencode, urlsplit
@@ -9,6 +11,7 @@ from urllib.parse import urlencode, urlsplit
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from markupsafe import escape
+from starlette.background import BackgroundTask
 
 from rpa_core.dsl import ExtractStep, Scenario, validate_text
 from rpa_core.dsl.editing import contract_section, section_text
@@ -21,7 +24,7 @@ from rpa_server.composite_report import build_composite_report, embedded_screens
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
 from rpa_server.domain import ENGINES, TARGETS, DomainRecord, RoleRecord, RunRecord, now
-from rpa_server.errors import ServiceError
+from rpa_server.errors import ServiceError, not_found
 from rpa_server.gitsync import GitSource
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
@@ -913,6 +916,66 @@ def page_router(services: Services) -> APIRouter:
             project=owner,
             role=role,
             messages=workflow_messages(),
+        )
+
+    @router.get("/playground/runs/{run_id}/replay", include_in_schema=False)
+    def workflow_run_replay(run_id: str) -> HTMLResponse:
+        """組合運行的合併回看（2026-10-27，ADR 0019）：一個播放器從頭看完整次運行。"""
+        record = workflows.get_run(run_id)
+        data, report = services.composite_replay(run_id)
+        state = services.composite_video(run_id)
+        video = cast("dict[str, object] | None", data["video"])
+        owner = None
+        if record.workflow_id is not None:
+            try:
+                project_id = workflows.get_workflow(record.workflow_id).project_id
+            except ServiceError:
+                project_id = None
+            owner = projects.get_project(project_id) if project_id else None
+        return page(
+            "composite_replay.html",
+            page=project_page(owner.id) if owner is not None else "playground",
+            title=t("creplay.title", id=record.id),
+            run=record,
+            project=owner,
+            data=data,
+            data_json=dumps(data),
+            video=video or {},
+            playable=bool(video and video.get("playable")),
+            nodes={
+                str(node["id"]): node for node in cast("list[dict[str, object]]", report["nodes"])
+            },
+            video_state=state,
+            keep_until=_parse_time(state.get("keepUntil")),
+            size=_size(state.get("bytes")),
+            replay_messages=replay_messages(),
+        )
+
+    @router.get("/playground/runs/{run_id}/videos.zip", include_in_schema=False)
+    def workflow_run_videos(run_id: str) -> Response:
+        """下載整次組合運行的錄影：各節點的片段依合併回看的順序編號，
+        加上說明順序的 playlist.json。"""
+        files = services.composite_video_files(run_id)
+        if not files:
+            raise not_found("video_not_found", t("creplay.no_video"))
+        data, _ = services.composite_replay(run_id)
+        playlist = {
+            "compositeRun": run_id,
+            "files": [name for name, _ in files],
+            "segments": cast("dict[str, object]", data["composite"])["segments"],
+        }
+        target = services.storage.work / f"{run_id}-videos.zip"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as archive:
+            for name, path in files:
+                archive.write(path, name)
+            archive.writestr("playlist.json", json.dumps(playlist, ensure_ascii=False, indent=2))
+        return FileResponse(
+            target,
+            media_type="application/zip",
+            filename=f"{run_id}-videos.zip",
+            background=BackgroundTask(target.unlink, missing_ok=True),
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
 
     @router.get("/playground/runs/{run_id}/report.html", include_in_schema=False)

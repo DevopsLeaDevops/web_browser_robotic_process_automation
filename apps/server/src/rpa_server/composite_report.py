@@ -279,7 +279,11 @@ def build_composite_report(
         for node in nodes
         if node["status"] not in ("reused", "skipped") and node["runId"] is not None
     ]
-    busy = [cast("float", node["durationSeconds"]) for node in executed if node["durationSeconds"]]
+    busy = [
+        cast("float", node["durationSeconds"])
+        for node in executed
+        if node["durationSeconds"] is not None
+    ]
     return {
         "id": record.id,
         "status": record.status,

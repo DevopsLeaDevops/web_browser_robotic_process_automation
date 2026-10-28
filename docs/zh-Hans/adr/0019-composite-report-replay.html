@@ -1,0 +1,90 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0019-composite-report-replay.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0019 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0019" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0019：以一次组合运行看报告与录像，录像在播放器里接起来</h1>
+      <p>一次组合运行有一份汇总报告与一个合并回看。合并回看不产生新的视频档：播放器把各节点的录像依序放在同一条时间轴上，节点之间没有画面的时间换成短短的卡片。组合里的节点录像整组保留。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-27</dd>
+        <dt>状态</dt><dd>2026-10-27 用户确认设计（D1～D6 照建议，见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）；汇总报告与合并回看分两个 PR 实现。</dd>
+        <dt>影响范围</dt><dd>rpa-server（组合运行页、合并回看页、API、Agent API、录像的保留与钉选）；不改 rpa-runner、rpa-worker 与桌面 App</dd>
+        <dt>相关</dt><dd><a href="0016-run-replay.html">ADR 0016</a>（运行回看：每次运行的录像、多标签页片段、播放器）、<a href="0018-layered-updates.html">ADR 0018</a>（只改程序层，可以只发更新档）；<a href="../design/portal.html#composite-report">管理 Portal › 组合运行的汇总报告</a>、<a href="../design/portal.html#composite-replay">合并回看</a>；<a href="../../../handoff/tasks/20261027-composite-report-replay.html">任务记录</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>一次组合运行（<code>workflow_runs</code> 一笔）的每个节点都是一次独立的运行，各有报告、截图与录像。原本的组合运行页只列出节点与链接：要知道停在哪一步、为什么、前面传了什么值，要逐一打开节点的报告；要看录像，也要一段一段打开。用户 2026-10-27 要求以「一次组合运行」的视角看报告与录像。</p>
+          <p>节点依 DAG 的拓扑顺序一个一个运行，整次固定在同一台 Worker，所以各节点的录像在时间上是一条线、不会重叠。每段录像只涵盖那个节点的自动化阶段：排队、开浏览器、登录检查、断言与出参都没有画面。</p>
+          <p>Linux 服务器没有浏览器，也没有 ffmpeg（ADR 0016）；服务器加影音包会改变运行环境，就不能只发更新档（ADR 0018）。各节点的画面大小可能不同（页面大小、Firefox 的差异）。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>决策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>汇总报告。</strong>组合运行页改成一份报告：结论（全部通过，或停在哪个节点的哪一步，附定位器、错误、没通过的断言与截图，以及没有运行的节点）、数字、依结果上色的 DAG 与时间轴、每个节点的入参（值与来源）与出参（值与流向）、步骤、断言。数据在看的时候从数据库与各节点的 <code>result.json</code> 组出来，不另保存。可以下载成单一 HTML（只嵌入没通过的节点的截图，D4）；API 与 Agent API 给同一份 JSON。</li>
+            <li><strong>录像在播放器里接起来（D1）。</strong>不产生新的视频档：每个有录像的节点是一段，它的片段与步骤移到这一段的开始；分页代号加上节点（<code>n2/page-1</code>）。播放器沿用 ADR 0016 的多片段时钟：加载片段时暂停时钟，片段之间依实际时间前进。下载是各节点原始录像的 zip，附说明顺序的 <code>playlist.json</code>。</li>
+            <li><strong>空档换成卡片（D2）。</strong>两段录像之间是 2 秒的转场卡：上一个节点的出参与传给谁、下一个节点的入参与来源、实际隔了多久（上一个节点最后一步结束到下一个节点第一步开始，用同一台 Worker 的步骤时间；Chromium 录像的开始时间是第一格的观测时间，可能差到一秒，不拿来算）。没有录像的节点（已删除、需要登录、没有开始、没有进到自动化）是 3 秒的说明卡。从停下的节点继续时，沿用的节点只放一张卡片并连到原本那次的回看（D3）；最后没有运行或还没结束的节点合成一张卡片。</li>
+            <li><strong>步骤重新编号。</strong>整次运行一个编号，另外记下节点与节点里的编号（<code>n2·3</code>）；步骤代号加上节点（<code>n2:search</code>），<code>?step=</code> 指到某个节点的某一步，<code>?node=</code> 从某个节点开始。</li>
+            <li><strong>录像整组保留（D6）。</strong>组合运行里的节点，保留天数看整次组合运行的结果与结束时间（还在运行就不删）；钉选一个节点就是钉选整次；超过总量时整次一起删。单独的运行规则不变。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>不用打开节点也知道失败在哪里、为什么；一个播放器看完整次运行，点右侧任一节点的任一步就跳到那个画面。</li>
+            <li>只改服务器：不加第三方包、没有数据库迁移、不改 Worker 与录制端，可以只发更新档。</li>
+            <li>没有一支真正合并的视频：要拿到 Portal 以外看，下载的是各节点的视频与顺序说明。</li>
+            <li>卡片取代了实际的空档，视频的时间轴不是实际经过的时间；实际时间在报告的时间轴与转场卡上。</li>
+            <li>没通过的组合运行，前面通过的节点录像多留到 30 天，磁盘用量比各自计算多一些；总量上限照旧。</li>
+            <li>节点画面大小不同时，播放器以第一段的比例显示，其他段等比例缩放置中。</li>
+            <li>将来支持平行节点时，时间轴要改成多轨；数据保留了各段的实际时间，可以在这上面扩充。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>为什么不选</th></tr></thead>
+            <tbody>
+              <tr><td>服务器把各段接成一支 .webm</td><td>服务器没有 ffmpeg；画面大小不同要重新编码；加影音包就不能只发更新档；多存一份视频。</td></tr>
+              <tr><td>Worker 在最后一个节点后接视频</td><td>Worker 不知道整次运行何时结束；重跑、沿用、取消都要处理；一样要重新编码。</td></tr>
+              <tr><td>保留实际的空档</td><td>排队、开浏览器、断言常常比操作本身还长，视频里会有大段空白。</td></tr>
+              <tr><td>直接把各段接上、不放卡片</td><td>看不出节点之间传了什么值，也看不出换了节点。</td></tr>
+              <tr><td>汇总报告在运行结束时存成文件</td><td>要决定用谁的语言、数据改了（例如录像被删）要重产；目前在看的时候产生就够，归档（M11 D4）时再存。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -168,7 +168,7 @@
         <td>{{ run_badge(run.status) }}{% if run.failed_node and run.finished %}<span class="cell-sub">{{ t("playground.stopped_at", node=run.failed_node) }}</span>{% endif %}</td>
         <td class="nowrap">{{ t("playground.progress", passed=run.passed_count, total=run.nodes | length) }}</td>
         <td class="numeric">{% if run.duration_seconds is not none %}{{ run.duration_seconds | duration }}{% else %}—{% endif %}</td>
-        <td><a class="text-btn" href="/playground/runs/{{ run.id }}">{{ t("runs.report") }}</a></td>
+        <td class="nowrap"><a class="text-btn" href="/playground/runs/{{ run.id }}">{{ t("runs.report") }}</a> <a class="text-btn replay-link" href="/playground/runs/{{ run.id }}/replay" title="{{ t('creplay.open') }}"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>{{ t("runs.replay_link") }}</a></td>
       </tr>
     {% endfor %}
     </tbody>

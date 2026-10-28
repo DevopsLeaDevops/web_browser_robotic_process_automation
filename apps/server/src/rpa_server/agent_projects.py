@@ -187,6 +187,7 @@ def project_routes(services: Services, tools: AgentTools) -> APIRouter:
         data["progress"] = progress(run)
         data["portalPath"] = f"/playground/runs/{run.id}"
         data["reportUrl"] = f"{AGENT_PREFIX}/composite-runs/{run.id}/report"
+        data["replayPath"] = f"/playground/runs/{run.id}/replay"
         return data
 
     def report_for(client: ApiClientRecord, report: dict[str, object]) -> dict[str, object]:

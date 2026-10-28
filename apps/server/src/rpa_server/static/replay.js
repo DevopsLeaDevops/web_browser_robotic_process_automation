@@ -4,6 +4,9 @@
 // 影片的第 t 秒＝錄影開始時間＋t；步驟的 startMs、endMs 已經換算成影片裡的毫秒。
 // 縮圖在這個瀏覽器裡產生：另一個看不見的 video 跳到各時間點、畫到 canvas（伺服器沒有 ffmpeg）。
 // 共用的 toast()、esc() 來自設計系統的 shell.js。
+// 組合運行的合併回看（2026-10-27，rpa_server.composite_replay）：data.composite 有值時，步驟依節點
+// 分組、時間軸多一條節點色帶、沒有影片的時間顯示卡片（#replay-card-<段> 樣板），N／P 跳到下一個／
+// 上一個節點；步驟的 label 是「n2·3」，id 是「n2:search」（網址的 ?step= 用它）。
 (() => {
   const root = document.getElementById('replay');
   if (!root) return;
@@ -15,9 +18,11 @@
   const FPS = 25;
   const PREROLL = 0.4;
   const runId = root.dataset.run;
+  const composite = data.composite || null;
   const element = $('replay-video');
   const playable = Boolean(element && data.video && data.video.playable);
   const video = playable ? new ReplayMedia(element, data.video, data.steps, $('replay-gap')) : null;
+  const numberOf = step => step.label || String(step.index).padStart(2, '0');
 
   const steps = data.steps.map(step => ({
     ...step,
@@ -35,13 +40,24 @@
     const rest = value - minutes * 60;
     return String(minutes).padStart(2, '0') + ':' + rest.toFixed(2).padStart(5, '0');
   };
-  const title = step => step.name || fill(messages['action_' + step.action] || '{id}', {id: step.id});
+  const title = step => step.name || fill(messages['action_' + step.action] || '{id}', {id: step.rawId || step.id});
   const clamp = seconds => Math.min(Math.max(0, seconds), Math.max(0, duration - 0.04));
+  const cardTitle = card => {
+    const segment = composite && composite.segments[card.index];
+    return fill(messages['card_' + card.kind] || '', {
+      node: card.node || '', prev: (segment && segment.prev) || '', nodes: ((segment && segment.nodes) || []).join(', '),
+    });
+  };
 
   // 這一刻是哪一步：最後一個已經開始的步驟
+  // 合併回看只看目前這個節點的步驟：節點那一段開頭、第一步之前不是上一個節點的最後一步
   const stepAt = seconds => {
+    const where = composite ? nodeAt(seconds) : null;
     let found = null;
-    for (const step of timed) if (step.start <= seconds + 0.001) found = step;
+    for (const step of timed) {
+      if (where && step.node !== where.id) continue;
+      if (step.start <= seconds + 0.001) found = step;
+    }
     return found;
   };
   // 畫面上標成目前的步驟：點一步會跳到它開始前 PREROLL 秒，這段時間標成點的那一步，不是前一步
@@ -77,7 +93,7 @@
     const seekable = playable && step.start != null;
     item.innerHTML =
       '<div class="replay-row" data-index="' + step.index + '" tabindex="0" role="button">' +
-      '<span class="replay-n" data-n>' + step.index + '</span>' +
+      '<span class="replay-n" data-n>' + esc(step.nodeIndex || step.index) + '</span>' +
       (playable ? '<canvas class="replay-thumb" width="128" height="72" data-thumb="' + step.index + '" aria-hidden="true"></canvas>' : '') +
       '<span class="replay-title"><strong></strong><small></small></span>' +
       '<span class="replay-when">' + (seekable ? '<b>' + fmt(step.start) + '</b>' : '') +
@@ -119,8 +135,8 @@
       actions.push('<button class="button primary" type="button" data-act="play">' + esc(messages.play_from) + '</button>');
       actions.push('<button class="button" type="button" data-act="link">' + esc(messages.copy_link) + '</button>');
     }
-    if (step.line) {
-      actions.push('<a class="button" href="' + esc(data.editUrl + '&line=' + step.line) + '">' +
+    if (step.line && (step.editUrl || data.editUrl)) {
+      actions.push('<a class="button" href="' + esc((step.editUrl || data.editUrl) + '&line=' + step.line) + '">' +
         esc(fill(messages.open_in_scene, {line: step.line})) + '</a>');
     }
     box.innerHTML = (step.error ? '<div class="replay-error">' + esc(step.error) + '</div>' : '') +
@@ -129,14 +145,59 @@
     return box;
   }
 
+  // 合併回看：每個節點一列標題（狀態、名稱、這段從哪裡開始），下面是它的步驟
+  function nodeHead(node) {
+    const item = document.createElement('li');
+    item.className = 'replay-node-head';
+    item.dataset.node = node.id;
+    const special = {reused: messages.node_reused, skipped: messages.node_skipped}[node.status];
+    const note = special || (node.segment == null ? messages.node_waiting
+      : !steps.some(step => step.node === node.id && step.start != null) ? messages.node_no_video
+      : node.durationSeconds != null ? node.durationSeconds.toFixed(1) + ' s' : '');
+    const status = special ? '' : messages['status_' + node.status] || node.status;
+    item.innerHTML = '<button type="button" class="replay-node-button"' + (node.startMs == null ? ' disabled' : '') + '>' +
+      '<span class="replay-n ' + esc(node.status) + '">' + esc(node.id) + '</span><strong></strong></button>' +
+      '<small>' + esc([status, note].filter(Boolean).join(' · ')) + '</small>';
+    item.querySelector('strong').textContent = node.sceneName;
+    return item;
+  }
+
   function renderSteps() {
     list.textContent = '';
-    if (!steps.length) {
+    if (!steps.length && !composite) {
       list.innerHTML = '<li class="empty">' + esc(messages.no_steps) + '</li>';
       return;
     }
-    for (const step of steps) list.appendChild(row(step));
+    if (composite) {
+      for (const node of composite.nodes) {
+        list.appendChild(nodeHead(node));
+        for (const step of steps) if (step.node === node.id) list.appendChild(row(step));
+      }
+    } else {
+      for (const step of steps) list.appendChild(row(step));
+    }
     if (playable) sync(true);
+  }
+
+  // 跳到某個節點那一段的開頭（N／P 與節點標題列）
+  const seekNode = id => {
+    const node = composite && composite.nodes.find(each => each.id === id);
+    if (!node || node.startMs == null || !playable) return;
+    selected = null;
+    seek(node.startMs / 1000);
+    renderSteps();
+  };
+  const nodeAt = seconds => {
+    if (!composite) return null;
+    let found = null;
+    for (const node of composite.nodes) if (node.startMs != null && node.startMs / 1000 <= seconds + 0.001) found = node;
+    return found;
+  };
+  if (composite) {
+    list.addEventListener('click', event => {
+      const head = event.target.closest('.replay-node-head');
+      if (head && event.target.closest('button')) seekNode(head.dataset.node);
+    });
   }
 
   function choose(index, {seekTo = true} = {}) {
@@ -158,6 +219,7 @@
       } else if (action.dataset.act === 'link') {
         const url = new URL(location.href);
         url.search = '';
+        url.hash = '';
         url.searchParams.set('t', video.currentTime.toFixed(2));
         url.searchParams.set('step', step.id);
         try {
@@ -200,7 +262,7 @@
       pin.disabled = true;
       let ok = false;
       try {
-        const response = await fetch('/api/runs/' + encodeURIComponent(runId) + '/video', {
+        const response = await fetch(pin.dataset.url || '/api/runs/' + encodeURIComponent(runId) + '/video', {
           method: 'PUT',
           headers: {'Content-Type': 'application/json', Accept: 'application/json'},
           body: JSON.stringify({pinned}),
@@ -220,10 +282,11 @@
   }
 
   // 運行還沒結束：結束後重新整理，錄影整理好就能回看
-  if (document.querySelector('[data-poll-replay]')) {
+  const polling = document.querySelector('[data-poll-replay]');
+  if (polling) {
     const poll = async () => {
       try {
-        const response = await fetch('/api/runs/' + encodeURIComponent(runId), {headers: {Accept: 'application/json'}});
+        const response = await fetch(polling.dataset.url || '/api/runs/' + encodeURIComponent(runId), {headers: {Accept: 'application/json'}});
         if (response.ok && (await response.json()).finished) {
           location.reload();
           return;
@@ -299,6 +362,19 @@
     return best;
   };
 
+  // ---------------------------------------------------------------- 卡片（合併回看）
+
+  const cardBox = $('replay-card');
+  const showCard = card => {
+    if (!cardBox) return;
+    const source = card && document.getElementById('replay-card-' + card.index);
+    cardBox.hidden = !source;
+    cardBox.textContent = '';
+    if (source) cardBox.appendChild(source.content.cloneNode(true));
+  };
+  video.addEventListener('card', event => { showCard(event.detail); sync(); });
+  showCard(video.card);
+
   // ---------------------------------------------------------------- 時間軸
 
   const timeline = $('replay-timeline');
@@ -344,6 +420,24 @@
       segment.style.width = ((end - start) / duration * 100) + '%';
       segment.title = step.index + ' · ' + title(step);
       track.appendChild(segment);
+    }
+    const bands = $('replay-bands');
+    if (bands && composite) {
+      bands.textContent = '';
+      for (const segment of composite.segments) {
+        const band = document.createElement('button');
+        band.type = 'button';
+        band.className = 'replay-band ' + segment.kind + (segment.status ? ' ' + segment.status : '');
+        band.style.left = (segment.startMs / 1000 / duration * 100) + '%';
+        band.style.width = (segment.durationMs / 1000 / duration * 100) + '%';
+        band.textContent = segment.kind === 'video' || segment.kind === 'reused' || segment.kind === 'no_video' ? segment.node : '';
+        band.title = segment.kind === 'video' ? segment.node
+          : fill(messages['card_' + segment.kind] || '', {node: segment.node || '', nodes: (segment.nodes || []).join(', ')});
+        band.tabIndex = -1;
+        band.addEventListener('pointerdown', event => event.stopPropagation());
+        band.addEventListener('click', () => { selected = null; seek(segment.startMs / 1000); renderSteps(); });
+        bands.appendChild(band);
+      }
     }
     ticks.textContent = '';
     const every = duration > 600 ? 120 : duration > 120 ? 30 : duration > 40 ? 10 : duration > 15 ? 5 : 2;
@@ -412,7 +506,8 @@
     preview.style.left = Math.min(rect.width - preview.offsetWidth - 6, Math.max(6, x - preview.offsetWidth / 2)) + 'px';
     $('replay-preview-time').textContent = fmt(seconds);
     const step = stepAt(seconds);
-    $('replay-preview-step').textContent = step ? step.index + ' · ' + title(step) : messages.open_browser;
+    const card = video.cardAt ? video.cardAt(seconds) : null;
+    $('replay-preview-step').textContent = card ? cardTitle(card) : step ? numberOf(step) + ' · ' + title(step) : messages.open_browser;
     const context = previewCanvas.getContext('2d');
     const near = nearest(seconds);
     if (near) context.drawImage(near, 0, 0, previewCanvas.width, previewCanvas.height);
@@ -439,22 +534,30 @@
     $('replay-now').textContent = fmt(seconds);
     playhead.style.left = (film.offsetLeft + (duration ? seconds / duration * film.clientWidth : 0)) + 'px';
     $('replay-past').style.width = (duration ? seconds / duration * 100 : 0) + '%';
-    const step = shownAt(seconds);
+    const card = video.card;
+    const step = card ? null : shownAt(seconds);
     const state = step ? stateOf(step, seconds) : 'upcoming';
-    $('replay-chip-n').textContent = step ? String(step.index).padStart(2, '0') : '—';
+    $('replay-chip-n').textContent = step ? numberOf(step) : '—';
     $('replay-chip-state').className = 'replay-chip-state ' + (step ? state : '');
-    $('replay-chip-text').textContent = step
+    $('replay-chip-text').textContent = card ? cardTitle(card) : step
       ? [title(step), [step.action, step.target].filter(Boolean).join(' ')].join(' · ')
       : messages.open_browser;
     $('replay-step-of').textContent = step
       ? fill(messages.step_of, {n: step.index, total: steps.length})
-      : messages.open_browser;
+      : card ? '' : messages.open_browser;
     let url = 'about:blank';
     if (step) {
       const before = timed[timed.indexOf(step) - 1];
-      url = seconds < (step.end != null ? step.end : step.start) ? (before ? before.url : 'about:blank') : step.url;
+      const same = before && before.node === step.node ? before : null;
+      url = seconds < (step.end != null ? step.end : step.start) ? (same ? same.url : 'about:blank') : step.url;
     }
-    $('replay-url').textContent = url || 'about:blank';
+    const where = composite ? nodeAt(seconds) : null;
+    $('replay-url').textContent = card ? '—' : (where ? where.id + ' · ' : '') + (url || 'about:blank');
+    if (composite) {
+      for (const head of list.querySelectorAll('.replay-node-head')) {
+        head.classList.toggle('current', Boolean(where) && !card && head.dataset.node === where.id);
+      }
+    }
     timeline.setAttribute('aria-valuenow', seconds.toFixed(2));
     timeline.setAttribute('aria-valuetext', fmt(seconds) + (step ? ' · ' + step.index + ' ' + title(step) : ''));
     track.querySelectorAll('.replay-seg').forEach(segment => {
@@ -531,6 +634,19 @@
       seek(0);
     }
   };
+  // 下一個／上一個節點（合併回看）：上一個時，已經播到這個節點 1 秒以後就先回到它的開頭
+  const jumpNode = direction => {
+    if (!composite) return;
+    const starts = composite.nodes.filter(node => node.startMs != null);
+    const now = video.currentTime;
+    const current = nodeAt(now);
+    const position = current ? starts.indexOf(current) : -1;
+    let target;
+    if (direction > 0) target = starts[position + 1];
+    else if (current && now > current.startMs / 1000 + 1) target = current;
+    else target = position > 0 ? starts[position - 1] : null;
+    if (target) seekNode(target.id);
+  };
   $('replay-prev').addEventListener('click', () => jump(-1));
   $('replay-next').addEventListener('click', () => jump(1));
   const step = direction => {
@@ -579,6 +695,7 @@
       ',': () => step(-1), '.': () => step(1),
       j: () => jump(-1), J: () => jump(-1), l: () => jump(1), L: () => jump(1),
       e: () => failedStep && choose(failedStep.index), E: () => failedStep && choose(failedStep.index),
+      n: () => jumpNode(1), N: () => jumpNode(1), p: () => jumpNode(-1), P: () => jumpNode(-1),
       '[': () => setRate(rates[Math.max(0, rates.indexOf(video.playbackRate) - 1)]),
       ']': () => setRate(rates[Math.min(rates.length - 1, rates.indexOf(video.playbackRate) + 1)]),
       f: () => $('replay-fullscreen').click(), F: () => $('replay-fullscreen').click(),
@@ -610,7 +727,9 @@
     layout();
     const params = new URLSearchParams(location.search);
     const asked = steps.find(each => each.id === params.get('step'));
-    if (params.has('t')) {
+    if (composite && params.has('node') && !params.has('t') && !asked) {
+      seekNode(params.get('node'));
+    } else if (params.has('t')) {
       if (asked) selected = asked.index;
       seek(Number(params.get('t')) || 0, asked);
       renderSteps();
@@ -619,7 +738,7 @@
     } else if (failedStep && failedStep.start != null) {
       seek(failedStep.start - 1, failedStep);
       const located = $('replay-located');
-      located.textContent = fill(messages.located_failed, {n: failedStep.index});
+      located.textContent = fill(messages.located_failed, {n: failedStep.label || failedStep.index});
       located.hidden = false;
       setTimeout(() => { located.hidden = true; }, 4000);
     }

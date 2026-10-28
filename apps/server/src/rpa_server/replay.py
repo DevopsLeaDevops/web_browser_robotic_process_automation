@@ -25,7 +25,7 @@ from rpa_runner.files import FACTS, RESULT, SCENARIO_DIR, STEPS, read_json_or
 from rpa_runner.video import clips, read_info
 from rpa_server.models import Run
 from rpa_server.storage import Storage
-from rpa_server.videos import VideoSettings, video_details
+from rpa_server.videos import VideoSettings, retention_basis, video_details
 
 __all__ = ["NOT_PASSED", "build_replay", "step_sources", "step_targets"]
 
@@ -223,7 +223,7 @@ def build_replay(
     result_raw = read_json_or(folder / RESULT, None)
     result = cast("dict[str, object]", result_raw) if isinstance(result_raw, dict) else None
     info = read_info(folder) or {}
-    state = video_details(run, settings)
+    state = video_details(run, settings, retention_basis(session, run))
     playable = state is not None and state.get("url") is not None and info.get("file") is not None
     recordings = clips(info)
     origins = [

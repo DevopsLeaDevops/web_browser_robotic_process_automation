@@ -37,6 +37,23 @@ def test_junit_failures_and_errors(tmp_path: Path) -> None:
     assert "ImportError" in second.message
 
 
+def test_long_failure_keeps_the_end_within_github_limit(tmp_path: Path) -> None:
+    # GitHub 只保留訊息的前 4096 個字元：太長時結尾的 E 行會被截掉
+    source = "\n".join(f"        step_{n} = '組合運行回看'" for n in range(400))
+    report = tmp_path / "report.xml"
+    report.write_text(
+        '<testsuites><testsuite><testcase classname="t" name="test_long">'
+        f'<failure message="AssertionError">{source}\nE       AssertionError: 最後一行'
+        "</failure></testcase></testsuite></testsuites>",
+        encoding="utf-8",
+    )
+
+    (annotation,) = tool.from_junit(report)
+
+    assert len(annotation.message) <= 4096
+    assert annotation.message.endswith("E       AssertionError: 最後一行")
+
+
 def test_command_escapes_newlines_and_property_separators() -> None:
     annotation = tool.Annotation("a: b, c", "50% 完成\n下一行", file="x.py", line=2, col=3)
 

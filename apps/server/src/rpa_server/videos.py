@@ -8,6 +8,8 @@
   runs 記下刪除的時間與原因，
   執行目錄的 run.json（M11）同步拿掉這個檔案。釘選的不刪。超過保留天數的先刪；總量還是超過上限，
   從最舊的刪起。伺服器啟動時、每小時、改設定後各清理一次。
+- 組合運行裡的節點整組處理（2026-10-27，D6）：保留天數看整次組合運行的結果與結束時間（還在執行就
+  不刪），釘選一個節點就是釘選整次，超過總量時整次一起刪；合併回看才不會缺前面通過的節點。
 """
 
 import contextlib
@@ -26,7 +28,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from rpa_runner.files import VIDEO
 from rpa_runner.video import read_info, video_files
 from rpa_server.domain import now
-from rpa_server.models import Run, Setting
+from rpa_server.models import Run, Setting, WorkflowRun
 from rpa_server.storage import Storage
 
 __all__ = [
@@ -34,6 +36,7 @@ __all__ = [
     "VideoService",
     "VideoSettings",
     "load_settings",
+    "retention_basis",
     "video_details",
 ]
 
@@ -103,10 +106,29 @@ def load_settings(session: Session) -> VideoSettings:
     return VideoSettings.from_json(row.value) if row is not None else VideoSettings()
 
 
-def video_details(run: Run, settings: VideoSettings | None = None) -> dict[str, object] | None:
+def retention_basis(session: Session, run: Run) -> tuple[str, datetime | None]:
+    """保留規則看的結果與結束時間：組合運行裡的節點看整次組合運行（D6）。
+
+    組合運行還在執行時結束時間是 None（還不會過期）。
+    """
+    if run.workflow_run_id is not None:
+        group = session.get(WorkflowRun, run.workflow_run_id)
+        if group is not None:
+            if group.status == "running":
+                return group.status, None
+            return group.status, group.finished_at or run.finished_at
+    return run.status, run.finished_at
+
+
+def video_details(
+    run: Run,
+    settings: VideoSettings | None = None,
+    basis: tuple[str, datetime | None] | None = None,
+) -> dict[str, object] | None:
     """一次運行的錄影狀態（API 與頁面用）；從來沒有錄影時回傳 None。
 
-    ``settings`` 有給時加上依保留規則會保留到何時（釘選的是 None）。
+    ``settings`` 有給時加上依保留規則會保留到何時（釘選的是 None）；``basis`` 是保留規則看的
+    結果與結束時間（:func:`retention_basis`），沒給時看這次運行自己的。
     """
     if run.video_seconds is None and run.video_deleted_at is None:
         return None
@@ -119,9 +141,10 @@ def video_details(run: Run, settings: VideoSettings | None = None) -> dict[str, 
         "url": f"/runs/{run.id}/files/{VIDEO}" if run.video_deleted_at is None else None,
     }
     if settings is not None:
+        status, finished = basis or (run.status, run.finished_at)
         keep = None
-        if run.video_deleted_at is None and not run.video_pinned and run.finished_at is not None:
-            keep = run.finished_at + timedelta(days=settings.keep_days(run.status))
+        if run.video_deleted_at is None and not run.video_pinned and finished is not None:
+            keep = finished + timedelta(days=settings.keep_days(status))
         details["keepUntil"] = _iso(keep)
     return details
 
@@ -200,11 +223,16 @@ class VideoService:
     # ------------------------------------------------------------ 釘選
 
     def set_pinned(self, run_id: str, pinned: bool) -> Run | None:
-        """釘選或取消釘選；運行不存在時回傳 None。"""
+        """釘選或取消釘選；運行不存在時回傳 None。組合運行裡的節點整次一起（D6）。"""
         with self.sessions() as session:
             run = session.get(Run, run_id)
             if run is None:
                 return None
+            if run.workflow_run_id is not None:
+                for member in session.scalars(
+                    select(Run).where(Run.workflow_run_id == run.workflow_run_id)
+                ):
+                    member.video_pinned = pinned
             run.video_pinned = pinned
             session.commit()
         if not pinned:
@@ -215,7 +243,11 @@ class VideoService:
     # ------------------------------------------------------------ 清理
 
     def sweep(self, moment: datetime | None = None) -> list[str]:
-        """刪掉過期與超過總量的錄影，回傳被刪的運行編號。"""
+        """刪掉過期與超過總量的錄影，回傳被刪的運行編號。
+
+        一次單獨的運行是一組；組合運行的節點是同一組（D6）：保留天數看整次組合運行，
+        組裡有釘選的就整組不刪，超過總量時整組一起刪。
+        """
         moment = moment or now()
         deleted: list[str] = []
         with self._lock, self.sessions() as session:
@@ -231,25 +263,40 @@ class VideoService:
                     .order_by(Run.finished_at, Run.id)
                 )
             )
-            kept: list[Run] = []
+            groups: dict[str, list[Run]] = {}
             for run in runs:
-                finished = cast("datetime", run.finished_at)
-                expired = finished + timedelta(days=settings.keep_days(run.status)) <= moment
-                if expired and not run.video_pinned:
-                    self._delete(run, "expired", moment)
-                    deleted.append(run.id)
+                groups.setdefault(run.workflow_run_id or run.id, []).append(run)
+            kept: list[tuple[datetime, list[Run]]] = []
+            for members in groups.values():
+                status, finished = retention_basis(session, members[0])
+                pinned = any(run.video_pinned for run in members)
+                expired = (
+                    finished is not None
+                    and finished + timedelta(days=settings.keep_days(status)) <= moment
+                )
+                if expired and not pinned:
+                    for run in members:
+                        self._delete(run, "expired", moment)
+                        deleted.append(run.id)
                 else:
-                    kept.append(run)
+                    last = max(cast("datetime", run.finished_at) for run in members)
+                    kept.append((finished or last, members))
             limit = settings.max_total_gb * _GB
-            total = sum(run.video_bytes or 0 for run in kept if not run.video_pinned)
-            for run in kept:  # 從最舊的刪起
-                if total <= limit:
+            total = sum(
+                run.video_bytes or 0
+                for _, members in kept
+                for run in members
+                if not run.video_pinned
+            )
+            for _, members in sorted(kept, key=lambda item: (item[0], item[1][0].id)):
+                if total <= limit:  # 從最舊的刪起
                     break
-                if run.video_pinned:
+                if any(run.video_pinned for run in members):
                     continue
-                total -= run.video_bytes or 0
-                self._delete(run, "quota", moment)
-                deleted.append(run.id)
+                for run in members:
+                    total -= run.video_bytes or 0
+                    self._delete(run, "quota", moment)
+                    deleted.append(run.id)
             session.commit()
         for run_id in deleted:
             self.on_deleted(run_id)

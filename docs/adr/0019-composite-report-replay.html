@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0019 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0019" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0019：以一次組合運行看報告與錄影，錄影在播放器裡接起來</h1>
+      <p>一次組合運行有一份匯總報告與一個合併回看。合併回看不產生新的影片檔：播放器把各節點的錄影依序放在同一條時間軸上，節點之間沒有畫面的時間換成短短的卡片。組合裡的節點錄影整組保留。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-27</dd>
+        <dt>狀態</dt><dd>2026-10-27 使用者確認設計（D1～D6 照建議，見<a href="../../handoff/decisions.html#decisions">決定紀錄</a>）；匯總報告與合併回看分兩個 PR 實作。</dd>
+        <dt>影響範圍</dt><dd>rpa-server（組合運行頁、合併回看頁、API、Agent API、錄影的保留與釘選）；不改 rpa-runner、rpa-worker 與桌面 App</dd>
+        <dt>相關</dt><dd><a href="0016-run-replay.html">ADR 0016</a>（運行回看：每次運行的錄影、多分頁片段、播放器）、<a href="0018-layered-updates.html">ADR 0018</a>（只改程式層，可以只發更新檔）；<a href="../design/portal.html#composite-report">管理 Portal › 組合運行的匯總報告</a>、<a href="../design/portal.html#composite-replay">合併回看</a>；<a href="../../handoff/tasks/20261027-composite-report-replay.html">任務紀錄</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>一次組合運行（<code>workflow_runs</code> 一筆）的每個節點都是一次獨立的運行，各有報告、截圖與錄影。原本的組合運行頁只列出節點與連結：要知道停在哪一步、為什麼、前面傳了什麼值，要逐一打開節點的報告；要看錄影，也要一段一段打開。使用者 2026-10-27 要求以「一次組合運行」的視角看報告與錄像。</p>
+          <p>節點依 DAG 的拓撲順序一個一個執行，整次固定在同一台 Worker，所以各節點的錄影在時間上是一條線、不會重疊。每段錄影只涵蓋那個節點的自動化階段：排隊、開瀏覽器、登入檢查、斷言與出參都沒有畫面。</p>
+          <p>Linux 伺服器沒有瀏覽器，也沒有 ffmpeg（ADR 0016）；伺服器加影音套件會改變執行環境，就不能只發更新檔（ADR 0018）。各節點的畫面大小可能不同（頁面大小、Firefox 的差異）。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>匯總報告。</strong>組合運行頁改成一份報告：結論（全部通過，或停在哪個節點的哪一步，附定位器、錯誤、沒通過的斷言與截圖，以及沒有執行的節點）、數字、依結果上色的 DAG 與時間軸、每個節點的入參（值與來源）與出參（值與流向）、步驟、斷言。資料在看的時候從資料庫與各節點的 <code>result.json</code> 組出來，不另存檔。可以下載成單一 HTML（只嵌入沒通過的節點的截圖，D4）；API 與 Agent API 給同一份 JSON。</li>
+            <li><strong>錄影在播放器裡接起來（D1）。</strong>不產生新的影片檔：每個有錄影的節點是一段，它的片段與步驟移到這一段的開始；分頁代號加上節點（<code>n2/page-1</code>）。播放器沿用 ADR 0016 的多片段時鐘：載入片段時暫停時鐘，片段之間依實際時間前進。下載是各節點原始錄影的 zip，附說明順序的 <code>playlist.json</code>。</li>
+            <li><strong>空檔換成卡片（D2）。</strong>兩段錄影之間是 2 秒的轉場卡：上一個節點的出參與傳給誰、下一個節點的入參與來源、實際隔了多久（上一個節點最後一步結束到下一個節點第一步開始，用同一台 Worker 的步驟時間；Chromium 錄影的開始時間是第一格的觀測時間，可能差到一秒，不拿來算）。沒有錄影的節點（已刪除、需要登入、沒有開始、沒有進到自動化）是 3 秒的說明卡。從停下的節點繼續時，沿用的節點只放一張卡片並連到原本那次的回看（D3）；最後沒有執行或還沒結束的節點合成一張卡片。</li>
+            <li><strong>步驟重新編號。</strong>整次運行一個編號，另外記下節點與節點裡的編號（<code>n2·3</code>）；步驟代號加上節點（<code>n2:search</code>），<code>?step=</code> 指到某個節點的某一步，<code>?node=</code> 從某個節點開始。</li>
+            <li><strong>錄影整組保留（D6）。</strong>組合運行裡的節點，保留天數看整次組合運行的結果與結束時間（還在執行就不刪）；釘選一個節點就是釘選整次；超過總量時整次一起刪。單獨的運行規則不變。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>不用打開節點也知道失敗在哪裡、為什麼；一個播放器看完整次運行，點右側任一節點的任一步就跳到那個畫面。</li>
+            <li>只改伺服器：不加第三方套件、沒有資料庫遷移、不改 Worker 與錄製端，可以只發更新檔。</li>
+            <li>沒有一支真正合併的影片：要拿到 Portal 以外看，下載的是各節點的影片與順序說明。</li>
+            <li>卡片取代了實際的空檔，影片的時間軸不是實際經過的時間；實際時間在報告的時間軸與轉場卡上。</li>
+            <li>沒通過的組合運行，前面通過的節點錄影多留到 30 天，磁碟用量比各自計算多一些；總量上限照舊。</li>
+            <li>節點畫面大小不同時，播放器以第一段的比例顯示，其他段等比例縮放置中。</li>
+            <li>將來支援平行節點時，時間軸要改成多軌；資料保留了各段的實際時間，可以在這上面擴充。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>伺服器把各段接成一支 .webm</td><td>伺服器沒有 ffmpeg；畫面大小不同要重新編碼；加影音套件就不能只發更新檔；多存一份影片。</td></tr>
+              <tr><td>Worker 在最後一個節點後接影片</td><td>Worker 不知道整次運行何時結束；重跑、沿用、取消都要處理；一樣要重新編碼。</td></tr>
+              <tr><td>保留實際的空檔</td><td>排隊、開瀏覽器、斷言常常比操作本身還長，影片裡會有大段空白。</td></tr>
+              <tr><td>直接把各段接上、不放卡片</td><td>看不出節點之間傳了什麼值，也看不出換了節點。</td></tr>
+              <tr><td>匯總報告在運行結束時存成檔案</td><td>要決定用誰的語言、資料改了（例如錄影被刪）要重產；目前在看的時候產生就夠，歸檔（M11 D4）時再存。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>
