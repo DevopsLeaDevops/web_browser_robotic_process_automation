@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261028-docs-refresh；2026-10-28 01:40 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261028-docs-refresh；2026-10-28 01:18 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 對話（2026-10-28 00:51 America/Los_Angeles（PDT，UTC−07:00））：「現在 docs 的文檔是落後的，幫我更新到最新的 docs 文檔，也就是包含 main 分支的最近改動的最新版出來。」完成＝<code>docs/</code> 的各頁和 main 的實作、已合併的 PR、已發布的版本一致；繁中、英文同步並 stamp，簡中由工具產生；文檔測試通過；人工驗收的狀態照任務紀錄寫，不寫成已驗收。</dd>
         <dt>範圍／不包含</dt><dd><code>docs/</code> 的繁中與英文頁（簡中由 bootstrap 產生）。已隨各 PR 更新的 DSL、管理 Portal、對外 Agent API 設計、多用戶不動。不包含：<code>handoff/</code> 的狀態總表與驗收紀錄（10-14 的快照，另行整理）、其他任務紀錄的狀態欄、程式與 <code>schema/</code>。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude（Opus 5.5）；審閱與合併：使用者；接收方：未指定。</dd>
@@ -53,8 +53,8 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-28 00:58 America/Los_Angeles（PDT，UTC−07:00），Claude：開工。從 <code>a26b929</code> 開 <code>docs/refresh-main</code>；盤點 <code>docs/</code> 各頁與 main、GitHub 的 PR 合併紀錄（#62～#98）與 Release（v0.2.0～v0.6.3）的落差。</li>
-        <li>2026-10-28 01:40 America/Los_Angeles（PDT，UTC−07:00），Claude：逐頁提交（c211294～11f8fa9，每個主題一個提交）；推送本提交並帶 <code>[bootstrap]</code> 產生簡中。PR 的合併與發布時間依 GitHub 的 merged_at／published_at 換算；包含哪個版本用 <code>git merge-base --is-ancestor</code> 對版本標籤確認。</li>
-        <li>2026-10-28 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>d5e4897</code>，建立 PR #100。bootstrap（運行 40654902868）通過並提交簡中 <code>ff6dcf8</code>（2026-10-28 01:15 PDT）；本機在 <code>ff6dcf8</code> 上 <code>pytest -q tests/docs tests/i18n</code> 359 項通過，只剩需要 OpenCC 的 <code>test_simplified_chinese_is_generated</code> 不能在本機跑。<code>d5e4897</code> 的 CI 結果見上方驗證；推送本提交讓 CI 在最新 head 執行。</li>
+        <li>2026-10-28 01:10 America/Los_Angeles（PDT，UTC−07:00），Claude：逐頁提交（c211294～11f8fa9，每個主題一個提交）；推送本提交並帶 <code>[bootstrap]</code> 產生簡中。PR 的合併與發布時間依 GitHub 的 merged_at／published_at 換算；包含哪個版本用 <code>git merge-base --is-ancestor</code> 對版本標籤確認。</li>
+        <li>2026-10-28 01:17 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>d5e4897</code>，建立 PR #100。bootstrap（運行 40654902868）通過並提交簡中 <code>ff6dcf8</code>（2026-10-28 01:15 PDT）；本機在 <code>ff6dcf8</code> 上 <code>pytest -q tests/docs tests/i18n</code> 359 項通過，只剩需要 OpenCC 的 <code>test_simplified_chinese_is_generated</code> 不能在本機跑。<code>d5e4897</code> 的 CI 結果見上方驗證；推送本提交讓 CI 在最新 head 執行。</li>
       </ul></div>
     </section>
   </div>
