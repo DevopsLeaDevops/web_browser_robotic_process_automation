@@ -1,6 +1,6 @@
 [project]
 name = "rpa-desktop"
-version = "0.6.3"
+version = "0.7.0"
 description = "桌面端（M10，ADR 0014）：RPA 錄製端與 RPA Worker 共用的程式碼、RPA Worker 的視窗與通知區、打包後的入口與自我測試"
 requires-python = ">=3.12"
 dependencies = [

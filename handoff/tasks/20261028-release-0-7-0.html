@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261028-release-0-7-0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261028-release-0-7-0：v0.7.0 發布（上傳檔案、組合運行的匯總報告與合併回看）</h1><p>v0.6.3 之後合併的 PR 一起發成 v0.7.0；先建草稿 Release，用草稿的更新檔升級線上環境並人工驗收，通過後再按「發布」。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261028-release-0-7-0；2026-10-28 02:08 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-28 00:48 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：main 已是最新，要一份人工驗收教程；合併了很多 PR 要一起驗收，線上是最新的發版版本 v0.6.3；問要不要發版、要不要發大版本。Claude 建議發 v0.7.0（不是 0.6.4，也不是 1.0），先建草稿、驗收後再發布；使用者 01:09 回覆「按照你的建議開始做吧」。驗收：v0.7.0 的草稿 Release 有完整安裝包、更新檔與 SHA256SUMS.txt，說明的「從 v0.6.3 升級」各平台都只要更新檔；人工驗收照教程通過後由使用者按「發布」。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.7.0</code>）、標籤、草稿 Release 的核對、人工驗收教程、發布。包含的 PR：#92（v0.6.3 交接紀錄）、#93、#95（排程測試失敗）、#94（CI 依層建置）、#96（組合運行的匯總報告）、#98（合併回看）、#97（M7c 上傳檔案），以及發布前要先合併的 main CI 修正（<code>20261028-main-ci-red</code>（PR #101））。不包含：功能修改（在各自的 PR）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原版本準備：Claude；本次 PR #102 衝突整合：ChatGPT／Codex（使用者本次對話指定）；合併、推標籤、按「發布」：使用者（Claude 推標籤與建立 Release 會被 GitHub 拒絕，HTTP 403，見 v0.6.3）。</dd>
+        <dt>修改檔案／整合者</dt><dd>八個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>；本紀錄、任務索引；<a href="20261027-composite-report-replay.html">20261027-composite-report-replay</a> 與 <a href="20261027-m7c-upload.html">20261027-m7c-upload</a> 的狀態（已合併、待 v0.7.0 人工驗收）。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待合併：PR #101 已合併至 <code>main@abdfcb8</code>；本次將最新 main 合入 PR #102，解決任務索引衝突；本地驗證通過，隨本合併提交推送至原分支，最新 head 的 CI 待確認。版本號維持 v0.7.0；本 PR 合併、推標籤與發布由使用者決定。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.7.0</code>，從 main <code>a26b929</code>（PR #97 合併後）開；PR #102（base main）。先合併的 CI 修正是 PR #101。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器；建置與簽章在 GitHub Actions（<code>release.yml</code>）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="decision">
+      <div class="panel-header"><h2>為什麼是 v0.7.0</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>不是 0.6.4：</strong>有新功能，不只是修正。新的場景寫法（<code>upload</code> 步驟、<code>type: file</code> 入參，裝置的 DSL 擴充多了 <code>upload</code>、<code>fileInputs</code>）、資料庫遷移 <code>0017_uploaded_files</code>、新 API（<code>/api/files</code>、Agent API 的 <code>files:write</code>、匯總報告與合併回看）、Worker 任務的 <code>inputFiles</code>。前例：0.5.0 是多個功能 PR 一起發；0.6.1～0.6.3 只有修正。</li>
+        <li><strong>不是 1.0.0：</strong>還沒有使用者權限（M8），上傳的檔案能進 Portal 的人都看得到；這批功能還沒人工驗收。</li>
+        <li><strong>升級只要更新檔：</strong>#97 的 CI 比對過環境代號都和 v0.6.3 相同：server-linux-x64 <code>b93be424f1f8ff3a</code>、recorder-macos-arm64 <code>cd64b7d227542315</code>、worker-windows-x64 <code>e4985fdde881ea71</code>；錄製端與 Windows Worker 也用快取的外殼加上新程式碼層跑過自我測試與端到端。linux-arm64 與 Worker（macOS）看發布流程的 Release 說明。沒有新的第三方套件。</li>
+        <li><strong>先草稿、後發布：</strong>Worker 與錄製端的新程式只能由伺服器發簽過正式金鑰的更新檔，所以要先有草稿 Release 才能驗收。驗收沒過就不發布，修好出 v0.7.1。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.7.0</code>（八個套件與 <code>uv.lock</code>），<code>check v0.7.0</code> 一致。人工驗收教程（Claude Docs「人工驗收教程（v0.6.3 之後合併的 PR）」，連結在 Claude 專案的 <code>claude/v0.7.0-release-acceptance-notes.md</code>）：準備 → 升級（備份、<code>bin/rpa update RPA-Update-0.7.0.zip</code>、裝置跟上）→ 上傳檔案（錄製測試網站 <code>/upload</code>、錄製端調試、Worker 有頭與無頭驗證、擋下錯誤檔案、場景附件、可選的組合節點與 Worker 本機資料夾、業務系統）→ 匯總報告 → 合併回看（用 Chrome 經 SSH 通道看）→ CI 現象 → 驗收紀錄表。</li>
+        <li><strong>未完成／阻礙：</strong>使用者合併本 PR、推標籤；發布流程建草稿；草稿核對；升級與人工驗收；按「發布」。</li>
+        <li><strong>決定：</strong>版本 v0.7.0、先草稿後發布、一起修 main 的 CI 紅燈：Claude 建議，使用者 2026-10-28 01:09 回覆「按照你的建議開始做吧」。</li>
+        <li><strong>下一個具體動作：</strong>確認本次整合提交的 CI 後，由使用者合併本 PR，在 main 推標籤 <code>git tag v0.7.0 &amp;&amp; git push origin v0.7.0</code>；Claude 看發布流程、核對草稿（檔案齊全、SHA256、更新檔內容、「從 v0.6.3 升級」）；使用者照教程升級與驗收，通過後按「發布」。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td><code>a26b929</code>＋版本號；雲端容器</td><td><code>python3 tools/release_version.py check v0.7.0</code></td><td>版本一致</td><td>CI、發布流程</td></tr>
+          <tr><td>main <code>a26b929</code>；GitHub Actions</td><td>main 推送的 CI</td><td>靜態檢查、測試（Python 3.13）通過；測試（Python 3.12）失敗：有頭錄影測試沒有螢幕（v0.6.3 之前就有）與驗證後馬上發布的空檔，由 20261028-main-ci-red 修正</td><td>—</td></tr>
+          <tr><td><code>bbf05ba</code>＋<code>abdfcb8</code> 的合併工作區；macOS arm64、Python 3.13.16、uv 0.12.24</td><td><code>uv sync --locked</code>；<code>python tools/release_version.py check v0.7.0</code>；<code>python tools/i18n.py check</code>；<code>ruff check .</code>；<code>ruff format --check .</code>；<code>pyright --pythonplatform Linux</code>；<code>RPA_REQUIRE_BROWSER=1 pytest -q tests/docs tests/i18n tests/ci/test_release_version.py apps/server/tests/test_validation_publish.py apps/server/tests/test_replay_media.py packages/rpa_runner/tests/test_click_closes_page.py</code>；<code>git diff --check</code>；本頁與任務索引的相對連結／錨點檢查</td><td>版本一致、依賴鎖定與多語言通過；Ruff／格式通過；Linux 目標型別檢查 0 errors、3 個既有 pystray 平台警告；371 passed（含 Chromium 回看段落邊界）。與最新 main 的程式差異僅八個套件及鎖檔的版本號，#101 的產品與 CI 修正完整保留。</td><td>最新 head 的 CI 待確認；未執行完整跨平台矩陣、發版與人工驗收。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：本 PR <code>6ad05e4</code>：靜態檢查、測試（Python 3.12、3.13）通過；只改版本號，依層建置沒有重建三個 App 與一鍵安裝腳本（#94 的預期）。發布流程：未執行。人工驗收：未執行。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-28 02:08 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex 依使用者要求取得 <code>chore/release-0.7.0@bbf05ba</code>，接收範圍為 PR #102 的衝突解決、相關驗證與推送；發布流程仍依原分工。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-28 01:05 America/Los_Angeles（PDT，UTC−07:00），Claude：讀 v0.6.3 之後的 PR、版本規則（前例、ADR 0018）、環境代號比較與 main 的 CI，建議發 v0.7.0；寫人工驗收教程（Claude Docs）。</li>
+        <li>2026-10-28 01:35 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 01:09 同意。開 <code>fix/main-ci-red</code>（PR #101）修 main 的 CI 紅燈；從 main <code>a26b929</code> 開 <code>chore/release-0.7.0</code>，改版本號，建立本紀錄；更新組合運行與 M7c 兩份紀錄的合併狀態。</li>
+        <li>2026-10-28 02:10 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #102 的 <code>6ad05e4</code> CI 通過，只跑 Linux 的 CI。#101 又修了 CI 碰到的兩個產品偶發問題（合併回看的段落邊界、點了之後頁面自己關掉），也併入 v0.7.0。</li>
+        <li>2026-10-28 02:08 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：使用者要求解決 PR #102 衝突；以 <code>bbf05ba</code> 為起點，合入 <code>origin/main@abdfcb8</code>（#101）。唯一文字衝突為 <code>handoff/tasks/index.html</code>，保留 v0.7.0 發布與 main CI 修復兩個任務入口。沿用先前已完成任務的乾淨 worktree，在 <code>fix/pr102-conflicts</code> 整合，不重寫原分支歷史；目前僅本地，驗證與推送結果後續追加。</li>
+        <li>2026-10-28 02:10 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：上述本地檢查通過，371 項測試全部通過。任務索引保留雙方入口，發布任務同步 #101 已合併的狀態；將以合併提交推送至 <code>chore/release-0.7.0</code>／PR #102。版本仍是 v0.7.0，發布流程與人工驗收維持原分工；推送後核對最新 head 的無衝突狀態與 CI。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
