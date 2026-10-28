@@ -17,11 +17,11 @@
       <h1>Agent 使用指南</h1>
       <p>写给接入平台的 Agent 系统（以及替它写集成的人）：怎么用 <code>/agent-api/v1</code> 从空白创建场景、在录制端调试、交给 Worker 验证、发布并正式运行，在项目里把场景组成组合场景并运行，遇到错误时怎么处理。</p>
     </div>
-    <span class="badge blue">第一期实现中</span>
+    <span class="badge green">第一期已发布（v0.6.0）</span>
   </div>
 
   <div class="stack">
-    <div class="notice">本指南依 2026-10-23 确认的<a href="../design/agent-api.html">设计</a>与第一期的实现撰写（2026-10-23，审阅中）；项目与组合场景 2026-10-24 加入。用 API 做测试时，测试方案与测试报告的写法见<a href="agent-test-plan-guide.html">测试方案指南</a>与<a href="agent-test-report-guide.html">测试报告指南</a>。字段以服务器的 <code>GET /agent-api/v1/openapi.json</code> 为准；<code>/agent-api/v1/docs</code> 是可以直接试的交互式文档，两者都不需要密钥。</div>
+    <div class="notice">本指南依 2026-10-23 确认的<a href="../design/agent-api.html">设计</a>与第一期的实现撰写（2026-10-23；PR #79 于 2026-10-25 合并，随 v0.6.0 发布）；项目与组合场景 2026-10-24 加入。用 API 做测试时，测试方案与测试报告的写法见<a href="agent-test-plan-guide.html">测试方案指南</a>与<a href="agent-test-report-guide.html">测试报告指南</a>。字段以服务器的 <code>GET /agent-api/v1/openapi.json</code> 为准；<code>/agent-api/v1/docs</code> 是可以直接试的交互式文档，两者都不需要密钥。</div>
 
     <section class="panel" id="basics">
       <div class="panel-header"><h2>基本约定</h2></div>
@@ -46,7 +46,7 @@
 
 {
   "apiVersion": "1",
-  "serverVersion": "0.6.0",
+  "serverVersion": "0.6.3",
   "server": {"id": "srv-linux-01", "name": "Linux 服务器"},
   "client": {"id": "agent-erp", "name": "ERP 助理"},
   "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
@@ -59,7 +59,7 @@
   "target": null,
   "workers": null,
   "expiresAt": null,
-  "dslFeatures": ["anyFrame", "dynamicValues", "frame", "page", "popup"]
+  "dslFeatures": ["anyFrame", "dynamicValues", "fileInputs", "frame", "page", "popup", "upload"]
 }</pre>
         <ul class="points">
           <li><code>scopes</code> 没有 <code>scenes:publish</code>：做到验证通过为止，再请人在 Portal 发布。</li>
@@ -208,6 +208,24 @@ POST /agent-api/v1/scenes/order-create/runs
 GET /agent-api/v1/runs/…
 → {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
         <p>只有 <code>status</code> 是 <code>passed</code> 时才有 <code>output</code>。没有发布权限时，告诉用户哪个场景的哪个版本已验证通过，请人在 Portal 发布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的运行（可用领域里的场景，<code>mine</code> 只列自己触发的）；<code>POST /runs/{id}/cancel</code> 只能取消自己触发的。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="files">
+      <div class="panel-header"><h2>上传文件</h2><span class="muted">M7c；在 main、尚未发布</span></div>
+      <div class="panel-body">
+        <p>目标系统要「导入 Excel」「上传图片」时，场景用 <code>type: file</code> 的入参与 <code>upload</code> 步骤（规格见 <a href="../design/dsl.html#upload">DSL › 上传文件</a>）。<code>GET /meta</code> 的 <code>dslFeatures</code> 要有 <code>upload</code> 与 <code>fileInputs</code>；录制端或 Worker 的 App 太旧时，服务器不把这种场景交给它，请人更新 App。</p>
+<pre class="source">POST /agent-api/v1/files?name=十月订单.xlsx        （需要 files:write；本体就是文件内容，不是 multipart）
+→ 201 {"file": "f_…", "name": "十月订单.xlsx", "size": 20480, "sha256": "aad9…"}
+
+POST /agent-api/v1/scenes/order-import/revisions/3/validate
+{"inputs": {"orderFile": {"file": "f_…", "name": "十月订单.xlsx"}}, "idempotencyKey": "order-import-v3-1"}</pre>
+        <ul class="points">
+          <li><strong>每次换一份文件</strong>：先 <code>POST /files</code>，把回传的对象当入参的值放进验证、运行或调试的 <code>inputs</code>；<code>multiple: true</code> 的入参写成列表。只能参照自己上传的文件，别人的回 404 <code>upload_not_found</code>。<code>GET /files/{代号}</code> 查自己上传的文件，过了保留期限时 <code>deleted</code> 是 <code>true</code>（上传后 24 小时没用到就删，用过的保留到最后一次使用后 90 天）。</li>
+          <li><strong>固定的示例文件</strong>：做成场景附件。<code>PUT /scenes/{id}/attachments/{文件名}?base={n}</code>（本体是文件内容，需要 <code>scenes:write</code>）存成新版本，入参的 <code>default</code> 写 <code>files/文件名</code>；<code>GET /scenes/{id}/revisions/{n}/attachments</code> 列出。附件纳入场景哈希，验证的文件就是发布的文件；文件名只能用英文字母、数字、<code>_ . -</code>，每个最多 20 MB、一个版本合计 50 MB。</li>
+          <li><strong>等上传完成</strong>：<code>upload</code> 在文件交给网页时就算完成，后面用 <code>waitFor</code>／<code>expect</code> 等画面上的结果；<code>verify</code> 可以拿 <code>{{ inputs.orderFile.sha256 }}</code> 和网页显示的比较。运行记录与报告只有文件名、大小与 sha256，没有路径。</li>
+          <li><strong>录制稿</strong>：<code>set_input_files</code> 会转成 <code>upload</code> 加一个 file 入参，但录制稿只有文件名，要另外把文件放进入参或附件。</li>
+        </ul>
       </div>
     </section>
 

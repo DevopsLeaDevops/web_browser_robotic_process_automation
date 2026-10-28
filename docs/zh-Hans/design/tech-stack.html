@@ -39,12 +39,14 @@
             <tr><td>界面样式</td><td>界面设计系统 v1.1</td><td>—</td><td>同事交付的视觉契约，文档站、MVP 原型与管理界面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支持多包；ruff 一个工具处理 lint 与格式化</td><td>M0</td></tr>
             <tr><td>多语言</td><td>各包的 JSON 消息目录；简中以 OpenCC 由繁中产生</td><td>gettext、Babel</td><td>繁中为主要语言，Web UI 也要读同一份翻译；只需人工维护繁中与英文<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
-            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>仓库在 GitHub；Python 3.12 / 3.13 两个版本并行测试</td><td>M0</td></tr>
+            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>仓库在 GitHub；Python 3.12 / 3.13 两个版本并行测试；PR 上依生产角色分配测试（Linux 网站、Windows Worker、macOS 录制端），依层建置，同一组输入只验证一次（<a href="../develop/ci.html">CI 与流水线</a>）</td><td>M0</td></tr>
             <tr><td>桌面端壳</td><td>pywebview（macOS 的 WKWebView、Windows 的 WebView2）</td><td>Electron、Tauri</td><td>界面就是服务器渲染的页面，壳只要能加载网址；不多带一个 Chromium，也不引入 Node 或 Rust<small><a href="../adr/0014-desktop-apps.html">ADR 0014</a></small></td><td>M10</td></tr>
             <tr><td>桌面端打包</td><td>PyInstaller（文件夹模式）；macOS DMG、Windows Inno Setup</td><td>Briefcase、Nuitka</td><td>最成熟、有 Playwright 的打包设置；文件夹模式启动快、较少被杀毒误判</td><td>M10</td></tr>
             <tr><td>场景存放与同步</td><td>领域文件夹（YAML 说明档＋不可变版本＋验证记录）；数据库只是索引；与 git 仓库的一个目录同步（裸仓库＋git 底层命令，git 2.25 以上）</td><td>数据库之间同步、只存在数据库</td><td>可以用 git 审阅与回溯，任何一台服务器的验证都能当发布依据；新服务器只拉需要的领域<small><a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a></small></td><td>M11</td></tr>
-            <tr><td>运行录像</td><td>Playwright 的 BrowserContext 录像（WebM VP9，Playwright 自带的 ffmpeg）；步骤记下开始、结束的实际时间；缩略图在看视频的浏览器里产生</td><td>Playwright Trace、每步截图</td><td>视频可以播放、拖曳；和步骤用同一个时钟对上；Linux 服务器不需要浏览器与 ffmpeg<small><a href="../adr/0016-run-replay.html">ADR 0016</a></small></td><td>M12</td></tr>
+            <tr><td>运行录像</td><td>Playwright 的 BrowserContext 录像（WebM VP9，Playwright 自带的 ffmpeg）；步骤记下开始、结束的实际时间；缩略图在看视频的浏览器里产生</td><td>Playwright Trace、每步截图</td><td>视频可以播放、拖曳；和步骤用同一个时钟对上；Linux 服务器不需要浏览器与 ffmpeg；组合运行把各节点的录像接在同一条时间轴上，不产生新的视频档<small><a href="../adr/0016-run-replay.html">ADR 0016</a>、<a href="../adr/0019-composite-report-replay.html">ADR 0019</a></small></td><td>M12</td></tr>
+            <tr><td>上传文件</td><td>服务器数据目录的文件区（依 sha256 存放，同内容只存一份），请求本体串流上传；任务只带清单，Worker 另外下载并比较 sha256</td><td>放进领取任务的 JSON（base64）</td><td>大档不占内存、不多 33%，中文文件名不受限制；上传后 24 小时没用到就删，用过的保留到最后一次使用后 90 天、总量上限 10 GB（环境变量可改）<small><a href="dsl.html#upload">场景 DSL</a></small></td><td>M7c</td></tr>
             <tr><td>部署</td><td>目前：Linux 服务器用自带 Python 的分发包（也可以从源代码用 <code>setup-linux.sh</code>），可用 systemd 开机启动；其他系统的服务器从源代码一键安装，桌面端用安装档；之后 Docker Compose</td><td>Kubernetes</td><td>起步够用，之后可以迁移</td><td>M9</td></tr>
+            <tr><td>程序更新</td><td>程序层与运行环境分开打包；每个版本多一个约 2 MB 的更新档，清单以 Ed25519 签章（验证照 RFC 8032 的参考算法自己实现，不加依赖）；服务器用 <code>bin/rpa update</code> 换上并自己重新启动，设备从服务器下载同一个版本</td><td>Sparkle、WinSparkle 整包更新；安装档的二进位差分；每台设备向 GitHub 下载</td><td>运行环境没变时只换约 2 MB；设备在区网内更新，不需要 GitHub 账号；签章防止被换掉的代码加载<small><a href="../adr/0018-layered-updates.html">ADR 0018</a></small></td><td>v0.6.0</td></tr>
           </tbody>
         </table>
       </div>
@@ -56,7 +58,7 @@
         <dl class="spec-list">
           <dt>Python</dt><dd>3.12 以上（CI 测 3.12 与 3.13；本机默认 3.13，见 <code>.python-version</code>）</dd>
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
-          <dt>产品版本</dt><dd>服务器、Worker、录制端与所有包同一个版本（目前 0.5.0），<code>tools/release_version.py</code> 一次改全部；见<a href="desktop.html#release-flow">桌面端分发</a></dd>
+          <dt>产品版本</dt><dd>服务器、Worker、录制端与所有包同一个版本（目前 0.6.3），<code>tools/release_version.py</code> 一次改全部；见<a href="desktop.html#release-flow">桌面端分发</a></dd>
           <dt>类型检查</dt><dd>pyright strict 模式，新代码一律完整标注类型</dd>
           <dt>依赖锁定</dt><dd><code>uv.lock</code> 记录每个包的确切版本并提交到仓库；CI 以 <code>uv sync --locked</code> 安装，锁文件与 <code>pyproject.toml</code> 不一致时失败</dd>
           <dt>依赖更新</dt><dd>Dependabot 每周检查 GitHub Actions；Python 依赖由每周的 <code>uv-upgrade</code> workflow 运行 <code>uv lock --upgrade</code>、推到 <code>deps/uv-upgrade</code> 分支并开 PR（Dependabot 还不支持 uv workspace）</dd>
