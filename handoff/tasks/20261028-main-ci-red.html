@@ -20,7 +20,7 @@
         <dt>範圍／不包含</dt><dd>範圍：(1) <code>.github/workflows/ci.yml</code> 跑全部測試時用 <code>xvfb-run</code>（同每晚完整測試）；(2) 驗證結果已提交、驗證紀錄還沒寫的空檔：運行頁與發布前先補寫紀錄；(3) 合併回看的段落與卡片邊界（<code>static/replay-media.js</code>）；(4) 點了之後頁面自己關掉時算通過（<code>rpa_runner/browser.py</code>）；各自的回歸測試；CI 文件（三語）。不包含：v0.7.0 的版本號與發布（任務 <code>20261028-release-0-7-0</code>）；每晚測試的其他偶發問題（例如 Windows 的 <code>ERR_NO_BUFFER_SPACE</code>）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>.github/workflows/ci.yml</code>、<code>apps/server/src/rpa_server/packs.py</code>（<code>settle_verification</code>、<code>_write_verification</code>）、<code>services.py</code>（<code>settle_validations</code>，發布前呼叫）、<code>pages.py</code>（運行頁）、<code>static/replay-media.js</code>、<code>packages/rpa_runner/src/rpa_runner/browser.py</code>、新測試 <code>apps/server/tests/test_validation_publish.py</code>、<code>apps/server/tests/test_replay_media.py</code>、<code>packages/rpa_runner/tests/test_click_closes_page.py</code>、<code>docs/develop/ci.html</code> 與英文版（簡中由 bootstrap 產生）、本紀錄、任務索引、<a href="20261026-scheduled-update-tests.html">20261026-scheduled-update-tests</a> 的追加紀錄（第三個原因已由本任務修正）。Claude 整合。和 v0.7.0 的版本號 PR 不共用程式檔，兩邊都改任務索引（各加一行）。</dd>
-        <dt>狀態</dt><dd>待審閱：本地檢查通過，PR 的 CI 見 PR。</dd>
+        <dt>狀態</dt><dd>待審閱：本地檢查與 PR #101 的 CI（<code>a97d5f5</code>）通過；合併由使用者決定，合併後看 main 推送的 Python 3.12（<code>xvfb-run</code>）。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>fix/main-ci-red</code>，從 main <code>a26b929</code>（PR #97 合併後）開；PR #101（base main）。v0.7.0 的版本號 PR 是 #102，請先合併本 PR。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.17；依賴從 GitHub 取得（PyPI 不通），Playwright 1.63（Chromium 1243，錄不出影片）。ruff 0.16.9（鎖定 0.17.1，以 CI 為準）。</dd>
@@ -57,7 +57,7 @@
           <tr><td>同上；容器的 Chromium 1243</td><td><code>pytest apps/server/tests/test_portal.py -k "create_validate_publish and chromium"</code>；<code>pytest tests/docs tests/ci</code></td><td>1 通過；560 通過</td><td>Firefox；<code>xvfb-run</code> 的那一次要合併到 main 後看</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見 PR 最新 head；main 推送的 Python 3.12（跑全部、<code>xvfb-run</code>）要合併後才看得到。人工驗收：v0.7.0 的驗收教程裡「驗證通過後馬上發布」也算在內。審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：PR #101 的 <code>a97d5f5</code> 全部通過：靜態檢查、測試（Python 3.12、3.13；3.13 含合併回看與回看切換分頁的真實錄影測試）、Windows Worker 測試、RPA Worker（Windows，桌面端建置）、分發包 x64／arm64；其餘依規則略過。main 推送的 Python 3.12（跑全部、<code>xvfb-run</code>）要合併後才看得到。人工驗收：v0.7.0 的驗收教程裡「驗證通過後馬上發布」也算在內。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -69,6 +69,7 @@
         <li>2026-10-28 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>a26b929</code> 開 <code>fix/main-ci-red</code>，找出兩個原因（見上）並修正、加回歸測試、更新 CI 文件；本地檢查通過。</li>
         <li>2026-10-28 01:45 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>ef728bb</code>（[bootstrap]），開 PR #101；bootstrap 產生簡中（<code>29ea735</code>）。<code>ef728bb</code> 的 CI：靜態檢查、Windows Worker 測試、分發包通過；兩個 Python 測試只因簡中還沒產生而失敗（<code>test_simplified_chinese_is_generated</code>），其餘通過。</li>
         <li>2026-10-28 02:05 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>d999d76</code> 的 CI：Python 3.12 通過；Python 3.13 有兩項失敗，都是產品的偶發問題（合併回看的段落邊界、點了之後頁面自己關掉），找出原因並修正、各加回歸測試（見上）。</li>
+        <li>2026-10-28 02:35 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>a97d5f5</code> 的 CI 全部通過（見驗證）。等使用者審閱、先合併本 PR，再合併 #102、推標籤 <code>v0.7.0</code>。</li>
       </ul></div>
     </section>
   </div>
