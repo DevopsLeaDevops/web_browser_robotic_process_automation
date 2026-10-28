@@ -45,7 +45,7 @@
 
 {
   "apiVersion": "1",
-  "serverVersion": "0.6.0",
+  "serverVersion": "0.6.3",
   "server": {"id": "srv-linux-01", "name": "Linux 伺服器"},
   "client": {"id": "agent-erp", "name": "ERP 助理"},
   "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
@@ -58,7 +58,7 @@
   "target": null,
   "workers": null,
   "expiresAt": null,
-  "dslFeatures": ["anyFrame", "dynamicValues", "frame", "page", "popup"]
+  "dslFeatures": ["anyFrame", "dynamicValues", "fileInputs", "frame", "page", "popup", "upload"]
 }</pre>
         <ul class="points">
           <li><code>scopes</code> 沒有 <code>scenes:publish</code>：做到驗證通過為止，再請人在 Portal 發布。</li>
@@ -207,6 +207,24 @@ POST /agent-api/v1/scenes/order-create/runs
 GET /agent-api/v1/runs/…
 → {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
         <p>只有 <code>status</code> 是 <code>passed</code> 時才有 <code>output</code>。沒有發布權限時，告訴使用者哪個場景的哪個版本已驗證通過，請人在 Portal 發布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的運行（可用領域裡的場景，<code>mine</code> 只列自己觸發的）；<code>POST /runs/{id}/cancel</code> 只能取消自己觸發的。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="files">
+      <div class="panel-header"><h2>上傳檔案</h2><span class="muted">M7c；在 main、尚未發布</span></div>
+      <div class="panel-body">
+        <p>目標系統要「匯入 Excel」「上傳圖片」時，場景用 <code>type: file</code> 的入參與 <code>upload</code> 步驟（規格見 <a href="../design/dsl.html#upload">DSL › 上傳檔案</a>）。<code>GET /meta</code> 的 <code>dslFeatures</code> 要有 <code>upload</code> 與 <code>fileInputs</code>；錄製端或 Worker 的 App 太舊時，伺服器不把這種場景交給它，請人更新 App。</p>
+<pre class="source">POST /agent-api/v1/files?name=十月訂單.xlsx        （需要 files:write；本體就是檔案內容，不是 multipart）
+→ 201 {"file": "f_…", "name": "十月訂單.xlsx", "size": 20480, "sha256": "aad9…"}
+
+POST /agent-api/v1/scenes/order-import/revisions/3/validate
+{"inputs": {"orderFile": {"file": "f_…", "name": "十月訂單.xlsx"}}, "idempotencyKey": "order-import-v3-1"}</pre>
+        <ul class="points">
+          <li><strong>每次換一份檔案</strong>：先 <code>POST /files</code>，把回傳的物件當入參的值放進驗證、執行或調試的 <code>inputs</code>；<code>multiple: true</code> 的入參寫成清單。只能參照自己上傳的檔案，別人的回 404 <code>upload_not_found</code>。<code>GET /files/{代號}</code> 查自己上傳的檔案，過了保留期限時 <code>deleted</code> 是 <code>true</code>（上傳後 24 小時沒用到就刪，用過的保留到最後一次使用後 90 天）。</li>
+          <li><strong>固定的範例檔</strong>：做成場景附件。<code>PUT /scenes/{id}/attachments/{檔名}?base={n}</code>（本體是檔案內容，需要 <code>scenes:write</code>）存成新版本，入參的 <code>default</code> 寫 <code>files/檔名</code>；<code>GET /scenes/{id}/revisions/{n}/attachments</code> 列出。附件納入場景雜湊，驗證的檔案就是發布的檔案；檔名只能用英文字母、數字、<code>_ . -</code>，每個最多 20 MB、一個版本合計 50 MB。</li>
+          <li><strong>等上傳完成</strong>：<code>upload</code> 在檔案交給網頁時就算完成，後面用 <code>waitFor</code>／<code>expect</code> 等畫面上的結果；<code>verify</code> 可以拿 <code>{{ inputs.orderFile.sha256 }}</code> 和網頁顯示的比對。運行紀錄與報告只有檔名、大小與 sha256，沒有路徑。</li>
+          <li><strong>錄製稿</strong>：<code>set_input_files</code> 會轉成 <code>upload</code> 加一個 file 入參，但錄製稿只有檔名，要另外把檔案放進入參或附件。</li>
+        </ul>
       </div>
     </section>
 

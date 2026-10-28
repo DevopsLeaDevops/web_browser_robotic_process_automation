@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:5fce164644394349">
+<meta name="translation-source" content="sha256:7c9e02766fbd6b24">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -46,7 +46,7 @@
 
 {
   "apiVersion": "1",
-  "serverVersion": "0.6.0",
+  "serverVersion": "0.6.3",
   "server": {"id": "srv-linux-01", "name": "Linux server"},
   "client": {"id": "agent-erp", "name": "ERP assistant"},
   "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
@@ -59,7 +59,7 @@
   "target": null,
   "workers": null,
   "expiresAt": null,
-  "dslFeatures": ["anyFrame", "dynamicValues", "frame", "page", "popup"]
+  "dslFeatures": ["anyFrame", "dynamicValues", "fileInputs", "frame", "page", "popup", "upload"]
 }</pre>
         <ul class="points">
           <li>No <code>scenes:publish</code> in <code>scopes</code>: stop once validation passes and ask a person to publish in the Portal.</li>
@@ -208,6 +208,24 @@ POST /agent-api/v1/scenes/order-create/runs
 GET /agent-api/v1/runs/…
 → {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
         <p><code>output</code> is present only when <code>status</code> is <code>passed</code>. Without publish permission, tell the user which revision of which scene passed validation and ask a person to publish it in the Portal. <code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> lists the runs you can see (scenes in your domains; <code>mine</code> limits it to runs you started); <code>POST /runs/{id}/cancel</code> cancels only runs you started.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="files">
+      <div class="panel-header"><h2>Uploading files</h2><span class="muted">M7c; on main, not yet released</span></div>
+      <div class="panel-body">
+        <p>When the target system needs “import Excel” or “upload images”, the scenario uses an input of <code>type: file</code> and an <code>upload</code> step (specification: <a href="../design/dsl.html#upload">DSL › File uploads</a>). <code>dslFeatures</code> in <code>GET /meta</code> must include <code>upload</code> and <code>fileInputs</code>; if a recorder or Worker app is too old, the server does not give it such a scenario, so ask a person to update the app.</p>
+<pre class="source">POST /agent-api/v1/files?name=october-orders.xlsx   (needs files:write; the body is the file itself, not multipart)
+→ 201 {"file": "f_…", "name": "october-orders.xlsx", "size": 20480, "sha256": "aad9…"}
+
+POST /agent-api/v1/scenes/order-import/revisions/3/validate
+{"inputs": {"orderFile": {"file": "f_…", "name": "october-orders.xlsx"}}, "idempotencyKey": "order-import-v3-1"}</pre>
+        <ul class="points">
+          <li><strong>A different file each time</strong>: <code>POST /files</code> first, then use the returned object as the input value in the <code>inputs</code> of a validation, run or debugging session; for <code>multiple: true</code> inputs, use a list. You can only refer to files you uploaded yourself; anyone else's returns 404 <code>upload_not_found</code>. <code>GET /files/{id}</code> describes your own upload, with <code>deleted</code> set to <code>true</code> after its retention ends (unused uploads are deleted after 24 hours, used ones kept for 90 days after their last use).</li>
+          <li><strong>A fixed sample file</strong>: make it a scenario attachment. <code>PUT /scenes/{id}/attachments/{name}?base={n}</code> (the body is the file, needs <code>scenes:write</code>) saves a new revision, and the input's <code>default</code> says <code>files/name</code>; <code>GET /scenes/{id}/revisions/{n}/attachments</code> lists them. Attachments count toward the scenario hash, so the file that was validated is the one that is published; names may only use English letters, digits and <code>_ . -</code>, up to 20 MB each and 50 MB per revision.</li>
+          <li><strong>Waiting for the upload</strong>: <code>upload</code> is done once the file is handed to the page; wait for the result on screen with a later <code>waitFor</code> or <code>expect</code>. <code>verify</code> can compare <code>{{ inputs.orderFile.sha256 }}</code> with what the page shows. Run records and reports keep only the name, size and sha256, never a path.</li>
+          <li><strong>Recordings</strong>: <code>set_input_files</code> becomes an <code>upload</code> step plus a file input, but the recording only has the file name, so the file still has to be supplied as an input or attachment.</li>
+        </ul>
       </div>
     </section>
 
