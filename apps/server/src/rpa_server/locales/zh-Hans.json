@@ -1754,5 +1754,5 @@
   "replayjs.card_no_video": "{{node}} 没有录像",
   "replayjs.card_not_run": "没有运行：{{nodes}}",
   "replayjs.card_pending": "还没结束：{{nodes}}",
-  "creplay.download_node": "下載這個節點的錄影："
+  "creplay.download_node": "下载这个节点的录像："
 }
