@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文檔站對齊 main（v0.6.3 之後） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>文檔站對齊 main（v0.6.3 之後）</h1><p>把 <code>docs/</code> 裡落後的頁面改成和 main <code>a26b929</code>（#97 合併後）一致：路線圖與首頁的狀態、系統架構、技術選型、桌面端分發、產品定位、遠端 Worker、開發環境、本機從零運行、Agent 使用指南、ADR 索引。只改文件，不改程式。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261028-docs-refresh；2026-10-28 00:58 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 對話（2026-10-28 00:51 America/Los_Angeles（PDT，UTC−07:00））：「現在 docs 的文檔是落後的，幫我更新到最新的 docs 文檔，也就是包含 main 分支的最近改動的最新版出來。」完成＝<code>docs/</code> 的各頁和 main 的實作、已合併的 PR、已發布的版本一致；繁中、英文同步並 stamp，簡中由工具產生；文檔測試通過；人工驗收的狀態照任務紀錄寫，不寫成已驗收。</dd>
+        <dt>範圍／不包含</dt><dd><code>docs/</code> 的繁中與英文頁（簡中由 bootstrap 產生）。已隨各 PR 更新的 DSL、管理 Portal、對外 Agent API 設計、多用戶不動。不包含：<code>handoff/</code> 的狀態總表與驗收紀錄（10-14 的快照，另行整理）、其他任務紀錄的狀態欄、程式與 <code>schema/</code>。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責 Claude（Opus 5.5）；審閱與合併：使用者；接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>docs/index.html</code>、<code>docs/roadmap.html</code>、<code>docs/adr/index.html</code>、<code>docs/design/</code> 的 architecture、tech-stack、desktop、positioning，<code>docs/develop/</code> 的 remote-worker、setup、quickstart、macos、agent-api-guide，以及 <code>docs/en/</code> 的同一頁；本頁與任務索引。共用檔案（任務索引）由本任務整合；目前沒有開著的 PR。</dd>
+        <dt>狀態</dt><dd>實作中。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-main</code>，從 <code>a26b929</code>（origin/main，Merge PR #97）開；PR 未建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本地修改中，尚未推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、系統 Python 3.13.18、pytest 9.1.1。PyPI 被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成；沒有 OpenCC，簡中靠提交訊息的 <code>[bootstrap]</code> 產生。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>盤點（main a26b929）：</strong>路線圖的 M7a、M7b、M7c、M11、M12、M14 仍寫「PR 審閱中／實作中」，實際都已合併；首頁仍是「目前階段 M4、10 個里程碑、11 項 ADR、M10 進行中」；ADR 索引寫 13 項，實際 18 項。系統架構與技術選型對照 v0.5.0，沒有熱更新（ADR 0018）、Agent API、專案空間、上傳檔案區、組合運行的報告與回看。桌面端分發的發布歷史只到 v0.5.0，「自動更新」仍列在保留方案，macOS Worker 寫「下一個發布起」。遠端 Worker 的升級只寫安裝檔、設定沒有「檔案入參可以讀的資料夾」。產品定位的「專案」仍是 M8 的權限單位。Agent 使用指南沒有檔案入參。開發環境、本機從零運行的版本範例是 0.3.0、分發包的資料夾沒有 <code>runtimes/</code>。</li>
+        <li><strong>已完成：</strong>見追加紀錄。</li>
+        <li><strong>未完成／阻礙：</strong>本地裝不到依賴，只能用系統的 pytest 跑文檔測試（不含簡中），簡中與完整檢查由 bootstrap 與 CI 確認。</li>
+        <li><strong>決定：</strong>實作選擇：狀態以 GitHub 的合併紀錄與各任務紀錄為準；「已合併」「自動測試通過」「人工驗收通過」分開寫，沒有紀錄的人工驗收寫「未執行」或「沒有紀錄」。v0.6.3 之後才合併的（M7c、組合運行的匯總報告與合併回看、CI 依層建置）標為「main 上、尚未發布」。</li>
+        <li><strong>下一個具體動作：</strong>逐頁修改繁中、英文並 stamp，推送 <code>[bootstrap]</code> 產生簡中，開 PR 並確認 CI。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>待填</td><td>待填</td><td>未執行</td><td>待填</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：不適用（只改文件）；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-28 00:58 America/Los_Angeles（PDT，UTC−07:00），Claude：開工。從 <code>a26b929</code> 開 <code>docs/refresh-main</code>；盤點 <code>docs/</code> 各頁與 main、GitHub 的 PR 合併紀錄（#62～#98）與 Release（v0.2.0～v0.6.3）的落差。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
