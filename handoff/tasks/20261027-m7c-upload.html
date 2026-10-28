@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261027-m7c-upload；2026-10-27 18:16 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261027-m7c-upload；2026-10-27 18:23 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 對話（2026-10-27 07:53 America/Los_Angeles（PDT，UTC−07:00））：「現在的 RPA 系統中不支援文件上傳能力，我的系統裡有很多 Excel 導入、圖片上傳的功能，現在是沒法使用 RPA 實現的。這個能力可以實現嗎，請調研和制定方案。我們一起 review 沒問題後，然後開始 coding。」驗收條件（草案，隨 D1 確認）：錄製含 Excel 匯入與多張圖片上傳的操作，轉換後沒有「上傳檔案還不支援」的警告；在錄製端逐步調試到最後一步；在執行表單上傳檔案後，以遠端 Worker（Windows）驗證、發布、執行成功，目標網站收到的檔案和上傳的位元組相同（sha256 一致）；舊版 App 收到用到上傳的場景時提示更新。</dd>
         <dt>範圍／不包含</dt><dd>第一期（M7c，D1）：<code>file</code> 型別的入參、<code>upload</code> 步驟、錄製稿轉換、Runner、檔案從管理 Portal 到 Worker／錄製端、執行與驗證表單的選檔、運行報告、測試網站與範例場景。不包含（第二期，第 5 節）：場景附帶的預設檔案、組合場景節點與 Agent API 的檔案入參、只有拖拽區沒有上傳框的元件、Worker 本機資料夾、下載步驟（M7 其餘部分）、Python 腳本場景的檔案入參（與 <a href="20261024-python-scripts.html">Python 腳本場景設計</a> 的 D9 一起決定）。<strong>2026-10-27 起一期二期一起做：</strong>第二期的 (1)～(5) 已一起實作；(6) Python 腳本場景的檔案入參、(7) 下載步驟的檔案接到上傳依賴尚未實作的功能，另行排程（校驗擋下腳本場景的檔案入參並說明）。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）。審閱與決定：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>實作改到的檔案見第 7 節（第二期另外動到 <code>rpa_server/storage.py</code>、<code>pack.py</code>、<code>agent_api.py</code>、<code>workflows</code> 的保留、Worker App 的設定）。共用檔案由本任務整合：多語言目錄、<code>schema/scenario.v1.json</code>、資料庫遷移 <code>0017_uploaded_files</code>（合併前確認 main 沒有別的 0017）、路線圖、DSL／管理 Portal／Agent API 設計文件、任務索引。開著的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/96">PR #96</a>（組合運行的匯總報告）可能也動到運行報告，後合併的一方解衝突。</dd>
-        <dt>狀態</dt><dd>實作完成，等 CI 全部通過與人工驗收：第一期與第二期 (1)～(5) 一起做（使用者 2026-10-27 08:20 確認）。第二期的 (6) Python 腳本場景的檔案入參、(7) 下載步驟的檔案接到上傳依賴尚未實作的功能，留好介面、另行排程。合併由使用者決定。</dd>
+        <dt>狀態</dt><dd>實作完成，CI 全部通過（<code>d1066a1</code>），等審閱與人工驗收：第一期與第二期 (1)～(5) 一起做（使用者 2026-10-27 08:20 確認）。第二期的 (6) Python 腳本場景的檔案入參、(7) 下載步驟的檔案接到上傳依賴尚未實作的功能，留好介面、另行排程。合併由使用者決定。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>m7c/upload</code>，從 <code>30f2290</code>（origin/main，Merge PR #95）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/97">PR #97</a>（base main；設計＋實作）。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁與索引的提交推送到 <code>m7c/upload</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux、Python 3.13.17。PyPI 被出口代理拒絕（403），<code>uv sync --locked</code> 沒有完成；調研用系統的 Playwright 1.63.0（專案鎖定 1.64.0）、Chromium（<code>/opt/pw-browsers/chromium-1243</code>）與 Xvfb；沒有 Firefox。實驗腳本不進倉庫，做法寫在第 3 節，實作時改寫成正式測試。實作時本地沒有 FastAPI 與 SQLAlchemy（同樣裝不到），伺服器的程式只做 ruff、編譯與 Jinja 樣板解析，伺服器測試（含 Portal 端到端）由 CI 跑；Portal 的檔案入參 JavaScript 另用一個本地頁面與 Playwright 實測。</dd>
@@ -278,7 +278,7 @@ verify:
         <li><strong>已完成（第二期 (1)～(5)）：</strong>(1) 場景附件：版本資料夾的 <code>files/</code>、納入雜湊（沒有附件的場景雜湊不變）、git 同步、<code>rpa pack check</code>、預設值引用、場景詳情頁的附件區（中文檔名先換名）、API；(2) 組合場景節點的固定檔案（編排頁選檔上傳、固定值用到的上傳檔不刪）、Agent API 的 <code>files:write</code>、<code>/files</code> 與附件端點（入參只能參照自己上傳的檔案）；(3) <code>dropzone</code>；(4) 允許讀取的資料夾：RPA Worker App 的設定與 <code>RPA_INPUT_FOLDERS</code>；(5) 保留 90 天與總量 10 GB（環境變數可改）。入參表單編輯器支援 file 型別。文件：路線圖（插入 M7c）、DSL、管理 Portal、Agent API 設計與英文版。</li>
         <li><strong>未完成／阻礙：</strong>人工驗收（第 8 節的三台）未執行，需要新建置的錄製端與 Worker App；第二期 (6)、(7) 依賴尚未實作的功能（腳本場景的新版設計、M7 下載步驟），另行排程；Firefox 只在 CI 跑過（本環境沒有 Firefox）。</li>
         <li><strong>決定：</strong>D1～D8 使用者確認全照建議；D1 的範圍改成第一期與第二期一起做（<a href="../decisions.html#decisions">決定紀錄</a>）。實作時的調整（不改決定）：上傳 API 用請求本體而不是 multipart；檔案區資料夾叫 <code>input-files/</code>；錄製端 20 MB 以上的檔案另外下載；執行器只收到和預設不同的檔案選項。</li>
-        <li><strong>下一個具體動作：</strong>CI 全部通過後請使用者審閱 PR #97；合併後建置新的錄製端與 Worker App，照第 8 節做三台的人工驗收，再在使用者的業務系統各做一次 Excel 匯入與圖片上傳。</li>
+        <li><strong>下一個具體動作：</strong>請使用者審閱 PR #97（CI 已全部通過）；合併後建置新的錄製端與 Worker App，照第 8 節做三台的人工驗收，再在使用者的業務系統各做一次 Excel 匯入與圖片上傳。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。實驗腳本與 Portal JavaScript 的測試頁在工作區的暫存資料夾，不進倉庫。</li>
       </ul></div>
     </section>
@@ -293,7 +293,7 @@ verify:
           <tr><td><code>m7c/upload</code>，只改 <code>handoff/</code></td><td><code>git diff --check</code>；本頁與索引的相對連結</td><td>見追加紀錄</td><td>只改交接文件，不跑瀏覽器測試</td></tr>
           <tr><td>本地：Linux、Python 3.13、Playwright 1.63、Chromium（沒有 FastAPI、SQLAlchemy、OpenCC）</td><td><code>pytest</code>：<code>packages/rpa_core</code>、<code>packages/rpa_runner</code>（含 <code>test_upload.py</code> 的 Chromium）、<code>apps/cli</code>、<code>apps/worker</code>、<code>apps/desktop</code>、根目錄 <code>tests</code>（不含簡中產生的檢查）；ruff、格式；改到的非伺服器檔案 pyright</td><td><code>rpa_core</code>＋<code>rpa_runner</code>＋<code>apps/cli</code>：686 通過、47 略過、12 失敗，失敗都是本環境的問題：錄影的瀏覽器測試 8 個（換成 main 的程式也一樣失敗）、命令列的 serve／update 4 個（需要 FastAPI、SQLAlchemy）；<code>apps/worker</code>＋<code>apps/desktop</code> 338 通過、3 略過；根目錄 <code>tests</code> 600 通過；ruff 與格式通過</td><td>伺服器的測試與型別（本地沒有依賴，交給 CI）；Firefox；簡中產生（交給 bootstrap）</td></tr>
           <tr><td>本地：Portal 的檔案入參 JavaScript</td><td>用樣板巨集產生的測試頁＋假的 <code>/api/files</code>，Playwright 選檔、超過上限、多檔、場景附件、移除、清除與預設值、上傳失敗、手改 JSON、JSON 寫錯</td><td>全部符合預期，沒有頁面錯誤；截圖檢查版面</td><td>真的伺服器（由 CI 的 Portal 端到端測試涵蓋）</td></tr>
-          <tr><td>CI：PR #97</td><td>靜態檢查、Linux 測試（Python 3.12、3.13，含伺服器與 Portal 端到端）、Windows Worker 測試（Chromium、Firefox）</td><td><code>abde7e0</code>：2063 個測試只有 2 個失敗（簡中未產生、Agent API 測試的權限範圍順序），已修正；<code>1e2a1ba</code>：靜態檢查、Windows Worker 測試通過，Linux 只差簡中文件（bootstrap 的 <code>b88858e</code> 已補上）；最新 head 見 PR</td><td>macOS 錄製端（CI 依角色）；人工驗收</td></tr>
+          <tr><td>CI：PR #97</td><td>靜態檢查、Linux 測試（Python 3.12、3.13，含伺服器與 Portal 端到端）、Windows Worker 測試（Chromium、Firefox）</td><td><code>d1066a1</code>（已合併 main 的 #96）全部通過：靜態檢查、Linux 測試（Python 3.12、3.13，含 <code>test_uploads.py</code> 與 Portal 端到端）、Windows Worker 測試（含 <code>test_upload.py</code> 的 Chromium、Firefox）、伺服器分發包、桌面端建置、一鍵安裝腳本。之前的失敗與修正見追加紀錄</td><td>macOS 錄製端（CI 依角色）；人工驗收</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p>CI：見 PR #97 最新 head；人工驗收：未執行；審閱：等使用者。</p></div>
@@ -317,6 +317,7 @@ verify:
         <li>2026-10-27 17:51 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>97eb673</code>（逐步調試的步驟顯示上傳的檔案與提醒）、<code>8054452</code>（多用戶設計的能力表）。main 合併了 #96（組合運行的匯總報告）使 PR 有衝突、CI 沒有觸發：<code>be2934b</code> 合併 main，三語訊息目錄與 portal-app.css 兩邊都保留、英文設計頁重新 stamp、決定頁與任務索引兩邊的新列都保留；bootstrap 產生 <code>c405072</code>。</li>
         <li>2026-10-27 17:59 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>be2934b</code> 的 CI：Linux 只差簡中（已由 <code>c405072</code> 補上）；Windows Worker 的 <code>test_file_chooser_without_upload_is_closed_with_a_note</code> 兩種瀏覽器都沒有記到提醒（<code>1e2a1ba</code> 時通過，時序問題）：Playwright 收到選擇檔案視窗後還要向瀏覽器查元素才送出事件，點擊後一次往返不夠。改成點擊後最多往返瀏覽器三次、事件到了就停；仍然晚到時算在前一個可能開視窗的步驟（<code>e72f08f</code>）。</li>
         <li>2026-10-27 18:16 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>e72f08f</code> 的 Linux 測試全部通過、Windows Worker 這次通過了選擇檔案視窗的測試，但 Firefox 設定檔範本的測試逾時；重跑失敗的工作時換成 <code>test_run</code>、<code>test_login</code>、<code>test_frames</code> 逾時。點擊後在頁面裡執行程式碼（<code>page.evaluate</code>）在換頁中可能要等，懷疑拖慢了 Windows 上的執行，改成只等一小段時間（0、10、20 ms，事件到了就停）、不碰頁面；晚到的仍算在前一個可能開視窗的步驟。本地 Chromium：<code>test_upload</code>、<code>test_frames</code>、<code>test_run</code>、<code>test_login</code>、<code>test_tabs</code> 40 通過。</li>
+        <li>2026-10-27 18:23 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>d1066a1</code> 的 CI 全部通過（靜態檢查、Linux 測試 Python 3.12／3.13、Windows Worker 測試、伺服器分發包、桌面端建置、一鍵安裝腳本）；PR #97 與 main 沒有衝突，改成可審閱（不再是草稿）。合併由使用者決定。</li>
     </ul></div>
     </section>
   </div>
