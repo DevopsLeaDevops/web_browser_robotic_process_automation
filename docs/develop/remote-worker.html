@@ -83,14 +83,14 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
           <li>第一次會下載 Chromium（解壓後約 600 MB），視窗顯示進度。狀態變成「線上」就好了；裝置頁顯示「線上」與 App 版本。</li>
         </ol>
         <ul>
-          <li><strong>升級</strong>：執行新版的安裝檔即可。RPA Worker 正在執行時，安裝檔會先請它結束（執行中的任務被取消並回報給管理 Portal）再換檔案；配對、設定與自動啟動都保留。視窗提醒「程式版本和管理 Portal 不同」時，旁邊的「下載新版」會打開最新的 Release。</li>
+          <li><strong>升級</strong>：執行新版的安裝檔即可。RPA Worker 正在執行時，安裝檔會先請它結束（執行中的任務被取消並回報給管理 Portal）再換檔案；配對、設定與自動啟動都保留。視窗提醒「程式版本和管理 Portal 不同」時，旁邊的「下載新版」會打開最新的 Release。<strong>0.6.0 起</strong>伺服器升級後，RPA Worker 下次連上時自己從伺服器下載同一個版本，做完目前的任務後重新啟動（見<a href="operations.html#device-updates">部署與操作 › 裝置跟著伺服器更新</a>）；只有執行環境改變、裝置頁說要完整安裝包時，才需要照上面重新安裝。</li>
           <li><strong>解除安裝</strong>：Windows 的「設定 › 應用程式」找到 RPA Worker。確認要解除安裝後，先問要不要也刪除配對、設定與日誌：預設「否」（保留），之後重新安裝不必再配對；選「是」會一併刪除認證管理員裡的權杖。接著結束 RPA Worker（執行中的任務被取消並回報）、刪除程式、捷徑與自動啟動。瀏覽器（<code>%LOCALAPPDATA%\ms-playwright</code>）與 Firefox 範本的快取（<code>%LOCALAPPDATA%\rpa\cache</code>）別的程式也可能在用，不會刪除。用命令列靜默解除安裝（<code>unins000.exe /VERYSILENT</code>）時不問、保留資料，加上 <code>/REMOVEDATA=yes</code> 才刪除。</li>
           <li><strong>免安裝版</strong>：Release 也附 <code>RPA-Worker-版本-windows-x64.zip</code>，解壓縮到任何資料夾（例如 <code>%USERPROFILE%\RPA Worker</code>）後雙擊 <code>rpa-worker.exe</code>，用法和安裝版相同；升級時先從通知區結束，再解壓縮新版覆蓋。免安裝版和安裝版用同一個資料夾的配對，不要同時使用。</li>
           <li><strong>關閉視窗不會停止。</strong>RPA Worker 縮到通知區繼續接任務（第一次會提示）。通知區圖示的選單：開啟視窗、暫停接任務、結束；圖示右下角的圓點是綠色（線上）、黃色（暫停）或紅色（離線、需要處理）。有任務在執行時按「結束」會先確認，取消後回報給管理 Portal。</li>
           <li><strong>登入 Windows 時自動啟動</strong>：第一次配對成功後預設開啟，只出現在通知區；在視窗的「設定」可以關閉。資料夾搬走後開一次 RPA Worker，自動啟動就會改成新的位置。</li>
           <li><strong>暫停接任務</strong>：做完目前的任務後不再領取新的，管理 Portal 約一分鐘後顯示這台離線；按「繼續接任務」立刻重新上線。</li>
           <li><strong>只執行一份</strong>：再雙擊一次會叫出已經在執行的那份視窗。</li>
-          <li><strong>設定</strong>：語言（預設繁體中文）、也下載 Firefox（執行中才勾選的話，下次開啟時下載）、下載瀏覽器的內部鏡像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）、開啟日誌資料夾、重新配對。</li>
+          <li><strong>設定</strong>：語言（預設繁體中文）、也下載 Firefox（執行中才勾選的話，下次開啟時下載）、下載瀏覽器的內部鏡像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）、檔案入參可以讀的資料夾（場景的檔案入參寫這台電腦上的路徑時，例如共用磁碟上的每日報表，只能讀這些資料夾；一行一個，下一個任務開始時生效；沒有設定時不能用路徑；M7c，在 main、尚未發布，見 <a href="../design/dsl.html#upload">DSL › 上傳檔案</a>）、開啟日誌資料夾、重新配對。</li>
           <li><strong>資料位置</strong>：<code>%LOCALAPPDATA%\rpa\worker</code>（配對的伺服器與裝置 <code>pairing.json</code>、設定 <code>settings.json</code>、日誌 <code>logs\</code>、任務的暫存）。<strong>權杖存在 Windows 認證管理員</strong>（「一般認證」裡的 <code>RPA Worker</code>）；認證管理員不能用時退回存在 <code>pairing.json</code>（只有你能讀寫），視窗的「權杖存放」會標出來。第一步預覽版存在檔案裡的權杖，第一次開啟時自動搬進認證管理員。瀏覽器在 <code>%LOCALAPPDATA%\ms-playwright</code>。日誌不記權杖與邀請代碼。</li>
           <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 內建，Windows 10 大多已隨 Edge 更新裝好；安裝檔在沒有時會安裝。還是沒有時（例如免安裝版、安裝時沒有網路），RPA Worker 會說明怎麼安裝，在那之前只靠通知區接任務。</li>
           <li><strong>Windows 登出或關機</strong>：執行中的任務立刻被取消並回報；來不及回報時，管理 Portal 約一分鐘後判定失聯。</li>
@@ -111,7 +111,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
           <li><strong>關閉視窗不會停止。</strong>RPA Worker 縮到選單列（螢幕右上角的圖示）繼續接任務，Dock 上的圖示也收起來；第一次會用通知提示。選單列圖示的選單與圓點的顏色和 Windows 的通知區相同。要結束：選單列圖示 › 結束，或在視窗按 ⌘Q；有任務在執行時先確認，取消後回報給管理 Portal。</li>
           <li><strong>叫出視窗</strong>：選單列圖示 › 開啟視窗，或在 Finder、Launchpad 再打開一次 RPA Worker。</li>
           <li><strong>登入 macOS 時自動啟動</strong>：第一次配對成功後預設開啟，只出現在選單列；在視窗的「設定」可以關閉。做法是放一個 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>）：macOS 13 起會通知「已加入背景項目」，也列在「系統設定 › 一般 › 登入項目」；在那裡關掉時，系統另外記錄停用，App 的設定不會把它改回來。App 搬到別的位置後開一次，自動啟動就會改成新的位置。</li>
-          <li><strong>升級</strong>：先從選單列結束 RPA Worker（執行中的任務被取消並回報），再把新版的 App 拖進「應用程式」取代。配對、設定與自動啟動都保留。視窗的「下載新版」打開最新的 Release。</li>
+          <li><strong>升級</strong>：先從選單列結束 RPA Worker（執行中的任務被取消並回報），再把新版的 App 拖進「應用程式」取代。配對、設定與自動啟動都保留。視窗的「下載新版」打開最新的 Release。<strong>0.6.0 起</strong>伺服器升級後，RPA Worker 下次連上時自己從伺服器下載同一個版本，做完目前的任務後重新啟動（見<a href="operations.html#device-updates">部署與操作 › 裝置跟著伺服器更新</a>）；只有執行環境改變、裝置頁說要完整安裝包時，才需要照上面重新安裝。</li>
           <li><strong>解除安裝</strong>：先在「設定」關掉自動啟動並結束 RPA Worker，再把 App 拖到垃圾桶。要一併刪除配對：先執行 <code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --forget-pairing</code>（刪除鑰匙圈裡的權杖），再刪除資料夾 <code>~/Library/Application Support/rpa/worker</code>。瀏覽器（<code>~/Library/Caches/ms-playwright</code>）錄製端也可能在用，不要刪。</li>
           <li><strong>資料位置</strong>：<code>~/Library/Application Support/rpa/worker</code>（<code>pairing.json</code>、<code>settings.json</code>、日誌 <code>logs/</code>、任務的暫存）。<strong>權杖存在鑰匙圈</strong>（登入鑰匙圈裡的 <code>RPA Worker</code>）；鑰匙圈不能用時退回存在 <code>pairing.json</code>（只有你能讀寫），視窗的「權杖存放」會標出來。日誌不記權杖與邀請代碼。</li>
           <li><strong>登出、重新開機或關機</strong>：執行中的任務立刻被取消並回報（只等幾秒，不擋住登出）；來不及回報時，管理 Portal 約一分鐘後判定失聯。</li>
@@ -158,7 +158,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
           <li><strong>關掉視窗就結束。</strong>有錄製、調試或人工登入在進行時先確認（⌘Q 也一樣），結束會中斷它們，管理 Portal 那邊標成結束。再打開一次會叫出已經在執行的那份。</li>
           <li><strong>資料位置</strong>：<code>~/Library/Application Support/rpa/recorder</code>（配對的伺服器與裝置 <code>pairing.json</code>、設定、日誌 <code>logs/recorder.log</code>、錄製與調試的暫存，用完刪除）。<strong>權杖存在鑰匙圈</strong>（「RPA Recorder」項目）；鑰匙圈不能用時退回存在 <code>pairing.json</code>（只有你能讀寫），狀態頁的「權杖存放」會標出來。瀏覽器在 <code>~/Library/Caches/ms-playwright</code>，和開發環境共用。</li>
           <li><strong>伺服器在同一台 Mac</strong>：一樣用 <code>rpa serve --worker-port 8081</code> 開對外埠，配對 <code>http://127.0.0.1:8081</code>。</li>
-          <li><strong>升級</strong>：先結束 App，打開新版的 DMG，把「RPA 錄製端」拖進「應用程式」取代舊的；配對、設定與日誌都保留。新版第一次打開可能又要到「隱私權與安全性」允許。狀態頁提醒「程式版本和管理 Portal 不同」時，旁邊的「下載新版」會打開最新的 Release。</li>
+          <li><strong>升級</strong>：先結束 App，打開新版的 DMG，把「RPA 錄製端」拖進「應用程式」取代舊的；配對、設定與日誌都保留。新版第一次打開可能又要到「隱私權與安全性」允許。狀態頁提醒「程式版本和管理 Portal 不同」時，旁邊的「下載新版」會打開最新的 Release。<strong>0.6.0 起</strong>伺服器升級後，錄製端下次連上時自己下載同一個版本，不打斷錄製與調試，關掉再開啟就會套用（見<a href="operations.html#device-updates">部署與操作 › 裝置跟著伺服器更新</a>）；只有裝置頁說要完整安裝包時才需要照上面重新安裝。</li>
           <li><strong>解除安裝</strong>：結束 App 後把「RPA 錄製端」丟到垃圾桶。配對、設定與日誌在上面的資料夾，權杖在鑰匙圈的「RPA Recorder」，不要了再刪；瀏覽器的快取和開發環境共用，不一定要刪。</li>
           <li><strong>不開 App 的視窗</strong>（排查問題、自動化）：在終端機執行 <code>"/Applications/RPA Recorder.app/Contents/MacOS/rpa-recorder" --no-window --open</code>，連上後用預設瀏覽器打開管理 Portal。<strong>有頭模式照樣可以用</strong>：錄製、逐步調試、人工登入的瀏覽器視窗照樣開在這台，少的只是 App 的視窗，所以要在登入中的桌面執行（不要從 SSH）。訊息印在終端機，也寫進日誌。和 App 用同一份配對，同一時間只能開一份（這時雙擊 App 會用預設瀏覽器打開管理 Portal）；按 Ctrl+C 結束（或在資料夾放一個 <code>stop.request</code> 檔案）。其他選項：<code>--invite</code>、<code>--server</code>、<code>--firefox</code>、<code>--log 檔案</code>、<code>--url-file 檔案</code>（把經由閘道打開 Portal 的網址寫到檔案，自動化用）。</li>
         </ul>

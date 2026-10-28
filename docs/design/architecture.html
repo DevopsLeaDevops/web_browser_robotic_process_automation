@@ -28,17 +28,17 @@
   <div class="heading">
     <div>
       <h1>系統架構</h1>
-      <p>元件、資料流與目錄結構。平台全部部署在內網：伺服器保存場景與紀錄，錄製端與 Worker 兩個桌面 App 主動連到伺服器，瀏覽器在它們那台直接操作目標系統。本頁對照 v0.5.0（2026-10-23）。</p>
+      <p>元件、資料流與目錄結構。平台全部部署在內網：伺服器保存場景與紀錄，錄製端與 Worker 兩個桌面 App 主動連到伺服器，瀏覽器在它們那台直接操作目標系統。本頁對照 v0.6.3（2026-10-26 發布）與之後的 main（M7c 上傳檔案、組合運行的匯總報告與合併回看，尚未發布）。</p>
     </div>
   </div>
 
   <div class="stack">
     <section class="panel" id="current">
-      <div class="panel-header"><h2>目前的部署</h2><span class="muted">v0.5.0：一台伺服器＋錄製端（macOS）＋Worker（Windows、macOS）</span></div>
+      <div class="panel-header"><h2>目前的部署</h2><span class="muted">v0.6.3：一台伺服器＋錄製端（macOS）＋Worker（Windows、macOS）</span></div>
       <div class="diagram">
-        <svg class="arch" viewBox="0 0 1000 560" role="img" aria-labelledby="now-title now-desc">
+        <svg class="arch" viewBox="0 0 1000 572" role="img" aria-labelledby="now-title now-desc">
           <title id="now-title">目前的部署圖</title>
-          <desc id="now-desc">伺服器執行 rpa serve：127.0.0.1:8080 給伺服器那台的瀏覽器，0.0.0.0:8081 對外埠給已配對的裝置；API 服務讀寫資料目錄（領域資料夾、SQLite 索引、執行目錄），領域可以和 git 倉庫同步。macOS 上的錄製端 App 與 Windows 或 macOS 上的 Worker App 都主動連到對外埠；錄製、逐步調試、人工登入與登入檢查的瀏覽器開在錄製端，執行的瀏覽器開在 Worker，兩者直接操作目標內部系統。伺服器有瀏覽器時也可以自己執行。</desc>
+          <desc id="now-desc">伺服器執行 rpa serve：127.0.0.1:8080 給伺服器那台的瀏覽器，0.0.0.0:8081 對外埠給已配對的裝置；API 服務讀寫資料目錄（領域資料夾、SQLite 索引、執行目錄、上傳的檔案），領域可以和 git 倉庫同步。macOS 上的錄製端 App 與 Windows 或 macOS 上的 Worker App 都主動連到對外埠，上線時跟著伺服器的版本更新；第三方 Agent 系統用 API 金鑰呼叫對外埠上的 Agent API。錄製、逐步調試、人工登入與登入檢查的瀏覽器開在錄製端，執行的瀏覽器開在 Worker，兩者直接操作目標內部系統。伺服器有瀏覽器時也可以自己執行。</desc>
           <defs>
             <marker id="arrow-now" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="#7999bb"/>
@@ -68,7 +68,7 @@
           <path class="link" d="M196 118V62" marker-end="url(#arrow-now)"/>
 
           <!-- 伺服器 -->
-          <rect class="frame" x="284" y="92" width="432" height="378" rx="10"/>
+          <rect class="frame" x="284" y="92" width="432" height="390" rx="10"/>
           <text class="frame-label" x="296" y="110">伺服器（rpa serve）</text>
           <rect class="box" x="300" y="120" width="192" height="80" rx="8"/>
           <text class="title" x="314" y="144">Portal 頁面＋/api</text>
@@ -80,31 +80,35 @@
           <text class="mono" x="522" y="184">--no-local-worker 關掉</text>
           <path class="link opt" d="M604 118V62" marker-end="url(#arrow-now)"/>
 
-          <rect class="box key" x="300" y="218" width="400" height="84" rx="8"/>
-          <text class="title" x="314" y="240">對外埠 0.0.0.0:8081（HTTP＋權杖）</text>
-          <text class="mono" x="314" y="260">/client-api/v1</text>
-          <text class="sub" x="420" y="260">配對；互動子程序的指令、輸出與檔案</text>
-          <text class="mono" x="314" y="276">/worker-api/v1</text>
-          <text class="sub" x="420" y="276">領取、心跳與取消、上傳執行目錄</text>
-          <text class="mono" x="314" y="292">其他路徑</text>
-          <text class="sub" x="420" y="292">Portal 頁面與 /api，只給已配對的錄製端</text>
+          <rect class="box key" x="300" y="214" width="400" height="98" rx="8"/>
+          <text class="title" x="314" y="234">對外埠 0.0.0.0:8081（HTTP＋權杖）</text>
+          <text class="mono" x="314" y="253">/client-api/v1</text>
+          <text class="sub" x="420" y="253">配對、更新；互動子程序的指令與檔案</text>
+          <text class="mono" x="314" y="269">/worker-api/v1</text>
+          <text class="sub" x="420" y="269">領取、心跳、更新、下載檔案、上傳結果</text>
+          <text class="mono" x="314" y="285">/agent-api/v1</text>
+          <text class="sub" x="420" y="285">第三方 Agent，API 金鑰（M14）</text>
+          <text class="mono" x="314" y="301">其他路徑</text>
+          <text class="sub" x="420" y="301">Portal 頁面與 /api，只給已配對的錄製端</text>
 
-          <rect class="box key" x="300" y="322" width="192" height="130" rx="8"/>
+          <rect class="box key" x="300" y="322" width="192" height="148" rx="8"/>
           <text class="title" x="314" y="346">API 服務</text>
           <text class="sub" x="314" y="366">FastAPI＋Jinja 頁面</text>
           <text class="sub" x="314" y="384">版本、發布門檻、執行佇列</text>
-          <text class="sub" x="314" y="402">裝置與邀請（M10）</text>
+          <text class="sub" x="314" y="402">裝置、邀請與更新分發</text>
           <text class="sub" x="314" y="420">領域與 git 同步（M11）</text>
-          <text class="sub" x="314" y="438">回看與錄影保留（M12）</text>
-          <rect class="box" x="508" y="322" width="192" height="130" rx="8"/>
+          <text class="sub" x="314" y="438">回看、組合運行的報告</text>
+          <text class="sub" x="314" y="456">專案空間、上傳的檔案</text>
+          <rect class="box" x="508" y="322" width="192" height="148" rx="8"/>
           <text class="title" x="522" y="346">資料目錄</text>
           <text class="sub" x="522" y="366">domains/ 領域資料夾（真相）</text>
           <text class="sub" x="522" y="384">rpa.db：SQLite 索引與狀態</text>
           <text class="sub" x="522" y="402">runs/ 報告、截圖、錄影</text>
-          <text class="sub" x="522" y="420">roles/ 登入狀態</text>
-          <text class="sub" x="522" y="438">secrets.json（不進 git）</text>
-          <path class="link" d="M400 304V320" marker-end="url(#arrow-now)"/>
-          <path class="link" d="M494 387H506" marker-start="url(#arrow-now)" marker-end="url(#arrow-now)"/>
+          <text class="sub" x="522" y="420">input-files/ 上傳的檔案</text>
+          <text class="sub" x="522" y="438">roles/ 登入狀態</text>
+          <text class="sub" x="522" y="456">secrets.json（不進 git）</text>
+          <path class="link" d="M400 314V320" marker-end="url(#arrow-now)"/>
+          <path class="link" d="M494 396H506" marker-start="url(#arrow-now)" marker-end="url(#arrow-now)"/>
 
           <!-- Worker -->
           <rect class="frame" x="772" y="92" width="212" height="308" rx="10"/>
@@ -118,8 +122,8 @@
           <text class="title" x="800" y="280">RPA Worker App</text>
           <text class="sub" x="800" y="302">長輪詢領取任務</text>
           <text class="sub" x="800" y="320">每 5 秒心跳、得知取消</text>
-          <text class="sub" x="800" y="338">完成後上傳執行目錄</text>
-          <text class="sub" x="800" y="356">通知區或選單列、自動啟動</text>
+          <text class="sub" x="800" y="338">下載入參檔案、上傳結果</text>
+          <text class="sub" x="800" y="356">跟著伺服器的版本更新</text>
           <path class="link" d="M878 254V218" marker-end="url(#arrow-now)"/>
           <path class="link" d="M944 118V62" marker-end="url(#arrow-now)"/>
 
@@ -130,14 +134,21 @@
           <text class="label" x="732" y="274">權杖</text>
 
           <!-- git -->
-          <rect class="box ext" x="300" y="494" width="400" height="56" rx="8"/>
-          <text class="title" x="314" y="516">Git 倉庫（每個領域對應一個目錄）</text>
-          <text class="sub" x="314" y="536">公開倉庫、HTTPS 權杖或 Portal 產生的 SSH 部署金鑰；永不強推</text>
-          <path class="link opt" d="M604 454V492" marker-start="url(#arrow-now)" marker-end="url(#arrow-now)"/>
-          <text class="label" x="612" y="478">拉取、推送（選用）</text>
+          <rect class="box ext" x="300" y="506" width="400" height="56" rx="8"/>
+          <text class="title" x="314" y="528">Git 倉庫（每個領域對應一個目錄）</text>
+          <text class="sub" x="314" y="548">公開倉庫、HTTPS 權杖或 Portal 產生的 SSH 部署金鑰；永不強推</text>
+          <path class="link opt" d="M604 472V504" marker-start="url(#arrow-now)" marker-end="url(#arrow-now)"/>
+          <text class="label" x="612" y="496">拉取、推送（選用）</text>
+
+          <!-- 第三方 Agent -->
+          <rect class="box ext" x="772" y="506" width="212" height="56" rx="8"/>
+          <text class="title" x="786" y="528">第三方 Agent 系統（M14）</text>
+          <text class="sub" x="786" y="548">用 API 金鑰呼叫 /agent-api/v1</text>
+          <path class="link opt" d="M770 534H736V302H702" marker-end="url(#arrow-now)"/>
+          <text class="label" x="742" y="496">金鑰</text>
         </svg>
       </div>
-      <div class="diagram-caption">藍框為核心元件；灰底為平台外部的系統；虛線為選用。所有連線都由 App 主動發起，伺服器不需要連到它們；只有伺服器存取資料庫與資料目錄；伺服器可以是 Linux、macOS 或 Windows，不需要螢幕；Linux 可以用自帶 Python 的分發包安裝（v0.5.0 起）。錄製端用裝置權杖、Worker 用 worker 權杖，權杖在 HTTP 下是明文，只適合信任的區網。伺服器沒有瀏覽器時（例如 Linux 主機），「檢查」登入狀態改由錄製端執行。安裝見<a href="../develop/operations.html">部署與操作</a>、<a href="desktop.html">桌面端分發</a>。</div>
+      <div class="diagram-caption">藍框為核心元件；灰底為平台外部的系統；虛線為選用。所有連線都由 App 主動發起，伺服器不需要連到它們；只有伺服器存取資料庫與資料目錄；伺服器可以是 Linux、macOS 或 Windows，不需要螢幕；Linux 可以用自帶 Python 的分發包安裝（v0.5.0 起），v0.6.0 起用約 2 MB 的簽章更新檔升級，裝置上線時跟著伺服器的版本更新（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）。錄製端用裝置權杖、Worker 用 worker 權杖、第三方 Agent 用 API 金鑰（<a href="agent-api.html">對外 Agent API</a>），在 HTTP 下都是明文，只適合信任的區網。伺服器沒有瀏覽器時（例如 Linux 主機），「檢查」登入狀態改由錄製端執行。安裝見<a href="../develop/operations.html">部署與操作</a>、<a href="desktop.html">桌面端分發</a>。</div>
     </section>
 
     <section class="panel" id="target">
@@ -173,7 +184,7 @@
           <text class="sub" x="280" y="116">認證、權限、稽核（M8）</text>
           <text class="sub" x="280" y="140">領域、版本、發布門檻</text>
           <text class="sub" x="280" y="164">AI 生成草稿（M5）</text>
-          <text class="sub" x="280" y="188">Worker API、Client API</text>
+          <text class="sub" x="280" y="188">Worker、Client、Agent API</text>
           <text class="sub" x="280" y="212">Secrets 加密存放（M8）</text>
 
           <rect class="box" x="264" y="272" width="216" height="72" rx="8"/>
@@ -226,22 +237,25 @@
       <div class="panel-body">
         <div class="four-col">
           <div class="notice"><strong>管理 Portal</strong><p>伺服器以 Jinja 渲染的頁面，沿用 <a href="../prototypes/mvp/index.html">MVP 原型</a>的版面（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>）。在伺服器那台用瀏覽器開 8080，或在錄製端 App 的視窗裡經由對外埠開（<a href="../adr/0014-desktop-apps.html">ADR 0014</a>）。</p></div>
-          <div class="notice"><strong>API 服務</strong><p>FastAPI：場景、版本與發布門檻、入參出參、執行與取消、報告、調試工作階段、組合場景、裝置與邀請、領域與 git 同步、回看。互動的子程序在「正在操作的那台」執行：從錄製端來的請求交給錄製端。</p></div>
+          <div class="notice"><strong>API 服務</strong><p>FastAPI：場景、版本與發布門檻、入參出參、執行與取消、報告、調試工作階段、組合場景與專案空間、組合運行的匯總報告與合併回看、裝置與邀請、裝置更新、領域與 git 同步、回看、上傳的檔案；對外埠上另有給第三方 Agent 的 <code>/agent-api/v1</code>（<a href="../adr/0017-agent-api.html">ADR 0017</a>）。互動的子程序在「正在操作的那台」執行：從錄製端來的請求交給錄製端。</p></div>
           <div class="notice"><strong>執行</strong><p>本機 worker 是伺服器裡的執行緒，遠端是 Worker App 或 <code>rpa worker</code>（<a href="../adr/0012-remote-workers.html">ADR 0012</a>）。每台一次一個任務；每次執行以子程序跑 Runner，套用總期限與取消。執行位置可選本機、遠端或任一；組合場景整個在同一台。</p></div>
-          <div class="notice"><strong>資料與產物</strong><p>領域資料夾保存場景、角色、組合場景的不可變版本與驗證、發布紀錄，是真相；SQLite 是索引與每台自己的狀態（<a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>、<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。執行目錄、錄影、登入狀態與 Secrets 只在這台伺服器。</p></div>
+          <div class="notice"><strong>資料與產物</strong><p>領域資料夾保存場景、角色、組合場景的不可變版本與驗證、發布紀錄，是真相；SQLite 是索引與每台自己的狀態（<a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a>、<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）。執行目錄、錄影、上傳的檔案、登入狀態與 Secrets 只在這台伺服器。</p></div>
         </div>
         <p class="muted">請求方向：Portal → API → worker。worker 回寫執行狀態與產物，Portal 以輪詢讀取進度；長任務不阻塞網頁請求。</p>
         <p class="muted">遠端執行（M9a、M10.1）：Worker 主動連到對外埠的 Worker API，長輪詢領取任務；任務帶著場景版本的檔案、入參、用到的 Secrets 與登入狀態；每 5 秒心跳（同時得知是否取消），執行完上傳整個執行目錄並回報結果。60 秒沒有心跳就判定失聯，執行標為失敗、不自動重跑。App 回報看得懂的 DSL 擴充（例如 iframe 的 <code>frame</code>），用到它不懂的寫法時伺服器不交給它。見<a href="../develop/remote-worker.html">遠端 worker</a>。</p>
         <p class="muted">錄製端（M10.2）：App 用邀請配對，視窗經由本機閘道載入 Portal 頁面；錄製、逐步調試、人工登入與登入檢查的子程序由伺服器經 Client API 交給這台執行，輸出與檔案傳回；轉換、遮罩密碼、版本與發布門檻仍在伺服器。見<a href="desktop.html">桌面端分發</a>。</p>
         <p class="muted">同步（M11）：每個領域可以設定 git 倉庫的一個目錄；拉取與推送以檔案為單位三方合併，衝突時停下來三選一。任何一台伺服器寫下的、雜湊相符的通過紀錄都能當發布依據。推送前擋下看起來像機密的檔案。</p>
+        <p class="muted">檔案入參（M7c）：執行、驗證與調試表單選的檔案先串流上傳到伺服器的檔案區，入參只放檔案參照（代號、檔名、大小、sha256）；本機執行直接交檔案位置，遠端 Worker 依任務的清單另外下載並比對 sha256，錄製端調試時一起送或另外下載。場景附件跟著版本放在領域資料夾、納入場景雜湊。Worker 也可以讀它自己設定允許的資料夾。見<a href="dsl.html#upload">場景 DSL</a>、<a href="portal.html#files">管理 Portal</a>。</p>
+        <p class="muted">更新（v0.6.0 起，<a href="../adr/0018-layered-updates.html">ADR 0018</a>）：每個版本多一個約 2 MB、Ed25519 簽章的更新檔，只含我們的程式。伺服器分發包用 <code>bin/rpa update</code> 換上新版並自己重新啟動；Worker 與錄製端上線時向伺服器檢查，下載同一個版本，驗證後在不打斷工作的時機套用。Python 或第三方套件（執行環境）改變時才需要完整的安裝包。</p>
 <pre class="source">資料目錄/（RPA_DATA_DIR）
   rpa.db                 # SQLite：索引、執行狀態、裝置、每台自己的設定
   domains/&lt;領域&gt;/        # 領域資料夾（可以和 git 同步）
     pack.yaml            # 名稱、說明、依賴的領域
-    scenes/、composites/ # 說明檔＋不可變版本＋驗證紀錄
+    scenes/、composites/ # 說明檔＋不可變版本（場景附件在版本的 files/）＋驗證紀錄
     roles/               # 角色定義（登入狀態不在這裡）
   runs/&lt;執行編號&gt;/       # 執行目錄（見下）
   workflow-runs/         # 組合場景的執行紀錄
+  input-files/           # 上傳的檔案，依 sha256 存放（M7c）
   roles/&lt;角色&gt;/          # 登入狀態（只限本人讀寫）
   secrets.json           # Secrets 的值（明文，只限本人；M8 加密）
   recordings/、debug/    # 錄製稿、調試工作階段
@@ -268,14 +282,15 @@
         <table class="wrap">
           <thead><tr><th>套件</th><th>職責</th><th>依賴</th><th>起始</th></tr></thead>
           <tbody>
-            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出、多語言訊息目錄；組合場景的定義與檢查（<code>rpa_core.workflow</code>，M6）；領域資料夾的格式與校驗（<code>rpa_core.pack</code>，M11）；錄製稿轉 DSL（<code>rpa_core.recording</code>，M4）。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
-            <tr><td><code>rpa-runner</code></td><td>執行引擎：入參校驗、步驟處理器註冊表、瀏覽器與上下文管理（含 iframe，M7a；點擊開出的新分頁，M7b）、登入檢查與人工登入、獨立斷言、出參發布、執行目錄與報告、錄影（M12）；也執行 Python 腳本場景，並提供錄製、逐步調試、人工登入的子程序（子程序命令集中在 <code>rpa_runner.commands</code>，打包後走 App 的入口）。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
+            <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 載入與校驗、表達式引擎、JSON Schema 導出、多語言訊息目錄；檔案入參、<code>upload</code> 與場景附件的規則（M7c）；舊 App 看不懂的 DSL 擴充清單（<code>rpa_core.dsl.features</code>）；組合場景的定義與檢查（<code>rpa_core.workflow</code>，M6）；領域資料夾的格式與校驗（<code>rpa_core.pack</code>，M11）；錄製稿轉 DSL（<code>rpa_core.recording</code>，M4）。不碰瀏覽器、不碰資料庫。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
+            <tr><td><code>rpa-runner</code></td><td>執行引擎：入參校驗、步驟處理器註冊表、瀏覽器與上下文管理（含 iframe，M7a；點擊開出的新分頁，M7b；上傳檔案與攔下選擇檔案視窗，M7c）、登入檢查與人工登入、獨立斷言、出參發布、執行目錄與報告、錄影（M12）；也執行 Python 腳本場景，並提供錄製、逐步調試、人工登入的子程序（子程序命令集中在 <code>rpa_runner.commands</code>，打包後走 App 的入口）。無狀態。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
             <tr><td>錄製</td><td>在隔離的瀏覽器中記錄使用者操作，保存原始錄製稿並轉成 DSL 草稿。M4 沒有另外做套件：錄製用 Playwright codegen，轉換是 rpa-core 的 <code>rpa_core.recording</code>（不碰瀏覽器，可以單獨測試）。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI 助手：對話調試、自然語言 → DSL、校驗失敗回饋修正、選擇器自癒；只能修改草稿。<strong>尚未建立</strong>：要先決定模型與資料去向。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
-            <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、schema、run、record、serve、worker、recorder、pack check；generate 在 M5。</td><td>上述套件、click</td><td>M0</td></tr>
-            <tr><td><code>rpa-server</code></td><td>API 與管理頁面、資料庫模型與遷移、版本與發布門檻、調試工作階段、組合場景的執行（M6）、Worker API（M9a）、裝置、邀請與 Client API（M10）、領域資料夾的載入與 git 同步（M11）、回看與錄影保留（M12）；權限（M8）、排程（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
+            <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、schema、run、record、serve、worker、recorder、pack check、update（用更新檔升級伺服器分發包，v0.6.0）；generate 在 M5。</td><td>上述套件、click</td><td>M0</td></tr>
+            <tr><td><code>rpa-server</code></td><td>API 與管理頁面、資料庫模型與遷移、版本與發布門檻、調試工作階段、組合場景的執行（M6）、Worker API（M9a）、裝置、邀請與 Client API（M10）、領域資料夾的載入與 git 同步（M11）、回看與錄影保留（M12）、專案空間、對外 Agent API（M14）、組合運行的匯總報告與合併回看（<a href="../adr/0019-composite-report-replay.html">ADR 0019</a>）、上傳的檔案區（M7c）、伺服器的更新與裝置更新（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；權限（M8）、排程（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
             <tr><td><code>rpa-worker</code></td><td>取出待執行的任務，以子程序呼叫 rpa-runner，套用總期限與取消，回寫結果與產物。M3 在同一台電腦；M9a 起也可以在另一台電腦，經由 Worker API 領取（<code>rpa worker</code>，ADR 0012）。M10 起也包含配對、錄製端的本機閘道與互動子程序主機（<code>rpa_worker.pairing</code>、<code>gateway</code>、<code>recorder</code>），兩個 App 與 <code>rpa recorder</code> 共用。</td><td>rpa-runner；標準函式庫的 HTTP</td><td>M3</td></tr>
-            <tr><td><code>rpa-desktop</code>（<code>apps/desktop</code>）</td><td>兩個桌面 App：RPA 錄製端（pywebview 視窗載入 Portal 頁面，在這台執行錄製、調試、人工登入的子程序）與 RPA Worker（狀態視窗＋遠端 worker）；配對、下載瀏覽器、打包後的入口。M10 起（ADR 0014）。</td><td>rpa-runner、rpa-worker、pywebview</td><td>M10</td></tr>
+            <tr><td><code>rpa-desktop</code>（<code>apps/desktop</code>）</td><td>兩個桌面 App：RPA 錄製端（pywebview 視窗載入 Portal 頁面，在這台執行錄製、調試、人工登入的子程序）與 RPA Worker（狀態視窗＋遠端 worker；設定裡有檔案入參可以讀的資料夾）；配對、下載瀏覽器、打包後的入口、裝置更新的下載與套用。M10 起（ADR 0014）。</td><td>rpa-runner、rpa-worker、rpa-update、pywebview</td><td>M10</td></tr>
+            <tr><td><code>rpa-update</code></td><td>熱更新：更新檔的清單與 Ed25519 簽章驗證、環境代號、程式層的安裝與選層、桌面 App 的啟動器（每次啟動驗證後才載入程式層，起不來時退回上一層）。只用標準函式庫，跟著執行環境走：改了它就要發完整的安裝包（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）。</td><td>標準函式庫</td><td>v0.6.0</td></tr>
           </tbody>
         </table>
       </div>
@@ -288,7 +303,8 @@
 <pre class="source tree">web_browser_robotic_process_automation/
 ├── packages/            # 可重用的函式庫
 │   ├── rpa_core/        # M0
-│   └── rpa_runner/      # M2（rpa_generator 在 M5 才建立）
+│   ├── rpa_runner/      # M2（rpa_generator 在 M5 才建立）
+│   └── rpa_update/      # v0.6.0：更新檔、簽章、啟動器（ADR 0018）
 ├── apps/                # 可執行的程式
 │   ├── cli/             # M0
 │   ├── server/          # M3（FastAPI + Jinja）
@@ -298,6 +314,7 @@
 ├── scenarios/           # 範例場景：examples/、demo/（測試網站的 BA-001～BA-005）
 ├── schema/              # 場景 DSL 的 JSON Schema（rpa schema 產生）
 ├── scripts/             # 一鍵安裝：setup.sh、setup.ps1、setup-linux.sh（伺服器）
+│                        # （伺服器分發包的 install.sh 在 apps/server/packaging/）
 ├── tests/               # 跨套件測試：冒煙、文檔檢查
 ├── tools/               # 多語言、桌面端建置、版本與發布、CI 輔助
 ├── handoff/             # 交接與任務紀錄（Claude 與 ChatGPT／Codex 共用）
@@ -312,8 +329,8 @@
         <div class="panel-body prose">
           <ol>
             <li>使用者在管理 Portal、組合場景或 CLI 觸發執行（M9 起也可以由排程器建立）。</li>
-            <li>API 確認版本：一般執行只用已發布的版本，而且領域資料夾裡的檔案雜湊要相符；在啟動瀏覽器前校驗入參，寫入一筆執行紀錄（含執行位置）與一個任務。</li>
-            <li>本機 worker 或遠端 Worker 領取任務，以子程序啟動 Runner，傳入場景版本的檔案、入參、Secrets 與登入狀態（只在記憶體與暫存檔中，用完刪除），並設定總期限。</li>
+            <li>API 確認版本：一般執行只用已發布的版本，而且領域資料夾裡的檔案雜湊要相符；在啟動瀏覽器前校驗入參（檔案入參檢查檔案是否還在、大小與類型），寫入一筆執行紀錄（含執行位置）與一個任務。</li>
+            <li>本機 worker 或遠端 Worker 領取任務，以子程序啟動 Runner，傳入場景版本的檔案、入參、Secrets 與登入狀態（只在記憶體與暫存檔中，用完刪除），並設定總期限；檔案入參由 Worker 另外下載、比對 sha256 後放進暫存資料夾。</li>
             <li>Runner 開啟獨立的瀏覽器上下文逐步執行，記下頁面事實；每一步回報狀態與開始、結束的時間。自動化階段錄影（M12，<a href="../adr/0016-run-replay.html">ADR 0016</a>），回看時影片與步驟靠同一個時鐘對上。</li>
             <li>獨立斷言比對頁面事實與入參；通過後出參校驗，才寫出 output.json。</li>
             <li>截圖、錄影、日誌與報告存入執行目錄，遠端 Worker 上傳整個目錄（M9 改為物件儲存）；失敗時標出出錯的階段、步驟與截圖。</li>

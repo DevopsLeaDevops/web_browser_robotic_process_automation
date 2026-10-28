@@ -16,11 +16,11 @@
       <h1>測試報告指南</h1>
       <p>寫給接入平台的第三方 Agent：依簽核的測試方案執行專案裡的組合場景、跟蹤進度、處理失敗與重跑，最後寫出交給人驗收的測試報告（單一 HTML 檔，另附給 Agent 自己用的 JSON），並能從報告回溯到每一步的細節。</p>
     </div>
-    <span class="badge blue">第一期實作中</span>
+    <span class="badge green">第一期已發布（v0.6.0）</span>
   </div>
 
   <div class="stack">
-    <div class="notice"><strong>測試報告是 Agent 的交付物，給人驗收；平台不讀取、不上傳、不保存它。</strong>平台保存的是每次執行的紀錄（狀態、步驟、斷言、截圖），報告用執行代號與 Portal 路徑指向它們。測試方案與 TestCase 的寫法見<a href="agent-test-plan-guide.html">測試方案指南</a>，API 的基本約定見 <a href="agent-api-guide.html">Agent 使用指南</a>。本指南 2026-10-24 依使用者的要求撰寫（審閱中）。</div>
+    <div class="notice"><strong>測試報告是 Agent 的交付物，給人驗收；平台不讀取、不上傳、不保存它。</strong>平台保存的是每次執行的紀錄（狀態、步驟、斷言、截圖），報告用執行代號與 Portal 路徑指向它們。測試方案與 TestCase 的寫法見<a href="agent-test-plan-guide.html">測試方案指南</a>，API 的基本約定見 <a href="agent-api-guide.html">Agent 使用指南</a>。本指南 2026-10-24 依使用者的要求撰寫，隨 v0.6.0 發布。</div>
 
     <section class="panel" id="before">
       <div class="panel-header"><h2>執行前檢查</h2></div>
@@ -130,6 +130,7 @@ GET /agent-api/v1/composite-runs?project=order-regression&amp;mine=true&amp;stat
           <tbody>
             <tr><td>TestCase</td><td>測試方案</td><td>編號、優先級、組合場景代號與版本</td></tr>
             <tr><td>組合場景的執行</td><td><code>GET /composite-runs/{id}</code></td><td>執行代號、目的、狀態、建立與結束時間、停下的節點、<code>portalPath</code></td></tr>
+            <tr><td>匯總報告</td><td><code>GET /composite-runs/{id}/report</code></td><td>一次讀完整次組合運行（2026-10-27 起）：結論（停在哪個節點、哪一步、錯誤、沒通過的斷言）、<code>counts</code>、<code>timeline</code>，每個節點的入參出參、步驟與斷言；寫報告時先讀它，再依需要往下查</td></tr>
             <tr><td>節點</td><td>同上的 <code>nodes</code></td><td>節點代號、場景與版本、狀態、入參的來源（<code>sources</code>）、那次運行的代號</td></tr>
             <tr><td>運行</td><td><code>GET /runs/{id}</code></td><td>狀態、停在哪個階段、錯誤、入參、出參、耗時、哪台 Worker</td></tr>
             <tr><td>階段</td><td><code>result.stages</code></td><td>入參、登入、自動化、斷言、出參各自的狀態、訊息、耗時</td></tr>

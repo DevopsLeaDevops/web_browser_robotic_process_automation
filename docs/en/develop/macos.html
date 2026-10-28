@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:6d26a855227f14f1">
+<meta name="translation-source" content="sha256:18b274e939233a34">
 <title>Run on macOS · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -132,8 +132,8 @@ uv run playwright install chromium firefox</pre>
         <table class="wrap">
           <thead><tr><th>Command</th><th>Expected result</th></tr></thead>
           <tbody>
-            <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.3.0（rpa-core 0.3.0）</code>; with <code>--lang en</code>: <code>rpa 0.3.0 (rpa-core 0.3.0)</code></td></tr>
-            <tr><td><code>uv run rpa -h</code></td><td>Shows the usage and the description; in English (<code>--lang en</code>): "Generate, manage and run browser automation scenarios.", plus the validate, schema, run, record and serve subcommands.</td></tr>
+            <tr><td><code>uv run rpa --version</code></td><td><code>rpa 0.6.3（rpa-core 0.6.3）</code>; with <code>--lang en</code>: <code>rpa 0.6.3 (rpa-core 0.6.3)</code> (the number follows main)</td></tr>
+            <tr><td><code>uv run rpa -h</code></td><td>Shows the usage and the description; in English (<code>--lang en</code>): "Generate, manage and run browser automation scenarios.", plus the validate, schema, run, record, serve, worker, recorder, pack and update subcommands.</td></tr>
             <tr><td><code>uv run pytest</code></td><td>The last line shows only <code>passed</code>: no <code>failed</code> and no <code>skipped</code>.</td></tr>
             <tr><td><code>RPA_REQUIRE_BROWSER=1 uv run pytest -m browser</code></td><td>Only <code>passed</code> (the tests that need a browser, run in both Chromium and Firefox; the other tests show as deselected). Like CI, a missing browser fails instead of being skipped.</td></tr>
           </tbody>

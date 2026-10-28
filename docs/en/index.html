@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:68991cba7ecd5311">
+<meta name="translation-source" content="sha256:c77476e54f17cc38">
 <title>Home · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -25,16 +25,16 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">Current stage</span><div class="value">M4</div><span class="muted">Scenario production and login: recording, step debugging, login roles</span></section>
-      <section class="panel panel-body stat"><span class="muted">Milestones</span><div class="value">10</div><span class="muted">M0 to M9, delivered step by step</span></section>
-      <section class="panel panel-body stat"><span class="muted">Architecture decisions</span><div class="value">11</div><span class="muted">10 accepted, 1 superseded</span></section>
+      <section class="panel panel-body stat"><span class="muted">Current version</span><div class="value">v0.6.3</div><span class="muted">Released 2026-10-26; main also has M7c file uploads and the composite run report and replay, not yet released</span></section>
+      <section class="panel panel-body stat"><span class="muted">Milestones</span><div class="value">19</div><span class="muted">8 done, 7 in progress (implementation merged, manual acceptance under way), 4 not started</span></section>
+      <section class="panel panel-body stat"><span class="muted">Architecture decisions</span><div class="value">18</div><span class="muted">17 accepted, 1 superseded</span></section>
       <section class="panel panel-body stat"><span class="muted">Main language</span><div class="value">Python</div><span class="muted">3.12 or later · pages in Jinja with a little JavaScript</span></section>
     </div>
 
     <section class="panel">
       <div class="panel-header"><h2>In one sentence</h2></div>
       <div class="panel-body">
-        <p class="lead">The core asset is the <strong>scenario</strong>: a repeatable sequence of browser actions described in a declarative DSL. The platform <strong>generates</strong> scenarios (recording, natural language, templates), <strong>manages</strong> them (versions, parameters, permissions), <strong>runs</strong> them (Playwright), and <strong>reports</strong> results back to users (screenshots, traces, failure location).</p>
+        <p class="lead">The core asset is the <strong>scenario</strong>: a repeatable sequence of browser actions described in a declarative DSL. The platform <strong>generates</strong> scenarios (recording, natural language, templates), <strong>manages</strong> them (versions, parameters, permissions), <strong>runs</strong> them (Playwright), and <strong>reports</strong> results back to users (reports, screenshots, video replay, failure location).</p>
       </div>
     </section>
 
@@ -45,6 +45,7 @@
       <a class="panel panel-body link-card" href="design/architecture.html"><h2>Architecture</h2><p>Components, data flow and directory layout, and what each package is responsible for.</p></a>
       <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>Tech stack</h2><p>The choice for each layer, the alternatives, and the reasons.</p></a>
       <a class="panel panel-body link-card" href="design/multi-user.html"><h2>Multi-user and internal systems</h2><p>Authentication, permissions, secrets, auditing, and the constraints internal systems bring.</p></a>
+      <a class="panel panel-body link-card" href="design/desktop.html"><h2>Desktop distribution</h2><p>Installing, pairing and releasing the server, the recorder and the Worker, and how the server distributes updates to devices.</p></a>
       <a class="panel panel-body link-card" href="design/agent-api.html"><h2>Agent API</h2><p>Third-party agent systems build, debug, validate and run scenarios through an API and follow run progress.</p></a>
       <a class="panel panel-body link-card" href="style/index.html"><h2>Interface style</h2><p>Interface design system v1.1: two-level portal, blue primary color, compact information density.</p></a>
       <a class="panel panel-body link-card" href="../prototypes/mvp/index.html"><h2>MVP prototype</h2><p>An offline interactive prototype of scenario management, recording and debugging, reports and the playground, plus a real run example (Traditional Chinese).</p></a>
@@ -64,16 +65,18 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>Repository status</h2><span class="muted">M10 in progress</span></div>
+        <div class="panel-header"><h2>Repository status</h2><span class="muted">main <code>a26b929</code> (2026-10-28)</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>rpa-core</dt><dd>Models of the scenario DSL and the scenario contract, YAML loading and validation, converting recordings into DSL drafts; examples in <code>scenarios/</code></dd>
-            <dt>rpa-runner</dt><dd>Execution engine: input validation, login checks, running the steps in Chromium or Firefox, independent assertions, output publishing, run reports; subprocesses for manual login and step debugging</dd>
-            <dt>rpa-worker</dt><dd>Background worker: claims jobs, runs them in a subprocess, cancels them; no database dependency. It can also run on another computer as a remote worker, claiming jobs through the portal's Worker API (M9a)</dd>
-            <dt>rpa-server</dt><dd>Management portal: FastAPI API and Jinja pages, SQLite, revisions and the publishing gate, the run queue, login roles and secrets, recording, step debugging, the playground, remote worker registration and dispatch</dd>
-            <dt>rpa-cli</dt><dd><code>rpa serve</code> starts the management portal (<code>--worker-port</code> opens it to remote workers); <code>rpa worker</code> turns another computer into a remote worker; <code>rpa run</code> runs a scenario; <code>rpa record</code> records actions and turns them into a scenario draft; <code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa pack check</code> checks domain folders, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
+            <dt>rpa-core</dt><dd>Models of the scenario DSL and the scenario contract, YAML loading and validation, converting recordings into DSL drafts; iframes, new tabs and file uploads (M7a to M7c); the format of domain folders and composite scenarios; examples in <code>scenarios/</code></dd>
+            <dt>rpa-runner</dt><dd>Execution engine: input validation (including file inputs), login checks, running the steps in Chromium or Firefox, independent assertions, output publishing, run reports and video; subprocesses for recording, manual login and step debugging</dd>
+            <dt>rpa-worker</dt><dd>Background worker: claims jobs, runs them in a subprocess, cancels them; no database dependency. It can also run on another computer as a remote worker, claiming jobs through the portal's Worker API (M9a); pairing, and the recorder's local gateway and interactive subprocesses (M10)</dd>
+            <dt>rpa-server</dt><dd>Management portal: FastAPI API and Jinja pages, SQLite, revisions and the publishing gate, the run queue, login roles and secrets, recording, step debugging, composite scenarios and the project workspace, devices and invitations, domain folders and git sync, run replay, the uploaded-file area, the Agent API (<code>/agent-api/v1</code>), and distributing updates to devices</dd>
+            <dt>rpa-update</dt><dd>Hot updates: the update manifest, Ed25519 signature checks, runtime IDs, installing and choosing code layers, and the desktop apps' launcher; standard library only (<a href="adr/0018-layered-updates.html">ADR 0018</a>)</dd>
+            <dt>rpa-desktop</dt><dd>The two desktop apps, RPA Recorder (macOS) and RPA Worker (Windows, macOS): pywebview window, pairing, browser download, tray or menu bar, the packaged entry point (<a href="design/desktop.html">Desktop distribution</a>)</dd>
+            <dt>rpa-cli</dt><dd><code>rpa serve</code> starts the management portal (<code>--worker-port</code> opens it to devices); <code>rpa worker</code> and <code>rpa recorder</code> make this computer a remote worker or a recorder; <code>rpa run</code> runs a scenario; <code>rpa record</code> records actions and turns them into a scenario draft; <code>rpa validate</code> checks scenarios and points to the line, step and field, <code>rpa pack check</code> checks domain folders, <code>rpa schema</code> prints the JSON Schema of the DSL or of one scenario's inputs and outputs; <code>rpa update</code> upgrades a server package with an update file; <code>--lang</code> switches between Traditional Chinese, Simplified Chinese and English</dd>
             <dt>Toolchain</dt><dd>uv (dependencies locked in <code>uv.lock</code>), ruff, pyright (strict), pytest, pre-commit</dd>
-            <dt>CI</dt><dd>PRs and merges test each system in its production role: the website on Linux, the worker on Windows, the recorder app on macOS; early every morning all tests run on the three systems, with the browser tests repeated three times. Triggers, durations, manual runs and duration records are in <a href="develop/ci.html">CI &amp; pipelines</a></dd>
+            <dt>CI</dt><dd>PRs and merges test each system in its production role: the website on Linux, the worker on Windows, the recorder app on macOS; builds are layered, so the same inputs are verified once and apps are not repackaged when their shell has not changed; early every morning all tests run on the three systems, with the browser tests repeated three times. Triggers, durations, manual runs and duration records are in <a href="develop/ci.html">CI &amp; pipelines</a></dd>
             <dt>Docs</dt><dd>This site, in Traditional Chinese, Simplified Chinese and English, with automatic checks for links and translation sync</dd>
           </dl>
         </div>

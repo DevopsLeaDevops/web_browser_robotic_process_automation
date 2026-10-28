@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:5946c9d62132590b">
+<meta name="translation-source" content="sha256:1547864ddfba1d4d">
 <title>Positioning · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -65,7 +65,7 @@
           <dt>Revision</dt><dd>An immutable version of a scenario: draft → validating → passed or failed → published. Any change requires validating again, and the published revision must be the one that passed.</dd>
           <dt>Step</dt><dd>One action in a scenario, such as opening a URL, clicking, filling in a field or extracting data. Every step has a stable <code>id</code>.</dd>
           <dt>Target</dt><dd>Describes which element on the page to act on. It can have several candidates, tried in order of priority.</dd>
-          <dt>Input</dt><dd>A value given only at run time, such as the month to query; it has a type, constraints and a default, and is validated before the browser starts.</dd>
+          <dt>Input</dt><dd>A value given only at run time, such as the month to query; it has a type, constraints and a default, and is validated before the browser starts. It can also be a file to upload (<code>type: file</code>, M7c).</dd>
           <dt>Fact</dt><dd>A value extracted from the page during a run. It only describes what was seen and does not mean success.</dd>
           <dt>Verify</dt><dd>Rules that compare facts with inputs after the automation ends. "The script did not fail" is not success.</dd>
           <dt>Output</dt><dd>A result published only after the independent assertions pass; it can feed the next scenario's inputs.</dd>
@@ -77,7 +77,7 @@
           <dt>Role</dt><dd>One login identity on a target system; each role has its own login state, a scenario declares the role it uses with <code>login: { role }</code>, and when the login has expired the run stops at needs login (M4).</dd>
           <dt>Device</dt><dd>A Recorder or Worker paired with an invitation: the Recorder opens browsers on the recorder's computer, the Worker runs scenarios (M10).</dd>
           <dt>Debug session</dt><dd>A recording or draft is debugged step by step in an isolated browser, which opens on the Recorder the person is using (M4, M10.2); the AI assistant can only edit drafts, and publishing needs the user's confirmation (M5).</dd>
-          <dt>Project</dt><dd>The unit of permission isolation. Scenarios, secrets and runs all belong to a project (M8; the MVP has a single user).</dd>
+          <dt>Project</dt><dd>The unit that holds composite scenarios in the project workspace: one project is one set of composite scenario automations (from 2026-10-23, replacing the old “Composite scenario automation” menu). It exists only on that server and is not stored in domain folders; a third-party agent's key can be limited to certain projects (M14). Isolating permissions, secrets and runs by project comes in M8 (the MVP has a single user).</dd>
         </dl>
       </div>
     </section>

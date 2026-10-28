@@ -38,12 +38,14 @@
             <tr><td>介面樣式</td><td>介面設計系統 v1.1</td><td>—</td><td>同事交付的視覺契約，文檔站、MVP 原型與管理介面共用<small><a href="../adr/0006-design-system.html">ADR 0006</a></small></td><td>M0</td></tr>
             <tr><td>工程工具</td><td>uv workspace、ruff、pyright（strict）、pytest、pre-commit</td><td>poetry、mypy</td><td>uv 速度快且原生支援多套件；ruff 一個工具處理 lint 與格式化</td><td>M0</td></tr>
             <tr><td>多語言</td><td>各套件的 JSON 訊息目錄；簡中以 OpenCC 由繁中產生</td><td>gettext、Babel</td><td>繁中為主要語言，Web UI 也要讀同一份翻譯；只需人工維護繁中與英文<small><a href="../adr/0007-i18n.html">ADR 0007</a></small></td><td>M0</td></tr>
-            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>倉庫在 GitHub；Python 3.12 / 3.13 兩個版本並行測試</td><td>M0</td></tr>
+            <tr><td>CI</td><td>GitHub Actions</td><td>—</td><td>倉庫在 GitHub；Python 3.12 / 3.13 兩個版本並行測試；PR 上依生產角色分配測試（Linux 網站、Windows Worker、macOS 錄製端），依層建置，同一組輸入只驗證一次（<a href="../develop/ci.html">CI 與流水線</a>）</td><td>M0</td></tr>
             <tr><td>桌面端殼</td><td>pywebview（macOS 的 WKWebView、Windows 的 WebView2）</td><td>Electron、Tauri</td><td>介面就是伺服器渲染的頁面，殼只要能載入網址；不多帶一個 Chromium，也不引入 Node 或 Rust<small><a href="../adr/0014-desktop-apps.html">ADR 0014</a></small></td><td>M10</td></tr>
             <tr><td>桌面端打包</td><td>PyInstaller（資料夾模式）；macOS DMG、Windows Inno Setup</td><td>Briefcase、Nuitka</td><td>最成熟、有 Playwright 的打包設定；資料夾模式啟動快、較少被防毒誤判</td><td>M10</td></tr>
             <tr><td>場景存放與同步</td><td>領域資料夾（YAML 說明檔＋不可變版本＋驗證紀錄）；資料庫只是索引；與 git 倉庫的一個目錄同步（裸倉庫＋git 底層命令，git 2.25 以上）</td><td>資料庫之間同步、只存在資料庫</td><td>可以用 git 審閱與回溯，任何一台伺服器的驗證都能當發布依據；新伺服器只拉需要的領域<small><a href="../adr/0015-domain-folders-and-git.html">ADR 0015</a></small></td><td>M11</td></tr>
-            <tr><td>運行錄影</td><td>Playwright 的 BrowserContext 錄影（WebM VP9，Playwright 自帶的 ffmpeg）；步驟記下開始、結束的實際時間；縮圖在看影片的瀏覽器裡產生</td><td>Playwright Trace、每步截圖</td><td>影片可以播放、拖曳；和步驟用同一個時鐘對上；Linux 伺服器不需要瀏覽器與 ffmpeg<small><a href="../adr/0016-run-replay.html">ADR 0016</a></small></td><td>M12</td></tr>
+            <tr><td>運行錄影</td><td>Playwright 的 BrowserContext 錄影（WebM VP9，Playwright 自帶的 ffmpeg）；步驟記下開始、結束的實際時間；縮圖在看影片的瀏覽器裡產生</td><td>Playwright Trace、每步截圖</td><td>影片可以播放、拖曳；和步驟用同一個時鐘對上；Linux 伺服器不需要瀏覽器與 ffmpeg；組合運行把各節點的錄影接在同一條時間軸上，不產生新的影片檔<small><a href="../adr/0016-run-replay.html">ADR 0016</a>、<a href="../adr/0019-composite-report-replay.html">ADR 0019</a></small></td><td>M12</td></tr>
+            <tr><td>上傳檔案</td><td>伺服器資料目錄的檔案區（依 sha256 存放，同內容只存一份），請求本體串流上傳；任務只帶清單，Worker 另外下載並比對 sha256</td><td>放進領取任務的 JSON（base64）</td><td>大檔不佔記憶體、不多 33%，中文檔名不受限制；上傳後 24 小時沒用到就刪，用過的保留到最後一次使用後 90 天、總量上限 10 GB（環境變數可改）<small><a href="dsl.html#upload">場景 DSL</a></small></td><td>M7c</td></tr>
             <tr><td>部署</td><td>目前：Linux 伺服器用自帶 Python 的分發包（也可以從原始碼用 <code>setup-linux.sh</code>），可用 systemd 開機啟動；其他系統的伺服器從原始碼一鍵安裝，桌面端用安裝檔；之後 Docker Compose</td><td>Kubernetes</td><td>起步夠用，之後可以遷移</td><td>M9</td></tr>
+            <tr><td>程式更新</td><td>程式層與執行環境分開打包；每個版本多一個約 2 MB 的更新檔，清單以 Ed25519 簽章（驗證照 RFC 8032 的參考演算法自己實作，不加依賴）；伺服器用 <code>bin/rpa update</code> 換上並自己重新啟動，裝置從伺服器下載同一個版本</td><td>Sparkle、WinSparkle 整包更新；安裝檔的二進位差分；每台裝置向 GitHub 下載</td><td>執行環境沒變時只換約 2 MB；裝置在區網內更新，不需要 GitHub 帳號；簽章防止被換掉的程式碼載入<small><a href="../adr/0018-layered-updates.html">ADR 0018</a></small></td><td>v0.6.0</td></tr>
           </tbody>
         </table>
       </div>
@@ -55,7 +57,7 @@
         <dl class="spec-list">
           <dt>Python</dt><dd>3.12 以上（CI 測 3.12 與 3.13；本機預設 3.13，見 <code>.python-version</code>）</dd>
           <dt>uv</dt><dd>0.11 以上（<code>pyproject.toml</code> 的 <code>required-version</code>）</dd>
-          <dt>產品版本</dt><dd>伺服器、Worker、錄製端與所有套件同一個版本（目前 0.5.0），<code>tools/release_version.py</code> 一次改全部；見<a href="desktop.html#release-flow">桌面端分發</a></dd>
+          <dt>產品版本</dt><dd>伺服器、Worker、錄製端與所有套件同一個版本（目前 0.6.3），<code>tools/release_version.py</code> 一次改全部；見<a href="desktop.html#release-flow">桌面端分發</a></dd>
           <dt>型別檢查</dt><dd>pyright strict 模式，新程式碼一律完整標註型別</dd>
           <dt>依賴鎖定</dt><dd><code>uv.lock</code> 記錄每個套件的確切版本並提交到倉庫；CI 以 <code>uv sync --locked</code> 安裝，鎖檔與 <code>pyproject.toml</code> 不一致時失敗</dd>
           <dt>依賴更新</dt><dd>Dependabot 每週檢查 GitHub Actions；Python 依賴由每週的 <code>uv-upgrade</code> workflow 執行 <code>uv lock --upgrade</code>、推到 <code>deps/uv-upgrade</code> 分支並開 PR（Dependabot 還不支援 uv workspace）</dd>

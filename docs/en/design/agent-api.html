@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a70b807011070534">
+<meta name="translation-source" content="sha256:8306d1743959d86c">
 <title>Agent API · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -31,11 +31,11 @@
       <h1>Agent API</h1>
       <p>A third-party agent system works only through the server's <code>/agent-api/v1</code>: it writes scenarios and their inputs and outputs, opens a browser on a chosen recorder to debug step by step, has Workers validate and run them, combines scenarios in projects and runs them, and follows run progress. The new layer only adds authentication, permissions and auditing; business rules and the publishing gate stay in the existing services.</p>
     </div>
-    <span class="badge blue">Phase 1 in progress</span>
+    <span class="badge green">Phase 1 released (v0.6.0)</span>
   </div>
 
   <div class="stack">
-    <div class="notice">The decision and the options not chosen are in <a href="../adr/0017-agent-api.html">ADR 0017</a>; how an agent calls the API is in the <a href="../develop/agent-api-guide.html">Agent API guide</a>. The user confirmed the design on 2026-10-23, and phase 1 was built the same day (in review). On 2026-10-24 the user asked to bring projects and composite scenarios into phase 1 and to write a <a href="../develop/agent-test-plan-guide.html">test plan guide</a> and a <a href="../develop/agent-test-report-guide.html">test report guide</a> for agents. The server's <code>/agent-api/v1/openapi.json</code> is the reference for endpoints, and <code>/agent-api/v1/docs</code> lets you try them directly.</div>
+    <div class="notice">The decision and the options not chosen are in <a href="../adr/0017-agent-api.html">ADR 0017</a>; how an agent calls the API is in the <a href="../develop/agent-api-guide.html">Agent API guide</a>. The user confirmed the design on 2026-10-23, and phase 1 was built the same day; PR #79 was merged on 2026-10-25 and released in v0.6.0 (manual acceptance not run). On 2026-10-24 the user asked to bring projects and composite scenarios into phase 1 and to write a <a href="../develop/agent-test-plan-guide.html">test plan guide</a> and a <a href="../develop/agent-test-report-guide.html">test report guide</a> for agents. The server's <code>/agent-api/v1/openapi.json</code> is the reference for endpoints, and <code>/agent-api/v1/docs</code> lets you try them directly.</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>Scope</h2><span class="muted">From nothing to a scenario that runs in production</span></div>

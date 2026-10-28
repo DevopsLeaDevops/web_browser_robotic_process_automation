@@ -24,16 +24,16 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">目前階段</span><div class="value">M4</div><span class="muted">場景生產與登入：錄製、逐步調試、登入角色</span></section>
-      <section class="panel panel-body stat"><span class="muted">里程碑</span><div class="value">10</div><span class="muted">M0 至 M9，逐步交付</span></section>
-      <section class="panel panel-body stat"><span class="muted">架構決策</span><div class="value">11</div><span class="muted">10 項已接受、1 項已取代</span></section>
+      <section class="panel panel-body stat"><span class="muted">目前版本</span><div class="value">v0.6.3</div><span class="muted">2026-10-26 發布；main 另有 M7c 上傳檔案、組合運行的報告與回看，尚未發布</span></section>
+      <section class="panel panel-body stat"><span class="muted">里程碑</span><div class="value">19</div><span class="muted">8 項已完成、7 項進行中（實作已合併，人工驗收進行中）、4 項未開始</span></section>
+      <section class="panel panel-body stat"><span class="muted">架構決策</span><div class="value">18</div><span class="muted">17 項已接受、1 項已取代</span></section>
       <section class="panel panel-body stat"><span class="muted">主要語言</span><div class="value">Python</div><span class="muted">3.12 以上 · 頁面用 Jinja 與少量 JavaScript</span></section>
     </div>
 
     <section class="panel">
       <div class="panel-header"><h2>一句話說明</h2></div>
       <div class="panel-body">
-        <p class="lead">以「<strong>場景</strong>」為核心資產：一段可重複執行的瀏覽器操作流程，用聲明式 DSL 描述。平台負責把場景<strong>生成</strong>出來（錄製、自然語言、範本），<strong>管理</strong>起來（版本、參數、權限），<strong>執行</strong>它（Playwright），再把結果<strong>回饋</strong>給使用者（截圖、Trace、失敗定位）。</p>
+        <p class="lead">以「<strong>場景</strong>」為核心資產：一段可重複執行的瀏覽器操作流程，用聲明式 DSL 描述。平台負責把場景<strong>生成</strong>出來（錄製、自然語言、範本），<strong>管理</strong>起來（版本、參數、權限），<strong>執行</strong>它（Playwright），再把結果<strong>回饋</strong>給使用者（報告、截圖、錄影回看、失敗定位）。</p>
       </div>
     </section>
 
@@ -44,6 +44,7 @@
       <a class="panel panel-body link-card" href="design/architecture.html"><h2>系統架構</h2><p>元件、資料流與目錄結構，以及每個套件的職責。</p></a>
       <a class="panel panel-body link-card" href="design/tech-stack.html"><h2>技術選型</h2><p>每一層的選擇、備選方案與理由。</p></a>
       <a class="panel panel-body link-card" href="design/multi-user.html"><h2>多用戶與內部系統</h2><p>認證、權限、Secrets、稽核，以及內部系統帶來的限制。</p></a>
+      <a class="panel panel-body link-card" href="design/desktop.html"><h2>桌面端分發</h2><p>伺服器、錄製端與 Worker 的安裝、配對、發布，以及伺服器把更新分發給裝置。</p></a>
       <a class="panel panel-body link-card" href="design/agent-api.html"><h2>對外 Agent API</h2><p>第三方 Agent 系統經由 API 建立、調試、驗證與執行場景，並取得運行過程。</p></a>
       <a class="panel panel-body link-card" href="style/index.html"><h2>介面風格</h2><p>介面設計系統 v1.1：兩級 Portal、藍色主色、緊湊資訊密度。</p></a>
       <a class="panel panel-body link-card" href="prototypes/mvp/index.html"><h2>MVP 原型</h2><p>場景管理、錄製與調試、報告、自由試驗場的離線互動原型，以及真實執行的範例。</p></a>
@@ -63,16 +64,18 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">M10 進行中</span></div>
+        <div class="panel-header"><h2>倉庫現況</h2><span class="muted">main <code>a26b929</code>（2026-10-28）</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>rpa-core</dt><dd>場景 DSL 與場景契約的模型、YAML 載入與校驗、錄製稿轉 DSL 草稿；範例在 <code>scenarios/</code></dd>
-            <dt>rpa-runner</dt><dd>執行引擎：入參校驗、登入檢查、在 Chromium 或 Firefox 中執行步驟、獨立斷言、出參發布、執行報告；人工登入與逐步調試的子程序</dd>
-            <dt>rpa-worker</dt><dd>背景 worker：領取任務、以子程序執行、取消；不依賴資料庫。也可以在另一台電腦當遠端 worker，經由管理 Portal 的 Worker API 領取（M9a）</dd>
-            <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 與 Jinja 頁面、SQLite、版本與發布門檻、執行佇列、登入角色與 Secrets、錄製、逐步調試、自由試驗場、遠端 worker 的登記與分派</dd>
-            <dt>rpa-cli</dt><dd><code>rpa serve</code> 啟動管理 Portal（<code>--worker-port</code> 開放給遠端 worker）；<code>rpa worker</code> 在另一台電腦當遠端 worker；<code>rpa run</code> 執行場景；<code>rpa record</code> 錄製並轉成場景草稿；<code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa pack check</code> 校驗領域資料夾，<code>rpa schema</code> 輸出 DSL 或單一場景入參、出參的 JSON Schema；<code>--lang</code> 切換繁中、簡中、英文</dd>
+            <dt>rpa-core</dt><dd>場景 DSL 與場景契約的模型、YAML 載入與校驗、錄製稿轉 DSL 草稿；iframe、新分頁、上傳檔案的寫法（M7a～M7c）；領域資料夾與組合場景的格式；範例在 <code>scenarios/</code></dd>
+            <dt>rpa-runner</dt><dd>執行引擎：入參校驗（含檔案入參）、登入檢查、在 Chromium 或 Firefox 中執行步驟、獨立斷言、出參發布、執行報告與錄影；錄製、人工登入與逐步調試的子程序</dd>
+            <dt>rpa-worker</dt><dd>背景 worker：領取任務、以子程序執行、取消；不依賴資料庫。也可以在另一台電腦當遠端 worker，經由管理 Portal 的 Worker API 領取（M9a）；配對、錄製端的本機閘道與互動子程序（M10）</dd>
+            <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 與 Jinja 頁面、SQLite、版本與發布門檻、執行佇列、登入角色與 Secrets、錄製、逐步調試、組合場景與專案空間、裝置與邀請、領域資料夾與 git 同步、運行回看、上傳檔案區、對外 Agent API（<code>/agent-api/v1</code>），以及把更新分發給裝置</dd>
+            <dt>rpa-update</dt><dd>熱更新：更新檔的清單、Ed25519 簽章驗證、環境代號、程式層的安裝與選層、桌面 App 的啟動器；只用標準函式庫（<a href="adr/0018-layered-updates.html">ADR 0018</a>）</dd>
+            <dt>rpa-desktop</dt><dd>RPA 錄製端（macOS）與 RPA Worker（Windows、macOS）兩個桌面 App：pywebview 視窗、配對、下載瀏覽器、通知區或選單列、打包後的入口（<a href="design/desktop.html">桌面端分發</a>）</dd>
+            <dt>rpa-cli</dt><dd><code>rpa serve</code> 啟動管理 Portal（<code>--worker-port</code> 開放給裝置）；<code>rpa worker</code>、<code>rpa recorder</code> 讓這台電腦當遠端 worker 或錄製端；<code>rpa run</code> 執行場景；<code>rpa record</code> 錄製並轉成場景草稿；<code>rpa validate</code> 校驗場景並指出行號、步驟與欄位，<code>rpa pack check</code> 校驗領域資料夾，<code>rpa schema</code> 輸出 DSL 或單一場景入參、出參的 JSON Schema；<code>rpa update</code> 用更新檔升級伺服器分發包；<code>--lang</code> 切換繁中、簡中、英文</dd>
             <dt>工具鏈</dt><dd>uv（依賴以 <code>uv.lock</code> 鎖定）、ruff、pyright（strict）、pytest、pre-commit</dd>
-            <dt>CI</dt><dd>PR 與合併時依生產角色分配測試：Linux 測網站、Windows 測 Worker、macOS 測錄製端 App；每天凌晨在三個系統跑全部測試，瀏覽器測試連跑三遍。觸發節點、時間、手動觸發與耗時紀錄見 <a href="develop/ci.html">CI 與流水線</a></dd>
+            <dt>CI</dt><dd>PR 與合併時依生產角色分配測試：Linux 測網站、Windows 測 Worker、macOS 測錄製端 App；依層建置，同一組輸入只驗證一次、外殼沒變不重新打包；每天凌晨在三個系統跑全部測試，瀏覽器測試連跑三遍。觸發節點、時間、手動觸發與耗時紀錄見 <a href="develop/ci.html">CI 與流水線</a></dd>
             <dt>文檔</dt><dd>本站，繁中、簡中、英文三種語言，含連結與翻譯同步的自動檢查</dd>
           </dl>
         </div>
