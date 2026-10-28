@@ -488,12 +488,19 @@ class _Run:
                     _url(self.base_url, step.url), wait_until=step.wait_until, timeout=timeout
                 )
             case ClickStep():
-                locate(page, step.target, timeout).click(
-                    button=step.button,
-                    click_count=step.click_count,
-                    modifiers=step.modifiers,
-                    timeout=timeout,
-                )
+                try:
+                    locate(page, step.target, timeout).click(
+                        button=step.button,
+                        click_count=step.click_count,
+                        modifiers=step.modifiers,
+                        timeout=timeout,
+                    )
+                except PlaywrightError:
+                    # 點了之後頁面自己關掉（例如按鈕執行 window.close()）：Playwright 有時在點擊收尾
+                    # 時才發現頁面已關，回報「Target page … has been closed」，點擊其實已經完成
+                    # （2026-10-28，回看切換分頁的測試在 CI 與每晚測試偶爾失敗）
+                    if not page.is_closed():
+                        raise
             case FillStep():
                 locate(page, step.target, timeout).fill(step.value, timeout=timeout)
             case SelectStep():

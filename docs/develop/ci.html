@@ -96,7 +96,7 @@
         </table>
       </div>
       <div class="panel-body prose">
-        <p>測試依檔案路徑自動加上 <code>role_server</code>、<code>role_worker</code>、<code>role_recorder</code>，用 Firefox 的參數組合加上 <code>firefox</code>（<code>tools/ci_roles.py</code>、根目錄的 <code>conftest.py</code>）。新增瀏覽器測試的檔案時，在 <code>tools/ci_roles.py</code> 的 <code>ROLES</code> 登記它屬於哪個角色；沒有角色的瀏覽器測試會讓 <code>tests/ci/test_ci_roles.py</code> 失敗。Python 3.12 維持原狀：PR 上只跑不需瀏覽器的測試，合併到 main 時跑全部。</p>
+        <p>測試依檔案路徑自動加上 <code>role_server</code>、<code>role_worker</code>、<code>role_recorder</code>，用 Firefox 的參數組合加上 <code>firefox</code>（<code>tools/ci_roles.py</code>、根目錄的 <code>conftest.py</code>）。新增瀏覽器測試的檔案時，在 <code>tools/ci_roles.py</code> 的 <code>ROLES</code> 登記它屬於哪個角色；沒有角色的瀏覽器測試會讓 <code>tests/ci/test_ci_roles.py</code> 失敗。Python 3.12 維持原狀：PR 上只跑不需瀏覽器的測試，合併到 main 時跑全部；跑全部時和每晚完整測試一樣在 <code>xvfb-run</code> 底下，有頭模式的錄影測試才有螢幕（2026-10-28）。</p>
       </div>
     </section>
 
