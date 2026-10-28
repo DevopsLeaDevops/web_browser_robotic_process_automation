@@ -65,6 +65,8 @@ __all__ = [
 DEFAULT_STEP_TIMEOUT_MS: Final = 30_000
 _STEP: Final = TypeAdapter[Step](Step)
 _MAY_OPEN_CHOOSER: Final = frozenset({"click", "press", "check"})
+_CHOOSER_FLUSHES: Final = 3
+"""點擊後最多往返瀏覽器幾次等選擇檔案視窗的事件（Playwright 收到後還要向瀏覽器查元素才送出）。"""
 """可能開出選擇檔案視窗的動作（M7c）：結束時確認有沒有沒人處理的視窗。"""
 _NOT_RENDERED: Final = frozenset({"name", "files"})
 """步驟裡不代入 {{ }} 的欄位：name 是給人看的；upload 的 files 是入參的引用（M7c）。"""
@@ -359,6 +361,8 @@ class Tabs:
     choosers: int = 0
     expecting: bool = False
     """upload 的 trigger 正在等選擇檔案的視窗：那個視窗不算提醒。"""
+    trigger: "StepRecord | None" = None
+    """最近一個可能開出選擇檔案視窗的步驟（click、press、check）：之後的步驟才收到的視窗算它的。"""
 
     def __post_init__(self) -> None:
         self.guard(self.main)
@@ -426,14 +430,24 @@ class _Run:
             self.tabs.named[popup] = tab
             self.tabs.last = tab
         finally:
-            if step.action in _MAY_OPEN_CHOOSER and not self.tabs.choosers:
-                # 選擇檔案視窗的事件常在點擊回傳之後才送到：多一次往返（約 1 ms）讓它先到
-                with contextlib.suppress(Exception):
-                    if not page.is_closed():
-                        page.wait_for_timeout(0)
+            opener = step.action in _MAY_OPEN_CHOOSER
+            if opener and not self.tabs.choosers:
+                self._flush_choosers(page)
             if self.tabs.choosers:
-                record.notes.append(t("browser.chooser_unhandled"))
+                # 這一步不會開視窗時，是前面那一步開的（事件晚到）
+                owner = record if opener or self.tabs.trigger is None else self.tabs.trigger
+                owner.notes.append(t("browser.chooser_unhandled"))
                 self.tabs.choosers = 0
+            if opener:
+                self.tabs.trigger = record
+
+    def _flush_choosers(self, page: Page) -> None:
+        """選擇檔案視窗的事件常在點擊回傳之後才到：往返瀏覽器幾次（每次約 1 ms），到了就停。"""
+        with contextlib.suppress(Exception):
+            for _ in range(_CHOOSER_FLUSHES):
+                if page.is_closed() or self.tabs.choosers:
+                    return
+                page.evaluate("0")
 
     def _upload_paths(self, step: UploadStep) -> list[Path]:
         paths: list[Path] = []
