@@ -3163,3 +3163,5 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 11.0, "job": "執行範圍", "os": "linux", "queue_s": 3.0, "run_id": 40656033200, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "success", "duration_s": 256.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 4.0, "run_id": 40656033200, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "success", "duration_s": 95.0, "job": "分發包（x64）", "os": "linux", "queue_s": 2.0, "run_id": 40656033200, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 9.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 40656640474, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "分發包（${{ matrix.label }}）", "os": "linux", "queue_s": 0.0, "run_id": 40656640474, "workflow": "伺服器分發包"}
