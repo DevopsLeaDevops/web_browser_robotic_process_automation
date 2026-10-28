@@ -148,6 +148,7 @@
             <tr><td><code>scenes:read</code></td><td>讀領域、場景、版本、角色的登入狀態、Secrets 的名稱</td></tr>
             <tr><td><code>scenes:write</code></td><td>建立場景、存新版本、改入參出參、匯入 Playwright 腳本</td></tr>
             <tr><td><code>debug</code></td><td>在允許的錄製端開調試工作階段</td></tr>
+            <tr><td><code>files:write</code></td><td>上傳檔案入參要用的檔案（M7c）；入參只能參照自己上傳的檔案，場景附件屬於 scenes:write</td></tr>
             <tr><td><code>runs:validate</code></td><td>驗證場景或組合場景的任一版本</td></tr>
             <tr><td><code>scenes:publish</code></td><td>發布驗證通過、雜湊相符的版本；預設不給</td></tr>
             <tr><td><code>runs:execute</code></td><td>正式執行已發布版本（場景與組合場景）、取消、重跑</td></tr>
@@ -190,6 +191,9 @@
             <tr><td><code>GET</code>、<code>PUT /scenes/{id}/sections/{key}</code></td><td>只讀寫一段：steps、verify、inputs、outputs</td><td>scenes:read／write</td><td>沿用</td></tr>
             <tr><td><code>PUT /scenes/{id}/contract</code></td><td>用表格形式改入參與出參</td><td>scenes:write</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/import</code></td><td>匯入 Playwright 腳本，轉成 DSL 草稿並回傳轉不了的警告</td><td>scenes:write</td><td>沿用錄製稿匯入</td></tr>
+            <tr><td><code>GET /scenes/{id}/revisions/{n}/attachments</code></td><td>版本的場景附件（M7c）</td><td>scenes:read</td><td>沿用</td></tr>
+            <tr><td><code>PUT</code>、<code>DELETE /scenes/{id}/attachments/{檔名}?base={n}</code></td><td>加上或換掉（本體是檔案內容）、刪除一個附件，存成新版本</td><td>scenes:write</td><td>沿用</td></tr>
+            <tr><td><code>POST /files?name={檔名}</code>、<code>GET /files/{代號}</code></td><td>上傳檔案入參要用的檔案（本體是檔案內容），回傳的 <code>file</code>、<code>name</code>、<code>size</code>、<code>sha256</code> 就是入參的值；查自己上傳的檔案（過了保留期限時 <code>deleted</code>）。驗證、執行與調試的入參參照別人上傳的檔案時 404 <code>upload_not_found</code></td><td>files:write</td><td>沿用（M7c）</td></tr>
             <tr><td><code>POST /scenes/{id}/debug</code></td><td>在 <code>recorderId</code> 那台開調試工作階段；選填版本、入參、瀏覽器、有頭或無頭、網址</td><td>debug</td><td>沿用＋新參數</td></tr>
             <tr><td><code>GET /debug/{sid}</code></td><td>狀態、每一步的結果、目前網址與標題、頁面事實</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>目前頁面的結構：無障礙樹、表單欄位、iframe 與分頁清單</td><td>debug＋回傳頁面內容</td><td>新（錄製端 App 要更新）</td></tr>

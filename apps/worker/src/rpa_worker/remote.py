@@ -237,11 +237,15 @@ class RemoteJobSource:
         claim_wait_seconds: float = CLAIM_WAIT_SECONDS,
         delivery_seconds: float = DELIVERY_SECONDS,
         paused: threading.Event | None = None,
+        input_folders: Callable[[], Sequence[Path]] | None = None,
     ) -> None:
         self.client = client
         self.info = info
         self.work_dir = work_dir
         self.keep_runs = keep_runs
+        self.input_folders = input_folders
+        """檔案入參的 path 可以讀的資料夾（M7c D5，Worker App 的設定）；每個任務開始時讀一次。
+        沒有設定時 runner 讀環境變數 RPA_INPUT_FOLDERS。"""
         self.notify: Notify = notify or (lambda event, details: None)
         self.heartbeat_seconds = heartbeat_seconds
         self.claim_wait_seconds = claim_wait_seconds
@@ -373,6 +377,7 @@ class RemoteJobSource:
         shutil.rmtree(self.runs_dir / payload.run_id, ignore_errors=True)
         # 上傳檔（M7c）：位置先決定，心跳開始之後才下載（大檔下載時租約不會過期）
         inputs_dir = folder / "inputs"
+        folders = tuple(self.input_folders()) if self.input_folders is not None else ()
         job = Job(
             run_id=payload.run_id,
             scenario=scenario_dir / payload.scenario_file,
@@ -387,6 +392,7 @@ class RemoteJobSource:
             locale=payload.locale,
             record_video=payload.record_video,
             uploads={item.id: inputs_dir / item.id for item in payload.input_files},
+            input_folders=folders or None,
             max_file_bytes=payload.max_file_bytes,
             max_run_bytes=payload.max_run_bytes,
         )

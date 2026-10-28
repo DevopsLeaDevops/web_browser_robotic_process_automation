@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:5ea6669b49010c62">
+<meta name="translation-source" content="sha256:8eb8cecdb9d3e3b6">
 <title>Agent API · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -149,6 +149,7 @@
             <tr><td><code>scenes:read</code></td><td>Read domains, scenarios, revisions, roles' login state and secret names</td></tr>
             <tr><td><code>scenes:write</code></td><td>Create scenarios, save revisions, change inputs and outputs, import Playwright scripts</td></tr>
             <tr><td><code>debug</code></td><td>Open debug sessions on allowed recorders</td></tr>
+            <tr><td><code>files:write</code></td><td>Upload files for file inputs (M7c); inputs can only refer to files the client uploaded itself, and scene attachments belong to scenes:write</td></tr>
             <tr><td><code>runs:validate</code></td><td>Validate any revision of a scenario or composite scenario</td></tr>
             <tr><td><code>scenes:publish</code></td><td>Publish a revision that passed validation with a matching hash; not granted by default</td></tr>
             <tr><td><code>runs:execute</code></td><td>Run published revisions (scenarios and composite scenarios), cancel and rerun</td></tr>
@@ -191,6 +192,9 @@
             <tr><td><code>GET</code>, <code>PUT /scenes/{id}/sections/{key}</code></td><td>Read or write one section: steps, verify, inputs, outputs</td><td>scenes:read / write</td><td>Existing</td></tr>
             <tr><td><code>PUT /scenes/{id}/contract</code></td><td>Change inputs and outputs as a table</td><td>scenes:write</td><td>Existing</td></tr>
             <tr><td><code>POST /scenes/{id}/import</code></td><td>Import a Playwright script as a DSL draft, with warnings for what could not be converted</td><td>scenes:write</td><td>Existing recording import</td></tr>
+            <tr><td><code>GET /scenes/{id}/revisions/{n}/attachments</code></td><td>A revision's scene attachments (M7c)</td><td>scenes:read</td><td>Existing</td></tr>
+            <tr><td><code>PUT</code>, <code>DELETE /scenes/{id}/attachments/{name}?base={n}</code></td><td>Add or replace (the body is the file) or delete an attachment, saving a new revision</td><td>scenes:write</td><td>Existing</td></tr>
+            <tr><td><code>POST /files?name={name}</code>, <code>GET /files/{ID}</code></td><td>Upload a file for file inputs (the body is the file); the returned <code>file</code>, <code>name</code>, <code>size</code> and <code>sha256</code> are the input value; look up a file you uploaded (<code>deleted</code> once past retention). Inputs of validations, runs and debug sessions that refer to another client's upload get 404 <code>upload_not_found</code></td><td>files:write</td><td>Existing (M7c)</td></tr>
             <tr><td><code>POST /scenes/{id}/debug</code></td><td>Open a debug session on the <code>recorderId</code> device; optional revision, inputs, browser, headed or headless, URL</td><td>debug</td><td>Existing + new field</td></tr>
             <tr><td><code>GET /debug/{sid}</code></td><td>Status, each step's result, current URL and title, page facts</td><td>debug</td><td>Existing</td></tr>
             <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>Structure of the current page: accessibility tree, form fields, iframes and tabs</td><td>debug + page content</td><td>New (recorder app update)</td></tr>

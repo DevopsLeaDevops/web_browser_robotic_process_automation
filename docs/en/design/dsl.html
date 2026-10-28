@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:db4ef6fd91a1341f">
+<meta name="translation-source" content="sha256:bf4cc9c52f21acda">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -114,7 +114,7 @@ verify:
       <div class="panel-header"><h2>Scenario contract</h2><span class="muted">inputs → steps → page facts → independent assertions → outputs</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>inputs</code></dt><dd>Each input has a <code>type</code> (string, number, integer, boolean; default string), a <code>default</code>, a <code>description</code> and constraints: <code>enum</code>, <code>minLength</code>, <code>maxLength</code>, <code>pattern</code> (strings), <code>minimum</code>, <code>maximum</code> (numbers). An input without a default must be supplied at run time. Defaults must satisfy the constraints too; they can be <a href="#dynamic">dynamic values</a> (e.g. <code>{{today}}</code>), evaluated on every run.</dd>
+          <dt><code>inputs</code></dt><dd>Each input has a <code>type</code> (string, number, integer, boolean, <a href="#upload">file</a>; default string), a <code>default</code>, a <code>description</code> and constraints: <code>enum</code>, <code>minLength</code>, <code>maxLength</code>, <code>pattern</code> (strings), <code>minimum</code>, <code>maximum</code> (numbers). An input without a default must be supplied at run time. Defaults must satisfy the constraints too; they can be <a href="#dynamic">dynamic values</a> (e.g. <code>{{today}}</code>), evaluated on every run.</dd>
           <dt><code>facts</code></dt><dd>Page facts: <code>extract</code> with <code>as: name</code> stores <code>facts.name</code>. A step may only use facts produced by earlier steps; verify and outputs may use them all.</dd>
           <dt><code>verify</code></dt><dd>Each rule has a <code>value</code> (which must contain <code>{{ }}</code>) and exactly one comparison: <code>equals</code>, <code>contains</code>, <code>matches</code> (regular expression) or <code>notEmpty: true</code>; its <code>name</code> appears in the report. Both sides are compared as text after substitution.</dd>
           <dt><code>outputs</code></dt><dd>Types add array and object; constraints are the same as for inputs. <code>from</code> says where the value comes from, for example <code>{{ facts.record.recordId }}</code>. With a single <code>{{ }}</code> the original type is kept (for example a list); otherwise the text is converted to the declared type.</dd>
@@ -155,6 +155,48 @@ verify:
   purchaseQuantity: { type: integer, minimum: 10, maximum: 30, default: "{{random:10:30}}" }
   remark: { default: "CG-001 created on {{today}}" }</pre>
         <p class="muted">In YAML, values starting with <code>{</code> need quotes. You can also click Edit on the Inputs panel of a scene in the Portal and change a default to <code>{{today}}</code>; quotes are added when saving.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="upload">
+      <div class="panel-header"><h2>File uploads</h2><span class="muted">M7c: inputs with <code>type: file</code> and the <code>upload</code> step</span></div>
+      <div class="panel-body stack">
+        <p>Files to upload are always inputs: the scenario only says “this step uploads that input”, and each run decides which file it is. The page sees the file's original name (or the <code>name</code> given in the input), never a temporary path on the machine that runs the scenario.</p>
+<pre class="source">inputs:
+  orderFile:
+    type: file
+    accept: [.xlsx, .xls, .csv]
+    maxSize: 20MB
+    default: { attachment: files/orders.csv, name: 訂單匯入.csv }
+  photos: { type: file, multiple: true, accept: [image/*], default: [files/product.png] }
+steps:
+  - { id: open, action: goto, url: /upload }
+  - id: choose-orders
+    action: upload
+    target: { label: 匯入檔案 }            # the file input itself, hidden ones too
+    files: '{{ inputs.orderFile }}'
+  - id: attach
+    action: upload
+    trigger: { role: button, name: 選擇附件 }   # a button that opens the file dialog when clicked
+    files: '{{ inputs.orderFile }}'
+  - id: drop
+    action: upload
+    dropzone: { text: 把檔案拖到這裡 }      # a drop zone without a file input
+    files: '{{ inputs.photos }}'</pre>
+        <dl class="spec-list">
+          <dt><code>type: file</code></dt><dd>Can have <code>accept</code> (a list of <code>.extension</code> or MIME types such as <code>image/*</code>), <code>maxSize</code> (for example <code>20MB</code> or <code>500KB</code>), <code>multiple</code> (several files at once; default false), <code>description</code> and <code>default</code>; enum, pattern, lengths and numeric ranges are not allowed. Outputs have no file type (that waits for M7 downloads).</dd>
+          <dt>Values</dt><dd>Three sources: a file uploaded to the Management Portal, <code>{"file": "id", "name": "October orders.xlsx"}</code> (the id comes back from the upload; size and sha256 are the server's); a scene attachment of this revision, <code>files/name</code> or <code>{"attachment": "files/name", "name": "name the page sees"}</code>; a path on the machine that runs the scenario, <code>{"path": "D:/reports/{{today}}.xlsx"}</code> (paths can use <a href="#dynamic">dynamic values</a>). With <code>multiple: true</code> write a list; one input cannot mix uploaded files and paths. A default cannot be an uploaded file (uploads expire).</dd>
+          <dt>Scene attachments</dt><dd>Stored under <code>files/</code> in the revision folder, kept with the revision, synced with git and included in the scenario hash (the hash of a scenario without attachments does not change), so the validated files are the published files. Names use only letters, digits, <code>_</code>, <code>.</code> and <code>-</code>; write <code>name</code> in the value when the page should see another name. Each attachment can be up to 20 MB, and up to 50 MB per revision. Add and delete them under “Scene attachments” on the scenario page of the Management Portal; <code>rpa pack check</code> checks them too.</dd>
+          <dt>Paths on the machine</dt><dd>Only allowed folders can be read: in the RPA Worker app's settings (“Folders that file inputs may read”) or the environment variable <code>RPA_INPUT_FOLDERS</code> (several separated by the path separator) on Workers and on the server for local runs; without either, path cannot be used. <code>rpa run</code> runs on your own computer and is not restricted.</dd>
+          <dt><code>upload</code></dt><dd><code>files</code> is <code>'{{ inputs.name }}'</code> or a list of such references (file inputs only); <code>[]</code> clears the file input and only works with target. <code>target</code> points to the <code>input type=file</code> (hidden or inside an iframe is fine; <code>within</code> a surrounding button works too); <code>trigger</code> is clicked and the files are handed to the file dialog it opens; <code>dropzone</code> simulates a drop in the page, so the files are sent into the page first and can be up to 20 MB in total. Giving several files to an input that takes one fails with an explanation.</dd>
+          <dt>Waiting for the upload</dt><dd>upload is done once the page has the files; how long the page then takes to send them to its server varies, so wait for the result on the page with a later <code>waitFor</code> or <code>expect</code> rather than a fixed delay.</dd>
+          <dt>At run time</dt><dd>The input stage (before the browser starts) finds each file, checks accept, maxSize and the total limit, and puts it in a temporary folder under the name the page should see; the folder is deleted after the run. <code>input.json</code>, the report and <code>{{ inputs.name }}</code> see <code>{name, size, sha256}</code> (a list for multiple), never local paths; verify can compare <code>{{ inputs.orderFile.sha256 }}</code> with what the page received.</dd>
+          <dt>File dialogs</dt><dd>Every page catches file dialogs: one not opened by upload (for example a recording that clicked an upload button and only has the click) is closed, the step continues, and a note says “change this step to upload with this element as trigger”.</dd>
+          <dt>Converting recordings</dt><dd><code>set_input_files</code> becomes upload plus a file input (named after the element, accept from the recorded extensions, <code>multiple: true</code> for several files), and a preceding click on the same element is removed; recordings only have file names, so put a file in the input (for example as a scene attachment).</dd>
+          <dt>Limits and retention</dt><dd>By default an uploaded file can be up to 50 MB and a run up to 200 MB in total (<code>RPA_UPLOAD_MAX_FILE_MB</code>, <code>RPA_UPLOAD_MAX_RUN_MB</code>). Uploads unused for 24 hours are deleted; used ones are kept for 90 days after their last use (<code>RPA_UPLOAD_KEEP_DAYS</code>); above 10 GB in total (<code>RPA_UPLOAD_MAX_TOTAL_GB</code>) the longest-unused go first; fixed files on composite scenario nodes are kept. Only the content is deleted; run records still show the name and sha256.</dd>
+          <dt>Command line</dt><dd><code>rpa run scene -i orderFile=data/orders.xlsx -i photos=files/a.png -i photos=b.png</code>: a value starting with <code>files/</code> is a scene attachment, anything else a path on this computer; repeating a multiple input gives several files.</dd>
+          <dt>Remote runs</dt><dd>Workers and recorders download uploaded files separately and check size and sha256; scene attachments travel with the revision's files. Scenarios that use upload or file inputs only go to apps that report <code>upload</code> and <code>fileInputs</code>; older apps get an explanation to update. Python script scenarios cannot use file inputs yet (that comes with the new script scenario design).</dd>
+        </dl>
       </div>
     </section>
 
@@ -234,6 +276,7 @@ verify:
             <tr><td><code>waitFor</code></td><td>Wait for a condition</td><td>target + state (visible, hidden, attached, detached), url + match, loadState</td><td>Exactly one of the three conditions</td></tr>
             <tr><td><code>expect</code></td><td>An in-step check; the step fails if it does not hold</td><td>target with one of state, text, value, count; or no target with one of url, title; match</td><td>state is visible, hidden, enabled, disabled, checked, unchecked or editable</td></tr>
             <tr><td><code>extract</code></td><td>Extract page facts</td><td><strong>target</strong>, <strong>as</strong>, get, attribute, multiple, fields</td><td>See below</td></tr>
+            <tr><td><code>upload</code></td><td>Give files to the page (M7c)</td><td><strong>files</strong>, plus exactly one of target, trigger and dropzone</td><td>files refers to <code>type: file</code> inputs; see <a href="#upload">File uploads</a> below</td></tr>
             <tr><td><code>screenshot</code></td><td>Save a screenshot as an artifact</td><td>file, target, fullPage</td><td>file is a name without extension and defaults to the step id; fullPage cannot be used with target</td></tr>
           </tbody>
         </table>
@@ -246,7 +289,7 @@ verify:
           <dt>extract fields</dt><dd>Turn each element into a record. Keys are field names; each value may set target (relative to the element), get and attribute. With fields, leave out the outer get.</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect guards a step; verify decides whether outputs are published. download, upload, conditions and loops are added in M7; iframes use the locator <a href="#locators">frame</a> (M7a), and new tabs use the step fields <a href="#tabs">popup and page</a> (M7b).</div>
+      <div class="diagram-caption">expect guards a step; verify decides whether outputs are published. download, conditions and loops are added in M7; upload moved ahead to M7c (<a href="#upload">File uploads</a>); iframes use the locator <a href="#locators">frame</a> (M7a), and new tabs use the step fields <a href="#tabs">popup and page</a> (M7b).</div>
     </section>
 
     <div class="two-col">

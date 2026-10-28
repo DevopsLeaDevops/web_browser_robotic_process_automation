@@ -177,6 +177,8 @@ class Api:
             controller.set_firefox(bool(value))
         elif name == "download_host":
             controller.set_download_host(str(value or ""))
+        elif name == "input_folders":
+            controller.set_input_folders(str(value or ""))
         elif name == "language":
             language = parse_locale(str(value))
             if language is not None:

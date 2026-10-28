@@ -266,7 +266,8 @@ def _run_file_inputs(
     if scenario is None:
         return []
     executed = result.get("input") if result is not None else None
-    meta = cast("Mapping[str, object]", executed) if isinstance(executed, Mapping) else {}
+    empty: dict[str, object] = {}
+    meta = cast("Mapping[str, object]", executed) if isinstance(executed, Mapping) else empty
     found = services.uploads.rows(uploaded_ids(record.input.values()))
     rows: list[dict[str, object]] = []
     for name, spec in scenario.inputs.items():
@@ -284,7 +285,7 @@ def _run_file_inputs(
         details = cast("list[object]", seen) if isinstance(seen, list) else [seen]
         for index, item in enumerate(items):
             detail = details[index] if index < len(details) else None
-            info = cast("Mapping[str, object]", detail) if isinstance(detail, Mapping) else {}
+            info = cast("Mapping[str, object]", detail) if isinstance(detail, Mapping) else empty
             row: dict[str, object] = {
                 "input": name,
                 "source": item.source,

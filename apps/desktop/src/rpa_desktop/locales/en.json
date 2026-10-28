@@ -241,5 +241,7 @@
   "installer.StillRunning": "RPA Worker is still running, so setup cannot continue. Choose Quit from the RPA Worker tray icon, then run this again.",
   "installer.WebView2Installing": "Installing Microsoft Edge WebView2…",
   "installer.WebView2Failed": "Microsoft Edge WebView2 was not installed (exit code %1). RPA Worker still takes jobs from the notification area; the status window needs WebView2, which you can install from https://go.microsoft.com/fwlink/p/?LinkId=2124703.",
-  "installer.RemoveData": "Also delete this computer's pairing, settings and logs?%n%nChoose No to keep them, so a reinstall does not need pairing again."
+  "installer.RemoveData": "Also delete this computer's pairing, settings and logs?%n%nChoose No to keep them, so a reinstall does not need pairing again.",
+  "window.input_folders_label": "Folders that file inputs may read (one per line)",
+  "window.input_folders_hint": "When a scenario's file input names a path on this computer (for example a daily report on a shared drive), only files in these folders can be read; takes effect from the next job."
 }

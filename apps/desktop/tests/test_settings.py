@@ -15,7 +15,11 @@ def test_defaults_without_a_file(tmp_path: Path) -> None:
 def test_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "deep" / "settings.json"
     chosen = Settings(
-        language="en", firefox=True, download_host="http://mirror", tray_hint_shown=True
+        language="en",
+        firefox=True,
+        download_host="http://mirror",
+        tray_hint_shown=True,
+        input_folders=("D:/報表", "//nas/share"),
     )
     save_settings(path, chosen)
     assert load_settings(path) == chosen
@@ -32,6 +36,9 @@ def test_bad_values_fall_back_one_by_one(tmp_path: Path) -> None:
     assert settings.language == "zh-Hant"
     assert settings.firefox is False
     assert settings.download_host == "http://m"
+    assert settings.input_folders == ()
+    path.write_text(json.dumps({"input_folders": ["", 3, " D:/每日 "]}), encoding="utf-8")
+    assert load_settings(path).input_folders == ("D:/每日",)
     path.write_text("{broken", encoding="utf-8")
     assert load_settings(path) == Settings()
     path.write_text('"text"', encoding="utf-8")

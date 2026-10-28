@@ -241,5 +241,7 @@
   "installer.StillRunning": "RPA Worker 還在執行，沒辦法繼續。請從通知區的 RPA Worker 圖示選「結束」，再執行一次。",
   "installer.WebView2Installing": "正在安裝 Microsoft Edge WebView2……",
   "installer.WebView2Failed": "Microsoft Edge WebView2 沒有安裝成功（結束碼 %1）。RPA Worker 仍會在通知區接任務；狀態視窗需要 WebView2，請到 https://go.microsoft.com/fwlink/p/?LinkId=2124703 下載安裝。",
-  "installer.RemoveData": "也刪除這台電腦的配對、設定與日誌嗎？%n%n選「否」會保留，之後重新安裝不必再配對。"
+  "installer.RemoveData": "也刪除這台電腦的配對、設定與日誌嗎？%n%n選「否」會保留，之後重新安裝不必再配對。",
+  "window.input_folders_label": "檔案入參可以讀的資料夾（一行一個）",
+  "window.input_folders_hint": "場景的檔案入參寫這台電腦上的路徑（例如共用磁碟上的每日報表）時，只能讀這些資料夾裡的檔案；下一個任務開始時生效。"
 }

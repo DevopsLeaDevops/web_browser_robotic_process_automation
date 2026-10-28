@@ -56,6 +56,7 @@ def services(runs: list[str]) -> Services:
         poll_seconds: float = 0.5,
         paused: threading.Event | None = None,
         stop_seconds: Callable[[], float] = lambda: 120.0,
+        input_folders: object = None,
     ) -> str | None:
         runs.append(client.token or "")
         notify("online", {"worker": "ci", "sameVersion": True})
@@ -135,6 +136,7 @@ def test_stop_request_ends_the_worker_cleanly(tmp_path: Path) -> None:
         poll_seconds: float = 0.5,
         paused: threading.Event | None = None,
         stop_seconds: Callable[[], float] = lambda: 120.0,
+        input_folders: object = None,
     ) -> str | None:
         InstanceLock(home).request_stop()
         stopped.append(stop.wait(10))
