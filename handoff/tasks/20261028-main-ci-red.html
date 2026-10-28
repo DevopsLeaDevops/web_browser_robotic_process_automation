@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>.github/workflows/ci.yml</code>、<code>apps/server/src/rpa_server/packs.py</code>（<code>settle_verification</code>、<code>_write_verification</code>）、<code>services.py</code>（<code>settle_validations</code>，發布前呼叫）、<code>pages.py</code>（運行頁）、新測試 <code>apps/server/tests/test_validation_publish.py</code>、<code>docs/develop/ci.html</code> 與英文版（簡中由 bootstrap 產生）、本紀錄、任務索引、<a href="20261026-scheduled-update-tests.html">20261026-scheduled-update-tests</a> 的追加紀錄（第三個原因已由本任務修正）。Claude 整合。和 v0.7.0 的版本號 PR 不共用程式檔，兩邊都改任務索引（各加一行）。</dd>
         <dt>狀態</dt><dd>待審閱：本地檢查通過，PR 的 CI 見 PR。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>fix/main-ci-red</code>，從 main <code>a26b929</code>（PR #97 合併後）開；PR 見任務索引與 PR 列表。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/main-ci-red</code>，從 main <code>a26b929</code>（PR #97 合併後）開；PR #101（base main）。v0.7.0 的版本號 PR 是 #102，請先合併本 PR。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.17；依賴從 GitHub 取得（PyPI 不通），Playwright 1.63（Chromium 1243，錄不出影片）。ruff 0.16.9（鎖定 0.17.1，以 CI 為準）。</dd>
       </dl></div>
@@ -64,6 +64,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-28 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>a26b929</code> 開 <code>fix/main-ci-red</code>，找出兩個原因（見上）並修正、加回歸測試、更新 CI 文件；本地檢查通過。</li>
+        <li>2026-10-28 01:45 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>ef728bb</code>（[bootstrap]），開 PR #101；bootstrap 產生簡中（<code>29ea735</code>）。<code>ef728bb</code> 的 CI：靜態檢查、Windows Worker 測試、分發包通過；兩個 Python 測試只因簡中還沒產生而失敗（<code>test_simplified_chinese_is_generated</code>），其餘通過。</li>
       </ul></div>
     </section>
   </div>
