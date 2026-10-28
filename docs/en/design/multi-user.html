@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:3e27297719d4a1cc">
+<meta name="translation-source" content="sha256:0e61f28a2fba8ae2">
 <title>Multi-user and internal systems · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -67,7 +67,8 @@
             <tr><td>iframes</td><td>A locator names the iframe that holds the element with <code>frame</code> (can be nested); see <a href="dsl.html#locators">DSL</a></td><td>M7a</td></tr>
             <tr><td>tabs opened by a click (pop-ups)</td><td>The step that opens the tab has <code>popup</code>; steps on that tab have <code>page</code>; see <a href="dsl.html#tabs">DSL</a></td><td>M7b</td></tr>
             <tr><td>tabs you open yourself</td><td>The DSL provides a step to open a new tab</td><td>M7</td></tr>
-            <tr><td>File uploads and downloads</td><td>upload and download actions; downloaded files are kept as artifacts</td><td>M7</td></tr>
+            <tr><td>File uploads (importing Excel, uploading images)</td><td>Inputs with <code>type: file</code> and the <code>upload</code> step; files are uploaded at run time or come from scene attachments, see <a href="dsl.html#upload">DSL</a></td><td>M7c</td></tr>
+            <tr><td>File downloads</td><td>The download action; downloaded files are kept as artifacts</td><td>M7</td></tr>
             <tr><td>Extracting table data</td><td>extract can turn tables into structured data</td><td>M1</td></tr>
             <tr><td>Self-signed certificates</td><td>A scenario can choose to ignore HTTPS errors; off by default and flagged during review</td><td>M2</td></tr>
             <tr><td>Page content may be sensitive</td><td>AI generation can switch to a self-hosted model; access to screenshots and traces follows project permissions</td><td>M5, M8</td></tr>
