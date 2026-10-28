@@ -666,6 +666,9 @@ def page_router(services: Services) -> APIRouter:
     @router.get("/runs/{run_id}", include_in_schema=False)
     def run(run_id: str) -> HTMLResponse:
         record = services.get_run(run_id)
+        if record.purpose == "validation" and record.status == "passed":
+            # 結果剛提交、驗證紀錄還沒寫時先補寫，通過的驗證一打開就有「發布」（2026-10-28）
+            services.settle_validations(record.scene_id, record.revision_number)
         revision = services.get_revision(record.scene_id, record.revision_number)
         can_publish = (
             record.purpose == "validation"

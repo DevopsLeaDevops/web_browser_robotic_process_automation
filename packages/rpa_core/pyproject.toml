@@ -1,6 +1,6 @@
 [project]
 name = "rpa-core"
-version = "0.6.3"
+version = "0.7.0"
 description = "場景 DSL 模型、校驗與表達式引擎"
 requires-python = ">=3.12"
 dependencies = [

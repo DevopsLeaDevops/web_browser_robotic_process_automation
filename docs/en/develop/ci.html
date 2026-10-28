@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:3ce27f87d0b65f44">
+<meta name="translation-source" content="sha256:068b2c42d3d436c7">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -97,7 +97,7 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
         </table>
       </div>
       <div class="panel-body prose">
-        <p>Tests are marked <code>role_server</code>, <code>role_worker</code> or <code>role_recorder</code> automatically from their file path, and parameter sets that use Firefox are marked <code>firefox</code> (<code>tools/ci_roles.py</code>, the root <code>conftest.py</code>). When you add a file with browser tests, register its role in <code>ROLES</code> in <code>tools/ci_roles.py</code>; a browser test without a role makes <code>tests/ci/test_ci_roles.py</code> fail. Python 3.12 stays as before: only tests that need no browser on PRs, everything on merges to main.</p>
+        <p>Tests are marked <code>role_server</code>, <code>role_worker</code> or <code>role_recorder</code> automatically from their file path, and parameter sets that use Firefox are marked <code>firefox</code> (<code>tools/ci_roles.py</code>, the root <code>conftest.py</code>). When you add a file with browser tests, register its role in <code>ROLES</code> in <code>tools/ci_roles.py</code>; a browser test without a role makes <code>tests/ci/test_ci_roles.py</code> fail. Python 3.12 stays as before: only tests that need no browser on PRs, everything on merges to main; that full run uses <code>xvfb-run</code>, as the nightly full tests do, so the headed recording tests have a display (2026-10-28).</p>
       </div>
     </section>
 
