@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/render.py</code>（<code>static_url</code>）、<code>app.py</code>（<code>StaticAssets</code>）、樣板 <code>base.html</code>、<code>replay.html</code>、<code>composite_replay.html</code>；<code>static/replay.js</code>、<code>static/portal-app.css</code>；訊息目錄（<code>replayjs.step_detail</code>、<code>back_to_steps</code>、<code>prev_step</code>、<code>next_step</code>）；測試 <code>test_static_assets.py</code>（新）、<code>test_replay_flow.py</code>、<code>test_composite_replay_flow.py</code>；<code>docs/design/portal.html</code>、ADR 0018 與英文版；本紀錄、任務索引、<a href="20261027-composite-report-replay.html">20261027-composite-report-replay</a> 的追加紀錄。Claude 整合。</dd>
         <dt>狀態</dt><dd>待審閱：本地檢查通過；PR 的 CI 見 PR。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>fix/replay-ux</code>，從 main <code>469c3be</code>（v0.7.0，PR #102 合併後）開；PR 見任務索引與 PR 列表。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/replay-ux</code>，從 main <code>469c3be</code>（v0.7.0，PR #102 合併後）開；PR #103（base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.17、Playwright 1.63（Chromium 1243，錄不出影片）；本機預覽用假的執行器加上用 Playwright 的 ffmpeg 做出的 WebM（會話暫存區，不進倉庫）。</dd>
       </dl></div>
@@ -66,6 +66,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-28 03:45 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 03:25 回報四點（附截圖）；從截圖判斷瀏覽器跑的是舊的播放器程式，先告訴使用者用強制重新整理暫時解決；用選項卡確認詳情的推出方式（右側滑出）。從 main <code>469c3be</code> 開 <code>fix/replay-ux</code>，修正並在本機預覽驗證（見上）。</li>
+        <li>2026-10-28 04:15 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>beffd55</code>（[bootstrap]），開 PR #103；bootstrap 產生簡中（<code>a5bbf37</code>）。<code>beffd55</code> 的 CI：靜態檢查、分發包通過；兩個 Python 測試只因簡中還沒產生而失敗（<code>test_simplified_chinese_is_generated</code>），其餘通過，含兩個真實錄影的回看流程測試。</li>
       </ul></div>
     </section>
   </div>
