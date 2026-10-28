@@ -328,6 +328,7 @@ def test_agent_reads_the_report_with_its_own_links(
             headers = {"Authorization": f"Bearer {created['key']}"}
             run = body(remote.get(f"/agent-api/v1/composite-runs/{run_id}", headers=headers))
             assert run["reportUrl"] == f"/agent-api/v1/composite-runs/{run_id}/report"
+            assert run["replayPath"] == f"/playground/runs/{run_id}/replay"
             report = body(remote.get(str(run["reportUrl"]), headers=headers))
             assert cast("JsonObject", report["failure"])["node"] == "n2"
             assert report["portalPath"] == f"/playground/runs/{run_id}"

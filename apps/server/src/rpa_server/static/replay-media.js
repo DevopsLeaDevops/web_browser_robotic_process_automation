@@ -1,5 +1,7 @@
 'use strict';
 // 多分頁共用運行時間軸；載入新片段時暫停時鐘，缺片時顯示空缺，不沿用上一頁的畫面。
+// 組合運行的合併回看（2026-10-27）另有 segments（每個節點的錄影是一段，pageAt 只看那一段裡的步驟）
+// 與 cards（轉場卡、說明卡：這段時間沒有影片，時鐘照走，發出 card 事件讓頁面顯示卡片）。
 class ReplayMedia extends EventTarget {
   constructor(element, info, steps, gap) {
     super();
@@ -8,6 +10,11 @@ class ReplayMedia extends EventTarget {
       ...clip, start: (clip.startMs || 0) / 1000, length: Number.isFinite(clip.durationMs) ? clip.durationMs / 1000 : Infinity,
     }));
     this.steps = steps.filter(step => step.startMs != null);
+    this.segments = (info.segments || []).map(segment => ({
+      start: segment.startMs / 1000, length: segment.durationMs / 1000, page: segment.page,
+    }));
+    this.cards = (info.cards || []).map(card => ({...card, start: card.startMs / 1000, length: card.durationMs / 1000}));
+    this.card = null;
     this.duration = (info.durationMs || 0) / 1000;
     this.position = 0;
     this.playing = false;
@@ -42,12 +49,26 @@ class ReplayMedia extends EventTarget {
   get paused() { return !this.playing; }
   get playbackRate() { return this.rate; }
   set playbackRate(value) { this.rate = value; this.element.playbackRate = value; }
+  segmentAt(seconds) {
+    return this.segments.find(segment => seconds >= segment.start - 0.001 && seconds < segment.start + segment.length) || null;
+  }
+  cardAt(seconds) {
+    return this.cards.find(card => seconds >= card.start - 0.001 && seconds < card.start + card.length) || null;
+  }
   pageAt(seconds) {
-    let id = this.clips[0]?.pageId || 'page-1';
+    const segment = this.segmentAt(seconds);
+    let id = segment ? segment.page : (this.clips[0]?.pageId || 'page-1');
     for (const step of this.steps) {
-      if (step.startMs / 1000 <= seconds + 0.001) id = step.pageId || 'page-1';
+      const start = step.startMs / 1000;
+      if (segment && (start < segment.start - 0.001 || start >= segment.start + segment.length)) continue;
+      if (start <= seconds + 0.001) id = step.pageId || 'page-1';
     }
     return id;
+  }
+  showCard(card) {
+    if (card === this.card) return;
+    this.card = card;
+    this.dispatchEvent(new CustomEvent('card', {detail: card}));
   }
   clipAt(seconds, pageId) {
     const id = pageId || this.pageAt(seconds);
@@ -74,11 +95,20 @@ class ReplayMedia extends EventTarget {
   }
   load() {
     const forced = this.hold && this.position < this.hold.until ? this.hold.pageId : null;
-    const clip = this.clipAt(this.position, forced);
+    const card = this.cardAt(this.position);
+    const clip = card ? null : this.clipAt(this.position, forced);
     const revision = ++this.revision;
     clearTimeout(this.loadTimer);
     this.pending = false;
     this.element.pause();
+    this.showCard(card);
+    if (card) {
+      // 卡片的時間沒有影片：藏起影片與缺片提示，時鐘照走（advance 依實際時間前進）
+      this.active = null;
+      this.element.style.visibility = 'hidden';
+      if (this.gap) this.gap.hidden = true;
+      return;
+    }
     // 首格可能晚於時間軸零點；即使目前是空白，也不能漏掉腳本載入前已發生的媒體錯誤。
     if (!this.loaded && this.element.error && (!clip || this.element.getAttribute('src') === clip.url)) {
       setTimeout(() => { if (revision === this.revision) { ++this.revision; this.fail(); } });
@@ -157,7 +187,7 @@ class ReplayMedia extends EventTarget {
         return;
       }
       const forced = this.hold && this.position < this.hold.until ? this.hold.pageId : null;
-      if (this.clipAt(this.position, forced) !== this.active) this.load();
+      if (this.cardAt(this.position) !== this.card || (!this.card && this.clipAt(this.position, forced) !== this.active)) this.load();
     }
     this.lastTick = time;
     this.tick = requestAnimationFrame(next => this.advance(next));

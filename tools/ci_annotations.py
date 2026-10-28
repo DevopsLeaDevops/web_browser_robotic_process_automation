@@ -33,8 +33,11 @@ from typing import Final, cast
 LIMIT: Final = 10
 """GitHub 每個步驟顯示的錯誤 annotation 上限。"""
 
-DETAIL_CHARS: Final = 6000
-"""每則 annotation 保留的錯誤內容長度（保留結尾：斷言與例外通常在最後）。"""
+DETAIL_CHARS: Final = 4000
+"""每則 annotation 保留的錯誤內容長度（保留結尾：斷言與例外通常在最後）。
+
+GitHub 只保留 annotation 訊息的前 4096 個字元，超過的結尾直接截掉；保留的長度要在這之內，
+否則最後的斷言與例外反而看不到（2026-10-27，組合運行回看的瀏覽器測試）。"""
 
 SLOWEST: Final = 15
 """耗時摘要列出幾個最慢的檔案與測試。"""

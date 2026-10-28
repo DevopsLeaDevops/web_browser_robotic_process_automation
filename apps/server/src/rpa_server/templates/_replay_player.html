@@ -1,0 +1,64 @@
+{#- 回看的播放器（M12）：影片、控制列、縮圖時間軸、快捷鍵說明。單一運行的回看與組合運行的合併回看
+    （2026-10-27）共用；composite 為 true 時多卡片（轉場、沒有錄影）與節點色帶。 -#}
+{% import "_macros.html" as m %}
+{% macro player(video, data, download_name, composite=false) %}
+    <section class="panel replay-viewer" aria-label="{{ t('replay.video') }}">
+      <div class="replay-address"><span class="replay-dots" aria-hidden="true"><i></i><i></i><i></i></span><div class="replay-url mono" id="replay-url" title="{{ t('replay.url_hint') }}">about:blank</div><small id="replay-step-of"></small></div>
+      <div class="replay-stage" id="replay-stage"{% if video.width and video.height %} style="aspect-ratio: {{ video.width }} / {{ video.height }}"{% endif %}>
+        <video id="replay-video" src="{{ video.url }}" playsinline muted preload="auto"></video>
+        <div class="replay-chip" aria-live="polite"><span class="replay-chip-n" id="replay-chip-n">—</span><span class="replay-chip-state" id="replay-chip-state"></span><span id="replay-chip-text"></span></div>
+        <div class="replay-gap" id="replay-gap" role="status" hidden>{{ t("replay.missing_clip") }}</div>
+        <div class="replay-located" id="replay-located" hidden></div>
+        {% if composite %}<div class="replay-card" id="replay-card" aria-live="polite" hidden></div>{% endif %}
+        <button class="replay-bigplay" id="replay-bigplay" type="button" aria-label="{{ t('replay.play') }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+        {% if data.failedStep %}
+        {% set failed = data.steps[data.failedStep - 1] %}
+        <div class="replay-end" id="replay-end" hidden>
+          <div><strong>{{ t("replay.end_failed", n=failed.get("label", data.failedStep), name=failed.name or failed.get("rawId", failed.id)) }}</strong> {{ t("replay.end_failed_hint") }}</div>
+          {% if failed.error %}<div class="replay-error-text mono">{{ failed.error }}</div>{% endif %}
+          <div class="actions"><button class="button primary" type="button" data-go="failed">{{ t("replay.back_to_failed") }}</button><button class="button" type="button" data-go="start">{{ t("replay.from_start") }}</button></div>
+        </div>
+        {% endif %}
+        <div class="replay-cannot-play" id="replay-cannot-play" hidden>{{ t("replay.cannot_play") }} <a href="{{ video.url }}" download="{{ download_name }}">{{ t("replay.download") }}</a></div>
+      </div>
+      {% if video.clips|length > 1 and not composite %}
+      <div class="replay-downloads">{{ t("replay.page_recordings") }}
+        {% for clip in video.clips %}{% if clip.url %}<a href="{{ clip.url }}" download>{{ t("replay.page_number", n=clip.pageId|replace("page-", "")) }}</a>{% endif %}{% endfor %}
+      </div>
+      {% endif %}
+      <div class="replay-controls">
+        <button class="replay-icon primary" id="replay-play" type="button" aria-label="{{ t('replay.play') }}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" id="replay-play-icon"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+        <button class="replay-icon" id="replay-prev" type="button" aria-label="{{ t('replay.prev_step') }}" title="{{ t('replay.prev_step') }}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5.5v13L9.5 12z"/></svg></button>
+        <button class="replay-icon" id="replay-next" type="button" aria-label="{{ t('replay.next_step') }}" title="{{ t('replay.next_step') }}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5.5v13L14.5 12z"/></svg></button>
+        <button class="replay-icon" id="replay-frame-back" type="button" aria-label="{{ t('replay.frame_back') }}" title="{{ t('replay.frame_back') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button class="replay-icon" id="replay-frame-forward" type="button" aria-label="{{ t('replay.frame_forward') }}" title="{{ t('replay.frame_forward') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <span class="replay-time mono"><b id="replay-now">00:00.00</b> / <span id="replay-duration">00:00.00</span></span>
+        <span class="replay-grow"></span>
+        <span class="segmented replay-speed" role="group" aria-label="{{ t('replay.speed') }}" id="replay-speed"><button type="button" data-rate="0.25" aria-pressed="false">¼×</button><button type="button" data-rate="0.5" aria-pressed="false">½×</button><button type="button" data-rate="1" aria-pressed="true">1×</button><button type="button" data-rate="2" aria-pressed="false">2×</button></span>
+        <label class="replay-follow"><input type="checkbox" id="replay-follow" checked> {{ t("replay.follow") }}</label>
+        <button class="replay-icon" id="replay-help-button" type="button" aria-expanded="false" aria-controls="replay-help" aria-label="{{ t('replay.shortcuts') }}" title="{{ t('replay.shortcuts') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h1m3 0h1m3 0h2M7 14h10"/></svg></button>
+        <button class="replay-icon" id="replay-fullscreen" type="button" aria-label="{{ t('replay.fullscreen') }}" title="{{ t('replay.fullscreen') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+      <div class="replay-timeline" id="replay-timeline" tabindex="0" role="slider" aria-label="{{ t('replay.timeline') }}" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+        <div class="replay-film" id="replay-film"><div class="replay-past" id="replay-past"></div></div>
+        {% if composite %}<div class="replay-bands" id="replay-bands"></div>{% endif %}
+        <div class="replay-track" id="replay-track"></div>
+        <div class="replay-ticks" id="replay-ticks"></div>
+        <div class="replay-playhead" id="replay-playhead"></div>
+        <div class="replay-hoverline" id="replay-hoverline" hidden></div>
+        <div class="replay-preview" id="replay-preview" hidden><canvas id="replay-preview-canvas" width="392" height="220"></canvas><div><b class="mono" id="replay-preview-time"></b><span id="replay-preview-step"></span></div></div>
+      </div>
+      <div class="replay-help" id="replay-help" hidden>
+        <dl class="replay-keys">
+          <dt><kbd>{{ t("replay.key_space") }}</kbd> <kbd>K</kbd></dt><dd>{{ t("replay.key_play") }}</dd>
+          <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>{{ t("replay.key_seek") }}</dd>
+          <dt><kbd>,</kbd> <kbd>.</kbd></dt><dd>{{ t("replay.key_frame") }}</dd>
+          <dt><kbd>J</kbd> <kbd>L</kbd></dt><dd>{{ t("replay.key_step") }}</dd>
+          <dt><kbd>E</kbd></dt><dd>{{ t("replay.key_failed") }}</dd>
+          {% if composite %}<dt><kbd>N</kbd> <kbd>P</kbd></dt><dd>{{ t("creplay.key_node") }}</dd>{% endif %}
+          <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>{{ t("replay.key_speed") }}</dd>
+          <dt><kbd>F</kbd></dt><dd>{{ t("replay.fullscreen") }}</dd>
+        </dl>
+      </div>
+    </section>
+{% endmacro %}

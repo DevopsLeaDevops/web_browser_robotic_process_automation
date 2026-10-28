@@ -6,6 +6,8 @@
 {% block crumb %}{% if project %}<a href="/projects/{{ project.id }}">{{ project.name }}</a> › {% endif %}{% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %} › {{ run.id }}{% endblock %}
 {% block description %}{{ t("workflow_run.description", name=run.workflow_name, count=run.nodes | length) }} · v{{ run.workflow_version }} · {{ t("workflow_run.purpose_" + run.purpose) }}{% endblock %}
 {% block actions %}
+{% set has_video = report.nodes | selectattr("replayUrl") | list %}
+{% if has_video %}<a class="button{% if run.status == 'passed' or not run.finished %} primary{% endif %}" href="/playground/runs/{{ run.id }}/replay" data-action="composite-replay">▶ {{ t("creplay.open") }}</a>{% endif %}
 {% if workflow_exists %}<a class="button" href="/playground/{{ run.workflow_id }}">{{ t("workflow_run.back") }}</a>{% endif %}
 {% if not run.finished %}
 <button class="button" data-action="cancel-workflow-run"{% if run.cancel_requested %} disabled{% endif %}>{{ t("workflow_run.cancel") }}</button>
@@ -68,7 +70,7 @@
     {% for node in report.nodes %}
     <details class="creport-node" id="node-{{ node.id }}" data-node="{{ node.id }}" data-status="{{ node.status }}"{% if node.open %} open{% endif %}>
       <summary>{{ r.node_head(node) }}</summary>
-      {{ r.node_body(node) }}
+      {{ r.node_body(node, run_id=run.id) }}
     </details>
     {% endfor %}
   </section>
