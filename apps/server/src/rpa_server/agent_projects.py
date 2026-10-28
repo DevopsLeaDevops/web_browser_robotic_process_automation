@@ -10,6 +10,9 @@
 - **權限**：projects:read、projects:write、projects:publish；驗證、執行與讀運行沿用 runs:validate、
   runs:execute、runs:read。組合場景要在可用的專案裡（不屬於任何專案的不給 Agent），放的領域與節點
   用到的場景的領域也要可用；不能用的組合場景與執行一律當成不存在（404）。
+- **匯總報告**（``/composite-runs/{id}/report``，2026-10-27）：整次組合運行的結論、數字、
+  時間軸與每個節點的入參出參、步驟、斷言；截圖與節點報告的網址換成本 API 的路徑
+  （沒有 page_content 權限時是 null）。
 - 回應另外帶 ``portalPath``：人在 Portal 看同一筆資料的路徑（Agent 寫測試報告時附上）。
 """
 
@@ -20,6 +23,7 @@ from pydantic import Field
 
 from rpa_core.workflow import Workflow, parse_workflow
 from rpa_server.agent_api import (
+    AGENT_PREFIX,
     AgentBody,
     AgentTools,
     Executor,
@@ -32,6 +36,7 @@ from rpa_server.agent_api import (
     forbidden,
 )
 from rpa_server.agents import ApiClientRecord
+from rpa_server.composite_report import report_json
 from rpa_server.domain import (
     Engine,
     ProjectRecord,
@@ -181,6 +186,24 @@ def project_routes(services: Services, tools: AgentTools) -> APIRouter:
             node["run"] = tools.run_json(client, state.run) if state.run is not None else None
         data["progress"] = progress(run)
         data["portalPath"] = f"/playground/runs/{run.id}"
+        data["reportUrl"] = f"{AGENT_PREFIX}/composite-runs/{run.id}/report"
+        return data
+
+    def report_for(client: ApiClientRecord, report: dict[str, object]) -> dict[str, object]:
+        """匯總報告給 Agent：Portal 的網址換成本 API 的路徑；沒有 page_content 權限時
+        不給截圖與報告。"""
+        data = report_json(report)
+        content = client.policy.page_content
+        for node in cast("list[dict[str, object]]", data["nodes"]):
+            run_id = node.get("runId")
+            files = f"{AGENT_PREFIX}/runs/{run_id}/files/"
+            shot, report_url = node.get("screenshot"), node.get("reportUrl")
+            node["screenshotUrl"] = f"{files}{shot}" if content and run_id and shot else None
+            node["reportUrl"] = f"{files}report.html" if content and run_id and report_url else None
+            node["portalPath"] = node.pop("runUrl", None)
+            for key in ("replayUrl", "reusedUrl"):
+                node.pop(key, None)
+        data["portalPath"] = f"/playground/runs/{report['id']}"
         return data
 
     def summary(record: WorkflowRecord) -> dict[str, object]:
@@ -509,6 +532,12 @@ def project_routes(services: Services, tools: AgentTools) -> APIRouter:
     def get_run(client: RunReader, run_id: str) -> dict[str, object]:
         """狀態、進度（progress）、每個節點的狀態與那次運行；節點的步驟用 ``/runs/{id}/steps``。"""
         return run_json(client, run_for(client, run_id))
+
+    @router.get("/composite-runs/{run_id}/report")
+    def get_report(client: RunReader, run_id: str) -> dict[str, object]:
+        """整次組合運行的匯總報告：結論（停在哪個節點的哪一步）、數字、時間軸、每個節點的明細。"""
+        run_for(client, run_id)
+        return report_for(client, services.composite_report(run_id))
 
     @router.post("/composite-runs/{run_id}/cancel", status_code=202)
     def cancel_run(client: Placer, run_id: str) -> dict[str, object]:

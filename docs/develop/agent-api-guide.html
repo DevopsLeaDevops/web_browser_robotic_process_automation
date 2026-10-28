@@ -231,6 +231,7 @@ GET /agent-api/v1/runs/…
             <tr><td><code>POST /composites/{code}/runs</code></td><td>正式執行發布的版本</td><td>runs:execute</td></tr>
             <tr><td><code>POST /projects/{id}/runs</code></td><td>把專案裡的組合場景（或 <code>composites</code> 列出的）逐一排入；排不進去的在 <code>skipped</code></td><td>依 <code>purpose</code>：runs:validate 或 runs:execute</td></tr>
             <tr><td><code>GET /composite-runs</code>、<code>GET /composite-runs/{id}</code></td><td>組合場景的執行：狀態、進度（<code>progress</code>）、每個節點的狀態與那次運行</td><td>runs:read</td></tr>
+            <tr><td><code>GET /composite-runs/{id}/report</code></td><td>匯總報告：結論（<code>failure</code>：停在哪個節點、哪一步、錯誤、沒通過的斷言）、<code>counts</code>、<code>timeline</code>、每個節點的入參出參、步驟與斷言；寫測試報告時用它，附上 <code>portalPath</code> 讓人在 Portal 看同一份</td><td>runs:read</td></tr>
             <tr><td><code>POST /composite-runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消自己觸發的；從頭或從停下的節點（<code>"resume": true</code>）再執行</td><td>依執行的目的</td></tr>
           </tbody>
         </table>

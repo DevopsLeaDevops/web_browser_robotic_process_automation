@@ -13,6 +13,7 @@ from rpa_core.dsl import Scenario, validate_file, validate_text
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, Locale, use_locale
 from rpa_core.workflow import Workflow, WorkflowProblem
 from rpa_server.agents import SCOPES, ApiClientRecord, AuditRecord, ClientPolicy
+from rpa_server.composite_report import build_composite_report
 from rpa_server.context import Via, use_recorder
 from rpa_server.debugging import DebugSession
 from rpa_server.debugging import _steps as debug_steps  # pyright: ignore[reportPrivateUsage]
@@ -40,6 +41,7 @@ from rpa_server.i18n import follow_locale, t
 from rpa_server.render import js_messages, render, run_filters, workflow_messages, workflow_preview
 from rpa_server.secret_store import SecretInfo
 from rpa_server.services import SceneNeeds
+from rpa_server.storage import Storage
 
 ROOT = Path(__file__).resolve().parents[3]
 MOMENT = datetime(2026, 10, 10, 8, 30, tzinfo=UTC)
@@ -506,6 +508,11 @@ def _source(kind: str, **fields: object) -> dict[str, object]:
     return {"kind": kind, "node": None, "output": None, "value": None, **fields}
 
 
+def _report(run: WorkflowRunRecord) -> dict[str, object]:
+    """組合運行的匯總報告（2026-10-27）：樣板測試沒有執行目錄，步驟、斷言與截圖都是空的。"""
+    return build_composite_report(run, CHAIN, Storage(Path("/nonexistent/rpa-render-test")))
+
+
 def _m6_pages(*, english: bool = False) -> dict[str, str]:
     """自由試驗場（M6）：序列清單、編輯序列、序列的執行（通過、需要登入、執行中）；
     專案空間的專案頁與專案管理（2026-10-23）。"""
@@ -732,6 +739,8 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             projects=projects,
             title=passed.id,
             run=passed,
+            report=_report(passed),
+            definition=CHAIN,
             workflow_exists=True,
             project=projects[0],
             role=None,
@@ -744,6 +753,8 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             projects=projects,
             title=login.id,
             run=login,
+            report=_report(login),
+            definition=CHAIN,
             project=None,
             workflow_exists=False,
             role="testsite-user",
@@ -756,6 +767,8 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             projects=projects,
             title=running.id,
             run=running,
+            report=_report(running),
+            definition=CHAIN,
             project=None,
             workflow_exists=True,
             role=None,
@@ -768,6 +781,8 @@ def _m6_pages(*, english: bool = False) -> dict[str, str]:
             projects=projects,
             title=blocked.id,
             run=blocked,
+            report=_report(blocked),
+            definition=CHAIN,
             project=None,
             workflow_exists=True,
             role=None,
@@ -1672,17 +1687,28 @@ def test_workflow_pages_show_sources_and_actions() -> None:
             can_publish=False,
         )
     passed = pages["workflow-run"]
-    assert "<code>title</code> = <code>&#34;甲&#34;</code>" in passed  # 那次執行實際的入參
+    # 匯總報告（2026-10-27）：入參的實際值與來源、出參流向哪個下游、結論與下載
+    assert "<td><code>title</code></td><td><code>&#34;甲&#34;</code></td>" in passed
     assert "<code>n1.recordId</code>" in passed
+    assert '<span class="muted">→</span> <code>n2.recordId</code>' in passed
+    assert "2 個節點全部通過" in passed
+    assert 'href="/playground/runs/wf1-20261013-083000-abcdef/report.html"' in passed
     assert 'data-resume="1"' not in passed
+    assert 'data-node="n1" data-status="passed">' in passed  # 通過的節點收起
     login = pages["workflow-run-login"]
     assert 'data-resume="1"' in login
     assert "從 n2 繼續" in login
     assert 'href="/roles#role-testsite-user"' in login
     assert 'data-status="reused"' in login
+    assert "1 個節點沿用上一次通過的結果" in login
+    assert 'data-node="n2" data-status="needs_login" open>' in login  # 沒通過的預設展開
     assert "data-poll" in pages["workflow-running"]
     assert 'data-signature="running|running,pending"' in pages["workflow-running"]
-    assert 'data-node="n2" data-status="failed" class="is-stopped"' in pages["workflow-blocked"]
+    assert "執行中：0 / 2 個節點已結束" in pages["workflow-running"]
+    blocked = pages["workflow-blocked"]
+    assert 'data-node="n2" data-status="failed" open>' in blocked
+    assert "停在 n2「查詢範例紀錄」" in blocked
+    assert "沒有開始執行" in blocked
     editor = pages["workflow"]
     assert 'id="workflow-data"' in editor
     assert "缺少來源" in editor

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a082e107fdf7d426">
+<meta name="translation-source" content="sha256:5fce164644394349">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -232,6 +232,7 @@ GET /agent-api/v1/runs/…
             <tr><td><code>POST /composites/{code}/runs</code></td><td>Formally run the published revision</td><td>runs:execute</td></tr>
             <tr><td><code>POST /projects/{id}/runs</code></td><td>Queue the composites of a project (or those listed in <code>composites</code>) one by one; those that cannot start are in <code>skipped</code></td><td>By <code>purpose</code>: runs:validate or runs:execute</td></tr>
             <tr><td><code>GET /composite-runs</code>, <code>GET /composite-runs/{id}</code></td><td>Composite runs: status, progress (<code>progress</code>), each node's status and run</td><td>runs:read</td></tr>
+            <tr><td><code>GET /composite-runs/{id}/report</code></td><td>The summary report: the verdict (<code>failure</code>: which node and step it stopped at, the error, failed checks), <code>counts</code>, <code>timeline</code>, each node's inputs and outputs, steps and checks; use it for test reports and include <code>portalPath</code> so people can open the same report in the portal</td><td>runs:read</td></tr>
             <tr><td><code>POST /composite-runs/{id}/cancel</code>, <code>/rerun</code></td><td>Cancel your own; run again from the start or from the stopping node (<code>"resume": true</code>)</td><td>By the run's purpose</td></tr>
           </tbody>
         </table>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:8eb8cecdb9d3e3b6">
+<meta name="translation-source" content="sha256:14c9dd64205a883d">
 <title>Agent API · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -230,7 +230,8 @@
             <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>Runs this client can see (scenarios in its domains); <code>mine</code> lists only the runs it started</td><td>1</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>Each step's status, start and end time, error and URL afterwards; updated live while running from phase 2</td><td>1, 2</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>Artifacts such as screenshots, report.html, result.json and videos (subject to page content)</td><td>1</td></tr>
-            <tr><td><code>GET /composite-runs/{id}</code>, <code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>Composite runs: status, progress (nodes in total, done, passed, current node), each node's status and run (details via <code>/runs/{id}</code>)</td><td>1</td></tr>
+            <tr><td><code>GET /composite-runs/{id}</code>, <code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>Composite runs: status, progress (nodes in total, done, passed, current node), each node's status and run (details via <code>/runs/{id}</code>); <code>reportUrl</code> points to the summary report</td><td>1</td></tr>
+            <tr><td><code>GET /composite-runs/{id}/report</code></td><td>The summary report of a whole composite run (2026-10-27): the verdict (which node stopped at which step, the error, failed checks), nodes, steps and checks passed, the timeline, and each node's inputs (values and sources), outputs (values and where they go), steps and checks; screenshot and node report URLs are paths in this API, and null without page content access. Read it once for a test report instead of reading every node</td><td>1</td></tr>
             <tr><td><code>GET /runs/{id}/events?after=&amp;wait=</code></td><td>Event long polling: returns as soon as there is a new event, otherwise waits up to <code>wait</code> seconds</td><td>2</td></tr>
             <tr><td>Webhook</td><td>POSTed to the client's registered URL when a run ends, signed with HMAC and retried on failure</td><td>2</td></tr>
           </tbody>

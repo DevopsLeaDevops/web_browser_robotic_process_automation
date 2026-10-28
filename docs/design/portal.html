@@ -188,6 +188,7 @@
         <li><strong>分叉與匯合。</strong>拓撲排序保證所有上游都通過才執行下游；就緒節點以定義中的順序穩定選取，逐個排入既有佇列。每個節點有自己的真實執行、入參、成功出參與報告。下游執行前再檢查實際值，不符合規則就停止，不回退到預設值。</li>
         <li><strong>快照與恢復。</strong>開始時固定編排、場景版本及同名匹配的具體來源，後續編輯不影響已開始的執行。失敗、逾時、取消、需要登入或 worker 失聯皆停止全圖；續跑沿用拓撲順序中已通過的結果，不重複已成功的外部操作。所有節點沿用同一台 worker；取消不回滾外部動作。</li>
         <li><strong>格式與相容。</strong>新定義使用 <code>version: 2</code>、<code>mode: "dag"</code>、<code>onFailure: "stop"</code>、<code>nodes</code> 及 <code>edges: [{"source":"n1","target":"n2"}]</code>。節點可帶 <code>position: {"x":40,"y":60}</code>；<code>inputs</code> 的值可為 <code>{"auto":true}</code>、<code>{"value":7}</code> 或 <code>{"node":"n1","output":"quantity"}</code>，省略代表場景預設。舊版 serial 定義與歷史快照繼續可用；舊序列開啟畫布後，下次保存轉成相同順序的依賴邊，不更動已有歷史執行。JSON 匯出、匯入保留座標與綁定。</li>
+        <li id="composite-report"><strong>組合運行的匯總報告（2026-10-27）。</strong>一次組合運行一份報告，不必逐一打開各節點的報告：組合運行頁（<code>/playground/runs/&lt;編號&gt;</code>）最上面是結論（全部通過；或停在哪個節點的哪一步，附定位器、錯誤、沒通過的斷言與當時的截圖，以及後面沒有執行的節點），接著是數字（節點、步驟、斷言的通過數與總數，總耗時、節點執行時間）、摘要、流程與時間（依結果上色的 DAG，與每個節點實際開始到結束的時間軸），最後是每個節點的明細：入參的實際值與來源、出參的值與傳給哪些下游、階段、步驟（含場景檔的定位器寫法）、斷言、截圖、單一節點的報告與回看。沒通過的節點預設展開，通過的收起；沿用的節點標出原本那次組合運行。「下載報告」產生單一 HTML，離線也能打開，只嵌入沒通過的節點的截圖，不連到 Portal。報告在看的時候依當時的介面語言產生，不另存檔。資料來自資料庫與各節點執行目錄的 <code>result.json</code>（執行中的節點用 <code>steps.json</code>）。</li>
         <li><strong>本次範圍。</strong>最多 50 節點，支援一般分叉與匯合，不做條件路由或同時執行。沿用現有 DSL 的字串、整數、數字、布林入參；原型裡的重複次數、日期／隨機占位符與複合型別入參未納入本次五項需求。原型 JSON 是參考契約，不直接當成 Portal 的匯入格式。</li>
       </ul></div>
     </section>
@@ -223,6 +224,7 @@
           <li><strong>需要登入與重新執行。</strong>對 <code>testsite-user</code> 按「登出」，再運行 BA-004：停在「需要登入」，沒有執行任何步驟；點執行頁的登入角色回到「登入與憑證」再登入一次，回到執行頁按「重新執行」，結果是「通過」。</li>
           <li><strong>自由試驗場。</strong>先驗證並發布 BA-001、BA-002，在「管理後台 › 專案管理」新增一個專案。到「專案空間」的那個專案建立組合場景，加入一個 BA-001、兩個 BA-002 及另一個 BA-001 作為匯合節點；連接「建立 → 兩次查詢 → 匯合」，讓兩個查詢的 recordId 同名匹配上游，匯合的 title 與 quantity 分別取自兩個查詢。拖動節點、儲存並重載，確認位置保留。執行後四個節點都通過且實際入參相符；反向連線應被拒絕。從專案空間的專案頁卡片打開最近執行，確認報告可追溯。</li>
           <li><strong>遠端 worker（兩台電腦，M9a）。</strong>Portal 改用 <code>uv run rpa serve --data data-check --worker-port 8081</code> 啟動；「叢集管理 › 裝置」新增 <code>win-01</code>，在另一台電腦用對話框裡的邀請啟動 <code>rpa worker --invite …</code>（M10.1 的 RPA Worker App 交付後改在 App 貼上；步驟見<a href="../develop/remote-worker.html">遠端 worker</a>），裝置頁變成「線上」。用「遠端 worker」、有頭模式執行 BA-001：瀏覽器視窗出現在 worker 機器，這台電腦沒有跳出視窗；報告是「通過」，執行頁顯示「執行的電腦：win-01」，截圖看得到。再用「遠端 worker」執行第 7 步的組合場景，四個節點都在 win-01。執行中在 worker 機器按 Ctrl+C：Portal 上那次執行變成「已取消」。</li>
+          <li><strong>組合運行的匯總報告。</strong>讓第 7 步的組合場景在一個節點失敗（例如把查詢節點的 recordId 改成不存在的編號），再執行一次：不點進任何節點，報告最上面就寫著停在哪個節點的第幾步、錯誤與截圖，後面的節點列為沒有執行；通過的節點是收起的，展開看得到入參的值與來源、出參傳給誰。「下載報告」得到一個 HTML 檔，離線打開內容相同。運行報告切到「組合運行」，用專案、結果篩選得到這次。</li>
           <li><strong>運行回看（M12）。</strong>運行報告的「錄影」欄有「▶ 回看」與影片長度（「錄影」篩選只看還有錄影的運行）；打開第 3 步的驗證：影片可以播放、暫停、拖曳，滑過時間軸有預覽，步驟清單跟著影片走，點一步跳到那一步。執行 BA-002 查詢不存在的編號（失敗）：打開回看就停在失敗步驟之前，結束時有「回到失敗的步驟」。在 win-01 用有頭、無頭各執行一次，執行中取消一次：三段影片都能播放與拖曳。在 Mac 錄製端 App 裡打開同一頁也能播放。</li>
         </ol>
         <p>結束後停止管理 Portal，刪掉 <code>data-check</code> 資料夾即可；worker 機器上的 <code>worker-data</code> 資料夾也可以刪掉。</p>
@@ -269,7 +271,7 @@
             <tr><td><code>/scenes/{id}/edit</code></td><td>完整場景檔：編輯 YAML 與腳本，存成新版本；校驗問題列在頁面上。從場景詳情頁以另開視窗打開，「返回場景詳情」回到腳本區</td></tr>
             <tr><td><code>/scenes/{id}/edit?part=steps</code>、<code>?part=verify</code></td><td>舊網址：轉到場景詳情頁的 <code>#steps</code>、<code>#verify</code>（2026-10-25 前是單獨的一段編輯頁）</td></tr>
             <tr><td><code>/scenes/{id}/run</code></td><td>驗證或執行的表單：入參（JSON，已帶入預設值）、瀏覽器、網址</td></tr>
-            <tr><td><code>/runs</code></td><td>運行報告：分類、場景、結果、目的、錄影的篩選選單，每一項都可以複選；「錄影」欄的「▶ 回看」打開那次運行的錄影；錄影設定與目前用量（原本在運行回看頁）</td></tr>
+            <tr><td><code>/runs</code></td><td>運行報告：分類、場景、結果、目的、錄影的篩選選單，每一項都可以複選；「錄影」欄的「▶ 回看」打開那次運行的錄影；錄影設定與目前用量（原本在運行回看頁）。上方切換「場景運行｜組合運行」（2026-10-27）：場景運行裡組合的節點標出屬於哪次組合運行；<code>?view=composite</code> 一列一次組合運行（專案、組合場景、結果、目的、執行位置的篩選），點「報告」到匯總報告</td></tr>
             <tr><td><code>/runs/{執行編號}</code></td><td>狀態、階段、獨立斷言、入參與出參、截圖；執行目錄的檔案（每個檔案一行說明、另開視窗查看、下載；錄影點檔名到回看頁）；取消、發布；有錄影時「回看」。在 Portal 裡打開 report.html 時最上面加一列「回到運行詳情」「錄影回看」（檔案本身不變）。JSON 與文字檔標明 UTF-8，直接打開不會亂碼；執行目錄檔案的 CSP 允許同來源的影片（直接打開 video.webm 可以播放）</td></tr>
             <tr><td><code>/replay</code></td><td>舊網址：轉到 <code>/runs?video=1</code>（只看有錄影的運行；2026-10-25 前是單獨的運行回看清單）</td></tr>
             <tr><td><code>/runs/{執行編號}/replay</code></td><td>回看一次運行：影片（網址列、目前步驟的標籤）、控制列（播放、上一步／下一步、逐格、¼×～2×、全螢幕、快捷鍵）、縮圖時間軸（滑過預覽、拖曳、步驟軌）、步驟清單跟著影片走（點一步跳到那一步；詳細有錯誤、定位器、填入的值、抽到的事實、場景檔原文與行號、「在場景中開啟」）、斷言、運行資訊與釘選；失敗的運行打開就停在失敗步驟之前 1 秒；同一個場景的上一次、下一次、上一次沒通過；組合場景的節點之間切換。<code>?t=秒&amp;step=步驟</code> 打開時跳到那一刻</td></tr>
@@ -280,7 +282,8 @@
             <tr><td><code>/projects</code></td><td>專案管理（管理後台）：新增、改名、刪除、調整順序；還沒分到專案的組合場景</td></tr>
             <tr><td><code>/playground</code></td><td>自由試驗場：建立、匯入組合場景與繼續編輯畫布</td></tr>
             <tr><td><code>/playground/{序列}</code></td><td>編輯組合場景：場景庫、DAG 畫布、入參與節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
-            <tr><td><code>/playground/runs/{序列執行}</code></td><td>序列的執行：每個節點的狀態、入參的值與來源、出參、報告；取消、從頭再執行、從停下的節點繼續</td></tr>
+            <tr><td><code>/playground/runs/{序列執行}</code></td><td>組合運行的匯總報告（2026-10-27，見<a href="#composite-report">組合運行的匯總報告</a>）：結論、數字、摘要、流程與時間、每個節點的明細；取消、從頭再執行、從停下的節點繼續、下載報告</td></tr>
+            <tr><td><code>/playground/runs/{序列執行}/report.html</code></td><td>下載匯總報告：單一 HTML，離線可開，只嵌入沒通過的節點的截圖</td></tr>
             <tr><td><code>/devices</code></td><td>裝置（叢集管理；M10.1；<code>/workers</code> 轉到這裡）：新增並產生邀請、狀態、停用、重新邀請、刪除；錄製端另外顯示的選單；預設執行位置</td></tr>
           </tbody>
         </table>
@@ -346,6 +349,7 @@
             <tr><td><code>PATCH /api/workflows/{序列}</code></td><td>改代號（<code>code</code>）、搬到其他領域（<code>domainId</code>）、封存（<code>archived</code>）、移到其他專案（<code>projectId</code>，空字串是不屬於任何專案）；執行中不能改代號或搬領域，代號重複 409</td></tr>
             <tr><td><code>POST /api/workflows/{序列}/runs</code></td><td>執行序列（<code>engine</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>；<code>purpose</code> 是 <code>validation</code> 或 <code>execution</code>，驗證時可帶 <code>revision</code>；還沒發布就執行 409 <code>workflow_unpublished</code>）；有問題（含依賴錯誤）時 422 並列出 <code>problems</code>；202 回序列的執行</td></tr>
             <tr><td><code>GET /api/workflow-runs</code>、<code>GET /api/workflow-runs/{序列執行}</code></td><td>序列執行清單（可用 <code>workflow</code> 篩選）；單次的狀態與每個節點（狀態、入參的來源、那次執行）</td></tr>
+            <tr><td><code>GET /api/workflow-runs/{序列執行}/report</code></td><td>匯總報告的資料（2026-10-27）：<code>counts</code>（節點、步驟、斷言的通過與總數）、<code>failure</code>（停在哪個節點、步驟、階段、沒通過的斷言、錯誤）、<code>skipped</code>、<code>timeline</code>、<code>nodes</code>（入參的值與來源、出參與流向、階段、步驟、斷言、截圖與報告的網址）；Agent API 有同樣的 <code>GET /composite-runs/{id}/report</code></td></tr>
             <tr><td><code>POST /api/workflow-runs/{序列執行}/cancel</code>、<code>…/rerun</code></td><td>取消；再執行一次（<code>resume: true</code> 從停下的節點繼續，否則從頭）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/workers</code></td><td>遠端 worker 清單（含預設執行位置、本機執不執行、Portal 的程式指紋）；登記（<code>id</code>、<code>name</code>），回應的 <code>token</code> 只有這一次拿得到</td></tr>
             <tr><td><code>GET</code>、<code>PATCH</code>、<code>DELETE /api/workers/{代號}</code>；<code>POST …/token</code></td><td>狀態（含 App 版本）；改名稱、停用（<code>disabled</code>）；刪除（執行中 409）；重新產生權杖（命令列與腳本用）</td></tr>

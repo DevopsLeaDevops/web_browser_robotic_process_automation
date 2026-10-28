@@ -232,6 +232,7 @@ GET /agent-api/v1/runs/…
             <tr><td><code>POST /composites/{code}/runs</code></td><td>正式运行发布的版本</td><td>runs:execute</td></tr>
             <tr><td><code>POST /projects/{id}/runs</code></td><td>把项目里的组合场景（或 <code>composites</code> 列出的）逐一排入；排不进去的在 <code>skipped</code></td><td>依 <code>purpose</code>：runs:validate 或 runs:execute</td></tr>
             <tr><td><code>GET /composite-runs</code>、<code>GET /composite-runs/{id}</code></td><td>组合场景的运行：状态、进度（<code>progress</code>）、每个节点的状态与那次运行</td><td>runs:read</td></tr>
+            <tr><td><code>GET /composite-runs/{id}/report</code></td><td>汇总报告：结论（<code>failure</code>：停在哪个节点、哪一步、错误、没通过的断言）、<code>counts</code>、<code>timeline</code>、每个节点的入参出参、步骤与断言；写测试报告时用它，附上 <code>portalPath</code> 让人在 Portal 看同一份</td><td>runs:read</td></tr>
             <tr><td><code>POST /composite-runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消自己触发的；从头或从停下的节点（<code>"resume": true</code>）再运行</td><td>依运行的目的</td></tr>
           </tbody>
         </table>

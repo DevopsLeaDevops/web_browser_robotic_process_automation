@@ -3206,10 +3206,46 @@
         location.href = '/playground/runs/' + path(result.data.id);
       });
     });
+    bindCompositeReport(root, run);
     if (root.hasAttribute('data-poll')) {
       pollUntilChanged('/api/workflow-runs/' + path(run), root.dataset.signature,
         data => data.status + '|' + data.nodes.map(node => node.status).join(','));
     }
+  }
+
+  // 組合運行的匯總報告（2026-10-27）：節點明細的展開與收起、從結論或時間軸跳到節點。
+  // 執行中每次狀態改變會重新載入頁面：展開了哪些節點記在 sessionStorage，載入後照樣展開。
+  function bindCompositeReport(root, run) {
+    const nodes = qsa('details.creport-node', root);
+    if (!nodes.length) return;
+    const key = 'creport-open:' + run;
+    const remember = () => {
+      try { sessionStorage.setItem(key, JSON.stringify(nodes.filter(node => node.open).map(node => node.dataset.node))); } catch (error) { /* 瀏覽器不給存就算了 */ }
+    };
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (error) { saved = null; }
+    if (Array.isArray(saved)) nodes.forEach(node => { node.open = saved.includes(node.dataset.node); });
+    const reveal = id => {
+      const node = qs('#node-' + CSS.escape(id));
+      if (!node) return;
+      node.open = true;
+      node.scrollIntoView({block: 'start', behavior: 'smooth'});
+      node.classList.remove('anchor-hit');
+      void node.offsetWidth;
+      node.classList.add('anchor-hit');
+      remember();
+    };
+    nodes.forEach(node => node.addEventListener('toggle', remember));
+    qsa('[data-open-node]', root).forEach(link => link.addEventListener('click', event => {
+      event.preventDefault();
+      history.replaceState(null, '', '#node-' + link.dataset.openNode);
+      reveal(link.dataset.openNode);
+    }));
+    qsa('[data-action="toggle-nodes"]', root).forEach(button => button.addEventListener('click', () => {
+      nodes.forEach(node => { node.open = button.dataset.open === '1'; });
+      remember();
+    }));
+    if (location.hash.startsWith('#node-')) reveal(decodeURIComponent(location.hash.slice(6)));
   }
 
   localizeTimes();

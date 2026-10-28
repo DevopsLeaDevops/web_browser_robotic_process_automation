@@ -629,6 +629,13 @@ class WorkflowRunRecord:
         """停在某個節點（失敗、逾時、取消、需要登入），可以從那個節點繼續。"""
         return self.finished and self.status != "passed" and self.failed_node is not None
 
+    @property
+    def duration_seconds(self) -> float | None:
+        """從排入到結束花了多久（含排隊與節點之間的時間）；還沒結束是 None。"""
+        if self.finished_at is None:
+            return None
+        return max(0.0, (self.finished_at - self.created_at).total_seconds())
+
     def to_json(self) -> dict[str, object]:
         return {
             "id": self.id,
@@ -645,6 +652,7 @@ class WorkflowRunRecord:
             "createdAt": _iso(self.created_at),
             "finishedAt": _iso(self.finished_at),
             "finished": self.finished,
+            "durationSeconds": self.duration_seconds,
             "resumable": self.resumable,
             "nodes": [node.to_json() for node in self.nodes],
             "target": self.target,

@@ -54,7 +54,7 @@
         <td><span class="tag mono">{{ run.id }}</span><span class="cell-sub">{{ time(run.created_at) }}</span></td>
         {% if show_scene %}<td><a href="/scenes/{{ run.scene_id }}">{{ run.scene_id }}</a> {{ run.scene_name }}{% if run.category %}<span class="cell-sub">{{ run.category }}</span>{% endif %}</td>{% endif %}
         <td>v{{ run.revision_number }}</td>
-        <td>{{ t("purpose." + run.purpose) }}{% if run.worker_id and run.worker_id != "local" %}<span class="cell-sub">{{ t("runs.on_worker", name=workers.get(run.worker_id, run.worker_id)) }}</span>{% elif run.target != "local" and not run.worker_id %}<span class="cell-sub">{{ t("target." + run.target) }}</span>{% endif %}{% if run.client_id %}<span class="cell-sub">{{ t("runs.by_agent", name=agents.get(run.client_id, run.client_id)) }}</span>{% endif %}</td>
+        <td>{{ t("purpose." + run.purpose) }}{% if run.workflow_run_id %}<span class="cell-sub">{{ t("runs.in_composite") }} <a class="mono" href="/playground/runs/{{ run.workflow_run_id }}">{{ run.workflow_run_id }}</a>{% if run.node_id %} · {{ run.node_id }}{% endif %}</span>{% endif %}{% if run.worker_id and run.worker_id != "local" %}<span class="cell-sub">{{ t("runs.on_worker", name=workers.get(run.worker_id, run.worker_id)) }}</span>{% elif run.target != "local" and not run.worker_id %}<span class="cell-sub">{{ t("target." + run.target) }}</span>{% endif %}{% if run.client_id %}<span class="cell-sub">{{ t("runs.by_agent", name=agents.get(run.client_id, run.client_id)) }}</span>{% endif %}</td>
         <td>{{ run_badge(run.status) }}</td>
         <td class="numeric">{% if run.duration_seconds is not none %}{{ "%.1f"|format(run.duration_seconds) }} s{% else %}—{% endif %}</td>
         <td>{{ replay_link(run) }}</td>
@@ -180,7 +180,9 @@
 {%- endmacro %}
 
 {# 序列的執行（M6）：清單的一列是一次序列執行 #}
-{% macro workflow_run_rows(runs, show_workflow=true, agents={}) %}
+{#- 組合運行的清單：專案頁、試驗場、運行報告的「組合運行」檢視（projects：組合場景編號 → 專案名稱）。
+    「報告」連到匯總報告（2026-10-27）。 -#}
+{% macro workflow_run_rows(runs, show_workflow=true, agents={}, projects={}, workers={}) %}
 <div class="table-scroll">
   <table>
     <thead><tr>
@@ -188,16 +190,18 @@
       {% if show_workflow %}<th>{{ t("playground.col_workflow") }}</th>{% endif %}
       <th>{{ t("runs.col_status") }}</th>
       <th>{{ t("playground.col_progress") }}</th>
+      <th class="numeric">{{ t("runs.col_duration") }}</th>
       <th>{{ t("runs.col_actions") }}</th>
     </tr></thead>
     <tbody>
     {% for run in runs %}
       <tr data-workflow-run="{{ run.id }}">
-        <td><span class="tag mono">{{ run.id }}</span><span class="cell-sub">{{ time(run.created_at) }}</span>{% if run.client_id %}<span class="cell-sub">{{ t("runs.by_agent", name=agents.get(run.client_id, run.client_id)) }}</span>{% endif %}</td>
-        {% if show_workflow %}<td>{% if run.workflow_id is not none %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %}</td>{% endif %}
+        <td><span class="tag mono">{{ run.id }}</span><span class="cell-sub">{{ time(run.created_at) }} · {{ t("workflow_run.purpose_" + run.purpose) }}</span>{% if run.worker_id and run.worker_id != "local" %}<span class="cell-sub">{{ t("runs.on_worker", name=workers.get(run.worker_id, run.worker_id)) }}</span>{% endif %}{% if run.client_id %}<span class="cell-sub">{{ t("runs.by_agent", name=agents.get(run.client_id, run.client_id)) }}</span>{% endif %}</td>
+        {% if show_workflow %}<td>{% if run.workflow_id is not none %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %}{% if run.workflow_id in projects %}<span class="cell-sub">{{ projects[run.workflow_id] }}</span>{% endif %}</td>{% endif %}
         <td>{{ run_badge(run.status) }}{% if run.failed_node and run.finished %}<span class="cell-sub">{{ t("playground.stopped_at", node=run.failed_node) }}</span>{% endif %}</td>
         <td class="nowrap">{{ t("playground.progress", passed=run.passed_count, total=run.nodes | length) }}</td>
-        <td><a class="text-btn" href="/playground/runs/{{ run.id }}">{{ t("runs.view") }}</a></td>
+        <td class="numeric">{% if run.duration_seconds is not none %}{{ run.duration_seconds | duration }}{% else %}—{% endif %}</td>
+        <td><a class="text-btn" href="/playground/runs/{{ run.id }}">{{ t("runs.report") }}</a></td>
       </tr>
     {% endfor %}
     </tbody>

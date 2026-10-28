@@ -46,6 +46,7 @@ from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
+from rpa_server.composite_report import build_composite_report
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import DebugManager
 from rpa_server.device_updates import DeviceUpdates
@@ -1638,6 +1639,11 @@ class Services:
                 "run": run_record(run).to_json(),
                 **build_replay(session, self.storage, run, self.videos.settings()),
             }
+
+    def composite_report(self, run_id: str) -> dict[str, object]:
+        """一次組合運行的匯總報告（見 composite_report.py）：組合運行頁、離線報告與 API 共用。"""
+        record, workflow = self.workflows.get_run_with_definition(run_id)
+        return build_composite_report(record, workflow, self.storage)
 
     def video_settings(self) -> dict[str, object]:
         """錄影設定，加上目前保存的錄影有幾段、多大。"""
