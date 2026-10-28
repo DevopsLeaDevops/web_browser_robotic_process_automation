@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c2254c0120b9f62c">
+<meta name="translation-source" content="sha256:c3733682c54c99e4">
 <title>Run locally from scratch · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -135,12 +135,12 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
     <section class="panel" id="done">
       <div class="panel-header"><h2>What success looks like</h2></div>
       <div class="panel-body">
-        <p>The last step prints the version and all tests report only <code>passed</code>, followed by "完成" (done) and the commands you can use next. The setup scripts print their messages in Traditional Chinese:</p>
+        <p>The last step prints the version and all tests report only <code>passed</code> (the number of tests and the time vary by version and computer; currently over a thousand, including browser tests in Chromium and Firefox), followed by "完成" (done) and the commands you can use next. The setup scripts print their messages in Traditional Chinese:</p>
 <pre class="source" translate="no">[7/7] 確認能運行
-  ✓ rpa 0.3.0（rpa-core 0.3.0）
+  ✓ rpa 0.6.3（rpa-core 0.6.3）
   $ env RPA_REQUIRE_BROWSER=1 uv run pytest
 …
-============================= 46 passed in 2.91s ==============================
+============================= … passed in …s ==============================
   ✓ 全部測試通過
 
 完成！本機環境已經可以運行。

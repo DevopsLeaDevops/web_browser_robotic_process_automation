@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:37194677be47ad46">
+<meta name="translation-source" content="sha256:7ff2ca6f3e76a70e">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -84,19 +84,22 @@ uv run rpa --version</pre>
       <div class="panel-body">
         <p>Download <code>RPA-Server-VERSION-linux-x64.tar.gz</code> (<code>linux-arm64</code> for aarch64), extract it and run the <code>install.sh</code> inside. The package carries Python 3.13 and every package installed from <code>uv.lock</code>: the server needs no git clone, no uv and no access to GitHub or PyPI. Download one file on a machine with internet access, copy it to the server and install. Supported systems are the same as for <a href="#linux-server">installing from source</a>: RHEL/CentOS derivatives, x86_64 or aarch64, glibc 2.28 or later.</p>
 <pre class="source"># Use the version in the file you downloaded
-tar -xzf RPA-Server-0.4.1-linux-x64.tar.gz
-bash RPA-Server-0.4.1-linux-x64/install.sh --install-service
+tar -xzf RPA-Server-0.6.3-linux-x64.tar.gz
+bash RPA-Server-0.6.3-linux-x64/install.sh --install-service
 sudo systemctl status rpa-server
 
 # Without systemd (for example in a container): run in the foreground
 ~/rpa-server/bin/rpa-server
 
-# Upgrade: extract the new package and run it again; a running service is restarted
-tar -xzf RPA-Server-0.4.2-linux-x64.tar.gz
-bash RPA-Server-0.4.2-linux-x64/install.sh</pre>
+# Upgrade (from 0.6.0, while the runtime stays the same): use the ~2 MB update file; see Deployment and operations
+~/rpa-server/bin/rpa update RPA-Update-0.6.4.zip
+
+# Upgrade (when a full package is needed): extract the new package and run it again; a running service is restarted
+tar -xzf RPA-Server-0.6.4-linux-x64.tar.gz
+bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
         <dl class="spec-list">
-          <dt>Download</dt><dd>GitHub Releases carry the x64 and arm64 packages and <code>SHA256SUMS.txt</code> (<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>), starting with the first release after packages were added. Before that, or to try an unreleased build, download the artifact of a "伺服器分發包" (server package) run in GitHub Actions (requires a GitHub sign-in).</dd>
-          <dt>Location</dt><dd><code>~/rpa-server</code> by default (change with <code>--prefix</code> or <code>RPA_SERVER_HOME</code>). Each version lives in <code>releases/VERSION-COMMIT/</code> and <code>current</code> points to the one in use; <code>bin/rpa-server</code> is the launcher (systemd uses it too) and <code>bin/rpa</code> the rpa command. A new version is put in place and its Python checked on this machine before <code>current</code> switches to it; the latest 3 versions are kept (<code>--keep</code>).</dd>
+          <dt>Download</dt><dd>GitHub Releases carry the x64 and arm64 packages and <code>SHA256SUMS.txt</code> (<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>) in every release from v0.5.0; from 0.6.0 there is also a signed update file <code>RPA-Update-VERSION.zip</code> (<a href="operations.html#update-file">Updating the server with an update file</a>). To try an unreleased build, download the artifact of a "伺服器分發包" (server package) run in GitHub Actions (requires a GitHub sign-in).</dd>
+          <dt>Location</dt><dd><code>~/rpa-server</code> by default (change with <code>--prefix</code> or <code>RPA_SERVER_HOME</code>). Each version lives in <code>releases/VERSION-COMMIT/</code> (our code in <code>app/</code>, <code>bin/rpa</code>), Python and third-party packages in <code>runtimes/RUNTIME-ID/</code>, shared by versions with the same runtime ID (<a href="../adr/0018-layered-updates.html">ADR 0018</a>); <code>current</code> points to the one in use; <code>bin/rpa-server</code> is the launcher (systemd uses it too) and <code>bin/rpa</code> the rpa command. A new version is put in place and its Python checked on this machine before <code>current</code> switches to it; the latest 3 versions are kept (<code>--keep</code>).</dd>
           <dt>Settings and data</dt><dd>Settings are in <code>~/rpa-server/rpa-server.env</code>, with the same variables as <code>.rpa-server.env</code> below (<code>RPA_DATA_DIR</code>, <code>RPA_PORT</code>, <code>RPA_WORKER_PORT</code>, <code>RPA_WORKER_HOST</code>, <code>RPA_TESTSITE_HOST</code>). Set them as environment variables on the first install, then edit the file and restart the service. Data defaults to <code>~/.local/share/rpa-server</code>; installing, upgrading and reinstalling never remove it.</dd>
           <dt>Moving from a clone</dt><dd>The first install reuses the settings of <code>setup-linux.sh</code>: first the <code>.rpa-server.env</code> of the clone the systemd service runs, then the default clone location; or name one with <code>--import-env</code>. The data folder stays where it is; nothing is moved. While the existing service still points to the clone, the installer leaves it alone; add <code>--install-service</code> to switch the service to the package and restart it. Afterwards you can keep or delete the clone and its <code>.venv-server</code>.</dd>
           <dt>System packages</dt><dd>Only a missing <code>libstdc++</code> or <code>git</code> is installed (git is only needed for git sync of domain folders), so upgrades rarely need sudo for packages; add <code>--skip-system-packages</code> when an administrator has prepared them. Installing the unit and restarting the service need sudo.</dd>
