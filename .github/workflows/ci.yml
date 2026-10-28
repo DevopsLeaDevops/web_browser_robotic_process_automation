@@ -71,6 +71,7 @@ jobs:
   # - Python 3.13（產品實際使用的版本）：全部不需瀏覽器的測試，加上網站與錄製端（逐步調試的協定）
   #   的瀏覽器測試與冒煙測試，只用 Chromium。手動觸發選 full 時跑全部。
   # - Python 3.12：PR 上只跑不需瀏覽器的測試；推到 main 與手動觸發時跑全部（維持原狀）。
+  #   跑全部時和每晚完整測試一樣在 xvfb-run 底下：有頭模式的瀏覽器測試要有螢幕（2026-10-28）。
   # - 只改文件且上一次推送已通過時（mode＝docs），兩者都只跑不需瀏覽器的測試。
   # - Worker 的瀏覽器測試在下面的 worker-windows；其他組合（Firefox、其他系統）在每晚完整測試。
   test:
@@ -129,8 +130,11 @@ jobs:
         run: |
           args=(-n 4 --dist loadfile --durations=30 --junitxml=pytest-report.xml -o junit_family=xunit1)
           [ -z "$MARKS" ] || args+=(-m "$MARKS")
+          # 全部（有頭模式的錄影測試也在內）時給一個虛擬螢幕，同每晚完整測試；其餘範圍沒有有頭的測試
+          display=()
+          [ -n "$MARKS" ] || display=(xvfb-run -a)
           set +e
-          uv run pytest "${args[@]}"
+          "${display[@]}" uv run pytest "${args[@]}"
           code=$?
           set -e
           uv run python tools/ci_annotations.py junit pytest-report.xml

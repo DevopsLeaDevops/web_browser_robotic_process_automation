@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261028-main-ci-red · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261028-main-ci-red：main 的 CI 紅燈（有頭錄影測試沒有螢幕、驗證通過後馬上發布的空檔）</h1><p>v0.7.0 發布前修掉 main 推送時「測試（Python 3.12）」的兩個失敗原因：一個是 CI 的環境，一個是產品的競態，使用者在畫面上也會遇到。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261028-main-ci-red；2026-10-28 01:20 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-28 01:09 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話回覆「按照你的建議開始做吧」：Claude 00:48 之後建議發 v0.7.0，並問是否一起修掉 main 的 CI 紅燈。驗收：本 PR 的 CI 通過；合併後 main 推送的「測試（Python 3.12）」不再因下面兩個原因失敗；驗證通過後馬上打開運行頁就有「發布」，按了發布得了。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：(1) <code>.github/workflows/ci.yml</code> 跑全部測試時用 <code>xvfb-run</code>（同每晚完整測試）；(2) 驗證結果已提交、驗證紀錄還沒寫的空檔：運行頁與發布前先補寫紀錄；回歸測試；CI 文件（三語）。不包含：v0.7.0 的版本號與發布（任務 <code>20261028-release-0-7-0</code>）；每晚測試的其他偶發問題（例如 Windows 的 <code>ERR_NO_BUFFER_SPACE</code>、回看切換分頁）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>.github/workflows/ci.yml</code>、<code>apps/server/src/rpa_server/packs.py</code>（<code>settle_verification</code>、<code>_write_verification</code>）、<code>services.py</code>（<code>settle_validations</code>，發布前呼叫）、<code>pages.py</code>（運行頁）、新測試 <code>apps/server/tests/test_validation_publish.py</code>、<code>docs/develop/ci.html</code> 與英文版（簡中由 bootstrap 產生）、本紀錄、任務索引、<a href="20261026-scheduled-update-tests.html">20261026-scheduled-update-tests</a> 的追加紀錄（第三個原因已由本任務修正）。Claude 整合。和 v0.7.0 的版本號 PR 不共用程式檔，兩邊都改任務索引（各加一行）。</dd>
+        <dt>狀態</dt><dd>待審閱：本地檢查通過，PR 的 CI 見 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/main-ci-red</code>，從 main <code>a26b929</code>（PR #97 合併後）開；PR 見任務索引與 PR 列表。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.17；依賴從 GitHub 取得（PyPI 不通），Playwright 1.63（Chromium 1243，錄不出影片）。ruff 0.16.9（鎖定 0.17.1，以 CI 為準）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>有頭錄影測試沒有螢幕（環境，v0.6.3 之前就有）。</strong>main 推送時 Python 3.12 跑全部測試，<code>packages/rpa_runner/tests/test_video_browser.py::test_chromium_keeps_popup_and_return_to_main[headed-*]</code> 用有頭的 Chromium，CI 沒有 <code>xvfb-run</code>：「Missing X server or $DISPLAY」。<code>84b4611</code>（v0.6.3 之前）、<code>56936f6</code>、<code>56953fc</code>、<code>a26b929</code> 都是這兩項。每晚完整測試在 Linux 用 <code>xvfb-run -a</code>，所以通過。</li>
+        <li><strong>驗證通過後馬上發布（產品的競態）。</strong><code>RunQueue.complete</code>（<code>jobs.py</code>）先提交「通過」，之後才由 <code>on_finished</code> → <code>run_finished</code> → <code>packs.record_run</code> 把驗證紀錄寫進領域資料夾並標記版本 <code>verified</code>。這段空檔裡打開運行頁看不到「發布」（<code>can_publish</code> 看 <code>verified</code>），執行結束後頁面不再自動重新整理，所以一直看不到；直接呼叫發布則回 409 <code>not_validated</code>。<code>a26b929</code> 的 <code>test_portal.py::test_create_validate_publish_run_report[None-chromium]</code> 等不到發布按鈕而逾時；每晚測試 10-27 的 macOS（Firefox）同一項、10-23、10-25 Windows 的 <code>test_playground_chains_published_scenarios</code> 與 <code>test_remote_worker_runs_validation_and_playground</code> 回 409（分析見 20261026-scheduled-update-tests 的「第三個原因」）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>(1) <code>ci.yml</code>：跑全部測試（Python 3.12 推到 main、手動觸發選 full）時用 <code>xvfb-run -a</code>，其餘範圍沒有有頭的測試，照舊。(2) <code>PackStore.settle_verification(run_id)</code>：驗證執行已結束、驗證紀錄檔還不存在時，在 <code>packs.lock</code> 底下補寫（同 <code>record_run</code> 的寫法，抽成 <code>_write_verification</code>）；<code>Services.settle_validations(場景, 版本)</code> 對這個版本「通過、雜湊相同、還沒有紀錄」的驗證執行補寫，版本已經 <code>verified</code> 時不做事。發布前與運行頁（通過的驗證）先呼叫它。之後 <code>on_finished</code> 照常再寫一次，內容相同、同一個檔案。(3) 回歸測試 <code>test_validation_publish.py</code>：用不做事的 <code>on_finished</code> 撐開空檔，確認發布 API 通過、運行頁有「發布」、驗證紀錄只有一份；失敗的驗證補寫後仍然不能發布。修正前三項都失敗（前兩項正是空檔的現象）。</li>
+        <li><strong>未完成／阻礙：</strong>CI；審閱與合併。</li>
+        <li><strong>決定：</strong>使用者 2026-10-28 01:09 同意照建議一起修（實作選擇：在讀的那一刻補寫紀錄，不改 <code>RunQueue.complete</code> 的提交順序，影響面較小；<code>xvfb-run</code> 只用在跑全部的那一次，和每晚完整測試相同）。</li>
+        <li><strong>下一個具體動作：</strong>看本 PR 的 CI；請使用者先合併本 PR，再合併 v0.7.0 的版本號 PR、推標籤。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td><code>a26b929</code>＋本分支；雲端容器</td><td><code>ruff check apps/server tests</code>、<code>ruff format --check</code>、<code>pyright apps/server</code></td><td>通過</td><td>ruff 0.17.1 以 CI 為準</td></tr>
+          <tr><td>同上</td><td><code>pytest apps/server/tests/test_validation_publish.py</code>；暫時拿掉修正再跑一次</td><td>3 通過；拿掉修正時 3 項都失敗（發布 409、運行頁沒有發布按鈕）</td><td>—</td></tr>
+          <tr><td>同上</td><td><code>pytest apps/server/tests -m "not browser"</code></td><td>351 通過、1 略過（沒有 ssh-keygen）</td><td>瀏覽器測試看 CI</td></tr>
+          <tr><td>同上；容器的 Chromium 1243</td><td><code>pytest apps/server/tests/test_portal.py -k "create_validate_publish and chromium"</code>；<code>pytest tests/docs tests/ci</code></td><td>1 通過；560 通過</td><td>Firefox；<code>xvfb-run</code> 的那一次要合併到 main 後看</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR 最新 head；main 推送的 Python 3.12（跑全部、<code>xvfb-run</code>）要合併後才看得到。人工驗收：v0.7.0 的驗收教程裡「驗證通過後馬上發布」也算在內。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-28 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：從 main <code>a26b929</code> 開 <code>fix/main-ci-red</code>，找出兩個原因（見上）並修正、加回歸測試、更新 CI 文件；本地檢查通過。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -1512,10 +1512,34 @@ class Services:
             raise _invalid("display_unavailable", t("error.display_unavailable"))
         return headless
 
+    def settle_validations(self, scene_id: str, number: int) -> None:
+        """這個版本已經通過、驗證紀錄還沒寫的驗證執行，先補寫紀錄（:meth:`PackStore.settle_verification`）。
+
+        執行的結果先提交、紀錄隨後才寫；這段空檔裡打開運行頁或按發布，不會看到「通過了卻不能
+        發布」。版本已經有通過的驗證紀錄時不做事。
+        """
+        with self.sessions() as session:
+            revision = self._revision(session, scene_id, number)
+            if revision.verified:
+                return
+            runs = session.scalars(
+                select(Run.id)
+                .where(
+                    Run.revision_id == revision.id,
+                    Run.purpose == "validation",
+                    Run.status == "passed",
+                    Run.scenario_hash == revision.content_hash,
+                )
+                .order_by(Run.finished_at.desc())
+            ).all()
+        for run_id in runs:
+            self.packs.settle_verification(run_id)
+
     def publish(self, scene_id: str, number: int) -> SceneRecord:
         """發布版本（M11 的門檻，第 8 節）：磁碟上的內容雜湊 ＝ 版本說明檔的雜湊 ＝ 領域資料夾裡
         某一份通過的驗證紀錄的雜湊，不管是哪一台伺服器驗證的。寫進 scene.yaml 的 published。
         """
+        self.settle_validations(scene_id, number)
         with self.packs.lock, self.sessions() as session:
             scene = self._scene(session, scene_id)
             revision = self._revision(session, scene_id, number)
