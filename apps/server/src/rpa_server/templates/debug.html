@@ -77,7 +77,9 @@
           <td><span class="tag mono">{{ step.id }}</span> <code>{{ step.action }}</code>{% if step.side_effect %} <span class="chip" title="{{ t('debug.side_effect_title') }}">{{ t("debug.side_effect") }}</span>{% endif %}
             {% if step.name %}<span class="cell-sub">{{ step.name }}</span>{% endif %}
             {% if step.target %}<span class="cell-sub mono">{{ step.target }}</span>{% endif %}
-            {% if step.error %}<span class="cell-sub text-danger">{{ step.error }}</span>{% endif %}</td>
+            {% if step.error %}<span class="cell-sub text-danger">{{ step.error }}</span>{% endif %}
+            {% if step.files is defined and step.files %}<span class="cell-sub">{{ t("debug.files", names=step.files | join(t("js.list_separator"))) }}</span>{% endif %}
+            {% if step.notes is defined %}{% for note in step.notes %}<span class="cell-sub step-note">{{ note }}</span>{% endfor %}{% endif %}</td>
           <td>{% if step.status == "pending" %}{{ m.badge("none", t("debug.pending")) }}{% else %}{{ m.run_badge(step.status) }}{% endif %}{% if step.runs > 1 %}<span class="cell-sub">{{ t("debug.runs", count=step.runs) }}</span>{% endif %}</td>
           <td class="nowrap">
             <button class="text-btn" data-action="debug-step" data-index="{{ step.index }}" data-ran="{{ 'true' if step.runs and step.side_effect else 'false' }}"{% if session.status != "ready" %} disabled{% endif %}>{{ t("debug.run_step") }}</button>

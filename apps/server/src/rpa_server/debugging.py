@@ -84,6 +84,10 @@ class StepState:
     runs: int = 0
     error: str | None = None
     duration_ms: int = 0
+    files: list[str] = field(default_factory=list[str])
+    """upload 交給網頁的檔名（M7c）。"""
+    notes: list[str] = field(default_factory=list[str])
+    """提醒，例如攔下的選擇檔案視窗（M7c）。"""
 
     @property
     def side_effect(self) -> bool:
@@ -101,13 +105,23 @@ class StepState:
             "error": self.error,
             "durationMs": self.duration_ms,
             "sideEffect": self.side_effect,
+            "files": self.files,
+            "notes": self.notes,
         }
 
 
 def _steps(scenario: Scenario) -> list[StepState]:
     states: list[StepState] = []
     for index, step in enumerate(scenario.steps or []):
-        target = getattr(step, "target", None)
+        # upload 可以用 trigger（點了才開視窗的元素）或 dropzone（拖放區）定位（M7c）
+        target = next(
+            (
+                found
+                for key in ("target", "trigger", "dropzone")
+                if (found := getattr(step, key, None)) is not None
+            ),
+            None,
+        )
         text = (
             flow(target.model_dump(mode="json", by_alias=True, exclude_none=True))
             if target
@@ -490,6 +504,8 @@ class DebugManager:
         state.status = "passed" if record.get("status") == "passed" else "failed"
         state.error = cast("str | None", record.get("error"))
         state.duration_ms = int(cast("int", record.get("durationMs") or 0))
+        state.files = [str(item) for item in cast("list[object]", record.get("files") or [])]
+        state.notes = [str(item) for item in cast("list[object]", record.get("notes") or [])]
         session.next_index = index + 1
         return state.status == "passed"
 

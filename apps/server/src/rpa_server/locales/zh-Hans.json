@@ -1716,5 +1716,6 @@
   "wfjs.file_choose": "选择文件",
   "wfjs.file_choose_multiple": "选择文件（可多选）",
   "wfjs.file_uploaded": "已上传 {{count}} 个文件，保存后生效",
-  "agents.scope_files_write": "上传文件入参要用的文件（场景附件属于 scenes:write）"
+  "agents.scope_files_write": "上传文件入参要用的文件（场景附件属于 scenes:write）",
+  "debug.files": "上传：{names}"
 }

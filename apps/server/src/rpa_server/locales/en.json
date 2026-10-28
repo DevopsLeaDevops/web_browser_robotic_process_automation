@@ -1716,5 +1716,6 @@
   "wfjs.file_choose": "Choose a file",
   "wfjs.file_choose_multiple": "Choose files",
   "wfjs.file_uploaded": "Uploaded {{count}} file(s); save to keep them",
-  "agents.scope_files_write": "Upload files for file inputs (scene attachments belong to scenes:write)"
+  "agents.scope_files_write": "Upload files for file inputs (scene attachments belong to scenes:write)",
+  "debug.files": "Uploaded: {names}"
 }
