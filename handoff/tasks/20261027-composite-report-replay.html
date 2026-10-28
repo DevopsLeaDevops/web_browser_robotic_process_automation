@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261027-composite-report-replay · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261027-composite-report-replay：組合運行的匯總報告與合併回看</h1><p>以「一次組合運行」的視角看報告與錄像：一份匯總報告，不必逐一打開各節點的報告；一個播放器從頭看完整次運行，不必逐一打開各節點的錄影。分兩個 PR：匯總報告、合併回看。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261027-composite-report-replay；2026-10-27 07:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於 2026-10-27 06:56 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話：「組合場景」支持組合報告、合併的回看。(1) 一個組合場景的一次運行有一份匯總的報告，不用每個場景點開去看；(2) 一次運行有一份匯總的錄像，不用每個錄像點開去看。目標是按照一次組合運行的視角查看報告和錄像；先設計、討論沒問題後開始寫程式。Claude 提出設計（D1～D6，見決定），使用者 07:05 回覆「好的。開始coding吧。」。
+          <br>驗收：(1) 一次 4 個節點、n3 失敗的組合運行，不點進任何節點就看得出停在哪一步、錯誤是什麼、前面傳了什麼值，通過的節點收起；(2) 下載的報告離線打開，內容和頁面一致；(3) 合併回看從頭播放，連續播完所有有錄影的節點，轉場卡看得出資料怎麼傳，點右側某個節點的某一步跳到那個畫面，時間軸看得出節點分段；(4) 節點錄影被刪、需要登入、從停下的節點繼續的運行以卡片說明、不會壞；(5) 沒通過的組合運行，前面通過的節點錄影跟著整次運行保留；(6) 三種語言、手機寬度。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：伺服器的組合運行報告（頁面、離線 HTML、Portal API、Agent API）、運行報告頁的「組合運行」檢視、各處入口連結；合併回看（時間軸組裝、回看頁、播放器的節點色帶與卡片、整組錄影保留與釘選、全部錄影 zip）；三語訊息、管理 Portal 設計頁（三語）、ADR 0019、本卡與任務索引、決定紀錄。
+          <br>不包含：Runner、Worker、錄影方式、桌面 App（都不改）；產生真正合併的影片檔（D1 不做）；平行節點的多軌回看（目前不會發生）；執行紀錄歸檔與跨伺服器回看（M11 D4）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）主責；審閱與合併：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd>PR 1（匯總報告）：<code>apps/server/src/rpa_server/composite_report.py</code>（新）、<code>replay.py</code>（<code>step_targets</code>：報告共用步驟的定位器）、<code>services.py</code>、<code>workflows.py</code>（定義快照、組合運行清單的篩選）、<code>domain.py</code>（組合運行的耗時）、<code>pages.py</code>、<code>api.py</code>、<code>agent_projects.py</code>、<code>render.py</code>（<code>duration</code> 篩選器、組合運行的篩選選單）、樣板 <code>workflow_run.html</code>、<code>_composite_report.html</code>（新，頁面與離線報告共用）、<code>composite_report_file.html</code>（新）、<code>runs.html</code>、<code>_macros.html</code>、<code>static/portal.js</code>、<code>static/portal-app.css</code>、伺服器訊息目錄；測試 <code>apps/server/tests/test_composite_report.py</code>（新）、<code>test_render.py</code>、<code>test_portal.py</code>；文檔 <code>docs/design/portal.html</code>、<code>docs/design/agent-api.html</code>、<code>docs/develop/agent-api-guide.html</code> 與英文版（簡中由 bootstrap 產生）。
+          <br>PR 2（合併回看）：<code>composite_replay.py</code>（新）、<code>videos.py</code>、<code>pages.py</code>、<code>api.py</code>、樣板 <code>composite_replay.html</code>（新）、<code>replay.html</code>、<code>static/replay-media.js</code>、<code>static/replay.js</code>、訊息目錄、ADR 0019（新，三語）、測試。Claude 整合；沒有資料庫遷移、沒有新的第三方套件。</dd>
+        <dt>狀態</dt><dd>PR 1 待審閱（實作、測試、文件完成，本地檢查通過，CI 見 PR）；PR 2 實作中。</dd>
+        <dt>分支／PR／base SHA</dt><dd>PR 1：<code>feat/composite-report</code>，從 main <code>30f2290</code>（#95 合併後）；PR 見 GitHub（對 main）。PR 2：<code>feat/composite-replay</code>，堆疊在 PR 1 上（PR 1 合併後改 base 為 main）；實作中。</dd>
+        <dt>交接版本／同步狀態</dt><dd>PR 1 已推送：實作 <code>26ec76b</code>、bootstrap 簡中 <code>f3af693</code>，之後的 head 以 PR 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.17、uv 0.11.32。PyPI 無法連線：依 uv.lock 的版本從 GitHub 取得純 Python 依賴（fastapi 0.148.0、starlette 1.9.0、sqlalchemy 2.1.5、alembic 1.20.0、mako 1.4.3、annotated-doc 0.0.5），用 <code>--system-site-packages</code> 的 venv 執行；系統的 Playwright 是 1.63（Chromium 1243，錄影產不出來），錄影相關的瀏覽器測試看 CI。本機的 ruff 是 0.16.9（鎖定 0.17.1，以 CI 為準）。</dd>
+      </dl></div>
+    </section>
+
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>設計摘要</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>現況</strong>：一次組合運行是 <code>workflow_runs</code> 一筆，每個節點是一筆 <code>runs</code>，各有執行目錄、report.html 與錄影。節點依 DAG 的拓撲順序一個一個執行，整次固定在同一台 worker，所以時間上是一條線。組合運行頁只列節點與三個連結，原因、步驟、斷言、錄影都要逐一打開。</li>
+        <li><strong>匯總報告</strong>（組合運行頁 <code>/playground/runs/{id}</code> 升級，網址不變）：結論（停在哪個節點的哪一步、錯誤、截圖，或全部通過）→ 數字列（節點、步驟、斷言的通過／總數，總耗時、實際執行時間）→ 摘要 → 流程與時間（依狀態上色的 DAG、甘特時間軸）→ 節點明細（入參的值與來源、出參的值與流向、階段、步驟、斷言、截圖、檔案；沒通過的預設展開）。「下載報告」是單一 HTML，可以離線打開。</li>
+        <li><strong>合併回看</strong>（<code>/playground/runs/{id}/replay</code>）：播放器把各節點影片依序接在同一條時間軸上播，不產生新檔案；節點之間的空檔（排隊、開瀏覽器、登入檢查、斷言，都沒有畫面）壓成 2 秒轉場卡，顯示上一個節點的出參與下一個節點的入參、實際間隔；沒有錄影或沒有執行的節點用卡片說明。時間軸多一條節點色帶，步驟清單依節點分組。</li>
+        <li><strong>入口</strong>：專案頁與試驗場的最近執行、運行報告頁的「組合運行」檢視、節點的運行詳情與單一回看頁、Agent API 的 <code>reportPath</code>／<code>replayPath</code> 與報告 JSON。</li>
+        <li>只改伺服器：不加第三方套件、不需要資料庫遷移，發版時可以只發熱更新檔（ADR 0018）。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>設計（Claude 專案 <code>claude/composite-report-replay-proposal.md</code>，摘要見上一節）；使用者確認。PR 1 匯總報告：組合運行頁改成匯總報告（結論、數字、DAG 與時間軸、節點明細）、下載單一 HTML、<code>GET /api/workflow-runs/{id}/report</code> 與 Agent API 的 <code>/composite-runs/{id}/report</code>（組合運行的 JSON 多 <code>reportUrl</code>）、運行報告頁的「場景運行｜組合運行」切換、節點的 report.html 連回組合運行；三語訊息與設計文件。實作時決定不改 Runner：離線報告的樣式放在伺服器的樣板裡（和 Runner 的 report.html 同一組顏色），Worker 與錄製端的程式指紋不受影響。</li>
+        <li><strong>未完成／阻礙：</strong>PR 1 的 CI 與審閱；PR 2（合併回看）；人工驗收。</li>
+        <li><strong>決定（使用者 2026-10-27 07:05 America/Los_Angeles（PDT，UTC−07:00）回覆「好的。開始coding吧。」，照 Claude 推薦的選項，已確認）：</strong>
+          D1 合併錄像：播放器把各節點影片接起來播，不產生新檔案，下載是 zip；
+          D2 節點之間的空檔：壓成 2 秒轉場卡，顯示資料流與實際間隔；
+          D3 從停下的節點繼續時沿用的節點：報告照常列出並標「沿用」，回看只放一張卡片並連到原本那次的回看；
+          D4 離線報告的截圖：只嵌入沒通過的節點的截圖；
+          D5 運行報告頁：加「場景運行｜組合運行」切換，場景運行檢視照舊列出節點並標出屬於哪次組合運行；
+          D6 錄影保留：組合裡的節點跟著組合運行的結果算保留天數，釘選與超量刪除整組處理。
+          實作選擇（使用者可以改）：報告與離線 HTML 在看的時候用看的人的語言產生，不另存檔；轉場卡 2 秒、缺片卡 3 秒。</li>
+        <li><strong>下一個具體動作：</strong>看 PR 1 最新 head 的 CI；PR 2 從 <code>f3af693</code> 開 <code>feat/composite-replay</code>，做 <code>composite_replay.py</code> 與播放器。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無（PR 1 都已推送）；測試用的依賴在容器的 <code>/home/claude/deps</code>，本機預覽用的資料在會話暫存區，都不進倉庫。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>PR 1 實作 <code>26ec76b</code>；雲端容器（見工作區）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>（本機 0.16.9）；<code>pyright</code>（strict）</td><td>通過；pyright 只剩本機沒有 keyring、webview、pystray 的桌面端錯誤與警告（既有、環境造成）</td><td>ruff 0.17.1 以 CI 為準</td></tr>
+          <tr><td>同上</td><td><code>pytest apps/server/tests apps/worker apps/cli/tests packages -m "not browser"</code></td><td>1154 通過、3 略過；1 失敗：<code>packages/rpa_update/tests/test_runtime.py::test_installed_distributions_skip_workspace_and_pip</code>（本機 venv 沒有安裝的套件清單，環境造成；本 PR 沒改 rpa_update）</td><td>以 CI 為準</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/docs tests/i18n/test_catalogs.py tests/i18n/test_tool.py</code></td><td>簡中頁的錨點與繁中不同 1 項（簡中由 bootstrap 產生）；bootstrap <code>f3af693</code> 產生後以 CI 為準</td><td>OpenCC 本機沒有</td></tr>
+          <tr><td>同上；容器的 Chromium 1243（Playwright 1.63）</td><td><code>pytest apps/server/tests/test_portal.py -k playground_chains</code></td><td>Chromium 通過；Firefox 沒裝，略過</td><td>Firefox 交給 CI</td></tr>
+          <tr><td>同上</td><td>本機起 Portal（假的執行器）造一次 n2 失敗、一次從 n2 繼續的組合運行，Chromium 截圖 1440 與 390 寬，打開下載的報告</td><td>結論、數字、DAG、時間軸、節點明細、離線報告都正確；沒有頁面錯誤（截圖在會話暫存區）</td><td>真實執行器與真實截圖、三種語言的人工檢查</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-27 07:05 America/Los_Angeles（PDT，UTC−07:00），使用者：確認設計，開始寫程式。</li>
+        <li>2026-10-27 約 07:10 America/Los_Angeles（PDT，UTC−07:00），Claude：開工，從 main <code>30f2290</code> 開 <code>feat/composite-report</code>；GitHub 上沒有開著的 PR。</li>
+        <li>2026-10-27 07:45 America/Los_Angeles（PDT，UTC−07:00），Claude：PR 1 實作完成（<code>26ec76b</code>），推送後 bootstrap 產生簡中（<code>f3af693</code>）；開 PR，看 CI。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

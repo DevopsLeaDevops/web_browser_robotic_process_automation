@@ -560,9 +560,13 @@ def test_playground_chains_published_scenarios(
     page.wait_for_selector('#workflow-run:not([data-status="running"])', timeout=RUN_TIMEOUT_MS * 2)
     root = page.locator("#workflow-run")
     expect(root).to_have_attribute("data-status", "passed")
-    expect(page.locator('tr[data-node="n1"]')).to_contain_text("畫面串接")
-    expect(page.locator('tr[data-node="n2"]')).to_contain_text("畫面串接")
-    expect(page.locator('tr[data-node="n2"] [data-status="passed"]')).to_be_visible()
+    # 匯總報告（2026-10-27）：通過的節點收起，點標題展開看入參與出參
+    expect(page.locator("#creport-verdict-title")).to_contain_text("全部通過")
+    n2 = page.locator('details[data-node="n2"]')
+    expect(n2.locator('summary [data-status="passed"]')).to_be_visible()
+    n2.locator("summary").click()
+    expect(n2).to_contain_text("畫面串接")
+    expect(page.locator('details[data-node="n1"]')).to_contain_text("畫面串接")
 
     previous_run = root.get_attribute("data-run")
     # 專案頁的組合場景卡片與最近一次執行
@@ -586,7 +590,7 @@ def test_playground_chains_published_scenarios(
     page.wait_for_url(re.compile(r"/playground/runs/"))
     page.wait_for_selector('#workflow-run:not([data-status="running"])', timeout=RUN_TIMEOUT_MS * 2)
     expect(page.locator("#workflow-run")).to_have_attribute("data-status", "passed")
-    expect(page.locator('tr[data-node="n2"]')).to_contain_text("畫面串接")
+    expect(page.locator('details[data-node="n2"]')).to_contain_text("畫面串接")
     assert page.locator("#workflow-run").get_attribute("data-run") != previous_run
     page.goto(f"{portal}/playground/{workflow_id}")
     first.click()

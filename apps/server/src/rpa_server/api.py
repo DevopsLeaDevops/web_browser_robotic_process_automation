@@ -36,6 +36,7 @@ from pydantic.alias_generators import to_camel
 from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
+from rpa_server.composite_report import report_json
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError
 from rpa_server.gitsync import Auth, GitSource
@@ -1277,6 +1278,11 @@ def api_router(services: Services) -> APIRouter:
     @router.get("/workflow-runs/{run_id}")
     def get_workflow_run(run_id: str) -> dict[str, object]:
         return workflows.get_run(run_id).to_json()
+
+    @router.get("/workflow-runs/{run_id}/report")
+    def get_workflow_run_report(run_id: str) -> dict[str, object]:
+        """組合運行的匯總報告（2026-10-27）：結論、數字、時間軸、每個節點的入參出參、步驟與斷言。"""
+        return report_json(services.composite_report(run_id))
 
     @router.post("/workflow-runs/{run_id}/cancel", status_code=202)
     def cancel_workflow_run(run_id: str) -> dict[str, object]:

@@ -37,7 +37,7 @@ from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Final, Literal, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -64,6 +64,7 @@ from rpa_core.workflow import (
 from rpa_runner.run import new_run_id
 from rpa_server.domain import (
     FINISHED,
+    LOCAL_WORKER,
     CompositeRevisionRecord,
     DependencyItem,
     DependencyStatus,
@@ -1406,6 +1407,13 @@ class WorkflowService:
         with self.sessions() as session:
             return self._run_record(session, self._run_row(session, run_id))
 
+    def get_run_with_definition(self, run_id: str) -> tuple[WorkflowRunRecord, Workflow | None]:
+        """組合運行與它開始時的定義快照（匯總報告畫 DAG、找出參的流向用）。"""
+        with self.sessions() as session:
+            row = self._run_row(session, run_id)
+            workflow, _ = parse_workflow(row.definition)
+            return self._run_record(session, row), workflow
+
     def list_runs(
         self,
         *,
@@ -1416,10 +1424,13 @@ class WorkflowService:
         statuses: Collection[str] = (),
         purposes: Collection[str] = (),
         client_id: str | None = None,
+        workflow_ids: Collection[int] = (),
+        workers: Collection[str] = (),
     ) -> list[WorkflowRunRecord]:
         """組合場景的執行，新的在前；可以只列一個組合場景或一個專案（現在屬於它的組合場景）的。
 
-        對外 API（M14）另外可以限定幾個專案（projects）、狀態、目的與觸發的用戶端。
+        對外 API（M14）另外可以限定幾個專案（projects）、狀態、目的與觸發的用戶端；運行報告的
+        「組合運行」檢視（2026-10-27）可以限定幾個組合場景與執行位置（本機或 worker 代號）。
         """
         statement = (
             select(WorkflowRunRow)
@@ -1440,6 +1451,17 @@ class WorkflowService:
             statement = statement.where(WorkflowRunRow.purpose.in_(list(purposes)))
         if client_id is not None:
             statement = statement.where(WorkflowRunRow.client_id == client_id)
+        if workflow_ids:
+            statement = statement.where(WorkflowRunRow.workflow_id.in_(list(workflow_ids)))
+        if workers:
+            # 第一個節點領取後才知道是哪台；還沒領取的本機執行算「本機」
+            chosen = list(workers)
+            conditions: list[ColumnElement[bool]] = [WorkflowRunRow.worker_id.in_(chosen)]
+            if LOCAL_WORKER in chosen:
+                conditions.append(
+                    and_(WorkflowRunRow.worker_id.is_(None), WorkflowRunRow.target == "local")
+                )
+            statement = statement.where(or_(*conditions))
         with self.sessions() as session:
             return [self._run_record(session, row) for row in session.scalars(statement)]
 

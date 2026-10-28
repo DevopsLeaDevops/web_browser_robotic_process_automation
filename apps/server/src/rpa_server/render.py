@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final, cast
+from typing import Final, cast, get_args
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 from markupsafe import Markup, escape
@@ -24,7 +24,14 @@ from rpa_core.workflow import Workflow
 from rpa_server import __version__
 from rpa_server.config import COMPOSITES_DOMAIN, RECORDER_MENUS
 from rpa_server.context import via_recorder
-from rpa_server.domain import PURPOSES, RUN_STATUSES, DomainRecord, ProjectRecord, SceneRecord
+from rpa_server.domain import (
+    PURPOSES,
+    RUN_STATUSES,
+    DomainRecord,
+    ProjectRecord,
+    SceneRecord,
+    WorkflowRunStatus,
+)
 from rpa_server.i18n import page_t, t
 
 __all__ = [
@@ -35,6 +42,7 @@ __all__ = [
     "NavPage",
     "SideItem",
     "badge_color",
+    "composite_run_filters",
     "domain_page",
     "js_messages",
     "menu_shown",
@@ -226,6 +234,64 @@ def run_filters(
     return menus
 
 
+def composite_run_filters(
+    *,
+    projects: Sequence[ProjectRecord],
+    composites: Sequence[tuple[int, str]],
+    selected: Mapping[str, Sequence[str]],
+    locations: Sequence[tuple[str, str]] = (),
+) -> list[FilterMenu]:
+    """運行報告「組合運行」檢視的篩選（2026-10-27）：專案、組合場景、結果、目的、執行位置。
+
+    ``composites`` 是（組合場景的編號, 顯示名稱）；有遠端 worker 時才有執行位置。
+    """
+
+    def chosen(name: str) -> tuple[str, ...]:
+        return tuple(selected.get(name, ()))
+
+    menus = [
+        FilterMenu(
+            "project",
+            t("runs.filter_project"),
+            tuple((project.id, project.name) for project in projects),
+            chosen("project"),
+        ),
+        FilterMenu(
+            "composite",
+            t("runs.filter_composite"),
+            tuple((str(key), name) for key, name in composites),
+            chosen("composite"),
+            searchable=len(composites) > 8,
+        ),
+        FilterMenu(
+            "status",
+            t("runs.filter_status"),
+            tuple((status, t(f"status.{status}")) for status in get_args(WorkflowRunStatus)),
+            chosen("status"),
+        ),
+        FilterMenu(
+            "purpose",
+            t("runs.filter_purpose"),
+            tuple(
+                (purpose, t(f"workflow_run.purpose_{purpose}"))
+                for purpose in ("validation", "execution")
+            ),
+            chosen("purpose"),
+        ),
+    ]
+    if locations:
+        menus.append(
+            FilterMenu(
+                "worker",
+                t("runs.filter_worker"),
+                tuple(locations),
+                chosen("worker"),
+                searchable=len(locations) > 8,
+            )
+        )
+    return menus
+
+
 def badge_color(status: str) -> str:
     """狀態標籤的顏色；其他狀態（例如略過）是灰色。"""
     return _BADGES.get(status, "")
@@ -293,6 +359,19 @@ def _display_time(value: datetime | None) -> str:
 def _number(value: float) -> str:
     """整數值的 float 不顯示小數點（30.0 → 30）。"""
     return str(int(value)) if value.is_integer() else str(value)
+
+
+def _duration(value: float | None) -> str:
+    """耗時：一分鐘以內是「12.3 s」，以上是「1 分 52 秒」（依介面語言）；沒有值時是「—」。"""
+    if value is None:
+        return "—"
+    if value < 60:
+        return f"{value:.1f} s"
+    minutes, seconds = divmod(round(value), 60)
+    if minutes < 60:
+        return page_t("time.minutes_seconds", minutes=minutes, seconds=seconds)
+    hours, minutes = divmod(minutes, 60)
+    return page_t("time.hours_minutes", hours=hours, minutes=minutes)
 
 
 def _compact_json(value: object) -> str:
@@ -595,6 +674,7 @@ cast("dict[str, object]", _env.globals).update(
 _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number
 _env.filters["compact_json"] = _compact_json
+_env.filters["duration"] = _duration
 _env.filters["expression"] = _expression
 
 

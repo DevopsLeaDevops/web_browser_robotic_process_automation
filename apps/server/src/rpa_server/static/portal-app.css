@@ -428,3 +428,75 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .script-save{align-items:center}
 .script-save>label.field{flex:1 1 320px}
 .script-save #script-state{font-size:12px}
+/* 組合運行的匯總報告（2026-10-27）：結論、數字、DAG 與甘特時間軸、可展開的節點明細 */
+.creport-verdict[data-verdict="passed"]{border-color:#cfe8db}
+.creport-verdict[data-verdict="failed"],.creport-verdict[data-verdict="timed_out"]{border-color:#f2cfcd}
+.creport-verdict[data-verdict="cancelled"],.creport-verdict[data-verdict="needs_login"]{border-color:#f0dfb9}
+.creport-verdict-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.creport-verdict-head h2{font-size:15px;line-height:1.5}
+.creport-failure{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:16px;margin-top:12px;align-items:start}
+.creport-failure .actions{margin-top:12px}
+.creport-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 14px;margin:0;font-size:12px}
+.creport-facts dt{color:var(--muted);white-space:nowrap}
+.creport-facts dd{margin:0;min-width:0}
+.creport-error{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff0ef;color:var(--danger);border:1px solid #f2cfcd;padding:7px 10px;border-radius:6px;margin:0;font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}
+.creport-node-body>.creport-error{margin:0 0 10px}
+.creport-check{display:block}
+.creport-target{color:#315b89;overflow-wrap:anywhere}
+.creport-note{margin:10px 0 0;font-size:12px;color:var(--muted)}
+.creport-shot{margin:0}
+.creport-shot img{display:block;width:100%;max-height:300px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:6px;background:#fff}
+.creport-shot.wide{max-width:560px;margin-top:12px}
+.creport-shot.wide img{max-height:420px}
+.creport-shot figcaption{font-size:11px;margin-top:4px}
+.creport-numbers{border-top:0;border-bottom:1px solid var(--line)}
+.creport-flow{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px;padding:12px;align-items:start}
+.creport-dag{height:170px;border:1px solid var(--line);border-radius:6px}
+.creport-dag a{cursor:pointer}
+.creport-dag-node.green rect{fill:#e7f6ef;stroke:#4fae86}
+.creport-dag-node.red rect{fill:#fff0ef;stroke:#d9645c}
+.creport-dag-node.amber rect{fill:#fff7e8;stroke:#d6a23f}
+.creport-dag-node.blue rect{fill:#edf5ff;stroke:#5a9be0}
+.creport-dag-node[data-status="skipped"] rect,.creport-dag-node[data-status="pending"] rect{fill:#f5f7fa;stroke:#c3ccd8;stroke-dasharray:8 6}
+.creport-dag-node[data-status="skipped"] text{fill:#8a98ab}
+.creport-gantt{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.creport-gantt li{display:grid;grid-template-columns:64px minmax(0,1fr) 92px;gap:10px;align-items:center;font-size:12px}
+.creport-gantt-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.creport-gantt-track{position:relative;height:14px;background:#f1f4f8;border-radius:4px}
+.creport-gantt-track i{position:absolute;top:0;bottom:0;border-radius:4px;background:#b8c4d3}
+.creport-gantt-track i.green{background:#4fae86}
+.creport-gantt-track i.red{background:#d9645c}
+.creport-gantt-track i.amber{background:#d6a23f}
+.creport-gantt-track i.blue{background:#5a9be0}
+.creport-gantt-time{text-align:right;color:var(--muted)}
+.creport-timeline .hint{margin-top:8px}
+details.creport-node{border-top:1px solid var(--line)}
+details.creport-node:first-of-type{border-top:0}
+details.creport-node>summary{cursor:pointer;padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;list-style:none}
+details.creport-node>summary::-webkit-details-marker{display:none}
+details.creport-node>summary:before{content:"▸";color:var(--muted);font-size:11px;width:10px;transition:transform .15s}
+details.creport-node[open]>summary:before{transform:rotate(90deg)}
+details.creport-node>summary:hover{background:#fafcff}
+details.creport-node[data-status="failed"]>summary,details.creport-node[data-status="timed_out"]>summary{background:#fff8f7}
+details.creport-node.anchor-hit{animation:anchor-hit 1.6s ease-out}
+.creport-index{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#eef2f7;color:var(--muted);font-size:11px;font-weight:600}
+.creport-index.green{background:#e7f6ef;color:var(--success)}
+.creport-index.red{background:#fff0ef;color:var(--danger)}
+.creport-index.amber{background:#fff7e8;color:var(--warn)}
+.creport-index.blue{background:#edf5ff;color:#1768ab}
+.creport-node-name{min-width:0}
+.creport-node-meta{margin-left:auto;color:var(--muted);font-size:12px;display:flex;gap:12px;white-space:nowrap}
+.creport-node-body{padding:0 12px 16px 30px}
+.creport-node-body h3{margin:14px 0 6px}
+.creport-node-body h3 .count{display:inline-block;min-width:18px;margin-left:6px;padding:0 6px;border-radius:9px;background:#eef2f7;color:var(--muted);font-size:11px;font-weight:500;line-height:17px;text-align:center}
+.creport-node-links{margin:0 0 8px}
+.creport-node-body>.notice{margin:0 0 10px}
+.creport-io{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.creport-io table,.creport-steps{border:1px solid var(--line);border-radius:6px}
+.creport-stages{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 0;font-size:12px}
+.creport-stages small{color:var(--muted);margin-right:3px}
+.creport-steps tr.is-failed td,.creport-node-body tr.is-failed td{background:#fff8f7}
+.creport-problems{margin:0;padding-left:18px;font-size:12px}
+@media(max-width:900px){.creport-failure,.creport-flow,.creport-io{grid-template-columns:minmax(0,1fr)}.creport-node-body{padding-left:12px}}
+@media(max-width:700px){.creport-node-meta{margin-left:0;flex-wrap:wrap}.creport-gantt li{grid-template-columns:48px minmax(0,1fr) 70px}}
+.creport-numbers strong{white-space:nowrap}

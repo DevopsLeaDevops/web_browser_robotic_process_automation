@@ -1,0 +1,73 @@
+{% import "_composite_report.html" as r -%}
+{#- 下載的組合運行匯總報告（2026-10-27）：單一 HTML，不需要網路、不連到 Portal。
+    樣式自帶（顏色取自設計系統 v1.0，和 Runner 的 report.html 一致）；截圖只嵌入沒通過的節點的（D4）。 -#}
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ run.workflow_name }} · {{ run.id }} · {{ t("status." + run.status) }}</title>
+<style>
+:root{--bg:#f5f7fb;--panel:#fff;--line:#e9edf3;--text:#24334a;--muted:#64758b;--blue:#0b69c4;--green:#18794e;--green-bg:#e6f4ea;--red:#c0362c;--red-bg:#fdecea;--amber:#9a6700;--amber-bg:#fff5db;--blue-bg:#edf5ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.6 system-ui,-apple-system,"Segoe UI","Noto Sans TC","PingFang TC",sans-serif}
+main{max-width:1080px;margin:0 auto;padding:20px 16px 40px}h1{font-size:21px;margin:0 0 4px}h2{font-size:15px;margin:0}h3{font-size:13px;margin:14px 0 6px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;margin:12px 0;overflow:hidden}.panel-body{padding:14px 16px}.panel-header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;justify-content:space-between}
+.muted,.hint{color:var(--muted)}.hint{font-size:12px;margin:6px 0 0}.mono,code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}code{font-size:12px;overflow-wrap:anywhere}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--line);color:var(--muted);white-space:nowrap}.badge.green{background:var(--green-bg);color:var(--green)}.badge.red{background:var(--red-bg);color:var(--red)}.badge.amber{background:var(--amber-bg);color:var(--amber)}.badge.blue{background:var(--blue-bg);color:var(--blue)}
+.tag{font-family:ui-monospace,monospace;font-size:11px;background:#eef4fc;color:#315b89;border:1px solid #dce7f6;border-radius:4px;padding:1px 6px}.count{font-size:11px;color:var(--muted);font-weight:500;margin-left:4px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);font-weight:600;font-size:12px}.numeric{text-align:right}.nowrap{white-space:nowrap}.cell-sub{display:block;font-size:11px;color:var(--muted)}.text-danger,.cell-sub.text-danger{color:var(--red)}tr.is-failed td{background:#fff8f7}
+.table-scroll{overflow-x:auto}.notice{padding:8px 12px;background:#eef6ff;color:#456f99;border:1px solid #dfebf8;border-radius:6px;margin:0 0 10px}
+.meta{color:var(--muted);margin:0 0 4px}.meta span+span:before{content:" · "}
+.creport-verdict-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.creport-verdict-head h2{font-size:16px}
+.creport-failure{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,320px);gap:16px;margin-top:10px}.creport-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:0}.creport-facts dt{color:var(--muted)}.creport-facts dd{margin:0}
+.creport-error{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--red-bg);color:var(--red);padding:8px 10px;border-radius:6px;margin:0;font-size:12px}.creport-check{display:block}.creport-note{margin:10px 0 0;color:var(--muted)}
+.creport-shot{margin:0}.creport-shot img{display:block;max-width:100%;border:1px solid var(--line);border-radius:6px}.creport-shot figcaption{font-size:11px;margin-top:4px}.creport-shot.wide{margin-top:12px;max-width:640px}
+.result-strip{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line)}.result-strip>div{flex:1 1 120px;padding:10px 14px;border-right:1px solid var(--line);display:flex;align-items:baseline;gap:6px}.result-strip>div:last-child{border-right:0}.result-strip strong{font-size:20px;font-weight:620}.result-strip span{font-size:11px;color:var(--muted)}.result-strip .warn strong{color:var(--amber)}
+.kv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0}.kv>div{padding:8px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}.kv dt{font-size:11px;color:var(--muted)}.kv dd{margin:2px 0 0;overflow-wrap:anywhere}
+.creport-gantt{list-style:none;margin:0;padding:0;display:grid;gap:6px}.creport-gantt li{display:grid;grid-template-columns:64px minmax(0,1fr) 92px;gap:10px;align-items:center}.creport-gantt-track{position:relative;height:14px;background:#f1f4f8;border-radius:4px}.creport-gantt-track i{position:absolute;top:0;bottom:0;border-radius:4px;background:#b8c4d3}.creport-gantt-track i.green{background:#4fae86}.creport-gantt-track i.red{background:#d9645c}.creport-gantt-track i.amber{background:#d6a23f}.creport-gantt-track i.blue{background:#5a9be0}.creport-gantt-time{text-align:right;color:var(--muted);font-size:12px}
+details.creport-node{border-top:1px solid var(--line)}details.creport-node:first-of-type{border-top:0}details.creport-node>summary{cursor:pointer;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;list-style:none}details.creport-node>summary::-webkit-details-marker{display:none}
+.creport-index{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--line);color:var(--muted);font-size:11px;font-weight:600}.creport-index.green{background:var(--green-bg);color:var(--green)}.creport-index.red{background:var(--red-bg);color:var(--red)}.creport-index.amber{background:var(--amber-bg);color:var(--amber)}.creport-index.blue{background:var(--blue-bg);color:var(--blue)}
+.creport-node-meta{margin-left:auto;color:var(--muted);font-size:12px;display:flex;gap:12px}.creport-node-body{padding:0 16px 16px}
+.creport-io{display:grid;grid-template-columns:1fr 1fr;gap:16px}.creport-stages{display:flex;flex-wrap:wrap;gap:6px 16px;margin:12px 0 0;font-size:12px}.creport-stages small{color:var(--muted)}.creport-target{color:#315b89}.creport-problems{margin:0;padding-left:18px}
+@media(max-width:720px){.creport-failure,.creport-io{grid-template-columns:1fr}.kv{grid-template-columns:1fr 1fr}.creport-node-meta{margin-left:0}.creport-gantt li{grid-template-columns:48px minmax(0,1fr) 72px}}
+@media print{body{background:#fff}.panel{break-inside:avoid-page}}
+</style>
+</head>
+<body>
+<main>
+  <h1>{{ run.workflow_name }} {{ r.status_badge(run.status) }}</h1>
+  <p class="meta"><span class="mono">{{ run.id }}</span><span>v{{ run.workflow_version }}</span><span>{{ t("workflow_run.purpose_" + run.purpose) }}</span><span>{{ t("workflow_run.description", name=run.workflow_name, count=run.nodes | length) }}</span></p>
+  <p class="meta">{{ t("creport.generated", time=display_time(generated)) }}</p>
+
+  {{ r.verdict(report, offline=true, images=images) }}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("run.summary") }}</h2></div>
+    {{ r.numbers(report) }}
+    <dl class="kv">
+      <div><dt>{{ t("run.created") }}</dt><dd>{{ r.when(run.created_at, true) }}</dd></div>
+      <div><dt>{{ t("run.finished") }}</dt><dd>{{ r.when(run.finished_at, true) }}</dd></div>
+      <div><dt>{{ t("run.engine") }}</dt><dd>{{ run.engine or t("workflow.engine_scene") }}</dd></div>
+      <div><dt>{{ t("run_form.window") }}</dt><dd>{{ t("run_form.window_headless") if run.headless else t("run_form.window_headed") }}</dd></div>
+      {% if run.worker_id %}<div><dt>{{ t("run.worker") }}</dt><dd>{{ worker_names.get(run.worker_id, run.worker_id) }}</dd></div>{% endif %}
+      {% if run.resumed_from %}<div><dt>{{ t("workflow_run.resumed_from") }}</dt><dd class="mono">{{ run.resumed_from }}</dd></div>{% endif %}
+    </dl>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("creport.timeline") }}</h2></div>
+    <div class="panel-body">{{ r.gantt(report, offline=true) }}</div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("workflow_run.nodes") }} <span class="count">{{ report.nodes | length }}</span></h2></div>
+    {% for node in report.nodes %}
+    <details class="creport-node" id="node-{{ node.id }}" data-status="{{ node.status }}"{% if node.open %} open{% endif %}>
+      <summary>{{ r.node_head(node) }}</summary>
+      {{ r.node_body(node, offline=true, images=images) }}
+    </details>
+    {% endfor %}
+  </section>
+</main>
+</body>
+</html>

@@ -1,32 +1,39 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
+{% import "_composite_report.html" as r %}
+{#- 組合運行的匯總報告（2026-10-27）：一頁看完整次運行，不必逐一打開各節點的報告。
+    資料是 rpa_server.composite_report.build_composite_report 的 report；definition 是這次運行的定義快照。 -#}
 {% block crumb %}{% if project %}<a href="/projects/{{ project.id }}">{{ project.name }}</a> › {% endif %}{% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %} › {{ run.id }}{% endblock %}
-{% block description %}{{ t("workflow_run.description", name=run.workflow_name, count=run.nodes | length) }}{% endblock %}
+{% block description %}{{ t("workflow_run.description", name=run.workflow_name, count=run.nodes | length) }} · v{{ run.workflow_version }} · {{ t("workflow_run.purpose_" + run.purpose) }}{% endblock %}
 {% block actions %}
 {% if workflow_exists %}<a class="button" href="/playground/{{ run.workflow_id }}">{{ t("workflow_run.back") }}</a>{% endif %}
 {% if not run.finished %}
 <button class="button" data-action="cancel-workflow-run"{% if run.cancel_requested %} disabled{% endif %}>{{ t("workflow_run.cancel") }}</button>
 {% else %}
+<a class="button" href="/playground/runs/{{ run.id }}/report.html" download="{{ run.id }}-report.html" data-action="download-report" title="{{ t('creport.download_title') }}">{{ t("creport.download") }}</a>
 <button class="button{% if not run.resumable %} primary{% endif %}" data-action="rerun-workflow" data-resume="0" title="{{ t('workflow_run.rerun_title') }}">{{ t("workflow_run.rerun") }}</button>
 {% if run.resumable %}<button class="button primary" data-action="rerun-workflow" data-resume="1" title="{{ t('workflow_run.resume_title') }}">{{ t("workflow_run.resume", node=run.failed_node) }}</button>{% endif %}
 {% endif %}
 {% endblock %}
 {% block content %}
 {% set signature = run.status ~ "|" ~ (run.nodes | map(attribute="status") | join(",")) %}
-<div class="stack" id="workflow-run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-signature="{{ signature }}"{% if not run.finished %} data-poll{% endif %}>
+<div class="stack creport" id="workflow-run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-signature="{{ signature }}"{% if not run.finished %} data-poll{% endif %}>
   {% if not run.finished %}<div class="notice">{{ t("workflow_run.polling") }}</div>{{ m.worker_wait_notice(worker_wait | default(none)) }}{% endif %}
   {% if run.status == "needs_login" %}
   <div class="notice warn" role="alert">{{ run.error }}
     {% if role %}<span class="actions"><a class="button" href="/roles#role-{{ role }}">{{ t("run.go_login", role=role) }}</a></span>{% endif %}
     <span class="cell-sub">{{ t("workflow_run.needs_login_hint", node=run.failed_node) }}</span>
   </div>
-  {% elif run.error and run.status != "cancelled" %}<div class="notice danger" role="alert">{{ run.error }}</div>
-  {% elif run.error %}<div class="notice warn">{{ run.error }}</div>{% endif %}
+  {% endif %}
+
+  {{ r.verdict(report) }}
 
   <section class="panel">
     <div class="panel-header"><h2>{{ t("run.summary") }}</h2>{{ m.run_badge(run.status) }}</div>
+    {{ r.numbers(report) }}
     <dl class="kv-grid">
-      <div><dt>{{ t("playground.col_progress") }}</dt><dd><strong>{{ t("playground.progress", passed=run.passed_count, total=run.nodes | length) }}</strong></dd></div>
+      <div><dt>{{ t("creport.composite") }}</dt><dd>{% if workflow_exists %}<a href="/playground/{{ run.workflow_id }}">{{ run.workflow_name }}</a>{% else %}{{ run.workflow_name }}{% endif %}{% if run.workflow_code %} <span class="tag">{{ run.workflow_code }}</span>{% endif %} · v{{ run.workflow_version }}</dd></div>
+      <div><dt>{{ t("runs.col_purpose") }}</dt><dd>{{ t("workflow_run.purpose_" + run.purpose) }}</dd></div>
       <div><dt>{{ t("run.created") }}</dt><dd>{{ m.time(run.created_at) }}</dd></div>
       <div><dt>{{ t("run.finished") }}</dt><dd>{{ m.time(run.finished_at) }}</dd></div>
       <div><dt>{{ t("run.engine") }}</dt><dd>{{ run.engine or t("workflow.engine_scene") }}</dd></div>
@@ -38,32 +45,32 @@
   </section>
 
   <section class="panel">
-    <div class="panel-header"><h2>{{ t("workflow_run.nodes") }} <span class="count">{{ run.nodes | length }}</span></h2><span class="muted">{{ t("workflow_run.nodes_hint") }}</span></div>
-    <div class="table-scroll"><table class="wrap workflow-nodes">
-      <thead><tr><th>{{ t("workflow_run.col_node") }}</th><th>{{ t("workflow_run.col_inputs") }}</th><th>{{ t("runs.col_status") }}</th><th>{{ t("workflow_run.col_outputs") }}</th><th>{{ t("runs.col_actions") }}</th></tr></thead>
-      <tbody>
-      {% for node in run.nodes %}
-        <tr data-node="{{ node.id }}" data-status="{{ node.status }}"{% if node.id == run.failed_node %} class="is-stopped"{% endif %}>
-          <td><span class="tag mono">{{ node.id }}</span> <a href="/scenes/{{ node.scene_id }}">{{ node.scene_id }}</a> <span class="muted">v{{ node.revision }}</span><span class="cell-sub">{{ node.scene_name }}</span></td>
-          <td>
-            {% if node.sources %}
-            <ul class="io-list">
-              {% for name, source in node.sources.items() %}
-              {% set given = node.run is not none and name in node.run.input %}
-              <li><code>{{ name }}</code>{% if given %} = <code>{{ node.run.input[name] | compact_json }}</code>{% elif source.kind in ("value", "default") %} = <code>{{ source.value | compact_json }}</code>{% endif %} {{ m.input_source(source) }}</li>
-              {% endfor %}
-            </ul>
-            {% else %}—{% endif %}
-          </td>
-          <td>{{ m.badge(node.status, t("status." + node.status)) }}{% if node.error %}<span class="cell-sub text-danger">{{ node.error }}</span>{% elif node.run and node.run.error and node.status not in ("passed", "reused") %}<span class="cell-sub">{{ node.run.error }}</span>{% endif %}{% if node.status == "reused" %}<span class="cell-sub">{{ t("workflow_run.reused_hint") }}</span>{% endif %}</td>
-          <td>{% if node.run and node.run.output %}
-            <ul class="io-list">{% for key, value in node.run.output.items() %}<li><code>{{ key }}</code> = <code>{{ value | compact_json }}</code></li>{% endfor %}</ul>
-            {% else %}—{% endif %}</td>
-          <td class="nowrap">{% if node.run %}<a class="text-btn" href="/runs/{{ node.run.id }}">{{ t("workflow.node_report") }}</a>{% if node.run.finished %} <a class="text-btn" href="/runs/{{ node.run.id }}/files/report.html" target="_blank" rel="noopener">{{ t("runs.report") }}</a>{% endif %}{% if node.run.video and node.run.video.url %} {{ m.replay_link(node.run) }}{% endif %}{% else %}—{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table></div>
+    <div class="panel-header"><h2>{{ t("creport.flow") }}</h2><span class="muted">{{ t("creport.flow_hint") }}</span></div>
+    <div class="creport-flow">
+      {% set preview = workflow_preview(definition) if definition else none %}
+      {% if preview and preview.nodes %}
+      <div class="dag-thumbnail creport-dag">
+        <svg viewBox="{{ preview.viewbox }}" role="img" aria-label="{{ t('creport.dag', name=run.workflow_name) }}">
+          <defs><marker id="creport-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5c83b8"/></marker></defs>
+          {% for edge in preview.edges %}<path class="preview-edge" d="{{ edge.path }}" marker-end="url(#creport-arrow)"/>{% endfor %}
+          {% for node in preview.nodes %}{% set status = report.statuses.get(node.id, "skipped") %}<a href="#node-{{ node.id }}" data-open-node="{{ node.id }}"><g class="creport-dag-node {{ badge_color(status) }}" data-status="{{ status }}" transform="translate({{ node.x }} {{ node.y }})"><title>{{ node.id }} · {{ node.scene }} · {{ t("status." + status) }}</title><rect width="200" height="96" rx="8"/><text x="12" y="38">{{ node.id }}</text><text x="12" y="70" class="preview-scene">{{ node.scene | truncate(14, true) }}</text></g></a>{% endfor %}
+        </svg>
+      </div>
+      {% endif %}
+      <div class="creport-timeline">{{ r.gantt(report) }}</div>
+    </div>
+  </section>
+
+  <section class="panel creport-nodes">
+    <div class="panel-header"><h2>{{ t("workflow_run.nodes") }} <span class="count">{{ report.nodes | length }}</span></h2>
+      <span class="actions"><button class="button" type="button" data-action="toggle-nodes" data-open="1">{{ t("creport.expand_all") }}</button><button class="button" type="button" data-action="toggle-nodes" data-open="0">{{ t("creport.collapse_all") }}</button></span>
+    </div>
+    {% for node in report.nodes %}
+    <details class="creport-node" id="node-{{ node.id }}" data-node="{{ node.id }}" data-status="{{ node.status }}"{% if node.open %} open{% endif %}>
+      <summary>{{ r.node_head(node) }}</summary>
+      {{ r.node_body(node) }}
+    </details>
+    {% endfor %}
   </section>
 </div>
 <script type="application/json" id="workflow-messages">{{ messages | tojson }}</script>
