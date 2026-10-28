@@ -1753,5 +1753,6 @@
   "replayjs.card_reused": "{{node}} 沿用上一次的結果",
   "replayjs.card_no_video": "{{node}} 沒有錄影",
   "replayjs.card_not_run": "沒有執行：{{nodes}}",
-  "replayjs.card_pending": "還沒結束：{{nodes}}"
+  "replayjs.card_pending": "還沒結束：{{nodes}}",
+  "creplay.download_node": "下載這個節點的錄影："
 }

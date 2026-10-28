@@ -247,6 +247,10 @@ def test_videos_are_joined_on_one_timeline(client: Client, worker: Worker, compo
     assert "<code>recordId</code>" in page
     assert "實際隔了 26.6 s" in page
     assert f'data-url="/api/workflow-runs/{run_id}/video"' in page
+    # 資訊頁：每個節點的入參與出參，可以單獨下載這個節點的錄影
+    assert page.count('class="creplay-node-values"') == 3
+    assert f'href="{clips[1]["url"]}" download="{run_id}-n2-video.webm"' in page
+    assert "下載這個節點的錄影" in page
     report = client.get(f"/playground/runs/{run_id}").text
     assert f'href="/playground/runs/{run_id}/replay"' in report
     assert f'href="/playground/runs/{run_id}/replay?node=n2"' in report

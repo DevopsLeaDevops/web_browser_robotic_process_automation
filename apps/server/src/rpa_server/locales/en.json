@@ -1753,5 +1753,6 @@
   "replayjs.card_reused": "{{node}} reused an earlier result",
   "replayjs.card_no_video": "{{node}} has no recording",
   "replayjs.card_not_run": "Did not run: {{nodes}}",
-  "replayjs.card_pending": "Not finished: {{nodes}}"
+  "replayjs.card_pending": "Not finished: {{nodes}}",
+  "creplay.download_node": "Download this node's recording:"
 }

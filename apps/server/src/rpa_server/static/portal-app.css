@@ -536,4 +536,7 @@ details.creport-node.anchor-hit{animation:anchor-hit 1.6s ease-out}
 .creplay-node-links{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px;font-size:12px}
 .creplay-node-links li{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
 .creplay-node-links .actions{margin-left:auto}
+.creplay-node-values{flex-basis:100%;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 8px;margin:0;padding-left:4px}
+.creplay-node-values dt{color:var(--muted)}.creplay-node-values dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.creplay-node-downloads{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 10px;padding-left:4px;color:var(--muted)}
 @media(max-width:700px){.creplay-card-flow{grid-template-columns:minmax(0,1fr)}.replay-card{padding:8px}.creplay-card{padding:10px 12px;font-size:12px}}

@@ -54,10 +54,25 @@
           <dt>{{ t("creplay.info_run") }}</dt><dd class="mono">{{ run.id }}</dd>
           <dt>{{ t("creplay.info_videos") }}</dt><dd>{{ t("creplay.video_count", count=video_state.count, size=size) }}{% if video_state.deleted %} · {{ t("creplay.video_deleted", count=video_state.deleted) }}{% endif %}</dd>
         </dl>
+        {#- 每個節點：入參與出參、單獨下載這個節點的錄影（各分頁片段；檔名同全部錄影 zip 裡的） -#}
         <ul class="creplay-node-links">
           {% for node in composite.nodes %}
-          <li><span class="tag mono">{{ node.id }}</span> {{ node.sceneName }} {{ m.run_badge(node.status) }}
-            <span class="actions">{% if node.replayUrl %}<a class="text-btn" href="{{ node.replayUrl }}">▶ {{ t("creport.node_replay") }}</a>{% endif %}{% if node.reportUrl %}<a class="text-btn" href="{{ node.reportUrl }}" target="_blank" rel="noopener">{{ t("workflow.node_report") }}</a>{% endif %}</span></li>
+          {% set detail = nodes.get(node.id) or {} %}
+          {% set clips = (video.get("clips") or []) | selectattr("node", "equalto", node.id) | selectattr("url") | list %}
+          <li data-node="{{ node.id }}"><span class="tag mono">{{ node.id }}</span> {{ node.sceneName }} {{ m.run_badge(node.status) }}
+            <span class="actions">{% if node.replayUrl %}<a class="text-btn" href="{{ node.replayUrl }}">▶ {{ t("creport.node_replay") }}</a>{% endif %}{% if node.reportUrl %}<a class="text-btn" href="{{ node.reportUrl }}" target="_blank" rel="noopener">{{ t("workflow.node_report") }}</a>{% endif %}</span>
+            {% if detail.get("inputs") or detail.get("outputs") %}
+            <dl class="creplay-node-values">
+              {% if detail.get("inputs") %}<dt>{{ t("workflow_run.col_inputs") }}</dt><dd>{% for item in detail.inputs %}<div><code>{{ item.name }}</code> = {{ r.value(item) }} {{ r.source(item.source) }}</div>{% endfor %}</dd>{% endif %}
+              {% if detail.get("outputs") %}<dt>{{ t("workflow_run.col_outputs") }}</dt><dd>{% for item in detail.outputs %}<div><code>{{ item.name }}</code> = {{ r.value(item) }}{% if item.to %} <span class="muted">→ {{ item.to | join(", ") }}</span>{% endif %}</div>{% endfor %}</dd>{% endif %}
+            </dl>
+            {% endif %}
+            {% if clips %}
+            <span class="creplay-node-downloads">{{ t("creplay.download_node") }}
+              {% for clip in clips %}<a href="{{ clip.url }}" download="{{ run.id }}-{{ node.id }}-{{ clip.url.rsplit('/', 1)[-1] }}">{{ t("replay.page_number", n=clip.pageId.split("/")[-1] | replace("page-", "")) }}</a>{% endfor %}
+            </span>
+            {% endif %}
+          </li>
           {% endfor %}
         </ul>
         {% if video_state.count %}
