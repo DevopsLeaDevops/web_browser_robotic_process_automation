@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；合併、推標籤、按「發布」：使用者（Claude 推標籤與建立 Release 會被 GitHub 拒絕，HTTP 403，見 v0.6.3）。</dd>
         <dt>修改檔案／整合者</dt><dd>八個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>；本紀錄、任務索引；<a href="20261027-composite-report-replay.html">20261027-composite-report-replay</a> 與 <a href="20261027-m7c-upload.html">20261027-m7c-upload</a> 的狀態（已合併、待 v0.7.0 人工驗收）。Claude 整合。</dd>
         <dt>狀態</dt><dd>待合併：版本號 PR 已建立；請先合併 20261028-main-ci-red 的 PR，再合併本 PR、推標籤 <code>v0.7.0</code>。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.7.0</code>，從 main <code>a26b929</code>（PR #97 合併後）開；PR 見任務索引與 PR 列表。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.7.0</code>，從 main <code>a26b929</code>（PR #97 合併後）開；PR #102（base main）。先合併的 CI 修正是 PR #101。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器；建置與簽章在 GitHub Actions（<code>release.yml</code>）。</dd>
       </dl></div>
@@ -54,7 +54,7 @@
           <tr><td>main <code>a26b929</code>；GitHub Actions</td><td>main 推送的 CI</td><td>靜態檢查、測試（Python 3.13）通過；測試（Python 3.12）失敗：有頭錄影測試沒有螢幕（v0.6.3 之前就有）與驗證後馬上發布的空檔，由 20261028-main-ci-red 修正</td><td>—</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見本 PR 最新 head（只改版本號，依層建置只跑 Linux 的 CI）。發布流程：未執行。人工驗收：未執行。審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：本 PR <code>6ad05e4</code>：靜態檢查、測試（Python 3.12、3.13）通過；只改版本號，依層建置沒有重建三個 App 與一鍵安裝腳本（#94 的預期）。發布流程：未執行。人工驗收：未執行。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -65,6 +65,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-10-28 01:05 America/Los_Angeles（PDT，UTC−07:00），Claude：讀 v0.6.3 之後的 PR、版本規則（前例、ADR 0018）、環境代號比較與 main 的 CI，建議發 v0.7.0；寫人工驗收教程（Claude Docs）。</li>
         <li>2026-10-28 01:35 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 01:09 同意。開 <code>fix/main-ci-red</code>（PR #101）修 main 的 CI 紅燈；從 main <code>a26b929</code> 開 <code>chore/release-0.7.0</code>，改版本號，建立本紀錄；更新組合運行與 M7c 兩份紀錄的合併狀態。</li>
+        <li>2026-10-28 02:10 America/Los_Angeles（PDT，UTC−07:00），Claude：PR #102 的 <code>6ad05e4</code> CI 通過，只跑 Linux 的 CI。#101 又修了 CI 碰到的兩個產品偶發問題（合併回看的段落邊界、點了之後頁面自己關掉），也併入 v0.7.0。</li>
       </ul></div>
     </section>
   </div>
