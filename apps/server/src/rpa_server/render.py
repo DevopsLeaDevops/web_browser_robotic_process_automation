@@ -24,6 +24,7 @@ from markupsafe import Markup, escape
 from rpa_core.dsl.files import format_size
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_core.workflow import Workflow
+from rpa_runner.files import STEP_SHOTS, STEPS
 from rpa_server import __version__
 from rpa_server.config import COMPOSITES_DOMAIN, RECORDER_MENUS
 from rpa_server.context import via_recorder
@@ -669,8 +670,14 @@ _FILE_NOTES: Final = {
 
 
 def run_file_rows(files: Sequence[str]) -> list[dict[str, str]]:
-    """運行詳情的檔案清單：每個檔案的說明鍵與種類（report、video、image、text）。"""
+    """運行詳情的檔案清單：每個檔案的說明鍵與種類（report、video、image、text、shots）。
+
+    每一步做完的截圖（``steps/``，2026-10-29）可能有幾百張：合成一列（種類 shots，連到回看），
+    放在 steps.json 後面。
+    """
     order = list(_FILE_NOTES)
+    shots = [path for path in files if path.startswith(f"{STEP_SHOTS}/")]
+    files = [path for path in files if path not in shots]
     rows: list[dict[str, str]] = []
     for path in sorted(files, key=lambda name: order.index(name) if name in order else len(order)):
         name = path.rsplit("/", 1)[-1]
@@ -693,6 +700,12 @@ def run_file_rows(files: Sequence[str]) -> list[dict[str, str]]:
         else:
             kind = "file"
         rows.append({"path": path, "note": note, "kind": kind})
+    if shots:
+        after = next((i + 1 for i, row in enumerate(rows) if row["path"] == STEPS), len(rows))
+        count = str(len(shots))
+        rows.insert(
+            after, {"path": f"{STEP_SHOTS}/", "note": "step_shots", "kind": "shots", "count": count}
+        )
     return rows
 
 

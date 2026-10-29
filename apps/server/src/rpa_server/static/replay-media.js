@@ -2,6 +2,9 @@
 // 多分頁共用運行時間軸；載入新片段時暫停時鐘，缺片時顯示空缺，不沿用上一頁的畫面。
 // 組合運行的合併回看（2026-10-27）另有 segments（每個節點的錄影是一段，pageAt 只看那一段裡的步驟）
 // 與 cards（轉場卡、說明卡：這段時間沒有影片，時鐘照走，發出 card 事件讓頁面顯示卡片）。
+// 快轉等待（2026-10-29）：setSkim 給沒有動作的時段 [開始, 結束]，播放經過時影片與時鐘都快 SKIM 倍，
+// 發出 skim 事件（detail 是 true／false）讓頁面顯示提示；暫停、跳轉不受影響。
+const SKIM = 4;
 class ReplayMedia extends EventTarget {
   constructor(element, info, steps, gap) {
     super();
@@ -29,6 +32,8 @@ class ReplayMedia extends EventTarget {
     this.tick = 0;
     this.lastTick = performance.now();
     this.loaded = false;
+    this.skims = [];
+    this.skimming = false;
     element.addEventListener('click', () => this.dispatchEvent(new Event('click')));
     element.addEventListener('error', () => this.fail());
     this.seek(0);
@@ -48,7 +53,19 @@ class ReplayMedia extends EventTarget {
   set currentTime(value) { this.seek(value); }
   get paused() { return !this.playing; }
   get playbackRate() { return this.rate; }
-  set playbackRate(value) { this.rate = value; this.element.playbackRate = value; }
+  set playbackRate(value) { this.rate = value; this.applyRate(); }
+  applyRate() { this.element.playbackRate = this.rate * (this.skimming ? SKIM : 1); }
+  setSkim(ranges) {
+    this.skims = ranges || [];
+    if (!this.skims.length) this.setSkimming(false);
+  }
+  skimAt(seconds) { return this.skims.some(([start, end]) => seconds >= start && seconds < end); }
+  setSkimming(on) {
+    if (on === this.skimming) return;
+    this.skimming = on;
+    this.applyRate();
+    this.dispatchEvent(new CustomEvent('skim', {detail: on}));
+  }
   // 兩段相接的那一刻算後面那一段：開頭與結尾都留 1 毫秒，浮點數相加（開始＋長度）略大於下一段的
   // 開始時，跳到下一段開頭（N、點節點色帶）不會還停在前面的卡片上（2026-10-28）
   segmentAt(seconds) {
@@ -143,7 +160,7 @@ class ReplayMedia extends EventTarget {
       }
       const local = Math.max(0, Math.min(this.position - clip.start, this.element.duration - 0.04));
       this.element.currentTime = local;
-      this.element.playbackRate = this.rate;
+      this.applyRate();
       this.pending = false;
       this.loaded = true;
       this.lastTick = performance.now();
@@ -170,6 +187,7 @@ class ReplayMedia extends EventTarget {
   }
   pause() {
     this.playing = false;
+    this.setSkimming(false);
     this.element.pause();
     cancelAnimationFrame(this.tick);
     this.tick = 0;
@@ -179,9 +197,10 @@ class ReplayMedia extends EventTarget {
     this.tick = 0;
     if (!this.playing) return;
     if (!this.pending) {
+      this.setSkimming(this.skimAt(this.position));
       if (this.active && this.element.ended) this.active.length = this.element.currentTime;
       if (this.active && !this.element.ended) this.position = this.active.start + this.element.currentTime;
-      else this.position += Math.min(0.25, (time - this.lastTick) / 1000) * this.rate;
+      else this.position += Math.min(0.25, (time - this.lastTick) / 1000) * this.rate * (this.skimming ? SKIM : 1);
       if (this.position >= this.duration - 0.02) {
         this.position = this.duration;
         this.pause();

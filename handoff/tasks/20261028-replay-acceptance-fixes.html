@@ -70,6 +70,7 @@
         <li>2026-10-28 04:15 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>beffd55</code>（[bootstrap]），開 PR #103；bootstrap 產生簡中（<code>a5bbf37</code>）。<code>beffd55</code> 的 CI：靜態檢查、分發包通過；兩個 Python 測試只因簡中還沒產生而失敗（<code>test_simplified_chinese_is_generated</code>），其餘通過，含兩個真實錄影的回看流程測試。</li>
         <li>2026-10-28 06:49 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：使用者要求解決 PR #103 衝突；以 <code>380e10f</code> 為起點，合入 <code>origin/main@b559285</code>（#100 已合併）。衝突僅在英文 Portal 設計頁的 <code>translation-source</code> 與任務索引；保留雙方正文與任務入口，英文將依合併後繁中重新 stamp。已確認程式、測試、CI 設定與鎖檔和原 PR head 完全一致。沿用先前已完成任務的乾淨 worktree，在 <code>fix/pr103-conflicts</code> 整合，不重寫原分支歷史；目前僅本地，驗證與推送結果後續追加。</li>
         <li>2026-10-28 06:52 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：文檔與快取測試 363 passed；Chromium 回看 4 項首次通過，另 1 項像素校驗首次逾時、單獨重跑通過（詳見上表）。英文依合併後繁中重新 stamp，索引保留雙方任務入口；程式內容仍與 <code>380e10f</code> 一致。將以合併提交推送至 <code>fix/replay-ux</code>／PR #103，再核對無衝突狀態與最新 head 的 CI；合併與發版仍依原分工。</li>
+        <li>2026-10-29 05:30 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 2026-10-29 04:38 把這裡選的「步驟詳情從右側滑出，蓋住清單」改成「從上方滑出，不蓋住清單」；在 <a href="20261029-replay-chapters.html">20261029-replay-chapters</a> 實作（和依步驟的時間軸一起），本紀錄的決定保留原文作為歷史。</li>
       </ul></div>
     </section>
   </div>

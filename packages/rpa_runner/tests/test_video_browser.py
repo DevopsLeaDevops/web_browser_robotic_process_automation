@@ -7,6 +7,7 @@ CI 的 Worker 測試在 Windows 上跑這些測試（取消時要留下 ffmpeg �
 """
 
 import base64
+import itertools
 import json
 import threading
 import time
@@ -170,6 +171,66 @@ def test_video_lines_up_with_the_steps(site: str, engine: str, tmp_path: Path) -
     assert _red(colors[1]), (colors, info, click)
 
 
+_PIXEL = """async (sources) => {
+  const colors = [];
+  for (const source of sources) {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 36;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, 64, 36);
+    colors.push([image.naturalWidth, ...context.getImageData(56, 30, 1, 1).data.slice(0, 3)]);
+  }
+  return colors;
+}"""
+
+
+def _pixels(images: list[Path]) -> list[list[int]]:
+    """用 Chromium 打開截圖：每張的 [寬度, 右下角的 R, G, B]。"""
+    require_engine("chromium")
+    sources = [
+        "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+        for path in images
+    ]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            values = browser.new_page().evaluate(_PIXEL, sources)
+        finally:
+            browser.close()
+    return cast("list[list[int]]", values)
+
+
+def test_each_step_has_a_screenshot(site: str, engine: str, tmp_path: Path) -> None:
+    """錄影時每一步做完拍一張縮小的截圖（2026-10-29）：是那一步做完的畫面，不受錄影對時影響。"""
+    result = execute(
+        _scenario(tmp_path, site), {}, out_root=tmp_path / "runs", engine=engine, record_video=True
+    )
+
+    assert result.status == "passed", result.error
+    folder = result.directory
+    steps = json.loads((folder / STEPS).read_text(encoding="utf-8"))
+    assert [step["shot"] for step in steps] == [f"steps/00{n}.jpg" for n in range(1, 5)]
+    for step, after in itertools.pairwise(steps):
+        # 開始拍的時間在這一步結束之後、下一步開始之前；拍照不算在步驟的時間裡
+        assert _moment(step["endedAt"]) <= _moment(step["shotAt"]) <= _moment(after["startedAt"])
+        waited = _moment(after["startedAt"]) - _moment(step["endedAt"])
+        assert waited < 1, (step, after)
+    images = [folder / step["shot"] for step in steps]
+    sizes = [path.stat().st_size for path in images]
+    assert max(sizes) < 60_000, sizes
+
+    pixels = _pixels(images)
+
+    assert [width for width, *_ in pixels] == [640] * 4
+    # 點「變紅」之前是白的，之後是紅的
+    assert _white(pixels[1][1:]), pixels
+    assert _red(pixels[2][1:]), pixels
+    assert _red(pixels[3][1:]), pixels
+
+
 def test_failed_step_is_in_the_video(site: str, engine: str, tmp_path: Path) -> None:
     result = execute(
         _scenario(tmp_path, site, last="#never", timeout=2000),
@@ -185,6 +246,7 @@ def test_failed_step_is_in_the_video(site: str, engine: str, tmp_path: Path) -> 
     steps = json.loads((result.directory / STEPS).read_text(encoding="utf-8"))
     failed = steps[3]
     assert failed["status"] == "failed"
+    assert failed["shot"] == "steps/004.jpg"  # 失敗的那一步也有做完（失敗）時的截圖
     start = _moment(info["startedAt"])
     duration, colors = _sample(
         result.directory / VIDEO, [_moment(failed["endedAt"]) - start - TOLERANCE]

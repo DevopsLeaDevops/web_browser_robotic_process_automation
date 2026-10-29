@@ -320,16 +320,32 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .replay-time b{color:var(--ink);font-weight:600}
 .replay-grow{flex:1}
 .replay-speed button{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
-.replay-speed button[aria-pressed="true"]{background:#fff;color:var(--blue-strong);box-shadow:0 1px 3px #24334a1f;font-weight:600}
+.replay-speed button[aria-pressed="true"],.replay-axis button[aria-pressed="true"]{background:#fff;color:var(--blue-strong);box-shadow:0 1px 3px #24334a1f;font-weight:600}
 .replay-follow{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);white-space:nowrap}
 .replay-follow input{min-height:0}
 .replay-timeline{position:relative;padding:10px 10px 6px;border-top:1px solid var(--line);user-select:none;touch-action:none;cursor:pointer;outline:none}
+/* 時間軸上方：放大一章時的「← 整次」、依步驟／依時間 */
+.replay-axisbar{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 10px 0;border-top:1px solid var(--line)}
+.replay-axisbar+.replay-timeline{border-top:0;padding-top:6px}
+.replay-axis button{font-size:12px}
+.replay-zoom{display:inline-flex;align-items:center;gap:8px;min-width:0;font-size:12px}
+.replay-zoom[hidden]{display:none}
+.replay-zoom span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.replay-skim{position:absolute;right:12px;bottom:12px;background:#0f1826e0;color:#e8eef6;border-radius:6px;padding:4px 9px;font:600 12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;pointer-events:none}
 .replay-timeline:focus-visible{box-shadow:inset 0 0 0 3px #87c1fa}
 .replay-film{position:relative;height:54px;border-radius:5px;overflow:hidden;background:#1a2433}
-.replay-tile{position:absolute;top:0;height:54px;border-right:1px solid #0f1826;background:linear-gradient(90deg,#1a2433,#243247,#1a2433);background-size:200% 100%;animation:replay-shimmer 1.2s linear infinite}
-.replay-tile canvas{width:100%;height:100%;display:block;opacity:0;transition:opacity .25s}
+.replay-tile{position:absolute;top:0;height:54px;overflow:hidden;background:linear-gradient(90deg,#1a2433,#243247,#1a2433);background-size:200% 100%;animation:replay-shimmer 1.2s linear infinite}
+.replay-tile canvas,.replay-tile img{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .25s;object-fit:cover;object-position:left top}
 .replay-tile.ready{animation:none}
-.replay-tile.ready canvas{opacity:1}
+.replay-tile.ready canvas,.replay-tile.ready img{opacity:1}
+/* 依步驟的章節軸（2026-10-29）：一格一步，左下角是步驟編號；空檔折疊成窄格；卡片固定寬 */
+.replay-tile b{position:absolute;left:2px;bottom:2px;z-index:1;font:600 10px/1 ui-monospace,SFMono-Regular,Consolas,monospace;background:#0f1826cc;color:#fff;border-radius:3px;padding:2px 3px;pointer-events:none}
+.replay-tile.gap{display:grid;place-items:center;background:repeating-linear-gradient(135deg,#223047 0 4px,#1a2433 4px 8px);animation:none;color:#9fb0c6;font-size:13px;line-height:1}
+.replay-tile.card{display:grid;place-items:center;background:#f4f7fb;border-left:3px solid var(--node,#546479);animation:none;color:var(--node,#546479);font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,monospace}
+.replay-tile.key{z-index:1;box-shadow:-1px 0 0 #fff}
+.replay-tile.failed::after,.replay-tile.current::after{content:"";position:absolute;inset:0;z-index:2;border:2px solid var(--danger);border-radius:2px;pointer-events:none}
+.replay-tile.current::after{border-color:#6fb6ff}
+.replay-tile.failed.current::after{border-color:var(--danger);box-shadow:inset 0 0 0 2px #6fb6ff}
 @keyframes replay-shimmer{to{background-position:-200% 0}}
 .replay-past{position:absolute;left:0;top:0;bottom:0;background:#0b69c41f;pointer-events:none}
 .replay-track{position:relative;height:16px;margin-top:6px;background:#eef2f7;border-radius:4px}
@@ -337,6 +353,7 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .replay-seg.failed{background:#f6c9c6;border-color:var(--danger)}
 .replay-seg.skipped{background:#eef2f7;border-color:#c8d2df}
 .replay-seg.current{box-shadow:0 0 0 2px var(--blue)}
+.replay-seg.gap{background:repeating-linear-gradient(135deg,#eef2f7 0 3px,#dde4ee 3px 6px);border:0;min-width:2px}
 .replay-ticks{position:relative;height:16px;margin-top:2px;font:10px/16px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted)}
 .replay-ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .replay-ticks span:first-child{transform:none}
@@ -364,33 +381,35 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .replay-tabpanel{overflow:auto;min-height:0;flex:1;position:relative}
 .replay-steps{list-style:none;margin:0;padding:6px}
 .replay-row{display:grid;grid-template-columns:22px 64px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px;border-radius:7px;cursor:pointer}
-.replay-steps:not(:has(canvas)) .replay-row{grid-template-columns:22px minmax(0,1fr) auto}
+.replay-steps:not(:has(.replay-thumb)) .replay-row{grid-template-columns:22px minmax(0,1fr) auto}
 .replay-row:hover{background:#f6f9fd}
 .replay-row.current{background:var(--active)}
-/* 步驟詳情（2026-10-28）：在右側欄裡從右往左滑出、蓋住清單；清單不動 */
-.replay-drawer{position:absolute;left:0;right:0;bottom:0;top:0;z-index:4;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--line);box-shadow:-12px 0 24px #24334a1a;transform:translateX(104%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
-.replay-drawer.open{transform:none;visibility:visible;transition:transform .22s ease}
-/* 步驟少、右側欄矮時，詳情也有足夠的高度（上限照右側欄的 max-height） */
-.replay-side.detail-open{min-height:560px}
-.replay-drawer-head{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--line)}
-.replay-drawer-back{display:inline-flex;align-items:center;gap:2px;font-size:13px}
-.replay-drawer-back svg{width:16px;height:16px}
-.replay-drawer-head .replay-icon{width:30px;height:28px}
+.replay-row.selected{box-shadow:inset 3px 0 0 var(--blue)}
+/* 步驟詳情（2026-10-29）：在分頁標籤與清單之間，從上方往下滑出；清單變短但不被蓋住 */
+.replay-drawer{display:grid;grid-template-rows:0fr;border-bottom:1px solid transparent;background:var(--surface);transition:grid-template-rows .22s ease,border-color .22s}
+.replay-drawer.open{grid-template-rows:1fr;border-bottom-color:var(--line);box-shadow:0 8px 12px -12px #24334a59}
+.replay-drawer-inner{min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.replay-drawer:not(.open) .replay-drawer-inner{visibility:hidden;transition:visibility 0s linear .22s}
+.replay-side.detail-open .replay-tabpanel{min-height:140px}
+.replay-drawer-head{display:flex;align-items:center;gap:6px;padding:10px 8px 6px 12px}
+.replay-drawer-head .replay-icon{flex:none;width:30px;height:28px}
 .replay-drawer-head .replay-icon:disabled{opacity:.4;cursor:default}
-.replay-drawer-title{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;padding:12px 12px 4px}
+.replay-drawer-title{flex:1;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center}
 .replay-drawer-title .replay-n{width:auto;min-width:24px;height:24px;padding:0 7px;border-radius:12px}
 .replay-drawer-title.node .replay-n{background:var(--node);color:#fff;border:0}
 .replay-drawer-title strong{display:block;font-size:14px;overflow-wrap:anywhere}
 .replay-drawer-title small{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
-.replay-drawer-body{flex:1;min-height:0;overflow:auto;padding:8px 12px 14px}
+.replay-drawer-body{max-height:min(380px,42vh);overflow:auto;padding:4px 12px 12px}
 .replay-drawer .replay-detail{margin:0;padding:0;border:0;background:none}
-@media(prefers-reduced-motion:reduce){.replay-drawer,.replay-drawer.open{transition:none}}
+.replay-shot{display:block}
+.replay-shot img{display:block;max-width:100%;max-height:150px;border:1px solid var(--line);border-radius:6px;background:#e6ebf2}
+@media(prefers-reduced-motion:reduce){.replay-drawer,.replay-drawer.open,.replay-drawer-inner{transition:none}}
 .replay-n{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;font:600 11px ui-monospace,SFMono-Regular,Consolas,monospace;background:#eef2f7;color:var(--muted)}
 .replay-n.passed{background:#e7f6ef;color:var(--success)}
 .replay-n.failed{background:var(--danger);color:#fff}
 .replay-n.running{background:var(--blue);color:#fff}
 .replay-n.upcoming{background:#fff;border:1px dashed #c8d2df}
-.replay-thumb{width:64px;height:36px;border-radius:4px;background:#e6ebf2;display:block}
+.replay-thumb{width:64px;height:36px;border-radius:4px;background:#e6ebf2;display:block;object-fit:cover;object-position:left top}
 .replay-title{min-width:0}
 .replay-title strong{display:block;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .replay-title small{display:block;font:11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -538,6 +557,8 @@ details.creport-node.anchor-hit{animation:anchor-hit 1.6s ease-out}
 .replay-bands{position:relative;height:20px;margin-top:6px}
 .replay-band{position:absolute;top:0;bottom:0;min-width:3px;padding:0 4px;border:1px solid #c3d4e8;border-radius:4px;background:#e4eefa;color:#315b89;font:600 10px/18px ui-monospace,SFMono-Regular,Consolas,monospace;text-align:left;overflow:hidden;white-space:nowrap;text-overflow:clip;cursor:pointer}
 .replay-band:hover{border-color:var(--blue)}
+.replay-band.zoomable{cursor:zoom-in}
+.replay-band.group{background:#eef3fb;border-color:#c3d4e8;color:#315b89}
 /* 節點色帶用節點的顏色（同步驟清單），結果是前面的小圓點（2026-10-28） */
 .replay-band.video{background:#eef3fb;background:color-mix(in srgb,var(--node,#2f6fdb) 14%,#fff);border-color:color-mix(in srgb,var(--node,#2f6fdb) 55%,#fff);color:var(--node,#315b89)}
 .replay-band.video::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:1px;background:currentColor}

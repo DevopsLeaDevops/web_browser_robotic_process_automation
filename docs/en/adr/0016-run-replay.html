@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:d87a9f8949e6e74b">
+<meta name="translation-source" content="sha256:df9a51db91ea6160">
 <title>ADR 0016 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -21,6 +21,18 @@
   </div>
 
   <div class="stack">
+    <section class="panel" id="chapters">
+      <div class="panel-header"><h2>Step timeline and a screenshot per step (2026-10-29)</h2></div>
+      <div class="panel-body prose">
+        <p>Updated: 2026-10-29 05:20 America/Los_Angeles (PDT, UTC−07:00). This section amends “thumbnails are made in the browser that plays the video” in decision 6 (“How to replay”) and “a screenshot per step” among the alternatives: the recording remains the main record, and a screenshot per step is added as its thumbnail.</p>
+        <p><strong>Why:</strong> v0.7.0 acceptance (2026-10-28, with a screenshot): thumbnails did not match the timeline or the video, and it was hard to find the step you wanted. The timeline was cut into even tiles, each showing the moment in its middle, with tile edges unrelated to nodes, cards and steps; on a to-scale timeline the steps took a tiny part (13 steps in about 0.65 seconds out of 4.68), the rest being wrap-up after the steps and transition cards; and the video is lined up with the steps only as closely as it is observed (Chromium uses the first observed frame, tests allow ±0.3 seconds) at 40 ms per frame, coarser than fast steps (10–80 ms), so “the frame after a step” taken from the video may show a neighbouring step.</p>
+        <p><strong>Screenshots:</strong> while recording, the runner takes a small JPEG after each step (passed or failed, not skipped) into <code>steps/001.jpg</code>… in the run folder; <code>steps.json</code> gets <code>shot</code> (relative path) and <code>shotAt</code> (when taking it started). Headless Chromium uses DevTools' <code>Page.captureScreenshot</code> (the same command as Playwright's <code>page.screenshot</code>) and has the browser scale it to at most 640 wide; Firefox, WebKit and headed Chromium (a background tab may have no picture, so a timeout is needed) use Playwright's JPEG screenshot (page size, quality 50, at most 2 seconds). A failed screenshot does not affect the step; none is taken with less than 3 seconds left before the deadline; at most 500 per run (a remote worker uploads at most 2000 files per run folder). Step start and end times exclude the screenshot. Measured locally (cloud container, headless Chromium, the 1280×800 demo page): about 30–40 ms more between two steps (the first one sets up the DevTools connection, about 200 ms), 2.4 MB for 200 steps (about 12 KB each). Screenshots are kept with the run record (video retention only deletes videos), remote workers still upload the whole run folder, and like the video they keep everything on screen (the user's D3 of 2026-10-20). The server only accepts file names the runner makes (<code>steps/</code> plus three or four digits).</p>
+        <p><strong>Replay:</strong> the timeline is laid out “By step” by default: one slot per step (at least 44 px, extra width shared by the square root of each step's length), stretches of more than 0.5 seconds without a step in the same recording folded into a 20 px slot, and 40 px for each card. Time and position are converted piecewise-linearly, used by the playhead, dragging, hover preview, ticks (showing real times) and bands. Thumbnails are the step screenshots; without one (older runs) replay falls back to the video frame 3 frames after the step ended, and video thumbnails are cached per frame (25 per second). Playback runs at 4× through folded stretches except their last 0.4 seconds (clicking a step jumps 0.4 seconds before it); only in the step view, and it can be turned off in the controls. When a step cannot get 44 px, slots get narrower and several steps share a thumbnail; a single run is split into groups of steps and a composite run into its nodes, and clicking one zooms in. “By time” switches back to the earlier to-scale timeline, and the browser remembers the choice. The step list and the details use the same screenshot, which survives the video's deletion. The step details now slide down above the list without covering it (the user's change of 2026-10-29; on 2026-10-28 they slid in from the right over the list).</p>
+        <p><strong>Not done:</strong> estimating and correcting the video's timing offset from the screenshots (marked “if feasible” in the design proposal). Thumbnails no longer depend on the video's timing; estimating the offset means comparing pictures, which page animations, the cursor and compression noise easily mislead, and a wrong estimate would make the video less accurate. It will be reconsidered with a real case. Making thumbnails also does not wait for <code>requestVideoFrameCallback</code>: the video used for thumbnails is not on screen, so the callback may never come; it seeks to frame times instead.</p>
+        <p>Implementation and verification: see <a href="../../../handoff/tasks/20261029-replay-chapters.html">the task handoff</a>.</p>
+      </div>
+    </section>
+
     <section class="panel" id="multipage">
       <div class="panel-header"><h2>Multi-page and timing correction (2026-10-22)</h2></div>
       <div class="panel-body prose">
@@ -37,7 +49,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>Date</dt><dd class="mono">2026-10-20</dd>
-        <dt>Amended</dt><dd><span class="mono">2026-10-22</span>: every tab gets its own recording, replay switches recordings by each step's tab, and Chromium is timed by the first observed frame; this supersedes the assumptions that one video covers a run and that out-of-range steps stay on its final frame. See <a href="#multipage">Multi-page and timing correction</a>. <span class="mono">2026-10-27</span>: the recordings of a composite run's nodes are kept as a group (retention follows the whole composite run; pinning and deletion over the limit apply to the whole group), and the player can join the segments of a whole composite run; see <a href="0019-composite-report-replay.html">ADR 0019</a>.</dd>
+        <dt>Amended</dt><dd><span class="mono">2026-10-22</span>: every tab gets its own recording, replay switches recordings by each step's tab, and Chromium is timed by the first observed frame; this supersedes the assumptions that one video covers a run and that out-of-range steps stay on its final frame. See <a href="#multipage">Multi-page and timing correction</a>. <span class="mono">2026-10-27</span>: the recordings of a composite run's nodes are kept as a group (retention follows the whole composite run; pinning and deletion over the limit apply to the whole group), and the player can join the segments of a whole composite run; see <a href="0019-composite-report-replay.html">ADR 0019</a>. <span class="mono">2026-10-29</span>: while recording, a small screenshot is also taken after each step as its thumbnail, and the timeline is laid out by step by default (one slot per step, folded and fast-forwarded waits); see <a href="#chapters">Step timeline and a screenshot per step</a>.</dd>
         <dt>Scope</dt><dd>rpa-runner, rpa-worker, rpa-server (from M12)</dd>
         <dt>Related</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a> (run folder), <a href="0012-remote-workers.html">ADR 0012</a> (remote workers upload the run folder); M11 decision D4 (run records stay out of git); <a href="../design/portal.html#video">Management portal › Runs › Recording</a></dd>
       </dl>
@@ -87,7 +99,7 @@
             <thead><tr><th>Option</th><th>Why not</th></tr></thead>
             <tbody>
               <tr><td>Playwright traces</td><td>Large files that need the separate Trace Viewer; the user wants video playback, seeking and thumbnails.</td></tr>
-              <tr><td>A screenshot per step</td><td>An extra browser round trip changes step timing, and nothing between steps is visible.</td></tr>
+              <tr><td>A screenshot per step</td><td>An extra browser round trip changes step timing, and nothing between steps is visible. (2026-10-29: a small screenshot per step is now taken in addition to the recording as its thumbnail, not instead of it; see <a href="#chapters">Step timeline</a>.)</td></tr>
               <tr><td>Playwright's showActions (marking clicks in the video)</td><td>Injects annotations into the page and waits 500 ms before every action, which changes the run itself. The replay page shows the steps instead.</td></tr>
               <tr><td>Making thumbnails on the server</td><td>The Linux server has neither a browser nor ffmpeg; adding a media package makes offline installation harder.</td></tr>
               <tr><td>Receiving every frame and encoding ourselves</td><td>Playwright already encodes at real time; doing it ourselves means encoding twice, and termination still has to be handled.</td></tr>

@@ -1,19 +1,28 @@
 """運行回看（M12）：回看頁的資料與頁面、運行報告的錄影欄與「只看有錄影的」篩選。
 
-不需要瀏覽器：假的執行器照 runner 的做法留下場景快照、步驟紀錄、頁面事實與一段最小的影片。
-真實錄影的播放、拖曳與點步驟跳轉在 test_replay_flow.py。
+假的執行器照 runner 的做法留下場景快照、步驟紀錄、頁面事實、每一步的截圖與一段最小的影片
+（只有標頭，瀏覽器播不出畫面）。大部分不需要瀏覽器；時間軸的排法（依步驟的章節軸，2026-10-29）
+用 Chromium 打開回看頁檢查（標了 browser）。真實錄影的播放、拖曳與點步驟跳轉在 test_replay_flow.py。
 """
 
+import base64
+import itertools
+import json
+import re
 import shutil
+import socket
 import threading
-from collections.abc import Callable, Mapping
+import time
+from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
 import pytest
+import uvicorn
 from fastapi import FastAPI
 from httpx2 import Client, Response
+from playwright.sync_api import Page, expect, sync_playwright
 
 from rpa_core.dsl import validate_file
 from rpa_core.dsl.sources import scenario_digest
@@ -21,16 +30,33 @@ from rpa_runner.browser import plan_records
 from rpa_runner.files import FACTS, SCENARIO_DIR, STEPS, VIDEO_TMP, write_json
 from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, StageName
+from rpa_runner.stepshots import shot_name
 from rpa_runner.video import finalize, mark_page
+from rpa_server.app import create_app
+from rpa_server.config import Settings
 from rpa_server.domain import now
 from rpa_server.models import Run
 from rpa_server.replay import step_sources
 from rpa_server.services import Services
 from rpa_worker import Worker
+from testsite.browsers import require_engine
 from testsite.webm import tiny_webm
 
 JsonObject = dict[str, object]
 STARTED = datetime(2026, 10, 21, 3, 30, 12, tzinfo=UTC)
+JPEG = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERX"
+    "RTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2Nj"
+    "Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAAJABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAA"
+    "AAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAk"
+    "M2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKT"
+    "lJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QA"
+    "HwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdh"
+    "cRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hp"
+    "anN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk"
+    "5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD0CiiigD//2Q=="
+)
+"""每一步的截圖（16×9 的白色 JPEG）。"""
 
 
 class StepExecutor:
@@ -42,6 +68,8 @@ class StepExecutor:
         self.multiple_pages = False
         self.child_video = True
         self.lost_video = False
+        self.shots = False
+        """照 Runner 錄影時的做法，每一步做完留一張截圖（2026-10-29）。"""
 
     def __call__(
         self,
@@ -82,6 +110,11 @@ class StepExecutor:
                 record.status = "failed"
                 record.error = "TimeoutError: 找不到元素"
                 status = "failed"
+            if self.shots and record_video:
+                record.shot = shot_name(index + 1)
+                record.shot_at = record.ended_at + 0.05
+                (folder / record.shot).parent.mkdir(parents=True, exist_ok=True)
+                (folder / record.shot).write_bytes(JPEG)
         write_json(folder / STEPS, [record.to_json() for record in records])
         write_json(folder / FACTS, {"record": {"recordId": "DEMO-1", "title": "回看"}})
         if record_video and self.record:
@@ -294,6 +327,49 @@ def test_replay_explains_a_recording_that_was_not_saved(
     assert 'id="replay-video"' not in response.text
 
 
+def test_replay_gives_each_step_its_screenshot(
+    app: FastAPI, client: Client, worker: Worker, executor: StepExecutor
+) -> None:
+    """錄影時每一步做完的截圖（2026-10-29）：回看資料有網址與時間，錄影刪了還在。"""
+    executor.shots = True
+    executor.fail_at = 2
+    run_id = run_once(client, worker)
+    folder = services(app).storage.run_dir(run_id)
+    steps_file = folder / STEPS
+    records = cast("list[JsonObject]", json.loads(steps_file.read_text(encoding="utf-8")))
+    records[1]["shot"] = "../video.json"  # 只接受 Runner 產生的檔名
+    write_json(steps_file, records)
+
+    data = body(client.get(f"/api/runs/{run_id}/replay"))
+
+    steps = cast("list[JsonObject]", data["steps"])
+    assert steps[0]["shot"] == f"/runs/{run_id}/files/steps/001.jpg"
+    assert steps[0]["shotMs"] == cast("int", steps[0]["endMs"]) + 50
+    assert steps[1]["shot"] is None
+    assert steps[2]["shot"] == f"/runs/{run_id}/files/steps/003.jpg"  # 失敗的那一步也有
+    assert steps[3]["shot"] is None  # 略過的沒有
+    image = client.get(f"/runs/{run_id}/files/steps/001.jpg")
+    assert image.content == JPEG
+    assert image.headers["cache-control"] == "private, max-age=86400"
+    # 運行詳情的檔案清單只列一項，連到回看
+    page = client.get(f"/runs/{run_id}").text
+    assert 'data-file="steps/"' in page
+    assert "每一步做完的截圖（3 張）" in page
+    assert 'data-file="steps/001.jpg"' not in page
+
+    with services(app).sessions() as session:
+        run = session.get(Run, run_id)
+        assert run is not None
+        run.finished_at = now() - timedelta(days=60)
+        session.commit()
+    services(app).videos.sweep()
+
+    kept = body(client.get(f"/api/runs/{run_id}/replay"))
+    assert cast("JsonObject", kept["video"])["playable"] is False
+    assert cast("list[JsonObject]", kept["steps"])[0]["shot"] == steps[0]["shot"]
+    assert client.get(f"/runs/{run_id}/files/steps/001.jpg").status_code == 200
+
+
 def test_video_settings_form_is_on_the_runs_page(client: Client) -> None:
     html = client.get("/runs").text
     assert "data-video-settings" in html
@@ -324,3 +400,161 @@ def test_replay_resolves_steps_to_their_page_recordings(
         assert recordings[1]["startMs"] == 1000
         assert str(recordings[1]["url"]).endswith("video-page-2.webm")
         assert recordings[1]["pageId"] == steps[1]["pageId"]
+
+
+# ---------------------------------------------------------------- 時間軸的排法（需要 Chromium）
+
+
+@pytest.fixture
+def live(settings: Settings) -> Iterator[str]:
+    """同一份資料的另一個伺服器（uvicorn，背景執行緒），給瀏覽器打開回看頁。"""
+    server = uvicorn.Server(uvicorn.Config(create_app(settings), log_level="warning"))
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 30
+    while not server.started:
+        assert time.monotonic() < deadline, "伺服器沒有啟動"
+        time.sleep(0.05)
+    try:
+        yield f"http://127.0.0.1:{sock.getsockname()[1]}"
+    finally:
+        server.should_exit = True
+        thread.join(timeout=30)
+        sock.close()
+
+
+@pytest.fixture
+def page() -> Iterator[Page]:
+    require_engine("chromium")
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="zh-TW")
+        context.set_default_timeout(10_000)
+        try:
+            yield context.new_page()
+        finally:
+            context.close()
+            browser.close()
+
+
+def position(page: Page) -> float:
+    return float(page.locator("#replay-timeline").get_attribute("aria-valuenow") or 0)
+
+
+@pytest.mark.browser
+def test_step_axis_gives_each_step_one_slot(
+    client: Client, worker: Worker, executor: StepExecutor, live: str, page: Page
+) -> None:
+    """依步驟的時間軸（2026-10-29）：一格一步、縮圖是那一步的截圖、空檔折疊、可以切回依時間。
+
+    假的執行器：影片 6 秒，第 1～5 步各 0.4 秒、相隔 0.5 秒（第 1 秒起），第 5 步失敗：
+    開頭 1 秒與第 5 步之後（3.45～6 秒）沒有動作，折疊成兩個空檔。
+    """
+    executor.shots = True
+    executor.fail_at = 4
+    run_id = run_once(client, worker)
+    steps = cast("list[JsonObject]", body(client.get(f"/api/runs/{run_id}/replay"))["steps"])
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+
+    page.goto(f"{live}/runs/{run_id}/replay")
+
+    tiles = page.locator(".replay-tile.step")
+    expect(tiles).to_have_count(5)
+    indexes = tiles.evaluate_all("all => all.map(tile => Number(tile.dataset.index))")
+    assert indexes == [1, 2, 3, 4, 5]
+    boxes = [tiles.nth(index).bounding_box() for index in range(5)]
+    assert all(box is not None and box["width"] >= 43 for box in boxes), boxes
+    lefts = [cast("dict[str, float]", box)["x"] for box in boxes]
+    assert lefts == sorted(lefts)
+    expect(tiles.nth(0).locator("img")).to_have_attribute("src", cast("str", steps[0]["shot"]))
+    expect(page.locator('.replay-tile.step.failed[data-index="5"]')).to_have_count(1)
+    gaps = page.locator(".replay-tile.gap")
+    expect(gaps).to_have_count(2)
+    assert all((gap.bounding_box() or {"width": 99})["width"] <= 21 for gap in gaps.all())
+    expect(page.locator('.replay-seg[data-index="3"]')).to_have_count(1)
+
+    # 點第 3 格：跳到第 3 步那一段（2.0～2.5 秒），畫面上標出第 3 步
+    third = cast("dict[str, float]", boxes[2])
+    page.mouse.click(third["x"] + third["width"] / 2, third["y"] + third["height"] / 2)
+    assert 2.0 <= position(page) < 2.5, position(page)
+    expect(page.locator("#replay-chip-n")).to_have_text("03")
+    expect(tiles.nth(2)).to_contain_class("current")
+    # 滑過第 2 格：預覽是那一步做完的截圖
+    second = cast("dict[str, float]", boxes[1])
+    page.mouse.move(second["x"] + 5, second["y"] + 10)
+    expect(page.locator("#replay-preview-step")).to_contain_text("02 · ")
+    expect(page.locator("#replay-preview-step")).to_contain_text("做完的畫面")
+
+    # 播放經過最後的空檔：4× 快轉，畫面上有提示；暫停就收起
+    page.keyboard.press("End")
+    page.evaluate("document.getElementById('replay-timeline').focus()")
+    page.mouse.click(lefts[4] + 10, third["y"] + third["height"] / 2)
+    page.keyboard.press("ArrowRight")  # 第 5 步之後，空檔裡
+    assert 3.7 < position(page) < 5.5, position(page)
+    page.locator("#replay-play").click()
+    expect(page.locator("#replay-skim")).to_be_visible()
+    page.locator("#replay-play").click()
+    expect(page.locator("#replay-skim")).to_be_hidden()
+
+    # 依時間：照實際時間平均切格；記住選擇，重新整理後還是依時間
+    page.locator('[data-axis="time"]').click()
+    expect(page.locator(".replay-tile.step")).to_have_count(0)
+    expect(page.locator(".replay-tile.frame").first).to_be_attached()
+    page.reload()
+    expect(page.locator('[data-axis="time"]')).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".replay-tile.step")).to_have_count(0)
+    page.locator('[data-axis="steps"]').click()
+    expect(page.locator(".replay-tile.step")).to_have_count(5)
+    assert not errors, errors
+
+
+@pytest.mark.browser
+def test_crowded_step_axis_zooms_into_a_group(
+    client: Client, worker: Worker, executor: StepExecutor, live: str, page: Page
+) -> None:
+    """一百二十步放不下一步一格（2026-10-29）：每幾步一組、縮圖合併；點一組放大，「整次」回來。"""
+    many = "".join(
+        f"  - id: fill-{number}\n    action: fill\n    target: {{ css: '#title' }}\n"
+        f"    value: '{number}'\n"
+        for number in range(1, 121)
+    )
+    scenario = "schemaVersion: 1\nid: crowded\nname: 很多步\nsteps:\n" + many
+    assert client.post("/api/scenes", json={"id": "crowded", "name": "很多步"}).status_code == 201
+    created = client.post(
+        "/api/scenes/crowded/revisions",
+        json={"baseRevision": 1, "files": {"scenario.yaml": scenario}},
+    )
+    assert created.status_code == 201, created.text
+    executor.shots = True
+    run = body(client.post("/api/scenes/crowded/revisions/2/validate", json={"inputs": {}}))
+    assert worker.run_once() is True
+
+    page.goto(f"{live}/runs/{run['id']}/replay")
+
+    groups = page.locator(".replay-band.group")
+    expect(groups.first).to_be_visible()
+    count = groups.count()
+    assert 5 <= count <= 20, count
+    expect(groups.first).to_have_text(re.compile(r"^1–\d+$"))
+    # 縮圖不會一步一張：每幾步合成一格，不重疊
+    bunched = page.locator(".replay-tile.step")
+    assert bunched.count() < 120
+    boxes = [box for box in (tile.bounding_box() for tile in bunched.all()) if box]
+    pairs = itertools.pairwise(boxes)
+    assert all(left["x"] + left["width"] <= right["x"] + 0.5 for left, right in pairs), boxes
+
+    groups.nth(1).click()
+    expect(page.locator("#replay-zoom")).to_be_visible()
+    expect(page.locator("#replay-zoom-label")).to_contain_text("第 ")
+    zoomed = page.locator(".replay-tile.step")
+    expect(zoomed.first).to_be_attached()
+    indexes = zoomed.evaluate_all("all => all.map(tile => Number(tile.dataset.index))")
+    assert indexes == list(range(indexes[0], indexes[0] + len(indexes))), indexes
+    assert all((tile.bounding_box() or {"width": 0})["width"] >= 43 for tile in zoomed.all())
+
+    page.locator("#replay-unzoom").click()
+    expect(page.locator("#replay-zoom")).to_be_hidden()
+    expect(page.locator(".replay-band.group")).to_have_count(count)

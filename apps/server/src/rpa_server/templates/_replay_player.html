@@ -1,5 +1,6 @@
 {#- 回看的播放器（M12）：影片、控制列、縮圖時間軸、快捷鍵說明。單一運行的回看與組合運行的合併回看
-    （2026-10-27）共用；composite 為 true 時多卡片（轉場、沒有錄影）與節點色帶。 -#}
+    （2026-10-27）共用；composite 為 true 時多卡片（轉場、沒有錄影）。時間軸可以依步驟（一格一步、
+    空檔折疊）或依時間排（2026-10-29），色帶是組合回看的節點、或太擠時可以放大的一章。 -#}
 {% import "_macros.html" as m %}
 {% macro player(video, data, download_name, composite=false) %}
     <section class="panel replay-viewer" aria-label="{{ t('replay.video') }}">
@@ -9,6 +10,7 @@
         <div class="replay-chip" aria-live="polite"><span class="replay-chip-n" id="replay-chip-n">—</span><span class="replay-chip-state" id="replay-chip-state"></span><span id="replay-chip-text"></span></div>
         <div class="replay-gap" id="replay-gap" role="status" hidden>{{ t("replay.missing_clip") }}</div>
         <div class="replay-located" id="replay-located" hidden></div>
+        <div class="replay-skim" id="replay-skim" role="status" hidden>{{ t("replay.skim_badge") }}</div>
         {% if composite %}<div class="replay-card" id="replay-card" aria-live="polite" hidden></div>{% endif %}
         <button class="replay-bigplay" id="replay-bigplay" type="button" aria-label="{{ t('replay.play') }}"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
         {% if data.failedStep %}
@@ -36,12 +38,18 @@
         <span class="replay-grow"></span>
         <span class="segmented replay-speed" role="group" aria-label="{{ t('replay.speed') }}" id="replay-speed"><button type="button" data-rate="0.25" aria-pressed="false">¼×</button><button type="button" data-rate="0.5" aria-pressed="false">½×</button><button type="button" data-rate="1" aria-pressed="true">1×</button><button type="button" data-rate="2" aria-pressed="false">2×</button></span>
         <label class="replay-follow"><input type="checkbox" id="replay-follow" checked> {{ t("replay.follow") }}</label>
+        <label class="replay-follow" title="{{ t('replay.skim_title') }}"><input type="checkbox" id="replay-skim-toggle" checked> {{ t("replay.skim") }}</label>
         <button class="replay-icon" id="replay-help-button" type="button" aria-expanded="false" aria-controls="replay-help" aria-label="{{ t('replay.shortcuts') }}" title="{{ t('replay.shortcuts') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h1m3 0h1m3 0h2M7 14h10"/></svg></button>
         <button class="replay-icon" id="replay-fullscreen" type="button" aria-label="{{ t('replay.fullscreen') }}" title="{{ t('replay.fullscreen') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       </div>
+      <div class="replay-axisbar">
+        <span class="replay-zoom" id="replay-zoom" hidden><button class="text-btn" type="button" id="replay-unzoom">← {{ t("replay.zoom_whole") }}</button><span id="replay-zoom-label"></span></span>
+        <span class="replay-grow"></span>
+        <span class="segmented replay-axis" role="group" aria-label="{{ t('replay.axis') }}"><button type="button" data-axis="steps" aria-pressed="true" title="{{ t('replay.axis_steps_title') }}">{{ t("replay.axis_steps") }}</button><button type="button" data-axis="time" aria-pressed="false" title="{{ t('replay.axis_time_title') }}">{{ t("replay.axis_time") }}</button></span>
+      </div>
       <div class="replay-timeline" id="replay-timeline" tabindex="0" role="slider" aria-label="{{ t('replay.timeline') }}" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
         <div class="replay-film" id="replay-film"><div class="replay-past" id="replay-past"></div></div>
-        {% if composite %}<div class="replay-bands" id="replay-bands"></div>{% endif %}
+        <div class="replay-bands" id="replay-bands" hidden></div>
         <div class="replay-track" id="replay-track"></div>
         <div class="replay-ticks" id="replay-ticks"></div>
         <div class="replay-playhead" id="replay-playhead"></div>

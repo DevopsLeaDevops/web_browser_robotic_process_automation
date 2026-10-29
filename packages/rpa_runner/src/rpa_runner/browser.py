@@ -144,6 +144,10 @@ class StepRecord:
     """upload 交給網頁的檔名（M7c）。"""
     notes: list[str] = field(default_factory=list[str])
     """不影響結果的提醒，例如開出了沒有指定檔案的選擇檔案視窗（M7c）。"""
+    shot: str | None = None
+    """錄影時這一步做完的縮小截圖（執行目錄裡的相對路徑，見 stepshots.py）。"""
+    shot_at: float | None = None
+    """開始拍那張截圖的實際時間。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -161,6 +165,8 @@ class StepRecord:
             "createdPageId": self.created_page_id,
             "files": self.files,
             "notes": self.notes,
+            "shot": self.shot,
+            "shotAt": _utc(self.shot_at),
         }
 
 
@@ -594,18 +600,25 @@ def run_steps(
     on_progress: Callable[[], None] = lambda: None,
     tabs: Tabs | None = None,
     files: Mapping[str, Sequence[Path]] | None = None,
+    after_step: Callable[[Page, StepRecord, int], None] | None = None,
 ) -> dict[str, object]:
     """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。
 
     ``tabs`` 給了時用它（呼叫的人之後要知道最後在哪個分頁，例如失敗截圖）；``page`` 是一開始的分頁。
     ``files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）。
+    ``after_step`` 在每一步（通過或失敗）之後、寫出進度之前呼叫：(最後用到的分頁, 紀錄, 第幾步)，
+    錄影時拍那一步做完的截圖（見 stepshots.py）；它出錯不影響步驟的結果。
     """
     facts: dict[str, object] = {}
     run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {})
-    for step, record in zip(scenario.steps or [], records, strict=True):
+    steps = zip(scenario.steps or [], records, strict=True)
+    for index, (step, record) in enumerate(steps, start=1):
         try:
             _execute_step(run, step, record, context, deadline)
         finally:
+            if after_step is not None:
+                with contextlib.suppress(Exception):
+                    after_step(run.tabs.active, record, index)
             on_progress()
     return facts
 

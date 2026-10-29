@@ -117,5 +117,7 @@
   "browser.upload_single": "This file input accepts a single file, but several files were given; use a single file, or check that the locator points to an input that accepts several files",
   "browser.upload_not_input": "This element is not a file input (<input type=file>): point target at the file input itself; use trigger for a button that opens a file chooser when clicked",
   "browser.drop_too_large": "The dropped files total {size}, more than the drop zone limit of {limit}; use target or trigger instead",
-  "report.step_files": "Files: {files}"
+  "report.step_files": "Files: {files}",
+  "report.shot": "After the step",
+  "report.step_shots": "steps/ (screenshot after each step, {count})"
 }
