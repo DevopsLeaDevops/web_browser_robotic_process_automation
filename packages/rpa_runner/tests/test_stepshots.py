@@ -11,6 +11,7 @@ from typing import cast
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
+from rpa_core.i18n import use_locale
 from rpa_runner.browser import Deadline, StepRecord
 from rpa_runner.files import STEP_SHOTS
 from rpa_runner.report import render_report
@@ -177,7 +178,8 @@ def test_report_shows_each_step_picture_and_lists_the_folder_once() -> None:
         files=["result.json", "steps/001.jpg", "steps/002.jpg", "video.webm"],
     )
 
-    html = render_report(result)  # pyright: ignore[reportArgumentType]
+    with use_locale("zh-Hant"):  # 報告用目前的語言；別的測試可能留下英文
+        html = render_report(result)  # pyright: ignore[reportArgumentType]
 
     assert '<img class="shot" src="steps/001.jpg"' in html
     assert html.count('class="shot"') == 1

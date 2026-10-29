@@ -90,6 +90,7 @@
         <li>2026-10-28 07:40 America/Los_Angeles（PDT，UTC−07:00），Claude：交出設計提案（只有設計，沒有改程式），存在 Claude 專案的 <code>claude/replay-timeline-redesign-proposal.md</code>。</li>
         <li>2026-10-29 04:50 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 04:38 確認（見上）；PR #103 已合併、v0.7.1 已發布（PR #104）。從 main <code>2089d48</code> 開 <code>feat/replay-chapters</code>。</li>
         <li>2026-10-29 05:55 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>b36b9ab</code>（[bootstrap]），開 PR #106；bootstrap 產生簡中（<code>5bdcc3b</code>）。本機驗證見上表；推送這份紀錄觸發 CI。</li>
+        <li>2026-10-29 06:35 America/Los_Angeles（PDT，UTC−07:00），Claude：main 合入 #105（每晚測試的 Windows 連接埠），PR 有衝突，合入 main（<code>c4a168f</code>，只有任務索引衝突，保留兩邊）。<code>c4a168f</code> 的 CI：靜態檢查、Worker 測試（Windows）、測試（Python 3.13，含兩個真實錄影的回看流程與新的時間軸測試）、桌面端建置、伺服器分發包、一鍵安裝腳本通過；測試（Python 3.12，全部測試同一個程序）只有 <code>test_stepshots.py</code> 的報告那一項失敗：前面的測試留下英文，報告寫成英文。改成在測試裡固定繁中，本機先切到英文再跑通過。</li>
       </ul></div>
     </section>
   </div>
