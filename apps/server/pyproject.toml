@@ -1,6 +1,6 @@
 [project]
 name = "rpa-server"
-version = "0.7.0"
+version = "0.7.1"
 description = "管理 Portal：FastAPI 提供 API 與 Jinja 頁面；SQLite 存元資料，檔案目錄存版本與執行目錄"
 requires-python = ">=3.12"
 dependencies = [

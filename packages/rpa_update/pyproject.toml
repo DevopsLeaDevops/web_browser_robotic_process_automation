@@ -1,6 +1,6 @@
 [project]
 name = "rpa-update"
-version = "0.7.0"
+version = "0.7.1"
 description = "分層更新（ADR 0018）：更新檔的清單與簽章、執行環境代號、桌面 App 的啟動器；只用標準函式庫"
 requires-python = ">=3.12"
 dependencies = []
