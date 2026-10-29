@@ -1822,5 +1822,9 @@
   "replayjs.card_no_video": "{{node}} has no recording",
   "replayjs.card_not_run": "Did not run: {{nodes}}",
   "replayjs.card_pending": "Not finished: {{nodes}}",
-  "creplay.download_node": "Download this node's recording:"
+  "creplay.download_node": "Download this node's recording:",
+  "replayjs.step_detail": "Step details",
+  "replayjs.back_to_steps": "Steps",
+  "replayjs.prev_step": "Previous step (J)",
+  "replayjs.next_step": "Next step (L)"
 }

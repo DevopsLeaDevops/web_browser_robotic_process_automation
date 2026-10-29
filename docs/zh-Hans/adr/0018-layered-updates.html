@@ -76,6 +76,7 @@
           <li><strong>录制端。</strong>只提示「关掉再打开就会应用」，不自己重新启动。</li>
           <li><strong>设置与画面。</strong>「自动更新设备」存在 <code>settings</code> 表（<code>device_updates</code>），默认开。设备页显示服务器的更新档，以及每台最近一次的更新状态（只记在内存，服务器重新启动后等设备再回报）。「要用完整的安装包」说明是运行环境不同，滑过去看这台与更新档的环境代号；有更新状态说明时不再另外提醒「和 Portal 的程序版本不同」（2026-10-26）。</li>
           <li><strong>发布。</strong><code>release.yml</code> 用 Secrets 的 <code>RPA_UPDATE_SIGNING_KEY</code> 产生并签署 <code>RPA-Update-&lt;版本&gt;.zip</code>，并确认每个安装包信任的公钥都是 <code>rpa_update/keys.py</code> 的 <code>RELEASE_KEYS</code>；还没有正式密钥时发布会失败。产生密钥的步骤见<a href="../develop/ci.html#update-key">CI 与流水线 › 更新档的签署密钥</a>。PR 上的建置用临时密钥测试。</li>
+          <li><strong>页面的静态档带内容哈希（2026-10-28）。</strong>更新档换掉程序层之后，网址不变的 <code>/static/replay.js</code> 之类会被浏览器沿用旧的缓存（之前没有 Cache-Control，浏览器自己猜缓存多久）：v0.7.0 验收时页面是新版、播放器的程序还是旧的。样板改用 <code>static_url()</code>，网址加上内容的哈希（<code>?v=…</code>），带版本的长期缓存，没带的每次向服务器确认（<code>no-cache</code>）。</li>
           <li><strong>实测（Linux x86_64 本地建置）。</strong>更新档约 1.9 MB（七个包编译成 .pyc）。打包的 Worker 装上更新档后加载新的一层、确认、两次启动失败后退回，新的进程会等旧的结束后才启动（约 0.5 秒内接手）。</li>
         </ul>
       </div>

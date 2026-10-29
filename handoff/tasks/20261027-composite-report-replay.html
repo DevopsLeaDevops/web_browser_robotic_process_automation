@@ -98,6 +98,7 @@
         <li>2026-10-27 09:00 America/Los_Angeles（PDT，UTC−07:00），Claude：#98 的瀏覽器測試後半段失敗，但 annotation 看不到原因：GitHub 只保留訊息的前 4096 個字元，<code>tools/ci_annotations.py</code> 保留結尾 6000 個字元，最後的斷言正好被截掉。改成 4000 個字元並加測試（<code>27da15e</code>）。看到的原因是測試的預期：本機測試網站很快，n2 的錄影第一格出現前「開啟」「輸入」已經做完，「查詢」離 n2 那一段的開頭只有幾十毫秒，播放器照設計停在那一段的開頭（不跳回轉場卡）；測試改成照這個規則算預期位置（<code>5e35d41</code>）。#98 最新 head 的 CI 通過。</li>
         <li>2026-10-27 17:51 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 17:36 合併 #96（<code>56936f6</code>），要求「還沒做的部分繼續做」。#98 的 base 改成 main（main 已含 <code>576fd6e</code>，不需要 rebase，合併沒有衝突）。對照確認過的設計找出一處漏做：合併回看的「運行資訊」要列出各節點的入參與出參、可以單獨下載某個節點的錄影，已補上（<code>0c3ddb8</code>，三語與設計頁同步）。剩下的人工驗收要在真實 Worker（Windows／macOS）上做，這個雲端容器沒有連到使用者的電腦，做不了。</li>
         <li>2026-10-28 01:35 America/Los_Angeles（PDT，UTC−07:00），Claude：#98 已在 00:34 由使用者合併（<code>56953fc</code>），之後 #97 也合併（<code>a26b929</code>）。這兩個 PR 併入 v0.7.0（<a href="20261028-release-0-7-0.html">20261028-release-0-7-0</a>）；人工驗收照 Claude Docs 的驗收教程做，結果回填本頁。</li>
+        <li>2026-10-28 03:45 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者驗收 v0.7.0 的合併回看，回報轉場卡黑屏、點步驟不動、詳情推出方式、場景分隔四點；原因與修正見 <a href="20261028-replay-acceptance-fixes.html">20261028-replay-acceptance-fixes</a>（瀏覽器沿用舊的播放器程式、點步驟固定往前 0.4 秒）。</li>
       </ul></div>
     </section>
   </div>

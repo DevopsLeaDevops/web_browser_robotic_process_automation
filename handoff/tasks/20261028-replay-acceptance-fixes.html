@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261028-replay-acceptance-fixes · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261028-replay-acceptance-fixes：v0.7.0 驗收的回看問題（舊快取、點步驟不動、詳情改成滑出、場景分隔）</h1><p>使用者驗收 v0.7.0 的合併回看與場景回看時回報的四點：轉場卡是黑屏、點步驟時間軸與畫面不動、詳情從下方推出、整次回看的步驟看不出是哪個場景。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261028-replay-acceptance-fixes；2026-10-28 06:49 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-28 03:25 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話（附兩張截圖）：1. 轉場卡沒有出現，都是黑屏；2. 「回看整次運行」點步驟後的詳細內容現在是從下方推出來，要換一種推出方式；步驟之間加分隔或不同顏色，表示不同的場景在運行（Claude 設計）；3. 「回看場景」同樣改詳情的推出方式；4. 點時間軸時畫面與步驟對得上，點步驟時時間軸與畫面沒有變，分析原因並修正。Claude 用選項卡問詳情的推出方式，使用者選「從右側滑出，蓋住清單」。驗收：使用者在 v0.7.x 上重看合併回看與場景回看。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：靜態檔快取（伺服器）、播放器（<code>static/replay.js</code>、<code>replay-media.js</code> 不變）、樣式、訊息、設計文件與 ADR 0018 註記、測試。不包含：錄影方式、資料格式（API 與 <code>build_replay</code>、<code>build_composite_replay</code> 不變）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>原回看修復：Claude；本次 PR #103 衝突整合：ChatGPT／Codex（使用者本次對話指定）；審閱與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/render.py</code>（<code>static_url</code>）、<code>app.py</code>（<code>StaticAssets</code>）、樣板 <code>base.html</code>、<code>replay.html</code>、<code>composite_replay.html</code>；<code>static/replay.js</code>、<code>static/portal-app.css</code>；訊息目錄（<code>replayjs.step_detail</code>、<code>back_to_steps</code>、<code>prev_step</code>、<code>next_step</code>）；測試 <code>test_static_assets.py</code>（新）、<code>test_replay_flow.py</code>、<code>test_composite_replay_flow.py</code>；<code>docs/design/portal.html</code>、ADR 0018 與英文版；本紀錄、任務索引、<a href="20261027-composite-report-replay.html">20261027-composite-report-replay</a> 的追加紀錄。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待審閱：原版本 <code>380e10f</code> 的 CI 已通過；本次合入 <code>main@b559285</code>（#100 文檔更新），整合英文翻譯標記與任務索引衝突。本次驗證與最新 head 的 CI 見追加紀錄。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/replay-ux</code>，從 main <code>469c3be</code>（v0.7.0，PR #102 合併後）開；PR #103（base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.17、Playwright 1.63（Chromium 1243，錄不出影片）；本機預覽用假的執行器加上用 Playwright 的 ffmpeg 做出的 WebM（會話暫存區，不進倉庫）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>第 1 點（轉場卡黑屏）與第 4 點的一部分：瀏覽器還在用舊的播放器程式。</strong>截圖的步驟編號是「03」（新版是「n1·3」），名稱是「n1:fill-quantity」（新版是「fill-quantity」），步驟沒有依節點分組：這是 v0.6.3 的 <code>replay.js</code> 拿到 v0.7.0 的資料。舊程式不認得卡片，卡片那段時間就顯示「此時段沒有對應分頁的錄像」的黑屏。原因是靜態檔的網址沒有版本、伺服器也沒有給 Cache-Control，瀏覽器自己猜快取多久；更新檔換掉程式層之後，網址不變的檔案被沿用。</li>
+        <li><strong>第 4 點：點步驟一律跳到「開始前 0.4 秒」。</strong>截圖的場景前幾步每步只有幾十毫秒，前 7 步都在 0.4 秒內：點哪一步都跳回影片開頭，時間軸與畫面看起來沒動。</li>
+        <li><strong>第 2、3 點：詳情在那一步底下展開</strong>，把後面的步驟往下推，清單會跳動。</li>
+        <li><strong>第 2 點（場景分隔）：</strong>舊程式沒有分組；新版雖有節點標題列，但只有一條細線分隔，步驟本身看不出屬於哪個場景。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>(1) 靜態檔網址帶內容雜湊：樣板用 <code>static_url("replay.js")</code> → <code>/static/replay.js?v=&lt;sha256 前 12 碼&gt;</code>（修改時間或大小變了就重算）；<code>/static</code> 帶版本的回 <code>Cache-Control: public, max-age=31536000, immutable</code>，沒帶的回 <code>no-cache</code>。(2) 點一步跳到「開始前 0.4 秒」與「同一段裡上一步結束」較晚的那一刻（不早於那一段或那個分頁片段的開頭）；上一步／下一步、「從這一步播放」、網址的 <code>?step=</code> 都用同一個規則。(3) 詳情改成在右側欄裡從右往左滑出、蓋住清單（清單不動）：標題列有「← 步驟清單」與上一步／下一步，內容同之前（錯誤、定位器、設定、事實、網址、場景檔原文、從這一步播放、複製連結、在場景中開啟）；Esc、換到「斷言」「運行資訊」、點節點色帶都會收回；步驟少的時候右側欄至少 560 px 高。失敗的運行打開時，詳情打開在失敗的那一步（同之前展開那一步）。(4) 合併回看：每個節點一個顏色（藍、紫、青、橘、洋紅、灰藍，依節點順序），用在節點標題列的底色與編號、步驟左側的色條、時間軸的節點色帶、畫面上的步驟編號；結果改成色帶前面的小圓點與標題列的文字顏色；組和組之間留空。卡片那段時間的縮圖與滑過預覽畫成淺色的「n1 → n2」，不再是黑的。(5) 設計頁（三語）、ADR 0018 註記；測試：<code>test_static_assets.py</code>（網址帶雜湊、兩種 Cache-Control、內容變了雜湊跟著變），兩個真實錄影的流程測試改成新的規則（詳情要先收回才能點下一步、跳到的位置）。</li>
+        <li><strong>未完成／阻礙：</strong>CI；審閱與合併；發版（建議 v0.7.1，只改伺服器，更新檔就能升級）；使用者重新驗收。</li>
+        <li><strong>決定：</strong>詳情的推出方式：使用者 2026-10-28 選「從右側滑出，蓋住清單」（另兩個選項：固定在右側欄下方、往左滑出蓋住影片右側）。場景分隔的樣式：使用者交給 Claude 設計（節點顏色，如上）。實作選擇：選取的那一步不另外加框（點了就會跳到那一步，目前的那一步本來就標出來）。</li>
+        <li><strong>下一個具體動作：</strong>看 PR 的 CI；合併後發 v0.7.1，伺服器 <code>bin/rpa update</code>；之後打開回看頁就會載入新的程式（這一次因為舊的快取還在，第一次可能要按 Ctrl+Shift+R 強制重新整理一次；之後的升級不必）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無；本機預覽的資料與截圖在會話暫存區。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td><code>469c3be</code>＋本分支；雲端容器</td><td><code>ruff check .</code>、<code>ruff format --check</code>、<code>pyright apps/server</code></td><td>通過</td><td>ruff 0.17.1 以 CI 為準</td></tr>
+          <tr><td>同上</td><td><code>pytest apps/server/tests -m "not browser"</code>；<code>pytest tests/docs tests/i18n/test_catalogs.py</code></td><td>354 通過、1 略過（沒有 ssh-keygen）；343 通過</td><td>簡中由 bootstrap 產生</td></tr>
+          <tr><td>同上；容器的 Chromium 1243</td><td><code>pytest apps/server/tests/test_replay_media.py apps/server/tests/test_portal.py -k "not firefox"</code></td><td>13 通過</td><td>真實錄影的兩個流程測試看 CI（這個環境錄不出影片）</td></tr>
+          <tr><td>同上；本機預覽（假的執行器＋真實 WebM，三個節點）</td><td>Chromium 1440 與 390 寬：合併回看點 n1·1、n1·2、n1·3、n2·1、n2·3，詳情的上一步／下一步、Esc、換分頁、點轉場色帶；失敗的運行；單一節點的回看；<code>curl -I /static/replay.js</code> 與帶 <code>?v=</code> 的</td><td>位置依序 0.6、1.4、1.9、8.6、9.9 秒（各步驟都不同，n1·2 是上一步結束的 1.4 秒）；詳情滑出、清單不動，Esc 與換分頁會收回；轉場卡顯示，縮圖是淺色的「n1 → n2」；失敗的運行打開就是失敗那一步的詳情；手機寬度沒有橫向捲動；沒有頁面錯誤；兩種 Cache-Control 正確</td><td>真實執行器的錄影、Firefox、Mac 錄製端 App（播不了 WebM 的限制照舊）</td></tr>
+          <tr><td><code>380e10f</code>＋<code>b559285</code> 的合併工作區；macOS arm64、Python 3.13.16、uv 0.12.24、Playwright 1.64.0</td><td><code>uv sync --locked</code>；<code>python tools/i18n.py stamp docs/en/design/portal.html</code>；<code>python tools/i18n.py sync</code>／<code>check</code>；<code>pytest -q tests/docs tests/i18n apps/server/tests/test_static_assets.py</code>；<code>RPA_REQUIRE_BROWSER=1 pytest -q -n 2 --dist loadfile apps/server/tests/test_replay_flow.py apps/server/tests/test_composite_replay_flow.py</code>；<code>RPA_REQUIRE_BROWSER=1 pytest -q apps/server/tests/test_replay_flow.py::test_replay_switches_pages_and_returns_to_main</code>；<code>git diff --check</code>；本頁與任務索引的相對連結／錨點及入口去重檢查</td><td>依賴、翻譯標記、多語言與連結通過，簡中 sync 無須改動；文檔、多語言與靜態檔快取測試 363 passed。真實 Chromium 回看首次 4 passed、1 failed：分頁切換測試在像素顏色校驗等候 20 秒後逾時；該項單獨重跑 1 passed（23.13 秒）。已確認程式、測試、CI 設定、鎖檔和原 PR head 完全一致，沒有為通過測試修改程式或放寬斷言。</td><td>保留首次瀏覽器逾時紀錄，不能視為一次全部通過；最新 head 的 CI、跨平台完整矩陣與人工驗收待確認。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR 最新 head。人工驗收：未執行（使用者在 v0.7.1 上重看）。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-10-28 06:49 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex 依使用者要求取得 <code>fix/replay-ux@380e10f</code>，接收範圍為 PR #103 的衝突解決、相關驗證與推送。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-28 03:45 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 03:25 回報四點（附截圖）；從截圖判斷瀏覽器跑的是舊的播放器程式，先告訴使用者用強制重新整理暫時解決；用選項卡確認詳情的推出方式（右側滑出）。從 main <code>469c3be</code> 開 <code>fix/replay-ux</code>，修正並在本機預覽驗證（見上）。</li>
+        <li>2026-10-28 04:15 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>beffd55</code>（[bootstrap]），開 PR #103；bootstrap 產生簡中（<code>a5bbf37</code>）。<code>beffd55</code> 的 CI：靜態檢查、分發包通過；兩個 Python 測試只因簡中還沒產生而失敗（<code>test_simplified_chinese_is_generated</code>），其餘通過，含兩個真實錄影的回看流程測試。</li>
+        <li>2026-10-28 06:49 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：使用者要求解決 PR #103 衝突；以 <code>380e10f</code> 為起點，合入 <code>origin/main@b559285</code>（#100 已合併）。衝突僅在英文 Portal 設計頁的 <code>translation-source</code> 與任務索引；保留雙方正文與任務入口，英文將依合併後繁中重新 stamp。已確認程式、測試、CI 設定與鎖檔和原 PR head 完全一致。沿用先前已完成任務的乾淨 worktree，在 <code>fix/pr103-conflicts</code> 整合，不重寫原分支歷史；目前僅本地，驗證與推送結果後續追加。</li>
+        <li>2026-10-28 06:52 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：文檔與快取測試 363 passed；Chromium 回看 4 項首次通過，另 1 項像素校驗首次逾時、單獨重跑通過（詳見上表）。英文依合併後繁中重新 stamp，索引保留雙方任務入口；程式內容仍與 <code>380e10f</code> 一致。將以合併提交推送至 <code>fix/replay-ux</code>／PR #103，再核對無衝突狀態與最新 head 的 CI；合併與發版仍依原分工。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -83,6 +83,6 @@
 </div>
 <script type="application/json" id="replay-data">{{ data_json | safe }}</script>
 <script type="application/json" id="replay-messages">{{ replay_messages | tojson }}</script>
-<script defer src="/static/replay-media.js"></script>
-<script defer src="/static/replay.js"></script>
+<script defer src="{{ static_url("replay-media.js") }}"></script>
+<script defer src="{{ static_url("replay.js") }}"></script>
 {% endblock %}

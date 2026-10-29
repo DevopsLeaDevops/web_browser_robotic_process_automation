@@ -17,12 +17,13 @@ import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
+from starlette.types import Scope
 
 from rpa_core.i18n import use_locale
 from rpa_server import __version__
@@ -52,6 +53,24 @@ from rpa_worker import Worker
 __all__ = ["STATIC", "create_app"]
 
 STATIC: Final = Path(__file__).with_name("static")
+
+
+class StaticAssets(StaticFiles):
+    """``/static``：帶版本參數（``?v=內容雜湊``，:func:`rpa_server.render.static_url`）的網址長期快取；
+    沒帶的每次都向伺服器確認（``no-cache``，沒變時回 304）。
+
+    之前沒有 Cache-Control，瀏覽器自己猜快取多久：升級之後還在用舊的播放器程式（2026-10-28）。
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        query = cast("bytes", scope.get("query_string") or b"")
+        versioned = any(part.startswith(b"v=") for part in query.split(b"&"))
+        response.headers["Cache-Control"] = (
+            "public, max-age=31536000, immutable" if versioned else "no-cache"
+        )
+        return response
+
 
 logger = logging.getLogger("rpa_server")
 
@@ -174,7 +193,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(client_api_router(hub, services.recorders, storage, services.device_updates))
     app.include_router(page_router(services))
     app.mount(AGENT_PREFIX, agent_api(services))
-    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    app.mount("/static", StaticAssets(directory=STATIC), name="static")
     app.add_middleware(SameOriginMiddleware)
     app.add_middleware(
         PortGateMiddleware,

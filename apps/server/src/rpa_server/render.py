@@ -8,6 +8,8 @@
 只在裝置頁替那台打開時才顯示（RECORDER_MENUS），專案空間照樣顯示；Worker App 不載入這些頁面。
 """
 
+import functools
+import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -57,6 +59,30 @@ __all__ = [
 ]
 
 TEMPLATES: Final = Path(__file__).with_name("templates")
+STATIC: Final = Path(__file__).with_name("static")
+"""頁面用到的 CSS 與 JavaScript（``/static/…``）。"""
+
+
+def static_url(name: str) -> str:
+    """靜態檔的網址，加上內容的雜湊（``/static/replay.js?v=…``，2026-10-28）。
+
+    沒有版本參數時，瀏覽器會沿用舊的快取：升級（尤其是更新檔，檔名不變）之後，頁面已經是新版，
+    播放器的程式卻還是舊的（v0.7.0 驗收時合併回看的轉場卡變成黑屏、點步驟不動）。內容一變網址就
+    變；帶版本的網址可以長期快取（app.py 的 :class:`rpa_server.app.StaticAssets`）。
+    """
+    path = STATIC / name
+    try:
+        info = path.stat()
+    except OSError:
+        return f"/static/{name}"
+    return f"/static/{name}?v={_digest(path, info.st_mtime_ns, info.st_size)}"
+
+
+@functools.lru_cache(maxsize=32)
+def _digest(path: Path, mtime_ns: int, size: int) -> str:
+    """檔案內容的雜湊（前 12 碼）；修改時間或大小變了就重算（開發時改了檔案不必重新啟動）。"""
+    del mtime_ns, size  # 只當快取的鍵
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
 
 
 @dataclass(frozen=True, slots=True)
@@ -692,6 +718,7 @@ cast("dict[str, object]", _env.globals).update(
     version=__version__,
     workflow_preview=workflow_preview,
     run_file_rows=run_file_rows,
+    static_url=static_url,
 )
 _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number
