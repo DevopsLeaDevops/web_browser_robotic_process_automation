@@ -117,5 +117,7 @@
   "browser.upload_single": "这个上传框一次只能选一个文件，但要交的文件有好几个；请改成单一文件，或确认定位到的是可以多选的上传框",
   "browser.upload_not_input": "这个元素不是上传框（<input type=file>）：请把 target 指到上传框本身；点了才会开出选择文件窗口的按钮请改用 trigger",
   "browser.drop_too_large": "拖放的文件合计 {size}，超过拖拽区的上限 {limit}；请改用 target 或 trigger",
-  "report.step_files": "交出文件：{files}"
+  "report.step_files": "交出文件：{files}",
+  "report.shot": "做完的畫面",
+  "report.step_shots": "steps/（每一步做完的截圖，{count} 張）"
 }

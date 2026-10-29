@@ -294,7 +294,7 @@ def _add_steps(
         return
     edit = str(data.get("editUrl") or "")
     for step in cast("list[dict[str, object]]", data.get("steps") or []):
-        start, end = step.get("startMs"), step.get("endMs")
+        start, end, shot = step.get("startMs"), step.get("endMs"), step.get("shotMs")
         line.steps.append(
             {
                 **step,
@@ -312,6 +312,7 @@ def _add_steps(
                 if offset is not None and isinstance(start, int)
                 else None,
                 "endMs": end + offset if offset is not None and isinstance(end, int) else None,
+                "shotMs": shot + offset if offset is not None and isinstance(shot, int) else None,
                 "editUrl": edit,
             }
         )

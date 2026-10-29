@@ -169,6 +169,13 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
         page.wait_for_function("document.querySelectorAll('.replay-tile.ready').length >= 2")
         expect(page.locator(".replay-band.video")).to_have_count(2)
         assert position(page) < 0.1
+        # 依步驟的時間軸（2026-10-29）：兩個節點的每一步各一格（依序）、中間一格轉場卡
+        steps = cast("list[JsonObject]", data["steps"])
+        timed = [step["index"] for step in steps if step["startMs"] is not None]
+        tiles = page.locator(".replay-tile.step")
+        expect(tiles).to_have_count(len(timed))
+        assert tiles.evaluate_all("all => all.map(tile => Number(tile.dataset.index))") == timed
+        expect(page.locator(".replay-tile.card")).to_have_count(1)
 
         # N：跳到下一個節點那一段的開頭；網址列標出節點
         page.locator("#replay-timeline").focus()
@@ -199,8 +206,7 @@ def test_composite_replay_plays_across_nodes(portal: str, page: Page) -> None:
 
         # 點 n2 的「查詢」那一步：跳到它開始前（最多 0.4 秒、不早於 n2 上一步結束，2026-10-28），
         # 也不早於 n2 那一段的開頭（不跳回轉場卡）。本機的測試網站很快，n2 的錄影開始時（第一格）
-        # 前幾步可能已經做完，「查詢」離開頭很近。詳情從右側滑出，標出節點。
-        steps = cast("list[JsonObject]", data["steps"])
+        # 前幾步可能已經做完，「查詢」離開頭很近。詳情從清單上方滑出（2026-10-29），標出節點。
         search = next(step for step in steps if step["node"] == "n2" and step["rawId"] == "search")
         before = steps[cast("int", search["index"]) - 2]
         start = cast("int", search["startMs"]) / 1000

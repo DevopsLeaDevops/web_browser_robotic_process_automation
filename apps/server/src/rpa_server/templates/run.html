@@ -151,9 +151,9 @@
           <tbody>
           {% for row in file_rows %}
             <tr data-file="{{ row.path }}">
-              <td class="mono">{% if row.kind == "video" %}<a href="/runs/{{ run.id }}/replay" title="{{ t('run.file_replay_title') }}">▶ {{ row.path }}</a>{% else %}<a href="/runs/{{ run.id }}/files/{{ row.path }}" target="_blank" rel="noopener">{{ row.path }}</a>{% endif %}</td>
-              <td>{% if row.note %}{{ t("runfile." + row.note) }}{% else %}<span class="muted">—</span>{% endif %}</td>
-              <td class="col-actions"><a class="text-btn" href="/runs/{{ run.id }}/files/{{ row.path }}?download=1" download="{{ run.id }}-{{ row.path | replace('/', '-') }}">{{ t("run.download") }}</a></td>
+              <td class="mono">{% if row.kind in ("video", "shots") %}<a href="/runs/{{ run.id }}/replay" title="{{ t('run.file_replay_title') }}">▶ {{ row.path }}</a>{% else %}<a href="/runs/{{ run.id }}/files/{{ row.path }}" target="_blank" rel="noopener">{{ row.path }}</a>{% endif %}</td>
+              <td>{% if row.kind == "shots" %}{{ t("runfile.step_shots", count=row.count) }}{% elif row.note %}{{ t("runfile." + row.note) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="col-actions">{% if row.kind != "shots" %}<a class="text-btn" href="/runs/{{ run.id }}/files/{{ row.path }}?download=1" download="{{ run.id }}-{{ row.path | replace('/', '-') }}">{{ t("run.download") }}</a>{% endif %}</td>
             </tr>
           {% endfor %}
           </tbody>

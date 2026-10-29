@@ -7,6 +7,9 @@
 // 組合運行的合併回看（2026-10-27，rpa_server.composite_replay）：data.composite 有值時，步驟依節點
 // 分組、時間軸多一條節點色帶、沒有影片的時間顯示卡片（#replay-card-<段> 樣板），N／P 跳到下一個／
 // 上一個節點；步驟的 label 是「n2·3」，id 是「n2:search」（網址的 ?step= 用它）。
+// 依步驟的章節軸（2026-10-29，任務 20261029-replay-chapters）：時間軸預設一格一步，沒有動作的空檔
+// 折疊成窄格（播放時 4× 快轉），卡片固定寬；縮圖是執行端每一步做完拍的截圖（步驟的 shot），沒有時
+// 退回錄影裡那一步做完的畫面。「依時間」是原本的等比例時間軸。兩種排法都用 axis（時間 ↔ 位置）畫。
 (() => {
   const root = document.getElementById('replay');
   if (!root) return;
@@ -17,6 +20,19 @@
     template.replace(/\{(\w+)\}/g, (whole, key) => (key in values ? String(values[key]) : whole));
   const FPS = 25;
   const PREROLL = 0.4;
+  // 章節軸的尺寸（px）與規則
+  const FOLD = 0.5; // 同一段錄影裡超過這麼久沒有動作就折疊（秒）
+  const TAIL = 0.25; // 折疊前留給那一步的結果多久（秒）
+  const STEP_MIN = 44; // 一步至少多寬；放不下時進入「太擠」：格子變窄、縮圖只畫重點步驟、可以放大一章
+  const GAP_W = 20;
+  const CARD_W = 40;
+  const THUMB_MIN = 24; // 比這窄的格子不畫縮圖
+  const TILE_W = 96; // 一張縮圖多寬（54 px 高的 16:9）
+  const KEY_ACTIONS = new Set(['goto', 'click', 'upload', 'screenshot']);
+  const store = {
+    get: key => { try { return localStorage.getItem(key); } catch { return null; } },
+    set: (key, value) => { try { localStorage.setItem(key, value); } catch { /* 不能存就只在這一頁有效 */ } },
+  };
   const runId = root.dataset.run;
   const composite = data.composite || null;
   const element = $('replay-video');
@@ -35,16 +51,25 @@
     ...step,
     start: step.startMs == null ? null : Math.max(0, step.startMs / 1000),
     end: step.endMs == null ? null : Math.max(0, step.endMs / 1000),
+    shotTime: step.shotMs == null ? null : Math.max(0, step.shotMs / 1000),
   }));
   const timed = steps.filter(step => step.start != null);
+  const sameRun = (one, other) => Boolean(one && other) && (!composite || one.node === other.node);
   // 點一步跳到哪裡：「開始前 PREROLL 秒」與「同一段裡上一步結束」較晚的那一刻。步驟常常只有幾十毫秒，
   // 固定往前 0.4 秒時，前幾步都跳回開頭，時間軸與畫面看起來沒動（2026-10-28 驗收）
   const leadIn = step => {
     const before = timed[timed.indexOf(step) - 1];
-    const same = before && (!composite || before.node === step.node) ? before : null;
-    if (!same) return step.start - PREROLL;
-    const end = same.end != null ? same.end : same.start;
+    if (!sameRun(before, step)) return step.start - PREROLL;
+    const end = before.end != null ? before.end : before.start;
     return Math.max(step.start - PREROLL, Math.min(end, step.start));
+  };
+  // 錄影裡「這一步做完」的那一刻：拍截圖的時間；沒有截圖時是結束後 3 格（讓結果畫出來），不超過下一步
+  const frameTime = step => {
+    if (step.shotTime != null) return step.shotTime;
+    const end = step.end != null ? step.end : step.start;
+    const after = timed[timed.indexOf(step) + 1];
+    const limit = sameRun(after, step) ? after.start - 0.001 : Infinity;
+    return Math.max(step.start, Math.min(end + 3 / FPS, limit));
   };
   const failedStep = steps.find(step => step.status === 'failed') || null;
   let duration = 0;
@@ -94,23 +119,32 @@
   // ---------------------------------------------------------------- 步驟清單
 
   const list = $('replay-steps');
-  const thumbs = new Map();
   const thumbObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
     for (const entry of entries) {
       if (!entry.isIntersecting || !duration) continue;
       thumbObserver.unobserve(entry.target);
       const step = steps[Number(entry.target.dataset.thumb) - 1];
-      if (step && step.end != null) grab(clamp(step.end), step.pageId).then(frame => draw(entry.target, frame));
+      if (step && step.start != null) grab(clamp(frameTime(step)), step.pageId).then(frame => draw(entry.target, frame));
     }
   }) : null;
+
+  // 步驟的縮圖：執行端拍的截圖（錄影刪了也還在）；沒有時，有錄影就從錄影取那一步做完的畫面；
+  // 都沒有（略過的步驟）留一個空位，欄位才對齊
+  const withThumbs = playable || steps.some(step => step.shot);
+  function thumbnail(step) {
+    if (step.shot) return '<img class="replay-thumb" src="' + esc(step.shot) + '" alt="" loading="lazy" decoding="async">';
+    if (playable && step.start != null) return '<canvas class="replay-thumb" width="128" height="72" data-thumb="' + step.index + '" aria-hidden="true"></canvas>';
+    return withThumbs ? '<span class="replay-thumb" aria-hidden="true"></span>' : '';
+  }
 
   function row(step) {
     const item = document.createElement('li');
     const seekable = playable && step.start != null;
+    const current = shown && shown.index === step.index;
     item.innerHTML =
-      '<div class="replay-row" data-index="' + step.index + '" tabindex="0" role="button">' +
-      '<span class="replay-n" data-n>' + esc(step.nodeIndex || step.index) + '</span>' +
-      (playable ? '<canvas class="replay-thumb" width="128" height="72" data-thumb="' + step.index + '" aria-hidden="true"></canvas>' : '') +
+      '<div class="replay-row' + (current ? ' selected' : '') + '" data-index="' + step.index + '" tabindex="0" role="button"' +
+      (current ? ' aria-current="true"' : '') + '>' +
+      '<span class="replay-n" data-n>' + esc(step.nodeIndex || step.index) + '</span>' + thumbnail(step) +
       '<span class="replay-title"><strong></strong><small></small></span>' +
       '<span class="replay-when">' + (seekable ? '<b>' + fmt(step.start) + '</b>' : '') +
       (step.status === 'skipped' ? esc(messages.status_skipped)
@@ -123,10 +157,7 @@
       item.style.setProperty('--node', nodeColor(step.node));
     }
     const canvas = item.querySelector('canvas');
-    if (canvas) {
-      thumbs.set(step.index, canvas);
-      if (thumbObserver) thumbObserver.observe(canvas);
-    }
+    if (canvas && thumbObserver) thumbObserver.observe(canvas);
     return item;
   }
 
@@ -160,7 +191,12 @@
         esc(fill(messages.open_in_scene, {line: step.line})) + '</a>');
     }
     const notes = (step.notes || []).map(text => '<div class="notice warn replay-note">' + esc(text) + '</div>').join('');
-    box.innerHTML = (step.error ? '<div class="replay-error">' + esc(step.error) + '</div>' : '') + notes +
+    // 這一步做完的截圖：點了看原圖
+    const shot = step.shot
+      ? '<a class="replay-shot" href="' + esc(step.shot) + '" target="_blank" rel="noopener" title="' + esc(messages.shot_open) + '">' +
+        '<img src="' + esc(step.shot) + '" alt="' + esc(messages.shot_alt) + '" loading="lazy"></a>'
+      : '';
+    box.innerHTML = (step.error ? '<div class="replay-error">' + esc(step.error) + '</div>' : '') + notes + shot +
       '<dl class="replay-kv">' + rows.join('') + '</dl>' + source +
       (actions.length ? '<div class="actions">' + actions.join('') + '</div>' : '');
     return box;
@@ -227,31 +263,44 @@
     selected = index;
     const step = steps[index - 1];
     if (seekTo && playable && step.start != null) seek(leadIn(step), step);
+    shown = step;
     renderSteps();
     openDetail(step, {focus});
   }
 
-  // ---------------------------------------------------------------- 步驟詳情（從右側滑出，蓋住清單）
-  // 2026-10-28 驗收：詳情原本在那一步底下展開，把後面的步驟往下推；改成在右側欄裡滑出的一張卡，
-  // 清單不動。上一步／下一步直接換內容，「← 步驟清單」或 Esc 收回；換到「斷言」「運行資訊」也收回。
+  // ---------------------------------------------------------------- 步驟詳情（從清單上方滑出，不蓋住清單）
+  // 2026-10-28 驗收時改成從右側滑出、蓋住清單；2026-10-29 使用者改成在清單上方往下滑出：清單變短
+  // 但一直看得到，可以直接點別的步驟換內容（選取的那一步在清單裡標出來）。上一步／下一步直接換內容，
+  // 「收起」或 Esc 收回；換到「斷言」「運行資訊」也收回。
   const side = list.closest('.replay-side');
   const tabs = side ? side.querySelector('.replay-tabs') : null;
-  const arrow = path => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="' + path + '"/></svg>';
+  const icon = path => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="' + path + '"/></svg>';
   const drawer = document.createElement('section');
   drawer.className = 'replay-drawer';
   drawer.id = 'replay-drawer';
   drawer.setAttribute('aria-label', messages.step_detail || '');
   drawer.inert = true;
   drawer.innerHTML =
-    '<div class="replay-drawer-head">' +
-    '<button type="button" class="text-btn replay-drawer-back" data-drawer="back">' + arrow('M15 6l-6 6 6 6') + esc(messages.back_to_steps || '') + '</button>' +
-    '<span class="replay-grow"></span>' +
-    '<button type="button" class="replay-icon" data-drawer="prev" aria-label="' + esc(messages.prev_step || '') + '" title="' + esc(messages.prev_step || '') + '">' + arrow('M6 15l6-6 6 6') + '</button>' +
-    '<button type="button" class="replay-icon" data-drawer="next" aria-label="' + esc(messages.next_step || '') + '" title="' + esc(messages.next_step || '') + '">' + arrow('M6 9l6 6 6-6') + '</button>' +
-    '</div><div class="replay-drawer-title"></div><div class="replay-drawer-body"></div>';
-  if (side) side.appendChild(drawer);
+    '<div class="replay-drawer-inner"><div class="replay-drawer-head">' +
+    '<div class="replay-drawer-title"></div>' +
+    '<button type="button" class="replay-icon" data-drawer="prev" aria-label="' + esc(messages.prev_step || '') + '" title="' + esc(messages.prev_step || '') + '">' + icon('M6 15l6-6 6 6') + '</button>' +
+    '<button type="button" class="replay-icon" data-drawer="next" aria-label="' + esc(messages.next_step || '') + '" title="' + esc(messages.next_step || '') + '">' + icon('M6 9l6 6-6 6') + '</button>' +
+    '<button type="button" class="replay-icon" data-drawer="close" aria-label="' + esc(messages.close_detail || '') + '" title="' + esc(messages.close_detail || '') + '">' + icon('M6 6l12 12M18 6L6 18') + '</button>' +
+    '</div><div class="replay-drawer-body"></div></div>';
+  if (tabs) tabs.after(drawer);
   let shown = null;
   const drawerOpen = () => drawer.classList.contains('open');
+  // 詳情展開後清單變短：選取的那一步留在看得到的地方
+  const reveal = step => {
+    const box = list.closest('.replay-tabpanel');
+    const target = step && list.querySelector('.replay-row[data-index="' + step.index + '"]');
+    if (!box || !target || box.hidden) return;
+    const top = target.offsetTop - box.offsetTop - 6;
+    const bottom = top + target.offsetHeight + 12;
+    if (top < box.scrollTop) box.scrollTop = top;
+    else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+  };
+  drawer.addEventListener('transitionend', () => reveal(shown));
 
   function openDetail(step, {focus = true} = {}) {
     if (!side || !step) return;
@@ -272,27 +321,37 @@
     body.scrollTop = 0;
     drawer.querySelector('[data-drawer="prev"]').disabled = step.index <= 1;
     drawer.querySelector('[data-drawer="next"]').disabled = step.index >= steps.length;
-    drawer.style.top = (tabs ? tabs.offsetTop + tabs.offsetHeight : 0) + 'px';
+    for (const item of list.querySelectorAll('.replay-row')) {
+      const mine = Number(item.dataset.index) === step.index;
+      item.classList.toggle('selected', mine);
+      if (mine) item.setAttribute('aria-current', 'true');
+      else item.removeAttribute('aria-current');
+    }
     const opening = !drawerOpen();
     drawer.classList.add('open');
     side.classList.add('detail-open');
     drawer.inert = false;
-    if (opening && focus) drawer.querySelector('[data-drawer="back"]').focus({preventScroll: true});
+    if (!opening) reveal(step);
+    if (opening && focus) drawer.querySelector('[data-drawer="close"]').focus({preventScroll: true});
   }
   function closeDetail({focus = true} = {}) {
     if (!drawerOpen()) return;
     drawer.classList.remove('open');
     if (side) side.classList.remove('detail-open');
     drawer.inert = true;
-    const row = shown && list.querySelector('.replay-row[data-index="' + shown.index + '"]');
+    const target = shown && list.querySelector('.replay-row[data-index="' + shown.index + '"]');
+    for (const item of list.querySelectorAll('.replay-row.selected')) {
+      item.classList.remove('selected');
+      item.removeAttribute('aria-current');
+    }
     shown = null;
-    if (row && focus) row.focus({preventScroll: true});
+    if (target && focus) target.focus({preventScroll: true});
   }
 
   drawer.addEventListener('click', async event => {
     const control = event.target.closest('[data-drawer]');
     if (control) {
-      if (control.dataset.drawer === 'back') closeDetail();
+      if (control.dataset.drawer === 'close') closeDetail();
       else if (shown) {
         const next = steps[shown.index - 1 + (control.dataset.drawer === 'next' ? 1 : -1)];
         if (next) choose(next.index, {focus: false});
@@ -303,7 +362,6 @@
     if (!action || !shown) return;
     const step = shown;
     if (action.dataset.act === 'play') {
-      closeDetail({focus: false});
       seek(leadIn(step), step);
       video.play();
     } else if (action.dataset.act === 'link') {
@@ -336,7 +394,7 @@
     if (target && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       event.stopPropagation();
-      choose(Number(target.dataset.index));
+      choose(Number(target.dataset.index), {focus: false});
     }
   });
 
@@ -396,6 +454,7 @@
   }
 
   if (!playable) {
+    if (failedStep) shown = failedStep;
     renderSteps();
     if (failedStep) openDetail(failedStep, {focus: false});
     return;
@@ -438,6 +497,7 @@
     context.fillText(label, canvas.width / 2 + 5, canvas.height / 2);
     return canvas;
   }
+  // 錄影裡某一刻的畫面。快取依影片的格（每秒 25 格），不是 0.1 秒取整：相鄰的兩步不會共用同一張
   function grab(seconds, pageId) {
     const card = !pageId && video.cardAt ? video.cardAt(seconds) : null;
     if (card) {
@@ -447,7 +507,7 @@
     }
     const clip = video.clipAt(seconds, pageId);
     const local = clip ? Math.max(0, seconds - clip.start) : 0;
-    const key = (clip ? clip.pageId : 'gap') + ':' + Math.round(local * 10);
+    const key = (clip ? clip.pageId : 'gap') + ':' + Math.round(local * FPS);
     if (frames.has(key)) return Promise.resolve(frames.get(key));
     queue = queue.then(async () => {
       if (frames.has(key)) return frames.get(key);
@@ -459,7 +519,7 @@
           if (grabber.getAttribute('src') !== clip.url) {
             await waitMedia(grabber, 'loadeddata', () => { grabber.src = clip.url; });
           }
-          const position = Math.min(local, Math.max(0, grabber.duration - 0.04));
+          const position = Math.min(Math.round(local * FPS) / FPS, Math.max(0, grabber.duration - 0.04));
           if (Math.abs(grabber.currentTime - position) > 0.001) {
             await waitMedia(grabber, 'seeked', () => { grabber.currentTime = position; });
           }
@@ -482,10 +542,23 @@
     for (const [key, canvas] of frames) {
       const [pageId, tick] = key.split(':');
       if (pageId !== clip.pageId) continue;
-      const gap = Math.abs(Number(tick) / 10 - (seconds - clip.start));
+      const gap = Math.abs(Number(tick) / FPS - (seconds - clip.start));
       if (gap < distance) { distance = gap; best = canvas; }
     }
     return best;
+  };
+  // 執行端拍的截圖（滑過預覽要畫到 canvas 上）
+  const images = new Map();
+  const shotImage = url => {
+    if (!images.has(url)) {
+      images.set(url, new Promise(resolve => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => resolve(null);
+        image.src = url;
+      }));
+    }
+    return images.get(url);
   };
 
   // ---------------------------------------------------------------- 卡片（合併回看）
@@ -501,92 +574,440 @@
   video.addEventListener('card', event => { showCard(event.detail); sync(); });
   showCard(video.card);
 
+  // ---------------------------------------------------------------- 時間軸的排法（axis）
+  // pieces：依時間排好、首尾相接的一段一段，各自對應時間軸上的 [x0, x1)。依時間只有一段；依步驟是
+  // 「步驟」（一步一格）、「空檔」（折疊）與「卡片」。時間 ↔ 位置都用它換算。
+
+  const film = $('replay-film');
+  const past = $('replay-past');
+  let axisMode = store.get('rpa.replay.axis') === 'time' ? 'time' : 'steps';
+  let zooms = []; // 放大的章（可以再往下放大一層），最後一個是目前看的範圍
+  let axis = null;
+
+  // 時間軸上的一段一段：組合回看是各節點的錄影與卡片，單一運行是整段錄影
+  const ranges = () => composite
+    ? composite.segments.map(segment => ({
+      kind: segment.kind, node: segment.node || null, segment,
+      start: segment.startMs / 1000, end: (segment.startMs + segment.durationMs) / 1000,
+    }))
+    : [{kind: 'video', node: null, segment: null, start: 0, end: duration}];
+
+  function buildPieces(from, to) {
+    const pieces = [];
+    const push = piece => { if (piece.t1 - piece.t0 > 0.0005) pieces.push(piece); };
+    for (const range of ranges()) {
+      const start = Math.max(range.start, from);
+      const end = Math.min(range.end, to);
+      if (end - start <= 0.0005) continue;
+      if (range.kind !== 'video') {
+        push({kind: 'card', t0: start, t1: end, range});
+        continue;
+      }
+      const inside = timed.filter(step =>
+        (!composite || step.node === range.node) && step.start >= start - 0.0005 && step.start < end);
+      if (!inside.length) {
+        push({kind: 'gap', t0: start, t1: end, range});
+        continue;
+      }
+      let cursor = start;
+      if (inside[0].start - start >= FOLD) {
+        push({kind: 'gap', t0: start, t1: inside[0].start, range});
+        cursor = inside[0].start;
+      }
+      inside.forEach((step, index) => {
+        const next = index + 1 < inside.length ? inside[index + 1].start : end;
+        const done = Math.max(step.start, step.end != null ? step.end : step.start, step.shotTime != null ? step.shotTime : 0);
+        if (next - done >= FOLD) {
+          const until = Math.min(next, done + TAIL);
+          push({kind: 'step', t0: cursor, t1: until, step, range});
+          push({kind: 'gap', t0: until, t1: next, range});
+        } else {
+          push({kind: 'step', t0: cursor, t1: next, step, range});
+        }
+        cursor = next;
+      });
+    }
+    return pieces;
+  }
+
+  function arrange(pieces, width) {
+    const count = kind => pieces.filter(piece => piece.kind === kind).length;
+    const stepCount = count('step');
+    let gapWidth = GAP_W;
+    let cardWidth = CARD_W;
+    let fixed = count('gap') * gapWidth + count('card') * cardWidth;
+    // 空檔與卡片太多（例如很多沒有錄影的節點）：一起縮小，至少留一半給步驟
+    const limit = stepCount ? width / 2 : width;
+    if (fixed > limit) {
+      gapWidth *= limit / fixed;
+      cardWidth *= limit / fixed;
+      fixed = limit;
+    }
+    const room = Math.max(0, width - fixed);
+    const dense = stepCount > 0 && room / stepCount < STEP_MIN;
+    // 寬度依步驟的時長（開根號，長的不會佔掉全部），每步至少 STEP_MIN
+    const weights = pieces.map(piece => (piece.kind === 'step' ? Math.sqrt(Math.max(0.05, piece.t1 - piece.t0)) : 0));
+    const total = weights.reduce((sum, value) => sum + value, 0) || 1;
+    const extra = dense ? 0 : room - stepCount * STEP_MIN;
+    let x = 0;
+    pieces.forEach((piece, index) => {
+      const size = piece.kind === 'gap' ? gapWidth : piece.kind === 'card' ? cardWidth
+        : dense ? room / stepCount : STEP_MIN + extra * weights[index] / total;
+      piece.x0 = x;
+      piece.x1 = x + size;
+      x += size;
+    });
+    if (!stepCount && x > 0) {
+      for (const piece of pieces) { piece.x0 *= width / x; piece.x1 *= width / x; }
+    }
+    return {mode: 'steps', pieces, width, dense};
+  }
+
+  const view = () => (zooms.length ? zooms[zooms.length - 1] : {t0: 0, t1: duration});
+  const pieceAt = seconds => {
+    const pieces = axis ? axis.pieces : [];
+    for (const piece of pieces) if (seconds < piece.t1) return piece;
+    return pieces[pieces.length - 1] || null;
+  };
+  const xAt = seconds => {
+    const piece = pieceAt(seconds);
+    if (!piece) return 0;
+    const ratio = Math.min(1, Math.max(0, (seconds - piece.t0) / ((piece.t1 - piece.t0) || 1)));
+    return piece.x0 + ratio * (piece.x1 - piece.x0);
+  };
+  const tAt = x => {
+    const pieces = axis ? axis.pieces : [];
+    const piece = pieces.find(each => x < each.x1) || pieces[pieces.length - 1];
+    if (!piece) return 0;
+    const ratio = Math.min(1, Math.max(0, (x - piece.x0) / ((piece.x1 - piece.x0) || 1)));
+    return piece.t0 + ratio * (piece.t1 - piece.t0);
+  };
+  const inView = seconds => {
+    const range = view();
+    return seconds >= range.t0 - 0.001 && seconds <= range.t1 + 0.001;
+  };
+
+  // 太擠時可以放大的章：組合回看是節點的錄影；單一運行（或已經放大的一章）每幾步一組
+  function chapters() {
+    if (axis.mode !== 'steps' || !axis.dense) return [];
+    if (composite && !zooms.length) {
+      return ranges().filter(range => range.kind === 'video').map(range => {
+        const node = composite.nodes.find(each => each.id === range.node);
+        return {t0: range.start, t1: range.end, label: range.node + (node ? ' ' + node.sceneName : '')};
+      });
+    }
+    const pieces = axis.pieces.filter(piece => piece.kind === 'step');
+    const size = Math.max(5, Math.floor(axis.width / STEP_MIN) - 2);
+    const groups = [];
+    for (let index = 0; index < pieces.length; index += size) {
+      const group = pieces.slice(index, index + size);
+      const following = pieces[index + size];
+      const from = group[0].step;
+      const to = group[group.length - 1].step;
+      groups.push({
+        t0: index ? group[0].t0 : axis.pieces[0].t0,
+        t1: following ? following.t0 : axis.pieces[axis.pieces.length - 1].t1,
+        text: (from.nodeIndex || from.index) + '–' + (to.nodeIndex || to.index),
+        label: fill(messages.group || '{from}–{to}', {from: numberOf(from), to: numberOf(to)}),
+        group: true,
+      });
+    }
+    return groups.length > 1 ? groups : [];
+  }
+  function zoomInto(chapter) {
+    zooms.push({t0: chapter.t0, t1: chapter.t1, label: chapter.label});
+    // 先跳進這一章再重畫：sync 看到播放位置在放大的範圍外會回到整次
+    if (!inView(video.currentTime)) video.seek(clamp(chapter.t0));
+    layout();
+  }
+
+  // 播放經過折疊的空檔時 4× 快轉（只在依步驟時；可以在控制列關掉）。空檔的最後 PREROLL 秒照原速，
+  // 點步驟跳到它開始前時看得到動作前的畫面。
+  const skimToggle = $('replay-skim-toggle');
+  if (skimToggle) {
+    skimToggle.checked = store.get('rpa.replay.skim') !== 'off';
+    skimToggle.addEventListener('change', () => {
+      store.set('rpa.replay.skim', skimToggle.checked ? 'on' : 'off');
+      updateSkim();
+    });
+  }
+  function updateSkim() {
+    const on = Boolean(axis) && axis.mode === 'steps' && (!skimToggle || skimToggle.checked);
+    const folds = on ? buildPieces(0, duration).filter(piece => piece.kind === 'gap')
+      .map(piece => [piece.t0, piece.t1 - PREROLL]).filter(([start, end]) => end - start > 0.2) : [];
+    video.setSkim(folds);
+  }
+  video.addEventListener('skim', event => {
+    const badge = $('replay-skim');
+    if (badge) badge.hidden = !event.detail;
+  });
+
+  const axisButtons = document.querySelectorAll('[data-axis]');
+  const showMode = () => axisButtons.forEach(button =>
+    button.setAttribute('aria-pressed', String(button.dataset.axis === axisMode)));
+  axisButtons.forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.axis === axisMode) return;
+    axisMode = button.dataset.axis === 'time' ? 'time' : 'steps';
+    store.set('rpa.replay.axis', axisMode);
+    zooms = [];
+    showMode();
+    layout();
+  }));
+  showMode();
+  const unzoom = $('replay-unzoom');
+  if (unzoom) {
+    unzoom.addEventListener('click', () => {
+      zooms = [];
+      layout();
+    });
+  }
+
   // ---------------------------------------------------------------- 時間軸
 
   const timeline = $('replay-timeline');
-  const film = $('replay-film');
   const track = $('replay-track');
   const ticks = $('replay-ticks');
   const playhead = $('replay-playhead');
   const hoverline = $('replay-hoverline');
   const preview = $('replay-preview');
   const previewCanvas = $('replay-preview-canvas');
-  let tiles = [];
   const timeAt = clientX => {
     const rect = film.getBoundingClientRect();
-    return Math.min(duration, Math.max(0, (clientX - rect.left) / rect.width * duration));
+    return Math.min(duration, Math.max(0, tAt(clientX - rect.left)));
   };
 
-  function layout() {
-    if (!duration) return;
-    const width = film.clientWidth;
-    const count = Math.max(4, Math.round(width / (width < 480 ? 64 : 96)));
-    film.querySelectorAll('.replay-tile').forEach(tile => tile.remove());
-    tiles = [];
-    for (let index = 0; index < count; index += 1) {
-      const tile = document.createElement('div');
-      tile.className = 'replay-tile';
-      tile.style.left = (index / count * 100) + '%';
-      tile.style.width = (100 / count) + '%';
-      const canvas = document.createElement('canvas');
-      canvas.width = 192;
-      canvas.height = 108;
-      tile.appendChild(canvas);
-      film.insertBefore(tile, $('replay-past'));
-      tiles.push({tile, canvas, seconds: (index + 0.5) / count * duration});
+  // 一格縮圖：步驟（截圖或錄影裡那一步做完的畫面）、錄影某一刻、空檔、卡片
+  function tile(x0, x1, kind, {step = null, seconds = null, piece = null} = {}) {
+    const box = document.createElement('div');
+    box.className = 'replay-tile ' + kind + (step && step.status === 'failed' ? ' failed' : '');
+    box.style.left = x0 + 'px';
+    box.style.width = Math.max(1, x1 - x0 - 1) + 'px';
+    if (step) box.dataset.index = step.index;
+    film.insertBefore(box, past);
+    if (kind === 'gap') {
+      box.textContent = '⋯';
+      box.title = fill(messages.gap || '', {seconds: (piece.t1 - piece.t0).toFixed(1)});
+      box.classList.add('ready');
+      return box;
     }
+    if (kind === 'card') {
+      const card = piece.range.segment;
+      box.style.setProperty('--node', nodeColor(piece.range.node) || '#546479');
+      box.textContent = card.kind === 'transition' ? '→' : piece.range.node || '…';
+      box.title = cardTitle({index: card.index, kind: card.kind, node: card.node});
+      box.classList.add('ready');
+      return box;
+    }
+    if (step && x1 - x0 >= 30) {
+      const label = document.createElement('b');
+      label.textContent = composite ? step.label : String(step.index);
+      box.appendChild(label);
+    }
+    if (step && step.shot) {
+      const image = new Image();
+      image.alt = '';
+      image.decoding = 'async';
+      image.onload = () => box.classList.add('ready');
+      image.onerror = () => { image.remove(); frameInto(box, frameTime(step), step.pageId); };
+      image.src = step.shot;
+      box.prepend(image);
+      return box;
+    }
+    frameInto(box, step ? frameTime(step) : seconds, step ? step.pageId : undefined);
+    return box;
+  }
+  function frameInto(box, seconds, pageId) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 192;
+    canvas.height = 108;
+    box.prepend(canvas);
+    grab(clamp(seconds), pageId).then(frame => {
+      if (!box.isConnected) return;
+      draw(canvas, frame);
+      box.classList.add('ready');
+    });
+  }
+
+  function stepTiles(groups) {
+    const starts = new Set(groups.map(group => group.t0));
+    // 太擠（一步不到 THUMB_MIN 寬）：連續的步驟每幾步合成一格縮圖（至少 48 px，不跨過空檔、卡片
+    // 與分組），畫裡面最重要的一步：失敗、選取的、開網址與點擊等，其次是最前面那一步
+    const rank = step => (step.status === 'failed' ? 0 : step.index === selected ? 1 : KEY_ACTIONS.has(step.action) ? 2 : 3);
+    let bunch = [];
+    const flush = () => {
+      if (!bunch.length) return;
+      const best = bunch.reduce((one, other) => (rank(other.step) < rank(one.step) ? other : one));
+      tile(bunch[0].x0, bunch[bunch.length - 1].x1, 'step key', {step: best.step, piece: best});
+      bunch = [];
+    };
+    for (const piece of axis.pieces) {
+      if (piece.kind !== 'step') {
+        flush();
+        tile(piece.x0, piece.x1, piece.kind, {piece});
+        continue;
+      }
+      const width = piece.x1 - piece.x0;
+      if (width >= THUMB_MIN) {
+        // 很寬的一格（長的步驟、步驟很少）：第一張是這一步做完的畫面，後面用錄影補幾張那時候的畫面
+        const count = Math.max(1, Math.round(width / TILE_W));
+        const size = width / count;
+        tile(piece.x0, piece.x0 + size, 'step', {step: piece.step, piece});
+        for (let n = 1; n < count; n += 1) {
+          const x = piece.x0 + n * size;
+          tile(x, x + size, 'frame', {seconds: tAt(x + size / 2), piece});
+        }
+        continue;
+      }
+      if (starts.has(piece.t0)) flush();
+      bunch.push(piece);
+      if (piece.x1 - bunch[0].x0 >= 48) flush();
+    }
+    flush();
+  }
+
+  function timeTiles() {
+    const width = axis.width;
+    const count = Math.max(4, Math.round(width / (width < 480 ? 64 : TILE_W)));
+    for (let index = 0; index < count; index += 1) {
+      tile(index / count * width, (index + 1) / count * width + 1, 'frame', {seconds: (index + 0.5) / count * duration});
+    }
+  }
+
+  function drawTrack() {
     track.textContent = '';
+    if (axis.mode === 'steps') {
+      for (const piece of axis.pieces) {
+        if (piece.kind === 'card') continue;
+        const segment = document.createElement('div');
+        const step = piece.step;
+        segment.className = 'replay-seg' + (piece.kind === 'gap' ? ' gap'
+          : step.status === 'failed' ? ' failed' : step.status === 'skipped' ? ' skipped' : '');
+        segment.style.left = piece.x0 + 'px';
+        segment.style.width = Math.max(2, piece.x1 - piece.x0 - 1) + 'px';
+        if (step) {
+          segment.dataset.index = step.index;
+          segment.title = numberOf(step) + ' · ' + title(step);
+        } else {
+          segment.title = fill(messages.gap || '', {seconds: (piece.t1 - piece.t0).toFixed(1)});
+        }
+        track.appendChild(segment);
+      }
+      return;
+    }
     for (const step of timed) {
       const segment = document.createElement('div');
       const start = Math.min(step.start, duration);
       const end = Math.min(step.end != null ? step.end : step.start, duration);
       segment.className = 'replay-seg' + (step.status === 'failed' ? ' failed' : step.status === 'skipped' ? ' skipped' : '');
       segment.dataset.index = step.index;
-      segment.style.left = (start / duration * 100) + '%';
-      segment.style.width = ((end - start) / duration * 100) + '%';
-      segment.title = step.index + ' · ' + title(step);
+      segment.style.left = xAt(start) + 'px';
+      segment.style.width = Math.max(3, xAt(end) - xAt(start)) + 'px';
+      segment.title = numberOf(step) + ' · ' + title(step);
       track.appendChild(segment);
     }
+  }
+
+  function drawBands(groups) {
     const bands = $('replay-bands');
-    if (bands && composite) {
-      bands.textContent = '';
+    if (!bands) return;
+    bands.textContent = '';
+    const range = view();
+    const add = (t0, t1, className, text, hint, onClick) => {
+      const band = document.createElement('button');
+      band.type = 'button';
+      band.className = 'replay-band ' + className;
+      const x0 = xAt(Math.max(t0, range.t0));
+      band.style.left = x0 + 'px';
+      band.style.width = Math.max(3, xAt(Math.min(t1, range.t1) - 0.0001) - x0) + 'px';
+      band.textContent = text;
+      band.title = hint;
+      band.tabIndex = -1;
+      band.addEventListener('pointerdown', event => event.stopPropagation());
+      band.addEventListener('click', onClick);
+      bands.appendChild(band);
+      return band;
+    };
+    if (composite) {
       for (const segment of composite.segments) {
-        const band = document.createElement('button');
-        band.type = 'button';
-        band.className = 'replay-band ' + segment.kind + (segment.status ? ' ' + segment.status : '');
-        band.style.left = (segment.startMs / 1000 / duration * 100) + '%';
-        band.style.width = (segment.durationMs / 1000 / duration * 100) + '%';
-        band.textContent = segment.kind === 'video' || segment.kind === 'reused' || segment.kind === 'no_video' ? segment.node : '';
-        band.title = segment.kind === 'video' ? segment.node
-          : fill(messages['card_' + segment.kind] || '', {node: segment.node || '', nodes: (segment.nodes || []).join(', ')});
-        band.tabIndex = -1;
-        band.addEventListener('pointerdown', event => event.stopPropagation());
-        if (segment.node && segment.kind !== 'transition') band.style.setProperty('--node', nodeColor(segment.node));
-        band.addEventListener('click', () => {
+        const t0 = segment.startMs / 1000;
+        const t1 = (segment.startMs + segment.durationMs) / 1000;
+        if (t1 <= range.t0 + 0.0005 || t0 >= range.t1 - 0.0005) continue;
+        const chapter = segment.kind === 'video' ? groups.find(each => !each.group && Math.abs(each.t0 - t0) < 0.001) : null;
+        const text = segment.kind === 'video' || segment.kind === 'reused' || segment.kind === 'no_video' ? segment.node : '';
+        const hint = (segment.kind === 'video' ? segment.node
+          : fill(messages['card_' + segment.kind] || '', {node: segment.node || '', prev: segment.prev || '', nodes: (segment.nodes || []).join(', ')}))
+          + (chapter ? ' · ' + (messages.zoom_hint || '') : '');
+        const band = add(t0, t1, segment.kind + (segment.status ? ' ' + segment.status : '') + (chapter ? ' zoomable' : ''), text, hint, () => {
           selected = null;
           closeDetail({focus: false});
-          seek(segment.startMs / 1000);
+          if (chapter) zoomInto(chapter);
+          seek(t0);
           renderSteps();
         });
-        bands.appendChild(band);
+        if (segment.node && segment.kind !== 'transition') band.style.setProperty('--node', nodeColor(segment.node));
       }
     }
-    ticks.textContent = '';
-    const every = duration > 600 ? 120 : duration > 120 ? 30 : duration > 40 ? 10 : duration > 15 ? 5 : 2;
-    for (let seconds = 0; seconds <= duration - every * 0.4; seconds += every) {
-      const label = document.createElement('span');
-      label.style.left = (seconds / duration * 100) + '%';
-      label.textContent = fmt(seconds).slice(0, 5);
-      ticks.appendChild(label);
-    }
-    timeline.setAttribute('aria-valuemax', duration.toFixed(2));
-    for (const item of tiles) {
-      grab(item.seconds).then(frame => {
-        if (!item.tile.isConnected) return;
-        draw(item.canvas, frame);
-        item.tile.classList.add('ready');
+    for (const group of groups.filter(each => each.group)) {
+      add(group.t0, group.t1, 'group zoomable', group.text, group.label + ' · ' + (messages.zoom_hint || ''), () => {
+        zoomInto(group);
+        seek(group.t0);
       });
     }
+    bands.hidden = !bands.childElementCount;
+  }
+
+  function drawTicks() {
+    ticks.textContent = '';
+    const label = (x, seconds) => {
+      const item = document.createElement('span');
+      item.style.left = x + 'px';
+      item.textContent = axis.mode === 'steps' ? fmt(seconds) : fmt(seconds).slice(0, 5);
+      ticks.appendChild(item);
+    };
+    if (axis.mode === 'steps') {
+      // 不是等比例：標在每一章與步驟開始的地方（實際時間），擠的時候跳過（第一個靠左，其餘置中）
+      let last = null;
+      for (const piece of axis.pieces) {
+        if (piece.kind === 'gap') continue;
+        const seconds = piece.kind === 'step' ? piece.step.start : piece.t0;
+        if ((last === null || piece.x0 - last >= (last === 0 ? 84 : 72)) && piece.x0 < axis.width - 36) {
+          label(piece.x0, seconds);
+          last = piece.x0;
+        }
+      }
+      return;
+    }
+    const every = duration > 600 ? 120 : duration > 120 ? 30 : duration > 40 ? 10 : duration > 15 ? 5 : 2;
+    for (let seconds = 0; seconds <= duration - every * 0.4; seconds += every) label(xAt(seconds), seconds);
+  }
+
+  function drawZoomBar() {
+    const bar = $('replay-zoom');
+    if (!bar) return;
+    bar.hidden = !zooms.length;
+    $('replay-zoom-label').textContent = zooms.map(each => each.label).join(' › ');
+  }
+
+  function layout() {
+    if (!duration) return;
+    const width = film.clientWidth;
+    const range = view();
+    // 沒有任何有時間的步驟（例如步驟紀錄不完整）時，依步驟排不出東西：照時間排
+    axis = axisMode === 'steps' && timed.length ? arrange(buildPieces(range.t0, range.t1), width) : null;
+    if (!axis || !axis.pieces.length) {
+      axis = {mode: 'time', pieces: [{kind: 'time', t0: 0, t1: duration, x0: 0, x1: width}], width, dense: false};
+    }
+    film.querySelectorAll('.replay-tile').forEach(each => each.remove());
+    film.classList.toggle('by-steps', axis.mode === 'steps');
+    const groups = chapters();
+    if (axis.mode === 'steps') stepTiles(groups);
+    else timeTiles();
+    drawTrack();
+    drawBands(groups);
+    drawTicks();
+    drawZoomBar();
+    updateSkim();
+    timeline.setAttribute('aria-valuemax', duration.toFixed(2));
     sync(true);
   }
 
@@ -627,23 +1048,40 @@
     }
   });
 
+  // 滑過時間軸：這一刻的畫面與步驟。依步驟時，滑到一步的縮圖上是那一步做完的截圖
   function showPreview(clientX) {
-    if (!duration) return;
+    if (!duration || !axis) return;
     const seconds = timeAt(clientX);
     const rect = timeline.getBoundingClientRect();
+    const filmLeft = film.getBoundingClientRect().left;
     const x = clientX - rect.left;
     hoverline.hidden = false;
     hoverline.style.left = x + 'px';
     preview.hidden = false;
     preview.style.left = Math.min(rect.width - preview.offsetWidth - 6, Math.max(6, x - preview.offsetWidth / 2)) + 'px';
     $('replay-preview-time').textContent = fmt(seconds);
-    const step = stepAt(seconds);
+    const piece = pieceAt(seconds);
     const card = video.cardAt ? video.cardAt(seconds) : null;
-    $('replay-preview-step').textContent = card ? cardTitle(card) : step ? numberOf(step) + ' · ' + title(step) : messages.open_browser;
+    const step = piece && piece.kind === 'step' ? piece.step : piece && piece.kind === 'gap' ? null : stepAt(seconds);
+    const first = piece && piece.kind === 'step' ? (piece.x1 - piece.x0) / Math.max(1, Math.round((piece.x1 - piece.x0) / TILE_W)) : 0;
+    const onShot = Boolean(piece && piece.kind === 'step' && step.shot && clientX - filmLeft < piece.x0 + first);
+    const label = card ? cardTitle(card)
+      : piece && piece.kind === 'gap' ? fill(messages.gap || '', {seconds: (piece.t1 - piece.t0).toFixed(1)})
+      : step ? numberOf(step) + ' · ' + title(step) + (onShot ? ' · ' + (messages.shot_source || '') : '')
+      : messages.open_browser;
+    $('replay-preview-step').textContent = label;
     const context = previewCanvas.getContext('2d');
+    clearTimeout(hoverTimer);
+    if (onShot) {
+      shotImage(step.shot).then(image => {
+        if (image && !preview.hidden && Math.abs(timeAt(clientX) - seconds) < 0.01) {
+          context.drawImage(image, 0, 0, previewCanvas.width, previewCanvas.height);
+        }
+      });
+      return;
+    }
     const near = card ? null : nearest(seconds);
     if (near) context.drawImage(near, 0, 0, previewCanvas.width, previewCanvas.height);
-    clearTimeout(hoverTimer);
     hoverTimer = setTimeout(() => grab(seconds).then(frame => {
       if (!preview.hidden && Math.abs(timeAt(clientX) - seconds) < 0.01) {
         context.drawImage(frame, 0, 0, previewCanvas.width, previewCanvas.height);
@@ -663,9 +1101,17 @@
   let lastStep = -1;
   function sync(force) {
     const seconds = video.currentTime;
+    // 放大一章時播到外面（或跳到別的地方）：回到整次
+    if (axis && zooms.length && !inView(seconds) && !scrubbing) {
+      zooms = [];
+      layout();
+      return;
+    }
     $('replay-now').textContent = fmt(seconds);
-    playhead.style.left = (film.offsetLeft + (duration ? seconds / duration * film.clientWidth : 0)) + 'px';
-    $('replay-past').style.width = (duration ? seconds / duration * 100 : 0) + '%';
+    const x = axis ? xAt(seconds) : 0;
+    playhead.hidden = !axis;
+    playhead.style.left = (film.offsetLeft + x) + 'px';
+    past.style.width = x + 'px';
     const card = video.card;
     const step = card ? null : shownAt(seconds);
     const state = step ? stateOf(step, seconds) : 'upcoming';
@@ -693,15 +1139,20 @@
     }
     timeline.setAttribute('aria-valuenow', seconds.toFixed(2));
     timeline.setAttribute('aria-valuetext', fmt(seconds) + (step ? ' · ' + step.index + ' ' + title(step) : ''));
-    track.querySelectorAll('.replay-seg').forEach(segment => {
-      segment.classList.toggle('current', Boolean(step) && Number(segment.dataset.index) === step.index);
-    });
+    const index = step ? step.index : 0;
+    if (index !== lastStep || force) {
+      track.querySelectorAll('.replay-seg[data-index]').forEach(segment => {
+        segment.classList.toggle('current', Number(segment.dataset.index) === index);
+      });
+      film.querySelectorAll('.replay-tile[data-index]').forEach(each => {
+        each.classList.toggle('current', Number(each.dataset.index) === index);
+      });
+    }
     for (const item of list.querySelectorAll('.replay-row')) {
       const each = steps[Number(item.dataset.index) - 1];
       item.classList.toggle('current', Boolean(step) && each.index === step.index);
       item.querySelector('[data-n]').className = 'replay-n ' + stateOf(each, seconds);
     }
-    const index = step ? step.index : 0;
     if ((index !== lastStep || force) && index && $('replay-follow').checked) {
       const target = list.querySelector('.replay-row[data-index="' + index + '"]');
       const box = list.closest('.replay-tabpanel');
@@ -762,6 +1213,7 @@
     if (target) {
       selected = target.index;
       seek(leadIn(target), target);
+      if (drawerOpen()) shown = target;
       renderSteps();
       if (drawerOpen()) openDetail(target, {focus: false});
     } else if (direction < 0) {
@@ -871,6 +1323,8 @@
       choose(asked.index, {focus: false});
     } else if (failedStep && failedStep.start != null) {
       seek(failedStep.start - 1, failedStep);
+      shown = failedStep;
+      renderSteps();
       openDetail(failedStep, {focus: false});
       const located = $('replay-located');
       located.textContent = fill(messages.located_failed, {n: failedStep.label || failedStep.index});
@@ -887,9 +1341,10 @@
   });
   let resizeTimer = 0;
   if ('ResizeObserver' in window) {
+    // 寬度真的變了才重排（一開始觀察時也會通知一次）
     new ResizeObserver(() => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(layout, 150);
+      resizeTimer = setTimeout(() => { if (!axis || film.clientWidth !== axis.width) layout(); }, 150);
     }).observe(film);
   }
   renderSteps();

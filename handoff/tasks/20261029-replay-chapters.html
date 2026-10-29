@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261029-replay-chapters · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261029-replay-chapters：回看的依步驟章節軸、每一步的截圖，步驟詳情改從上方滑出</h1><p>縮圖和時間軸、畫面對不上：時間軸改成一格一步、沒有動作的空檔折疊；縮圖改成每一步做完時的截圖（執行端拍）；播放經過空檔時快轉。另外步驟詳情改成從清單上方滑出、不蓋住清單。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261029-replay-chapters；2026-10-29 04:50 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-28 07:08 America/Los_Angeles（PDT，UTC−07:00）的 Claude 專案對話（附截圖）：縮圖和時間軸、畫面對不上，分析原因並重新設計，目標是能快速找到想看的影片節點；先設計、review 後再實作。Claude 交出設計提案（原因、四個方案的比較、推薦與 D1～D5，存在 Claude 專案的 <code>claude/replay-timeline-redesign-proposal.md</code>）。使用者 2026-10-29 04:38 America/Los_Angeles（PDT，UTC−07:00）：照建議做，第一期、第二期一起做；另外把 20261028 選的「步驟詳情從右側滑出、蓋住清單」改成「從上方滑出、不蓋住清單」。驗收見下方「驗收條件」。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：Runner 每一步拍縮小的截圖（錄影時）；伺服器的回看資料、運行詳情的檔案清單、執行報告；播放器（章節軸、縮圖、快轉、密度、詳情）；樣式、訊息、設計文件、ADR 0016 修訂、測試。不包含：改錄影方式、平行節點的多軌時間軸（ADR 0019）、Worker 的上傳格式（執行目錄照舊整包上傳）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 主責；審閱與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner</code>（<code>stepshots.py</code>（新）、<code>browser.py</code>、<code>child.py</code>、<code>files.py</code>、<code>report.py</code>、訊息）；<code>apps/server</code>（<code>replay.py</code>、<code>composite_replay.py</code>、<code>render.py</code>、<code>pages.py</code>、樣板、<code>static/replay.js</code>、<code>replay-media.js</code>、<code>portal-app.css</code>、訊息）；測試；<code>docs/design/portal.html</code>、ADR 0016 與英文版；本紀錄、任務索引、<a href="20261028-replay-acceptance-fixes.html">20261028-replay-acceptance-fixes</a> 的追加紀錄。Claude 整合。</dd>
+        <dt>狀態</dt><dd>實作完成（本機）；待推送與 CI。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/replay-chapters</code>，從 main <code>2089d48</code>（v0.7.1，PR #104 合併後）開；PR 待開（base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本機，尚未推送。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13、Playwright 1.63（Chromium 1243）。這個 Playwright 版本的 <code>PageVideos</code> 記不到分頁影片的檔名（<code>pages.json</code> 的 <code>file</code> 是空的），所以本機錄不出回看的影片；本機驗證時用會話暫存區的 <code>sitecustomize.py</code> 補上檔名（不進倉庫，只影響本機測試），CI 用 Playwright 1.64，不需要。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>確認的設計（D1～D5）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>原因：</strong>縮圖平均切格、每格畫中間那一刻，格子邊界不跟節點、卡片、步驟對齊；時間軸是等比例的，有動作的時間只佔一小段（截圖那次 13 步約 0.65 秒，全長 4.68 秒）；錄影的對時是觀測精度（Chromium 第一格的觀測時間，測試容許 ±0.3 秒），每格 40 毫秒，比快的步驟（10～80 毫秒）還粗，從錄影取「某一步的畫面」會拿到前後幾步的畫面。</li>
+        <li><strong>D1 時間軸：</strong>依步驟的章節軸：一格一步（有最小寬度），沒有動作的空檔（超過 0.5 秒）折疊成窄格、標實際秒數，卡片固定寬；組合回看以節點為章；可切回「依時間」（現在的等比例時間軸）。</li>
+        <li><strong>D2 縮圖：</strong>第一期與第二期一起做：執行端在每一步結束後拍一張縮小的截圖（錄影時才拍），回看的格子、滑過預覽、步驟清單都用它；沒有截圖時（舊的運行）退回錄影裡那一步結束後的畫面。</li>
+        <li><strong>D3 空檔：</strong>播放經過折疊的空檔自動 4× 快轉並顯示提示，可以在控制列關掉；只在「依步驟」時。</li>
+        <li><strong>D4 章：</strong>組合回看以節點為章，單一運行不分章（步驟多到放不下時，才自動分成幾段，方便放大）。</li>
+        <li><strong>D5 步驟很多時：</strong>格子變窄，縮圖只畫重點步驟；點章可以放大那一章；不用水平捲動。</li>
+        <li><strong>步驟詳情：</strong>改成在右側欄、清單的上方滑出（往下展開），清單縮短但不被蓋住；選取的那一步在清單裡標出來，可以直接點別的步驟換內容。取代 20261028 的「從右側滑出，蓋住清單」。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="acceptance">
+      <div class="panel-header"><h2>驗收條件</h2></div>
+      <div class="panel-body"><ol>
+        <li>截圖那次（13 步、兩個節點）：1440 寬時每一步至少 44 px，點任何一格就跳到那一步；縮圖和格子一一對應，沒有黑格。</li>
+        <li>快的步驟（10～80 毫秒）的縮圖是那一步做完的真實畫面（執行端的截圖）。</li>
+        <li>一次 3 個節點、中間失敗的組合運行：章看得出三個場景與結果，失敗那一格紅框。</li>
+        <li>一次 200 步的運行：時間軸不需要捲動，點章能放大那一章。</li>
+        <li>播放經過等待會快轉、動作照原速；切回「依時間」和之前一樣。</li>
+        <li>點步驟時詳情從清單上方滑出，清單還看得到、可以直接點別的步驟。</li>
+      </ol></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成（本機）：</strong>
+          <ul>
+            <li><strong>Runner：</strong><code>stepshots.py</code>（新）：錄影時每一步（通過、失敗）做完拍一張縮小的 JPEG 到 <code>steps/001.jpg</code>…，<code>StepRecord</code> 多 <code>shot</code>、<code>shot_at</code>（steps.json 的 <code>shot</code>、<code>shotAt</code>）；無頭 Chromium 用 DevTools 的 <code>Page.captureScreenshot</code> 由瀏覽器縮成最多 640 寬，其他用 Playwright 的 JPEG 截圖（品質 50、2 秒逾時）；拍不到不影響步驟、總期限剩不到 3 秒不拍、最多 500 張。<code>run_steps</code> 多 <code>after_step</code>（每一步之後、寫進度之前，出錯吞掉）；<code>child.py</code> 錄影時接上。執行報告的步驟表多一欄縮圖，檔案清單的 <code>steps/</code> 只列一項。</li>
+            <li><strong>伺服器：</strong>回看資料的步驟多 <code>shot</code>（網址，只接受 <code>steps/</code> 加三或四位數字的 .jpg）與 <code>shotMs</code>（合併回看接到節點那一段）；<code>steps/</code> 的檔案快取一天；運行詳情的檔案清單把截圖合成一列 <code>steps/</code>，連到回看。</li>
+            <li><strong>播放器（<code>replay.js</code>、<code>replay-media.js</code>）：</strong>時間軸改成「排法」（axis：分段的時間 ↔ 位置）。依步驟（預設）：一格一步（至少 44 px，多的寬度依時長開根號分）、空檔（同一段錄影超過 0.5 秒沒有動作，步驟做完後留 0.25 秒）折疊成 20 px、卡片 40 px；縮圖是步驟的截圖（沒有時是錄影裡那一步做完後 3 格），寬的一格後面用錄影補幾張；刻度標實際時間；一步放不下 44 px 時格子變窄，不到 24 px 時每幾步合成一格縮圖（畫裡面最重要的一步：失敗、選取、開網址與點擊等），單一運行每幾步一組、組合回看以節點為章，點色帶放大，「← 整次」回來；播到放大範圍外自動回到整次。依時間：原本的平均切格。選擇存在 localStorage。播放經過空檔 4× 快轉（空檔最後 0.4 秒照原速），畫面右下角「快轉 4×」，控制列「快轉等待」可以關（也記住）。錄影縮圖的快取依影片的格。沒有任何有時間的步驟時照時間排。</li>
+            <li><strong>步驟詳情：</strong>改成在分頁標籤與清單之間往下滑出（grid 列 0fr → 1fr），清單變短但看得到；選取的那一步在清單裡左側藍線；標題列是步驟、上一步、下一步、收起；內容多一張這一步做完的截圖（點了看原圖）；Esc、換分頁、點色帶收起。</li>
+            <li><strong>測試：</strong><code>test_stepshots.py</code>（新）；<code>test_video_browser.py</code> 新增 <code>test_each_step_has_a_screenshot</code>（兩種瀏覽器）、失敗那一步也有截圖；<code>test_replay.py</code> 的資料測試與兩個 Chromium 測試（一格一步、點格子、滑過、快轉、依時間；120 步分組與放大）；<code>test_composite_replay.py</code>；兩個真實錄影的流程測試改成新的詳情位置與時間軸，播放位置改讀時間軸（<code>aria-valuenow</code>），預期位置不早於那個分頁的錄影開頭。</li>
+            <li><strong>文件：</strong>ADR 0016 新增「依步驟的時間軸與每一步的截圖」（含沒有做的部分）與英文版；Portal 設計頁、系統架構的執行目錄（繁中、英文，英文已 stamp）。<a href="20261028-replay-acceptance-fixes.html">20261028</a> 的紀錄追加詳情位置的變更。</li>
+          </ul>
+        </li>
+        <li><strong>決定：</strong>見上方「確認的設計」。實作選擇：截圖只在錄影時拍（錄影關閉時不拍，和錄影的設定一致）；有頭的 Chromium 不用 DevTools 截圖（背景分頁不一定有畫面，DevTools 指令沒有逾時）；太擠時縮圖合併，不讓縮圖蓋到別的格子；放大只在依步驟時。</li>
+        <li><strong>沒有做：</strong>用截圖估計並修正錄影的對時偏差（提案標「做得到才做」；理由寫在 ADR 0016）；取縮圖時等 <code>requestVideoFrameCallback</code>（產生縮圖的 video 不在畫面上，回呼不一定會來；改成跳到格的時間點）。</li>
+        <li><strong>未完成／阻礙：</strong>CI、審閱與合併、發版（建議 v0.8.0：執行端與執行目錄多了新東西）、使用者驗收（見上方驗收條件）。</li>
+        <li><strong>下一個具體動作：</strong>推送、開 PR、看 CI（bootstrap 產生簡中）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>本機預覽與量測的腳本、資料在會話暫存區（<code>/tmp/claude-0/preview3</code>、<code>/tmp/claude-0/sitefix</code>），不進倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-28 07:40 America/Los_Angeles（PDT，UTC−07:00），Claude：交出設計提案（只有設計，沒有改程式），存在 Claude 專案的 <code>claude/replay-timeline-redesign-proposal.md</code>。</li>
+        <li>2026-10-29 04:50 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 04:38 確認（見上）；PR #103 已合併、v0.7.1 已發布（PR #104）。從 main <code>2089d48</code> 開 <code>feat/replay-chapters</code>。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

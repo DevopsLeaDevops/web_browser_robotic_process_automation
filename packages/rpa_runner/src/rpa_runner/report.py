@@ -9,6 +9,7 @@ import json
 from typing import TYPE_CHECKING, Final, cast
 
 from rpa_core.i18n import get_locale
+from rpa_runner.files import STEP_SHOTS
 from rpa_runner.i18n import t
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ background:var(--line);color:var(--muted)}.passed{background:var(--green-bg);col
 .failed,.timed_out{background:var(--red-bg);color:var(--red)}.cancelled{background:var(--amber-bg);color:var(--amber)}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){.pair{grid-template-columns:1fr}}
 img{max-width:100%;border:1px solid var(--line);border-radius:6px}a{color:var(--blue)}
+td img.shot{display:block;width:112px;max-width:none;aspect-ratio:16/9;object-fit:cover;object-position:left top}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 """
 
@@ -61,6 +63,14 @@ def _step_detail(step: dict[str, object]) -> str:
     return "".join(part for part in parts if part)
 
 
+def _shot(step: dict[str, object]) -> str:
+    """這一步做完的截圖（錄影時才有，見 stepshots.py）：縮圖，點了看原圖。"""
+    shot = step.get("shot")
+    if not isinstance(shot, str) or not shot:
+        return ""
+    return f'<a href="{_e(shot)}"><img class="shot" src="{_e(shot)}" alt="" loading="lazy"></a>'
+
+
 def render_report(result: "RunResult") -> str:
     """產生 report.html 的內容（目前語言）。"""
     stages = "".join(
@@ -68,12 +78,16 @@ def render_report(result: "RunResult") -> str:
         f"<td class='mono'>{s.duration_ms} ms</td><td>{_e(s.message or '')}</td></tr>"
         for s in result.stages
     )
+    shots = any(step.get("shot") for step in result.steps)
     steps = "".join(
         f"<tr><td class='mono'>{_e(step.get('id'))}</td><td class='mono'>{_e(step.get('action'))}</td>"
         f"<td>{_e(step.get('name') or '')}</td><td>{_badge(str(step.get('status')))}</td>"
-        f"<td class='mono'>{_e(step.get('durationMs'))} ms</td><td>{_step_detail(step)}</td></tr>"
+        f"<td class='mono'>{_e(step.get('durationMs'))} ms</td><td>{_step_detail(step)}</td>"
+        + (f"<td>{_shot(step)}</td>" if shots else "")
+        + "</tr>"
         for step in result.steps
     )
+    shot_head = f"<th>{_e(t('report.shot'))}</th>" if shots else ""
     checks = "".join(
         f"<tr><td>{_e(c.name)}</td><td class='mono'>{_e(c.comparison)}</td>"
         f"<td><pre>{_e(c.actual)}</pre></td><td><pre>{_e(c.expected if c.expected is not None else '')}</pre></td>"
@@ -89,7 +103,12 @@ def render_report(result: "RunResult") -> str:
         )
         or f"<p class='muted'>{_e(t('report.no_screenshot'))}</p>"
     )
-    links = " · ".join(f'<a href="{_e(name)}">{_e(name)}</a>' for name in files)
+    # 每一步的截圖（steps/）可能有幾百張：檔案清單只列一項，截圖在步驟表裡
+    shot_files = [name for name in files if name.startswith(f"{STEP_SHOTS}/")]
+    links = " · ".join(
+        [f'<a href="{_e(name)}">{_e(name)}</a>' for name in files if name not in shot_files]
+        + ([_e(t("report.step_shots", count=len(shot_files)))] if shot_files else [])
+    )
     problems = "".join(f"<li>{_e(problem)}</li>" for problem in result.problems)
     error = result.error or t("report.no_error")
     no_rows = f"<p class='muted'>{_e(t('report.none'))}</p>"
@@ -103,7 +122,7 @@ def render_report(result: "RunResult") -> str:
 <p class="muted">{_e(t("report.meta", run_id=result.run_id, kind=t(f"kind.{result.kind}"), engine=result.engine, started=result.started_at, seconds=result.duration_seconds))}</p>
 <section><h2>{_e(t("report.stages"))}</h2><table><thead><tr><th>{_e(t("report.stage"))}</th><th>{_e(t("report.status"))}</th><th>{_e(t("report.duration"))}</th><th>{_e(t("report.message"))}</th></tr></thead><tbody>{stages}</tbody></table>
 <p>{_e(error)}</p>{f"<ul>{problems}</ul>" if problems else ""}</section>
-<section><h2>{_e(t("report.steps"))}</h2>{f"<table><thead><tr><th>id</th><th>action</th><th>{_e(t('report.name'))}</th><th>{_e(t('report.status'))}</th><th>{_e(t('report.duration'))}</th><th>{_e(t('report.error'))}</th></tr></thead><tbody>{steps}</tbody></table>" if steps else no_rows}</section>
+<section><h2>{_e(t("report.steps"))}</h2>{f"<table><thead><tr><th>id</th><th>action</th><th>{_e(t('report.name'))}</th><th>{_e(t('report.status'))}</th><th>{_e(t('report.duration'))}</th><th>{_e(t('report.error'))}</th>{shot_head}</tr></thead><tbody>{steps}</tbody></table>" if steps else no_rows}</section>
 <section><h2>{_e(t("report.checks"))}</h2>{f"<table><thead><tr><th>{_e(t('report.name'))}</th><th>{_e(t('report.comparison'))}</th><th>{_e(t('report.actual'))}</th><th>{_e(t('report.expected'))}</th><th>{_e(t('report.status'))}</th></tr></thead><tbody>{checks}</tbody></table>" if checks else no_rows}</section>
 <section class="pair"><div><h2>{_e(t("report.input"))}</h2>{_json(result.input)}</div><div><h2>{_e(t("report.output"))}</h2>{_json(result.output) if result.output is not None else f"<p class='muted'>{_e(t('report.no_output'))}</p>"}</div></section>
 <section><h2>{_e(t("report.evidence"))}</h2>{gallery}</section>

@@ -6,7 +6,8 @@
 寫出 facts.json、steps.json、screenshot.png；失敗時另寫 diagnostic.json。標準輸出是給人讀的逐步紀錄
 （父程序存成 automation.log，格式見 steplog.py）。
 ``--video`` 時錄影到執行目錄的 .video/（M12）：離開時先關 context，影片才寫完；
-由父程序整理成 video.webm（見 video.py）。
+由父程序整理成 video.webm（見 video.py）。錄影時每一步做完另外拍一張縮小的截圖，存在 steps/
+（2026-10-29，見 stepshots.py）。
 Firefox 從預熱設定檔的複本啟動，避免每次初始化全新設定檔而卡住（見 profiles.py）。
 場景有 login 時，``--storage-state`` 是角色的登入狀態檔（已在登入檢查階段確認過）。
 ``--files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）。
@@ -33,6 +34,7 @@ from rpa_runner.i18n import t
 from rpa_runner.inputfiles import read_paths
 from rpa_runner.secrets import mask, read_secrets
 from rpa_runner.steplog import StepLog
+from rpa_runner.stepshots import StepShots
 from rpa_runner.video import PageVideos, mark_page, video_size
 
 __all__ = ["EXIT_DEADLINE", "EXIT_FAILED", "main"]
@@ -135,6 +137,11 @@ def run(args: argparse.Namespace) -> int:
             log.browser_ready(len(records))
             videos = PageVideos(out, page, engine=engine) if args.video else None
             tabs = Tabs(page, identify=videos.identify if videos is not None else None)
+            shots = (
+                StepShots(out, engine=engine, headed=args.headed, deadline=deadline)
+                if args.video
+                else None
+            )
             facts = run_steps(
                 page,
                 scenario,
@@ -146,6 +153,7 @@ def run(args: argparse.Namespace) -> int:
                 on_progress=save_steps,
                 tabs=tabs,
                 files=read_paths(Path(args.files) if args.files else None),
+                after_step=shots.take if shots is not None else None,
             )
             write_json(out / FACTS, facts)
             # 最後一步所在的分頁（M7b：可能是新分頁）

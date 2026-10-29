@@ -88,7 +88,15 @@ def validate(client: httpx2.Client, scene: str, inputs: JsonObject) -> JsonObjec
 
 
 def current_time(page: Page) -> float:
-    return float(page.evaluate("document.getElementById('replay-video').currentTime"))
+    """整條時間軸上的位置（秒；不是影片元素的，錄影可能比第一步晚開始）。"""
+    return float(page.locator("#replay-timeline").get_attribute("aria-valuenow") or 0)
+
+
+def clip_start(replay: JsonObject, step: JsonObject) -> float:
+    """這一步所在分頁的錄影從時間軸的第幾秒開始：跳到一步時不早於它。"""
+    clips = cast("list[JsonObject]", cast("JsonObject", replay["video"])["clips"])
+    clip = next(item for item in clips if item["pageId"] == step["pageId"])
+    return cast("int", clip["startMs"]) / 1000
 
 
 @pytest.mark.parametrize("start_ms", [0, 500])
@@ -127,23 +135,47 @@ def test_replay_follows_steps_and_seeks(portal: str, page: Page) -> None:
         steps = cast("list[JsonObject]", replay["steps"])
 
         # 通過的運行：停在開頭；縮圖產生；點一步跳到那一步開始前（最多 0.4 秒，不早於上一步結束），
-        # 詳情從右側滑出（2026-10-28）
+        # 詳情從清單上方滑出（2026-10-29）
         page.goto(f"{portal}/runs/{passed['id']}/replay")
         page.wait_for_function("document.querySelectorAll('.replay-tile.ready').length >= 2")
         expect(page.locator("#replay-duration")).not_to_have_text("00:00.00")
         assert current_time(page) < 0.1
+        # 依步驟的時間軸：一格一步，縮圖是執行端拍的那一步做完的截圖（2026-10-29）
+        tiles = page.locator(".replay-tile.step")
+        expect(tiles).to_have_count(len(steps))
+        assert tiles.evaluate_all("tiles => tiles.map(tile => Number(tile.dataset.index))") == list(
+            range(1, len(steps) + 1)
+        )
+        assert all(step["shot"] for step in steps), steps
+        expect(page.locator(".replay-tile.step img").first).to_have_attribute(
+            "src", cast("str", steps[0]["shot"])
+        )
         submit = next(step for step in steps if step["id"] == "submit")
         page.locator('.replay-row[data-index="4"]').click()
         expect(page.locator("#replay-drawer")).to_have_class("replay-drawer open")
         expect(page.locator("#replay-drawer .replay-detail")).to_contain_text("從這一步播放")
-        assert abs(current_time(page) - lead_in(steps, cast("int", submit["index"]))) < 0.15
-        expect(page.locator('.replay-row[data-index="4"]')).to_have_class("replay-row current")
+        expect(page.locator("#replay-drawer .replay-shot img")).to_have_attribute(
+            "src", cast("str", submit["shot"])
+        )
+        expected = max(lead_in(steps, 4), clip_start(replay, submit))
+        assert abs(current_time(page) - expected) < 0.15, (current_time(page), expected)
+        expect(page.locator('.replay-row[data-index="4"]')).to_contain_class("current selected")
+        # 詳情在清單上方，不蓋住清單：直接點下一列換內容
+        drawer = page.locator("#replay-drawer").bounding_box()
+        row = page.locator('.replay-row[data-index="5"]').bounding_box()
+        assert drawer is not None
+        assert row is not None
+        assert row["y"] >= drawer["y"] + drawer["height"] - 1, (drawer, row)
+        page.locator('.replay-row[data-index="5"]').click()
+        expect(page.locator(".replay-drawer-title")).to_contain_text("05")
+        expect(page.locator('.replay-row[data-index="4"]')).not_to_contain_class("selected")
         # 下一步：依步驟的順序（BA-001 的前幾步很快，常常比 0.4 秒還短）
         page.keyboard.press("l")
-        expect(page.locator('.replay-row[data-index="5"]')).to_have_class("replay-row current")
-        assert abs(current_time(page) - lead_in(steps, 5)) < 0.15
-        expect(page.locator(".replay-drawer-title")).to_contain_text("05")
-        # 收回詳情：清單還在原位
+        expect(page.locator('.replay-row[data-index="6"]')).to_contain_class("current selected")
+        expected = max(lead_in(steps, 6), clip_start(replay, steps[5]))
+        assert abs(current_time(page) - expected) < 0.15, (current_time(page), expected)
+        expect(page.locator(".replay-drawer-title")).to_contain_text("06")
+        # 收回詳情
         page.keyboard.press("Escape")
         expect(page.locator("#replay-drawer")).to_have_class("replay-drawer")
         # 滑過時間軸：預覽
@@ -158,15 +190,17 @@ def test_replay_follows_steps_and_seeks(portal: str, page: Page) -> None:
         video = cast("JsonObject", client.get(f"/api/runs/{passed['id']}").json()["video"])
         assert video["pinned"] is True
 
-        # 失敗的運行：停在失敗步驟開始前 1 秒，詳情打開在那一步
+        # 失敗的運行：停在失敗步驟開始前 1 秒，詳情打開在那一步；時間軸上那一格紅框
         failed_replay = cast("JsonObject", client.get(f"/api/runs/{failed['id']}/replay").json())
         index = cast("int", failed_replay["failedStep"])
         failed_step = cast("list[JsonObject]", failed_replay["steps"])[index - 1]
         page.goto(f"{portal}/runs/{failed['id']}/replay")
         expect(page.locator("#replay-located")).to_be_visible()
         expect(page.locator("#replay-drawer .replay-detail .replay-error")).to_be_visible()
-        expected = max(0.0, cast("int", failed_step["startMs"]) / 1000 - 1)
-        assert abs(current_time(page) - expected) < 0.15
+        expect(page.locator(f'.replay-tile.step.failed[data-index="{index}"]')).to_have_count(1)
+        start = cast("int", failed_step["startMs"]) / 1000 - 1
+        expected = max(0.0, start, clip_start(failed_replay, failed_step))
+        assert abs(current_time(page) - expected) < 0.15, (current_time(page), expected)
 
         # 運行報告（「只看有錄影的」，舊的運行回看網址轉過來）連到回看
         page.goto(f"{portal}/replay")
@@ -215,8 +249,7 @@ def test_replay_switches_pages_and_returns_to_main(portal: str, page: Page, tmp_
         media = page.locator("#replay-video")
         page.wait_for_function("document.querySelectorAll('.replay-tile.ready').length >= 2")
         for index, page_id in ((5, "page-2"), (8, "page-1"), (5, "page-2")):
-            # 詳情會蓋住清單（2026-10-28）：先收回再點下一步
-            page.keyboard.press("Escape")
+            # 詳情在清單上方（2026-10-29）：直接點下一步
             page.locator(f'.replay-row[data-index="{index}"]').click()
             expect(media).to_have_attribute("data-page-id", page_id)
             expect(page.locator("#replay-gap")).to_be_hidden()

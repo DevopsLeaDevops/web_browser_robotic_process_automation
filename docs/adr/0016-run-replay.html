@@ -20,6 +20,18 @@
   </div>
 
   <div class="stack">
+    <section class="panel" id="chapters">
+      <div class="panel-header"><h2>依步驟的時間軸與每一步的截圖（2026-10-29）</h2></div>
+      <div class="panel-body prose">
+        <p>更新：2026-10-29 05:20 America/Los_Angeles（PDT，UTC−07:00）。本節修訂決策 6「怎麼回看」裡的「縮圖在看影片的瀏覽器裡產生」與「沒有選的方案」裡的「每一步截圖」：錄影仍是主要的紀錄，另外加上每一步的截圖當縮圖。</p>
+        <p><strong>原因：</strong>v0.7.0 驗收（2026-10-28，附截圖）：縮圖和時間軸、畫面對不上，找不到想看的那一步。時間軸平均切格、每格畫中間那一刻，格子邊界不跟節點、卡片、步驟對齊；等比例的時間軸上，有動作的時間只佔一小段（那次 13 步約 0.65 秒，全長 4.68 秒），其餘是步驟後的收尾與轉場卡；錄影的對時是觀測精度（Chromium 用第一格的觀測時間，測試容許 ±0.3 秒），每格 40 毫秒，比快的步驟（10～80 毫秒）還粗，從錄影取「某一步做完的畫面」會拿到前後幾步的畫面。</p>
+        <p><strong>截圖：</strong>錄影時每一步（通過或失敗，不含略過）做完，Runner 另外拍一張縮小的 JPEG，存在執行目錄的 <code>steps/001.jpg</code>…；<code>steps.json</code> 記 <code>shot</code>（相對路徑）與 <code>shotAt</code>（開始拍的實際時間）。無頭的 Chromium 用 DevTools 的 <code>Page.captureScreenshot</code>（和 Playwright 的 <code>page.screenshot</code> 是同一個指令）請瀏覽器直接縮成最多 640 寬；Firefox、WebKit 與有頭的 Chromium（背景分頁不一定有畫面，要有逾時）用 Playwright 的 JPEG 截圖（頁面大小、品質 50、最多 2 秒）。拍不到不影響步驟的結果；總期限剩不到 3 秒不拍；最多 500 張（遠端 Worker 上傳的執行目錄最多 2000 個檔案）。步驟的開始、結束時間不含拍照。本機實測（雲端容器、無頭 Chromium、1280×800 的範例頁）：每兩步之間多約 30～40 毫秒（第一張要建立 DevTools 連線，約 200 毫秒），200 步共 2.4 MB（每張約 12 KB）。截圖跟著執行紀錄保存（錄影的保留規則只刪影片），遠端 Worker 照舊上傳整個執行目錄；和錄影一樣會留下畫面上的一切（使用者 2026-10-20 的 D3）。伺服器只接受 Runner 產生的檔名（<code>steps/</code> 加三或四位數字）。</p>
+        <p><strong>回看：</strong>時間軸預設「依步驟」：一格一步（至少 44 px，寬度依時長開根號分配），同一段錄影裡超過 0.5 秒沒有動作的空檔折疊成 20 px 的窄格，卡片 40 px；時間與位置用分段線性換算，播放頭、拖曳、滑過預覽、刻度（標實際時間）與色帶都用它。縮圖用每一步的截圖，沒有截圖時（舊的運行）退回錄影裡那一步結束後 3 格的畫面，錄影的縮圖依影片的格（每秒 25 格）快取。播放經過折疊的空檔時 4× 快轉，空檔的最後 0.4 秒照原速（點一步會跳到它開始前 0.4 秒）；只在依步驟時，可以在控制列關掉。步驟多到一步放不下 44 px 時格子變窄、每幾步合成一格縮圖；單一運行每幾步一組、組合回看以節點為章，點一下放大那一段。可以切回「依時間」（原本的等比例時間軸），瀏覽器記住選擇。步驟清單與詳情用同一張截圖，錄影刪了截圖還在。步驟詳情改成從清單上方往下滑出、不蓋住清單（使用者 2026-10-29 改；2026-10-28 是從右側滑出、蓋住清單）。</p>
+        <p><strong>沒有做：</strong>用截圖估計並修正錄影的對時偏差（設計提案標為「做得到才做」）。縮圖已經不靠錄影對時；估偏差要比對畫面，頁面動畫、游標與壓縮雜訊容易估錯，估錯會讓影片更不準，有實際案例再評估。另外取縮圖時沒有等 <code>requestVideoFrameCallback</code>：產生縮圖的 video 不在畫面上，回呼不一定會來；改成跳到格的時間點。</p>
+        <p>實作與驗證紀錄見<a href="../../handoff/tasks/20261029-replay-chapters.html">本任務交接</a>。</p>
+      </div>
+    </section>
+
     <section class="panel" id="multipage">
       <div class="panel-header"><h2>多分頁與對時修正（2026-10-22）</h2></div>
       <div class="panel-body prose">
@@ -36,7 +48,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-20</dd>
-        <dt>修訂</dt><dd><span class="mono">2026-10-22</span>：每個分頁各錄一段、回看依步驟的分頁換片段，Chromium 用首格觀測時間對時；取代「單一影片即可覆蓋運行」與「超界步驟接在最後一格」，見<a href="#multipage">多分頁與對時修正</a>。<span class="mono">2026-10-27</span>：組合運行裡的節點錄影整組保留（保留天數看整次組合運行、釘選與超量刪除整組處理），播放器可以把整次組合運行的各段錄影接起來播，見 <a href="0019-composite-report-replay.html">ADR 0019</a>。</dd>
+        <dt>修訂</dt><dd><span class="mono">2026-10-22</span>：每個分頁各錄一段、回看依步驟的分頁換片段，Chromium 用首格觀測時間對時；取代「單一影片即可覆蓋運行」與「超界步驟接在最後一格」，見<a href="#multipage">多分頁與對時修正</a>。<span class="mono">2026-10-27</span>：組合運行裡的節點錄影整組保留（保留天數看整次組合運行、釘選與超量刪除整組處理），播放器可以把整次組合運行的各段錄影接起來播，見 <a href="0019-composite-report-replay.html">ADR 0019</a>。<span class="mono">2026-10-29</span>：錄影時每一步另外拍一張縮小的截圖當縮圖，時間軸預設依步驟排（一格一步、空檔折疊與快轉），見<a href="#chapters">依步驟的時間軸與每一步的截圖</a>。</dd>
         <dt>影響範圍</dt><dd>rpa-runner、rpa-worker、rpa-server（M12 起）</dd>
         <dt>相關</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（執行目錄）、<a href="0012-remote-workers.html">ADR 0012</a>（遠端 worker 上傳執行目錄）；M11 的 D4（執行紀錄不進 git）；<a href="../design/portal.html#video">管理 Portal › 執行 › 錄影</a></dd>
       </dl>
@@ -86,7 +98,7 @@
             <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
             <tbody>
               <tr><td>Playwright Trace</td><td>檔案大，要另外開 Trace Viewer；使用者要的是影片播放、拖曳與縮圖。</td></tr>
-              <tr><td>每一步截圖</td><td>多一次瀏覽器來回，改變步驟的時間；看不到步驟之間發生的事。</td></tr>
+              <tr><td>每一步截圖</td><td>多一次瀏覽器來回，改變步驟的時間；看不到步驟之間發生的事。（2026-10-29：改為錄影之外另拍縮小的截圖當縮圖，不取代錄影，見<a href="#chapters">依步驟的時間軸</a>。）</td></tr>
               <tr><td>Playwright 的 showActions（在影片上標出點擊位置）</td><td>在頁面注入標註，而且每個操作前多等 500 ms，改變執行本身。步驟由回看頁顯示。</td></tr>
               <tr><td>伺服器端產生縮圖</td><td>Linux 伺服器沒有瀏覽器與 ffmpeg；另加影音套件會增加離線安裝的負擔。</td></tr>
               <tr><td>自己接收每一格畫面再編碼</td><td>Playwright 已經依實際時間編碼；自己做要重複編碼，被終止時也一樣要處理。</td></tr>

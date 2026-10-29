@@ -26,6 +26,7 @@ from rpa_runner.contract import check_inputs
 from rpa_runner.files import SCENARIO_DIR, STEPS, VIDEO_TMP, write_json
 from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, StageName
+from rpa_runner.stepshots import shot_name
 from rpa_runner.video import finalize, mark_page
 from rpa_server.domain import now
 from rpa_server.models import Revision, Run, Scene, WorkflowRun
@@ -105,6 +106,10 @@ class ClockExecutor:
                 record.status = "failed"
                 record.error = "TimeoutError: 找不到元素"
                 status = "failed"
+            if record_video:  # 錄影時每一步做完的截圖（2026-10-29）
+                record.shot, record.shot_at = shot_name(index + 1), record.ended_at + 0.05
+                (folder / record.shot).parent.mkdir(parents=True, exist_ok=True)
+                (folder / record.shot).write_bytes(b"\xff\xd8\xff\xe0")
         write_json(folder / STEPS, [record.to_json() for record in records])
         if record_video:
             mark_page(folder, "page.webm", started.timestamp())
@@ -233,6 +238,8 @@ def test_videos_are_joined_on_one_timeline(client: Client, worker: Worker, compo
     second = next(step for step in steps if step["node"] == "n2")
     assert (second["label"], second["id"], second["rawId"]) == ("n2·1", "n2:open", "open")
     assert second["startMs"] == VIDEO_MS + 2000 + 1000  # 那一段的開始＋在自己影片裡的位置
+    assert second["shotMs"] == cast("int", second["endMs"]) + 50  # 截圖的時間也接到這一段
+    assert str(second["shot"]).endswith("/files/steps/001.jpg")
     assert second["pageId"] == "n2/page-1"
     assert [step["index"] for step in steps] == list(range(1, len(steps) + 1))
     assert data["failedStep"] is None

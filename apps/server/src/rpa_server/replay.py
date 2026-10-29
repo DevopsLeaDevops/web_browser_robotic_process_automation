@@ -4,12 +4,15 @@
   （釘選、刪除、保留到何時）。
 - 步驟：result.json（或執行中的 steps.json）每一步的開始、結束時間換算成影片裡的毫秒；再加上
   執行目錄裡場景快照的那一段原文與行號、定位器、填入的值（場景檔的寫法，不是代入後的值）、抽到的事實。
+  錄影時每一步做完的截圖（2026-10-29，rpa_runner.stepshots）：``shot`` 是網址、``shotMs`` 是開始拍
+  的那一刻在影片裡的毫秒；錄影刪了截圖還在，回看頁照樣顯示步驟的縮圖。
 - 斷言與階段：result.json。影片只涵蓋自動化階段，斷言與出參在瀏覽器關閉後才執行。
 - 前後：同一個場景的上一次、下一次、上一次沒通過的運行；組合場景的各個節點。
 """
 
 import contextlib
 import json
+import re
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
@@ -21,7 +24,7 @@ from sqlalchemy.orm import Session
 from rpa_core.dsl import validate_file
 from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.dsl.yaml_writer import flow
-from rpa_runner.files import FACTS, RESULT, SCENARIO_DIR, STEPS, read_json_or
+from rpa_runner.files import FACTS, RESULT, SCENARIO_DIR, STEP_SHOTS, STEPS, read_json_or
 from rpa_runner.video import clips, read_info
 from rpa_server.models import Run
 from rpa_server.storage import Storage
@@ -135,8 +138,18 @@ def step_targets(folder: Path) -> list[str | None]:
     return [_describe(definition)[0] for definition in definitions]
 
 
+_SHOT: Final = re.compile(rf"{STEP_SHOTS}/\d{{3,4}}\.jpg")
+"""steps.json 的 shot 只接受 Runner 產生的檔名（遠端 Worker 上傳的執行目錄不完全可信）。"""
+
+
+def _shot(folder: Path, run_id: str, value: object) -> str | None:
+    if not isinstance(value, str) or not _SHOT.fullmatch(value) or not (folder / value).is_file():
+        return None
+    return f"/runs/{run_id}/files/{value}"
+
+
 def _steps(
-    folder: Path, result: Mapping[str, object] | None, start: datetime | None
+    folder: Path, run_id: str, result: Mapping[str, object] | None, start: datetime | None
 ) -> list[dict[str, object]]:
     raw = result.get("steps") if result is not None else None
     if not isinstance(raw, list):
@@ -172,6 +185,8 @@ def _steps(
                 "endedAt": record.get("endedAt"),
                 "startMs": _offset(_moment(record.get("startedAt")), start),
                 "endMs": _offset(_moment(record.get("endedAt")), start),
+                "shot": _shot(folder, run_id, record.get("shot")),
+                "shotMs": _offset(_moment(record.get("shotAt")), start),
                 "target": where,
                 "detail": detail,
                 "fact": facts.get(name) if isinstance(name, str) and name in facts else None,
@@ -276,7 +291,7 @@ def build_replay(
     elif info:
         # 有錄但沒存下來（例如還沒開瀏覽器就取消）：頁面照樣顯示原因，不能因為少了 url 出錯
         video = {"playable": False, "url": None, "error": info.get("error")}
-    steps = _steps(folder, result, start)
+    steps = _steps(folder, run.id, result, start)
     if video is not None and playable:
         # 開頁步驟可能比第一格畫面更早；保留這段等待，不把它壓到零點。
         moments = [
@@ -290,7 +305,7 @@ def build_replay(
                 if isinstance(item.get("startMs"), int):
                     item["startMs"] = cast("int", item["startMs"]) + shift
             for step in steps:
-                for key in ("startMs", "endMs"):
+                for key in ("startMs", "endMs", "shotMs"):
                     if isinstance(step.get(key), int):
                         step[key] = cast("int", step[key]) + shift
         ends = [

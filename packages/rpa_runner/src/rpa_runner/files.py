@@ -27,6 +27,7 @@ __all__ = [
     "SCENARIO_DIR",
     "SCREENSHOT",
     "STEPS",
+    "STEP_SHOTS",
     "VIDEO",
     "VIDEO_INFO",
     "VIDEO_TMP",
@@ -63,6 +64,8 @@ VIDEO_INFO: Final = "video.json"
 """錄影的說明：開始時間、長度、大小、是否修復過（見 video.py）。"""
 VIDEO_TMP: Final = ".video"
 """錄影時 Playwright 寫入的暫存資料夾；執行結束時整理成 video.webm 後刪掉。"""
+STEP_SHOTS: Final = "steps"
+"""錄影時每一步做完的縮小截圖（``steps/001.jpg``…，見 stepshots.py）；跟著執行紀錄保存。"""
 
 REPLACE_ATTEMPTS: Final = 50
 """Windows 上改名被別的程序擋住時最多試幾次；每次間隔 REPLACE_DELAY 秒，合計約 1 秒。"""

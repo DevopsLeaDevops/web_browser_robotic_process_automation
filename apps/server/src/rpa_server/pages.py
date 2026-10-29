@@ -27,7 +27,7 @@ from rpa_core.dsl.files import (
 )
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
-from rpa_runner.files import REPORT
+from rpa_runner.files import REPORT, STEP_SHOTS
 from rpa_runner.installed import DISPLAY_NAMES
 from rpa_server.agents import SCOPES
 from rpa_server.composite_report import build_composite_report, embedded_screenshots
@@ -710,9 +710,11 @@ def page_router(services: Services) -> APIRouter:
             media_type = _TEXT_TYPES.get(path.suffix) or mimetypes.guess_type(path.name)[0]
         if media_type and (media_type.startswith("text/") or media_type in _UTF8_TYPES):
             media_type += "; charset=utf-8"
+        # 錄影寫完就不會再變（M12）：讓瀏覽器拖曳時不必重抓同一段；每一步的截圖（2026-10-29）也是；
+        # 其他檔案每次都重抓
+        fixed = path.suffix == ".webm" or relative.startswith(f"{STEP_SHOTS}/")
         headers = {
-            # 錄影寫完就不會再變（M12）：讓瀏覽器拖曳時不必重抓同一段；其他檔案每次都重抓
-            "Cache-Control": "private, max-age=86400" if path.suffix == ".webm" else "no-store",
+            "Cache-Control": "private, max-age=86400" if fixed else "no-store",
             "X-Content-Type-Options": "nosniff",
             "Content-Security-Policy": _REPORT_CSP,
         }
