@@ -77,7 +77,7 @@
             <tr><td>在錄製端調試時換版本</td><td>Portal「存成新版本並繼續調試」與 Agent API 的 reload 不再回「場景校驗失敗」</td><td>#90，10-26</td><td>v0.6.3</td></tr>
             <tr><td>CI 依層建置</td><td>同一組輸入只驗證一次，桌面 App 的外殼沒變不重新打包（<a href="develop/ci.html#layered">CI 與流水線</a>）</td><td>#94，10-26</td><td>main（只影響 CI）</td></tr>
             <tr><td>組合運行的匯總報告與合併回看</td><td>一份報告、一個播放器看完整次組合運行（<a href="adr/0019-composite-report-replay.html">ADR 0019</a>）</td><td>#96，10-27；#98，10-28</td><td>main，尚未發布</td></tr>
-            <tr><td>Python 腳本場景（新版）</td><td>本機自動化、專用的 RPA Python 運行環境；第二版設計等使用者確認，尚未實作（<a href="../handoff/tasks/20261024-python-scripts.html">任務紀錄</a>）</td><td>設計 #82，10-25</td><td>—</td></tr>
+            <tr><td>Python 節點</td><td>現有的 Python 腳本場景演進成統一的 Python 節點，和瀏覽器場景串在組合場景裡：專用的 RPA Python 運行環境、共用工作資料夾、array／object 入參、file 出參、下載步驟、步驟時間軸的回看。2026-10-29 決定，P0～P2 實作中；模型套件層、腳本工作台、扇出之後做（<a href="../handoff/tasks/20261024-python-scripts.html">任務紀錄</a>）</td><td>實作中</td><td>—</td></tr>
           </tbody>
         </table>
       </div>

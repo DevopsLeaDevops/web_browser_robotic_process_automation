@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4b5938e6ef1c6383">
+<meta name="translation-source" content="sha256:ca131109d966c27a">
 <title>Roadmap · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -78,7 +78,7 @@
             <tr><td>Changing versions while debugging on a recorder</td><td>“Save as a new version and keep debugging” in the Portal and the Agent API reload no longer fail with “scenario validation failed”</td><td>#90, 10-26</td><td>v0.6.3</td></tr>
             <tr><td>Layered CI builds</td><td>The same inputs are verified only once; desktop apps are not repackaged when their shell has not changed (<a href="develop/ci.html#layered">CI and pipelines</a>)</td><td>#94, 10-26</td><td>main (CI only)</td></tr>
             <tr><td>Composite run summary report and combined replay</td><td>One report and one player for a whole composite run (<a href="adr/0019-composite-report-replay.html">ADR 0019</a>)</td><td>#96, 10-27; #98, 10-28</td><td>main, not yet released</td></tr>
-            <tr><td>Python script scenarios (new version)</td><td>Local automation and a dedicated RPA Python runtime; the second design waits for the user's confirmation and is not implemented (<a href="../../handoff/tasks/20261024-python-scripts.html">task record</a>)</td><td>Design #82, 10-25</td><td>—</td></tr>
+            <tr><td>Python nodes</td><td>The existing Python script scenarios evolve into one Python node that runs alongside browser scenarios in composite scenarios: a dedicated RPA Python runtime, a shared workspace folder, array and object inputs, file outputs, a download step and a step timeline replay. Decided on 2026-10-29; P0–P2 in progress; the model package layer, the script workbench and fan-out come later (<a href="../../handoff/tasks/20261024-python-scripts.html">task record</a>)</td><td>In progress</td><td>—</td></tr>
           </tbody>
         </table>
       </div>
