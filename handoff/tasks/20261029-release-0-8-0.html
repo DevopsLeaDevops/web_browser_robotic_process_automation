@@ -20,7 +20,7 @@
         <dt>主責／授權</dt><dd>ChatGPT／Codex；本次發布要求涵蓋版本準備、版本 PR 合併、推標籤及發布 Release。產品功能已由使用者合併的 PR #105、#106 提供；本任務不代表線上環境已升級或人工驗收通過。</dd>
         <dt>修改檔案／整合者</dt><dd>八個套件的 pyproject.toml、uv.lock、本任務紀錄與索引；ChatGPT／Codex 整合。</dd>
         <dt>分支／基準</dt><dd><code>chore/release-0.8.0</code>，從最新 <code>origin/main@a4298ea55ec90ed20591409d816ef8fc450b3f9f</code> 建立；沿用已完成 PR #103 整合的乾淨 worktree。</dd>
-        <dt>狀態／同步</dt><dd>本地驗證通過；隨本提交推送並建立版本 PR，CI 與發布仍待完成。</dd>
+        <dt>狀態／同步</dt><dd>完成：版本 PR #107 已合併，v0.8.0 已正式發布並設為最新版。最終紀錄隨發布分支推送；main 的任務卡為準備階段快照，最終結果亦同步至 PR #107。</dd>
         <dt>環境</dt><dd>macOS arm64、Python 3.13.16、uv 0.12.24；跨平台安裝包由 GitHub Actions 建置。</dd>
       </dl></div>
     </section>
@@ -31,14 +31,16 @@
         <li><a href="20261029-nightly-windows-sockets.html">PR #105：每晚測試修正</a>：Windows 動態連接埠與診斷、排不到執行機時建立 issue。</li>
         <li>使用 <code>tools/release_version.py bump 0.8.0</code> 統一八個套件與鎖檔，沒有變更第三方依賴。</li>
         <li>本地驗證（a4298ea＋本版本差異）：uv sync --locked、release_version.py check v0.8.0、i18n.py check 通過；pytest -q tests/ci/test_release_version.py tests/docs tests/i18n：365 passed；git diff --check、任務紀錄與索引的相對連結／錨點檢查通過。逐項核對鎖檔，第三方依賴完全相同。</li>
-        <li>發布流程將完整建置與測試 Windows Worker、macOS Worker／錄製端、Linux x64／arm64 伺服器，產生簽章更新檔與 SHA-256 清單。</li>
-        <li>人工驗收：未執行；本次沒有操作線上環境。各平台是否能使用更新檔，以發布流程比較 v0.7.1 的環境代號結果為準。</li>
+        <li>發布流程 40883651046 完整建置與測試 Windows Worker、macOS Worker／錄製端、Linux x64／arm64 伺服器，全部通過；七個分發檔與 SHA256SUMS.txt 齊全。七項 SHA-256 與 GitHub 資產 digest 相符；下載更新檔與校驗清單後本地雜湊核對通過，更新檔的正式簽章及 443 個檔案全部驗證通過。</li>
+        <li>人工驗收：未執行；本次沒有操作線上環境。與 v0.7.1 比較，五個平台的環境代號全部相同；已安裝 v0.7.1 的環境可使用 2,421,488 bytes 的 RPA-Update-0.8.0.zip。</li>
       </ul></div>
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-29 06:30 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex，開工與本地驗證：fetch 後確認 main 已合併 #105、#106，沒有開啟的 PR，最新已發布版本為 v0.7.1；準備版本差異並驗證，接著建立版本 PR。</li>
+        <li>2026-10-29 06:38 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：版本 PR <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/107">#107</a> 的 175fa64 靜態檢查、Python 3.12／3.13 測試通過；基準 main a4298ea 的完整 CI 也通過。依本次發布授權 squash 合併為 <code>e5b585e10c8f93e8d1578b62ef0123f2d31496b1</code>，核對 tree 相同、版本一致且在 main 後推送 v0.8.0；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40883651046">發布流程 40883651046</a> 建置中。</li>
+        <li>2026-10-29 06:53 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex：<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40883612948">合併後 main 的完整 CI</a> 與發布流程全部通過。核對標籤、八個附件、SHA-256、正式簽章、更新檔的 443 個檔案及五個平台的環境代號後，補上版本重點並正式發布 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases/tag/v0.8.0">RPA v0.8.0</a>。GitHub 回讀確認 draft=false、prerelease=false，releases/latest 指向 v0.8.0。發布工作完成；線上升級與人工驗收未執行，不混作發布測試結果。</li>
       </ul></div>
     </section>
   </div>
