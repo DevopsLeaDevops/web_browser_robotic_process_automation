@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-29 14:52 America/Los_Angeles（PDT，UTC−07:00）。共 777 次運行。
+更新：2026-10-29 15:01 America/Los_Angeles（PDT，UTC−07:00）。共 778 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -13,14 +13,14 @@
 | 桌面端建置 | 106（109） | 85（83） | 5.7 分（3.9 分） | 9.2 分（5.2 分） | 0.1 分（0.1 分） | 14／265／509 分（11／307／283 分） |
 | 伺服器分發包 | 97（6） | 93（5） | 1.9 分（1.8 分） | 3.9 分（10.3 分） | 0.1 分（0.1 分） | 327／0／0 分（27／0／0 分） |
 | 一鍵安裝腳本 | 93（33） | 80（15） | 0.2 分（3.2 分） | 15.1 分（15.5 分） | 0.0 分（0.1 分） | 339／291／217 分（194／135／35 分） |
-| 每晚完整測試 | 17（3） | 0（0） | 47.3 分（40.7 分） | 56.7 分（60.2 分） | 0.1 分（0.0 分） | 643／625／584 分（157／140／0 分） |
+| 每晚完整測試 | 18（3） | 1（0） | 47.4 分（40.7 分） | 57.5 分（60.2 分） | 0.1 分（0.0 分） | 703／681／655 分（157／140／0 分） |
 | 發布 | 17（1） | 9（1） | 11.9 分（5.7 分） | 15.1 分（5.7 分） | 0.1 分（0.1 分） | 109／75／90 分（1／5／4 分） |
 
 ## 每天的機器時間（分鐘，洛杉磯日期，最近 14 天）
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-10-29 | 44 | 226 | 119 | 105 | 450 |
+| 2026-10-29 | 45 | 286 | 174 | 176 | 636 |
 | 2026-10-28 | 69 | 256 | 115 | 22 | 392 |
 | 2026-10-27 | 76 | 286 | 142 | 101 | 528 |
 | 2026-10-26 | 127 | 743 | 530 | 510 | 1783 |
@@ -87,179 +87,180 @@
 
 ### 每晚完整測試 · test-results-macos-latest-3.13/pass-1.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 1337 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 1513 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 149.9（146.9） | 15 | `apps/server/tests/test_portal.py` |
-| 137.1（125.4） | 19 | `packages/rpa_runner/tests/test_debug.py` |
-| 114.3（124.2） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 103.9（99.0） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 102.4（101.8） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 89.9（90.2） | 18 | `apps/cli/tests/test_serve.py` |
-| 75.2（65.0） | 9 | `apps/server/tests/test_production_flow.py` |
-| 60.1（55.8） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 56.7（59.6） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 41.6（41.6） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 174.2（149.5） | 15 | `apps/server/tests/test_portal.py` |
+| 136.9（127.8） | 19 | `packages/rpa_runner/tests/test_debug.py` |
+| 127.6（101.5） | 16 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 125.1（124.9） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 108.2（102.4） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 91.5（75.2） | 9 | `apps/server/tests/test_production_flow.py` |
+| 89.8（90.2） | 18 | `apps/cli/tests/test_serve.py` |
+| 83.7（62.4） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 65.9（60.1） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 46.9（38.2） | 17 | `packages/rpa_runner/tests/test_upload.py` |
 
 ### 每晚完整測試 · test-results-macos-latest-3.13/pass-2.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 934 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 964 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 145.3（129.8） | 15 | `apps/server/tests/test_portal.py` |
-| 100.9（100.9） | 19 | `packages/rpa_runner/tests/test_debug.py` |
-| 97.7（87.9） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 93.5（91.4） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 93.3（97.3） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 73.0（70.8） | 9 | `apps/server/tests/test_production_flow.py` |
-| 64.3（54.6） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 56.6（50.1） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 40.0（38.6） | 4 | `apps/server/tests/test_replay_flow.py` |
-| 31.5（23.3） | 8 | `packages/rpa_runner/tests/test_tabs.py` |
+| 153.5（137.0） | 15 | `apps/server/tests/test_portal.py` |
+| 137.9（97.7） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 107.3（93.5） | 16 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 105.3（103.5） | 19 | `packages/rpa_runner/tests/test_debug.py` |
+| 79.1（63.4） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 77.2（93.3） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 67.1（70.8） | 9 | `apps/server/tests/test_production_flow.py` |
+| 46.6（50.1） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 41.8（40.0） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 22.0（22.0） | 4 | `apps/server/tests/test_recorder_flow.py` |
 
 ### 每晚完整測試 · test-results-macos-latest-3.13/pass-3.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 925 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 1212 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 148.3（142.1） | 15 | `apps/server/tests/test_portal.py` |
-| 103.9（92.3） | 19 | `packages/rpa_runner/tests/test_debug.py` |
-| 102.6（93.3） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 99.1（94.9） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 93.5（93.5） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 67.3（67.3） | 9 | `apps/server/tests/test_production_flow.py` |
-| 66.6（60.3） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 51.0（51.0） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 40.9（40.7） | 4 | `apps/server/tests/test_replay_flow.py` |
-| 24.5（24.4） | 4 | `apps/server/tests/test_recorder_flow.py` |
+| 217.5（145.6） | 15 | `apps/server/tests/test_portal.py` |
+| 168.0（102.6） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 121.6（95.0） | 16 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 109.6（67.3） | 9 | `apps/server/tests/test_production_flow.py` |
+| 104.5（103.9） | 19 | `packages/rpa_runner/tests/test_debug.py` |
+| 103.7（60.3） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 87.2（93.5） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 54.1（51.0） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 47.6（40.7） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 39.1（19.4） | 3 | `apps/server/tests/test_flow.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.12/pass-1.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 919 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 922 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 105.8（105.8） | 15 | `apps/server/tests/test_portal.py` |
-| 79.8（79.8） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 72.8（65.1） | 19 | `packages/rpa_runner/tests/test_debug.py` |
-| 68.2（68.2） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 66.5（66.5） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 45.4（45.4） | 9 | `apps/server/tests/test_production_flow.py` |
-| 44.0（44.0） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 39.3（39.3） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 35.5（35.4） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 104.8（105.8） | 15 | `apps/server/tests/test_portal.py` |
+| 88.4（81.5） | 16 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 71.3（71.3） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 65.1（66.5） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 62.2（65.1） | 19 | `packages/rpa_runner/tests/test_debug.py` |
+| 47.2（47.2） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 45.2（45.4） | 9 | `apps/server/tests/test_production_flow.py` |
+| 39.0（39.3） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 35.1（35.4） | 4 | `apps/server/tests/test_replay_flow.py` |
 | 19.7（19.7） | 18 | `apps/cli/tests/test_serve.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.13/pass-1.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 1078 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 1040 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 120.7（108.8） | 15 | `apps/server/tests/test_portal.py` |
-| 85.1（77.5） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 84.6（81.9） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 84.1（76.8） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 72.2（65.6） | 19 | `packages/rpa_runner/tests/test_debug.py` |
-| 58.5（52.3） | 9 | `apps/server/tests/test_production_flow.py` |
-| 53.2（50.9） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 46.2（43.1） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 36.8（36.5） | 4 | `apps/server/tests/test_replay_flow.py` |
-| 22.8（19.2） | 4 | `apps/server/tests/test_recorder_flow.py` |
+| 114.8（109.1） | 15 | `apps/server/tests/test_portal.py` |
+| 95.0（81.9） | 16 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 83.3（77.5） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 78.1（76.8） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 69.3（65.6） | 19 | `packages/rpa_runner/tests/test_debug.py` |
+| 55.4（52.3） | 9 | `apps/server/tests/test_production_flow.py` |
+| 53.4（50.9） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 44.3（43.1） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 36.0（36.0） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 21.8（19.2） | 4 | `apps/server/tests/test_recorder_flow.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.13/pass-2.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 769 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 755 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 117.6（106.7） | 15 | `apps/server/tests/test_portal.py` |
-| 84.9（78.0） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 83.5（80.8） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 80.6（76.6） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 62.3（53.4） | 19 | `packages/rpa_runner/tests/test_debug.py` |
-| 57.8（52.5） | 9 | `apps/server/tests/test_production_flow.py` |
-| 53.2（50.4） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 48.0（34.9） | 4 | `apps/server/tests/test_replay_flow.py` |
-| 46.8（43.6） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 22.4（19.9） | 17 | `packages/rpa_runner/tests/test_upload.py` |
+| 114.4（107.4） | 15 | `apps/server/tests/test_portal.py` |
+| 95.0（82.9） | 16 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 83.4（80.0） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 77.7（77.7） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 60.8（55.3） | 19 | `packages/rpa_runner/tests/test_debug.py` |
+| 54.7（54.2） | 9 | `apps/server/tests/test_production_flow.py` |
+| 52.9（50.7） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 44.4（44.4） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 36.7（35.7） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 21.0（21.0） | 4 | `apps/server/tests/test_recorder_flow.py` |
 
 ### 每晚完整測試 · test-results-ubuntu-latest-3.13/pass-3.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 768 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 758 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 121.0（107.9） | 15 | `apps/server/tests/test_portal.py` |
-| 85.1（81.4） | 14 | `packages/rpa_runner/tests/test_video_browser.py` |
-| 85.1（77.3） | 16 | `packages/rpa_runner/tests/test_login.py` |
-| 83.0（77.8） | 6 | `apps/server/tests/test_workflow_flow.py` |
-| 62.7（53.8） | 19 | `packages/rpa_runner/tests/test_debug.py` |
-| 59.0（53.4） | 9 | `apps/server/tests/test_production_flow.py` |
-| 52.6（50.5） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
-| 46.6（43.5） | 20 | `packages/rpa_runner/tests/test_run.py` |
-| 37.3（35.4） | 4 | `apps/server/tests/test_replay_flow.py` |
-| 22.5（19.8） | 17 | `packages/rpa_runner/tests/test_upload.py` |
+| 115.9（108.1） | 15 | `apps/server/tests/test_portal.py` |
+| 95.1（81.9） | 16 | `packages/rpa_runner/tests/test_video_browser.py` |
+| 83.4（80.3） | 6 | `apps/server/tests/test_workflow_flow.py` |
+| 78.6（78.6） | 16 | `packages/rpa_runner/tests/test_login.py` |
+| 60.7（55.3） | 19 | `packages/rpa_runner/tests/test_debug.py` |
+| 55.3（54.3） | 9 | `apps/server/tests/test_production_flow.py` |
+| 52.7（51.8） | 5 | `apps/server/tests/test_remote_worker_flow.py` |
+| 44.2（44.2） | 20 | `packages/rpa_runner/tests/test_run.py` |
+| 36.7（36.0） | 4 | `apps/server/tests/test_replay_flow.py` |
+| 21.0（21.0） | 4 | `apps/server/tests/test_recorder_flow.py` |
 
 ### 每晚完整測試 · test-results-windows-latest-3.13/pass-1.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 1117 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 1373 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 111.2（128.1） | 15 | `apps\server\tests\test_portal.py` |
-| 96.0（106.4） | 16 | `packages\rpa_runner\tests\test_login.py` |
-| 82.4（94.5） | 14 | `packages\rpa_runner\tests\test_video_browser.py` |
-| 81.6（98.2） | 6 | `apps\server\tests\test_workflow_flow.py` |
-| 74.6（81.1） | 19 | `packages\rpa_runner\tests\test_debug.py` |
-| 57.3（72.6） | 9 | `apps\server\tests\test_production_flow.py` |
-| 52.2（61.8） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
-| 47.4（57.4） | 20 | `packages\rpa_runner\tests\test_run.py` |
-| 39.8（23.7） | 3 | `apps\server\tests\test_flow.py` |
-| 36.4（39.2） | 4 | `apps\server\tests\test_replay_flow.py` |
+| 139.0（128.9） | 15 | `apps\server\tests\test_portal.py` |
+| 108.4（99.8） | 16 | `packages\rpa_runner\tests\test_video_browser.py` |
+| 107.2（106.4） | 16 | `packages\rpa_runner\tests\test_login.py` |
+| 103.5（98.9） | 6 | `apps\server\tests\test_workflow_flow.py` |
+| 86.5（81.1） | 19 | `packages\rpa_runner\tests\test_debug.py` |
+| 72.8（72.6） | 9 | `apps\server\tests\test_production_flow.py` |
+| 65.1（63.0） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
+| 55.8（57.4） | 20 | `packages\rpa_runner\tests\test_run.py` |
+| 38.7（39.2） | 4 | `apps\server\tests\test_replay_flow.py` |
+| 32.2（31.6） | 11 | `apps\server\tests\test_gitsync.py` |
 
 ### 每晚完整測試 · test-results-windows-latest-3.13/pass-2.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 754 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 934 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 111.4（122.1） | 15 | `apps\server\tests\test_portal.py` |
-| 89.0（110.3） | 16 | `packages\rpa_runner\tests\test_login.py` |
-| 82.2（90.0） | 14 | `packages\rpa_runner\tests\test_video_browser.py` |
-| 80.1（98.9） | 6 | `apps\server\tests\test_workflow_flow.py` |
-| 63.5（64.0） | 19 | `packages\rpa_runner\tests\test_debug.py` |
-| 57.2（74.4） | 9 | `apps\server\tests\test_production_flow.py` |
-| 52.5（62.8） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
-| 48.7（55.2） | 20 | `packages\rpa_runner\tests\test_run.py` |
-| 35.5（40.3） | 4 | `apps\server\tests\test_replay_flow.py` |
-| 22.5（26.1） | 17 | `packages\rpa_runner\tests\test_upload.py` |
+| 135.3（126.9） | 15 | `apps\server\tests\test_portal.py` |
+| 104.7（110.3） | 16 | `packages\rpa_runner\tests\test_login.py` |
+| 104.4（104.4） | 6 | `apps\server\tests\test_workflow_flow.py` |
+| 104.2（91.2） | 16 | `packages\rpa_runner\tests\test_video_browser.py` |
+| 73.6（65.2） | 19 | `packages\rpa_runner\tests\test_debug.py` |
+| 72.4（74.4） | 9 | `apps\server\tests\test_production_flow.py` |
+| 65.1（64.6） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
+| 56.6（55.8） | 20 | `packages\rpa_runner\tests\test_run.py` |
+| 38.9（40.3） | 4 | `apps\server\tests\test_replay_flow.py` |
+| 29.1（29.1） | 17 | `packages\rpa_runner\tests\test_upload.py` |
 
 ### 每晚完整測試 · test-results-windows-latest-3.13/pass-3.xml
 
-最近一次：2026-10-29 04:48 America/Los_Angeles（PDT，UTC−07:00），合計 734 秒。
+最近一次：2026-10-29 13:58 America/Los_Angeles（PDT，UTC−07:00），合計 929 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 105.5（126.3） | 15 | `apps\server\tests\test_portal.py` |
-| 86.0（109.8） | 16 | `packages\rpa_runner\tests\test_login.py` |
-| 81.0（89.7） | 14 | `packages\rpa_runner\tests\test_video_browser.py` |
-| 79.6（97.9） | 6 | `apps\server\tests\test_workflow_flow.py` |
-| 63.3（65.8） | 19 | `packages\rpa_runner\tests\test_debug.py` |
-| 56.6（70.6） | 9 | `apps\server\tests\test_production_flow.py` |
-| 49.9（61.9） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
-| 46.8（55.9） | 20 | `packages\rpa_runner\tests\test_run.py` |
-| 35.3（38.7） | 4 | `apps\server\tests\test_replay_flow.py` |
-| 22.1（26.8） | 17 | `packages\rpa_runner\tests\test_upload.py` |
+| 134.7（127.4） | 15 | `apps\server\tests\test_portal.py` |
+| 105.1（109.8） | 16 | `packages\rpa_runner\tests\test_login.py` |
+| 104.0（91.4） | 16 | `packages\rpa_runner\tests\test_video_browser.py` |
+| 101.8（99.1） | 6 | `apps\server\tests\test_workflow_flow.py` |
+| 73.5（69.2） | 19 | `packages\rpa_runner\tests\test_debug.py` |
+| 71.7（71.7） | 9 | `apps\server\tests\test_production_flow.py` |
+| 64.1（64.1） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
+| 55.7（55.9） | 20 | `packages\rpa_runner\tests\test_run.py` |
+| 39.4（38.9） | 4 | `apps\server\tests\test_replay_flow.py` |
+| 29.2（29.2） | 10 | `packages\rpa_runner\tests\test_frames.py` |
 
 ## 最近 40 次運行
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 10-29 14:20 | 一鍵安裝腳本 | 排程 | main | failure | 31.7 分 | 0.1 分 | [#40956982407](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40956982407/attempts/1) |
+| 10-29 13:58 | 每晚完整測試 | 排程 | main | success | 62.9 分 | 0.1 分 | [#40953751001](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40953751001/attempts/1) |
 | 10-29 06:37 | 發布 | 推送 | v0.8.0 | success | 14.1 分 | 2.9 分 | [#40883651046](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40883651046/attempts/1) |
 | 10-29 06:37 | 一鍵安裝腳本 | 推送 | main | success | 0.2 分 | 0.0 分 | [#40883612917](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40883612917/attempts/1) |
 | 10-29 06:37 | 伺服器分發包 | 推送 | main | success | 0.3 分 | 0.1 分 | [#40883612929](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40883612929/attempts/1) |
@@ -298,5 +299,4 @@
 | 10-29 04:09 | 一鍵安裝腳本 | 推送 | main | success | 0.2 分 | 0.0 分 | [#40863129918](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40863129918/attempts/1) |
 | 10-29 04:09 | CI | 推送 | main | failure | 7.8 分 | 0.0 分 | [#40863129661](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40863129661/attempts/1) |
 | 10-29 04:08 | 桌面端建置 | PR | chore/release-0.7.1 | success | 0.2 分 | 0.0 分 | [#40863069317](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40863069317/attempts/1) |
-| 10-29 04:08 | 一鍵安裝腳本 | PR | chore/release-0.7.1 | success | 0.3 分 | 0.1 分 | [#40863069347](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40863069347/attempts/1) |
 
