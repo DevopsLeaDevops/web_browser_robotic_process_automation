@@ -20,9 +20,9 @@
         <dt>範圍／不包含</dt><dd>範圍：Runner 每一步拍縮小的截圖（錄影時）；伺服器的回看資料、運行詳情的檔案清單、執行報告；播放器（章節軸、縮圖、快轉、密度、詳情）；樣式、訊息、設計文件、ADR 0016 修訂、測試。不包含：改錄影方式、平行節點的多軌時間軸（ADR 0019）、Worker 的上傳格式（執行目錄照舊整包上傳）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude 主責；審閱與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner</code>（<code>stepshots.py</code>（新）、<code>browser.py</code>、<code>child.py</code>、<code>files.py</code>、<code>report.py</code>、訊息）；<code>apps/server</code>（<code>replay.py</code>、<code>composite_replay.py</code>、<code>render.py</code>、<code>pages.py</code>、樣板、<code>static/replay.js</code>、<code>replay-media.js</code>、<code>portal-app.css</code>、訊息）；測試；<code>docs/design/portal.html</code>、ADR 0016 與英文版；本紀錄、任務索引、<a href="20261028-replay-acceptance-fixes.html">20261028-replay-acceptance-fixes</a> 的追加紀錄。Claude 整合。</dd>
-        <dt>狀態</dt><dd>實作完成（本機）；待推送與 CI。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>feat/replay-chapters</code>，從 main <code>2089d48</code>（v0.7.1，PR #104 合併後）開；PR 待開（base main）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>本機，尚未推送。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #106；CI 見 PR 最新 head。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/replay-chapters</code>，從 main <code>2089d48</code>（v0.7.1，PR #104 合併後）開；PR #106（base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準（已推送）。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13、Playwright 1.63（Chromium 1243）。這個 Playwright 版本的 <code>PageVideos</code> 記不到分頁影片的檔名（<code>pages.json</code> 的 <code>file</code> 是空的），所以本機錄不出回看的影片；本機驗證時用會話暫存區的 <code>sitecustomize.py</code> 補上檔名（不進倉庫，只影響本機測試），CI 用 Playwright 1.64，不需要。</dd>
       </dl></div>
     </section>
@@ -65,15 +65,31 @@
         <li><strong>決定：</strong>見上方「確認的設計」。實作選擇：截圖只在錄影時拍（錄影關閉時不拍，和錄影的設定一致）；有頭的 Chromium 不用 DevTools 截圖（背景分頁不一定有畫面，DevTools 指令沒有逾時）；太擠時縮圖合併，不讓縮圖蓋到別的格子；放大只在依步驟時。</li>
         <li><strong>沒有做：</strong>用截圖估計並修正錄影的對時偏差（提案標「做得到才做」；理由寫在 ADR 0016）；取縮圖時等 <code>requestVideoFrameCallback</code>（產生縮圖的 video 不在畫面上，回呼不一定會來；改成跳到格的時間點）。</li>
         <li><strong>未完成／阻礙：</strong>CI、審閱與合併、發版（建議 v0.8.0：執行端與執行目錄多了新東西）、使用者驗收（見上方驗收條件）。</li>
-        <li><strong>下一個具體動作：</strong>推送、開 PR、看 CI（bootstrap 產生簡中）。</li>
+        <li><strong>下一個具體動作：</strong>看 PR #106 的 CI（特別是 <code>test_chromium_keeps_popup_and_return_to_main</code> 與 Firefox 的截圖）；審閱、合併後發版。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>本機預覽與量測的腳本、資料在會話暫存區（<code>/tmp/claude-0/preview3</code>、<code>/tmp/claude-0/sitefix</code>），不進倉庫。</li>
       </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td><code>b36b9ab</code>；雲端容器、Python 3.13、Playwright 1.63（Chromium 1243）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>、<code>pyright apps/server packages</code></td><td>通過；<code>pyright</code> 全倉庫另有 <code>apps/desktop</code> 缺 keyring 的 9 個錯誤（本機環境，和這次無關）</td><td>ruff、pyright 的版本以 CI 為準</td></tr>
+          <tr><td>同上</td><td><code>pytest -m "not browser" apps packages tests</code></td><td>2044 通過、6 略過、3 失敗：<code>test_simplified_chinese_is_generated</code> 與簡中 ADR 0016 的錨點（簡中還沒產生；bootstrap <code>5bdcc3b</code> 產生後錨點那項通過，前一項本機沒有 OpenCC）、<code>rpa_update</code> 的 <code>test_installed_distributions_skip_workspace_and_pip</code>（本機的 venv 共用系統套件，和這次無關）</td><td>CI 的完整矩陣</td></tr>
+          <tr><td><code>5bdcc3b</code>；同上，用會話暫存區的 <code>sitecustomize.py</code> 補上分頁影片的檔名（見上方「工作區／環境」）</td><td><code>pytest</code> <code>test_replay_flow.py</code>、<code>test_composite_replay_flow.py</code>、<code>test_replay.py</code>、<code>test_replay_media.py</code>、<code>test_composite_replay.py</code>、<code>test_stepshots.py</code>、<code>test_video_browser.py</code>、<code>test_tabs.py</code>、<code>test_run.py</code></td><td>54 通過、19 略過（本機沒有 Firefox）、2 失敗：有頭的兩項沒有 X server；用 <code>xvfb-run -a</code> 重跑 <code>test_chromium_keeps_popup_and_return_to_main</code> 四項：第一次 3 通過、無頭 open-popup 1 失敗（點 main-red 後 0.3 秒錄影還是白的），第二次 4 通過</td><td>Firefox、Windows、macOS 看 CI</td></tr>
+          <tr><td>同上</td><td>為了確認上面那一項是不是每一步的截圖造成的：同一項（無頭 open-popup，部分加 closed-popup）反覆跑，用 <code>sitecustomize.py</code> 的開關關掉截圖比較</td><td>有截圖：再跑 5 輪各 2 項時 1 失敗（同樣是 main-red 之後是白的），之後 8 輪×2、20 輪、加 CPU 負載的 10 輪×2 全部通過；沒有截圖：8 輪×2、20 輪、加負載 10 輪×2 全部通過。合計有截圖約 86 次 2 次失敗、沒有截圖約 56 次沒有失敗，還分不出是截圖造成，還是本來就偶發（錄影對時的容許誤差是 0.3 秒）。看 CI 與每晚測試；再出現就查截圖和錄影的 DevTools 截圖有沒有互相影響</td><td>原因未確認</td></tr>
+          <tr><td>同上</td><td>同一個 120 步的場景（1280×800 範例頁、無頭 Chromium）直接用 <code>execute</code> 跑：不錄影、只錄影（關掉截圖）、錄影加截圖</td><td>兩步之間的間隔中位數：不錄影 1 毫秒、只錄影 2 毫秒、錄影加截圖 38～40 毫秒；121 張共 1.0 MB（每張約 8 KB）。預覽的 200 步場景 2.4 MB（每張約 12 KB）；第一張要建立 DevTools 連線，約 200 毫秒</td><td>Windows、macOS 上的耗時</td></tr>
+          <tr><td>同上；本機預覽（真的 Portal、背景 Worker、測試網站）</td><td>BA-001、失敗的 BA-002、BA-001 → BA-002 組合運行、200 步的場景；1440 與 390 寬截圖；點格子、滑過、放大、依時間、詳情</td><td>一格一步、縮圖是截圖、空檔與轉場卡、失敗紅框；200 步分 13 組、放大一組 16 步各一格；390 寬時組合回看太擠，點節點色帶放大；手機寬度沒有橫向捲動；沒有頁面錯誤</td><td>真實的 Worker 與 Mac 錄製端 App</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR #106 最新 head。人工驗收：未執行。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-10-28 07:40 America/Los_Angeles（PDT，UTC−07:00），Claude：交出設計提案（只有設計，沒有改程式），存在 Claude 專案的 <code>claude/replay-timeline-redesign-proposal.md</code>。</li>
         <li>2026-10-29 04:50 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 04:38 確認（見上）；PR #103 已合併、v0.7.1 已發布（PR #104）。從 main <code>2089d48</code> 開 <code>feat/replay-chapters</code>。</li>
+        <li>2026-10-29 05:55 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>b36b9ab</code>（[bootstrap]），開 PR #106；bootstrap 產生簡中（<code>5bdcc3b</code>）。本機驗證見上表；推送這份紀錄觸發 CI。</li>
       </ul></div>
     </section>
   </div>
