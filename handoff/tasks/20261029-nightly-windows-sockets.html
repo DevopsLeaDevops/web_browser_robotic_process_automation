@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261029-nightly-windows-sockets · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261029-nightly-windows-sockets：每晚測試的 Windows 連接埠用完與排不到機器時沒有通知</h1><p>issue #99（每晚完整測試 2026-10-27 的失敗）的分析與剩下的兩個問題：Windows 的 <code>net::ERR_NO_BUFFER_SPACE</code>，以及 macOS 排不到機器時整個運行是紅的卻沒有開 issue。另外兩個失敗原因已由 <a href="20261028-main-ci-red.html">20261028-main-ci-red</a>（PR #101）修正。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261029-nightly-windows-sockets；2026-10-29 04:45 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-10-29 04:12～04:13 America/Los_Angeles（PDT，UTC−07:00）在 Claude 對話中要求分析 issue #99 的原因並給出解決方案；04:39 回覆「好的，按照建議改動」，同意推送分支並開 PR。驗收：本 PR 的 CI 通過（修改 <code>nightly.yml</code> 的 PR 會在三個系統實際跑一次每晚完整測試，Windows 的「放大動態連接埠範圍」成功、每一遍有連線註記）；合併後的排程不再因同樣原因失敗；排不到機器時 issue 收到留言。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：(1) <code>.github/workflows/nightly.yml</code>：Windows 開跑前把動態連接埠放大到 10000～65535；Windows 每一遍結束時註記 TCP 連線狀態與還在跑的 Chromium、Firefox、Node 程序；「失敗時開 issue」在 job 被取消（排不到機器）時也開，留言說明可以重跑。(2) <code>docs/develop/ci.html</code> 與英文版（簡中由 bootstrap 產生）。(3) 本紀錄、任務索引。不包含：GitHub 的 macOS 機器容量（代碼修不了）；產品端對 <code>ERR_NO_BUFFER_SPACE</code> 的重試或說明（產品已經不關視窗、可以再按一次「完成登入」）；關閉 issue #99（等合併後的排程通過，由使用者決定）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>.github/workflows/nightly.yml</code>、<code>docs/develop/ci.html</code>、<code>docs/en/develop/ci.html</code>（stamp）、bootstrap 產生的 <code>docs/zh-Hans/develop/ci.html</code>、本紀錄、任務索引。Claude 整合。開工時（2026-10-29 04:40 America/Los_Angeles（PDT，UTC−07:00））沒有開啟中的 PR，無其他任務修改這些檔案。</dd>
+        <dt>狀態</dt><dd>實作中：本地檢查完成，準備推送並開 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/nightly-windows-sockets</code>，從 main 2089d48（PR #104，v0.7.1 合併後）開；PR 建立後回填於追加紀錄。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準；推送前只在本地。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.18、PyYAML；PyPI 與 Go 模組代理連不到，不能 <code>uv sync</code>、沒有 OpenCC、沒有 actionlint。GitHub Actions 的完整日誌與產物（測試報告）下載不了，annotations 可以讀。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因（issue #99：run 40581792306，2026-10-27 13:51 America/Los_Angeles（PDT，UTC−07:00），main 30f2290）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>Ubuntu 3.13 第 2／3 遍：</strong><code>test_replay_flow.py::test_replay_switches_pages_and_returns_to_main</code> 的「Target page, context or browser has been closed」。點了執行 <code>window.close()</code> 的按鈕，Playwright 在點擊收尾時才發現頁面已關。產品的問題，PR #101（e61d8d5）已修。</li>
+        <li><strong>macOS 3.13（Firefox）：</strong><code>test_portal.py::test_create_validate_publish_run_report</code> 等不到「發布」。驗證通過已提交、驗證紀錄還沒寫的空檔。產品的競態，PR #101（ef728bb）已修。PR #101 於 2026-10-28 02:06 America/Los_Angeles（PDT，UTC−07:00）合併；10-28 的排程（run 40767854003，main b559285，含 PR #101）Ubuntu、Windows 都通過，macOS 沒有排到機器，所以 macOS 上還沒有在排程裡驗證。</li>
+        <li><strong>Windows 3.13 第 3 遍：</strong><code>packages/rpa_runner/tests/test_login.py::test_capture_saves_only_a_verified_state[chromium]</code>，<code>_verify</code> 開第二個瀏覽器打開確認網址時 <code>Page.goto: net::ERR_NO_BUFFER_SPACE</code>（Windows 的 WSAENOBUFS，10055：建立連線時系統的連接埠／socket 資源用完）。判斷是 CI 機器的環境：同一個子程序幾秒前才用第一個瀏覽器打開同一個網址（才發出 <code>ready</code>），網站沒開會是 <code>ERR_CONNECTION_REFUSED</code>；前兩遍與 10-28 都通過；之前 8 次失敗的排程（2026-10-22～26，issue #74、#80）都沒有這個錯誤；發生在連跑約 50 分之後。Windows 的動態連接埠預設 49152～65535（16384 個），連線關閉後要等 TIME_WAIT 才放回去。產品在 Windows 用 <code>taskkill /T</code> 結束程序樹，測試沒有直接殺子程序，沒看到會留下瀏覽器的寫法。日誌與產物下載不了，不能確定用完的是連接埠還是其他 socket 資源：所以同時放大範圍與加上診斷。</li>
+        <li><strong>macOS 桌面 App（程式碼層）兩個工作：</strong>「The job was not acquired by Runner of type hosted even after multiple attempts」，GitHub 的 macOS arm64 容量不足（2026-10-22 14:13 America/Los_Angeles（PDT，UTC−07:00）的排程 run 39855480410 也有）。代碼修不了。</li>
+        <li><strong>漏報：</strong>10-28 的 run 40767854003 只因 macOS 完整測試排不到機器而失敗；那個 job 的結論是 <code>cancelled</code>，「失敗時開 issue」的 <code>failure()</code> 不成立而略過，issue #99 沒有收到留言。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>(1) <code>nightly.yml</code> 新增「Windows：放大動態連接埠範圍」（<code>netsh int ipv4／ipv6 set dynamicport tcp start=10000 num=55536</code>，印出設定）；測試與產品的固定連接埠（管理 Portal 8080 起、測試網站的預設連接埠）都在 10000 以下。(2)「瀏覽器測試再跑」在第 1 遍之後與每一遍結束時，Windows 上以 <code>::notice</code> 註記 TCP 連線依狀態的數量與還在跑的 Chromium／Firefox／Node 程序數；指令失敗不影響結果（GitHub 的 bash 帶 <code>-eo pipefail</code>）。(3)「失敗時開 issue」的條件改為 <code>!cancelled()</code> 且 needs 有 <code>failure</code> 或 <code>cancelled</code>；有 <code>cancelled</code> 時留言加上「排不到機器、這次沒測、不是測試失敗、可重跑」。整個運行被取消時不開。(4) CI 文檔（繁中、英文）的「觸發節點與時間」補上兩段。</li>
+        <li><strong>未完成／阻礙：</strong>推送、PR 與 CI；bootstrap 產生簡中。</li>
+        <li><strong>決定：</strong>使用者 2026-10-29 04:39 America/Los_Angeles（PDT，UTC−07:00）同意照建議修改。實作選擇：在 CI 放大連接埠並加診斷，不在產品加重試（使用者端已可再按一次「完成登入」，而且原因還沒有直接證據）；排不到機器時也開 issue，但不自動重跑（工作流程既有原則：不靠自動重跑把失敗變成通過）。</li>
+        <li><strong>下一個具體動作：</strong>提交時加 <code>[bootstrap]</code> 並推送；等 bootstrap 回寫後 <code>git pull --ff-only</code>；開 PR；看本 PR 觸發的每晚完整測試（Windows 的連接埠步驟與註記）與 CI。合併後看下一次排程，通過時由使用者決定是否關閉 issue #99。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。分析用的暫存檔（annotations 文字、模擬腳本）在容器的暫存目錄，不進倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>2089d48＋本分支；雲端容器</td><td>PyYAML 解析 <code>nightly.yml</code>；抽出新步驟、「瀏覽器測試再跑」與「失敗時開 issue」的腳本跑 <code>bash -n</code></td><td>通過；<code>if</code> 解析為預期的運算式</td><td>actionlint 未執行（裝不起來）</td></tr>
+          <tr><td>同上</td><td>以假的 <code>netstat</code>、<code>tasklist</code>、<code>uv</code> 在 <code>bash --noprofile --norc -eo pipefail</code> 下跑「瀏覽器測試再跑」：全部通過、第 3 遍失敗、兩個診斷指令都失敗、<code>RUNNER_OS=Linux</code></td><td>計數正確（TIME_WAIT 含 IPv6、程序名稱精確比對）；結束碼分別為 0、1、0；Linux 沒有註記</td><td>真實 Windows 的 <code>netstat</code>／<code>tasklist</code> 輸出與 <code>netsh</code> 的效果看本 PR 的運行</td></tr>
+          <tr><td>同上</td><td>以假的 <code>gh</code> 跑「失敗時開 issue」：<code>RESULTS</code> 為 cancelled／failure／兩者</td><td>只有含 cancelled 時加上重跑說明</td><td>條件本身只在排程觸發時生效，PR 上不會執行；看合併後第一次排不到機器的情況</td></tr>
+          <tr><td>同上</td><td><code>python3 -m pytest tests/ci/test_ci_changes.py</code>；<code>python3 -m pytest tests/docs</code>；<code>git diff --check</code>；<code>python3 tools/i18n.py stamp docs/en/develop/ci.html</code></td><td>30 通過；334 通過；通過；已記錄</td><td><code>tools/i18n.py check</code>、<code>tests/i18n</code> 需要 OpenCC：bootstrap 與 CI；沒有 Python 程式改動，ruff／pyright 不受影響</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行（推送後回填）；人工驗收：不需要（只改 CI 與文檔）；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-29 04:23 America/Los_Angeles（PDT，UTC−07:00），Claude：讀 issue #99 與 run 40581792306、40767854003 的 annotations，對照 PR #101 的任務紀錄與之前 8 次失敗的排程，找出四個失敗原因與漏報（見上）；從 main 2089d48 開 <code>fix/nightly-windows-sockets</code>，本地提交 <code>nightly.yml</code> 的修改（f016d3f），向使用者說明並詢問是否推送。</li>
+        <li>2026-10-29 04:45 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者同意後補 CI 文檔（繁中、英文並 stamp）、本紀錄與任務索引；本地檢查見上。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

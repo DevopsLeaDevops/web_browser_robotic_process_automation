@@ -70,6 +70,7 @@
         <li>2026-10-28 01:45 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>ef728bb</code>（[bootstrap]），開 PR #101；bootstrap 產生簡中（<code>29ea735</code>）。<code>ef728bb</code> 的 CI：靜態檢查、Windows Worker 測試、分發包通過；兩個 Python 測試只因簡中還沒產生而失敗（<code>test_simplified_chinese_is_generated</code>），其餘通過。</li>
         <li>2026-10-28 02:05 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>d999d76</code> 的 CI：Python 3.12 通過；Python 3.13 有兩項失敗，都是產品的偶發問題（合併回看的段落邊界、點了之後頁面自己關掉），找出原因並修正、各加回歸測試（見上）。</li>
         <li>2026-10-28 02:35 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>a97d5f5</code> 的 CI 全部通過（見驗證）。等使用者審閱、先合併本 PR，再合併 #102、推標籤 <code>v0.7.0</code>。</li>
+        <li>2026-10-29 04:45 America/Los_Angeles（PDT，UTC−07:00），Claude（另一個對話）：本 PR 於 2026-10-28 02:06 America/Los_Angeles（PDT，UTC−07:00）合併（abdfcb8）；10-28 的排程（run 40767854003，main b559285）Ubuntu、Windows 通過，macOS 沒有排到機器。範圍外的 Windows <code>ERR_NO_BUFFER_SPACE</code> 與排不到機器時沒有開 issue，由 <a href="20261029-nightly-windows-sockets.html">20261029-nightly-windows-sockets</a> 處理。</li>
       </ul></div>
     </section>
   </div>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:068b2c42d3d436c7">
+<meta name="translation-source" content="sha256:a1d890f619dbcf03">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -119,7 +119,8 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
         </table>
       </div>
       <div class="panel-body prose">
-        <p>The schedules sit in the quietest hours of the repository: 20:17 UTC is 13:17 PDT (UTC−07:00) / 12:17 PST (UTC−08:00) in America/Los_Angeles, 04:17 in Singapore. A failed scheduled run opens (or updates) an issue labeled <code>ci-schedule</code>. PRs are compared by their merged content (GitHub tests the PR merged into main); a new push to the same branch cancels the older run. Dependency-update PRs are opened by GitHub Actions and only trigger CI automatically; the other workflows run once someone pushes to that branch. The Linux tests and the Windows worker tests in CI each run for at most 30 minutes, so a stuck run fails instead of running on (since 2026-10-21; before that there was no limit and a stuck run on Windows kept going until GitHub's 6-hour cap).</p>
+        <p>The schedules sit in the quietest hours of the repository: 20:17 UTC is 13:17 PDT (UTC−07:00) / 12:17 PST (UTC−08:00) in America/Los_Angeles, 04:17 in Singapore. A failed scheduled run opens (or updates) an issue labeled <code>ci-schedule</code>; so does a job that is cancelled because it never got a runner (the annotation says "The job was not acquired by Runner", more common on macOS). The comment then notes that this system was not tested this time, that it is not a test failure, and that "Re-run failed jobs" on the run page fills the gap (since 2026-10-29; before that such a run was red but opened no issue). PRs are compared by their merged content (GitHub tests the PR merged into main); a new push to the same branch cancels the older run. Dependency-update PRs are opened by GitHub Actions and only trigger CI automatically; the other workflows run once someone pushes to that branch. The Linux tests and the Windows worker tests in CI each run for at most 30 minutes, so a stuck run fails instead of running on (since 2026-10-21; before that there was no limit and a stuck run on Windows kept going until GitHub's 6-hour cap).</p>
+        <p>Before the nightly full tests on Windows, the dynamic port range is widened from the default 49152–65535 (16,384 ports) to 10000–65535. A closed connection only returns its port after TIME_WAIT, so over three passes the short connections between the local sites, the management portal and the browsers can use them all up, and Chromium reports <code>net::ERR_NO_BUFFER_SPACE</code> (pass 3 on 2026-10-27, issue #99). The fixed ports used by the tests and the product (the management portal from 8080, the test site) are all below 10000 and are not affected. After each pass an annotation also records the TCP connections by state and the Chromium, Firefox and Node processes still running, so a repeat shows whether the ports ran out or processes did not exit (since 2026-10-29).</p>
       </div>
     </section>
 

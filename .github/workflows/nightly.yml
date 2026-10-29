@@ -109,6 +109,19 @@ jobs:
         run: |
           echo "PYTHONUTF8=1" >> "$GITHUB_ENV"
           echo "PYTHONIOENCODING=utf-8" >> "$GITHUB_ENV"
+      # Windows 的動態連接埠預設只有 49152～65535（16384 個），連線關閉後還要等 TIME_WAIT（數分鐘）
+      # 才放回去。三遍測試連跑約 50 分，本機網站、管理 Portal 與瀏覽器之間的短連線可能把它用完，
+      # 連線就失敗：Chromium 回報 net::ERR_NO_BUFFER_SPACE（WSAENOBUFS，10055）。
+      # 2026-10-27 run 40581792306（issue #99）第 3 遍的 test_capture_saves_only_a_verified_state：
+      # 同一個網址幾秒前才打開過、前兩遍都通過。放大到 10000～65535；測試與產品的固定連接埠
+      # （8080 起的管理 Portal、測試網站的預設連接埠）都在 10000 以下，不受影響。
+      # 之後每一遍結束時記下連線狀態（見「瀏覽器測試再跑」），再遇到時分得出是連接埠還是殘留程序。
+      - name: Windows：放大動態連接埠範圍
+        if: runner.os == 'Windows'
+        run: |
+          netsh int ipv4 set dynamicport tcp start=10000 num=55536
+          netsh int ipv6 set dynamicport tcp start=10000 num=55536
+          netsh int ipv4 show dynamicport tcp
       - name: 安裝依賴
         run: uv sync --locked
       - name: 安裝瀏覽器（Chromium、Firefox）
@@ -138,6 +151,17 @@ jobs:
           failed=""
           display=()
           if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
+          # Windows：每一遍結束時記下 TCP 連線的狀態與還在跑的瀏覽器、Node 程序（註記），
+          # 偶發的 ERR_NO_BUFFER_SPACE 再出現時看得出是 TIME_WAIT 把連接埠用完，還是程序沒結束
+          sockets() {
+            if [ "$RUNNER_OS" != Windows ]; then return 0; fi
+            local states browsers
+            # 只是診斷：指令失敗也不影響這一步的結果（GitHub 的 bash 帶 -eo pipefail）
+            states="$(netstat -an | awk '$1 == "TCP" {print $4}' | sort | uniq -c | awk '{printf "%s %s；", $2, $1}' || true)"
+            browsers="$(MSYS_NO_PATHCONV=1 tasklist /FO CSV /NH | grep -ciE '^"(chrome|chrome-headless-shell|firefox|node)\.exe"' || true)"
+            echo "::notice title=第 $1 遍之後的連線::TCP（依狀態）：${states:-無} 還在跑的 Chromium／Firefox／Node 程序：${browsers:-0}"
+          }
+          sockets 1
           for pass in $(seq 2 $(( ${{ matrix.extra }} + 1 ))); do
             echo "::group::瀏覽器測試第 $pass 遍"
             set +e
@@ -145,6 +169,7 @@ jobs:
             code=$?
             set -e
             echo "::endgroup::"
+            sockets "$pass"
             PYTHONIOENCODING=utf-8 uv run python tools/ci_annotations.py junit "$REPORTS/pass-$pass.xml"
             if [ "$code" -ne 0 ]; then
               failed="$failed $pass"
@@ -197,7 +222,13 @@ jobs:
   report-failure:
     name: 失敗時開 issue
     needs: [full, desktop-layer, desktop-weekly]
-    if: failure() && github.event_name == 'schedule'
+    # 測試失敗（failure）之外，一直排不到機器的 job 被標成 cancelled（「The job was not acquired
+    # by Runner」，2026-10-28 run 40767854003 的 macOS 完整測試）：failure() 不成立，之前整個運行
+    # 是紅的卻沒有開 issue，當天的 macOS 等於沒測。整個運行被取消（例如新的運行取代舊的）時
+    # cancelled() 成立，不開。
+    if: >-
+      ${{ !cancelled() && github.event_name == 'schedule' &&
+      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -206,12 +237,18 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TITLE: ${{ github.workflow }}（排程）失敗
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      RESULTS: ${{ join(needs.*.result, ' ') }}
     steps:
       - run: |
           gh label create ci-schedule --color B60205 --description "排程的完整測試失敗" --force > /dev/null
           when="$(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M')"
           zone="$(TZ=America/Los_Angeles date '+%Z，UTC%:z' | sed 's/-/−/')"
           body="排程執行失敗：${RUN_URL}（${when} America/Los_Angeles（${zone}））。失敗的測試與原因在該次運行的 annotations。"
+          case " $RESULTS " in
+            *" cancelled "*)
+              body="$body 有 job 被取消：通常是一直排不到機器（annotations 寫「The job was not acquired by Runner」），那個系統這次沒有測，不是測試失敗；可在運行頁按 Re-run failed jobs 補跑。"
+              ;;
+          esac
           number="$(gh issue list --label ci-schedule --state open --json number,title \
             --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")"
           if [ -n "$number" ]; then

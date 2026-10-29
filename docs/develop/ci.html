@@ -118,7 +118,8 @@
         </table>
       </div>
       <div class="panel-body prose">
-        <p>排程放在倉庫最空閒的時段：20:17 UTC 是 America/Los_Angeles 13:17 PDT（UTC−07:00）／12:17 PST（UTC−08:00），新加坡 04:17。排程失敗時自動開（或更新）一個 <code>ci-schedule</code> 標籤的 issue。PR 上比的是合併後的內容（GitHub 測的是 PR 合併進 main 的結果）；同一個分支推了新版本，舊的運行會被取消。依賴更新的 PR 由 GitHub Actions 開，只自動觸發 CI，其他流程要等有人往那個分支推送。CI 的 Linux 測試與 Windows 的 Worker 測試各最多跑 30 分鐘，卡住時直接失敗（2026-10-21 起；之前沒有上限，Windows 上卡住的運行會一直跑到 GitHub 的 6 小時上限）。</p>
+        <p>排程放在倉庫最空閒的時段：20:17 UTC 是 America/Los_Angeles 13:17 PDT（UTC−07:00）／12:17 PST（UTC−08:00），新加坡 04:17。排程失敗時自動開（或更新）一個 <code>ci-schedule</code> 標籤的 issue；一直排不到機器而被取消的工作（註記寫「The job was not acquired by Runner」，macOS 較常見）也算，留言會註明那個系統這次沒有測、不是測試失敗，可以在運行頁按「Re-run failed jobs」補跑（2026-10-29 起；之前這種情況不開 issue，整個運行是紅的卻沒有通知）。PR 上比的是合併後的內容（GitHub 測的是 PR 合併進 main 的結果）；同一個分支推了新版本，舊的運行會被取消。依賴更新的 PR 由 GitHub Actions 開，只自動觸發 CI，其他流程要等有人往那個分支推送。CI 的 Linux 測試與 Windows 的 Worker 測試各最多跑 30 分鐘，卡住時直接失敗（2026-10-21 起；之前沒有上限，Windows 上卡住的運行會一直跑到 GitHub 的 6 小時上限）。</p>
+        <p>Windows 的每晚完整測試開跑前，把動態連接埠從預設的 49152～65535（16384 個）放大到 10000～65535：連線關閉後還要等 TIME_WAIT 才放回去，連跑三遍時本機網站、管理 Portal 與瀏覽器之間的短連線可能把它用完，Chromium 回報 <code>net::ERR_NO_BUFFER_SPACE</code>（2026-10-27 第 3 遍，issue #99）。測試與產品的固定連接埠（8080 起的管理 Portal、測試網站）都在 10000 以下，不受影響。每一遍結束時另外註記 TCP 連線依狀態的數量與還在跑的 Chromium、Firefox、Node 程序，再遇到時分得出是連接埠用完還是程序沒有結束（2026-10-29 起）。</p>
       </div>
     </section>
 
