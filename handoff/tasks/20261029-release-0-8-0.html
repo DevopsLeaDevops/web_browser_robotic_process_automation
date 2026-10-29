@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261029-release-0-8-0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261029-release-0-8-0：發布 v0.8.0</h1><p>將已合併的回看章節軸、每一步截圖與每晚測試修正，連同完整安裝包與簽章更新檔發布為 v0.8.0。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID</dt><dd>20261029-release-0-8-0</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者於本次對話要求發布 0.8.0。版本一致、版本 PR 的 CI 通過、標籤位於 main、發布流程通過、七個分發檔與 SHA256SUMS.txt 齊全，核對後發布 GitHub Release。</dd>
+        <dt>主責／授權</dt><dd>ChatGPT／Codex；本次發布要求涵蓋版本準備、版本 PR 合併、推標籤及發布 Release。產品功能已由使用者合併的 PR #105、#106 提供；本任務不代表線上環境已升級或人工驗收通過。</dd>
+        <dt>修改檔案／整合者</dt><dd>八個套件的 pyproject.toml、uv.lock、本任務紀錄與索引；ChatGPT／Codex 整合。</dd>
+        <dt>分支／基準</dt><dd><code>chore/release-0.8.0</code>，從最新 <code>origin/main@a4298ea55ec90ed20591409d816ef8fc450b3f9f</code> 建立；沿用已完成 PR #103 整合的乾淨 worktree。</dd>
+        <dt>狀態／同步</dt><dd>本地驗證通過；隨本提交推送並建立版本 PR，CI 與發布仍待完成。</dd>
+        <dt>環境</dt><dd>macOS arm64、Python 3.13.16、uv 0.12.24；跨平台安裝包由 GitHub Actions 建置。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="changes">
+      <div class="panel-header"><h2>發布內容與驗證</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><a href="20261029-replay-chapters.html">PR #106：回看章節軸與每一步截圖</a>：依步驟定位、等待空檔快轉、章節放大；步驟詳情從清單上方展開。舊運行沒有截圖時沿用錄影縮圖。</li>
+        <li><a href="20261029-nightly-windows-sockets.html">PR #105：每晚測試修正</a>：Windows 動態連接埠與診斷、排不到執行機時建立 issue。</li>
+        <li>使用 <code>tools/release_version.py bump 0.8.0</code> 統一八個套件與鎖檔，沒有變更第三方依賴。</li>
+        <li>本地驗證（a4298ea＋本版本差異）：uv sync --locked、release_version.py check v0.8.0、i18n.py check 通過；pytest -q tests/ci/test_release_version.py tests/docs tests/i18n：365 passed；git diff --check、任務紀錄與索引的相對連結／錨點檢查通過。逐項核對鎖檔，第三方依賴完全相同。</li>
+        <li>發布流程將完整建置與測試 Windows Worker、macOS Worker／錄製端、Linux x64／arm64 伺服器，產生簽章更新檔與 SHA-256 清單。</li>
+        <li>人工驗收：未執行；本次沒有操作線上環境。各平台是否能使用更新檔，以發布流程比較 v0.7.1 的環境代號結果為準。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-10-29 06:30 America/Los_Angeles（PDT，UTC−07:00），ChatGPT／Codex，開工與本地驗證：fetch 後確認 main 已合併 #105、#106，沒有開啟的 PR，最新已發布版本為 v0.7.1；準備版本差異並驗證，接著建立版本 PR。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
