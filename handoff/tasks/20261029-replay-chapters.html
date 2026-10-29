@@ -20,7 +20,7 @@
         <dt>範圍／不包含</dt><dd>範圍：Runner 每一步拍縮小的截圖（錄影時）；伺服器的回看資料、運行詳情的檔案清單、執行報告；播放器（章節軸、縮圖、快轉、密度、詳情）；樣式、訊息、設計文件、ADR 0016 修訂、測試。不包含：改錄影方式、平行節點的多軌時間軸（ADR 0019）、Worker 的上傳格式（執行目錄照舊整包上傳）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude 主責；審閱與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner</code>（<code>stepshots.py</code>（新）、<code>browser.py</code>、<code>child.py</code>、<code>files.py</code>、<code>report.py</code>、訊息）；<code>apps/server</code>（<code>replay.py</code>、<code>composite_replay.py</code>、<code>render.py</code>、<code>pages.py</code>、樣板、<code>static/replay.js</code>、<code>replay-media.js</code>、<code>portal-app.css</code>、訊息）；測試；<code>docs/design/portal.html</code>、ADR 0016 與英文版；本紀錄、任務索引、<a href="20261028-replay-acceptance-fixes.html">20261028-replay-acceptance-fixes</a> 的追加紀錄。Claude 整合。</dd>
-        <dt>狀態</dt><dd>待審閱：PR #106；CI 見 PR 最新 head。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #106；<code>ecd2bae</code> 的 CI 全綠（Windows 那個工作重跑一次）。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>feat/replay-chapters</code>，從 main <code>2089d48</code>（v0.7.1，PR #104 合併後）開；PR #106（base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準（已推送）。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13、Playwright 1.63（Chromium 1243）。這個 Playwright 版本的 <code>PageVideos</code> 記不到分頁影片的檔名（<code>pages.json</code> 的 <code>file</code> 是空的），所以本機錄不出回看的影片；本機驗證時用會話暫存區的 <code>sitecustomize.py</code> 補上檔名（不進倉庫，只影響本機測試），CI 用 Playwright 1.64，不需要。</dd>
@@ -82,7 +82,7 @@
           <tr><td>同上；本機預覽（真的 Portal、背景 Worker、測試網站）</td><td>BA-001、失敗的 BA-002、BA-001 → BA-002 組合運行、200 步的場景；1440 與 390 寬截圖；點格子、滑過、放大、依時間、詳情</td><td>一格一步、縮圖是截圖、空檔與轉場卡、失敗紅框；200 步分 13 組、放大一組 16 步各一格；390 寬時組合回看太擠，點節點色帶放大；手機寬度沒有橫向捲動；沒有頁面錯誤</td><td>真實的 Worker 與 Mac 錄製端 App</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見 PR #106 最新 head。人工驗收：未執行。審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：<code>ecd2bae</code> 全部通過（Worker 測試（Windows）重跑一次，第一次是不相關的 Python 腳本場景偶發失敗）；之後只改任務紀錄。人工驗收：未執行。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
@@ -90,7 +90,8 @@
         <li>2026-10-28 07:40 America/Los_Angeles（PDT，UTC−07:00），Claude：交出設計提案（只有設計，沒有改程式），存在 Claude 專案的 <code>claude/replay-timeline-redesign-proposal.md</code>。</li>
         <li>2026-10-29 04:50 America/Los_Angeles（PDT，UTC−07:00），Claude：使用者 04:38 確認（見上）；PR #103 已合併、v0.7.1 已發布（PR #104）。從 main <code>2089d48</code> 開 <code>feat/replay-chapters</code>。</li>
         <li>2026-10-29 05:55 America/Los_Angeles（PDT，UTC−07:00），Claude：推送 <code>b36b9ab</code>（[bootstrap]），開 PR #106；bootstrap 產生簡中（<code>5bdcc3b</code>）。本機驗證見上表；推送這份紀錄觸發 CI。</li>
-        <li>2026-10-29 06:35 America/Los_Angeles（PDT，UTC−07:00），Claude：main 合入 #105（每晚測試的 Windows 連接埠），PR 有衝突，合入 main（<code>c4a168f</code>，只有任務索引衝突，保留兩邊）。<code>c4a168f</code> 的 CI：靜態檢查、Worker 測試（Windows）、測試（Python 3.13，含兩個真實錄影的回看流程與新的時間軸測試）、桌面端建置、伺服器分發包、一鍵安裝腳本通過；測試（Python 3.12，全部測試同一個程序）只有 <code>test_stepshots.py</code> 的報告那一項失敗：前面的測試留下英文，報告寫成英文。改成在測試裡固定繁中，本機先切到英文再跑通過。</li>
+        <li>2026-10-29 06:08 America/Los_Angeles（PDT，UTC−07:00），Claude：main 合入 #105（每晚測試的 Windows 連接埠），PR 有衝突，合入 main（<code>c4a168f</code>，只有任務索引衝突，保留兩邊）。<code>c4a168f</code> 的 CI：靜態檢查、Worker 測試（Windows）、測試（Python 3.13，含兩個真實錄影的回看流程與新的時間軸測試）、桌面端建置、伺服器分發包、一鍵安裝腳本通過；測試（Python 3.12，全部測試同一個程序）只有 <code>test_stepshots.py</code> 的報告那一項失敗：前面的測試留下英文，報告寫成英文。改成在測試裡固定繁中，本機先切到英文再跑通過。</li>
+        <li>2026-10-29 06:12 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>ecd2bae</code> 的 CI：第一次除了 Worker 測試（Windows）都通過；Windows 只有 <code>test_run.py::test_python_script_scenario[firefox]</code> 失敗（Python 腳本場景，不錄影也不拍截圖，<code>c4a168f</code> 同一項通過），重跑那一個工作後通過，整個 CI 全綠（第 2 次嘗試）。桌面端建置、伺服器分發包、一鍵安裝腳本通過。之後只改這份紀錄。</li>
       </ul></div>
     </section>
   </div>
