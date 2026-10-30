@@ -3556,3 +3556,6 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 195.0, "job": "macOS 桌面 App（程式碼層） / RPA Worker（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 40953751001, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "success", "duration_s": 272.0, "job": "macOS 桌面 App（程式碼層） / RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 40953751001, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 40953751001, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 11.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 40985192142, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 9.0, "job": "分發包（x64）", "os": "linux", "queue_s": 2.0, "run_id": 40985192142, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 9.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 5.0, "run_id": 40985192142, "workflow": "伺服器分發包"}
