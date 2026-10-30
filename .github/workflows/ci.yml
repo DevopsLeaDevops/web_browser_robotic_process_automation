@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - name: 安裝依賴
         # --locked：依 uv.lock 安裝；鎖檔與 pyproject.toml 不一致時失敗，提醒執行 uv lock
         run: uv sync --locked
@@ -88,7 +88,7 @@ jobs:
       PYTHON: ${{ matrix.python }}
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           python-version: ${{ matrix.python }}
       - name: 測試範圍
@@ -170,7 +170,7 @@ jobs:
       RPA_REQUIRE_BROWSER: "1"
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - name: 安裝依賴
         run: uv sync --locked
       - name: 安裝瀏覽器（Chromium、Firefox）

@@ -99,7 +99,7 @@ jobs:
       REPORTS: ${{ github.workspace }}/test-results
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           python-version: ${{ matrix.python }}
       # 跟一鍵安裝腳本（setup.ps1）跑測試時一樣用 UTF-8；Windows 預設的 cp1252 會讓

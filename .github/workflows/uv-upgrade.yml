@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: main
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - name: uv lock --upgrade
         run: uv lock --upgrade
       - name: 有沒有更新
