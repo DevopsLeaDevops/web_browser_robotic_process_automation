@@ -30,7 +30,7 @@
       {{ p.player(video, data, run.id ~ ".webm") }}
       <p class="notice warn" id="replay-beyond" hidden></p>
       {% if video.complete is false %}<p class="notice warn">{{ t("replay.not_seekable") }}</p>{% elif video.repaired %}<p class="notice">{{ t("replay.repaired") }}</p>{% endif %}
-      {% elif data.python %}
+      {% elif data.get("python") %}
       {#- Python 節點（ADR 0020）：沒有錄影，步驟當章節；點一個章節看那一步的腳本、檔案變化與資料預覽 #}
       <section class="panel replay-python" id="replay-python">
         <div class="panel-header"><h2>{{ t("replay.python_title") }}</h2><span class="muted">{{ t("replay.python_hint") }}</span></div>

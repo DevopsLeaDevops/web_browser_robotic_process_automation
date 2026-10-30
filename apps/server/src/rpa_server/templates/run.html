@@ -20,6 +20,8 @@
 {% endif %}
 {% endblock %}
 {% block content %}
+{#- Python 節點的產出檔案、檔案變化、資料預覽（ADR 0020，pages._run_python_details）；沒給時都沒有 #}
+{% set python = python if python is defined else {"produced": [], "previews": [], "changes": none} %}
 <div class="stack" id="run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-stage="{{ run.stage or '' }}"{% if not run.finished %} data-poll{% endif %}>
   {% if not run.finished %}
   <div class="notice">{{ t("run.polling") }}</div>

@@ -73,6 +73,8 @@ def fake_root(root: Path) -> tuple[Path, Path]:
         site / "pip-25.0.dist-info" / "METADATA",
         site / "pandas" / "__init__.py",
         root / "lib" / "tcl8.6" / "init.tcl",
+        root / "lib" / "thread2.8.9" / "pkgIndex.tcl",
+        stdlib / "threading.py",
         root / "bin" / "pip3",
         root / "bin" / "idle3",
         root / "bin" / "python3",
@@ -99,6 +101,8 @@ def test_slim_removes_installers_gui_and_tests(tmp_path: Path) -> None:
     assert not (site / "pip").exists()
     assert not (site / "pip-25.0.dist-info").exists()
     assert not (root / "lib" / "tcl8.6").exists()
+    assert not (root / "lib" / "thread2.8.9").exists()
+    assert (stdlib / "threading.py").is_file()  # Windows 不分大小寫時 lib/thread* 曾經刪到它
     assert not (root / "bin" / "pip3").exists()
     assert "lib/python3.13/tkinter" in removed
     assert "externally-managed" in (stdlib / "EXTERNALLY-MANAGED").read_text(encoding="utf-8")

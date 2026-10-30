@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:27e8e6862011f3fc">
+<meta name="translation-source" content="sha256:91841122ecf1141f">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -189,7 +189,22 @@ def main(run: Run) -&gt; None:
         merged.to_excel(run.output_dir / "merged.xlsx", index=False)
         run.facts.update(fileCount=len(paths), total=float(merged["amount"].sum()),
                          byBranch=merged.groupby("branch")["amount"].sum().to_dict())</pre>
-        <p class="muted"><code>run.inputs</code> (the resolved inputs), <code>run.input_files</code>, <code>run.secrets</code>, <code>run.facts</code>, <code>with run.step(id, name)</code> (the same id in a loop counts as the nth time), <code>run.output_dir</code>, <code>run.workspace</code>, <code>run.preview(name, value)</code>, <code>run.log(message)</code>, <code>StepError</code>, <code>run.remaining_seconds</code>, <code>run.platform</code>, <code>run.runtime</code>, <code>run.lang</code>. Secret values are masked in console output and errors.</p>
+        <p class="muted"><code>run.inputs</code> (the resolved inputs), <code>run.input_files</code>, <code>run.secrets</code>, <code>run.facts</code>, <code>with run.step(id, name)</code> (the same id in a loop counts as the nth time), <code>run.output_dir</code>, <code>run.workspace</code>, <code>run.preview(name, value)</code>, <code>run.log(message)</code>, <code>StepError</code>, <code>run.remaining_seconds</code>, <code>run.platform</code>, <code>run.runtime</code>, <code>run.lang</code>. Secret values are masked in console output and errors. <code>run.input_files[name]</code> is a list of files (Path); file changes before and after each step are recorded with the step.</p>
+        <h3 id="files-between-nodes">Passing files between nodes: the download step and file outputs</h3>
+<pre class="source">steps:                                   # browser node: download
+  - id: export
+    action: download                     # click and wait until the download finishes
+    target: { role: button, name: 匯出 CSV }
+    as: report                           # facts.report = {"workspace", "name", "size", "sha256"}
+    fileName: '銷售-{{ inputs.month }}.csv'   # optional: the saved file name
+outputs:
+  report: { type: file, from: '{{ facts.report }}' }</pre>
+        <ul class="points">
+          <li><strong>download</strong> saves the file to <code>downloads/</code> in the composite run's shared workspace (a temporary folder of this run when run alone). Recordings convert <code>expect_download</code> into this step.</li>
+          <li><strong><code>type: file</code> outputs</strong>: <code>from</code> (or assertion.py) gives a path (relative paths are relative to the shared workspace) or the download fact; the file must be in the shared workspace or this run's <code>outputs/</code>. The output stage copies it into the run's <code>outputs/</code> (downloadable from the report) and the value becomes <code>{"workspace", "name", "size", "sha256"}</code>. The per-file and total limits of file inputs apply. Compatible-mode Python nodes cannot use them.</li>
+          <li><strong>Downstream</strong>: a composite scenario binds a file output straight to a downstream file input (same Worker, same shared workspace); a downstream Python node gets the file from <code>run.input_files</code>, a browser node hands it to the page with <code>upload</code>. Run alone, such a value is explained as "only available in a composite run".</li>
+          <li><strong>Reports</strong>: produced files, file changes (<code>files.json</code>) and data previews; Python nodes replay as a step timeline. Example: <code>scenarios/examples/browser-python/</code> (download → summarize in Python → upload, <code>workflow.json</code>).</li>
+        </ul>
       </div>
     </section>
 

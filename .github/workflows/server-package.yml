@@ -147,11 +147,18 @@ jobs:
           # （pandas、openpyxl 合併出 Excel），第二次沿用已經解壓的
           cp -r /source/scenarios/examples/python-node py-node
           for attempt in 1 2; do
-            rpa-server/bin/rpa run py-node/scenario.yaml --out py-runs --format json > py-run.json
+            # 執行失敗時結束碼不是 0：讀結果、把原因與日誌寫成 annotation 再失敗
+            rpa-server/bin/rpa run py-node/scenario.yaml --out py-runs --format json > py-run.json || true
             rpa-server/current/python/bin/python3 - <<'PY'
           import json
+          from pathlib import Path
           result = json.load(open("py-run.json", encoding="utf-8"))
-          assert result["status"] == "passed", result
+          if result.get("status") != "passed":
+              logs = sorted(Path("py-runs").glob("*/automation.log"))
+              detail = {key: result.get(key) for key in ("status", "error", "problems", "stages", "python")}
+              text = json.dumps(detail, ensure_ascii=False) + "\n" + (logs[-1].read_text(errors="replace")[-1500:] if logs else "")
+              print("::error title=Rocky 8 的範例 Python 節點::" + text.replace("%", "%25").replace("\n", "%0A"))
+              raise SystemExit(1)
           print(result["python"], result["output"])
           PY
           done

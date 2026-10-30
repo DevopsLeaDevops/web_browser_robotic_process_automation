@@ -304,7 +304,13 @@ def slim(root: Path, stdlib: Path, site: Path) -> list[str]:
             for path in sorted(folder.iterdir()):
                 if re.match(r"^(pip|idle|2to3|pydoc)", path.name):
                     remove(path)
-    for pattern in ("lib/tcl*", "lib/tk*", "lib/itcl*", "lib/thread*", "tcl", "DLLs/_tkinter.pyd"):
+    # Tcl/Tk 的資料夾（lib/tcl8.6、lib/thread2.8.9…）：只看「名稱接著版本號」的資料夾。Windows 的
+    # 檔案系統不分大小寫，lib/thread* 會比對到標準函式庫 Lib/threading.py（2026-10-29 CI）
+    tcl = re.compile(r"^(tcl|tk|itcl|thread)\d", re.IGNORECASE)
+    for path in sorted((root / "lib").glob("*")) if (root / "lib").is_dir() else []:
+        if path.is_dir() and tcl.match(path.name):
+            remove(path)
+    for pattern in ("tcl", "DLLs/_tkinter.pyd"):
         for path in sorted(root.glob(pattern)):
             remove(path)
     for path in sorted(root.glob("DLLs/t[ck]*.dll")):
