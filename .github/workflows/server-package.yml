@@ -58,7 +58,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - name: 測試升級用的臨時金鑰（推版本標籤時不產生）
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         run: |

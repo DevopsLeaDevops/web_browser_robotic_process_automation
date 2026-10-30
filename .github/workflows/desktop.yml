@@ -119,7 +119,7 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - name: 安裝依賴（含打包工具）
         run: uv sync --locked --group desktop-build
       - name: 單元測試（Worker：自動啟動、單一執行、認證管理員或鑰匙圈用真的）
