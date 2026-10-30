@@ -3671,3 +3671,8 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 129.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 4.0, "run_id": 41016235405, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "success", "duration_s": 10.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 41016235409, "workflow": "桌面端建置"}
 {"attempt": 1, "conclusion": "success", "duration_s": 171.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 1.0, "run_id": 41016235409, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 14.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 41016235428, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 40.0, "job": "靜態檢查", "os": "linux", "queue_s": 2.0, "run_id": 41016235428, "workflow": "CI"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 455.0, "job": "Worker 測試（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 41016235428, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 227.0, "job": "測試（Python 3.13）", "os": "linux", "queue_s": 1.0, "run_id": 41016235428, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 120.0, "job": "測試（Python 3.12）", "os": "linux", "queue_s": 1.0, "run_id": 41016235428, "workflow": "CI"}
