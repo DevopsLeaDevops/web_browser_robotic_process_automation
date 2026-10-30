@@ -72,7 +72,7 @@
             <li>多一个 CI 构建流程（macOS、Windows），每次发布要附两个安装档；App 与服务器版本要对齐。</li>
             <li>没有签章时，第一次打开要手动允许（macOS「隐私权与安全性」、Windows SmartScreen）。</li>
             <li>录制、调试要经过网络传输输出与截图；设备权杖、Secrets 与登录状态在 HTTP 下是明文，只适合信任的区网（同 ADR 0012）。</li>
-            <li>打包后的 Python 脚本场景只能 import 标准函数库与 App 内附的包。</li>
+            <li>打包后的 Python 脚本场景只能 import 标准函数库与 App 内附的包（2026-10-29 修订：只对兼容模式成立；运行环境模式的 Python 节点用 App 附带的 RPA Python 运行环境，见 <a href="0020-python-nodes.html">ADR 0020</a>）。</li>
             <li>系统 WebView 依赖操作系统版本：Windows 要有 WebView2（Windows 11 内置），macOS 依系统的 Safari 内核。</li>
           </ul>
         </div>

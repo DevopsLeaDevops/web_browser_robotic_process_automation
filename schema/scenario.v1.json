@@ -769,6 +769,8 @@
             "number",
             "integer",
             "boolean",
+            "array",
+            "object",
             "file"
           ],
           "title": "Type",
@@ -1540,20 +1542,77 @@
     },
     "ScriptConfig": {
       "additionalProperties": false,
-      "description": "Python 腳本逃生門：DSL 表達不了的場景，用原型的檔案契約執行。\n\n- automation.py 接受 ``--input --facts --screenshot --target-url``，把頁面事實寫進 facts\n- assertion.py 接受 ``--input --facts --output``，獨立比對事實與入參，寫出候選出參\n\n審核時特別標示；錄製與 AI 不會產生這種場景。",
+      "description": "Python 節點：DSL 表達不了、或瀏覽器做不到的事（檔案、資料、網路），沿用同一份檔案契約。\n\n- automation.py 接受 ``--input --facts --screenshot --target-url``，把觀察到的事實寫進 facts\n- assertion.py 接受 ``--input --facts --output``，獨立比對事實與入參，寫出候選出參\n\n兩種模式（ADR 0020）：\n\n- **相容模式**（沒寫 ``runtime``）：和 M1.1 起的腳本場景完全相同，用執行端自己的 Python，\n  腳本可以自己用 Playwright 開瀏覽器；``assertion`` 必要。\n- **運行環境模式**（``runtime: \"1\"``）：跑在平台建置的 RPA Python 運行環境，不開瀏覽器；\n  斷言可以是 ``assertion`` 或場景的 ``verify``。\n\n審核時特別標示；錄製與 AI 不會產生這種場景。",
       "properties": {
+        "runtime": {
+          "anyOf": [
+            {
+              "const": "1",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime"
+        },
         "automation": {
           "title": "Automation",
           "type": "string"
         },
         "assertion": {
-          "title": "Assertion",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assertion"
+        },
+        "files": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 16,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Files"
+        },
+        "platforms": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "windows",
+                  "macos",
+                  "linux"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Platforms"
         }
       },
       "required": [
-        "automation",
-        "assertion"
+        "automation"
       ],
       "title": "ScriptConfig",
       "type": "object"

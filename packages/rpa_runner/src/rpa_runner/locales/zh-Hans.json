@@ -12,7 +12,7 @@
   "stage.verify": "独立断言",
   "stage.output": "出参校验与发布",
   "kind.dsl": "DSL 场景",
-  "kind.script": "Python 脚本场景",
+  "kind.script": "Python 节点",
   "contract.input_unknown": "无法识别的入参 {name}",
   "contract.input_missing": "缺少入参 {name}",
   "contract.input_invalid": "入参 {name} 不符合限制：{rule}",
@@ -61,6 +61,7 @@
   "report.none": "无。",
   "status.needs_login": "需要登录",
   "stage.login": "登录检查",
+  "stage.runtime": "运行环境",
   "run.login_missing": "这个场景要以角色 {role} 登录，但这个角色还没有登记；请在管理 Portal 的「登录与凭证」添加",
   "run.login_state_missing": "角色「{role}」的登录状态档不存在",
   "run.login_not_checked": "已加载登录状态（没有检查是否仍然有效）",
@@ -119,5 +120,10 @@
   "browser.drop_too_large": "拖放的文件合计 {size}，超过拖拽区的上限 {limit}；请改用 target 或 trigger",
   "report.step_files": "交出文件：{files}",
   "report.shot": "做完的画面",
-  "report.step_shots": "steps/（每一步做完的截图，{count} 张）"
+  "report.step_shots": "steps/（每一步做完的截图，{count} 张）",
+  "run.input_failed_script": "入参有 {count} 个问题，没有运行脚本",
+  "run.runtime_failed": "RPA Python 运行环境 {major} 准备失败：{detail}",
+  "run.runtime_platform": "这个 Python 节点只在 {platforms} 运行，这台是 {platform}",
+  "run.runtime_reused": "沿用已经准备好的运行环境 {version}（{ms} ms）",
+  "run.runtime_prepared": "第一次准备运行环境 {version}，花了 {ms} ms"
 }

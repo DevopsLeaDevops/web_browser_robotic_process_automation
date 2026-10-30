@@ -26,6 +26,7 @@
         <dt>日期</dt><dd class="mono">2026-10-10</dd>
         <dt>影响范围</dt><dd>rpa-core（DSL）、rpa-runner（M2）、管理 Portal、录制与 AI 生成、编排</dd>
         <dt>相关</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a>、<a href="0010-mvp-first.html">ADR 0010</a>、<a href="../design/dsl.html">场景 DSL</a>、<a href="../../prototypes/mvp/index.html">MVP 原型</a></dd>
+        <dt>修订</dt><dd>2026-10-29：<code>script</code> 演进成 Python 节点，见 <a href="0020-python-nodes.html">ADR 0020</a>。下面「Python 脚本」的规则（不写 verify、出参由 assertion.py 产生）只对没有 <code>runtime</code> 的兼容模式成立；运行环境模式的断言可以是 verify。</dd>
       </dl>
     </section>
 
