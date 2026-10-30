@@ -3737,3 +3737,13 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 276.0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 1.0, "run_id": 41074479437, "workflow": "桌面端建置"}
 {"attempt": 1, "conclusion": "success", "duration_s": 407.0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 2.0, "run_id": 41074479437, "workflow": "桌面端建置"}
 {"attempt": 1, "conclusion": "success", "duration_s": 257.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 41074479437, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 9.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "桌面 App 每週完整建置", "os": "linux", "queue_s": 0.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 984.0, "job": "完整測試（ubuntu-latest，Python 3.12）", "os": "linux", "queue_s": 2.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "完整測試（macos-latest，Python 3.13）", "os": "macos", "queue_s": 0.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 3394.0, "job": "完整測試（windows-latest，Python 3.13）", "os": "windows", "queue_s": 3.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 2368.0, "job": "完整測試（ubuntu-latest，Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 9.0, "job": "macOS 桌面 App（程式碼層） / 執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 415.0, "job": "macOS 桌面 App（程式碼層） / RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 285.0, "job": "macOS 桌面 App（程式碼層） / RPA Worker（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 41074479686, "workflow": "每晚完整測試"}
