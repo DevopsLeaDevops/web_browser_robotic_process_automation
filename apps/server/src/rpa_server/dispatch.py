@@ -711,7 +711,8 @@ class WorkerHub:
         return run
 
     def heartbeat(self, worker_id: str, run_id: str, stage: str | None = None) -> dict[str, object]:
-        """執行中的報到：延長租約、記下階段；回傳要不要取消。"""
+        """執行中的報到：延長租約、記下階段；回傳要不要取消，有要刪的共用工作資料夾時另外附上
+        ``cleanup``（ADR 0020；沒有時不附，舊的 worker 收到的回應不變）。"""
         with self.sessions() as session:
             self._touch(session, worker_id)
             try:
@@ -724,7 +725,11 @@ class WorkerHub:
                 run.stage = stage
             cancel = run.cancel_requested
             session.commit()
-        return {"cancel": cancel, "cleanup": self.take_cleanup(worker_id)}
+        reply: dict[str, object] = {"cancel": cancel}
+        cleanup = self.take_cleanup(worker_id)
+        if cleanup:
+            reply["cleanup"] = cleanup
+        return reply
 
     def queue_cleanup(self, worker_id: str, key: str) -> None:
         """組合運行結束了：下一次這台 worker 領取任務或心跳時，叫它刪掉共用工作資料夾。

@@ -224,7 +224,7 @@ def test_finished_composite_tells_its_worker_to_clean_up(
             f"{API}/runs/{job['runId']}/heartbeat", json={"stage": "runtime"}, headers=auth(token)
         )
     )
-    assert beat["cleanup"] == []
+    assert beat == {"cancel": False}  # 沒有要刪的共用工作資料夾：不附 cleanup
     with portal.sessions() as session:
         run = session.get(Run, str(job["runId"]))
         assert run is not None
