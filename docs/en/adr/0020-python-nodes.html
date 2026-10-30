@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:57f59863511050aa">
+<meta name="translation-source" content="sha256:e1573d6c90698416">
 <title>ADR 0020 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -64,6 +64,8 @@
             <li>Computers without browsers or a display can be Workers for Python nodes.</li>
             <li>A Python node is not a sandbox: it runs arbitrary code on the Worker as that user, so only trusted people edit it and reviews flag it.</li>
             <li>Intermediate files in the shared workspace are not kept; files people need go to produced files. If a remote Worker missed the end notice, it removes the workspace a day later when it goes online.</li>
+            <li>Passing files between nodes (settled during implementation on 2026-10-29): the DSL gains a <code>download</code> step and <code>type: file</code> outputs, and a file value can be <code>{"workspace": relative path}</code> (not <code>path</code>, so it is not mistaken for a path on that computer); files a Python node writes to <code>outputs/</code> are produced files, uploaded with the run folder and downloadable from the run details, and also copied into the shared workspace under <code>.outputs/&lt;run ID&gt;/</code> for downstream nodes. File names in the run folder can be Chinese; names the server would reject are skipped when the folder is packed for upload.</li>
+            <li>Reports and replay: Python nodes are not recorded; a script that uses <code>run.step()</code> has a step timeline, which is the chapter axis in a single run's replay and, in the combined replay of a composite run, a segment with one cell per step (1.5 to 6 seconds each depending on the real duration) that plays alongside the browser nodes' recordings (2026-10-30). The console is mapped to steps by byte offsets: <code>rpa_script</code> records how far <code>automation.log</code> had been written when each step started and ended, instead of adding a time and step to every <code>print()</code> line, so the script's output stays as written and output from subprocesses the script starts lines up too (replacing what section 6.2 of the design first said).</li>
             <li>Later (P3): an optional model package layer, the script workbench, composite fan-out (foreach), and Python nodes using login roles (to be decided).</li>
           </ul>
         </div>

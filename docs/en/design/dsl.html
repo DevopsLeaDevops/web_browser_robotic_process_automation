@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:91841122ecf1141f">
+<meta name="translation-source" content="sha256:4d91ad67cf6dd378">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -189,7 +189,7 @@ def main(run: Run) -&gt; None:
         merged.to_excel(run.output_dir / "merged.xlsx", index=False)
         run.facts.update(fileCount=len(paths), total=float(merged["amount"].sum()),
                          byBranch=merged.groupby("branch")["amount"].sum().to_dict())</pre>
-        <p class="muted"><code>run.inputs</code> (the resolved inputs), <code>run.input_files</code>, <code>run.secrets</code>, <code>run.facts</code>, <code>with run.step(id, name)</code> (the same id in a loop counts as the nth time), <code>run.output_dir</code>, <code>run.workspace</code>, <code>run.preview(name, value)</code>, <code>run.log(message)</code>, <code>StepError</code>, <code>run.remaining_seconds</code>, <code>run.platform</code>, <code>run.runtime</code>, <code>run.lang</code>. Secret values are masked in console output and errors. <code>run.input_files[name]</code> is a list of files (Path); file changes before and after each step are recorded with the step.</p>
+        <p class="muted"><code>run.inputs</code> (the resolved inputs), <code>run.input_files</code>, <code>run.secrets</code>, <code>run.facts</code>, <code>with run.step(id, name)</code> (the same id in a loop counts as the nth time), <code>run.output_dir</code>, <code>run.workspace</code>, <code>run.preview(name, value)</code>, <code>run.log(message)</code>, <code>StepError</code>, <code>run.remaining_seconds</code>, <code>run.platform</code>, <code>run.runtime</code>, <code>run.lang</code>. Secret values are masked in console output and errors. <code>run.input_files[name]</code> is a list of files (Path); file changes before and after each step are recorded with the step, and so is how far the console output had got, so the replay shows what each step printed (<code>print()</code>, <code>run.log()</code> and subprocesses the script starts).</p>
         <h3 id="files-between-nodes">Passing files between nodes: the download step and file outputs</h3>
 <pre class="source">steps:                                   # browser node: download
   - id: export

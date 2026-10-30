@@ -189,7 +189,7 @@ def main(run: Run) -&gt; None:
         merged.to_excel(run.output_dir / "merged.xlsx", index=False)
         run.facts.update(fileCount=len(paths), total=float(merged["金额"].sum()),
                          byBranch=merged.groupby("分店")["金额"].sum().to_dict())</pre>
-        <p class="muted"><code>run.inputs</code>（运行态入参）、<code>run.input_files</code>、<code>run.secrets</code>、<code>run.facts</code>、<code>with run.step(id, 名称)</code>（循环里同一个 id 记成第 n 次）、<code>run.output_dir</code>、<code>run.workspace</code>、<code>run.preview(名称, 值)</code>、<code>run.log(消息)</code>、<code>StepError</code>、<code>run.remaining_seconds</code>、<code>run.platform</code>、<code>run.runtime</code>、<code>run.lang</code>。主控台输出与错误里的 Secrets 值自动遮罩。<code>run.input_files[名称]</code> 是文件（Path）的清单；每一步前后的文件变化记在步骤里。</p>
+        <p class="muted"><code>run.inputs</code>（运行态入参）、<code>run.input_files</code>、<code>run.secrets</code>、<code>run.facts</code>、<code>with run.step(id, 名称)</code>（循环里同一个 id 记成第 n 次）、<code>run.output_dir</code>、<code>run.workspace</code>、<code>run.preview(名称, 值)</code>、<code>run.log(消息)</code>、<code>StepError</code>、<code>run.remaining_seconds</code>、<code>run.platform</code>、<code>run.runtime</code>、<code>run.lang</code>。主控台输出与错误里的 Secrets 值自动遮罩。<code>run.input_files[名称]</code> 是文件（Path）的清单；每一步前后的文件变化记在步骤里；每一步也记下主控台输出写到哪里，回看时显示那一步印出的内容（<code>print()</code>、<code>run.log()</code> 与脚本开的子进程都算）。</p>
         <h3 id="files-between-nodes">节点之间传文件：download 步骤与 file 出参</h3>
 <pre class="source">steps:                                   # 浏览器节点：下载
   - id: export
