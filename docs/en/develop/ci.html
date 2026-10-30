@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a1d890f619dbcf03">
+<meta name="translation-source" content="sha256:a9291a78fcce9755">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -42,7 +42,7 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
         <dl class="spec-list">
           <dt>Input fingerprint</dt><dd>The first 16 hex characters of the SHA-256 of a job's input files (paths and content) plus the job name. The lists are <code>GROUPS</code> in <code>tools/ci_changes.py</code>; every job includes the dependencies (without version numbers), its own workflow file and <code>tools/ci_changes.py</code> itself.</dd>
           <dt>Pass record</dt><dd>A tiny artifact <code>pass-&lt;job&gt;-&lt;fingerprint&gt;</code> uploaded when a job succeeds, kept for 30 days. Only runs of this repository count; a PR from a fork cannot claim a pass for anyone else.</dd>
-          <dt>Shell key</dt><dd>A hash of the shell's inputs (dependencies, <code>.python-version</code>, <code>packages/rpa_update/src</code>, <code>apps/desktop/packaging</code>, <code>tools/build_desktop.py</code>) and the target. The cache key is <code>desktop-shell-v1-&lt;target&gt;-&lt;shell key&gt;-&lt;CI key ID&gt;</code>; it holds the DMG or zip, <code>runtime.json</code> and the downloaded browsers.</dd>
+          <dt>Shell key</dt><dd>A hash of the shell's inputs (dependencies, <code>.python-version</code>, <code>packages/rpa_update/src</code>, <code>apps/desktop/packaging</code>, <code>tools/build_desktop.py</code>; for the RPA Worker also the RPA Python runtime it carries: <code>runtimes/python/</code>, <code>tools/build_python_runtime.py</code>) and the target. The cache key is <code>desktop-shell-v1-&lt;target&gt;-&lt;shell key&gt;-&lt;CI key ID&gt;</code>; it holds the DMG or zip, <code>runtime.json</code> and the downloaded browsers.</dd>
           <dt>Code-layer path</dt><dd>Take the app from the cache (<code>tools/desktop_shell.py restore</code>), build an update file from this commit (<code>tools/build_update.py</code>, signed with the CI key) and install it into the app's folder; the self-test, window self-test and end-to-end tests all use that layer, and afterwards the layer must be confirmed and not rolled back. No installer is built and no trial package is uploaded.</dd>
           <dt>Full-build path</dt><dd>All the original steps, including the "next commit" update and automatic rollback. When it passes, the DMG or zip is saved to the cache (not for version tags).</dd>
         </dl>
@@ -54,7 +54,8 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
             <tr><td>RPA Recorder (macOS)</td><td>The shell; recorder code (<code>recorder_*</code>, local gateway, interactive subprocess, pairing, <code>debug.py</code>, <code>record.py</code>, <code>commands.py</code>); code shared by both apps with per-OS branches (entry point, self-test, updates, browser download, keychain); <code>macos.py</code>; the Client API and device update endpoints; the test site and examples; end-to-end tests</td><td>Narrow scope (decided 2026-10-27): other code changes are covered by the Linux <code>role_recorder</code> tests, the Windows code-layer tests and the nightly macOS check</td></tr>
             <tr><td>RPA Worker (Windows)</td><td>The shell; all code it runs (the sources of <code>rpa_core</code>, <code>rpa_runner</code>, <code>rpa_worker</code>, <code>rpa_desktop</code>, the test site); the Worker API, Client API, device management and update endpoints; examples; the unit tests run before the build</td><td>Production role: runs whenever its code changes (mostly on the code-layer path)</td></tr>
             <tr><td>RPA Worker (macOS)</td><td>The shell; menu bar, LaunchAgent, keychain and window (<code>macos.py</code>, <code>autostart.py</code>, <code>credentials.py</code>, <code>gui.py</code>); the unit tests run before the build</td><td>Not a production role; the nightly macOS check runs it too</td></tr>
-            <tr><td>Server packages (x64, arm64)</td><td>The previous paths: sources of the server, command line, worker, test site and packages; examples; build tools</td><td>Linux, about 2 min</td></tr>
+            <tr><td>Server packages (x64, arm64)</td><td>The previous paths: sources of the server, command line, worker, test site and packages; examples; build tools; the RPA Python runtime (each package carries one)</td><td>Linux, about 2 min; also runs the example Python node in Rocky 8</td></tr>
+            <tr><td>RPA Python runtime (Linux x64, arm64, Windows, macOS)</td><td><code>runtimes/python/</code>, <code>tools/build_python_runtime.py</code>, the sources of <code>rpa_script</code>, <code>rpa_runner</code> and <code>rpa_core</code>, and the Python node tests (from 2026-10-29, <a href="../adr/0020-python-nodes.html">ADR 0020</a>)</td><td>Builds one per platform, runs its self-test and extracts it to the cache, then runs the Python node tests with it; on Linux it is also extracted and self-tested in a Rocky 8 container</td></tr>
             <tr><td>Setup scripts (Rocky 8 in two modes, in-repo on three systems)</td><td>The previous paths: scripts, dependencies, Python version, related tools and tests</td><td>The scheduled run still covers everything</td></tr>
             <tr><td>Worker tests in CI (Windows)</td><td>The previous worker paths (<code>packages/</code>, <code>apps/worker</code>, <code>apps/cli</code>, <code>apps/testsite</code>, <code>apps/desktop</code>, <code>scenarios/</code> and so on)</td><td>The Linux tests in CI still run every time</td></tr>
           </tbody>
@@ -70,7 +71,7 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
           <li><strong>Verify again instead of reusing:</strong> run that workflow by hand (manual runs never reuse).</li>
           <li><strong>Changed the build steps in <code>desktop.yml</code>:</strong> add 1 to <code>SHELL_EPOCH</code> in <code>tools/ci_changes.py</code> so every cached shell is rebuilt once. When the fingerprint algorithm or the way inputs are written changes, add 1 to <code>EPOCH</code> to invalidate all pass records.</li>
           <li><strong>New files:</strong> files under a registered folder are included automatically. A new macOS-only module goes into <code>RECORDER</code> or <code>WORKER_MACOS</code>; <code>tests/ci/test_ci_changes.py</code> checks that every pattern still matches a file (a rename cannot silently drop it) and that all desktop app sources are inputs of the Windows worker.</li>
-          <li><strong>Fingerprints locally:</strong> <code>python3 tools/ci_changes.py --workflow desktop.yml --show</code> (also <code>server-package.yml</code>, <code>setup-scripts.yml</code>, <code>ci.yml</code>).</li>
+          <li><strong>Fingerprints locally:</strong> <code>python3 tools/ci_changes.py --workflow desktop.yml --show</code> (also <code>server-package.yml</code>, <code>setup-scripts.yml</code>, <code>ci.yml</code>, <code>python-runtime.yml</code>).</li>
         </ul>
         <h3>When the code-layer path fails</h3>
         <ul class="points">
@@ -150,7 +151,9 @@ gh workflow run desktop.yml --ref branch-name
 # Recorder only, only the code layer when the shell is cached (no trial packages)
 gh workflow run desktop.yml --ref branch-name -f targets=recorder-macos-arm64 -f build=auto
 # Server packages (Linux x64, arm64)
-gh workflow run server-package.yml --ref branch-name</pre>
+gh workflow run server-package.yml --ref branch-name
+# RPA Python runtime (build and self-test on four platforms, Python node tests)
+gh workflow run python-runtime.yml --ref branch-name</pre>
       <div class="panel-body prose">
         <p>Run a role locally: <code>uv run pytest -m "browser and (role_worker or smoke)"</code> (worker), <code>uv run pytest -m "not browser or ((smoke or role_server or role_recorder) and not firefox)"</code> (same as CI on Linux).</p>
       </div>

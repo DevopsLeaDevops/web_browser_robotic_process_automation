@@ -1,13 +1,16 @@
 """跨欄位、跨步驟的檢查：只在場景的結構都正確之後執行。
 
-- 場景主體：steps 與 script 二擇一；Python 腳本場景不寫 verify 與 outputs 的 from
+- 場景主體：steps 與 script 二擇一。Python 節點（ADR 0020）：相容模式要有 assertion，
+  不寫 verify 與 outputs 的 from；運行環境模式不寫 browser、login，assertion 與 verify 二擇一
+  （沒有出參時可以都不寫），用 verify 時出參要有 from
 - 出參：DSL 場景的每個出參都要有 from，有出參就要有 verify（獨立斷言通過才發布）
-- 步驟 id、secrets 名稱、extract 的 as 不能重複
+- 步驟 id、secrets 名稱、extract 與 download 的 as 不能重複
 - goto 的網址以 / 開頭時，要有 browser.baseUrl
 - 新分頁（M7b）：page 要是「之前」某一步的 popup 開出來的分頁；popup 的名稱不能重複
-- 上傳（M7c）：upload 的 files 要引用 type: file 的入參；Python 腳本場景還不能有 file 入參
+- 上傳（M7c）：upload 的 files 要引用 type: file 的入參；沒有 runtime 的 Python 節點不能有
+  file 入參，也不能有 file 出參（ADR 0020）
 - ``{{ }}``：以 Jinja2 解析，語法要正確；只能用 inputs、secrets、facts、env；
-  inputs、secrets 要宣告，facts 要由「之前」的 extract 產生；
+  inputs、secrets 要宣告，facts 要由「之前」的 extract 或 download 產生；
   寫了入參值的動態值（today、now、random）時，說明要改寫在入參
 
 ``{{ }}`` 的求值在 M2 的執行引擎；這裡只做不需要執行就能發現的檢查。
@@ -23,7 +26,7 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from rpa_core.dsl.dynamic import NAMES as DYNAMIC_NAMES
 from rpa_core.dsl.dynamic import dynamic_expression
-from rpa_core.dsl.steps import upload_input_names
+from rpa_core.dsl.steps import fact_name, upload_input_names
 from rpa_core.dsl.yaml_loader import DataPath
 
 if TYPE_CHECKING:
@@ -72,12 +75,43 @@ def _body(scenario: "Scenario") -> Iterator[CrossIssue]:
         yield CrossIssue(("script",), "one_of.many", {"fields": "steps, script"})
         return
     if scenario.script is not None:
+        if scenario.script.uses_runtime:
+            yield from _runtime_body(scenario)
+            return
+        if scenario.script.assertion is None:
+            yield CrossIssue(("script",), "script.assertion_required")
         if scenario.verify is not None:
             yield CrossIssue(("verify",), "script.verify_not_allowed")
         for name, spec in scenario.outputs.items():
             if spec.from_ is not None:
                 yield CrossIssue(("outputs", name, "from"), "script.output_from_not_allowed")
         return
+    yield from _from_and_verify(scenario)
+
+
+def _runtime_body(scenario: "Scenario") -> Iterator[CrossIssue]:
+    """運行環境模式的 Python 節點：不開瀏覽器；斷言是 assertion.py 或 verify。"""
+    script = scenario.script
+    assert script is not None
+    for key in ("browser", "login"):
+        if key in scenario.model_fields_set:
+            yield CrossIssue((key,), "script.runtime_no_browser", {"field": key})
+    if script.assertion is not None and scenario.verify is not None:
+        yield CrossIssue(("verify",), "script.assertion_and_verify")
+        return
+    if script.assertion is not None:
+        for name, spec in scenario.outputs.items():
+            if spec.from_ is not None:
+                yield CrossIssue(("outputs", name, "from"), "script.output_from_not_allowed")
+        return
+    if scenario.outputs and scenario.verify is None:
+        yield CrossIssue(("outputs",), "script.assertion_or_verify")
+        return
+    yield from _from_and_verify(scenario)
+
+
+def _from_and_verify(scenario: "Scenario") -> Iterator[CrossIssue]:
+    """出參取自事實（from），有出參就要有獨立斷言 verify。"""
     for name, spec in scenario.outputs.items():
         if spec.from_ is None:
             yield CrossIssue(("outputs", name), "output.from_required", {"name": name})
@@ -102,16 +136,17 @@ def _duplicate_names(scenario: "Scenario") -> Iterator[CrossIssue]:
             )
         else:
             seen_steps[step.id] = index
-        if step.action == "extract":
-            if step.as_ in seen_facts:
-                first = seen_facts[step.as_] + 1
+        fact = fact_name(step)
+        if fact is not None:
+            if fact in seen_facts:
+                first = seen_facts[fact] + 1
                 yield CrossIssue(
                     ("steps", index, "as"),
                     "extract.duplicate_as",
-                    {"name": step.as_, "first": first},
+                    {"name": fact, "first": first},
                 )
             else:
-                seen_facts[step.as_] = index
+                seen_facts[fact] = index
 
 
 def _relative_urls(scenario: "Scenario") -> Iterator[CrossIssue]:
@@ -142,10 +177,14 @@ def _tabs(scenario: "Scenario") -> Iterator[CrossIssue]:
 
 
 def _uploads(scenario: "Scenario") -> Iterator[CrossIssue]:
-    if scenario.script is not None:
+    # 運行環境模式的 Python 節點從 RPA_INPUT_FILES 拿到檔案路徑（ADR 0020）；相容模式還不行
+    if scenario.script is not None and not scenario.script.uses_runtime:
         for name, spec in scenario.inputs.items():
             if spec.type == "file":
                 yield CrossIssue(("inputs", name, "type"), "script.file_input", {"name": name})
+        for name, spec in scenario.outputs.items():
+            if spec.type == "file":
+                yield CrossIssue(("outputs", name, "type"), "script.file_output", {"name": name})
     for index, step in enumerate(scenario.steps or ()):
         if step.action != "upload":
             continue
@@ -169,16 +208,24 @@ class _Scope:
     secrets: Set[str]
     facts_before: Set[str] | None
     """這個位置之前已產生的 facts；None 代表這裡不能用 facts。"""
-    all_facts: Set[str]
+    all_facts: Set[str] | None
+    """整個場景會產生的 facts；None 代表執行才知道（Python 節點），不檢查名稱。"""
 
 
 def _templates(scenario: "Scenario") -> Iterator[CrossIssue]:
     data = scenario.model_dump(mode="json", by_alias=True, exclude_unset=True)
     inputs, secrets = set(scenario.inputs), set(scenario.secrets)
-    all_facts = {step.as_ for step in scenario.steps or () if step.action == "extract"}
+    # Python 節點寫出哪些事實要執行才知道：不檢查事實的名稱，執行時找不到才報錯
+    all_facts: Set[str] | None = (
+        None
+        if scenario.script is not None
+        else {name for step in scenario.steps or () if (name := fact_name(step)) is not None}
+    )
 
     def scope(facts_before: Set[str] | None) -> _Scope:
         return _Scope(inputs, secrets, facts_before, all_facts)
+
+    every_fact = all_facts if all_facts is not None else frozenset[str]()
 
     browser = cast("dict[str, object]", data.get("browser", {}))
     for path, text in _strings(browser, ("browser",)):
@@ -190,15 +237,16 @@ def _templates(scenario: "Scenario") -> Iterator[CrossIssue]:
         for path, text in _strings(raw, ("steps", index)):
             if path[2:] != ("name",):
                 yield from _check_template(path, text, scope(frozenset(produced)))
-        if step.action == "extract":
-            produced.add(step.as_)
+        fact = fact_name(step)
+        if fact is not None:
+            produced.add(fact)
     for index, raw in enumerate(_list(data, "verify")):
         for path, text in _strings(raw, ("verify", index)):
             if path[2:] != ("name",):
-                yield from _check_template(path, text, scope(all_facts))
+                yield from _check_template(path, text, scope(every_fact))
     for name, spec in scenario.outputs.items():
         if spec.from_ is not None:
-            yield from _check_template(("outputs", name, "from"), spec.from_, scope(all_facts))
+            yield from _check_template(("outputs", name, "from"), spec.from_, scope(every_fact))
 
 
 def _list(data: dict[str, object], key: str) -> list[object]:
@@ -277,6 +325,8 @@ def _check_reference(path: DataPath, root: str, key: str, scope: _Scope) -> Iter
         case "facts":
             if scope.facts_before is None:
                 yield CrossIssue(path, "template.facts_unavailable")
+            elif scope.all_facts is None:
+                pass
             elif key not in scope.all_facts:
                 yield CrossIssue(path, "template.unknown_fact", {"name": key})
             elif key not in scope.facts_before:

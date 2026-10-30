@@ -77,7 +77,7 @@ verify:
             <li><strong>只用条件等待。</strong>不提供固定秒数的 sleep，改用 <code>waitFor</code>；整次运行受 <code>deadline</code> 限制。</li>
             <li><strong>写错就挡下来。</strong>无法识别的字段、类型不符、YAML 的隐式转型都在校验时报错，并指出文件行号、步骤与字段。</li>
             <li><strong>Secrets 只引用名称。</strong>值在运行时注入，日志与截图说明自动遮罩。</li>
-            <li><strong>保留逃生门。</strong>DSL 表达不了的场景可以改用 Python 脚本（<code>script</code>），沿用同一份契约，审核时特别标示。</li>
+            <li><strong>Python 节点补足浏览器。</strong>DSL 表达不了、或浏览器做不到的事（文件、数据处理、网络）用 <a href="#python">Python 节点</a>（<code>script</code>），沿用同一份契约，可以和浏览器场景串在同一个组合场景里；审核时特别标示。</li>
           </ul>
         </div>
       </section>
@@ -98,11 +98,11 @@ verify:
             <tr><td><code>outputs</code></td><td></td><td>出参声明；有出参就要有 <code>verify</code>。</td></tr>
             <tr><td><code>secrets</code></td><td></td><td>机密名称列表，例如 <code>ERP_PASSWORD</code>（大写英文字母、数字与 <code>_</code>）。值不写在场景里。</td></tr>
             <tr><td><code>login</code></td><td></td><td>需要先登录时写 <code>{ role: 角色代号 }</code>（与场景 id 相同的写法）。怎么登录、怎么判断已登录登记在管理 Portal 的角色上，场景只写用哪个角色；运行前先检查这个角色是否已登录（见下方运行顺序）。</td></tr>
-            <tr><td><code>browser</code></td><td></td><td><code>engine</code>（chromium、firefox；webkit 可用但 CI 不测；默认 chromium）、<code>headless</code>（默认 true）、<code>viewport</code>（width、height）、<code>baseUrl</code>、<code>locale</code>（例如 zh-TW）。</td></tr>
+            <tr><td><code>browser</code></td><td></td><td>运行环境模式的 Python 节点不能写。<code>engine</code>（chromium、firefox；webkit 可用但 CI 不测；默认 chromium）、<code>headless</code>（默认 true）、<code>viewport</code>（width、height）、<code>baseUrl</code>、<code>locale</code>（例如 zh-TW）。</td></tr>
             <tr><td><code>defaults</code></td><td></td><td><code>timeout</code>：单一步骤的默认超时。</td></tr>
             <tr><td><code>deadline</code></td><td></td><td>整次运行的总期限（毫秒），从启动浏览器算到发布出参；每一步只能用剩下的时间。</td></tr>
             <tr><td><code>steps</code></td><td>二择一</td><td>自动化步骤列表，至少一步。</td></tr>
-            <tr><td><code>script</code></td><td>二择一</td><td>Python 脚本逃生门，见下方场景契约。</td></tr>
+            <tr><td><code>script</code></td><td>二择一</td><td><a href="#python">Python 节点</a>。</td></tr>
             <tr><td><code>verify</code></td><td></td><td>独立断言列表，见下方场景契约。</td></tr>
           </tbody>
         </table>
@@ -114,13 +114,97 @@ verify:
       <div class="panel-header"><h2>场景契约</h2><span class="muted">入参 → 步骤 → 页面事实 → 独立断言 → 出参</span></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean、<a href="#upload">file</a>，默认 string）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制；可以是<a href="#dynamic">动态值</a>（例如 <code>{{today}}</code>），每次运行时求值。</dd>
+          <dt><code>inputs</code></dt><dd>每个入参有 <code>type</code>（string、number、integer、boolean、array、object、<a href="#upload">file</a>，默认 string；array、object 是 JSON 的数组与对象，上游节点同类型的出参可以直接接进来，不能写 enum 与长度、数值范围）、<code>default</code>、<code>description</code>，以及限制：<code>enum</code>、<code>minLength</code>、<code>maxLength</code>、<code>pattern</code>（字符串）、<code>minimum</code>、<code>maximum</code>（数字）。没有默认值代表运行时必须提供。默认值也要符合限制；可以是<a href="#dynamic">动态值</a>（例如 <code>{{today}}</code>），每次运行时求值。</dd>
           <dt><code>facts</code></dt><dd>页面事实：<code>extract</code> 以 <code>as: 名称</code> 存成 <code>facts.名称</code>。步骤只能引用前面步骤产生的事实；verify 与 outputs 可以引用全部。</dd>
           <dt><code>verify</code></dt><dd>每一条有 <code>value</code>（必须含 <code>{{ }}</code>）与 <code>equals</code>、<code>contains</code>、<code>matches</code>（正则表达式）、<code>notEmpty: true</code> 其中一种比较；<code>name</code> 会出现在报告。比较时两边都以代入后的文字比较。</dd>
           <dt><code>outputs</code></dt><dd>类型多了 array、object，限制同入参；<code>from</code> 指定取值，例如 <code>{{ facts.record.recordId }}</code>。只有一个 <code>{{ }}</code> 时保留原本的类型（例如列表），否则依 type 转换文字。</dd>
-          <dt><code>script</code></dt><dd><code>automation</code> 与 <code>assertion</code> 两个 Python 文件，路径相对于场景文件所在的文件夹、不能用 <code>..</code>。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令行契约）。脚本场景不写 verify，出参也不写 from。</dd>
+          <dt><code>script</code></dt><dd>Python 节点：自动化与独立断言写成 Python，契约相同，见下一节。</dd>
         </dl>
         <p class="muted">运行顺序与失败时的处理见 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>；运行引擎在 M2 实现。<code>rpa schema 场景文件 --part inputs</code> 或 <code>--part outputs</code> 输出单一场景的入参或出参 JSON Schema。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="python">
+      <div class="panel-header"><h2>Python 节点 <code>script</code></h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>：文件、数据处理、网络，和浏览器场景串在组合场景里</span></div>
+      <div class="panel-body stack">
+        <p>一个场景文件加几支 .py。入参、出参、Secrets、总期限、发布门槛和 DSL 场景相同；差别是「自动化」那一段由 <code>automation.py</code> 完成：它读入参、做事、把观察到的事实写进 facts，不判定成功；成功由独立断言判定（<code>verify</code> 或 <code>assertion.py</code>）。</p>
+<pre class="source"># scenes/merge-branch-sales/revisions/1/scenario.yaml
+schemaVersion: 1
+id: merge-branch-sales
+name: 合并分店销售报表
+inputs:
+  reports: { type: file, multiple: true, accept: [.xlsx] }   # 上游下载或上传的文件
+  options: { type: object, default: { sheet: 销售 } }
+outputs:
+  total:    { type: number, from: '{{ facts.total }}' }
+  byBranch: { type: object, from: '{{ facts.byBranch }}' }
+deadline: 600000
+script:
+  runtime: "1"                       # RPA Python 运行环境 1；没写是兼容模式
+  automation: automation.py
+  files: [helpers.py, query.sql]     # 脚本会用到的其他文字档
+  platforms: [windows, macos, linux] # 选用
+verify:
+  - name: 至少合并一份报表
+    value: '{{ facts.fileCount }}'
+    matches: '^[1-9][0-9]*$'</pre>
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr><th></th><th>兼容模式（没写 <code>runtime</code>）</th><th>运行环境模式（<code>runtime: "1"</code>）</th></tr></thead>
+          <tbody>
+            <tr><td>解释器</td><td>运行那台的 Python（打包后是 App 内的 Python，只有标准函数库与 App 内附的包）</td><td>RPA Python 运行环境：固定的 Python 3.13 与包（Excel、pandas、Word、PDF、requests…），随 Worker App 与 Linux 分发包附带，第一次用到时解压、之后沿用</td></tr>
+            <tr><td>浏览器</td><td>脚本可以自己用 Playwright 开（例如 <code>scenarios/demo/ba-001-script/</code>）</td><td>不开；不能写 <code>browser</code>、<code>login</code>；交给没有浏览器、不能显示窗口的 Worker 也能运行</td></tr>
+            <tr><td>独立断言</td><td><code>assertion</code> 必要，不能写 <code>verify</code></td><td><code>assertion</code> 或 <code>verify</code> 二择一（没有出参时都可以不写）</td></tr>
+            <tr><td>出参</td><td>由 assertion.py 写出，不写 <code>from</code></td><td>用 assertion.py 时同左；用 verify 时每个出参写 <code>from</code>，取自事实</td></tr>
+            <tr><td>文件入参</td><td>不能用</td><td>可以：脚本从 <code>RPA_INPUT_FILES</code>（或 <code>run.input_files</code>）拿到实际路径</td></tr>
+            <tr><td>派工</td><td>同 DSL：要有场景的浏览器</td><td>要有这个主版本的运行环境、平台在 <code>platforms</code> 里</td></tr>
+          </tbody>
+        </table></div>
+        <dl class="spec-list">
+          <dt><code>automation</code>、<code>assertion</code></dt><dd>Python 文件的相对路径（相对于场景文件所在的文件夹，以 .py 结尾，不能用 <code>..</code>）。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令行契约；运行环境模式的 <code>--target-url</code> 是空字符串）。assertion.py 结束码不是 0 就是断言失败。</dd>
+          <dt><code>files</code></dt><dd>脚本会用到的其他文字档（例如 helpers.py、SQL、JSON 模板），最多 16 个，路径规则同上、任何扩展名；跟着版本存放、纳入场景哈希，脚本可以 <code>import</code> 同文件夹的 .py。二进位档（Excel 模板）放场景附件 <code>files/</code>，不列在这里。管理 Portal 的「完整场景文件」可以添加与移除这些文件。</dd>
+          <dt><code>platforms</code></dt><dd><code>windows</code>、<code>macos</code>、<code>linux</code> 的子集，只派给这些系统的 Worker；没写是不限。</dd>
+          <dt>环境变量</dt><dd>两种模式都有 <code>RPA_DEADLINE_SECONDS</code>（剩下的总期限）、<code>RPA_LANG</code>（界面语言）与场景声明的 Secrets（同名）。运行环境模式另有 <code>RPA_WORKSPACE</code>（共用工作文件夹，也是工作目录）、<code>RPA_OUTPUT_DIR</code>（产出文件，运行目录的 outputs/，跟着上传）、<code>RPA_INPUT_FILES</code>（file 入参的路径，JSON 文件）、<code>RPA_STEPS</code>、<code>RPA_RUNTIME</code>、<code>RPA_PLATFORM</code>；不会有电脑上的 <code>PYTHONPATH</code>、<code>VIRTUAL_ENV</code> 之类的变量。兼容模式的浏览器相关变量见下方 <a href="#run">rpa run</a>。</dd>
+          <dt>共用工作文件夹</dt><dd>同一次组合运行的节点固定在同一台 Worker，共用一个工作文件夹：上一个节点下载、写出的文件，下一个节点用路径就读得到（路径入参也允许指到这里）。组合运行结束就删除；单独运行时是暂存文件夹，结束就删。要留下来给人看的文件写进 <code>RPA_OUTPUT_DIR</code>。</dd>
+          <dt>不是沙箱</dt><dd>Python 节点等于在 Worker 上以那位用户的身分运行任意程序；只给信任的人编辑，审核时特别标示，建议 Worker 用专用账号运行。</dd>
+        </dl>
+        <h3><code>rpa_script</code>（选用）</h3>
+        <p>运行环境模式由 <code>python -m rpa_script automation.py …</code> 启动：照契约自己读写文件的脚本不用改；用 <code>@automation</code> 的脚本拿到一个 <code>Run</code>，报告会有步骤、数据预览与产出文件。兼容模式的脚本也可以 import 它（用 <code>rpa_script.current()</code>）。</p>
+<pre class="source">from pathlib import Path
+
+import pandas as pd
+
+from rpa_script import Run, StepError, automation
+
+
+@automation
+def main(run: Run) -&gt; None:
+    with run.step("read", "读取分店报表"):            # 步骤：时间、结果、错误、源代码行号
+        paths = run.input_files["reports"]
+        if not paths:
+            raise StepError("没有收到报表")           # 报告只显示消息
+        frames = [pd.read_excel(path).assign(分店=Path(path).stem) for path in paths]
+    with run.step("merge", "合并并计算总额"):
+        merged = pd.concat(frames, ignore_index=True)
+        run.preview("合并结果", merged)               # 数据预览：前 50 列、30 栏
+        merged.to_excel(run.output_dir / "merged.xlsx", index=False)
+        run.facts.update(fileCount=len(paths), total=float(merged["金额"].sum()),
+                         byBranch=merged.groupby("分店")["金额"].sum().to_dict())</pre>
+        <p class="muted"><code>run.inputs</code>（运行态入参）、<code>run.input_files</code>、<code>run.secrets</code>、<code>run.facts</code>、<code>with run.step(id, 名称)</code>（循环里同一个 id 记成第 n 次）、<code>run.output_dir</code>、<code>run.workspace</code>、<code>run.preview(名称, 值)</code>、<code>run.log(消息)</code>、<code>StepError</code>、<code>run.remaining_seconds</code>、<code>run.platform</code>、<code>run.runtime</code>、<code>run.lang</code>。主控台输出与错误里的 Secrets 值自动遮罩。<code>run.input_files[名称]</code> 是文件（Path）的清单；每一步前后的文件变化记在步骤里；每一步也记下主控台输出写到哪里，回看时显示那一步印出的内容（<code>print()</code>、<code>run.log()</code> 与脚本开的子进程都算）。</p>
+        <h3 id="files-between-nodes">节点之间传文件：download 步骤与 file 出参</h3>
+<pre class="source">steps:                                   # 浏览器节点：下载
+  - id: export
+    action: download                     # 点击并等待下载完成
+    target: { role: button, name: 导出 CSV }
+    as: report                           # facts.report = {"workspace", "name", "size", "sha256"}
+    fileName: '销售-{{ inputs.month }}.csv'   # 选用：保存的文件名
+outputs:
+  report: { type: file, from: '{{ facts.report }}' }</pre>
+        <ul class="points">
+          <li><strong>download</strong> 把文件存到组合运行的共用工作文件夹的 <code>downloads/</code>（单独运行时是这次运行的暂存文件夹）。录制稿的 <code>expect_download</code> 自动转成这个步骤。</li>
+          <li><strong><code>type: file</code> 出参</strong>：<code>from</code>（或 assertion.py）给一个路径（相对路径是相对于共用工作文件夹）或 download 的事实；文件要在共用工作文件夹或这次运行的 <code>outputs/</code>。出参阶段把它拷贝进运行目录的 <code>outputs/</code>（报告可以下载），值是 <code>{"workspace", "name", "size", "sha256"}</code>。单档与合计的上限沿用文件入参。兼容模式的 Python 节点不能用。</li>
+          <li><strong>接到下游</strong>：组合场景把 file 出参直接接到下游的 file 入参（同一台 Worker、同一个共用工作文件夹）；下游的 Python 节点从 <code>run.input_files</code> 拿到文件，浏览器节点用 <code>upload</code> 交给网页。单独运行时这种值会说明「只有在组合运行里才拿得到」。</li>
+          <li><strong>报告</strong>：产出文件、文件变化（<code>files.json</code>）、数据预览；Python 节点的回看是步骤时间轴。示例：<code>scenarios/examples/browser-python/</code>（下载 → Python 汇总 → 上传，<code>workflow.json</code>）。</li>
+        </ul>
       </div>
     </section>
 
@@ -184,7 +268,7 @@ steps:
     dropzone: { text: 把文件拖到这里 }      # 只有拖放区、没有上传框
     files: '{{ inputs.photos }}'</pre>
         <dl class="spec-list">
-          <dt><code>type: file</code></dt><dd>可以写 <code>accept</code>（清单；<code>.扩展名</code> 或 MIME，例如 <code>image/*</code>）、<code>maxSize</code>（例如 <code>20MB</code>、<code>500KB</code>）、<code>multiple</code>（一次多个文件，默认 false）、<code>description</code> 与 <code>default</code>；不能写 enum、pattern、长度与数值范围。出参没有 file 类型（等 M7 的下载）。</dd>
+          <dt><code>type: file</code></dt><dd>可以写 <code>accept</code>（清单；<code>.扩展名</code> 或 MIME，例如 <code>image/*</code>）、<code>maxSize</code>（例如 <code>20MB</code>、<code>500KB</code>）、<code>multiple</code>（一次多个文件，默认 false）、<code>description</code> 与 <code>default</code>；不能写 enum、pattern、长度与数值范围。出参没有 file 类型（之后随下载步骤加入）。</dd>
           <dt>值的写法</dt><dd>三种来源：上传到管理 Portal 的文件 <code>{"file": "代号", "name": "十月订单.xlsx"}</code>（代号由上传回传，大小与 sha256 以服务器的为准）；这个版本的场景附件 <code>files/文件名</code> 或 <code>{"attachment": "files/文件名", "name": "网页看到的名称"}</code>；运行那台电脑上的路径 <code>{"path": "D:/报表/{{today}}.xlsx"}</code>（路径可以有<a href="#dynamic">动态值</a>）。<code>multiple: true</code> 时写成列表，同一个入参不能混用上传档与路径。默认值不能是上传档（上传档会过期）。</dd>
           <dt>场景附件</dt><dd>放在版本文件夹的 <code>files/</code> 底下，跟着版本存放、git 同步，并纳入场景哈希（没有附件的场景哈希不变），验证的文件就是发布的文件。文件名只能用英文字母、数字、<code>_</code>、<code>.</code>、<code>-</code>；网页要看到中文文件名时在值里写 <code>name</code>。每个附件最多 20 MB、一个版本合计最多 50 MB。在管理 Portal 场景页的「场景附件」上传与删除，<code>rpa pack check</code> 也检查。</dd>
           <dt>那台电脑上的路径</dt><dd>只能读允许的文件夹：RPA Worker App 的设置「文件入参可以读的文件夹」，或 Worker 与服务器本机的环境变量 <code>RPA_INPUT_FOLDERS</code>（多个用路径分隔符号隔开）；都没有设置时不能用 path。<code>rpa run</code> 在自己的电脑运行，不受限制。</dd>
@@ -195,7 +279,7 @@ steps:
           <dt>录制稿转换</dt><dd><code>set_input_files</code> 转成 upload 加一个 file 入参（名称取自元素，accept 取自录到的扩展名，多个文件时 <code>multiple: true</code>），前一个点同一个元素的 click 会拿掉；录制稿只有文件名，要在入参放文件（例如加成场景附件）。</dd>
           <dt>上限与保留</dt><dd>上传档单一文件默认最多 50 MB、一次运行合计 200 MB（<code>RPA_UPLOAD_MAX_FILE_MB</code>、<code>RPA_UPLOAD_MAX_RUN_MB</code>）。上传后 24 小时没被用到就删；用过的保留到最后一次使用后 90 天（<code>RPA_UPLOAD_KEEP_DAYS</code>）；全部超过 10 GB（<code>RPA_UPLOAD_MAX_TOTAL_GB</code>）时从最久没用的开始删；组合场景节点的固定文件不删。只删内容，运行记录仍看得到当时的文件名与 sha256。</dd>
           <dt>命令行</dt><dd><code>rpa run 场景 -i orderFile=data/十月订单.xlsx -i photos=files/a.png -i photos=b.png</code>：值是 <code>files/…</code> 时是场景附件，其他是这台电脑上的路径；同一个 multiple 入参重复写就是多个文件。</dd>
-          <dt>远程运行</dt><dd>上传档由 Worker 与录制端另外下载并比较大小与 sha256；场景附件跟着版本的文件送过去。用到 upload 或文件入参的场景只交给回报看得懂 <code>upload</code>、<code>fileInputs</code> 的 App，旧的 App 看到要更新的说明。Python 脚本场景还不能用文件入参（与脚本场景的新版设计一起做）。</dd>
+          <dt>远程运行</dt><dd>上传档由 Worker 与录制端另外下载并比较大小与 sha256；场景附件跟着版本的文件送过去。用到 upload 或文件入参的场景只交给回报看得懂 <code>upload</code>、<code>fileInputs</code> 的 App，旧的 App 看到要更新的说明。<a href="#python">Python 节点</a>只有运行环境模式能用文件入参。</dd>
         </dl>
       </div>
     </section>
@@ -334,10 +418,10 @@ $ rpa run scenarios/demo/ba-002.yaml --input runs/ba-001-…/output.json   # 无
         <dl class="spec-list">
           <dt>顺序</dt><dd>入参校验（有问题就不启动浏览器）→ 登录检查（只有写了 <code>login</code> 的场景：打开角色的确认网址，看不到已登录的元素时先自动登录，不能自动登录就停在「需要登录」<code>needs_login</code>，不运行任何步骤）→ 在子进程中运行步骤或 automation.py → 独立断言（verify 或 assertion.py）→ 出参转型与校验 → 写出 output.json。任何一步失败都没有成功出参。</dd>
           <dt>总期限</dt><dd>以单调时钟计算；每一步只能用剩下的时间。子进程超过期限就终止整个进程组，结果是「超时」。</dd>
-          <dt>选项</dt><dd><code>-i 名称=值</code>（依类型转换，可重复）、<code>--input 文件.json</code>、<code>--base-url</code>、<code>--browser chromium|firefox</code>、<code>--headed</code>、<code>--video</code>（录像成运行目录的 video.webm，M12；只有 DSL 场景）、<code>--deadline 毫秒</code>、<code>--out 文件夹</code>（默认 runs/）、<code>--format json</code>、<code>--storage-state 登录状态.json</code>（场景有 login 时加载这个 storageState，只加载不检查；检查与人工登录在管理 Portal）。退出码：0 通过、1 未通过。</dd>
+          <dt>选项</dt><dd><code>-i 名称=值</code>（依类型转换，可重复；array、object 写 JSON）、<code>--input 文件.json</code>、<code>--base-url</code>、<code>--browser chromium|firefox</code>、<code>--headed</code>、<code>--video</code>（录像成运行目录的 video.webm，M12；只有 DSL 场景）、<code>--deadline 毫秒</code>、<code>--out 文件夹</code>（默认 runs/）、<code>--format json</code>、<code>--storage-state 登录状态.json</code>（场景有 login 时加载这个 storageState，只加载不检查；检查与人工登录在管理 Portal）。退出码：0 通过、1 未通过。</dd>
           <dt>运行目录</dt><dd>input.json、facts.json、steps.json、output.json（只有通过时）、screenshot.png 与 screenshot 步骤的截图、automation.log（自动化日志：开头写这次的浏览器、窗口模式、起始网址与开始时间，接着每一步一行（时间、第几步、名称与动作、通过或失败、耗时；打开网页与出错时加上网址），失败时写出错的步骤、略过的步骤、证据在哪里与完整的错误原文；时间是运行那台电脑的当地时间，网址与错误遮罩 Secrets，不写入参的值）、diagnostic.json（失败时）、scenario/（本次的场景快照）、result.json、report.html；有登录检查时另有 login.json、login.log 与 login.png。登录状态本身不拷贝进来。</dd>
           <dt>Secrets</dt><dd>命令行从同名的环境变量读取（例如 <code>ERP_PASSWORD</code>）；管理 Portal 先用「登录与凭证」设置的值，没有才找环境变量。只传给子进程，日志与报告中会遮罩；M8 改为加密存放。</dd>
-          <dt>Python 脚本场景</dt><dd>剩下的总期限在环境变量 <code>RPA_DEADLINE_SECONDS</code>，浏览器在 <code>RPA_BROWSER</code>，目前的语言在 <code>RPA_LANG</code>（脚本要写给人看的消息时可以参考），要不要显示浏览器窗口在 <code>RPA_HEADLESS</code>（<code>0</code> 有头模式、<code>1</code> 无头模式），场景有 login 时登录状态档的路径在 <code>RPA_STORAGE_STATE</code>（给 <code>browser.new_context(storage_state=…)</code>）；示例见 <code>scenarios/demo/ba-001-script/</code>。脚本自己启动浏览器，不使用下面的预热设置档。</dd>
+          <dt>Python 节点</dt><dd>运行环境模式在入参之后多一个「运行环境」阶段（准备运行环境，不算进总期限），见 <a href="#python">Python 节点</a>。兼容模式：剩下的总期限在环境变量 <code>RPA_DEADLINE_SECONDS</code>，浏览器在 <code>RPA_BROWSER</code>，目前的语言在 <code>RPA_LANG</code>（脚本要写给人看的消息时可以参考），要不要显示浏览器窗口在 <code>RPA_HEADLESS</code>（<code>0</code> 有头模式、<code>1</code> 无头模式），场景有 login 时登录状态档的路径在 <code>RPA_STORAGE_STATE</code>（给 <code>browser.new_context(storage_state=…)</code>）；示例见 <code>scenarios/demo/ba-001-script/</code>。脚本自己启动浏览器，不使用下面的预热设置档。</dd>
           <dt>Firefox 设置档</dt><dd>Firefox 每次用全新的设置档启动时，会先初始化设置档而停止回应几秒（Windows 上机器忙时可能超过步骤的超时）。所以每台电脑、每个 Firefox 版本会保留一份预先初始化过的空白设置档，每次运行拷贝一份来用，结束后删除，每次运行仍然是干净的。第一次用 Firefox 运行时创建，约多花 7～10 秒。放在缓存文件夹 <code>RPA_CACHE_DIR</code>，默认是 Windows 的 <code>%LOCALAPPDATA%\rpa\cache</code>、macOS 的 <code>~/Library/Caches/rpa</code>、Linux 的 <code>~/.cache/rpa</code>；删掉也没关系，下次会重建。</dd>
         </dl>
       </div>

@@ -1,0 +1,124 @@
+# RPA Python 運行環境（ADR 0020）：Python 節點的運行環境模式用的那一套 Python。
+#   每個平台（Linux x64、Linux arm64、Windows x64、macOS Apple 晶片）各建一份
+#   （tools/build_python_runtime.py build --install）：固定版本的 CPython ＋ 照
+#   runtimes/python/requirements.lock 裝好的套件，用建好的直譯器跑 runtimes/python/smoke.py
+#   （中文路徑、Excel、Big5 的 CSV、Word、PDF、壓縮、rpa_script），再用和 Worker 相同的方法解壓到
+#   快取（解壓、自我檢查）。
+#   接著用這份真的運行環境跑 Runner 的 Python 節點測試（RPA_TEST_PYTHON_RUNTIME；平常的 CI 用假的
+#   運行環境，Windows 上不跑），多兩個只有真的運行環境才跑的測試（用 pandas、openpyxl 產生 Excel；
+#   隔離）。
+#   Linux 另外在 Rocky 8（glibc 2.28，公司伺服器的下限）的容器裡解壓、跑同一個自我測試。
+# Worker App（desktop.yml）與伺服器分發包（server-package.yml）建置時各自再建一份放進去；這裡是
+# 所有平台的完整驗證，產物（壓縮檔與 .sha256）掛在這次建置上 3 天。
+# 依層建置（docs/develop/ci.html#layered）：同一組輸入（tools/ci_changes.py 的 PYTHON_RUNTIME_CI）
+# 已經通過就略過。
+name: RPA Python 運行環境
+
+on:
+  # 不用 paths：要不要跑由執行範圍依輸入指紋決定（tools/ci_changes.py 的 PYTHON_RUNTIME_CI）
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: python-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read # changes 查詢通過紀錄
+
+jobs:
+  changes:
+    name: 執行範圍
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.decide.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci_changes.py --workflow python-runtime.yml
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.matrix != '[]'
+    name: 運行環境（${{ matrix.platform }}）
+    strategy:
+      fail-fast: false
+      matrix:
+        # platform、os、job、fingerprint、record（tools/ci_changes.py 的 PYTHON_RUNTIME_CI）
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+      - name: 安裝依賴
+        # 工作層級的 env 不能用 runner 這個 context：快取資料夾在這裡設定
+        run: |
+          echo "RPA_CACHE_DIR=$RUNNER_TEMP/rpa-cache" >> "$GITHUB_ENV"
+          uv sync --locked
+      - name: 建置、自我測試、解壓到快取
+        id: build
+        run: uv run python tools/build_python_runtime.py build --install
+      - name: 用真的運行環境跑 Python 節點的測試
+        env:
+          RPA_TEST_PYTHON_RUNTIME: ${{ steps.build.outputs.installed }}
+        run: |
+          set +e
+          uv run pytest -q packages/rpa_runner/tests/test_python_nodes.py \
+            packages/rpa_runner/tests/test_pyruntime.py \
+            --junitxml="${{ runner.temp }}/runtime-pytest.xml" -o junit_family=xunit1
+          code=$?
+          set -e
+          uv run python tools/ci_annotations.py junit "${{ runner.temp }}/runtime-pytest.xml"
+          exit "$code"
+      - name: Rocky 8（glibc 2.28）：解壓、自我測試
+        if: runner.os == 'Linux'
+        env:
+          ARCHIVE: ${{ steps.build.outputs.archive }}
+        run: |
+          docker run --rm -i -v "$GITHUB_WORKSPACE:/source:ro" \
+            -e ARCHIVE="/source/${ARCHIVE#"$GITHUB_WORKSPACE"/}" rockylinux:8 bash -s <<'BASH'
+          set -Eeuo pipefail
+          ldd --version | sed -n 1p  # head 先結束時 ldd 收到 SIGPIPE，pipefail 讓這行失敗
+          mkdir /opt/runtime
+          tar -xzf "$ARCHIVE" -C /opt/runtime
+          cat /opt/runtime/rpa-runtime.json
+          /opt/runtime/bin/python3 -E -s -X utf8 /source/runtimes/python/smoke.py \
+            --rpa-script /source/packages/rpa_script/src
+          BASH
+      - name: 大小
+        run: |
+          size="$(du -h "${{ steps.build.outputs.archive }}" | cut -f1)"
+          echo "::notice title=RPA Python 運行環境（${{ matrix.platform }}）::$(basename "${{ steps.build.outputs.archive }}")：$size"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python-runtime-${{ matrix.platform }}
+          path: |
+            ${{ steps.build.outputs.archive }}
+            ${{ steps.build.outputs.archive }}.sha256
+          retention-days: 3
+          if-no-files-found: error
+      - name: 通過紀錄（同一組輸入之後沿用這次的結果）
+        run: |
+          printf '{"job": "%s", "fingerprint": "%s", "sha": "%s", "run": "%s"}\n' \
+            "${{ matrix.job }}" "${{ matrix.fingerprint }}" "$GITHUB_SHA" "$GITHUB_RUN_ID" \
+            > "$RUNNER_TEMP/pass.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.record }}
+          path: ${{ runner.temp }}/pass.json
+          retention-days: 30
+          overwrite: true

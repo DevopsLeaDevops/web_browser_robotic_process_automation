@@ -559,6 +559,8 @@ class _State:
     """``expect_popup`` 的 ``as`` 變數 → 開出的分頁名稱（已經加在某一步的 popup 上）。"""
     pending: "_Popup | None" = None
     """``with …expect_popup()`` 區塊裡，還在等第一個可以加上 popup 的步驟。"""
+    downloading: "_Download | None" = None
+    """``with …expect_download()`` 區塊裡，還在等開始下載的那一下點擊（ADR 0020）。"""
     page: str | None = None
     """目前這一行在哪個分頁（DSL 的分頁名稱）；None 是一開始的分頁。"""
     files: list[str] = field(default_factory=list[str])
@@ -577,6 +579,27 @@ class _State:
         key = "uncheck" if action == "check" and fields.get("checked") is False else action
         if self.page is not None:
             fields = {"page": self.page, **fields}
+        download = self.downloading
+        if download is not None and action == "click":
+            # 開始下載的那一下點擊 → download 步驟；檔案成為出參，可以交給下游節點
+            self.downloading = None
+            name = _unique(download.base, self.used_facts)
+            fields = {key: value for key, value in fields.items() if key in ("page", "target")}
+            fields["as"] = name
+            action = key = "download"
+            fact = f"{{{{ facts.{name} }}}}"
+            self.outputs[name] = {
+                "type": "file",
+                "description": catalog("recording.output_file", target=target),
+                "from": fact,
+            }
+            self.verify.append(
+                {
+                    "name": catalog("recording.verify.downloaded", target=target),
+                    "value": f"{{{{ facts.{name}.name }}}}",
+                    "notEmpty": True,
+                }
+            )
         step = _Step(action, fields, catalog(f"recording.step.{key}", **params))
         pending = self.pending
         if pending is not None and action in _POPUP_ACTIONS:
@@ -594,7 +617,12 @@ class _State:
         return name
 
     def expire(self, statement: ast.stmt | None = None) -> None:
-        """``with`` 區塊結束了還沒有步驟可以加上 popup：開出新分頁的那一步轉不了。"""
+        """``with`` 區塊結束了還沒有步驟可以加上 popup：開出新分頁的那一步轉不了。
+        下載的區塊結束了還沒有點擊：下載的檔案不保存。"""
+        download = self.downloading
+        if download is not None and (statement is None or statement.lineno > download.end):
+            self.downloading = None
+            self.warn(download.node, catalog("recording.unsupported.download"))
         pending = self.pending
         if pending is None:
             return
@@ -629,6 +657,17 @@ class _Popup:
     """``as`` 的變數名稱（例如 page1_info）。"""
     name: str
     """DSL 的分頁名稱（例如 page1）。"""
+    end: int
+    """區塊的最後一行。"""
+    node: ast.stmt
+
+
+@dataclass(frozen=True, slots=True)
+class _Download:
+    """``with page.expect_download() as download_info:``：等區塊裡開始下載的點擊（ADR 0020）。"""
+
+    base: str
+    """事實與出參名稱的開頭（``download_info`` → ``download``）。"""
     end: int
     """區塊的最後一行。"""
     node: ast.stmt
@@ -694,7 +733,8 @@ def _assignment(state: _State, statement: ast.Assign | ast.AnnAssign) -> None:
 
 def _with(state: _State, statement: ast.With | ast.AsyncWith) -> None:
     """``with page.expect_popup() as page1_info:``：區塊裡第一個動作開出新分頁（M7b）。
-    ``expect_download`` 還不支援：裡面的操作照常轉換，下載的檔案不保存。"""
+    ``with page.expect_download() as download_info:``：區塊裡的點擊換成 download 步驟，檔案成為
+    ``type: file`` 的出參（ADR 0020）；區塊裡沒有點擊時照常轉換，下載的檔案不保存。"""
     for item in statement.items:
         found = _chain(item.context_expr)
         if found is None:
@@ -711,7 +751,16 @@ def _with(state: _State, statement: ast.With | ast.AsyncWith) -> None:
             end = statement.end_lineno or statement.lineno
             state.pending = _Popup(info or name, name, end, statement)
         elif method == "expect_download":
-            state.warn(statement, catalog("recording.unsupported.download"))
+            owner = subject.id if isinstance(subject, ast.Name) else None
+            if owner != "page" and owner not in state.tabs:
+                state.warn(statement, catalog("recording.unsupported.download"))
+                continue
+            info = item.optional_vars.id if isinstance(item.optional_vars, ast.Name) else None
+            base = info.removesuffix("_info") if info else "download"
+            if not _IDENTIFIER.fullmatch(base) or base == "page":
+                base = "download"
+            end = statement.end_lineno or statement.lineno
+            state.downloading = _Download(base, end, statement)
 
 
 def _mask_typing(state: _State, segments: Sequence[_Segment]) -> None:

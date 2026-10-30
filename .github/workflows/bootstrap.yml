@@ -1,4 +1,5 @@
-# 產生 uv.lock、簡體中文版與 JSON Schema，提交回同一個分支。
+# 產生 uv.lock、簡體中文版、JSON Schema 與 RPA Python 運行環境的鎖定檔
+# （runtimes/python/requirements.lock，ADR 0020），提交回同一個分支。
 # 給連不到 PyPI 的開發環境使用（例如雲端開發環境）；本機能執行 uv 的話，直接跑下面同樣的命令即可。
 #
 # 觸發方式（都不會在 main 上執行）：
@@ -40,6 +41,8 @@ jobs:
         run: uv run python tools/i18n.py sync
       - name: 產生 JSON Schema
         run: uv run rpa schema > schema/scenario.v1.json
+      - name: 產生 RPA Python 運行環境的鎖定檔
+        run: uv run python tools/build_python_runtime.py lock
       - name: 檢查
         run: |
           uv run ruff check .
@@ -51,7 +54,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add uv.lock docs apps packages schema
+          git add uv.lock docs apps packages schema runtimes
           if git diff --cached --quiet; then
             echo "沒有變更"
           else

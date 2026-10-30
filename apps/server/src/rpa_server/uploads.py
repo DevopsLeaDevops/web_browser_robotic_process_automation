@@ -359,7 +359,9 @@ class UploadService:
                 continue
             items = file_values(raw, multiple=bool(spec.multiple))
             sources = {item.source for item in items}
-            if "path" in sources:
+            # path 值由那台自己找；上游節點產出的檔案（workspace）只有組合運行裡才有，那台會說明
+            local = sources & {"path", "workspace"}
+            if local:
                 if len(sources) > 1:
                     raise invalid("inputs_invalid", t("error.file_mixed", name=name))
                 continue

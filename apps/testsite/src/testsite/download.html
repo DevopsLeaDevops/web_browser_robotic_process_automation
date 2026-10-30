@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>銷售報表 · 本機範例頁</title><style>body{font:14px/1.6 system-ui;color:#24334a;background:#f5f7fb;margin:0}header{background:white;border-bottom:1px solid #e9edf3;padding:12px 24px;color:#0b69c4;font-weight:700}main{max-width:640px;margin:24px auto;padding:0 16px}h1{font-size:21px}.notice{padding:10px;background:#eaf3ff}.panel{padding:20px;background:white;border:1px solid #e9edf3;border-radius:9px;margin:12px 0}label{display:block;margin:8px 0}button{font:inherit;padding:6px 14px}</style><header>瀏覽器自動化 · 本機測試頁</header><main><h1>銷售報表</h1><p class="notice">內部系統常把報表做成「匯出」按鈕：選好月份按下去，瀏覽器就下載一個 CSV（三個分店、每天的銷售明細，UTF-8）。</p><div class="panel"><label>月份 <input id="month" type="month" value="2026-10"></label><p><button id="export" type="button">匯出 CSV</button> <a id="direct" href="/api/export.csv?month=2026-10">下載本月（連結）</a></p><p id="status" role="status"></p></div><p><a href="/">回到範例紀錄</a></p></main><script>
+const month = document.getElementById('month');
+const direct = document.getElementById('direct');
+month.addEventListener('change', () => { direct.href = '/api/export.csv?month=' + encodeURIComponent(month.value); });
+document.getElementById('export').addEventListener('click', () => {
+  document.getElementById('status').textContent = '已匯出 ' + month.value;
+  location.href = '/api/export.csv?month=' + encodeURIComponent(month.value);
+});
+</script></html>

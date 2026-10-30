@@ -1,0 +1,21 @@
+# RPA Python 運行環境 1 的套件（ADR 0020，2026-10-29 使用者同意照建議）。
+# 改了以後執行 uv run python tools/build_python_runtime.py lock 更新 requirements.lock
+# （連不到 PyPI 的環境：提交訊息加 [bootstrap]，由 bootstrap 流程產生）。
+# 只能放每個平台都有 wheel 的套件：Worker 上不編譯、不現場安裝。
+
+# Excel：讀寫 .xlsx（保留格式）、大量寫出與圖表、舊的 .xls
+openpyxl>=3.1.5,<4
+xlsxwriter>=3.2,<4
+xlrd>=2.0.1,<3
+
+# 資料處理：合併、篩選、分組、樞紐
+pandas>=2.2,<4
+python-dateutil>=2.9
+
+# 文件：Word 範本填值、合併／拆分 PDF
+python-docx>=1.1,<2
+pypdf>=5,<7
+
+# 文字與網路：判斷 Big5、GBK 等編碼；呼叫內部 API
+charset-normalizer>=3.4,<4
+requests>=2.32,<3

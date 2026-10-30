@@ -72,6 +72,8 @@ uv run rpa --version</pre>
             <tr><td>提交前的全部检查</td><td><code>uv run pre-commit run --all-files</code></td></tr>
             <tr><td>替某个包加依赖</td><td><code>uv add --package rpa-core 包名称</code>（会一并更新 <code>uv.lock</code>，两个文件一起提交）</td></tr>
             <tr><td>以其他语言显示 <code>rpa</code></td><td><code>uv run rpa --lang en -h</code>，或设置环境变量 <code>RPA_LANG=zh-Hans</code></td></tr>
+            <tr><td>建 RPA Python 运行环境（Python 节点的运行环境模式，<a href="../adr/0020-python-nodes.html">ADR 0020</a>），解压到这台电脑的缓存</td><td><code>uv run python tools/build_python_runtime.py build --install</code>（要连得到 GitHub 与 PyPI；之后 <code>rpa run</code>、本机 worker 都用它）</td></tr>
+            <tr><td>改了运行环境的包（<code>runtimes/python/requirements.in</code>）</td><td><code>uv run python tools/build_python_runtime.py lock</code>，或提交消息加 <code>[bootstrap]</code> 由 CI 产生 <code>requirements.lock</code>；同时升 <code>runtime.toml</code> 的 <code>version</code></td></tr>
             <tr><td>重新产生简中、检查翻译</td><td><code>uv run python tools/i18n.py sync</code>、<code>uv run python tools/i18n.py check</code>，见<a href="writing-docs.html#i18n">三种语言</a></td></tr>
             <tr><td>浏览文档</td><td>直接打开 <code>docs/index.html</code>，或 <code>python -m http.server -d docs 8000</code></td></tr>
           </tbody>
@@ -105,7 +107,7 @@ bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
           <dt>系统包</dt><dd>只补装缺少的 <code>libstdc++</code> 与 <code>git</code>（git 只有领域文件夹的 git 同步要用），所以升级通常不用 sudo 装包；管理员已备妥时加 <code>--skip-system-packages</code>。安装 unit 与重新启动服务需要 sudo。</dd>
           <dt>升级失败时</dt><dd>新版本启动后约 60 秒内管理端口没有回应，安装程序停下并说明怎么退回上一版（<code>current</code> 指回 <code>releases/上一版</code> 后重新启动）。数据库迁移在新版本启动时运行：升级前照下方的方式备份整个数据目录，退回旧版前先还原。</dd>
         </dl>
-        <p>分发包由 CI 建置（<code>tools/build_server.py</code>、「服务器分发包」流程）：只选 <code>manylinux_2_28</code> 以下的包，建好后用包内的 Python 运行；再在同架构的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般账号）实际安装、沿用旧设置、冒烟测试、重装与升级。容器没有 systemd：真实的服务启停与公司主机仍需验收。首次管理、SSH 转发与防火墙和下方相同。</p>
+        <p>分发包另附 RPA Python 运行环境（<code>python/runtimes/</code>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：服务器自己（本机 worker）运行 Python 节点时，第一次解压到缓存，之后沿用。分发包由 CI 建置（<code>tools/build_server.py</code>、「服务器分发包」流程）：只选 <code>manylinux_2_28</code> 以下的包，建好后用包内的 Python 运行；再在同架构的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般账号）实际安装、沿用旧设置、冒烟测试、重装与升级。容器没有 systemd：真实的服务启停与公司主机仍需验收。首次管理、SSH 转发与防火墙和下方相同。</p>
       </div>
     </section>
     <section class="panel" id="linux-server">

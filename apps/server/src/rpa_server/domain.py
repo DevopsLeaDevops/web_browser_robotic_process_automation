@@ -748,6 +748,10 @@ class WorkerRecord:
     """App 的版本（M10.1；舊版 worker 沒有回報）。"""
     features: tuple[str, ...] = ()
     """App 看得懂的 DSL 擴充（M7a；更舊的 App 沒有回報，是空的）。"""
+    runtimes: tuple[str, ...] = ()
+    """有哪些 RPA Python 運行環境（ADR 0020；舊版沒有回報，是空的）。"""
+    platform: str | None = None
+    """平台代號，例如 windows-x86_64（ADR 0020）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -768,6 +772,8 @@ class WorkerRecord:
             "display": self.display,
             "version": self.version,
             "features": list(self.features),
+            "runtimes": list(self.runtimes),
+            "platform": self.platform,
         }
 
 

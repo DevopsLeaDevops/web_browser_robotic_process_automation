@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from markupsafe import escape
 from starlette.background import BackgroundTask
 
-from rpa_core.dsl import ExtractStep, Scenario, validate_text
+from rpa_core.dsl import ExtractStep, Scenario, ScriptConfig, validate_text
 from rpa_core.dsl.editing import contract_section, section_text
 from rpa_core.dsl.files import (
     ATTACHMENT_DIR,
@@ -27,7 +27,7 @@ from rpa_core.dsl.files import (
 )
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
-from rpa_runner.files import REPORT, STEP_SHOTS
+from rpa_runner.files import OUTPUTS_DIR, PREVIEWS_DIR, REPORT, STEP_SHOTS
 from rpa_runner.installed import DISPLAY_NAMES
 from rpa_server.agents import SCOPES
 from rpa_server.composite_report import build_composite_report, embedded_screenshots
@@ -118,7 +118,21 @@ def _with_portal_links(report: str, run: RunRecord) -> str:
     return head + separator + bar + rest if separator else bar + report
 
 
-_SCRIPT_FILES: Final = ("automation.py", "assertion.py")
+def _script_roles(script: ScriptConfig | None) -> dict[str, str]:
+    """Python 節點的檔案 → 在「腳本」區的角色（automation、assertion、file），依顯示順序。
+
+    場景檔讀不到時用慣例的 automation.py、assertion.py。
+    """
+    if script is None:
+        return {"automation.py": "automation", "assertion.py": "assertion"}
+    roles = {script.automation: "automation"}
+    if script.assertion is not None:
+        roles[script.assertion] = "assertion"
+    for name in script.files or ():
+        roles.setdefault(name, "file")
+    return roles
+
+
 _FOCUS: Final = frozenset({"steps", "verify", "inputs", "outputs"})
 _PARTS: Final = ("steps", "verify")
 """DSL 場景分開編輯的兩段：自動化步驟、獨立斷言。"""
@@ -264,6 +278,67 @@ def _scene_attachments(
         }
         for path, size in sorted(services.storage.attachments(scene_id, number).items())
     ]
+
+
+_PREVIEW_ROWS: Final = 20
+"""運行詳情裡每份資料預覽顯示幾列（完整的在 previews/ 的 JSON 與執行報告）。"""
+
+
+def _run_python_details(
+    services: Services, run_id: str, files: list[str], output: object
+) -> dict[str, object]:
+    """Python 節點與會下載的場景（ADR 0020）：產出檔案、檔案變化（files.json）、資料預覽。
+
+    產出檔案是執行目錄 ``outputs/`` 的檔案，另外標出是哪個 ``type: file`` 出參；資料預覽每份
+    只取前幾列。
+    """
+    produced_by: dict[str, list[str]] = {}
+    if isinstance(output, Mapping):
+        for key, value in cast("Mapping[str, object]", output).items():
+            if isinstance(value, Mapping):
+                name = cast("Mapping[str, object]", value).get("name")
+                if isinstance(name, str) and "workspace" in value:
+                    produced_by.setdefault(name, []).append(str(key))
+    produced: list[dict[str, object]] = []
+    previews: list[dict[str, object]] = []
+    for relative in files:
+        path = services.storage.run_file(run_id, relative)
+        if path is None:
+            continue
+        if relative.startswith(f"{OUTPUTS_DIR}/"):
+            name = relative.removeprefix(f"{OUTPUTS_DIR}/")
+            produced.append(
+                {
+                    "path": relative,
+                    "name": name,
+                    "size": path.stat().st_size,
+                    "outputs": produced_by.get(name, []),
+                }
+            )
+        elif relative.startswith(f"{PREVIEWS_DIR}/") and relative.endswith(".json"):
+            try:
+                data: object = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(data, dict):
+                preview = dict(cast("dict[str, object]", data))
+                rows = preview.get("rows")
+                if isinstance(rows, list):
+                    preview["rows"] = cast("list[object]", rows)[:_PREVIEW_ROWS]
+                preview["path"] = relative
+                previews.append(preview)
+    changes: object = None
+    found = services.storage.run_file(run_id, "files.json")
+    if found is not None:
+        try:
+            changes = json.loads(found.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            changes = None
+    return {
+        "produced": produced,
+        "previews": previews,
+        "changes": changes if isinstance(changes, dict) else None,
+    }
 
 
 def _run_file_inputs(
@@ -439,13 +514,17 @@ def page_router(services: Services) -> APIRouter:
         except ServiceError:
             scenario = None
         files = services.revision_files(scene_id, record.latest_number)
+        script_roles: dict[str, str] = {}
         if scenario is not None and scenario.script is None:
             scripts = {part: section_text(files[SCENARIO_FILE], part) for part in _PARTS}
         else:
-            scripts = {name: files[name] for name in _SCRIPT_FILES if name in files}
+            # Python 節點：自動化、斷言（有寫才有），再加上 script.files（ADR 0020）
+            script_roles = _script_roles(scenario.script if scenario is not None else None)
+            scripts = {name: files[name] for name in script_roles if name in files}
         return page(
             "scene.html",
             scripts=scripts,
+            script_roles=script_roles,
             script_counts={
                 "steps": len(scenario.steps or []) if scenario is not None else 0,
                 "verify": len(scenario.verify or []) if scenario is not None else 0,
@@ -483,8 +562,8 @@ def page_router(services: Services) -> APIRouter:
             return RedirectResponse(f"/scenes/{scene_id}#{part}", 303)
         shown = services.get_revision(scene_id, revision)
         files = services.revision_files(scene_id, shown.number)
-        # 完整場景檔；Python 腳本場景可以直接打開 automation.py、assertion.py
-        selected = file if file in files and file in (*_SCRIPT_FILES, "scenario.yaml") else ""
+        # 完整場景檔；Python 節點可以直接打開腳本與 script.files 列的檔案
+        selected = file if file in files else ""
         return page(
             "edit.html",
             page=domain_page(record.domain_id),
@@ -694,6 +773,8 @@ def page_router(services: Services) -> APIRouter:
             revision=revision,
             result=result,
             files=files,
+            python=_run_python_details(services, run_id, files, record.output),
+            preview_rows=_PREVIEW_ROWS,
             file_inputs=_run_file_inputs(services, record, scenario, result),
             keep_days=services.uploads.limits.keep_days,
             can_publish=can_publish,

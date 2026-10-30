@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 「瀏覽器＋Python」組合場景的第 3 個節點（ADR 0020）：把上游 Python 節點產出的彙總檔（file 出參
+# 接到這裡的 file 入參，同一台 Worker 的共用工作資料夾）上傳到測試網站的 /upload，讀回網頁收到的
+# sha256，和入參的 sha256 比對。
+
+schemaVersion: 1
+id: upload-summary
+name: 上傳分店彙總
+category: 範例
+description: 把彙總檔上傳到匯入頁，確認網頁收到的就是這個檔案。
+
+inputs:
+  summary:
+    type: file
+    description: 要上傳的彙總檔
+    accept: [.csv]
+
+outputs:
+  receivedName:
+    type: string
+    from: '{{ facts.imported.name }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /upload
+
+  - id: choose
+    action: upload
+    target: { label: 匯入檔案 }
+    files: '{{ inputs.summary }}'
+
+  - id: import
+    action: click
+    target: { role: button, name: 匯入, exact: true }
+
+  - id: read-import
+    name: 讀取網頁收到的檔案
+    action: extract
+    target: { css: '#import-result .received' }
+    as: imported
+    fields:
+      name: { target: { css: .name } }
+      sha256: { target: { css: .sha } }
+
+verify:
+  - name: 網頁收到的就是彙總檔
+    value: '{{ facts.imported.sha256 }}'
+    equals: '{{ inputs.summary.sha256 }}'

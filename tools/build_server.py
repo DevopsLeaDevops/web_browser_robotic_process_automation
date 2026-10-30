@@ -14,15 +14,20 @@
    Python 的 site-packages。指定 ``manylinux_2_28`` 平台：建置的機器（Ubuntu）比較新，不指定的話
    可能選到公司伺服器（glibc 2.28）載入不了的 wheel；裝好後再逐一核對每個 wheel 的平台標籤。
    rpa_update 也裝在這裡：驗證更新檔的程式不能被更新檔換掉。
-3. 執行環境的代號與信任的公鑰寫進 ``rpa_update/runtime.json``（``python -m rpa_update.build``）。
-4. 程式碼層：工作區的套件建成 wheel，裝進 ``app/``（:func:`build_app_layer`，更新檔也用它），
+3. RPA Python 運行環境（ADR 0020，Python 節點的運行環境模式）：用
+   ``tools/build_python_runtime.py`` 建這個架構的壓縮檔（環境變數 ``RPA_PYTHON_RUNTIME_ARCHIVE``
+   指向已經建好的就用它），放在 ``python/runtimes/``（rpa_runner.pyruntime 找的位置之一），
+   本機 worker 第一次執行 Python 節點時解壓到快取。
+4. 執行環境的代號與信任的公鑰寫進 ``rpa_update/runtime.json``（``python -m rpa_update.build``）；
+   運行環境壓縮檔的檔名（含版本）也算進代號：換運行環境的版本要用完整的分發包。
+5. 程式碼層：工作區的套件建成 wheel，裝進 ``app/``（:func:`build_app_layer`，更新檔也用它），
    .pyc 用 unchecked-hash（解開更新檔時修改時間會變，不能用時間判斷）。
-5. ``bin/rpa``（apps/server/packaging/rpa）、``install.sh``（apps/server/packaging/install.sh）、
+6. ``bin/rpa``（apps/server/packaging/rpa）、``install.sh``（apps/server/packaging/install.sh）、
    第一次啟動時匯入的範例場景（scenarios/demo）、``BUILD_INFO``（版本、提交、架構、環境代號）。
-6. 用包內的 Python 執行 ``rpa --version`` 並載入伺服器的程式，確認能用之後打包成
+7. 用包內的 Python 執行 ``rpa --version``、載入伺服器的程式、確認找得到運行環境，之後打包成
    ``RPA-Server-<版本>-linux-<x64|arm64>.tar.gz``。
 
-環境變數 ``RPA_UPDATE_EXTRA_KEYS`` 會傳給第 3 步（CI 測試升級路徑時用臨時的公鑰；發布時必須
+環境變數 ``RPA_UPDATE_EXTRA_KEYS`` 會傳給第 4 步（CI 測試升級路徑時用臨時的公鑰；發布時必須
 是空的）。
 
 只用標準函式庫，CI 用系統的 python3 執行，不必先 ``uv sync``；需要 PATH 上有 uv。
@@ -52,12 +57,24 @@ WORK: Final = ROOT / "build" / "server"
 PACKAGING: Final = ROOT / "apps" / "server" / "packaging"
 EXAMPLES: Final = ROOT / "scenarios" / "demo"
 
-PACKAGES: Final = ("rpa-core", "rpa-runner", "rpa-worker", "rpa-testsite", "rpa-server", "rpa-cli")
+PACKAGES: Final = (
+    "rpa-core",
+    "rpa-script",
+    "rpa-runner",
+    "rpa-worker",
+    "rpa-testsite",
+    "rpa-server",
+    "rpa-cli",
+)
 """裝進分發包 app/ 的工作區套件（rpa-cli 與它的相依）；桌面端（rpa-desktop）不裝。"""
 RUNTIME_PACKAGE: Final = "rpa-update"
 RUNTIME_FILE: Final = "runtime.json"
 """rpa_update.runtime.RUNTIME_FILE（這個工具只用標準函式庫，不匯入 rpa_update）。"""
 """跟著執行環境走的工作區套件：裝進 python/ 的 site-packages，不放進 app/。"""
+PYTHON_RUNTIME_ENV: Final = "RPA_PYTHON_RUNTIME_ARCHIVE"
+"""已經建好的 RPA Python 運行環境壓縮檔（ADR 0020）；沒設定時建置前先建一份。"""
+PYTHON_RUNTIMES: Final = "runtimes"
+"""包內 Python 底下放運行環境壓縮檔的資料夾（``python/runtimes/``）。"""
 _RUNTIME_LINE: Final = re.compile(r"^runtime: (?P<target>\S+)=(?P<id>[0-9a-f]{16})$", re.MULTILINE)
 GLIBC_FLOOR: Final = (2, 28)
 """公司伺服器的下限（README、scripts/setup-linux.sh 的檢查）。"""
@@ -317,11 +334,39 @@ def install_packages(uv: str, python: Path, target: Target, work: Path, app: Pat
     build_app_layer(uv, python, [wheels[name] for name in PACKAGES], app)
 
 
-def write_runtime(python: Path, target: Target) -> str:
-    """寫出 rpa_update/runtime.json（包內的 Python 自己算環境代號），回傳環境代號。"""
+def python_runtime() -> Path:
+    """RPA Python 運行環境（ADR 0020）：這台電腦架構的壓縮檔。"""
+    given = os.environ.get(PYTHON_RUNTIME_ENV)
+    if given:
+        path = Path(given)
+        if not path.is_file():
+            raise SystemExit(f"{PYTHON_RUNTIME_ENV} 指的檔案不存在：{path}")
+        return path
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from tools.build_python_runtime import build as build_python_runtime
+
+    return build_python_runtime()
+
+
+def write_runtime(python: Path, target: Target, components: Mapping[str, str] | None = None) -> str:
+    """寫出 rpa_update/runtime.json（包內的 Python 自己算環境代號），回傳環境代號。
+
+    ``components`` 是另外算進代號的項目（例如運行環境壓縮檔的檔名）。
+    """
     env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "VIRTUAL_ENV"))}
+    extra = [f"--component={name}={value}" for name, value in sorted((components or {}).items())]
     output = _run(
-        [python, "-I", "-m", "rpa_update.build", "runtime", "--target", runtime_target(target)],
+        [
+            python,
+            "-I",
+            "-m",
+            "rpa_update.build",
+            "runtime",
+            "--target",
+            runtime_target(target),
+            *extra,
+        ],
         env=env,
     )
     print(output.rstrip())
@@ -384,7 +429,8 @@ def _check(bundle: Path) -> str:
             "-c",
             "import sqlite3, ssl; from rpa_server.app import create_app; "
             "from rpa_server.config import Settings; from rpa_update.runtime import load_runtime; "
-            "assert load_runtime() is not None",
+            "from rpa_runner.pyruntime import available_versions; "
+            "assert load_runtime() is not None; assert available_versions(), 'no python runtime'",
         ],
         env={**env, "PYTHONPATH": str(bundle / "app")},
     )
@@ -415,7 +461,11 @@ def build(target: Target | None = None) -> tuple[Path, str]:
     if problems:
         raise SystemExit("這些套件需要比 glibc 2.28 新的系統：\n" + "\n".join(problems))
     full_version = _run([python, "-c", "import platform; print(platform.python_version())"])
-    runtime = write_runtime(python, target)
+    python_archive = python_runtime()
+    runtimes = bundle / "python" / PYTHON_RUNTIMES
+    runtimes.mkdir()
+    shutil.copy2(python_archive, runtimes / python_archive.name)
+    runtime = write_runtime(python, target, {"pythonRuntime": python_archive.name})
     DIST.mkdir(parents=True, exist_ok=True)
     shutil.copy2(site_packages(python) / "rpa_update" / RUNTIME_FILE, runtime_copy(target))
 

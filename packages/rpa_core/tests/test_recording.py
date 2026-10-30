@@ -778,3 +778,39 @@ def test_upload_arguments_that_are_not_file_names() -> None:
 
     assert [step["action"] for step in steps_of(data)] == ["goto"]
     assert [warning.line for warning in result.warnings] == [2, 3]
+
+
+def test_downloads_become_download_steps_with_file_outputs() -> None:
+    """ADR 0020：``expect_download`` 區塊裡的點擊換成 download 步驟，檔案成為 file 出參。"""
+    source = "\n".join(
+        [
+            'page.goto("http://127.0.0.1:8765/download")',
+            'page.get_by_label("月份").fill("2026-10")',
+            "with page.expect_download() as download_info:",
+            '    page.get_by_role("button", name="匯出 CSV").click()',
+            "download = download_info.value",
+            "with page.expect_download() as download1_info:",
+            '    page.get_by_role("link", name="下載本月").click()',
+            "with page.expect_download() as other_info:",
+            '    page.get_by_label("月份").fill("2026-11")',
+        ]
+    )
+    data, result = convert(source)
+
+    steps = steps_of(data)
+    assert [(step["action"], step.get("as")) for step in steps] == [
+        ("goto", None),
+        ("fill", None),
+        ("download", "download"),
+        ("download", "download1"),
+        ("fill", None),
+    ]
+    assert steps[2]["target"] == {"role": "button", "name": "匯出 CSV"}
+    outputs = cast("dict[str, dict[str, object]]", data["outputs"])
+    assert outputs["download"]["type"] == "file"
+    assert outputs["download"]["from"] == "{{ facts.download }}"
+    verify = cast("list[dict[str, object]]", data["verify"])
+    assert verify[0]["value"] == "{{ facts.download.name }}"
+    # 區塊裡沒有點擊：照常轉換，提醒下載的檔案不保存
+    assert [warning.line for warning in result.warnings] == [8]
+    assert "下載的檔案不保存" in result.warnings[0].message

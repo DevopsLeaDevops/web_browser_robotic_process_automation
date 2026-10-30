@@ -2,14 +2,19 @@
 """執行報告 report.html：單一檔案、不需要網路，放在執行目錄裡直接用瀏覽器開啟。
 
 版面參考 MVP 原型的 sample-run 報告；顏色取自介面設計系統 v1.0。
+Python 節點與會下載的場景（ADR 0020）另有產出檔案（``outputs/``，可以下載）、檔案變化
+（``files.json``）與資料預覽（``previews/``）；步驟多了原始碼行號、第幾次與那一步的檔案變化。
 """
 
 import html
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
+from urllib.parse import quote
 
+from rpa_core.dsl.files import format_size
 from rpa_core.i18n import get_locale
-from rpa_runner.files import STEP_SHOTS
+from rpa_runner.files import OUTPUTS_DIR, PREVIEWS_DIR, STEP_SHOTS, read_json_or
 from rpa_runner.i18n import t
 
 if TYPE_CHECKING:
@@ -35,7 +40,10 @@ background:var(--line);color:var(--muted)}.passed{background:var(--green-bg);col
 img{max-width:100%;border:1px solid var(--line);border-radius:6px}a{color:var(--blue)}
 td img.shot{display:block;width:112px;max-width:none;aspect-ratio:16/9;object-fit:cover;object-position:left top}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.preview{overflow-x:auto;margin:8px 0 16px}.preview td,.preview th{white-space:nowrap}
 """
+_PREVIEW_ROWS: Final = 20
+"""報告裡每份資料預覽最多顯示幾列（完整的在 previews/ 的 JSON）。"""
 
 
 def _e(value: object) -> str:
@@ -51,12 +59,32 @@ def _json(value: object) -> str:
 
 
 def _step_detail(step: dict[str, object]) -> str:
-    """步驟的錯誤，加上 upload 交出的檔案與提醒（M7c）。"""
+    """步驟的錯誤，加上 upload 交出、download 下載的檔案與提醒（M7c）；Python 節點的步驟另有
+    原始碼行號、第幾次與這一步的檔案變化（ADR 0020）。"""
     parts = [_e(step.get("error") or "")]
     files = step.get("files")
     if isinstance(files, list) and files:
         names = ", ".join(str(name) for name in cast("list[object]", files))
-        parts.append(f"<div class='muted'>{_e(t('report.step_files', files=names))}</div>")
+        key = "report.step_downloaded" if step.get("action") == "download" else "report.step_files"
+        parts.append(f"<div class='muted'>{_e(t(key, files=names))}</div>")
+    elif isinstance(files, dict) and files:
+        changed = cast("dict[str, object]", files)
+        counts = {
+            kind: len(cast("list[object]", items)) if isinstance(items, list) else 0
+            for kind, items in changed.items()
+        }
+        parts.append(
+            f"<div class='muted'>{_e(t('report.step_changes', added=counts.get('added', 0), changed=counts.get('changed', 0), removed=counts.get('removed', 0)))}</div>"
+        )
+    source = step.get("source")
+    if isinstance(source, str) and source:
+        occurrence = step.get("occurrence")
+        text = (
+            t("report.step_source_again", source=source, number=occurrence)
+            if isinstance(occurrence, int) and occurrence > 1
+            else source
+        )
+        parts.append(f"<div class='muted mono'>{_e(text)}</div>")
     notes = step.get("notes")
     for note in cast("list[object]", notes) if isinstance(notes, list) else []:
         parts.append(f"<div class='badge cancelled'>{_e(note)}</div>")
@@ -69,6 +97,109 @@ def _shot(step: dict[str, object]) -> str:
     if not isinstance(shot, str) or not shot:
         return ""
     return f'<a href="{_e(shot)}"><img class="shot" src="{_e(shot)}" alt="" loading="lazy"></a>'
+
+
+def _href(path: str) -> str:
+    return _e(quote(path))
+
+
+def _produced(folder: Path) -> str:
+    """outputs/ 裡的檔案（Python 節點寫的、file 出參複製進來的）：可以下載。"""
+    root = folder / OUTPUTS_DIR
+    if not root.is_dir():
+        return ""
+    rows = "".join(
+        f'<tr><td><a href="{_href(path.relative_to(folder).as_posix())}">{_e(path.relative_to(root).as_posix())}</a></td>'
+        f"<td class='mono'>{_e(format_size(path.stat().st_size))}</td></tr>"
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    )
+    if not rows:
+        return ""
+    return f"<section><h2>{_e(t('report.produced'))}</h2><table><tbody>{rows}</tbody></table></section>"
+
+
+def _changes(folder: Path) -> str:
+    """files.json：自動化前後，共用工作資料夾與 outputs/ 的檔案變化。"""
+    data = read_json_or(folder / "files.json", None)
+    if not isinstance(data, dict):
+        return ""
+    changes = cast("dict[str, object]", data)
+    rows: list[str] = []
+    for kind in ("added", "changed", "removed"):
+        items = changes.get(kind)
+        for item in cast("list[object]", items) if isinstance(items, list) else []:
+            if not isinstance(item, dict):
+                continue
+            entry = cast("dict[str, object]", item)
+            size, where = entry.get("size"), entry.get("where")
+            rows.append(
+                f"<tr><td>{_e(t(f'report.change_{kind}'))}</td>"
+                f"<td>{_e(t(f'report.where_{where}'))}</td>"
+                f"<td class='mono'>{_e(entry.get('path'))}</td>"
+                f"<td class='mono'>{_e(format_size(size) if isinstance(size, int) else '')}</td></tr>"
+            )
+    body = (
+        f"<table><tbody>{''.join(rows)}</tbody></table>"
+        if rows
+        else f"<p class='muted'>{_e(t('report.no_changes'))}</p>"
+    )
+    note = (
+        f"<p class='muted'>{_e(t('report.changes_truncated'))}</p>"
+        if changes.get("truncated")
+        else ""
+    )
+    return f"<section><h2>{_e(t('report.file_changes'))}</h2>{body}{note}</section>"
+
+
+def _previews(folder: Path) -> str:
+    """previews/ 的資料預覽（rpa_script 的 run.preview()）：表格顯示前幾列，其他是文字。"""
+    root = folder / PREVIEWS_DIR
+    if not root.is_dir():
+        return ""
+    parts: list[str] = []
+    for path in sorted(root.glob("*.json")):
+        data = read_json_or(path, None)
+        if not isinstance(data, dict):
+            continue
+        preview = cast("dict[str, object]", data)
+        name = _e(preview.get("name") or path.stem)
+        link = f'<a href="{_href(path.relative_to(folder).as_posix())}">{_e(path.name)}</a>'
+        columns = preview.get("columns")
+        rows = preview.get("rows")
+        if preview.get("kind") == "table" and isinstance(columns, list) and isinstance(rows, list):
+            head = "".join(f"<th>{_e(column)}</th>" for column in cast("list[object]", columns))
+            body = "".join(
+                "<tr>"
+                + "".join(
+                    f"<td>{_e('' if cell is None else cell)}</td>"
+                    for cell in cast("list[object]", row)
+                )
+                + "</tr>"
+                for row in cast("list[object]", rows)[:_PREVIEW_ROWS]
+                if isinstance(row, list)
+            )
+            count = preview.get("rowCount")
+            shown = min(len(cast("list[object]", rows)), _PREVIEW_ROWS)
+            summary = t("report.preview_rows", shown=shown, total=count)
+            parts.append(
+                f"<h3>{name} <span class='muted'>{_e(summary)} · {link}</span></h3>"
+                f"<div class='preview'><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>"
+            )
+        else:
+            parts.append(
+                f"<h3>{name} <span class='muted'>{link}</span></h3><pre>{_e(preview.get('text') or '')}</pre>"
+            )
+    if not parts:
+        return ""
+    return f"<section><h2>{_e(t('report.previews'))}</h2>{''.join(parts)}</section>"
+
+
+def _extras(folder: Path | None) -> str:
+    """產出檔案、檔案變化與資料預覽（ADR 0020）；沒有執行目錄時（測試用的結果）不顯示。"""
+    if folder is None:
+        return ""
+    return _produced(folder) + _changes(folder) + _previews(folder)
 
 
 def render_report(result: "RunResult") -> str:
@@ -125,6 +256,7 @@ def render_report(result: "RunResult") -> str:
 <section><h2>{_e(t("report.steps"))}</h2>{f"<table><thead><tr><th>id</th><th>action</th><th>{_e(t('report.name'))}</th><th>{_e(t('report.status'))}</th><th>{_e(t('report.duration'))}</th><th>{_e(t('report.error'))}</th>{shot_head}</tr></thead><tbody>{steps}</tbody></table>" if steps else no_rows}</section>
 <section><h2>{_e(t("report.checks"))}</h2>{f"<table><thead><tr><th>{_e(t('report.name'))}</th><th>{_e(t('report.comparison'))}</th><th>{_e(t('report.actual'))}</th><th>{_e(t('report.expected'))}</th><th>{_e(t('report.status'))}</th></tr></thead><tbody>{checks}</tbody></table>" if checks else no_rows}</section>
 <section class="pair"><div><h2>{_e(t("report.input"))}</h2>{_json(result.input)}</div><div><h2>{_e(t("report.output"))}</h2>{_json(result.output) if result.output is not None else f"<p class='muted'>{_e(t('report.no_output'))}</p>"}</div></section>
+{_extras(getattr(result, "directory", None))}
 <section><h2>{_e(t("report.evidence"))}</h2>{gallery}</section>
 <section><h2>{_e(t("report.files"))}</h2><p>{links}</p><p class="muted mono">{_e(t("report.hash", hash=result.scenario_hash))}</p></section>
 </main></body></html>

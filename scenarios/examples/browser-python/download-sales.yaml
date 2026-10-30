@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 「瀏覽器＋Python」組合場景的第 1 個節點（ADR 0020，見同資料夾的 workflow.json）：
+# 在測試網站的 /download 選月份、按「匯出 CSV」，download 步驟把檔案存到組合運行的共用工作資料夾
+# （downloads/），事實 facts.report 是檔案的說明；type: file 的出參把它交給下游的 Python 節點。
+
+schemaVersion: 1
+id: download-sales
+name: 下載銷售報表
+category: 範例
+description: 在報表頁選月份、匯出 CSV，下載的檔案是出參 report。
+
+inputs:
+  month:
+    type: string
+    pattern: '^[0-9]{4}-[0-9]{2}$'
+    default: 2026-10
+
+outputs:
+  report:
+    type: file
+    description: 下載的銷售明細（CSV）
+    from: '{{ facts.report }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /download
+
+  - id: month
+    action: fill
+    target: { label: 月份 }
+    value: '{{ inputs.month }}'
+
+  - id: export
+    name: 匯出 CSV
+    action: download
+    target: { role: button, name: 匯出 CSV }
+    as: report
+
+verify:
+  - name: 下載到檔案
+    value: '{{ facts.report.name }}'
+    matches: '\.csv$'

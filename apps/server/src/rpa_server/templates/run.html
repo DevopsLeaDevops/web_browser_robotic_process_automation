@@ -6,7 +6,8 @@
 {% if not run.finished %}
 <button class="button" data-action="cancel-run" data-run="{{ run.id }}"{% if run.cancel_requested %} disabled{% endif %}>{{ t("run.cancel") }}</button>
 {% else %}
-{% if run.video and run.video.url %}<a class="button primary" href="/runs/{{ run.id }}/replay" data-action="replay">{{ t("run.replay") }}</a>{% endif %}
+{% if run.video and run.video.url %}<a class="button primary" href="/runs/{{ run.id }}/replay" data-action="replay">{{ t("run.replay") }}</a>
+{% elif result and result.get("python") and result.get("steps") %}<a class="button" href="/runs/{{ run.id }}/replay" data-action="timeline">{{ t("run.timeline") }}</a>{% endif %}
 <a class="button" href="/runs/{{ run.id }}/files/report.html" target="_blank" rel="noopener" data-action="open-report">{{ t("run.open_report") }}</a>
 {% if run.workflow_run_id %}
 <a class="button{% if run.status == 'needs_login' %} primary{% endif %}" href="/playground/runs/{{ run.workflow_run_id }}">{{ t("run.back_to_workflow") }}</a>
@@ -19,6 +20,8 @@
 {% endif %}
 {% endblock %}
 {% block content %}
+{#- Python 節點的產出檔案、檔案變化、資料預覽（ADR 0020，pages._run_python_details）；沒給時都沒有 #}
+{% set python = python if python is defined else {"produced": [], "previews": [], "changes": none} %}
 <div class="stack" id="run" data-run="{{ run.id }}" data-status="{{ run.status }}" data-stage="{{ run.stage or '' }}"{% if not run.finished %} data-poll{% endif %}>
   {% if not run.finished %}
   <div class="notice">{{ t("run.polling") }}</div>
@@ -48,7 +51,12 @@
       <div><dt>{{ t("run.created") }}</dt><dd>{{ m.time(run.created_at) }}</dd></div>
       <div><dt>{{ t("run.started") }}</dt><dd>{{ m.time(run.started_at) }}</dd></div>
       <div><dt>{{ t("run.finished") }}</dt><dd>{{ m.time(run.finished_at) }}</dd></div>
+      {% set py = result.get("python") if result else none %}
+      {% if py %}
+      <div><dt>{{ t("run.python") }}</dt><dd>{% if py.get("mode") == "runtime" and py.get("runtime") %}{{ t("run.python_runtime", version=py.get("runtime"), platform=py.get("platform") or "") }}<span class="cell-sub">{{ t("run.python_reused") if py.get("reused") else t("run.python_prepared", ms=py.get("preparedMs") or 0) }}</span>{% elif py.get("mode") == "runtime" %}{{ t("run.python_runtime_missing") }}{% else %}{{ t("run.python_compatible") }}{% endif %}</dd></div>
+      {% else %}
       <div><dt>{{ t("run.engine") }}</dt><dd>{{ (result.engine if result else none) or run.engine or t("run.engine_scenario") }}</dd></div>
+      {% endif %}
       <div><dt>{{ t("run_form.window") }}</dt><dd>{{ t("run_form.window_headless") if run.headless else t("run_form.window_headed") }}</dd></div>
       {% if run.target != "local" or (run.worker_id and run.worker_id != "local") %}<div><dt>{{ t("run.worker") }}</dt><dd>{{ m.worker_text(run.target, run.worker_id, worker_names) }}</dd></div>{% endif %}
       {% if run.client_id %}<div><dt>{{ t("run.agent") }}</dt><dd>{{ agent_names.get(run.client_id, run.client_id) }} <span class="tag">{{ run.client_id }}</span></dd></div>{% endif %}
@@ -108,6 +116,53 @@
           <pre class="source">{{ run.output | pretty_json if run.output is not none else "—" }}</pre>
         </section>
       </div>
+
+      {% if python.produced %}
+      <section class="panel" id="run-produced">
+        <div class="panel-header"><h2>{{ t("run.produced") }} <span class="count">{{ python.produced | length }}</span></h2><span class="muted">{{ t("run.produced_hint") }}</span></div>
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr><th>{{ t("run.col_file") }}</th><th class="numeric">{{ t("attachments.col_size") }}</th><th>{{ t("run.col_produced_output") }}</th></tr></thead>
+          <tbody>
+          {% for row in python.produced %}
+            <tr data-produced="{{ row.path }}"><td><a href="/runs/{{ run.id }}/files/{{ row.path | urlencode }}?download=1" download="{{ row.name }}">{{ row.name }}</a></td>
+              <td class="numeric">{{ row.size | filesize }}</td>
+              <td>{% for name in row.outputs %}<code>{{ name }}</code>{% if not loop.last %} {% endif %}{% else %}<span class="muted">—</span>{% endfor %}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </section>
+      {% endif %}
+
+      {% if python.changes %}
+      <section class="panel" id="run-file-changes">
+        <div class="panel-header"><h2>{{ t("run.file_changes") }}</h2><span class="muted">{{ t("run.file_changes_hint") }}</span></div>
+        {% set kinds = ("added", "changed", "removed") %}
+        {% if python.changes.get("added") or python.changes.get("changed") or python.changes.get("removed") %}
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr><th>{{ t("run.col_change") }}</th><th>{{ t("run.col_where") }}</th><th>{{ t("run.col_file") }}</th><th class="numeric">{{ t("attachments.col_size") }}</th></tr></thead>
+          <tbody>
+          {% for kind in kinds %}{% for item in python.changes.get(kind) or [] %}
+            <tr><td>{{ t("run.change_" + kind) }}</td><td>{{ t("run.where_" + (item.get("where") or "workspace")) }}</td><td class="mono">{{ item.get("path") }}</td><td class="numeric">{{ item.get("size") | filesize if item.get("size") is not none else "—" }}</td></tr>
+          {% endfor %}{% endfor %}
+          </tbody>
+        </table></div>
+        {% else %}<p class="panel-body muted">{{ t("run.no_file_changes") }}</p>{% endif %}
+        {% if python.changes.get("truncated") %}<p class="panel-body muted">{{ t("run.changes_truncated") }}</p>{% endif %}
+      </section>
+      {% endif %}
+
+      {% for preview in python.previews %}
+      <section class="panel run-preview" data-preview="{{ preview.path }}">
+        {% set is_table = preview.get("kind") == "table" and preview.get("columns") is not none and preview.get("rows") is not none %}
+        <div class="panel-header"><h2>{{ t("run.preview", name=preview.get("name") or preview.path) }}</h2>{% if is_table %}<span class="muted">{{ t("run.preview_rows", shown=preview.rows | length, total=preview.get("rowCount") or preview.rows | length) }}</span>{% endif %}</div>
+        {% if is_table %}
+        <div class="table-scroll"><table class="wrap">
+          <thead><tr>{% for column in preview.columns %}<th>{{ column }}</th>{% endfor %}</tr></thead>
+          <tbody>{% for row in preview.rows %}<tr>{% for cell in row %}<td>{{ "" if cell is none else cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}<pre class="source">{{ preview.get("text") or "" }}</pre>{% endif %}
+      </section>
+      {% endfor %}
 
       {% if file_inputs is defined and file_inputs %}
       <section class="panel" id="run-file-inputs">

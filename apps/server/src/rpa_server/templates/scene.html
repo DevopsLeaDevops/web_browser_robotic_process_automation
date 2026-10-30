@@ -70,7 +70,7 @@
           <button type="button" role="tab" class="active" aria-selected="true" data-script-tab="steps">{{ t("card.automation") }} <span class="count" id="script-count-steps">{{ script_counts.steps }}</span></button>
           <button type="button" role="tab" aria-selected="false" data-script-tab="verify">{{ t("card.assertion") }} <span class="count" id="script-count-verify">{{ script_counts.verify }}</span></button>
           {% else %}
-          {% for name in scripts %}<button type="button" role="tab"{% if loop.first %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %} data-script-tab="{{ 'steps' if name == 'automation.py' else 'verify' }}">{{ t("card.automation") if name == "automation.py" else t("card.assertion") }} <span class="mono">{{ name }}</span></button>{% endfor %}
+          {% for name in scripts %}{% set role = script_roles.get(name, "file") %}<button type="button" role="tab"{% if loop.first %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %} data-script-tab="file-{{ loop.index }}" data-script-role="{{ role }}">{% if role == "automation" %}{{ t("card.automation") }} {% elif role == "assertion" %}{{ t("card.assertion") }} {% endif %}<span class="mono">{{ name }}</span></button>{% endfor %}
           {% endif %}
         </div>
       </div>
@@ -137,11 +137,12 @@
     {% elif scripts %}
     <div class="panel-body stack">
       {% for name, text in scripts.items() %}
-      <div data-script-part="{{ 'steps' if name == 'automation.py' else 'verify' }}"{% if not loop.first %} hidden{% endif %}>
+      <div data-script-part="file-{{ loop.index }}"{% if not loop.first %} hidden{% endif %}>
         <pre class="source code-view">{{ text }}</pre>
       </div>
       {% endfor %}
-      <p class="hint">{{ t("scene.script_files_hint") }} <a class="text-btn external-link" href="/scenes/{{ scene.id }}/edit?file=automation.py" target="_blank" rel="noopener">{{ t("scene.open_editor") }}</a></p>
+      {% if scenario and scenario.script and scenario.script.runtime %}<p class="hint">{{ t("scene.runtime_hint", runtime=scenario.script.runtime) }}</p>{% endif %}
+      <p class="hint">{{ t("scene.script_files_hint") }} <a class="text-btn external-link" href="/scenes/{{ scene.id }}/edit?file={{ (scripts | first) or 'scenario.yaml' }}" target="_blank" rel="noopener">{{ t("scene.open_editor") }}</a></p>
     </div>
     {% else %}
     <div class="empty">{{ t("scene.script_invalid") }}</div>

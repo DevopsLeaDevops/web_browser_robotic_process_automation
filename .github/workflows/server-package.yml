@@ -1,6 +1,9 @@
 # Linux 伺服器的分發包：建自帶 Python 的 tar.gz（x64、arm64），在同架構的 Rocky 8 容器裡實際安裝。
 #   建置（tools/build_server.py）：uv 管理的 CPython ＋ 照 uv.lock 裝好的套件，限定 manylinux_2_28，
 #   用包內的 Python 執行 rpa --version、載入伺服器的程式。
+#   RPA Python 運行環境（ADR 0020）：建置時建這個架構的一份放進 python/runtimes/；安裝後在
+#   Rocky 8 執行範例 Python 節點（scenarios/examples/python-node），確認 glibc 2.28 上解壓得了、
+#   pandas 等套件載入得了。
 #   安裝（包內的 install.sh）：glibc 2.28、公司映像的 os-release（ID 空白）、一般帳號＋sudo，
 #   沒有 git 時用真實 yum 補裝；沿用 setup-linux.sh（clone）留下的設定；冒煙（HTTP、埠隔離、
 #   配對、重新啟動）；啟動器以設定檔的埠號啟動、第一次啟動匯入範例場景；重裝保留設定與資料；
@@ -117,6 +120,8 @@ jobs:
           chown rpa-test:rpa-test /home/rpa-test/*.tar.gz
           sudo -H -u rpa-test bash -s <<'CHECK'
           set -Eeuo pipefail
+          # 看不到完整日誌時（例如只讀得到 annotation），也知道是哪一行失敗
+          trap 'echo "::error title=Rocky 8 安裝檢查失敗::第 $LINENO 行：$BASH_COMMAND"' ERR
           cd "$HOME"
           # 之前用 setup-linux.sh（clone）裝過：設定要沿用
           legacy="$HOME/code/web_browser_robotic_process_automation"
@@ -137,6 +142,27 @@ jobs:
           grep -q 'RPA_PORT=8090' rpa-server/rpa-server.env
           rpa-server/bin/rpa --version
           rpa-server/current/python/bin/python3 -c 'import platform; print(platform.python_version(), platform.libc_ver())'
+
+          # Python 節點（ADR 0020）：包內的 RPA Python 運行環境在 glibc 2.28 上解壓、執行範例
+          # （pandas、openpyxl 合併出 Excel），第二次沿用已經解壓的
+          cp -r /source/scenarios/examples/python-node py-node
+          for attempt in 1 2; do
+            # 執行失敗時結束碼不是 0：讀結果、把原因與日誌寫成 annotation 再失敗
+            rpa-server/bin/rpa run py-node/scenario.yaml --out py-runs --format json > py-run.json || true
+            rpa-server/current/python/bin/python3 - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.load(open("py-run.json", encoding="utf-8"))
+          if result.get("status") != "passed":
+              logs = sorted(Path("py-runs").glob("*/automation.log"))
+              detail = {key: result.get(key) for key in ("status", "error", "problems", "stages", "python")}
+              text = json.dumps(detail, ensure_ascii=False) + "\n" + (logs[-1].read_text(errors="replace")[-1500:] if logs else "")
+              print("::error title=Rocky 8 的範例 Python 節點::" + text.replace("%", "%25").replace("\n", "%0A"))
+              raise SystemExit(1)
+          print(result["python"], result["output"])
+          PY
+          done
+          ls py-runs/*/outputs/
 
           # 冒煙：暫存資料、隨機埠（HTTP、埠隔離、配對、重新啟動）
           rpa-server/current/python/bin/python3 /source/tools/linux_server_smoke.py \

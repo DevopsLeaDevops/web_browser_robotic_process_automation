@@ -1,11 +1,12 @@
 """``{{ }}`` 求值：Jinja2 沙箱環境，只能讀取 inputs、secrets、facts、env。
 
-- 一般欄位代入後一律是文字。
+- 一般欄位代入後一律是文字；清單與物件寫成 JSON（例如 array、object 入參，ADR 0020）。
 - 整個值只有一個 ``{{ }}`` 時（例如出參的 ``from``），用 :func:`render_native` 保留原本的型別，
   清單、物件、數字不會被轉成文字。
 - 引用不存在的值直接報錯（StrictUndefined），不會默默變成空字串。
 """
 
+import json
 import re
 from collections.abc import Mapping
 from typing import Final
@@ -18,7 +19,15 @@ __all__ = ["Context", "TemplateEvaluationError", "render", "render_native", "ren
 type Context = Mapping[str, object]
 """求值時可用的變數：inputs、secrets、facts、env。"""
 
-_ENV: Final = SandboxedEnvironment(undefined=StrictUndefined, autoescape=False)
+
+def _finalize(value: object) -> object:
+    """代入成文字時，清單與物件寫成 JSON，而不是 Python 的寫法。"""
+    if isinstance(value, Mapping | list | tuple):
+        return json.dumps(value, ensure_ascii=False)
+    return value
+
+
+_ENV: Final = SandboxedEnvironment(undefined=StrictUndefined, autoescape=False, finalize=_finalize)
 _SINGLE: Final = re.compile(r"^\s*\{\{(?P<expr>.*?)\}\}\s*$", re.DOTALL)
 
 

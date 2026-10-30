@@ -7,32 +7,46 @@
 2. 在背景啟動測試網站（隨機埠）。
 3. 以無頭模式執行 BA-001（DSL 場景，子程序走 ``--rpa-module``）與它的 Python 腳本版
    （走 ``--rpa-script``），兩個都要「通過」。
-4. 以 JSON 印出摘要（``--report`` 另外寫一份檔案）；全部成功才回傳 0。
+4. RPA Worker 再執行範例 Python 節點（ADR 0020，運行環境模式）：從 App 附帶的壓縮檔解壓
+   RPA Python 運行環境（已經解壓過就沿用），用 pandas、openpyxl 合併出一份 Excel。
+   開發環境找得到運行環境（例如 ``tools/build_python_runtime.py build --install``）時也執行。
+5. 以 JSON 印出摘要（``--report`` 另外寫一份檔案）；全部成功才回傳 0。
 
-範例場景：打包後在 App 裡（``rpa_desktop/scenarios``，建置時從 ``scenarios/demo`` 複製）；
-開發環境直接用倉庫的 ``scenarios/demo``。
+範例場景：打包後在 App 裡（``rpa_desktop/scenarios``，建置時從 ``scenarios/demo`` 與
+``scenarios/examples/python-node`` 複製）；開發環境直接用倉庫裡的。
 """
 
 import argparse
 import json
+import os
 import platform
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
 from rpa_desktop.build_info import load, shell_file
 from rpa_runner.commands import is_frozen, playwright_command
+from rpa_runner.pyruntime import ENV_RUNTIME, available_versions
 from rpa_runner.run import execute
 from testsite.server import running
 
-__all__ = ["BUNDLED_SCENARIOS", "SCENARIOS", "main", "scenario_root"]
+__all__ = [
+    "BUNDLED_SCENARIOS",
+    "PYTHON_NODES",
+    "SCENARIOS",
+    "main",
+    "python_nodes",
+    "scenario_root",
+]
 
 SCENARIOS: Final = ("ba-001.yaml", "ba-001-script/scenario.yaml")
 """要執行的範例場景（相對於範例資料夾）：DSL 場景與 Python 腳本場景各一。"""
+PYTHON_NODES: Final = ("python-node/scenario.yaml",)
+"""RPA Worker 另外執行的範例 Python 節點（運行環境模式，ADR 0020）。"""
 BUNDLED_SCENARIOS: Final = "scenarios"
 """打包時範例場景放在 rpa_desktop 套件資料夾內的這個子資料夾。"""
 INSTALL_SECONDS: Final = 900
@@ -45,6 +59,28 @@ def scenario_root() -> Path:
     if bundled.is_dir():
         return bundled
     return Path(__file__).resolve().parents[4] / "scenarios" / "demo"
+
+
+def python_node_root() -> Path:
+    """範例 Python 節點的資料夾：App 裡和其他範例放在一起，開發環境是 scenarios/examples。"""
+    bundled = shell_file(BUNDLED_SCENARIOS)
+    if bundled.is_dir():
+        return bundled
+    return Path(__file__).resolve().parents[4] / "scenarios" / "examples"
+
+
+def python_nodes(app: str, environ: Mapping[str, str] | None = None) -> tuple[str, ...]:
+    """要執行的範例 Python 節點：RPA Worker 一定要（附帶運行環境）；錄製端不執行；開發環境
+    找得到 RPA Python 運行環境 1 才執行。"""
+    if app == "worker":
+        return PYTHON_NODES
+    if app != "development":
+        return ()
+    env = os.environ if environ is None else environ
+    found = bool(env.get(ENV_RUNTIME)) or any(
+        version.split(".")[0] == "1" for version in available_versions(env)
+    )
+    return PYTHON_NODES if found else ()
 
 
 def _install(engine: str) -> dict[str, object]:
@@ -73,7 +109,7 @@ def _install(engine: str) -> dict[str, object]:
     }
 
 
-def _run(path: Path, url: str, out: Path, engine: str) -> dict[str, object]:
+def _run(path: Path, url: str | None, out: Path, engine: str | None) -> dict[str, object]:
     started = time.monotonic()
     try:
         result = execute(path, {}, out_root=out, base_url=url, engine=engine, headed=False)
@@ -85,7 +121,7 @@ def _run(path: Path, url: str, out: Path, engine: str) -> dict[str, object]:
             "error": f"{type(error).__name__}: {error}",
             "seconds": round(time.monotonic() - started, 1),
         }
-    return {
+    summary: dict[str, object] = {
         "step": "run",
         "scenario": result.scenario_id,
         "ok": result.status == "passed",
@@ -93,6 +129,9 @@ def _run(path: Path, url: str, out: Path, engine: str) -> dict[str, object]:
         "error": result.error,
         "seconds": round(time.monotonic() - started, 1),
     }
+    if result.python is not None:
+        summary["python"] = result.python
+    return summary
 
 
 def run_self_test(engine: str = "chromium", *, install: bool = True) -> dict[str, object]:
@@ -101,14 +140,17 @@ def run_self_test(engine: str = "chromium", *, install: bool = True) -> dict[str
     if install:
         steps.append(_install(engine))
     root = scenario_root()
+    build = load()
     if all(step["ok"] for step in steps):
         with running() as url, tempfile.TemporaryDirectory(prefix="rpa-self-test-") as folder:
             for relative in SCENARIOS:
                 steps.append(_run(root / relative, url, Path(folder), engine))
+            for relative in python_nodes(build.app):
+                steps.append(_run(python_node_root() / relative, None, Path(folder), None))
     return {
         "ok": bool(steps) and all(step["ok"] for step in steps) and len(steps) > int(install),
         "frozen": is_frozen(),
-        "build": load().to_json(),
+        "build": build.to_json(),
         "platform": f"{platform.system()} {platform.release()} {platform.machine()}",
         "scenarios": str(root),
         "steps": steps,

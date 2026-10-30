@@ -55,6 +55,7 @@ def parse_cli_value(spec: InputSpec, text: str) -> object:
     """命令列 ``-i 名稱=值`` 的文字依入參型別轉換；轉不了就原樣回傳，交給校驗回報。
 
     檔案入參（M7c）：``files/檔名`` 是場景附件，其他是這台電腦上的路徑（轉成絕對路徑）。
+    ``array``、``object``（ADR 0020）：文字是 JSON。
     """
     match spec.type:
         case "file":
@@ -70,6 +71,11 @@ def parse_cli_value(spec: InputSpec, text: str) -> object:
             )
         case "boolean" if text.strip().lower() in ("true", "false"):
             return text.strip().lower() == "true"
+        case "array" | "object":
+            try:
+                return json.loads(text)
+            except ValueError:
+                return text
         case _:
             return text
 

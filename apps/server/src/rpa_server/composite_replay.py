@@ -6,6 +6,9 @@
   都往後移到這一段的開始。分頁代號加上節點（``n2/page-1``），各節點的分頁不會混在一起。
 - 兩段錄影之間（排隊、開瀏覽器、登入檢查、斷言，都沒有畫面）壓成 2 秒的轉場卡（D2）：上一個節點的
   出參、下一個節點的入參與來源、實際隔了多久。
+- Python 節點（ADR 0020）沒有錄影，用 rpa_script 記下的步驟播一段步驟時間軸：一步一格，每一步依實際
+  耗時佔 1.5～6 秒（太短的看不清、太長的不必等），畫面是那一步的腳本、檔案變化、資料預覽與到那一步
+  為止的主控台。和錄影一樣，前後的節點之間有轉場卡。沒有記步驟的 Python 節點是說明卡。
 - 沒有錄影的節點（已依保留規則刪除、需要登入、沒有開始、錄影關閉）是一張 3 秒的說明卡；沿用的節點
   （從停下的節點繼續）也是一張卡片，連到原本那次的回看（D3）；最後沒有執行或還沒輪到的節點合成
   一張卡片。
@@ -30,12 +33,20 @@ from rpa_server.replay import build_replay
 from rpa_server.storage import Storage
 from rpa_server.videos import VideoSettings
 
-__all__ = ["NOTE_MS", "TRANSITION_MS", "build_composite_replay", "node_page"]
+__all__ = [
+    "NOTE_MS",
+    "PYTHON_STEP_MS",
+    "TRANSITION_MS",
+    "build_composite_replay",
+    "node_page",
+]
 
 TRANSITION_MS: Final = 2000
 """兩段錄影之間的轉場卡多長（D2）。"""
 NOTE_MS: Final = 3000
 """說明卡（沒有錄影、沿用、沒有執行）多長。"""
+PYTHON_STEP_MS: Final = (1500, 6000)
+"""Python 節點的步驟時間軸裡，一步最短、最長佔多久（其間依實際耗時）。"""
 _WAITING: Final = frozenset({"pending", "queued", "running"})
 
 
@@ -55,9 +66,12 @@ def _moment(value: object) -> datetime | None:
 
 
 def _no_video(
-    state: WorkflowNodeState, video: Mapping[str, object] | None, stages: Sequence[object]
+    state: WorkflowNodeState,
+    video: Mapping[str, object] | None,
+    stages: Sequence[object],
+    kind: object = None,
 ) -> str:
-    """節點沒有錄影的原因（說明卡）。"""
+    """節點沒有錄影的原因（說明卡）。``kind`` 是 result.json 的 kind（script 是 Python 節點）。"""
     if state.run is None:
         return t("creplay.no_video_not_started")
     if video is not None and video.get("deletedAt"):
@@ -78,6 +92,8 @@ def _no_video(
     )
     if automation is not None and automation.get("status") == "skipped":
         return t("creplay.no_video_no_automation")
+    if kind == "script":
+        return t("creplay.no_video_python")
     return t("replay.no_video_off")
 
 
@@ -157,6 +173,20 @@ def build_composite_replay(
         row = session.get(Run, state.run.id) if state.run is not None else None
         data = build_replay(session, storage, row, settings) if row is not None else None
         video = cast("dict[str, object] | None", (data or {}).get("video"))
+        steps = cast("list[dict[str, object]]", (data or {}).get("steps") or [])
+        if data is not None and data.get("python") and steps and state.status not in _WAITING:
+            # Python 節點的步驟時間軸：一步一格，依實際耗時佔 PYTHON_STEP_MS 之間
+            low, high = PYTHON_STEP_MS
+            slots = [
+                min(max(int(cast("int | float", step.get("durationMs") or 0)), low), high)
+                for step in steps
+            ]
+            _transition(line, previous, state, steps)
+            segment = line.add("python", sum(slots), node=state.id, status=state.status)
+            entry.update(segment=segment["index"], startMs=segment["startMs"])
+            _add_steps(line, state, data, offset=cast("int", segment["startMs"]), slots=slots)
+            previous = {"node": state.id, "endedAt": _last_action(steps)}
+            continue
         if data is None or video is None or not video.get("playable"):
             if state.status in _WAITING:
                 waiting.append(state.id)
@@ -167,28 +197,14 @@ def build_composite_replay(
                 NOTE_MS,
                 node=state.id,
                 status=state.status,
-                reason=_no_video(state, video, stages),
+                reason=_no_video(state, video, stages, (data or {}).get("kind")),
             )
             entry.update(segment=segment["index"], startMs=segment["startMs"])
             _add_steps(line, state, data, offset=None)
             previous = None
             continue
         started = _moment(video.get("startedAt"))
-        steps = cast("list[dict[str, object]]", data.get("steps") or [])
-        first_action = min(
-            (moment for step in steps if (moment := _moment(step.get("startedAt")))), default=None
-        )
-        if previous is not None:
-            ended = cast("datetime | None", previous["endedAt"])
-            begun = first_action or started
-            gap = round((begun - ended).total_seconds() * 1000) if begun and ended else None
-            line.add(
-                "transition",
-                TRANSITION_MS,
-                node=state.id,
-                prev=previous["node"],
-                gapMs=max(0, gap) if gap is not None else None,
-            )
+        _transition(line, previous, state, steps, started)
         duration = int(cast("int | float", video.get("durationMs") or 0))
         segment = line.add(
             "video",
@@ -214,22 +230,17 @@ def build_composite_replay(
         width = width or video.get("width")
         height = height or video.get("height")
         missing_pages = missing_pages or bool(video.get("missingPages"))
-        # 實際間隔用步驟的時間（同一台 Worker 的時鐘）：上一個節點最後一步結束到下一個節點
-        # 第一步開始。影片的開始時間在 Chromium 是第一格的觀測時間，可能差到一秒，不拿來算間隔
-        # （ADR 0016）。
-        last_action = max(
-            (moment for step in steps if (moment := _moment(step.get("endedAt")))), default=None
-        )
         previous = {
             "node": state.id,
-            "endedAt": last_action
+            "endedAt": _last_action(steps)
             or (started + timedelta(milliseconds=duration) if started else None),
         }
     if skipped:
         line.add("not_run", NOTE_MS, nodes=skipped)
     if waiting:
         line.add("pending", NOTE_MS, nodes=waiting)
-    playable = bool(line.clips)
+    # 只有 Python 節點（或其他節點都沒有錄影）時照樣有播放器：時鐘走過步驟時間軸與卡片
+    playable = bool(line.clips) or any(segment["kind"] == "python" for segment in line.segments)
     first = next((clip for clip in line.clips if clip.get("url")), None)
     cards = [
         {
@@ -282,19 +293,60 @@ def build_composite_replay(
     }, report
 
 
+def _last_action(steps: Sequence[Mapping[str, object]]) -> datetime | None:
+    return max((moment for step in steps if (moment := _moment(step.get("endedAt")))), default=None)
+
+
+def _transition(
+    line: _Timeline,
+    previous: Mapping[str, object] | None,
+    state: WorkflowNodeState,
+    steps: Sequence[Mapping[str, object]],
+    started: datetime | None = None,
+) -> None:
+    """上一段（錄影或 Python 節點的步驟時間軸）之後的轉場卡。
+
+    實際間隔用步驟的時間（同一台 Worker 的時鐘）：上一個節點最後一步結束到這個節點第一步開始。
+    影片的開始時間在 Chromium 是第一格的觀測時間，可能差到一秒，只在沒有步驟時間時才用（ADR 0016）。
+    """
+    if previous is None:
+        return
+    first_action = min(
+        (moment for step in steps if (moment := _moment(step.get("startedAt")))), default=None
+    )
+    ended = cast("datetime | None", previous["endedAt"])
+    begun = first_action or started
+    gap = round((begun - ended).total_seconds() * 1000) if begun and ended else None
+    line.add(
+        "transition",
+        TRANSITION_MS,
+        node=state.id,
+        prev=previous["node"],
+        gapMs=max(0, gap) if gap is not None else None,
+    )
+
+
 def _add_steps(
     line: _Timeline,
     state: WorkflowNodeState,
     data: Mapping[str, object] | None,
     *,
     offset: int | None,
+    slots: Sequence[int] | None = None,
 ) -> None:
-    """一個節點的步驟與斷言接到整條時間軸；沒有錄影（offset 是 None）時步驟沒有時間。"""
+    """一個節點的步驟與斷言接到整條時間軸；沒有錄影（offset 是 None）時步驟沒有時間。
+
+    ``slots`` 是 Python 節點每一步在步驟時間軸上佔多久：步驟從 ``offset`` 起一格接一格。
+    """
     if data is None:
         return
     edit = str(data.get("editUrl") or "")
-    for step in cast("list[dict[str, object]]", data.get("steps") or []):
+    cursor = offset or 0
+    for number, step in enumerate(cast("list[dict[str, object]]", data.get("steps") or [])):
         start, end, shot = step.get("startMs"), step.get("endMs"), step.get("shotMs")
+        if slots is not None and offset is not None and number < len(slots):
+            start, end, shot = cursor - offset, cursor - offset + slots[number], None
+            cursor += slots[number]
         line.steps.append(
             {
                 **step,

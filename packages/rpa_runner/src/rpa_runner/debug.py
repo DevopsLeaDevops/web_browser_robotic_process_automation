@@ -252,6 +252,8 @@ class _Session:
             raise ValueError("; ".join(problem.message for problem in prepared.problems))
         self.inputs.update(prepared.meta)
         self.files = prepared.paths
+        # download 步驟（ADR 0020）存到這裡；調試結束就刪
+        self.workspace = Path(tempfile.mkdtemp(prefix="rpa-debug-workspace-"))
         self.secrets = read_secrets(self.scenario)
         self.facts: dict[str, object] = {}
         self.shots = 0
@@ -349,6 +351,7 @@ class _Session:
             deadline=Deadline.after(COMMAND_SECONDS),
             tabs=self.tabs,
             files=self.files,
+            workspace=self.workspace,
         )
         if record.error:
             record.error = mask(record.error, self.secrets)
@@ -546,6 +549,7 @@ def serve(args: argparse.Namespace) -> int:
         finally:
             session.close_browser()
             remove_staging(session.staging)
+            remove_staging(session.workspace)
     return 0
 
 

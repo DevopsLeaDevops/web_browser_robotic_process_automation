@@ -54,6 +54,7 @@ WORK: Final = ROOT / "build" / "update"
 KEY_ENV: Final = "RPA_UPDATE_SIGNING_KEY"
 PACKAGES: Final = (
     "rpa-core",
+    "rpa-script",
     "rpa-runner",
     "rpa-worker",
     "rpa-testsite",

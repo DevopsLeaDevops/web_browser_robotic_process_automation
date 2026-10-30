@@ -17,7 +17,8 @@
 二、依層建置：同一組輸入只驗證一次（2026-10-27 起）
 ---------------------------------------------------
 
-重的工作（桌面端建置、伺服器分發包、一鍵安裝腳本、CI 的 Windows Worker 測試）在 :data:`GROUPS`
+重的工作（桌面端建置、伺服器分發包、一鍵安裝腳本、CI 的 Windows Worker 測試、RPA Python
+運行環境）在 :data:`GROUPS`
 列出會影響它結果的檔案。這些檔案的內容算成**輸入指紋**：
 
 - 同一個指紋已經有**通過紀錄**（這個倉庫的運行上傳的產物 ``pass-<工作>-<指紋>``，還沒過期）
@@ -27,13 +28,15 @@
 - ``full`` 與手動觸發一律執行、不沿用；通過時一樣留下紀錄（完整範圍涵蓋一般範圍）。
 
 桌面 App 另外算**外殼鍵**（:func:`shell_key`）：Python、第三方套件、PyInstaller 的設定、
-rpa_update 這些外殼（執行環境，ADR 0018）的輸入。外殼鍵相同時，桌面端建置從快取取出上次建好的
+rpa_update 這些外殼（執行環境，ADR 0018）的輸入；RPA Worker 另外加上它附帶的 RPA Python
+運行環境（:data:`PYTHON_RUNTIME`，ADR 0020）。外殼鍵相同時，桌面端建置從快取取出上次建好的
 App，裝上這次的程式碼層（更新檔）測試，不重新打包；外殼鍵不同、快取過期或 ``build=full`` 才
 完整建置。
 
 輸出（寫進 ``$GITHUB_OUTPUT``，每個工作一則 notice 說明理由，另寫一張表到運行摘要）：
 
-- 桌面端建置、伺服器分發包：``matrix``，要執行的矩陣項（JSON，空的是 ``[]``）。
+- 桌面端建置、伺服器分發包、RPA Python 運行環境：``matrix``，要執行的矩陣項（JSON，空的是
+  ``[]``）。
 - 一鍵安裝腳本：``linux``（Rocky 8 的兩種模式）、``inrepo``（三個系統的專案內執行）。
 - CI：``worker``（``true``／``false``）與 ``worker_record``（通過時上傳的產物名稱）。
 
@@ -204,6 +207,10 @@ SHELL: Final = (
 """桌面 App 外殼（執行環境，ADR 0018）的輸入：Python、第三方套件、PyInstaller 的設定、
 rpa_update（啟動器與驗證）。這些沒變，快取裡的 App 就和重新打包的一樣，只差程式碼層。"""
 
+PYTHON_RUNTIME: Final = ("runtimes/python/*", "tools/build_python_runtime.py")
+"""RPA Python 運行環境（ADR 0020）的內容：Python 版本、套件的鎖定檔、建置工具與它的自我測試。
+RPA Worker 與伺服器分發包附帶它，所以也是 Worker 外殼鍵與分發包指紋的輸入。"""
+
 DESKTOP_TOOLS: Final = (
     *PLAN,
     ".github/workflows/desktop.yml",
@@ -211,9 +218,10 @@ DESKTOP_TOOLS: Final = (
     # 程式碼層的更新檔（tools/build_update.py 用 build_server.py 的方法建）
     "tools/build_update.py",
     "tools/build_server.py",
-    # 自我測試：打包版自己的測試網站與 BA-001（含 Python 腳本版）
+    # 自我測試：打包版自己的測試網站與 BA-001（含 Python 腳本版）；RPA Worker 再加範例 Python 節點
     "apps/testsite/src/*",
     "scenarios/demo/*",
+    "scenarios/examples/python-node/*",
 )
 APP_CORE: Final = tuple(
     f"apps/desktop/src/rpa_desktop/{name}"
@@ -288,6 +296,7 @@ WORKER_UNIT_TESTS: Final = (
 
 WORKER_MACOS: Final = (
     *SHELL,
+    *PYTHON_RUNTIME,
     *PLAN,
     ".github/workflows/desktop.yml",
     "tools/desktop_shell.py",
@@ -304,8 +313,10 @@ WORKER_MACOS: Final = (
 
 WORKER_WINDOWS: Final = (
     *SHELL,
+    *PYTHON_RUNTIME,
     *DESKTOP_TOOLS,
     "packages/rpa_core/src/*",
+    "packages/rpa_script/src/*",
     "packages/rpa_runner/src/*",
     "apps/worker/src/*",
     "apps/desktop/src/*",
@@ -343,6 +354,7 @@ SERVER_PACKAGE: Final = (
     "!apps/*/tests/*",
     "!packages/*/tests/*",
     "scenarios/demo/*",
+    *PYTHON_RUNTIME,
     "tools/build_server.py",
     "tools/build_update.py",
     "tools/linux_server_smoke.py",
@@ -362,6 +374,21 @@ SETUP: Final = (
     "apps/cli/src/rpa_cli/serve.py",
 )
 """一鍵安裝腳本（原本 setup-scripts.yml 的 paths）。"""
+
+
+PYTHON_RUNTIME_CI: Final = (
+    *DEPS,
+    *PLAN,
+    *PYTHON_RUNTIME,
+    "packages/rpa_script/src/*",
+    "packages/rpa_runner/src/*",
+    "packages/rpa_core/src/*",
+    "packages/rpa_runner/tests/test_python_nodes.py",
+    "packages/rpa_runner/tests/test_pyruntime.py",
+    "tools/ci_annotations.py",
+    ".github/workflows/python-runtime.yml",
+)
+"""RPA Python 運行環境在每個平台建置、自我測試，再用它跑 Runner 的 Python 節點測試。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -438,6 +465,17 @@ GROUPS: Final[Mapping[str, Mapping[str, Sequence[Job]]]] = {
         ),
     },
     "ci.yml": {"worker": (Job("ci-worker-windows", CI_WORKER),)},
+    "python-runtime.yml": {
+        "matrix": tuple(
+            Job(f"python-runtime-{tag}", PYTHON_RUNTIME_CI, {"platform": tag, "os": os_name})
+            for tag, os_name in (
+                ("linux-x86_64", "ubuntu-latest"),
+                ("linux-aarch64", "ubuntu-24.04-arm"),
+                ("windows-x86_64", "windows-latest"),
+                ("macos-arm64", "macos-15"),
+            )
+        ),
+    },
 }
 """每個 workflow 的重工作，依輸出名稱分組。"""
 
@@ -504,8 +542,9 @@ def fingerprint(job: Job, files: Mapping[str, str]) -> str:
 
 
 def shell_key(target: str, files: Mapping[str, str]) -> str:
-    """桌面 App 外殼的快取鍵（:data:`SHELL` 的檔案加上目標）。"""
-    return digest(f"shell {SHELL_EPOCH} {target}", files, SHELL)
+    """桌面 App 外殼的快取鍵（:data:`SHELL` 的檔案加上目標；RPA Worker 再加上運行環境）。"""
+    patterns = (*SHELL, *PYTHON_RUNTIME) if target.startswith("worker-") else SHELL
+    return digest(f"shell {SHELL_EPOCH} {target}", files, patterns)
 
 
 def record_name(job: Job, print_: str) -> str:

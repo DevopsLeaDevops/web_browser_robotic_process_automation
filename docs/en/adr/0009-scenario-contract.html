@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:bb32029f876c279d">
+<meta name="translation-source" content="sha256:09c9c365b2c54711">
 <title>ADR 0009 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -26,6 +26,7 @@
         <dt>Date</dt><dd class="mono">2026-10-10</dd>
         <dt>Scope</dt><dd>rpa-core (DSL), rpa-runner (M2), the management portal, recording and AI generation, workflows</dd>
         <dt>Related</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a>, <a href="0010-mvp-first.html">ADR 0010</a>, <a href="../design/dsl.html">Scenario DSL</a>, <a href="../../prototypes/mvp/index.html">MVP prototype</a></dd>
+        <dt>Revision</dt><dd>2026-10-29: <code>script</code> evolves into Python nodes; see <a href="0020-python-nodes.html">ADR 0020</a>. The “Python script” rules below (no verify, outputs from assertion.py) apply only to compatible mode without <code>runtime</code>; runtime mode may assert with verify.</dd>
       </dl>
     </section>
 

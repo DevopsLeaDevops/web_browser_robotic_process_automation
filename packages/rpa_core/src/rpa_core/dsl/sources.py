@@ -2,8 +2,9 @@
 
 雜湊每次執行都記在 result.json 的 scenarioHash；管理 Portal 的發布門檻與領域資料夾的版本說明檔
 （M11）都用它確認「通過驗證的就是要發布的版本」。放在 rpa-core，資料夾的校驗不必依賴瀏覽器；
-rpa-runner 沿用同一組函式。演算法改了會讓所有既有的雜湊對不上，不能修改：場景附件（M7c）是
-接在最後的新檔案，沒有附件的場景雜湊和以前完全相同。
+rpa-runner 沿用同一組函式。演算法改了會讓所有既有的雜湊對不上，不能修改：Python 節點的
+``script.files``（ADR 0020）與場景附件（M7c）都是接在後面的新檔案，沒有它們的場景雜湊和以前
+完全相同。
 """
 
 import hashlib
@@ -30,11 +31,14 @@ def attachment_files(folder: Path) -> list[str]:
 def scenario_sources(path: Path, scenario: Scenario) -> list[str]:
     """場景由哪些檔案組成（相對於場景檔所在的資料夾）。
 
-    場景檔，加上腳本場景的兩支腳本，再加上場景附件（M7c）。
+    場景檔，加上 Python 節點的 automation、assertion（有寫才加）與 ``files``，
+    再加上場景附件（M7c）。
     """
     sources = [path.name]
     if scenario.script is not None:
-        sources += [scenario.script.automation, scenario.script.assertion]
+        script = scenario.script
+        sources += [script.automation, *([script.assertion] if script.assertion else [])]
+        sources += [name for name in script.files or () if name not in sources]
     sources += [name for name in attachment_files(path.parent) if name not in sources]
     return sources
 

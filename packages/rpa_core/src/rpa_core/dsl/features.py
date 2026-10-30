@@ -16,12 +16,16 @@ from typing import Final, cast
 
 from rpa_core.dsl.dynamic import FEATURE as DYNAMIC_VALUES
 from rpa_core.dsl.dynamic import uses_dynamic
-from rpa_core.dsl.files import attachment_names, uploaded_ids
+from rpa_core.dsl.files import attachment_names, uploaded_ids, workspace_refs
 from rpa_core.dsl.scenario import Scenario
 
 __all__ = [
+    "DOWNLOAD",
     "FEATURES",
     "FILE_INPUTS",
+    "FILE_OUTPUTS",
+    "JSON_INPUTS",
+    "PYTHON_NODES",
     "UPLOAD",
     "data_features",
     "input_features",
@@ -33,13 +37,36 @@ UPLOAD: Final = "upload"
 """``upload`` 步驟（M7c）。"""
 FILE_INPUTS: Final = "fileInputs"
 """``type: file`` 的入參、檔案入參的值與下載入參檔案（M7c）。"""
+PYTHON_NODES: Final = "pythonNodes"
+"""Python 節點的新寫法（ADR 0020）：``script`` 的 ``runtime``、``files``、``platforms``，
+以及沒有 ``assertion``（改用 ``verify``）的 Python 節點。"""
+JSON_INPUTS: Final = "jsonInputs"
+"""``type: array``、``type: object`` 的入參（ADR 0020）。"""
+FILE_OUTPUTS: Final = "fileOutputs"
+"""``type: file`` 的出參與共用工作資料夾裡的檔案值 ``{"workspace": …}``（ADR 0020）。"""
+DOWNLOAD: Final = "download"
+"""``download`` 步驟（ADR 0020）。"""
 
 FEATURES: Final[frozenset[str]] = frozenset(
-    {"frame", "anyFrame", "page", "popup", DYNAMIC_VALUES, UPLOAD, FILE_INPUTS}
+    {
+        "frame",
+        "anyFrame",
+        "page",
+        "popup",
+        DYNAMIC_VALUES,
+        UPLOAD,
+        FILE_INPUTS,
+        PYTHON_NODES,
+        JSON_INPUTS,
+        FILE_OUTPUTS,
+        DOWNLOAD,
+    }
 )
 """這份程式看得懂的擴充：定位器的 ``frame``、``anyFrame``（M7a，iframe）；
 步驟的 ``page``、``popup``（M7b，新分頁）；入參的 ``dynamicValues``（日期、隨機數）；
-``upload`` 步驟與 ``fileInputs``（M7c，上傳檔案）。"""
+``upload`` 步驟與 ``fileInputs``（M7c，上傳檔案）；
+``pythonNodes``、``jsonInputs``、``fileOutputs`` 與 ``download`` 步驟（Python 節點與組合場景的
+檔案，ADR 0020）。"""
 
 
 def data_features(data: object) -> frozenset[str]:
@@ -64,6 +91,8 @@ def data_features(data: object) -> frozenset[str]:
                     found.add(key)
             if values.get("action") == UPLOAD:
                 found.add(UPLOAD)
+            if values.get("action") == DOWNLOAD:
+                found.add(DOWNLOAD)
             pending.extend(values.values())
         elif isinstance(item, list | tuple):
             pending.extend(cast("Iterable[object]", item))
@@ -72,23 +101,39 @@ def data_features(data: object) -> frozenset[str]:
 
 def scenario_features(scenario: Scenario) -> frozenset[str]:
     """場景用到的擴充；入參的預設值用了動態值時加上 ``dynamicValues``，有檔案入參時加上
-    ``fileInputs``。"""
+    ``fileInputs``，有 array、object 入參時加上 ``jsonInputs``，用了 Python 節點的新寫法時
+    加上 ``pythonNodes``。"""
     found = data_features(scenario.model_dump(mode="json", by_alias=True, exclude_none=True))
     if uses_dynamic(spec.default for spec in scenario.inputs.values()):
         found |= {DYNAMIC_VALUES}
     if any(spec.type == "file" for spec in scenario.inputs.values()):
         found |= {FILE_INPUTS}
+    if any(spec.type in ("array", "object") for spec in scenario.inputs.values()):
+        found |= {JSON_INPUTS}
+    if any(spec.type == "file" for spec in scenario.outputs.values()):
+        found |= {FILE_OUTPUTS}
+    script = scenario.script
+    if script is not None and (
+        script.runtime is not None
+        or script.files is not None
+        or script.platforms is not None
+        or script.assertion is None
+    ):
+        found |= {PYTHON_NODES}
     return found
 
 
 def input_features(values: Mapping[str, object] | None) -> frozenset[str]:
     """一次執行給的入參用到的擴充：有動態值就是 ``dynamicValues``（求值在執行的那台裝置）；
-    有上傳檔或場景附件就是 ``fileInputs``。"""
+    有上傳檔或場景附件就是 ``fileInputs``；有上游節點產出的檔案（共用工作資料夾）就是
+    ``fileOutputs``。"""
     found: set[str] = set()
     if values and uses_dynamic(values.values()):
         found.add(DYNAMIC_VALUES)
     if values and (uploaded_ids(values.values()) or attachment_names(values.values())):
         found.add(FILE_INPUTS)
+    if values and workspace_refs(values.values()):
+        found.add(FILE_OUTPUTS)
     return frozenset(found)
 
 

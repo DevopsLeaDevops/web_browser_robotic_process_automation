@@ -3,45 +3,46 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Python 腳本場景（設計） · 瀏覽器 RPA</title>
+<title>Python 節點（第三版） · 瀏覽器 RPA</title>
 <link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
 <link rel="stylesheet" href="../handoff.css">
 </head>
 <body>
 <main id="main">
   <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
-  <div class="heading"><div><h1>Python 腳本場景（設計，第二版）</h1><p>新增一種場景：用 Python 做本機自動化，例如處理 Excel、合併檔案、整理資料夾，在 Windows、macOS、Linux 的 Worker 上一樣能跑。腳本跑在平台專門建置的「RPA Python 運行環境」：固定的 Python 與套件，每台 Worker 都相同，已經解壓過就直接沿用。原來「Python 自己呼叫 Playwright」的腳本場景寫進文件後封存。場景的自動化腳本、斷言、入參、出參與運行報告沿用現有的契約。只有設計，等使用者確認第 14 節之後才寫程式。</p></div></div>
+  <div class="heading"><div><h1>Python 節點（第三版：統一的 Python 節點）</h1><p>現有的 Python 腳本場景（<code>script:</code>）演進成統一的「Python 節點」：同一份場景契約、同一個發布門檻，可以單獨執行，也可以和瀏覽器場景串在同一個組合場景裡，補上瀏覽器做不到的檔案操作、資料處理、網路操作與（之後的）模型構建。加了 <code>runtime</code> 的節點跑在平台專門建置的「RPA Python 運行環境」，不開瀏覽器；沒有 <code>runtime</code> 的舊腳本照原來的方式執行，不封存。第一～第二版的內容分別留在 <code>3c7df35</code>、<code>e5b585e</code>。</p></div></div>
   <div class="stack">
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-25 16:55 America/Los_Angeles（PDT，UTC−07:00）</dd>
-        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 專案對話提出兩次（原文見<a href="#revision">修訂說明</a>）：2026-10-24 20:18 America/Los_Angeles（PDT，UTC−07:00）要求設計腳本場景（三種 Worker 通用、Worker 自帶並沿用 Python 運行上下文、沿用現有的領域建模、設計錄製、運行過程、運行報告與回看，先設計好再寫程式）；22:34 修訂方向（腳本場景不是 Python 呼叫 Playwright；舊功能記錄到文件後封存；腳本包含處理 Excel、合併檔案等本機自動化；Python 運行環境改成專門建置的一套虛擬運行環境）。驗收條件見<a href="#goal">第 1 節</a>。</dd>
-        <dt>範圍／不包含</dt><dd>範圍：封存舊功能、場景模型、RPA Python 運行環境、腳本介面、錄製（腳本工作台）、運行過程、運行報告、運行回看、相容性、分期與驗證（第 3～12 節）。不包含：Python 腳本開瀏覽器（網頁的部分用 DSL 場景，第 13 節）、錄製桌面操作、AI 生成腳本（M5）、使用者權限（M8）、Linux Worker 安裝包（D11）、Python 以外的語言。</dd>
-        <dt>主責／審閱／接收方</dt><dd>設計：Claude。審閱與決定：使用者。實作主責等設計確認後再定（預設 Claude）。Codex 依使用者本次要求接手 PR #82 的主線更新、衝突整合與驗證；不變更設計決定。</dd>
-        <dt>修改檔案／整合者</dt><dd>本次只有設計：本頁、<a href="index.html">任務索引</a>、<a href="../decisions.html#pending">決定 › 待你決定</a>。實作會改到的檔案列在<a href="#phases">第 12 節</a>；共用檔案（ADR 編號、遷移編號、訊息目錄、<code>docs/assets/nav.js</code>、路線圖）與 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/79">PR #79</a>（對外 Agent API，ADR 0017、M14）重疊，後合併的一方解衝突。</dd>
-        <dt>狀態</dt><dd>第二版設計待審閱：等使用者回覆第 14 節的 D1～D11。第一版（網頁腳本、場景自己鎖定套件）已依使用者的修訂取代，內容留在 <code>3c7df35</code>。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-vql00s</code>，從 <code>a8cde7f</code>（origin/main，#78）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/82">PR #82</a>（草稿，只有設計，base main）。</dd>
-        <dt>交接版本／同步狀態</dt><dd>接收遠端 head <code>6fd866766438c08c9b2ad17253abfca98b31407d</code>，合入 main <code>c587cda</code>（已含 #79、#84、#81）。本次提交記錄本地整合與驗證；推送、可合併狀態及 CI 以 PR 最新 head 為準。第二版設計與 D1～D11 待決定事項保留。</dd>
-        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.17、uv 0.11.32；沒有安裝倉庫的 <code>.venv</code> 與瀏覽器）。技術驗證（第 2 節）在暫存目錄進行，不進倉庫。</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-30 02:00 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>2026-10-24 的兩次需求見<a href="#revision">修訂說明</a>。第三版來自使用者在 Claude 專案對話的兩則訊息：2026-10-29 06:19 America/Los_Angeles（PDT，UTC−07:00）提出命題「本機自動化 Python 腳本場景能不能和現有的場景模型相容，已實作的 Python 腳本場景最好也能適配；非瀏覽器的普通自動化節點也能運行在組合場景裡，讓瀏覽器場景和 Python 結合，補足檔案操作、資料處理、模型構建、網路操作」；06:39 回覆四項決定與分期（原文見<a href="#decisions">第 13 節</a>）。驗收條件見<a href="#goal">第 1 節</a>。</dd>
+        <dt>範圍／不包含</dt><dd>這次實作 P0～P2（<a href="#phases">第 11 節</a>）：場景模型、入參與出參型別、組合場景的共用工作資料夾、派工、RPA Python 運行環境、<code>rpa_script</code>、file 出參、DSL 的下載步驟、報告與回看。規劃保留但這次不做（P3）：模型套件的選用運行環境層、腳本工作台、組合場景的扇出（foreach）、Python 節點使用登入角色（待決定 D5）。不包含：Python 節點開瀏覽器、錄製桌面操作、AI 生成腳本（M5）、使用者權限（M8）、Python 以外的語言。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude。審閱與合併：使用者。Codex 先前接手的 PR #82（只有第二版設計）不再延續；第三版與實作在新分支，見下。</dd>
+        <dt>修改檔案／整合者</dt><dd>本任務分支整合以下檔案：<code>packages/rpa_core</code>（DSL、組合場景）、新的 <code>packages/rpa_script</code>、<code>packages/rpa_runner</code>、<code>apps/worker</code>、<code>apps/server</code>、<code>apps/cli</code>、<code>apps/desktop</code>、<code>runtimes/python/</code>、<code>tools/</code>、<code>.github/workflows</code>、<code>docs/</code>、<code>scenarios/</code>、<code>schema/</code>、<code>handoff/</code>。共用檔案（<code>uv.lock</code>、多語言目錄、<code>docs/assets/nav.js</code>、任務索引、ADR 與遷移編號）由本分支整合；<code>uv.lock</code> 與簡中由 bootstrap 產生。</dd>
+        <dt>狀態</dt><dd>第三版設計已依使用者決定定稿。P0～P2 的程式、測試與文件都已提交（2026-10-30 補完合併回看裡 Python 節點的步驟時間軸、主控台逐步對應、經過 Portal 的瀏覽器＋Python 組合運行等測試、Portal／ADR／路線圖文件）。剩下人工驗收、PR 轉為可審閱與合併（使用者），列在<a href="#progress">第 15 節</a>。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/python-nodes</code>，從 <code>e5b585e</code>（origin/main，v0.8.0，#107）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/109">PR #109</a>（草稿，base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>推送到 <code>feat/python-nodes</code>；<code>uv.lock</code>、簡中、JSON Schema 由 bootstrap 產生（提交訊息含 [bootstrap]）。PR 已開（#109，草稿）；CI 結果見<a href="#validation">第 16 節</a>。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。這個環境連不到 PyPI 與瀏覽器下載站（代理回 403），所以不能 <code>uv sync</code>：<code>uv.lock</code>、簡中、JSON Schema 交給 bootstrap 產生，完整測試以 CI 為準；本機只跑得了用系統已有套件（Pydantic、PyYAML、Jinja2、click、Playwright 1.63，沒有瀏覽器）的測試。2026-10-30 的 Claude 雲端環境可以 <code>uv sync --locked</code>（.venv：Python 3.13.17、Ruff 0.17.1、Pyright 1.1.414），伺服器測試也能在本機跑；Chromium 用 <code>/opt/pw-browsers</code> 裡的舊版（以 <code>PLAYWRIGHT_BROWSERS_PATH</code> 指到 scratchpad 的連結），沒有 Firefox。</dd>
       </dl></div>
     </section>
 
     <section class="panel" id="revision">
-      <div class="panel-header"><h2>修訂說明：與第一版的差異</h2></div>
+      <div class="panel-header"><h2>修訂說明：與第二版的差異</h2></div>
       <div class="panel-body">
-        <p>使用者 2026-10-24 22:34 America/Los_Angeles（PDT，UTC−07:00）的修訂原文：「這次支持腳本目標是支持腳本場景，和原來調用 playwright 不是同一件事情，原來的支援 python 調用 playwright 可暫時不繼續開發了。爲了避免有歧義，原來使用 python 調用 playwright 的功能記錄到文檔后歸檔，不在繼續支持，有必要在繼續做。這次的腳本會包含使用 python 處理 excel、合并文件等本地自動化操作。基於以上的考慮，重新 review 下方案。python 的運行環境這裏改成為 python 專門構建一套虛擬運行環境，避免頻繁碰到版本和倚賴 python 庫的問題。」</p>
+        <p>2026-10-24 20:18 的需求：設計腳本場景，三種 Worker 通用、Worker 自帶並沿用 Python 運行上下文、沿用現有的領域建模、設計錄製、運行過程、運行報告與回看。22:34 的修訂（原文）：「這次支持腳本目標是支持腳本場景，和原來調用 playwright 不是同一件事情，原來的支援 python 調用 playwright 可暫時不繼續開發了。爲了避免有歧義，原來使用 python 調用 playwright 的功能記錄到文檔后歸檔，不在繼續支持，有必要在繼續做。這次的腳本會包含使用 python 處理 excel、合并文件等本地自動化操作。基於以上的考慮，重新 review 下方案。python 的運行環境這裏改成為 python 專門構建一套虛擬運行環境，避免頻繁碰到版本和倚賴 python 庫的問題。」</p>
+        <p>10-29 的命題改變了第二版的兩個前提：舊的腳本場景不封存，而是適配成新的節點；重點從「一種新的場景」變成「和瀏覽器場景串在組合場景裡」。查證程式後發現這條路比第二版短（<a href="#spike">第 2 節</a>）。</p>
       </div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>項目</th><th>第一版（<code>3c7df35</code>）</th><th>第二版（本頁）</th></tr></thead>
+        <thead><tr><th>項目</th><th>第二版（<code>e5b585e</code>）</th><th>第三版（本頁）</th></tr></thead>
         <tbody>
-          <tr><td>腳本做什麼</td><td>網頁自動化：腳本透過 <code>rpa_script</code> 操作平台開好的瀏覽器</td><td>本機自動化：讀寫 Excel、CSV、Word、PDF，合併、拆分、搬移檔案；腳本不開瀏覽器</td></tr>
-          <tr><td>原來的 Python＋Playwright 腳本場景</td><td>保留並升級成 api 2</td><td>寫進文件後封存，不再開發（第 3 節）</td></tr>
-          <tr><td>Python 運行環境</td><td>三層：直譯器（可用電腦上已裝的）＋平台層＋每個場景自己鎖定的第三方套件，用 uv 現場建立</td><td>一套專門建置的「RPA Python 運行環境」：固定的 Python 與套件清單，CI 建置並測試，每台 Worker 完全相同；不用電腦上的 Python，場景不現場安裝套件（第 5 節）</td></tr>
-          <tr><td>「若已有則重複使用」</td><td>沿用電腦上已裝的 Python 與建過的環境</td><td>同一台電腦已經解壓的同版本運行環境直接沿用（Worker App、錄製端 App、命令列共用）</td></tr>
-          <tr><td>場景模型</td><td>沿用 <code>script:</code>，加 <code>api: 2</code></td><td>新的 <code>python:</code> 區塊，和封存的 <code>script:</code> 分開，名稱不會混淆（第 4 節）</td></tr>
-          <tr><td>錄製</td><td>Playwright codegen 錄網頁操作，轉成腳本</td><td>腳本工作台：拿範例檔案一格一格執行，執行過的每一格成為一步，存成場景（第 7 節）</td></tr>
-          <tr><td>運行回看</td><td>錄影＋步驟（M12）</td><td>沒有畫面可錄：步驟時間軸，隨時間顯示程式、主控台、檔案變化、資料預覽與事實（第 10 節）</td></tr>
+          <tr><td>和舊腳本場景的關係</td><td>舊的改名「Playwright 腳本場景（已封存）」，不能新建</td><td>不封存。<code>script:</code> 演進成統一的 Python 節點；沒寫 <code>runtime</code> 的照舊執行（相容模式）</td></tr>
+          <tr><td>場景模型</td><td>新的 <code>python:</code> 區塊，和 <code>script:</code> 分開</td><td>沿用 <code>script:</code>，加 <code>runtime</code>、<code>files</code>、<code>platforms</code>；有 <code>runtime</code> 時可以用 <code>verify</code> 取代 assertion.py（第 4 節）</td></tr>
+          <tr><td>腳本介面的進入點</td><td><code>python -m rpa_script automation automation.py --session session.json</code></td><td>沿用原來的命令列契約（<code>--input --facts --screenshot --target-url</code>）；<code>rpa_script</code> 是選用的便利層，不用它的腳本照樣能跑（第 6 節）</td></tr>
+          <tr><td>組合場景</td><td>「Python 腳本場景可以當節點」，沒有處理資料與檔案怎麼傳</td><td>新的第 7 節：共用工作資料夾、<code>array</code>／<code>object</code> 入參、<code>file</code> 出參接到 <code>file</code> 入參、DSL 的下載步驟</td></tr>
+          <tr><td>派工</td><td>只交給有 <code>python</code> 與運行環境的 Worker</td><td>另外：用運行環境的節點不要求瀏覽器與顯示視窗</td></tr>
+          <tr><td>模型構建</td><td>沒有涵蓋</td><td>選用的 ml 運行環境層，規劃在 P3</td></tr>
+          <tr><td>分期</td><td>P0 封存 → P1 → P2 → P3 工作台</td><td>P0 模型與組合場景 → P1 運行環境 → P2 檔案與報告，這次一起做；P3（ml 層、工作台、扇出）之後做</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -49,210 +50,169 @@
     <section class="panel" id="summary">
       <div class="panel-header"><h2>0. 一頁摘要</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>新的場景種類「Python 腳本場景」。</strong>一份 <code>scenario.yaml</code> 加幾支 .py：入參、出參、Secrets、總期限與獨立斷言 <code>verify</code> 都和 DSL 一樣；<code>python:</code> 區塊指出自動化腳本。不開瀏覽器、沒有登入角色。運行報告的格式（<code>result.json</code>、<code>steps.json</code>、<code>facts.json</code>、<code>output.json</code>）也一樣。</li>
-        <li><strong>舊的「Python 自己呼叫 Playwright」改叫「Playwright 腳本場景（已封存）」。</strong>寫一份封存文件；不能再新建；既有的照常執行、不加功能；範例移到測試資料。錄製網頁、把 Playwright 錄製稿轉成 DSL 都不受影響。</li>
-        <li><strong>RPA Python 運行環境。</strong>倉庫裡定義一份清單（Python 3.13＋處理 Excel、Word、PDF、資料的常用套件，版本與雜湊鎖死），CI 為每個系統建好、測過，放進 Worker App、錄製端 App 與 Linux 分發包。第一次用到時解壓到快取資料夾（實測 2.4 秒），之後直接沿用；不碰電腦上的 Python，也不在 Worker 上安裝套件，所以不會遇到版本或套件裝不起來的問題。</li>
-        <li><strong>腳本介面 <code>rpa_script</code>。</strong><code>with run.step("merge", "合併報表"):</code> 標出步驟、<code>run.facts</code> 寫事實、<code>run.output_dir</code> 放產出檔案（報告裡可以下載）、<code>run.preview()</code> 留一份資料預覽、<code>run.watch()</code> 記下資料夾的檔案變化。</li>
-        <li><strong>錄製改成「腳本工作台」。</strong>本機操作 Excel 沒有可以錄的畫面，也沒辦法跨系統錄桌面；工作台讓作者拿範例檔案一格一格執行程式或套用範本（合併 Excel、轉 CSV、合併 PDF…），每一格就是一步，選中的值可以「改成入參」「記成事實」「加成斷言」，從頭重跑通過後存成場景。工作台也是腳本的調試工具。</li>
-        <li><strong>運行過程：</strong>入參 → 運行環境 → 自動化 → 斷言 → 出參 → 上傳，照 ADR 0009；路徑是 Worker 上的路徑，所以可以指定由哪一台 Worker 執行。</li>
-        <li><strong>報告與回看：</strong>報告列出步驟、事實、斷言、出參、產出檔案、檔案變化、資料預覽、主控台與運行環境；回看是步驟時間軸的播放器，失敗的運行打開就停在失敗的步驟。</li>
-        <li><strong>分五期交付</strong>（第 12 節）：P0 封存 → P1 運行環境＋模型＋運行 → P2 報告＋回看 → P3 腳本工作台 → 之後的擴充。</li>
+        <li><strong>一種 Python 節點，兩種模式。</strong>場景檔寫 <code>script:</code>。寫了 <code>runtime: "1"</code> 是<strong>運行環境模式</strong>：跑在 RPA Python 運行環境，不開瀏覽器、不需要 Worker 有瀏覽器；沒寫是<strong>相容模式</strong>：和現在完全一樣（App 內的 Python，可以自己用 Playwright）。既有場景的雜湊不變、不用重新發布。</li>
+        <li><strong>契約不變。</strong>兩種模式都是 <code>automation.py --input --facts --screenshot --target-url</code> 寫事實、獨立斷言判定、出參校驗後才發布。運行環境模式另外可以用 DSL 的 <code>verify</code> 取代 assertion.py。</li>
+        <li><strong>組合場景裡的資料與檔案。</strong>同一次組合運行的節點本來就在同一台 Worker；再加一個共用工作資料夾 <code>RPA_WORKSPACE</code>（運行結束就清）、<code>array</code>／<code>object</code> 入參（結構化資料可以往下傳）、<code>file</code> 出參（接到 DSL 的上傳入參）、DSL 的 <code>download</code> 步驟（網頁下載的檔案交給 Python 節點）。</li>
+        <li><strong>RPA Python 運行環境</strong>沿用第二版的設計：固定的 Python 3.13 與套件（Excel、資料、文件、網路），CI 建置測試，附在 Worker App 與 Linux 分發包，第一次解壓、之後沿用。</li>
+        <li><strong><code>rpa_script</code></strong>：<code>with run.step(...)</code>、<code>run.facts</code>、<code>run.output_dir</code>、<code>run.preview()</code>，讓報告有步驟、資料預覽與產出檔案；回看是步驟時間軸。</li>
+        <li><strong>分期：</strong>P0～P2 這次一起做；ml 運行環境層、腳本工作台、扇出放在 P3。</li>
       </ul></div>
     </section>
 
     <section class="panel" id="goal">
       <div class="panel-header"><h2>1. 目標與驗收</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>同一個 Python 腳本場景，不改一行，在 Windows Worker App、macOS Worker App、Linux 的 <code>rpa worker</code> 都能驗證與執行，結果相同（同一版運行環境）。</li>
-        <li>Worker 不需要事先裝 Python，也不需要網路：運行環境隨 App 帶來；同一台電腦已經解壓的同版本一律沿用，第二次運行的「運行環境」階段在 1 秒內。電腦上有沒有裝 Python、裝了哪一版，都不影響結果。</li>
-        <li>典型的本機自動化做得到：讀一個資料夾裡的多個 Excel 合併成一份並算總額、依欄位拆成多個檔案、Excel 與 CSV 互轉（含 Big5、GBK 編碼）、合併 PDF、用範本產生 Word、依規則重新命名與搬移檔案、壓縮。</li>
-        <li>場景的入參、出參、獨立斷言、Secrets、發布門檻和 DSL 場景用同一套規則；通過驗證的版本（場景檔、腳本、附帶的檔案）就是發布的版本。</li>
-        <li>作者在錄製端或伺服器打開腳本工作台，用範例檔案一步一步做出可以運作的腳本，存成場景草稿，交給 Worker 驗證、發布、執行成功。</li>
-        <li>運行報告有步驟（名稱、結果、耗時、錯誤、原始碼行號）、事實、斷言、出參、產出檔案（可以下載）、檔案變化、資料預覽、主控台輸出與運行環境；回看可以播放、拖曳，失敗的運行打開就停在失敗的步驟。</li>
-        <li>舊的 Playwright 腳本場景照常執行並標示已封存；新建時被擋下並說明改用什麼。</li>
+        <li><strong>結合：</strong>一個組合場景「瀏覽器節點下載報表 → Python 節點合併、計算 → 瀏覽器節點把結果檔上傳到另一個系統」在同一台 Worker 驗證、發布、執行通過；中間的資料以出參（含 <code>object</code>、<code>file</code>）傳遞。</li>
+        <li><strong>相容：</strong>現有的 <code>ba-001-script</code> 不改一行照樣驗證與執行；既有場景的雜湊不變。</li>
+        <li><strong>不依賴瀏覽器：</strong>運行環境模式的節點交給沒有下載瀏覽器、不能顯示視窗的 Worker 也能執行。</li>
+        <li><strong>一致：</strong>同一個運行環境模式的場景，不改一行，在 Windows Worker App、macOS Worker App、Linux 的 <code>rpa worker</code> 結果相同；Worker 不需要事先裝 Python、不需要網路；第二次運行的「運行環境」階段在 1 秒內。</li>
+        <li><strong>本機自動化做得到：</strong>多個 Excel 合併並算總額、依欄位拆檔、Excel 與 CSV 互轉（含 Big5、GBK）、合併 PDF、用範本產生 Word、重新命名與搬移、壓縮、呼叫 HTTP API。</li>
+        <li><strong>報告：</strong>Python 節點的報告有步驟（名稱、結果、耗時、錯誤、原始碼行號）、事實、斷言、出參、產出檔案（可以下載）、資料預覽、主控台與運行環境；回看是步驟時間軸，失敗時停在失敗的步驟。</li>
       </ul></div>
     </section>
 
     <section class="panel" id="spike">
-      <div class="panel-header"><h2>2. 現況與技術驗證</h2><span class="muted">程式以 main a8cde7f 查證；實測在 2026-10-24 20:25～22:50 America/Los_Angeles（PDT，UTC−07:00）</span></div>
+      <div class="panel-header"><h2>2. 現況與技術驗證</h2><span class="muted">程式以 main <code>c9a9d7f</code>、<code>e5b585e</code> 查證；實測在 2026-10-29 05:37～06:30 America/Los_Angeles（PDT，UTC−07:00）</span></div>
       <div class="panel-body">
-        <h3>現在的腳本場景（要封存的那一種）</h3>
+        <h3>10-29 的查證：為什麼可以統一</h3>
         <ul class="points">
-          <li>DSL 的逃生門（<a href="../../docs/adr/0009-scenario-contract.html">ADR 0009</a>、<a href="../../docs/design/dsl.html#contract">場景 DSL › script</a>）：<code>script: { automation, assertion }</code> 兩支檔案，沿用 MVP 原型的命令列契約（<code>--input --facts --screenshot --target-url</code>、<code>--input --facts --output</code>）；腳本自己用 Playwright 開瀏覽器（<code>scenarios/demo/ba-001-script/</code>）。</li>
-          <li>Runner 以子程序執行，直譯器是 <code>sys.executable</code>；打包後是 App 自己的 <code>rpa-child --rpa-script</code>，所以只能 import 標準函式庫與 App 內附的套件（<a href="../../docs/adr/0014-desktop-apps.html">ADR 0014</a>）。沒有步驟紀錄、不錄影（M12 D5）、不能逐步調試、錄製與 AI 不產生。</li>
-          <li>用到它的地方：<code>rpa_core.dsl</code>（<code>ScriptConfig</code>、<code>sources</code>）、<code>rpa_runner</code>（<code>run</code>、<code>commands</code>）、伺服器的場景種類 <code>kind="script"</code>（介面叫「Python 腳本場景」、卡片標「Python 腳本」）、回看的「腳本場景沒有錄影」、錄製與調試的提示、「測試網站自動化」領域的範例、桌面 App 的自我測試（<code>rpa_desktop.selftest</code> 執行 <code>ba-001-script</code> 確認打包後的 <code>--rpa-script</code>）、三種語言的 DSL 文件，以及 runner、伺服器、領域資料夾的測試。</li>
-          <li>可以直接沿用的：場景的雜湊與版本可以有多個檔案（<code>scenario_sources</code>）；Worker 任務的檔案是位元組（<code>JobPayload.files</code>，二進位的 Excel 範本也能帶）；執行結果上傳上限 512 MB、2000 個檔案；組合場景的節點已經跟著同一台 Worker（<code>required_worker</code>）；M7a 的 <code>features</code> 已經能擋住看不懂新欄位的舊版 Worker；快取資料夾 <code>RPA_CACHE_DIR</code> 三個系統都有慣例位置。</li>
+          <li><strong>腳本節點本來就不依賴瀏覽器。</strong><code>script:</code> 的契約只是「Runner 起一個子程序，交 <code>input.json</code>，收 <code>facts.json</code> 與候選出參」。一個沒寫 <code>browser:</code>、腳本不用 Playwright 的場景，在沒有安裝任何瀏覽器的環境照樣通過（入參校驗、事實、斷言失敗、出參型別不符、逾時 11 秒結束且沒有殘留程序，全部符合預期）。</li>
+          <li><strong>組合場景不分節點種類。</strong><code>rpa_core.workflow</code> 的節點只有「場景代號＋固定版本＋入參綁定」。「BA-001（瀏覽器）→ Python 節點 → BA-002（瀏覽器）」的定義通過 <code>check_workflow</code>，沒有任何問題。</li>
+          <li><strong>同一次組合運行固定在同一台 Worker。</strong>第一個節點被領取時，整個組合運行綁到那台（<code>rpa_server.jobs</code>、<code>services</code> 的 <code>pinned</code>），所以上游寫的檔案路徑下游讀得到。但每個節點的執行目錄在上傳後就被刪（<code>rpa_worker.remote._done</code>），不能當交接區。</li>
+          <li><strong>缺口（都有程式根據）：</strong>打包後的 App 用 <code>rpa-child --rpa-script</code> 執行，只有標準函式庫與 App 內附的套件；<code>dispatch.claim</code> 對每個任務都檢查瀏覽器與顯示視窗；入參沒有 <code>array</code>／<code>object</code>（實測 <code>object</code> 出參接 <code>string</code> 入參被判「型別不相容」）；出參沒有 <code>file</code>；DSL 沒有下載步驟；腳本場景沒有 <code>steps.json</code> 與回看。</li>
         </ul>
-        <h3>技術驗證：專用運行環境</h3>
+        <h3>10-24 的技術驗證：專用運行環境（第二版，仍然有效）</h3>
       </div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>項目</th><th>結果</th><th>根據</th><th>還要確認</th></tr></thead>
         <tbody>
-          <tr><td>建一套運行環境</td><td>python-build-standalone 3.13（2026-07-18 版）＋清單 9 個套件，鎖定後連同依賴共 18 個：openpyxl 3.1.5、xlsxwriter 3.3.0、xlrd 2.0.2、pandas 3.1.0（numpy 2.5.4、tzdata）、python-docx 1.2.0（lxml 6.1.3）、pypdf 6.21.2、python-dateutil 3.0.0、charset-normalizer 3.5.2、requests 2.34.2（urllib3、idna、certifi）等。<code>uv pip install --no-deps --require-hashes</code> 裝進去 2.4 秒</td><td>本環境實測（Linux x86_64、uv 0.11.32、經由代理連 PyPI）</td><td>Windows、macOS 在 CI 建置</td></tr>
-          <tr><td>跨平台的鎖定檔</td><td><code>uv pip compile --universal --generate-hashes</code> 一份鎖定檔涵蓋三個系統（每個套件列出所有平台 wheel 的雜湊）</td><td>本環境實測</td><td>每個套件在 Windows x64、macOS arm64、Linux x64／arm64 都有 wheel（建置時用 <code>--only-binary :all:</code> 確認）</td></tr>
-          <tr><td>大小</td><td>解壓後 227 MB、tar.gz 73 MB；其中 pandas＋numpy 約 107 MB。沒用 stripped 版本，也還沒拿掉 pip、tkinter、IDLE（約 10 MB，加上 stripped 的 libpython 估計可以再少 30 MB 以上）</td><td>本環境實測</td><td>三個系統的實際大小（D3、D5）</td></tr>
-          <tr><td>第一次解壓、啟動時間</td><td>解壓 2.4 秒（8190 個檔案）；直譯器啟動 15 ms，<code>import openpyxl</code> 約 0.2 秒、<code>import pandas</code> 約 0.4 秒</td><td>本環境實測</td><td>Windows 的防毒軟體會讓第一次解壓變慢，在 CI 量</td></tr>
-          <tr><td>本機自動化</td><td>三個各 500 列的 Excel 用 pandas 讀進來、合併、寫回一份 0.12 秒</td><td>本環境實測（<code>python -E -s -X utf8</code>）</td><td>大檔（數十 MB）的記憶體用量，P1 的效能測試</td></tr>
-          <tr><td>和電腦上的 Python 隔離</td><td><code>-E</code> 忽略 <code>PYTHONPATH</code>、<code>PYTHONHOME</code> 等環境變數，<code>-s</code> 忽略使用者的 site-packages；<code>sys.path[0]</code> 仍是腳本所在的資料夾，所以腳本可以 import 同場景的其他 .py（<code>-I</code> 會拿掉它，所以不用）</td><td>本環境實測</td><td>無</td></tr>
+          <tr><td>建一套運行環境</td><td>python-build-standalone 3.13（2026-07-18 版）＋清單 9 個套件，鎖定後連同依賴共 18 個：openpyxl 3.1.5、xlsxwriter 3.3.0、xlrd 2.0.2、pandas 3.1.0（numpy 2.5.4、tzdata）、python-docx 1.2.0（lxml 6.1.3）、pypdf 6.21.2、python-dateutil 3.0.0、charset-normalizer 3.5.2、requests 2.34.2（urllib3、idna、certifi）等。<code>uv pip install --no-deps --require-hashes</code> 裝進去 2.4 秒</td><td>2026-10-24 雲端環境實測（Linux x86_64、經由代理連 PyPI）</td><td>Windows、macOS 在 CI 建置</td></tr>
+          <tr><td>跨平台的鎖定檔</td><td><code>uv pip compile --universal --generate-hashes</code> 一份鎖定檔涵蓋三個系統</td><td>同上</td><td>每個套件在 Windows x64、macOS arm64、Linux x64／arm64 都有 wheel（建置時用 <code>--only-binary :all:</code> 確認）</td></tr>
+          <tr><td>大小</td><td>解壓後 227 MB、tar.gz 73 MB；pandas＋numpy 約 107 MB；拿掉 pip、tkinter、IDLE 與用 stripped 版本估計再少 30 MB 以上</td><td>同上</td><td>三個系統的實際大小</td></tr>
+          <tr><td>第一次解壓、啟動時間</td><td>解壓 2.4 秒（8190 個檔案）；直譯器啟動 15 ms，<code>import pandas</code> 約 0.4 秒</td><td>同上</td><td>Windows 防毒軟體的影響，在 CI 量</td></tr>
+          <tr><td>和電腦上的 Python 隔離</td><td><code>-E -s</code> 忽略 <code>PYTHONPATH</code> 等環境變數與使用者的 site-packages；<code>sys.path[0]</code> 仍是腳本所在的資料夾，腳本可以 import 同場景的其他 .py</td><td>同上</td><td>無</td></tr>
         </tbody>
       </table></div>
     </section>
 
-    <section class="panel" id="archive">
-      <div class="panel-header"><h2>3. 封存舊的 Python＋Playwright 腳本場景</h2></div>
-      <div class="panel-body">
-        <p>為了不和新的 Python 腳本場景混淆，舊的那一種改名為<strong>「Playwright 腳本場景（已封存）」</strong>：用 Python 自己呼叫 Playwright 的 <code>script:</code> 場景。封存的是這個場景種類；錄製網頁操作（codegen）、把 Playwright 錄製稿轉成 DSL（包括 #79 的「匯入 Playwright 腳本」）都照常支援。</p>
-      </div>
+    <section class="panel" id="unify">
+      <div class="panel-header"><h2>3. 統一：<code>script:</code> 演進成 Python 節點</h2></div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>項目</th><th>怎麼處理（建議的「保留執行、不再開發」，D1）</th></tr></thead>
+        <thead><tr><th></th><th>相容模式（沒寫 <code>runtime</code>）</th><th>運行環境模式（<code>runtime: "1"</code>）</th></tr></thead>
         <tbody>
-          <tr><td>封存文件</td><td>新頁面「Playwright 腳本場景（已封存）」（<code>docs/design/archived-playwright-scripts.html</code>，繁中、英文、簡中產生，列在文件導覽的「設計」）：它是什麼、檔案契約與環境變數、怎麼執行（含打包後的限制）、已知的限制、封存日期與原因、要恢復時從哪裡開始（相關的模組、測試、ADR）、既有場景怎麼改寫（純網頁的改成 DSL；需要處理檔案的拆成 DSL 場景＋Python 腳本場景，用組合場景串起來）。並註明「2026-10 以前文件裡的『Python 腳本場景』指的是這一種」。</td></tr>
-          <tr><td>正式文件</td><td>場景 DSL 的 <code>script</code> 一節搬到封存頁，原處留一句話與連結；ADR 0009、0014、0016 各加一段修訂說明指向新的 ADR（暫定 0018）；路線圖記下封存。</td></tr>
-          <tr><td>產品</td><td>介面上的名稱改成「Playwright 腳本場景（已封存）」，卡片標「已封存」。新建場景（Portal 存檔、匯入、領域資料夾同步進來的新場景）的第一個版本用 <code>script:</code> 時拒絕，說明改用 DSL 或 Python 腳本場景；既有的場景照常驗證、執行，也可以存新版本（例如修一個選擇器）。不加任何新功能。</td></tr>
-          <tr><td>範例</td><td><code>scenarios/demo/ba-001-script/</code> 移到測試資料（<code>packages/rpa_runner/tests/fixtures/</code>），「測試網站自動化」不再匯入；已經匯入的不會被刪掉。領域的說明文字拿掉「Python 腳本版的建立紀錄」。</td></tr>
-          <tr><td>程式與測試</td><td>程式留著，模組的說明註明已封存與封存頁的連結；現有測試照跑，桌面 App 的自我測試照舊確認打包後的 <code>--rpa-script</code>（範例改從測試資料複製進 App），直到真的移除。</td></tr>
-          <tr><td>以後移除時</td><td>刪掉 <code>ScriptConfig</code>、<code>--rpa-script</code>、相關的測試與介面文字；既有場景在驗證時說明怎麼改寫。要不要移除、什麼時候移除，以後再決定。</td></tr>
+          <tr><td>直譯器</td><td>和現在一樣：開發環境是 <code>sys.executable</code>，打包後是 App 的 <code>rpa-child --rpa-script</code></td><td>RPA Python 運行環境的 <code>python -E -s -X utf8</code>（第 5 節）</td></tr>
+          <tr><td>能不能開瀏覽器</td><td>可以（腳本自己用 Playwright，例如 <code>ba-001-script</code>）</td><td>不能（D2）：運行環境不帶 Playwright；場景不能寫 <code>browser</code> 與 <code>login</code></td></tr>
+          <tr><td>斷言</td><td>assertion.py（必要）</td><td>assertion.py 或 <code>verify</code> 二擇一；沒有出參時兩個都可以不寫</td></tr>
+          <tr><td>出參</td><td>assertion.py 回傳，不寫 <code>from</code></td><td>用 assertion.py 時同左；用 <code>verify</code> 時每個出參寫 <code>from</code>（取自事實），同 DSL</td></tr>
+          <tr><td>派工</td><td>照舊：要有場景的瀏覽器</td><td>不要求瀏覽器與顯示視窗；要有這個主版本的運行環境、系統在 <code>platforms</code> 裡</td></tr>
+          <tr><td>場景附帶的檔案 <code>files</code>、<code>platforms</code></td><td colspan="2">兩種模式都可以寫（新欄位，舊 App 不會領到用了它們的任務）</td></tr>
+          <tr><td>介面名稱</td><td colspan="2">「Python 節點」；卡片標「Python」，運行環境模式另標「運行環境 1」。<code>result.json</code> 的 <code>kind</code> 維持 <code>script</code>，另加 <code>python</code> 物件說明模式與運行環境</td></tr>
         </tbody>
       </table></div>
+      <div class="panel-body"><p>第二版第 3 節的封存（封存頁、改名、新建時拒絕、範例移到測試資料）全部不做。<code>ba-001-script</code> 留在「測試網站自動化」當相容模式的範例；另外加一個運行環境模式的範例與一個「瀏覽器＋Python」的組合場景範例。</p></div>
     </section>
 
     <section class="panel" id="model">
-      <div class="panel-header"><h2>4. 場景模型：沿用現有的契約</h2></div>
+      <div class="panel-header"><h2>4. 場景模型</h2></div>
       <div class="panel-body">
-        <p>Python 腳本場景是 DSL 場景的同類：同一份 <code>scenario.yaml</code>、同一套入參與出參、同一個發布門檻；差別只在「自動化」那一段是 Python，而且不開瀏覽器。<code>schemaVersion</code> 維持 1，<code>python:</code> 是增加的欄位，舊場景不用改，雜湊也不變。<code>steps</code>、<code>script</code>（已封存）、<code>python</code> 三擇一。</p>
-<pre class="source"># scenes/merge-monthly-sales/revisions/1/scenario.yaml
+        <p><code>schemaVersion</code> 維持 1，新欄位都是增加的，舊場景不用改、雜湊不變。</p>
+<pre class="source"># scenes/merge-branch-sales/revisions/1/scenario.yaml
 schemaVersion: 1
-id: merge-monthly-sales
-name: 合併每月各分店銷售報表
+id: merge-branch-sales
+name: 合併分店銷售報表
 category: 報表
-inputs:                                    # 入參：和 DSL 相同（型別、限制、動態值）
-  sourceDir: { type: string, format: directory, description: 各分店報表所在的資料夾（執行的 Worker 上） }
-  targetDir: { type: string, format: directory, description: 合併後的報表放到哪裡 }
-  month: { type: string, pattern: '^\d{4}-\d{2}$', default: '{{today:yyyy-MM}}' }
-  sheet: { type: string, default: 銷售 }
-outputs:                                   # 出參：和 DSL 相同，from 取自事實
-  rowCount: { type: integer, minimum: 1, from: '{{ facts.merge.rowCount }}' }
-  total: { type: number, from: '{{ facts.merge.total }}' }
-  outputFile: { type: string, from: '{{ facts.merge.outputFile }}' }
-deadline: 600000                           # 總期限，和 DSL 相同（上限 1 小時）
-python:
-  runtime: "1"                             # 用哪一個主版本的 RPA Python 運行環境（第 5 節）
-  automation: automation.py                # 自動化腳本
-  files: [helpers.py, templates/summary.xlsx]   # 選用：腳本會用到的其他檔案（可以是二進位）
-  platforms: [windows, macos, linux]       # 選用：只在這些系統執行；沒寫是不限
-verify:                                    # 獨立斷言：和 DSL 完全相同（也可以改用 python.assertion）
-  - name: 至少讀到一份分店報表
-    value: '{{ facts.merge.fileCount }}'
-    matches: '^[1-9][0-9]*$'
-  - name: 產出檔名有月份
-    value: '{{ facts.merge.outputFile }}'
-    contains: '{{ inputs.month }}'</pre>
-      </div>
-      <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>使用者說的</th><th>現有的建模</th><th>Python 腳本場景怎麼用</th></tr></thead>
-        <tbody>
-          <tr><td>自動化腳本</td><td>DSL 的 <code>steps:</code>；卡片與場景頁的「自動化腳本」</td><td><code>python.automation</code> 指的 .py；同一個「自動化腳本」入口改成編輯這支檔案（和 <code>files</code> 裡的 .py）。腳本負責處理檔案、把結果寫成事實 <code>facts</code>，不判定成功。</td></tr>
-          <tr><td>斷言</td><td><code>verify:</code>（獨立斷言，「斷言腳本」入口）</td><td>預設就是 <code>verify:</code>，編輯器、檢查方式、報告完全相同。需要程式判斷時（例如重新打開產出的 Excel 核對總額）改用 <code>python.assertion</code> 的 .py，兩者二擇一；有出參就必須有其中一個（ADR 0009 不變）。</td></tr>
-          <tr><td>入參</td><td><code>inputs:</code>：型別、限制、預設值、動態值；開始前校驗</td><td>完全相同，另加選用的 <code>format: directory</code>／<code>file</code>：在 Worker 上執行前先檢查路徑存在而且讀得到，執行表單提示「執行的 Worker 上的路徑」。腳本從 <code>run.inputs</code> 讀到校驗後的值（和 <code>input.json</code> 同一份）。</td></tr>
-          <tr><td>出參</td><td><code>outputs:</code>＋<code>from</code>；獨立斷言通過後才發布</td><td>完全相同；用 <code>assertion.py</code> 時由它回傳候選出參、不寫 <code>from</code>（現有規則）。產出的檔案不是出參，而是附件（第 9 節）；出參可以回傳檔名或路徑，串給下游場景。</td></tr>
-          <tr><td>運行報告</td><td>執行目錄：<code>input.json</code>、<code>facts.json</code>、<code>steps.json</code>、<code>output.json</code>、<code>result.json</code>、<code>report.html</code></td><td>同一份格式；<code>steps.json</code> 由腳本介面寫，多出的檔案（產出檔案、檔案變化、資料預覽、主控台、運行環境）都是增加的（第 9 節）。</td></tr>
-        </tbody>
-      </table></div>
-      <div class="panel-body">
-        <h3>校驗規則（rpa validate、Portal 存檔、rpa pack check 相同）</h3>
+
+inputs:
+  reports:   { type: file, multiple: true, accept: [.xlsx] }   # 上游下載或上傳的檔案
+  months:    { type: array, description: 要合併的月份 }          # 新：array／object 入參
+  options:   { type: object, default: { sheet: 銷售 } }
+
+outputs:
+  merged:    { type: file, from: '{{ facts.merged }}' }          # 新：file 出參
+  total:     { type: number, from: '{{ facts.total }}' }
+  byBranch:  { type: object, from: '{{ facts.byBranch }}' }
+
+deadline: 600000
+
+script:
+  runtime: "1"                          # 新：用 RPA Python 運行環境 1；沒寫是相容模式
+  automation: automation.py
+  files: [helpers.py, templates/summary.xlsx]   # 新：腳本會用到的其他檔案
+  platforms: [windows, macos, linux]            # 新：選用
+
+verify:                                 # 運行環境模式可以用 verify 取代 assertion.py
+  - name: 至少合併一份報表
+    value: '{{ facts.fileCount }}'
+    matches: '^[1-9][0-9]*$'</pre>
+        <h3>校驗規則（<code>rpa validate</code>、Portal 存檔、<code>rpa pack check</code> 相同）</h3>
         <ul class="points">
-          <li><code>python</code> 場景不能有 <code>browser</code>、<code>login</code>；<code>defaults.timeout</code> 是每一步的預設逾時（沒寫就只受總期限限制）。</li>
-          <li><code>runtime</code> 是這版伺服器認得的主版本（目前只有 <code>"1"</code>）。<code>platforms</code> 是 <code>windows</code>、<code>macos</code>、<code>linux</code> 的子集。</li>
-          <li><code>assertion</code> 與 <code>verify</code> 恰好一個（沒有出參時兩個都可以不寫，和 DSL 一樣）；<code>verify</code> 與 <code>outputs.from</code> 只能引用 <code>inputs</code>、<code>secrets</code>、<code>facts</code>、<code>env</code>。腳本會寫出哪些事實在校驗時看不出來，所以不檢查事實的名稱，執行時找不到就在那一條斷言報「沒有這個事實」。</li>
-          <li>路徑都相對於場景檔的資料夾，不能用 <code>..</code> 或絕對路徑；<code>automation</code>、<code>assertion</code> 沿用 <code>ScriptPath</code> 的規則，<code>files</code> 可以是任何副檔名。最多 50 個檔案，單一檔案 1 MB 內（git 推送的上限，ADR 0015）。</li>
-          <li>每支 .py 在存檔時以 Python 3.13 的語法檢查，錯誤指出檔案與行號；<strong>同時檢查 import</strong>：不是標準函式庫、運行環境的套件、<code>rpa_script</code> 或場景自己的 .py 時提醒「RPA Python 運行環境 1 沒有 xxx」（伺服器帶一份運行環境的套件與模組清單），在存檔時就發現套件問題，而不是到 Worker 上才失敗。</li>
+          <li><code>runtime</code> 是這版程式認得的主版本（目前只有 <code>"1"</code>）。有 <code>runtime</code> 時不能寫 <code>browser</code>、<code>login</code>；<code>assertion</code> 與 <code>verify</code> 最多一個，有出參時恰好一個；用 <code>verify</code> 時每個出參要有 <code>from</code>、用 assertion.py 時不能有。</li>
+          <li>相容模式的規則不變：<code>assertion</code> 必要、不能有 <code>verify</code> 與 <code>from</code>。</li>
+          <li><code>files</code>：相對於場景檔的路徑（不能用 <code>..</code> 與絕對路徑），可以是任何副檔名，最多 50 個、單檔 1 MB（git 推送的上限，ADR 0015）；和 automation、assertion 一樣納入雜湊與快照。不能和場景附件的 <code>files/</code> 資料夾重疊。</li>
+          <li><code>platforms</code> 是 <code>windows</code>、<code>macos</code>、<code>linux</code> 的子集，不能重複。</li>
+          <li>入參新增 <code>type: array</code>、<code>type: object</code>：值是 JSON 的陣列與物件；不能寫 <code>enum</code>、長度與數值範圍；預設值要符合型別。在 DSL 的 <code>{{ inputs.x }}</code> 裡代入成 JSON 文字。</li>
+          <li>出參新增 <code>type: file</code>（第 7 節）。<code>file</code> 型別的入參現在 Python 節點也可以用（第二版禁止），腳本從 <code>RPA_INPUT_FILES</code> 拿到檔案路徑。</li>
+          <li>擴充（<code>features</code>）：<code>pythonNodes</code>（<code>runtime</code>、<code>files</code>、<code>platforms</code>、Python 節點的 <code>verify</code> 與 file 入參）、<code>jsonInputs</code>（array／object 入參）、<code>fileOutputs</code>、<code>download</code>。舊版 App 不會領到用了它們的任務，執行頁說明要更新哪個 App。</li>
         </ul>
-        <h3>雜湊與檔案</h3>
-        <ul class="points">
-          <li><code>scenario_sources</code> 對 <code>python</code> 場景依序是場景檔、<code>automation</code>、<code>assertion</code>（有寫才加）、<code>files</code>。沒有 <code>python</code> 的場景，檔案清單與雜湊完全不變（<a href="../../docs/adr/0015-domain-folders-and-git.html">ADR 0015</a>）。</li>
-          <li>運行環境不算在場景的雜湊裡（它是 Worker 的一部分，就像瀏覽器版本）；驗證紀錄與每次執行都記下實際用的運行環境版本，報告看得到「驗證時 1.2.0、這次 1.3.0」。</li>
-          <li>伺服器的場景種類多一個 <code>kind="python"</code>（介面「Python 腳本場景」、卡片標「Python」）；場景清單、運行報告可以依種類篩選。</li>
-        </ul>
+        <h3>雜湊與快照</h3>
+        <p><code>scenario_sources</code> 依序是場景檔、automation、assertion（有寫才加）、<code>files</code>。沒有新欄位的場景，檔案清單與雜湊完全不變。運行環境不算在雜湊裡（它是 Worker 的一部分，就像瀏覽器版本）；每次執行記下實際用的運行環境版本。</p>
       </div>
     </section>
 
     <section class="panel" id="runtime">
       <div class="panel-header"><h2>5. RPA Python 運行環境</h2></div>
       <div class="panel-body">
-        <p>平台自己建置、自己測試的一套 Python：一個 python-build-standalone 直譯器，加上固定的一組套件，所有 Worker 用的是位元組都相同的同一份。它就是使用者說的「專門構建的虛擬運行環境」：和電腦上的 Python、Worker App 自己的 Python 都分開；Worker 上不安裝、不升級任何套件，所以三台電腦不會因為各自的版本與套件而結果不同。</p>
-        <h3>5.1 內容與版本</h3>
+        <p>平台自己建置、自己測試的一套 Python：一個 python-build-standalone 直譯器，加上固定的一組套件，所有 Worker 用的是位元組都相同的同一份；和電腦上的 Python、App 自己的 Python 都分開，Worker 上不安裝、不升級任何套件。內容、建置與沿用照第二版第 5 節，以下是摘要與這一版的調整。</p>
       </div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>部分</th><th>內容（建議，D3）</th></tr></thead>
+        <thead><tr><th>部分</th><th>運行環境 1 的內容</th></tr></thead>
         <tbody>
-          <tr><td>直譯器</td><td>python-build-standalone CPython 3.13（stripped，固定發行版與 sha256）</td></tr>
-          <tr><td>Excel</td><td>openpyxl（讀寫 .xlsx，保留格式）、xlsxwriter（大量寫出、格式與圖表）、xlrd（舊的 .xls）</td></tr>
-          <tr><td>資料處理</td><td>pandas（合併、篩選、分組、樞紐；連同 numpy）、python-dateutil</td></tr>
-          <tr><td>文件</td><td>python-docx（Word 範本填值）、pypdf（合併、拆分、旋轉 PDF）</td></tr>
-          <tr><td>文字與網路</td><td>charset-normalizer（判斷 Big5、GBK 等編碼）、requests（呼叫內部 API）</td></tr>
-          <tr><td>平台</td><td><code>rpa-script</code>（腳本介面，第 6 節；不依賴第三方套件）</td></tr>
-          <tr><td>標準函式庫已經有的</td><td>csv、zipfile、shutil、pathlib、json、sqlite3、smtplib、email 等；不另外帶</td></tr>
-          <tr><td>不包含</td><td>pip（拿掉，並放 <code>EXTERNALLY-MANAGED</code> 標記）、tkinter、IDLE、Playwright（腳本不開瀏覽器）</td></tr>
+          <tr><td>直譯器</td><td>python-build-standalone CPython 3.13（固定發行版與 sha256）</td></tr>
+          <tr><td>Excel</td><td>openpyxl、xlsxwriter、xlrd</td></tr>
+          <tr><td>資料處理</td><td>pandas（連同 numpy）、python-dateutil</td></tr>
+          <tr><td>文件</td><td>python-docx、pypdf</td></tr>
+          <tr><td>文字與網路</td><td>charset-normalizer、requests</td></tr>
+          <tr><td>平台</td><td><code>rpa-script</code>（第 6 節，只用標準函式庫）</td></tr>
+          <tr><td>不包含</td><td>pip（拿掉並放 <code>EXTERNALLY-MANAGED</code>）、tkinter、IDLE、Playwright（D2）、模型套件（D4，見 5.5）</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body">
-        <ul class="points">
-          <li><strong>版本號 主.次.修（D6）。</strong>場景寫主版本（<code>runtime: "1"</code>）。同一個主版本裡只加套件、做相容的升級（次版本）或安全修正（修訂版）；換 Python 的次版本、拿掉套件、套件有不相容的大改版才升主版本。Worker 帶它支援的每個主版本的最新版（一開始只有 1）。主版本 2 出來時有一段時間兩個都帶，場景逐一改成 2、重新驗證。</li>
-          <li><strong>場景要清單以外的套件（D4）：</strong>第一版不允許在場景裡另外裝套件——那正是要避免的版本與倚賴問題。要用就提出加進運行環境（發新的次版本，所有 Worker 一起有）；只有幾個檔案的純 Python 模組可以直接放進場景的 <code>files</code>。</li>
-          <li><strong>公式不會重算。</strong>openpyxl 讀到的是 Excel 最後一次存檔時算好的值，寫入的公式要等 Excel 打開才會算。要 Excel 本身（重算、巨集、轉 PDF）只有 Windows 有；需要時用 D3 的選項 pywin32，場景寫 <code>platforms: [windows]</code>。</li>
-        </ul>
+        <h3>5.1 版本</h3>
+        <p>版本號 主.次.修。場景寫主版本（<code>runtime: "1"</code>）；同一個主版本只加套件、做相容的升級或安全修正；換 Python 的次版本、拿掉套件、套件有不相容的大改版才升主版本。每次執行記下完整版本，報告看得到「驗證時 1.0.0、這次 1.1.0」。場景要清單以外的套件時，提出後加進運行環境（新的次版本）；只有幾個檔案的純 Python 模組可以放進場景的 <code>files</code>。</p>
         <h3>5.2 建置與測試</h3>
 <pre class="source">runtimes/python/
-  runtime.toml          # 版本（1.0.0）、Python 發行版與每個平台壓縮檔的 sha256、支援的平台
-  requirements.in       # 清單：套件名稱與版本範圍
-  requirements.lock     # uv pip compile --universal --generate-hashes 產生，提交進倉庫
-  smoke/                # 自我測試：import 每個套件；讀寫 xlsx／xls／csv；合併 Excel；docx 填值；合併 PDF；中文路徑與檔名
-tools/build_python_runtime.py --platform windows-x86_64   # 也有 macos-arm64、linux-x86_64、linux-aarch64</pre>
-        <ol class="steps">
-          <li>下載固定版本的 python-build-standalone，核對 sha256，解壓。</li>
-          <li><code>uv pip install --python 直譯器 --no-deps --require-hashes --only-binary :all: -r requirements.lock</code>，再裝 <code>rpa-script</code> 的 wheel。只用 wheel，Worker 不需要編譯器。</li>
-          <li>拿掉 pip、tkinter、IDLE、測試資料夾；預先編譯 .pyc；放 <code>EXTERNALLY-MANAGED</code>。</li>
-          <li>寫 <code>rpa-runtime.json</code>：版本、Python、平台、每個套件的版本與雜湊、授權（全部是寬鬆授權；certifi 是 MPL-2.0，原樣散布即可）、建置的 commit。</li>
-          <li>用剛建好的運行環境跑 <code>smoke/</code>，通過才打包成 <code>RPA-Python-1.0.0-windows-x86_64.tar.gz</code>＋sha256。</li>
-        </ol>
-        <p>CI 在三個系統的工作上各建一份（Linux 另建 arm64）；只有 <code>runtimes/python/</code> 或 <code>packages/rpa_script</code> 改了才重建，其他時候用快取。桌面 App 與 Linux 分發包的建置拿這份產物，App 的建置資訊記下運行環境的版本與 sha256。開發環境用同一支工具建到本機的快取資料夾（<code>uv run tools/build_python_runtime.py --install</code>）。</p>
-        <h3 id="runtime-bundle">5.3 帶到 Worker、已經有就沿用</h3>
-      </div>
-      <div class="table-scroll"><table class="wrap">
-        <thead><tr><th></th><th>Windows Worker App</th><th>macOS Worker App</th><th>Linux（<code>rpa worker</code>）</th></tr></thead>
-        <tbody>
-          <tr><td>帶什麼</td><td>App 裡附 <code>RPA-Python-1.x-windows-x86_64.tar.gz</code></td><td>App 裡附 macos-arm64 的壓縮檔</td><td>伺服器分發包附 linux-x86_64 或 aarch64 的壓縮檔；原始碼安裝用建置工具建</td></tr>
-          <tr><td>錄製端 App</td><td colspan="3">同樣附一份（腳本工作台用，第 7 節）</td></tr>
-          <tr><td>解壓到</td><td><code>%LOCALAPPDATA%\rpa\cache\python\1.0.0-windows-x86_64\</code></td><td><code>~/Library/Caches/rpa/python/1.0.0-macos-arm64/</code></td><td><code>~/.cache/rpa/python/1.0.0-linux-x86_64/</code></td></tr>
-          <tr><td>直譯器</td><td><code>…\python.exe</code></td><td><code>…/bin/python3</code></td><td><code>…/bin/python3</code></td></tr>
-          <tr><td>估計多出的大小</td><td colspan="3">壓縮後約 60～75 MB（實測 Linux 未精簡 73 MB）；解壓後約 200 MB，同一台電腦的 Worker App、錄製端 App、命令列共用一份</td></tr>
-        </tbody>
-      </table></div>
-      <div class="panel-body">
+  runtime.toml          # 版本、python-build-standalone 發行版與每個平台壓縮檔的 sha256
+  requirements.in       # 套件清單與版本範圍
+  requirements.lock     # uv pip compile --universal --generate-hashes 產生（bootstrap 也會產生），提交進倉庫
+  smoke.py              # 自我測試：import 每個套件；讀寫 xlsx／xls／csv；合併 Excel；docx 填值；合併 PDF；中文路徑與檔名
+tools/build_python_runtime.py --platform windows-x86_64   # 也有 macos-arm64、linux-x86_64、linux-aarch64；--install 裝到本機快取</pre>
+        <p>下載固定版本的直譯器並核對 sha256 → 只用 wheel、核對雜湊安裝套件（<code>rpa-script</code> 不裝，見 6.2）→ 拿掉 pip、tkinter、IDLE、測試資料夾，放 <code>EXTERNALLY-MANAGED</code> → 寫 <code>rpa-runtime.json</code>（版本、平台、套件版本與授權、建置的 commit）→ 用剛建好的運行環境跑 <code>smoke.py</code> → 打包成 <code>RPA-Python-1.0.0-&lt;平台&gt;.tar.gz</code>＋sha256。CI 在每個平台（Linux x64、arm64、Windows、macOS）各建一份並用它跑 Python 節點的測試，輸入（<code>runtimes/python/</code>、<code>packages/rpa_script</code>、建置工具、Runner）的指紋沒變時沿用（照 2026-10-26 同意的依層建置）；Worker App 與伺服器分發包建置時各自再建一份放進去。運行環境的版本屬於外殼：換套件要升 <code>runtime.toml</code> 的版本，App 與分發包的環境代號跟著變。</p>
+        <h3>5.3 帶到 Worker、已經有就沿用</h3>
         <ul class="points">
-          <li><strong>沿用：</strong>執行時找快取資料夾裡同版本、有 <code>.ready</code> 標記、<code>rpa-runtime.json</code> 的雜湊和 App 附的相同的那一份，直接用（只讀兩個小檔案，幾毫秒）。App 升級了但運行環境版本沒變，也照樣沿用，不重新解壓。</li>
-          <li><strong>第一次：</strong>解壓到 <code>.tmp-…</code>、跑一次快速自我檢查（<code>python -E -s -c "import rpa_script; rpa_script.selfcheck()"</code>）、寫 <code>.ready</code>、改名成正式的資料夾；兩個程序同時要時，後到的等前一個完成（檔案鎖）。解壓到一半被取消就丟掉重來。Worker App 啟動後在背景先解壓，第一次運行不必等。</li>
-          <li><strong>損壞時：</strong>自我檢查失敗或執行時 import 運行環境的套件失敗，標記成壞的，下一次重新解壓；Worker 的「設定」有「重新準備 Python 運行環境」。</li>
-          <li><strong>清理：</strong>保留這台電腦上任何一個 App 附的版本，以及 30 天內用過的版本，其他的刪掉；正在使用的不刪。</li>
-          <li><strong>不會被改動：</strong>沒有 pip、有 <code>EXTERNALLY-MANAGED</code>；以 <code>-E -s</code> 執行，不讀 <code>PYTHONPATH</code> 與使用者的 site-packages。腳本仍然是以 Worker 使用者的身分執行，硬要改檔案還是改得到，所以每次開始前檢查 <code>.ready</code> 的雜湊，App 啟動時做一次完整的自我檢查。</li>
-          <li><strong>macOS：</strong>App 自己解壓的檔案沒有隔離屬性，不會被 Gatekeeper 擋；以後加 Developer ID 簽章與公證時，運行環境裡的執行檔與 .so 也要簽，寫進建置工具的待辦。</li>
+          <li>Worker App（Windows、macOS）與 Linux 伺服器分發包附上自己平台的壓縮檔；原始碼安裝用 <code>tools/build_python_runtime.py --install</code>。</li>
+          <li>解壓到快取資料夾的 <code>python/&lt;版本&gt;-&lt;平台&gt;/</code>（Windows <code>%LOCALAPPDATA%\rpa\cache</code>、macOS <code>~/Library/Caches/rpa</code>、Linux <code>~/.cache/rpa</code>，<code>RPA_CACHE_DIR</code> 可以改）。有 <code>.ready</code> 標記、<code>rpa-runtime.json</code> 的雜湊和附帶的相同就直接用（幾毫秒）；第一次解壓到暫存資料夾、自我檢查、寫 <code>.ready</code> 再改名，同時要同一版的程序以檔案鎖排隊；損壞時下次重新解壓。</li>
+          <li>Worker 上線時回報有哪些運行環境（例如 <code>["1.0.0"]</code>）與平台（例如 <code>windows-x86_64</code>）；「裝置」頁顯示。</li>
         </ul>
-        <h3>5.4 回報與派工</h3>
-        <ul class="points">
-          <li>Worker 上線時（<code>WorkerInfo</code>）多回報：看得懂的擴充多 <code>python</code>（M7a 的 <code>features</code>）、系統與架構、有哪些運行環境版本（例如 <code>[{"version": "1.0.0", "platform": "windows-x86_64"}]</code>）。「裝置」頁顯示這些。</li>
-          <li>伺服器只把 Python 腳本場景交給有 <code>python</code>、有這個主版本、系統在 <code>platforms</code> 裡的裝置。沒有時執行頁說明「沒有可以執行的 Worker：需要 RPA Python 運行環境 1（Worker App 0.x 以上）」或「這個場景只在 Windows 執行」，同 M7a。</li>
-          <li>伺服器本身不執行腳本（工作台例外，第 7 節）；它只需要運行環境的套件與模組清單（幾 KB），用來做存檔時的 import 檢查。</li>
-        </ul>
+        <h3>5.4 派工</h3>
+        <p>運行環境模式的任務只交給：回報了 <code>pythonNodes</code>、有這個主版本、平台在 <code>platforms</code> 裡的裝置；不檢查瀏覽器與顯示視窗。沒有可以執行的裝置時，執行頁說明缺什麼（例如「需要 RPA Python 運行環境 1」「這個場景只在 Windows 執行」），同 M7a。</p>
+        <h3 id="runtime-ml">5.5 模型套件的選用層（P3，這次不做）</h3>
+        <p>模型構建要的套件很大（scikit-learn 約數十 MB，PyTorch 會讓運行環境多上 GB），不放進基本版（D4）。之後另建一個疊在基本版上的選用層，場景寫 <code>runtime: "1-ml"</code>，只派給有這一層的 Worker；Worker App 可以選擇要不要下載這一層。套件清單、下載方式與大小在 P3 設計。</p>
       </div>
     </section>
 
     <section class="panel" id="sdk">
-      <div class="panel-header"><h2>6. 腳本介面 rpa_script</h2></div>
+      <div class="panel-header"><h2>6. 腳本介面</h2></div>
       <div class="panel-body">
-        <p>新套件 <code>packages/rpa_script</code>（套件名稱 <code>rpa-script</code>），只用標準函式庫，裝在運行環境裡。它負責腳本與平台之間的一切：讀入參與 Secrets、記錄步驟、寫事實、產出檔案、資料預覽、檔案變化、主控台輸出與錯誤。腳本不寫讀參數、寫結果的樣板。</p>
-<pre class="source"># automation.py（工作台產生，之後可以手改）
-import shutil
-from pathlib import Path
+        <h3>6.1 契約（兩種模式相同）</h3>
+        <ul class="points">
+          <li><code>automation.py --input input.json --facts facts.json --screenshot screenshot.png --target-url 網址</code>：讀入參，把觀察到的事實寫進 facts.json，不判定成功。運行環境模式的 <code>--target-url</code> 是空字串，截圖可以不寫。</li>
+          <li><code>assertion.py --input input.json --facts facts.json --output candidate.json</code>：獨立比對，寫出候選出參；結束碼非 0 是斷言失敗。</li>
+          <li>環境變數（兩種模式）：<code>RPA_DEADLINE_SECONDS</code>、<code>RPA_LANG</code>、Secrets（同名）。相容模式另有 <code>RPA_BROWSER</code>、<code>RPA_HEADLESS</code>、<code>RPA_STORAGE_STATE</code>（照舊）。運行環境模式另有 <code>RPA_WORKSPACE</code>（共用工作資料夾，也是工作目錄）、<code>RPA_OUTPUT_DIR</code>（產出檔案）、<code>RPA_INPUT_FILES</code>（file 入參的實際路徑，JSON 檔）、<code>RPA_STEPS</code>（步驟紀錄檔）、<code>RPA_RUNTIME</code>、<code>RPA_PLATFORM</code>；拿掉 <code>PYTHON*</code>、<code>VIRTUAL_ENV</code>、<code>CONDA_*</code>、<code>PLAYWRIGHT_*</code> 與 Worker 的權杖。</li>
+          <li>運行環境模式由 <code>python -E -s -B -X utf8 -c &lt;啟動器&gt; &lt;rpa_script 所在&gt; automation.py …</code> 啟動（等於 <code>python -m rpa_script automation.py …</code>）：<code>rpa_script</code> 先準備好 <code>Run</code>，再以 <code>__main__</code> 執行腳本；腳本有 <code>@automation</code> 函式就接著呼叫它。所以「照契約自己讀寫檔案的舊式腳本」與「用 <code>rpa_script</code> 的腳本」都能跑。相容模式的啟動方式不變。</li>
+        </ul>
+        <h3>6.2 <code>rpa_script</code>（選用的便利層）</h3>
+        <p>新套件 <code>packages/rpa_script</code>（<code>rpa-script</code>），只用標準函式庫；隨 <code>rpa-runner</code> 一起裝，所以相容模式的腳本也能 import。<strong>不裝在運行環境裡</strong>（2026-10-29 實作時改）：Runner 把自己的那份 .py 放到快取的 <code>python/rpa-script-&lt;內容雜湊&gt;/</code>，啟動時加在 import 路徑最後。原因是程式碼層（ADR 0018）的更新檔不換運行環境：裝在運行環境裡的話，Runner 與 <code>rpa_script</code> 會在更新後錯開；這樣運行環境只在 Python 或套件改變時才換。打包後的 App 另外收進 <code>rpa_script</code> 的原始碼。</p>
+<pre class="source">from pathlib import Path
 
 import pandas as pd
 
@@ -261,271 +221,151 @@ from rpa_script import Run, StepError, automation
 
 @automation
 def main(run: Run) -&gt; None:
-    source = Path(run.inputs["sourceDir"])
-    month = run.inputs["month"]
-    run.watch(run.inputs["targetDir"], "目標資料夾")  # 報告與回看列出這個資料夾的檔案變化
-
-    with run.step("find", "找出這個月的分店報表"):
-        files = sorted(source.glob(f"*{month}*.xlsx"))
-        if not files:
-            raise StepError(f"{source} 沒有 {month} 的報表")  # 只顯示訊息，不顯示呼叫堆疊
-        run.log(f"找到 {len(files)} 個檔案")
-
-    frames = []
-    for path in files:
-        with run.step("read", f"讀取 {path.name}"):  # 迴圈裡同一個 id，報告顯示第 n 次
-            frames.append(pd.read_excel(path, sheet_name=run.inputs["sheet"]).assign(分店=path.stem))
+    with run.step("read", "讀取分店報表"):
+        paths = run.input_files["reports"]          # file 入參的實際路徑
+        if not paths:
+            raise StepError("沒有收到報表")         # 只顯示訊息，不顯示呼叫堆疊
+        frames = [pd.read_excel(path).assign(分店=Path(path).stem) for path in paths]
 
     with run.step("merge", "合併並計算總額"):
         merged = pd.concat(frames, ignore_index=True)
-        run.preview("合併結果", merged)  # 報告與回看顯示前 50 列
+        run.preview("合併結果", merged)             # 報告與回看顯示前 50 列
 
     with run.step("write", "寫出合併報表"):
-        name = f"銷售合併-{month}.xlsx"
-        merged.to_excel(run.output_dir / name, index=False)  # output_dir 的檔案成為產出檔案
-        target = shutil.copy2(run.output_dir / name, run.inputs["targetDir"])  # 最後才放到目標資料夾
-        run.facts["merge"] = {
-            "fileCount": len(files),
-            "rowCount": len(merged),
-            "total": float(merged["金額"].sum()),
-            "outputFile": str(target),
-        }</pre>
+        target = run.output_dir / "merged.xlsx"
+        merged.to_excel(target, index=False)
+        run.facts.update(
+            merged=str(target),                     # file 出參取自這個事實
+            fileCount=len(paths),
+            total=float(merged["金額"].sum()),
+            byBranch=merged.groupby("分店")["金額"].sum().to_dict(),
+        )</pre>
       </div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>介面</th><th>說明</th></tr></thead>
         <tbody>
-          <tr><td><code>@automation</code></td><td>標出進入點。平台以 <code>python -E -s -X utf8 -m rpa_script automation automation.py --session session.json</code> 載入並呼叫它。一支檔案只能有一個。</td></tr>
-          <tr><td><code>run.inputs</code>、<code>run.secrets</code></td><td>運行態入參（唯讀，和 <code>input.json</code> 同一份）；場景 <code>secrets</code> 宣告的 Secrets（例如加密 Excel 的密碼）。Secrets 經由標準輸入交給腳本，不寫進檔案、不放環境變數；它的值出現在主控台、錯誤、步驟名稱、資料預覽時自動遮罩。</td></tr>
-          <tr><td><code>run.facts</code></td><td>事實（可以轉成 JSON 的 dict），結束時寫成 <code>facts.json</code>；失敗時也寫出已經有的部分。</td></tr>
-          <tr><td><code>with run.step(id, name=None, *, timeout=None)</code></td><td>標出一步：開始與結束的時間、結果、錯誤、原始碼行號、這一步寫入的事實。id 的格式同 DSL；迴圈裡重複的 id 記成同一步的第 n 次；可以巢狀（報告縮排顯示，回看的時間軸畫最外層）。逾時（這一步的、<code>defaults.timeout</code> 或總期限剩下的時間，取最小）由背景的看門狗處理：記下逾時、寫出步驟與事實，再結束程序。</td></tr>
-          <tr><td><code>run.output_dir</code>、<code>run.attach(path, name=None)</code></td><td>產出檔案的資料夾：裡面的檔案在結束後上傳，報告可以下載（每次合計 200 MB 內，D9）；<code>attach</code> 把其他地方的檔案複製進來。</td></tr>
-          <tr><td><code>run.work_dir</code></td><td>這次運行的暫存資料夾，也是腳本的工作目錄；暫存檔也放這裡（<code>TEMP</code>、<code>TMPDIR</code> 指到它），結束後刪除。</td></tr>
-          <tr><td><code>run.watch(path, name)</code></td><td>記下這個資料夾在每一步前後的檔案變化（新增、修改、刪除；名稱、大小、修改時間），<code>output_dir</code> 與 <code>work_dir</code> 自動記。最多 5000 個檔案，超過就只記數量。</td></tr>
-          <tr><td><code>run.preview(name, value)</code></td><td>留一份資料預覽：pandas DataFrame、list、openpyxl 的工作表、.xlsx／.csv 檔的路徑（第一個工作表）或文字。只存前 50 列、30 欄，每格 200 字。只有腳本呼叫時才有。</td></tr>
-          <tr><td><code>run.log(訊息)</code>、<code>print()</code></td><td>都進主控台輸出，記下時間與當時的步驟（<code>console.jsonl</code>，上限 5 MB）。</td></tr>
-          <tr><td><code>StepError(訊息)</code></td><td>預期中的失敗（找不到檔案、資料格式不對）：報告只顯示訊息。其他例外顯示訊息與呼叫堆疊（只保留場景自己的檔案的那幾層）。</td></tr>
-          <tr><td><code>run.remaining_ms</code>、<code>run.platform</code>、<code>run.runtime</code>、<code>run.lang</code></td><td>總期限剩下的毫秒；windows／macos／linux；運行環境版本；介面語言。</td></tr>
+          <tr><td><code>@automation</code></td><td>標出進入點；一支檔案最多一個。</td></tr>
+          <tr><td><code>run.inputs</code>、<code>run.input_files</code>、<code>run.secrets</code></td><td>運行態入參（唯讀，和 input.json 同一份）；file 入參名稱 → 實際路徑清單；場景宣告的 Secrets。</td></tr>
+          <tr><td><code>run.facts</code></td><td>事實（可以轉成 JSON 的 dict），結束時寫成 facts.json；失敗時也寫出已經有的部分。</td></tr>
+          <tr><td><code>with run.step(id, name=None)</code></td><td>一步：開始與結束時間、結果、錯誤、原始碼行號；迴圈裡同一個 id 記成第 n 次。寫進 <code>steps.json</code>，格式同 DSL（<code>action</code> 是 <code>python</code>，另加 <code>source</code>、<code>occurrence</code>）。</td></tr>
+          <tr><td><code>run.output_dir</code></td><td>產出檔案的資料夾（執行目錄的 <code>outputs/</code>）：結束後跟著執行目錄上傳，報告可以下載。</td></tr>
+          <tr><td><code>run.workspace</code></td><td>共用工作資料夾（第 7 節），也是工作目錄。</td></tr>
+          <tr><td><code>run.preview(name, value)</code></td><td>資料預覽：pandas DataFrame、list of dict／list、dict、文字；只存前 50 列、30 欄，每格 200 字。</td></tr>
+          <tr><td><code>run.log(訊息)</code>、<code>print()</code></td><td>進 automation.log（腳本開的子程序的輸出也在裡面）；Secrets 的值遮罩。每一步記下開始、結束時 automation.log 寫到第幾個位元組（steps.json 的 <code>console</code>），回看顯示到那一步為止的主控台、標出這一步寫的行（2026-10-30 實作時改：原本寫「記下時間與當時的步驟」，在每一行加上前綴會改掉腳本的輸出，也蓋不到子程序）。</td></tr>
+          <tr><td><code>StepError(訊息)</code></td><td>預期中的失敗：報告只顯示訊息。其他例外顯示訊息與呼叫堆疊。</td></tr>
+          <tr><td><code>run.remaining_seconds</code>、<code>run.platform</code>、<code>run.runtime</code>、<code>run.lang</code></td><td>總期限剩下的秒數；windows／macos／linux；運行環境版本；介面語言。</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body">
-        <ul class="points">
-          <li><strong>步驟以外的程式</strong>照樣執行；在步驟外拋出的錯誤記成一個失敗的「步驟外的程式」，附行號。</li>
-          <li><strong>結束碼：</strong>0 成功、1 自動化失敗、3 逾時（同 DSL）、2 腳本載入失敗（語法錯誤、沒有 <code>@automation</code>）。</li>
-          <li><strong>本機試跑：</strong><code>rpa run 場景檔 -i sourceDir=…</code> 用同一套運行環境；Portal 可以下載 <code>rpa-script</code> 的 wheel 與型別檔，讓作者的編輯器有提示。</li>
-        </ul>
-        <h3>獨立斷言用 Python 時（assertion.py，選用）</h3>
-<pre class="source">from pathlib import Path
-
-from openpyxl import load_workbook
-
-from rpa_script import Check, assertion
-
-
-@assertion
-def check(c: Check) -&gt; dict[str, object]:
-    merge = c.facts["merge"]
-    sheet = load_workbook(c.output_dir / Path(merge["outputFile"]).name, read_only=True).active
-    c.equals("產出檔案的列數和事實相同", sheet.max_row - 1, merge["rowCount"])
-    c.true("總額大於 0", merge["total"] &gt; 0)
-    return {"rowCount": merge["rowCount"], "total": merge["total"], "outputFile": merge["outputFile"]}</pre>
-        <ul class="points">
-          <li>在另一個程序執行，只讀入參、事實與產出檔案（唯讀），不能改檔案。每一條 <code>equals</code>、<code>contains</code>、<code>matches</code>、<code>not_empty</code>、<code>true</code> 都記成一條斷言結果，和 DSL 的 <code>verify</code> 同一個格式，報告與回看的「斷言」完全一樣。</li>
-          <li>回傳的 dict 是候選出參，照舊經過出參校驗才發布。</li>
-        </ul>
-      </div>
+      <div class="panel-body"><p>結束碼：0 成功、1 自動化失敗、3 逾時（同 DSL）。第二版的 <code>run.watch()</code>（資料夾的檔案變化）與 Python 寫的 <code>Check</code> 斷言 API 不在這次範圍：檔案變化改由 Runner 記錄共用工作資料夾與 <code>outputs/</code> 在每一步前後的差異；Python 斷言照舊用 assertion.py。</p></div>
     </section>
 
-    <section class="panel" id="recording">
-      <div class="panel-header"><h2>7. 腳本錄製：腳本工作台</h2></div>
+    <section class="panel" id="compose">
+      <div class="panel-header"><h2>7. 組合場景裡的資料與檔案</h2></div>
       <div class="panel-body">
-        <p>網頁的錄製是錄瀏覽器裡的操作；本機自動化沒有這樣的畫面可以錄。錄 Excel 或檔案總管的滑鼠鍵盤既做不到跨系統（Linux 沒有 Excel，三個系統的桌面介面都不同），錄到的東西也很脆弱。所以這裡的「錄製」是<strong>錄下作者實際跑過、確認可行的每一步</strong>：作者拿範例檔案在工作台裡一格一格執行，每一格就是一步，執行結果馬上看得到；存檔時把這些步驟寫成 <code>automation.py</code> 與 <code>scenario.yaml</code>。</p>
-        <ol class="steps">
-          <li>「場景生產」多一個「腳本工作台」（在「自主腳本錄製」旁邊）：新建，或打開既有的 Python 腳本場景的某一版，或匯入一支 .py。選擇在哪裡執行（錄製端 App 或伺服器本機，D8）。</li>
-          <li>左邊是入參：名稱、型別、試跑值。路徑的試跑值用資料夾選擇器挑那台電腦上的範例資料夾。</li>
-          <li>中間是一格一格的步驟：每一格有步驟名稱與程式，可以從範本插入（見下表），也可以直接寫。按「執行」只執行這一格，下面顯示主控台輸出、最後一個運算式的資料預覽（DataFrame 是表格）、檔案變化、耗時與錯誤。前面各格留下的變數都還在，可以反覆修改、重跑這一格。</li>
-          <li>右邊是變數、事實與檔案。選中程式裡的一個值或一個變數，可以「改成入參」（換成 <code>run.inputs["…"]</code>，加一個入參，原值成為試跑值）、「記成事實」（加一行 <code>run.facts[…] = …</code>）、「加成斷言」（依目前的值建議 equals／matches／notEmpty）、「加成出參」（<code>from</code> 取這個事實）。</li>
-          <li>「從頭重跑」：重新啟動、依序執行所有格，確定腳本不靠工作台裡殘留的狀態。存檔前沒有從頭重跑通過會提醒。</li>
-          <li>「存成場景」：每一格寫成一個 <code>with run.step(…)</code>，加上入參、出參、斷言，存成新場景的 v1 或既有場景的新版本；之後照舊交給 Worker 驗證、人工發布。</li>
-        </ol>
-      </div>
-      <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>範本（第一批）</th><th>產生的程式</th></tr></thead>
-        <tbody>
-          <tr><td>列出資料夾裡的檔案</td><td>依副檔名、檔名條件找檔案，預覽清單</td></tr>
-          <tr><td>合併多個 Excel</td><td>pandas 讀同一個工作表、加上來源欄、合併；欄位不一致時列出差異</td></tr>
-          <tr><td>依欄位拆成多個檔案</td><td>依某一欄的值分組，各寫成一個 Excel</td></tr>
-          <tr><td>Excel 與 CSV 互轉</td><td>指定編碼（自動判斷 Big5、GBK、UTF-8）與分隔符號</td></tr>
-          <tr><td>填寫 Excel 範本</td><td>openpyxl 打開 <code>files</code> 裡的範本，填值、另存，保留格式</td></tr>
-          <tr><td>合併 PDF</td><td>pypdf 依檔名順序合併</td></tr>
-          <tr><td>Word 範本填值</td><td>python-docx 取代範本裡的 <code>{{欄位}}</code></td></tr>
-          <tr><td>重新命名、搬移、壓縮</td><td>依規則改檔名、搬到目標資料夾、壓成 zip</td></tr>
-        </tbody>
-      </table></div>
-      <div class="panel-body">
+<pre class="source">BA 系統下載報表（DSL）──file: report──▶ 合併分店報表（Python 節點）──file: merged──▶ 上傳到總部系統（DSL）
+                                              └──object: byBranch、number: total──▶ 寄出摘要（Python 節點，requests）</pre>
         <ul class="points">
-          <li><strong>執行的地方：</strong>工作台是運行環境裡一個常駐的 Python 程序（<code>python -m rpa_script workbench</code>），一行一個 JSON 命令與回覆，和現在的逐步調試子程序（<code>rpa_runner.debug</code>）同一種做法；在錄製端時經由 Client API 交給錄製端 App（錄製端可以執行的模組多一個 <code>rpa_script</code>，只用伺服器送來的程式）。用的是和 Worker 同一版的運行環境，所以工作台跑得通的，Worker 上也跑得通。</li>
-          <li><strong>在 Worker 上開工作台</strong>等於在那台電腦遠端互動地執行程式、讀它的檔案，所以預設不允許，要 Worker 的「設定」打開「允許腳本工作台」才可以（D8）。</li>
-          <li><strong>中斷：</strong>一格執行太久可以「停止」：結束程序並重新啟動，畫面說明之前的變數已經不在，要從頭重跑（Windows 不能可靠地中斷執行中的 Python）。每一格預設 5 分鐘上限。</li>
-          <li><strong>存什麼：</strong>工作台的草稿（每一格的名稱與程式、入參與試跑值、執行的地方）自動存在伺服器；資料預覽、主控台與產出只在畫面上，關掉就沒有。範例檔案留在那台電腦，只有畫面上看的預覽經過伺服器。</li>
-          <li><strong>打開既有的腳本：</strong>用 <code>ast</code> 解析 <code>@automation</code> 函式，最外層的每個 <code>with run.step</code> 成為一格，前面的程式成為「準備」格；結構不是這樣的腳本整份當成一格，照樣能執行、修改、存檔。</li>
-          <li><strong>也是調試工具：</strong>打開某一版、填入參，一格一格執行，就是 Python 腳本場景的逐步調試；卡片的「調試」對 Python 腳本場景打開工作台。</li>
-          <li><strong>以後：</strong>M5 的 AI 可以在工作台裡「用一句話產生這一格」；這次不做。</li>
+          <li><strong>共用工作資料夾（D3）。</strong>每次組合運行在執行的那台 Worker 上有一個資料夾（<code>&lt;Worker 資料夾&gt;/workspaces/&lt;組合運行編號&gt;/</code>），所有節點看得到；單獨執行的場景用執行目錄旁邊的暫存資料夾。DSL 的下載步驟存到這裡，Python 節點的工作目錄也是這裡。組合運行結束（通過、失敗、取消）就刪除；只有宣告成 <code>file</code> 出參的檔案會複製進那個節點的執行目錄、上傳到伺服器。本機 Worker 由伺服器直接刪；遠端 Worker 在下一次領取或心跳的回應收到要清的清單；另有保險：超過 24 小時沒動的資料夾在 Worker 啟動時清掉。</li>
+          <li><strong><code>array</code>／<code>object</code> 入參。</strong>出參本來就有 <code>array</code>、<code>object</code>，現在可以接到同型別的入參；命令列 <code>-i 名稱=JSON</code>，Portal 的執行表單與畫布用 JSON 編輯框。</li>
+          <li><strong><code>file</code> 出參。</strong>值由事實（<code>from</code>）或 assertion.py 給出一個路徑，必須在共用工作資料夾或 <code>outputs/</code> 裡。出參階段把檔案複製進執行目錄的 <code>outputs/</code>（報告可以下載），<code>output.json</code> 的值是 <code>{"name", "size", "sha256", "path"}</code>；接到下游的 <code>file</code> 入參時用 <code>path</code>（同一台 Worker，共用工作資料夾自動算在允許的資料夾裡）。單檔與每次合計的上限沿用 M7c（50 MB、200 MB，可調）。</li>
+          <li><strong>DSL 的 <code>download</code> 步驟。</strong><code>- id: export, action: download, target: { role: button, name: 匯出 }, as: report</code>：點擊並等待下載，檔案存到共用工作資料夾的 <code>downloads/</code>，事實 <code>report</code> 是 <code>{"name", "size", "sha256", "path"}</code>，出參 <code>type: file, from: '{{ facts.report }}'</code> 就能往下傳。錄製端把 codegen 的 <code>expect_download</code> 轉成這個步驟。</li>
+          <li><strong>網路操作。</strong>運行環境帶 requests；Python 節點呼叫 API 不用經過瀏覽器。要沿用瀏覽器的登入狀態（Cookie）呼叫內部 API，需要 Python 節點能用登入角色，這一項待你決定（D5），這次不做。</li>
+          <li><strong>扇出（P3，這次不做）。</strong>「Python 節點產出 N 筆資料，每一筆跑一次瀏覽器節點」需要組合場景的 foreach 節點；之後設計。</li>
         </ul>
       </div>
     </section>
 
     <section class="panel" id="run">
-      <div class="panel-header"><h2>8. 腳本的運行過程</h2></div>
-      <div class="panel-body"><p>順序照 ADR 0009，沒有登入、沒有瀏覽器，多一個「運行環境」階段；每一階段失敗都沒有成功出參。驗證、執行、組合場景的節點走同一條路，本機 worker、遠端 Worker 也一樣。</p></div>
+      <div class="panel-header"><h2>8. 運行過程</h2></div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>階段</th><th>在哪裡</th><th>做什麼</th><th>產物</th><th>失敗時</th></tr></thead>
+        <thead><tr><th>階段</th><th>運行環境模式</th><th>產物</th><th>失敗時</th></tr></thead>
         <tbody>
-          <tr><td>排隊與派工</td><td>伺服器</td><td>入參照現在的規則先校驗；只交給有 <code>python</code>、有這個主版本、系統符合的裝置（第 5.4 節）。路徑是某一台電腦上的路徑，所以「執行位置」多一個「指定的 Worker」，場景的執行設定可以記住預設的那一台。任務帶著版本的全部檔案、入參與 Secrets。</td><td>執行紀錄</td><td>422；或排隊並說明在等哪種 Worker</td></tr>
-          <tr><td>入參 input</td><td>Worker</td><td>同 DSL：在這台求動態值、校驗、檢查 Secrets；<code>format: directory</code>／<code>file</code> 的路徑要存在而且讀得到</td><td><code>input.json</code></td><td>「找不到資料夾 D:\報表\2026-10」，不執行腳本</td></tr>
-          <tr><td>運行環境 runtime（新）</td><td>Worker</td><td>找到這個主版本已經解壓的運行環境（通常幾毫秒）；沒有就從 App 附的壓縮檔解壓（第一次，數秒）。不算進總期限。</td><td><code>runtime.json</code>（版本、平台、沿用或新解壓、耗時）</td><td>「運行環境準備失敗」＋原因；不執行腳本</td></tr>
-          <tr><td>自動化 automation</td><td>Worker：腳本子程序</td><td>以運行環境的 python <code>-E -s -X utf8 -m rpa_script automation</code> 啟動，工作目錄是這次的暫存資料夾；每一步開始與結束都更新 <code>steps.json</code></td><td><code>steps.json</code>、<code>facts.json</code>、<code>console.jsonl</code>、<code>files.json</code>、<code>previews/</code>、<code>outputs/</code>、<code>diagnostic.json</code></td><td>失敗的步驟、錯誤；逾時；取消</td></tr>
-          <tr><td>斷言 verify</td><td>Worker</td><td><code>verify</code>：Runner 照 DSL 的規則比對；<code>assertion.py</code>：另一個子程序，唯讀</td><td>斷言結果（<code>result.json</code> 的 <code>checks</code>）、候選出參</td><td>沒有成功出參</td></tr>
-          <tr><td>出參 output</td><td>Worker</td><td>同 DSL</td><td><code>output.json</code></td><td>沒有成功出參</td></tr>
-          <tr><td>收尾與上傳</td><td>Worker → 伺服器</td><td>寫 <code>result.json</code>、<code>report.html</code>，上傳執行目錄（含產出檔案，不含暫存資料夾）；刪掉暫存資料夾；驗證紀錄、發布門檻照舊</td><td>執行目錄</td><td>上傳失敗照 M9a 的規則</td></tr>
+          <tr><td>排隊與派工</td><td>第 5.4 節；組合運行固定在第一個節點的那台</td><td>執行紀錄</td><td>說明在等哪種 Worker</td></tr>
+          <tr><td>入參 input</td><td>同 DSL：求動態值、校驗、檢查 Secrets、準備 file 入參</td><td>input.json</td><td>不執行腳本</td></tr>
+          <tr><td>運行環境 runtime（新）</td><td>找到已解壓的同版本，沒有就解壓；不算進總期限</td><td>result.json 的 <code>python</code></td><td>「運行環境準備失敗」＋原因</td></tr>
+          <tr><td>自動化 automation</td><td>運行環境的 Python 啟動腳本，工作目錄是共用工作資料夾</td><td>facts.json、steps.json、automation.log、previews/、outputs/</td><td>失敗的步驟、錯誤；逾時；取消</td></tr>
+          <tr><td>斷言 verify</td><td><code>verify</code> 在 Runner 比對；或 assertion.py 子程序</td><td>result.json 的 checks</td><td>沒有成功出參</td></tr>
+          <tr><td>出參 output</td><td>同 DSL；<code>file</code> 出參複製進 outputs/</td><td>output.json</td><td>沒有成功出參</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body">
-        <ul class="points">
-          <li><strong>進度：</strong>執行頁顯示目前的階段，自動化階段顯示目前的步驟與第幾步。本機 worker 讀 <code>steps.json</code>，遠端 Worker 在心跳附上目前的步驟、步驟變化時多送一次——和 #79 第二期為 DSL 規劃的步驟進度是同一個來源。</li>
-          <li><strong>環境變數：</strong>子程序的環境重新整理：保留 <code>PATH</code>、使用者資料夾、系統必要的變數；設定 <code>TEMP</code>／<code>TMPDIR</code> 到暫存資料夾、<code>PYTHONUTF8=1</code>、<code>PYTHONDONTWRITEBYTECODE=1</code>、<code>RPA_DEADLINE_SECONDS</code>、<code>RPA_LANG</code>；拿掉 <code>PYTHON*</code>、<code>VIRTUAL_ENV</code>、<code>CONDA_*</code>、<code>PLAYWRIGHT_*</code>、打包 App 的內部變數與 Worker 的權杖。</li>
-          <li><strong>取消與逾時：</strong>沿用 M2：Linux、macOS 終止程序群組，Windows 結束程序樹；腳本自己開的子程序一起被結束。報告保留到那時為止的步驟、事實與檔案變化。</li>
-          <li><strong>檔案是真的改了：</strong>腳本對 Worker 上的檔案做的事，失敗或取消時不會還原。範本與文件建議「先寫到 <code>output_dir</code>，最後一步再搬到目標資料夾」，重跑也安全。有副作用的步驟不自動重試。</li>
-          <li><strong>組合場景：</strong>Python 腳本場景可以當節點；同一個組合場景的節點跟著同一台 Worker（現有規則），上一個節點的出參（例如 <code>outputFile</code>）可以接到下一個節點的入參。DSL 的下載步驟（路線圖 v2）做好之後，就能「DSL 場景下載報表 → Python 腳本場景合併」。</li>
-          <li><strong>腳本能做的事：</strong>和現在一樣等於在 Worker 上以那位使用者的身分執行任意程式。所以 Python 腳本場景照舊只給信任的人編輯、審核時特別標示（版本差異要看程式）；建議 Worker 用專用的帳號執行；M8 再加權限。這不是沙箱。</li>
-        </ul>
-      </div>
+      <div class="panel-body"><p>取消與逾時沿用 M2：終止整個程序群組（Windows 結束程序樹），腳本自己開的子程序一起結束。腳本對 Worker 上的檔案做的事，失敗或取消時不會還原；範本與文件建議先寫到 <code>outputs/</code> 或共用工作資料夾，最後一步才搬到目標位置。Python 節點等於在 Worker 上以那位使用者的身分執行任意程式：照舊只給信任的人編輯，審核時特別標示，建議 Worker 用專用帳號執行；這不是沙箱。</p></div>
     </section>
 
     <section class="panel" id="report">
-      <div class="panel-header"><h2>9. 腳本的運行報告</h2></div>
+      <div class="panel-header"><h2>9. 報告與回看</h2></div>
       <div class="panel-body">
-        <h3>執行目錄（增加的檔案以外和 DSL 相同）</h3>
-<pre class="source">runs/&lt;執行編號&gt;/
-  input.json  facts.json  output.json  result.json  report.html  run.json   # 不變
-  steps.json        # 每一步的 id、名稱、結果、耗時、錯誤、開始／結束時間（同 DSL），
-                    #   另加 seq（執行順序）、occurrence（第幾次）、parent（巢狀）、source（檔案與行號）、facts（這一步寫入的）
-  diagnostic.json  automation.log  assertion.log    # 不變
-  console.jsonl     # 新：主控台輸出，每行的時間、stdout／stderr、當時的步驟（已遮罩）
-  files.json        # 新：每一步前後被記錄的資料夾的檔案變化
-  previews/         # 新：run.preview() 的資料預覽
-  outputs/          # 新：產出檔案（run.output_dir）
-  runtime.json      # 新：運行環境
-  scenario/         # 這個版本的快照：場景檔、腳本、files（不變）</pre>
-        <h3><code>result.json</code>（增加的欄位，其他不變）</h3>
-<pre class="source">"kind": "python",
-"stages": [{"name": "input", …}, {"name": "runtime", …}, {"name": "automation", …}, {"name": "verify", …}, {"name": "output", …}],
-"python": {"runtime": "1.0.0", "platform": "windows-x86_64", "python": "3.13.x", "reused": true, "preparedMs": 4},
-"outputs": [{"name": "銷售合併-2026-10.xlsx", "bytes": 48213, "sha256": "…"}],
-"steps": [ …同 steps.json… ], "checks": [ …同 DSL… ]</pre>
         <ul class="points">
-          <li><strong>報告頁（<code>report.html</code> 與 <code>/runs/{id}</code>）</strong>依序：結果與錯誤摘要 → 出參與產出檔案（可以下載） → 階段（運行環境標「沿用」或「第一次準備，花了 …」）→ 步驟（同 DSL 的表格；多了原始碼行號，點了到編輯頁的那一行；迴圈的步驟顯示第幾次；腳本裡有、這次沒跑到的步驟標「未執行」，由伺服器從 <code>automation.py</code> 的 <code>run.step("…", "…")</code> 靜態列出）→ 事實 → 斷言 → 檔案變化（每個資料夾新增、修改、刪除了什麼）→ 資料預覽 → 主控台輸出（依步驟分組，可以只看錯誤）→ 運行環境（版本、平台、套件清單；和驗證時的版本不同時標出）。</li>
-          <li><strong>錯誤：</strong>失敗的步驟顯示錯誤訊息與呼叫堆疊，每一層連到腳本的那一行；<code>StepError</code> 只顯示訊息。</li>
-          <li><strong>產出檔案的保留：</strong>沿用錄影的保留規則（M12：天數、總量上限、釘選的運行不刪）；刪掉後報告寫「已依保留規則刪除」，其他內容照留。</li>
-          <li><strong>運行報告的清單</strong>（/runs）多一個「場景類型」篩選：DSL、Python 腳本、Playwright 腳本（已封存）。</li>
-          <li><strong>相容：</strong><code>stages</code> 多了 <code>runtime</code>、新檔案都是增加的；讀 <code>result.json</code> 的程式（報告頁、試驗場、#79 的 Agent API）不認得的階段照名稱顯示。</li>
+          <li><strong>執行目錄</strong>和 DSL 相同，Python 節點另有 <code>steps.json</code>（用 <code>rpa_script</code> 時）、<code>previews/</code>、<code>outputs/</code>、<code>files.json</code>（共用工作資料夾與 outputs/ 每一步前後的差異）。<code>result.json</code> 多 <code>python</code>（模式、運行環境版本、平台、沿用或新解壓、準備時間）與 <code>outputs</code>（產出檔案），<code>stages</code> 多 <code>runtime</code>；讀 result.json 的程式不認得的欄位照舊忽略。</li>
+          <li><strong>報告頁</strong>（report.html 與 <code>/runs/{id}</code>）：結果 → 出參與產出檔案（可以下載）→ 階段（運行環境標「沿用」或「第一次準備」）→ 步驟（同 DSL 的表格，多了原始碼行號與第幾次）→ 事實 → 斷言 → 檔案變化 → 資料預覽 → 主控台。</li>
+          <li><strong>回看</strong>（<code>/runs/{id}/replay</code>）：沒有影片，沿用 v0.8.0 的章節軸，每一步一個章節，主畫面換成那一步的腳本原文（標出行號）、到那一刻為止的主控台、檔案變化、最近一份資料預覽與事實；失敗的運行打開就停在失敗的步驟。組合運行的合併回看裡，DSL 節點播影片、Python 節點播步驟時間軸（2026-10-30：一步一格，依實際耗時佔 1.5～6 秒，畫面是那一步的腳本、檔案變化、資料預覽與主控台；沒有 <code>run.step()</code> 的是說明卡）。</li>
+          <li><strong>相容模式</strong>照舊沒有錄影；用了 <code>rpa_script</code> 就有步驟與時間軸。</li>
         </ul>
       </div>
     </section>
 
-    <section class="panel" id="replay">
-      <div class="panel-header"><h2>10. 運行回看</h2></div>
-      <div class="panel-body">
-        <p>本機自動化沒有畫面，錄影沒有意義（錄 Worker 的桌面只會拍到無關的內容）。回看改成<strong>步驟時間軸</strong>：用執行目錄裡已經有的時間資料，重現「每一刻腳本在做什麼、看到什麼、改了什麼」。網址和 DSL 一樣是 <code>/runs/{id}/replay</code>，版面沿用 M12 的播放器，影片的位置換成步驟畫面。</p>
-      </div>
-      <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>位置</th><th>DSL 場景（M12）</th><th>Python 腳本場景</th></tr></thead>
-        <tbody>
-          <tr><td>時間軸</td><td>影片、縮圖、步驟軌</td><td>步驟軌（最外層的步驟，長度依耗時）＋主控台的刻度（錯誤是紅色）＋檔案變化與資料預覽的刻度；滑過看內容</td></tr>
-          <tr><td>播放</td><td>影片的播放、速度、拖曳</td><td>播放時游標沿時間軸前進，畫面跟著換到那一刻；「實際時間」（1×、4×、16×）或「每步 2 秒」（步驟長短差很多時好看）；上一步、下一步；拖曳</td></tr>
-          <tr><td>主畫面</td><td>影片</td><td>目前的步驟：名稱、結果、耗時、這一步的<strong>腳本原文</strong>（從執行目錄的快照取，標出那幾行）；到這一刻為止的主控台輸出；檔案變化（樹狀，標新增、修改、刪除）；最近一份資料預覽；這一步之後的事實</td></tr>
-          <tr><td>步驟清單</td><td>場景的步驟</td><td>實際跑過的步驟依 <code>seq</code> 排列；迴圈的同一步顯示「第 n 次」；巢狀的縮排；沒跑到的灰色列在最後</td></tr>
-          <tr><td>失敗的運行</td><td>停在失敗步驟之前</td><td>打開就停在失敗的步驟，顯示錯誤與呼叫堆疊、「在腳本中開啟」（<code>/scenes/{id}/edit?file=automation.py&amp;line=行</code>）、「在工作台打開這一版」</td></tr>
-          <tr><td>組合場景</td><td>節點之間切換</td><td>相同；DSL 節點播影片、Python 節點播步驟時間軸</td></tr>
-          <tr><td>運行資訊</td><td>瀏覽器、Worker、時間、釘選</td><td>Worker、時間、運行環境版本、釘選</td></tr>
-        </tbody>
-      </table></div>
-      <div class="panel-body"><p>回看的資料是幾個 JSON 檔與資料預覽，不另外產生檔案；產出檔案依第 9 節的保留規則刪除後，回看仍然完整。Playwright 腳本場景（已封存）照舊沒有回看，頁面說明它已封存。</p></div>
-    </section>
-
     <section class="panel" id="compat">
-      <div class="panel-header"><h2>11. 相容性與要改的既有決定</h2></div>
+      <div class="panel-header"><h2>10. 相容性與要改的既有決定</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>項目</th><th>怎麼處理</th></tr></thead>
         <tbody>
-          <tr><td>Playwright 腳本場景（已封存）</td><td>雜湊不變、不用重新發布；照舊用 App 自己的直譯器執行；只有名稱與標示改變（第 3 節）。</td></tr>
-          <tr><td>舊版 Worker／錄製端</td><td>不回報 <code>python</code>：不會領到 Python 腳本場景，執行頁說明要更新哪個 App（同 M7a 的 features）。</td></tr>
-          <tr><td>舊版伺服器＋新版 Worker</td><td>不會有 Python 腳本場景的任務；其他照舊。</td></tr>
-          <tr><td>ADR 0009（場景契約）</td><td>自動化多一種 <code>python</code>（<code>steps</code>／<code>script</code>／<code>python</code> 三擇一）；<code>script</code> 註明已封存；Python 腳本場景的斷言是 <code>verify</code> 或 <code>assertion.py</code> 二擇一；「錄製與 AI 不產生腳本場景」改成「腳本工作台產生 Python 腳本場景；錄製網頁與 AI 不產生」。</td></tr>
-          <tr><td>ADR 0014（桌面 App）</td><td>「打包後的腳本只能 import 標準函式庫與 App 內附的套件」只對封存的那一種成立；Worker App 與錄製端 App 多附運行環境。</td></tr>
-          <tr><td>ADR 0016／M12（回看）</td><td>Python 腳本場景沒有錄影，回看是步驟時間軸；M12 D5「腳本場景暫不支援」改成指封存的那一種。</td></tr>
-          <tr><td>ADR 0002（技術棧）</td><td>平台本身的 Python 版本規則不變；運行環境是另一套，版本由第 5 節的規則管。</td></tr>
-          <tr><td>ADR 0015（領域資料夾與 git）</td><td>Python 腳本場景的版本目錄放場景檔、.py 與 <code>files</code>（可以有二進位檔，例如 Excel 範本；單檔 1 MB）。</td></tr>
-          <tr><td>#79 對外 Agent API（M14、ADR 0017）</td><td>不衝突：它的「匯入 Playwright 腳本」是把錄製稿轉成 DSL，不受封存影響；場景與運行的格式都是增加的。ADR 編號、遷移編號、路線圖、訊息目錄由後合併的一方調整。本設計的 ADR 暫定 0018、里程碑暫定 M15。之後 Agent API 要支援 Python 腳本場景，可以沿用工作台的命令。</td></tr>
+          <tr><td>既有的 Python 腳本場景</td><td>不用改、雜湊不變、不用重新發布；照舊用 App 自己的直譯器執行（相容模式）。</td></tr>
+          <tr><td>舊版 Worker／錄製端</td><td>不回報 <code>pythonNodes</code>、<code>jsonInputs</code>、<code>fileOutputs</code>、<code>download</code>：不會領到用了這些的任務，執行頁說明要更新哪個 App（M7a 的機制）。</td></tr>
+          <tr><td>舊版伺服器＋新版 Worker</td><td>不會有用了新欄位的任務；其他照舊。</td></tr>
+          <tr><td>ADR 0009（場景契約）</td><td>寫新的 ADR（<code>docs/adr/0020-python-nodes.html</code>）並在 0009 加修訂說明：<code>script</code> 有兩種模式；運行環境模式的斷言是 <code>verify</code> 或 assertion.py 二擇一。</td></tr>
+          <tr><td>ADR 0014（桌面 App）</td><td>「打包後的腳本只能 import 標準函式庫與 App 內附的套件」只對相容模式成立；Worker App 多附運行環境。</td></tr>
+          <tr><td>ADR 0016／M12（回看）</td><td>Python 節點沒有錄影，回看是步驟時間軸。</td></tr>
+          <tr><td>M7c（上傳）</td><td>「Python 腳本場景還不能用檔案入參」與「下載步驟的檔案接到上傳」這兩項保留的介面在這次實作。</td></tr>
+          <tr><td>對外 Agent API（M14）</td><td>場景與運行的格式都是增加的；Agent API 不用改就能寫 Python 節點。</td></tr>
         </tbody>
       </table></div>
     </section>
 
     <section class="panel" id="phases">
-      <div class="panel-header"><h2>12. 分期與驗證</h2></div>
+      <div class="panel-header"><h2>11. 分期與驗證</h2></div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>期</th><th>內容</th><th>主要檔案</th><th>自動測試</th></tr></thead>
+        <thead><tr><th>期</th><th>內容</th><th>自動測試</th></tr></thead>
         <tbody>
-          <tr><td>P0 封存</td><td>第 3 節：封存頁（三種語言）、DSL 文件與 ADR 的修訂說明、介面改名與「已封存」、新建時拒絕、範例移到測試資料</td><td><code>docs/</code>、<code>rpa_server</code>（services、locales、模板）、<code>scenarios/demo</code>、<code>rpa_desktop.selftest</code>、<code>docs/assets/nav.js</code></td><td>新建 <code>script:</code> 場景被拒、既有的仍可執行與存新版本；文件連結檢查；現有測試照過</td></tr>
-          <tr><td>P1 運行環境＋模型＋運行</td><td><code>runtimes/python/</code>、建置工具、CI 三個系統建置與自我測試、放進 Worker App、錄製端 App、Linux 分發包；解壓與沿用；<code>python:</code> 的模型、校驗、import 檢查與雜湊；<code>rpa_script</code> 的基本介面（步驟、事實、產出檔案、主控台、錯誤、assertion）；<code>runtime</code> 階段；<code>WorkerInfo</code> 回報、派工與「指定的 Worker」；場景頁的種類與檔案編輯；範例場景（附三個小的範例 Excel，<code>sourceDir</code> 沒填時用它們）</td><td><code>runtimes/python</code>、<code>tools/build_python_runtime.py</code>、<code>packages/rpa_script</code>、<code>rpa_core.dsl</code>（scenario、contract、sources、features）、<code>rpa_runner</code>（新的 pyruntime、run）、<code>rpa_worker</code>（environment、protocol）、<code>rpa_server</code>（dispatch、pages、編輯頁）、<code>tools/build_desktop.py</code>、<code>tools/build_server.py</code>、<code>.github/workflows</code></td><td>三個系統：解壓、沿用、同時要同一版、解壓到一半被取消、損壞重來、清理；運行環境的自我測試（中文路徑與檔名、Big5 的 CSV）；範例場景在三個系統通過與失敗各一；逾時與取消（含腳本開的子程序）；打包後的 App 離線執行範例；Linux 分發包的 <code>rpa worker</code></td></tr>
-          <tr><td>P2 報告＋回看</td><td>檔案變化、資料預覽、產出檔案的下載與保留；報告頁、<code>report.html</code>；步驟時間軸的回看頁；執行中的步驟進度</td><td><code>rpa_script</code>（watch、preview）、<code>rpa_runner</code>（report）、<code>rpa_server</code>（replay、render、pages、模板、static）</td><td>報告各段的內容；迴圈與巢狀步驟；回看在 Chromium 的畫面測試（播放、拖曳、失敗時的位置）；組合場景 DSL＋Python 節點切換</td></tr>
-          <tr><td>P3 腳本工作台</td><td>第 7 節：工作台程序與命令、錄製端執行、Worker 的「允許腳本工作台」、工作台頁、範本、改成入參／記成事實／加成斷言／加成出參、從頭重跑、存成場景、打開既有腳本、卡片的「調試」</td><td><code>rpa_script</code>（workbench）、<code>rpa_worker.recorder</code>、<code>rpa_server</code>（新的 workbench、pages、模板）、遷移（工作台草稿）</td><td>命令與回覆的單元測試；每個範本產生的程式能執行；存成的場景能通過驗證；停止與重新啟動；錄製端端到端（<code>tools/recorder_e2e.py</code>）多一段工作台</td></tr>
-          <tr><td>之後</td><td>執行時上傳檔案當入參；運行環境 1 的次版本（依使用者提出的套件）；DSL 下載步驟做好後的「下載 → 處理」組合範例；Agent API 支援 Python 腳本場景；AI 產生一格（M5）</td><td>—</td><td>—</td></tr>
+          <tr><td>P0 模型與組合場景（這次）</td><td><code>script.runtime</code>、<code>files</code>、<code>platforms</code> 與校驗；運行環境模式的 <code>verify</code>；<code>array</code>／<code>object</code> 入參（DSL、命令列、Portal 表單、畫布、組合場景的型別比對）；派工不要求瀏覽器、比對平台與運行環境；共用工作資料夾與清理；features；文件與 ADR</td><td>DSL 校驗的正反例；組合場景的型別；派工的單元測試；共用工作資料夾的建立、跨節點可見、結束後清掉；舊場景雜湊不變</td></tr>
+          <tr><td>P1 運行環境（這次）</td><td><code>runtimes/python/</code>、建置工具、bootstrap 產生鎖定檔、CI 三個系統建置與自我測試；解壓、沿用、檔案鎖、損壞重來；<code>runtime</code> 階段；Worker 回報；<code>rpa_script</code> 的啟動、步驟、事實、產出檔案、預覽、遮罩；放進 Worker App 與 Linux 分發包；範例場景</td><td>三個系統：建置、自我測試（中文路徑、Big5 CSV）、解壓與沿用、同時要同一版、損壞重來；範例場景通過與失敗；逾時與取消（含腳本開的子程序）；打包後的 App 離線執行範例</td></tr>
+          <tr><td>P2 檔案與報告（這次）</td><td><code>file</code> 出參與接到 <code>file</code> 入參；Python 節點的 file 入參；DSL <code>download</code> 步驟與錄製轉換；報告的產出檔案、預覽、檔案變化；步驟時間軸的回看；「瀏覽器＋Python」的組合場景範例</td><td>file 出參的複製、上限、接到 upload；download 步驟在 Chromium 與 Firefox；報告各段；回看畫面測試；組合場景範例端到端</td></tr>
+          <tr><td>P3（之後，這次不做）</td><td>模型套件的選用運行環境層（5.5）；腳本工作台（第二版第 7 節，<code>e5b585e</code>）；組合場景的扇出（foreach）；Python 節點使用登入角色（D5 決定後）</td><td>—</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body">
         <ul class="points">
-          <li>每一期一個 PR，各自更新正式文件（ADR、場景 DSL、管理 Portal、桌面端分發、系統架構、路線圖；繁中、英文、簡中產生）與本頁；照<a href="../collaboration.html#validation">共用流程的驗證門檻</a>跑 Ruff、Pyright、pytest、i18n check 與 CI 的三個系統。</li>
-          <li><strong>人工驗收（P3 之後）：</strong>在 Mac 錄製端用工作台做「合併分店 Excel」並存成場景 → Windows Worker 驗證 → 發布 → macOS Worker 與 Linux <code>rpa worker</code> 各執行一次，三次的出參與產出檔案相同；第二次執行的「運行環境」顯示「沿用」；拔掉網路的 Worker 照樣執行；執行中取消一次，報告與回看停在取消的那一步；電腦上另外裝了別版 Python 的 Worker，結果不受影響。</li>
+          <li>P0～P2 在同一個分支 <code>feat/python-nodes</code> 依期提交，草稿 PR 先開、每次推送看 CI；三期都完成、CI 全綠後轉成可審閱。各期同時更新正式文件（ADR、場景 DSL、管理 Portal、組合場景、桌面端分發、路線圖；繁中、英文，簡中由工具產生）與本頁。</li>
+          <li><strong>人工驗收（P2 之後）：</strong>Windows Worker 驗證並執行第 1 節的組合場景範例；macOS Worker 與 Linux <code>rpa worker</code> 各執行一次運行環境模式的範例，出參與產出檔案相同；第二次執行的「運行環境」顯示「沿用」；拔掉網路的 Worker 照樣執行；沒有下載瀏覽器的 Worker 領得到 Python 節點；<code>ba-001-script</code> 照舊通過。</li>
         </ul>
       </div>
     </section>
 
     <section class="panel" id="alternatives">
-      <div class="panel-header"><h2>13. 沒有選的方案</h2></div>
+      <div class="panel-header"><h2>12. 沒有選的方案</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
         <tbody>
-          <tr><td>第一版的三層環境：每個場景自己鎖定套件，Worker 用 uv 現場安裝</td><td>每個場景、每台 Worker 的套件組合都可能不同，Worker 還要連得到套件來源——正是使用者要避免的版本與倚賴問題。保留成「之後」的可能（D4 的其他選項）。</td></tr>
-          <tr><td>用電腦上已裝的 Python、conda</td><td>每台的版本與套件不同，結果不一致；Windows 常常沒有，macOS 的系統 Python 會跳出安裝開發工具。</td></tr>
-          <tr><td>用 Worker App 自己打包的直譯器（<code>rpa-child</code>）</td><td>PyInstaller 打包的直譯器不能加套件，能用什麼取決於 App 剛好帶了什麼，App 升級就可能變。</td></tr>
-          <tr><td>Docker 或虛擬機</td><td>Windows、macOS 的桌面不一定有；Worker 上的路徑要另外掛載；太重。</td></tr>
-          <tr><td>常駐的 Python 程序給多次運行共用</td><td>省下 0.2～0.4 秒的 import，但上一次的狀態（變數、開著的檔案、改過的設定）會影響下一次。每次運行用新的程序，只沿用運行環境的檔案。</td></tr>
-          <tr><td>Python 腳本場景也能開瀏覽器（第一版的做法）</td><td>使用者決定網頁自動化和腳本場景分開；需要時用組合場景串起 DSL 場景與 Python 腳本場景。運行環境也因此不必帶 Playwright 與瀏覽器。</td></tr>
-          <tr><td>錄製桌面操作（滑鼠、鍵盤、Excel 的介面）</td><td>三個系統的桌面與 Office 都不同，Linux 沒有 Excel；畫面座標式的 RPA 很脆弱，結果也難以斷言。</td></tr>
-          <tr><td>只給程式編輯器加範本</td><td>沒有「錄製」的體驗：作者看不到每一步的中間結果，要反覆送到 Worker 驗證才知道對不對。工作台的編輯器本來就包含這個。</td></tr>
-          <tr><td>直接用 Jupyter</td><td>要多帶 Jupyter 與它的核心協定，檔案格式是 .ipynb，還要轉換；工作台只取「一格一格執行」的做法，存下來就是場景的 .py。</td></tr>
-          <tr><td>回看用螢幕錄影</td><td>腳本沒有畫面；錄 Worker 的桌面會拍到無關、甚至敏感的內容。</td></tr>
-          <tr><td>沿用 <code>script:</code> 加 <code>api: 2</code></td><td>和封存的那一種用同一個欄位，正是使用者說的歧義；新的 <code>python:</code> 一看就知道是哪一種。</td></tr>
+          <tr><td>第二版：封存 <code>script:</code>、另開 <code>python:</code></td><td>使用者 10-29 選擇統一（D1）。查證後統一比分開少一套模型、一套派工與一套報告，舊場景也不用遷移。</td></tr>
+          <tr><td>運行環境模式也能開瀏覽器</td><td>使用者選擇不能（D2）：網頁操作留在 DSL；運行環境裡的 Playwright 版本要和 Worker 下載的瀏覽器綁在一起，容易出錯。</td></tr>
+          <tr><td>組合場景裡的「轉換節點」（不經過場景，直接寫一段程式）</td><td>少了發布門檻、版本與獨立斷言；Python 節點已經涵蓋。之後若只需要搬移欄位，可以另外設計輕量的對應。</td></tr>
+          <tr><td>檔案經由伺服器在節點之間傳遞</td><td>同一次組合運行已經固定在同一台 Worker，走本機路徑最快；只有宣告成 file 出參的才上傳，報告看得到。</td></tr>
+          <tr><td>第二版第 13 節的其他方案</td><td>照舊不選（用電腦上的 Python、用 App 的直譯器加套件、Docker、常駐程序、Jupyter），理由見 <code>e5b585e</code>。</td></tr>
         </tbody>
       </table></div>
     </section>
 
     <section class="panel" id="decisions">
-      <div class="panel-header"><h2>14. 待你決定</h2><span class="muted">回覆「照建議」即可全部採用；有不同意見的只回那一項</span></div>
+      <div class="panel-header"><h2>13. 決定</h2></div>
+      <div class="panel-body"><p>使用者 2026-10-29 06:39 America/Los_Angeles（PDT，UTC−07:00）在 Claude 專案對話回覆（原文）：「1.統一python節點 2.不能開瀏覽器 3按建議 4 按建議。分期建議按照你的規劃，前三個一起做，第四個在規劃内這次不做，放到後面做，但規劃裏要有。」</p></div>
       <div class="table-scroll"><table class="wrap">
-        <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選項</th></tr></thead>
+        <thead><tr><th>#</th><th>問題</th><th>狀態</th><th>內容</th></tr></thead>
         <tbody>
-          <tr><td>D1</td><td><span class="kind pending">待你決定</span>怎麼封存舊的 Python＋Playwright 腳本場景</td><td>寫封存文件、改名「Playwright 腳本場景（已封存）」；不能新建；既有的照常執行、可以存新版本；不加功能；範例移到測試資料（第 3 節）</td><td>(a) 直接移除：既有的場景驗證失敗並說明怎麼改寫；(b) 只寫文件，產品不改</td></tr>
-          <tr><td>D2</td><td><span class="kind pending">待你決定</span>新場景怎麼寫</td><td>新的 <code>python:</code> 區塊；入參、出參、Secrets、總期限、<code>verify</code> 和 DSL 相同；不能有瀏覽器與登入；斷言用 <code>verify</code> 或 <code>assertion.py</code> 二擇一；路徑入參可以加 <code>format: directory／file</code>（第 4 節）</td><td>沿用 <code>script:</code> 加版本欄位（和封存的那一種混在一起）</td></tr>
-          <tr><td>D3</td><td><span class="kind pending">待你決定</span>運行環境帶哪些套件</td><td>Python 3.13＋openpyxl、xlsxwriter、xlrd、pandas、python-docx、pypdf、python-dateutil、charset-normalizer、requests（實測 18 個套件，壓縮後約 73 MB）</td><td>(a) 不帶 pandas（約少一半大小，但合併、分組要自己寫）；(b) 再加 python-pptx、Pillow、Windows 專用的 pywin32（操作已裝的 Excel，例如重算公式、轉 PDF）</td></tr>
-          <tr><td>D4</td><td><span class="kind pending">待你決定</span>場景要清單以外的套件時</td><td>第一版不允許在場景裡另外裝；提出後加進運行環境（新的次版本，所有 Worker 一起有）；小的純 Python 模組可以放進場景的 <code>files</code></td><td>允許場景另外鎖定套件，在運行環境上多一層（Worker 要連得到套件來源；放到「之後」）</td></tr>
-          <tr><td>D5</td><td><span class="kind pending">待你決定</span>運行環境怎麼帶到 Worker</td><td>放進 Worker App、錄製端 App 與 Linux 分發包；第一次用到時解壓到快取資料夾，之後沿用；不需要網路</td><td>第一次需要時從伺服器下載（安裝檔不變大；伺服器要放三個系統的運行環境）</td></tr>
-          <tr><td>D6</td><td><span class="kind pending">待你決定</span>運行環境的版本規則</td><td>場景寫主版本（<code>runtime: "1"</code>）；同一主版本只加套件與相容的升級；換 Python 版本或拿掉套件才升主版本；執行紀錄記下完整版本</td><td>場景寫完整版本（例如 1.2.0）：最固定，但每次升級運行環境都要重新驗證所有場景</td></tr>
-          <tr><td>D7</td><td><span class="kind pending">待你決定</span>腳本錄製的方案</td><td>腳本工作台：拿範例檔案一格一格執行，每一格是一步；範本；改成入參、記成事實、加成斷言、加成出參；從頭重跑後存成場景；兼做調試（第 7 節）</td><td>只給程式編輯器加範本，不做互動執行</td></tr>
-          <tr><td>D8</td><td><span class="kind pending">待你決定</span>工作台在哪裡執行</td><td>錄製端 App 或伺服器本機；Worker 要在設定裡打開「允許腳本工作台」才可以</td><td>任何 Worker 都可以（直接用 Worker 上的檔案比較方便，但等於可以遠端互動地執行程式）</td></tr>
-          <tr><td>D9</td><td><span class="kind pending">待你決定</span>檔案怎麼進出</td><td>第一版：入參是執行的 Worker 上的路徑（執行前檢查），可以指定由哪一台 Worker 執行；<code>output_dir</code> 的檔案成為產出檔案，每次 200 MB 內、報告可以下載；執行時上傳檔案放到「之後」</td><td>第一版就支援執行時上傳檔案當入參</td></tr>
-          <tr><td>D10</td><td><span class="kind pending">待你決定</span>運行回看</td><td>步驟時間軸：隨時間顯示腳本原文、主控台、檔案變化、資料預覽與事實，失敗時停在失敗的步驟（第 10 節）</td><td>只有運行報告，不做回看頁</td></tr>
-          <tr><td>D11</td><td><span class="kind pending">待你決定</span>Linux Worker 與分期</td><td>Linux 沿用伺服器分發包的 <code>rpa worker</code>（附運行環境），不另做安裝包；照第 12 節 P0～P3，P0 與 P1 先開始</td><td>(a) 另做 Linux Worker 安裝包；(b) 先只做 P0～P2，工作台之後再談</td></tr>
+          <tr><td>D1</td><td>統一還是分開</td><td><span class="kind user">你明確決定</span></td><td>統一：<code>script:</code> 演進成 Python 節點，不封存、不另開 <code>python:</code>。</td></tr>
+          <tr><td>D2</td><td>運行環境模式能不能開瀏覽器</td><td><span class="kind user">你明確決定</span></td><td>不能；相容模式照舊可以。</td></tr>
+          <tr><td>D3</td><td>共用工作資料夾保留多久</td><td><span class="kind user">照建議</span></td><td>組合運行結束就清，只有宣告成 file 出參的檔案上傳。</td></tr>
+          <tr><td>D4</td><td>模型套件</td><td><span class="kind user">照建議</span></td><td>不放進基本版，另做選用層（P3）。</td></tr>
+          <tr><td>分期</td><td>做到哪裡</td><td><span class="kind user">你明確決定</span></td><td>P0～P2 這次一起做；P3 寫進規劃，之後做。</td></tr>
+          <tr><td>—</td><td>運行環境的套件清單、版本規則、帶到 Worker 的方式、報告與回看的形式</td><td><span class="kind tentative">依規劃實作</span></td><td>使用者同意照規劃分期；這些照第二版的建議（第 5、9 節）實作，有調整時在本頁說明。</td></tr>
+          <tr><td>D5</td><td>Python 節點能不能用登入角色（沿用瀏覽器的 Cookie 呼叫內部 API）</td><td><span class="kind pending">待你決定</span></td><td>建議可以：登入檢查照舊在執行前用瀏覽器確認，腳本從 <code>RPA_STORAGE_STATE</code> 讀 Cookie。代價是這種節點又需要 Worker 有瀏覽器。這次不做，決定後排進 P3。</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -533,11 +373,32 @@ def check(c: Check) -&gt; dict[str, object]:
     <section class="panel" id="progress">
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>已完成：</strong>第一版設計；依使用者 22:34 的修訂改寫成第二版：讀要封存的功能用到的地方、專用運行環境的技術驗證（第 2 節）、設計（第 3～13 節）、待決定事項（第 14 節）。</li>
-        <li><strong>未完成／阻礙：</strong>等使用者回覆 D1～D11；沒有寫任何實作程式（使用者要求先設計）。Windows、macOS 的大小與解壓時間只是估計，P1 在 CI 實測。</li>
-        <li><strong>決定：</strong>第 14 節全部是建議，不是已確認；使用者回覆後寫進本頁與<a href="../decisions.html">決定</a>，確認的內容在 P1 寫成 ADR（暫定 0018）。</li>
-        <li><strong>下一個具體動作：</strong>使用者回覆後更新第 14 節，從最新的 main 開 P0（封存）與 P1（運行環境）；P1 先做運行環境的建置工具與 CI 的三個系統。</li>
-        <li><strong>未提交／stash／ignored 產物：</strong>無。技術驗證的環境在暫存目錄，不進倉庫。</li>
+        <li><strong>已完成：</strong>第一、二版設計（只有設計）；10-29 查證統一的可行性；依使用者決定寫成第三版；P0；P1（<code>runtimes/python/</code>、<code>tools/build_python_runtime.py</code>、bootstrap 產生鎖定檔、<code>python-runtime.yml</code> 四個平台建置與測試、Worker App 與 Linux 分發包附帶運行環境、桌面自我測試與 Rocky 8 執行範例 Python 節點）；P2 的主要程式（下面「P2 已做」）。<code>79e0644</code> 的 CI：運行環境在 Linux x64、Linux arm64、macOS 建置與測試通過，RPA Worker（macOS）完整建置（含運行環境與自我測試的範例 Python 節點）通過，CI 的 Linux 測試（3.12、3.13）與靜態檢查通過。<code>7f7d14e</code> 的 CI 確認 Windows 運行環境、Rocky 8 的兩項修正與伺服器測試通過（第 16 節）。2026-10-30 補完（<code>d282f6c</code>、<code>85f365c</code> 與文件的提交）：下面「10-30 補完」。</li>
+        <li><strong>P2 已做：</strong>
+          <ul>
+            <li>DSL：出參 <code>type: file</code>；<code>download</code> 步驟（<code>target</code>、<code>as</code>、選用的 <code>fileName</code>），事實 <code>{"workspace","name","size","sha256"}</code>；檔案值多一種 <code>{"workspace": 相對路徑}</code>（上游節點產出的檔案）；擴充 <code>fileOutputs</code>、<code>download</code>；相容模式不能有 file 出參；錄製稿的 <code>expect_download</code> 轉成 download 步驟加 file 出參與 verify。</li>
+            <li>Runner：<code>outputfiles.py</code>（file 出參複製進 <code>outputs/</code>，Python 節點 outputs/ 的檔案另放一份到共用工作資料夾的 <code>.outputs/&lt;執行編號&gt;/</code>，值換成檔案說明；上限沿用 M7c）；<code>files.json</code>（自動化前後的檔案變化）；檔案入參的 <code>workspace</code> 來源；download 步驟（子程序 <code>--workspace</code>，單獨執行也有暫存的工作資料夾）；報告多了產出檔案、檔案變化、資料預覽、步驟的原始碼行號與檔案變化。<code>rpa_script</code>：每一步記檔案變化；<code>run.input_files</code> 改成 Path。</li>
+            <li>Worker／伺服器：執行目錄的檔名可以是中文（<code>is_artifact_path</code>，打包時跳過會被拒絕的檔名）；運行詳情多了運行環境、產出檔案（可下載）、檔案變化、資料預覽；回看頁的 Python 節點是步驟時間軸（章節、腳本那幾行標出行號、第幾次、檔案變化、資料預覽、事實、主控台）；場景頁的出參可以選 file；心跳只在有要清的資料夾時附上 cleanup。</li>
+            <li>測試網站 <code>/download</code> 與 <code>GET /api/export.csv</code>；範例 <code>scenarios/examples/browser-python/</code>（下載 → Python 彙總 → 上傳，<code>workflow.json</code>）與瀏覽器測試 <code>packages/rpa_runner/tests/test_download_browser.py</code>（本機 Chromium 通過）。</li>
+          </ul>
+        </li>
+        <li><strong>10-30 補完：</strong>
+          <ul>
+            <li>合併回看：Python 節點是一段步驟時間軸（<code>composite.segments</code> 的種類 <code>python</code>），一步一格、依實際耗時佔 1.5～6 秒（<code>PYTHON_STEP_MS</code>），畫面是那一步的腳本、檔案變化、資料預覽與主控台，縮圖寫上步驟編號與名稱；前後照樣有轉場卡；只有 Python 節點的組合運行也有播放器（沒有影片網址、沒有「下載全部錄影」）；沒有 <code>run.step()</code> 的 Python 節點是說明卡、說明原因。</li>
+            <li>主控台逐步對應：<code>rpa_script</code> 每一步記下 automation.log 的位元組位置（<code>console_offset()</code>，steps.json 的 <code>console: [開始, 結束]</code>）；回看的步驟詳情顯示到那一步為止的最後 40 行、標出這一步寫的行；遠端上傳的不合理值不採用；超過 16 MB 的主控台不逐步對應、只顯示最後 200 行。</li>
+            <li>測試：<code>apps/server/tests/test_browser_python_flow.py</code>（經過 Portal：三個場景單獨驗證、發布，再接成組合場景驗證、發布、正式執行，同一台 Worker、出參一致、合併回看有 Python 段）；<code>test_download_browser.py</code> 依引擎參數化（Firefox 在 CI 的 Worker 測試跑）；file 出參與 outputs/ 的大小上限；運行環境模式的取消；合併回看與主控台對應的伺服器測試。</li>
+            <li>文件：管理 Portal（新的「Python 節點」一項、運行詳情、回看、合併回看與 API）、ADR 0020 的後果（檔案在節點之間傳遞、中文檔名、報告與回看、主控台的對應方式）、場景 DSL 的 <code>rpa_script</code>、路線圖；繁中、英文、簡中。</li>
+          </ul>
+        </li>
+        <li><strong>未完成（接手的人照這個順序）：</strong>
+          <ol>
+            <li>人工驗收（第 11 節），步驟照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>（一台電腦用分支的原始碼啟動 Portal 做驗收一、二、三、五；驗收四要第二台；Worker App 版等合併後的草稿 Release）：Windows Worker 驗證並執行第 1 節的組合場景範例、看合併回看裡的 Python 段與主控台；macOS Worker 與 Linux <code>rpa worker</code> 各執行一次運行環境模式的範例；第二次執行的「運行環境」顯示「沿用」。</li>
+            <li>PR #109 轉為可審閱、更新 PR 說明；合併由使用者決定。P3（模型套件層、腳本工作台、foreach）只規劃不做；D5（Python 節點使用登入角色）待使用者決定。</li>
+          </ol>
+        </li>
+        <li><strong>決定：</strong>見第 13 節；寫進<a href="../decisions.html">決定</a>。D5 待決定。實作時確定（使用者授權「按建議」的細節）：<code>rpa_script</code> 不裝在運行環境裡，由 Runner 提供（6.2）；file 出參的值用 <code>{"workspace", …}</code>（不用 <code>path</code>，避免和「那台電腦上的路徑」混淆），Python 節點 outputs/ 的檔案複製到共用工作資料夾的 <code>.outputs/</code> 給下游。</li>
+        <li><strong>下一個具體動作：</strong>使用者照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>人工驗收，結果回填本頁；之後由使用者決定 PR #109 要不要轉成可審閱、合併。<code>abe1d9e</code> 的 CI 已全部通過（第 16 節）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
 
@@ -546,15 +407,22 @@ def check(c: Check) -&gt; dict[str, object]:
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
-          <tr><td>a8cde7f＋本頁、任務索引、決定（Claude 雲端環境）</td><td><code>git diff --check</code>；handoff 的相對連結與錨點檢查</td><td>第一版、第二版都通過；以 Chromium 開啟本頁，1280 寬沒有橫向捲動</td><td>只改 handoff/，不跑程式測試</td></tr>
+          <tr><td>a8cde7f＋本頁、任務索引、決定（Claude 雲端環境）</td><td><code>git diff --check</code>；handoff 的相對連結與錨點檢查</td><td>第一版、第二版都通過</td><td>只改 handoff/，不跑程式測試</td></tr>
+          <tr><td><code>408f135</code>＋P0 工作區差異，Claude 雲端環境（系統 Python 3.13.18、Ruff 0.16.9、Pyright 1.1.414；沒有 .venv）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；Pyright strict（packages、apps/worker、tools；伺服器另外確認沒有新的型別錯誤）；<code>pytest -m "not browser"</code>：packages、apps/worker、apps/testsite</td><td>Ruff 通過；Pyright 0 errors；854 passed、2 skipped（Windows 專用）</td><td>伺服器、命令列（serve、update）、tests/docs 的簡中與 test_release_version 要 bootstrap 與 CI；瀏覽器測試未跑</td></tr>
+          <tr><td><code>abe1d9e</code>，GitHub Actions</td><td>CI（靜態檢查、測試 3.12／3.13、Worker 測試（Windows））、運行環境四個平台、伺服器分發包 x64／arm64、RPA Worker（Windows）</td><td>全部通過。Linux 3.13：2230 passed、6 skipped，包含 <code>test_browser_python_flow.py</code>、<code>test_composite_replay.py</code> 的頁面測試，以及本機錄不出影片的 <code>test_replay_flow.py</code>、<code>test_composite_replay_flow.py</code>（證實本機的失敗是環境造成的）；Worker 測試（Windows）94 passed，包含 <code>test_download_summarize_upload[firefox]</code></td><td>依變更範圍略過的工作（Rocky 8 的 Linux 伺服器、從零開始、專案內執行）；人工驗收未做</td></tr>
+          <tr><td><code>b6ecfdb</code>＋<code>d282f6c</code>、<code>85f365c</code> 與文件的差異，Claude 雲端環境（.venv：Python 3.13.17、Ruff 0.17.1、Pyright 1.1.414；Chromium 用 /opt/pw-browsers 的舊版，沒有 Firefox）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>、<code>pyright</code>、<code>pytest -m "not browser"</code>；<code>tools/i18n.py check</code>、<code>pytest -q tests/docs tests/i18n</code>、<code>git diff --check</code>；瀏覽器測試（Chromium）：<code>apps/server/tests/test_browser_python_flow.py</code>、<code>test_composite_replay.py</code> 的頁面測試、<code>packages/rpa_runner/tests/test_download_browser.py</code></td><td>Ruff、格式通過；Pyright 0 errors（11 個 pystray 等找不到原始碼的既有警告）；<code>pytest -m "not browser"</code> 2180 passed、7 skipped（Windows 專用、要真的運行環境、ssh-keygen）；i18n 檢查、tests/docs 與 tests/i18n 368 passed；<code>git diff --check</code> 通過；瀏覽器測試 5 passed、1 skipped（Firefox 沒有安裝）</td><td>Firefox（以 CI 的 Worker 測試為準）；錄影的流程測試（<code>test_replay_flow.py</code> 兩個、<code>test_composite_replay_flow.py</code>）在這個環境連沒改過的 <code>b6ecfdb</code> 也失敗（舊版 Chromium 與 ffmpeg 錄不出影片），以 CI 為準；人工驗收未做</td></tr>
+          <tr><td><code>7f7d14e</code>，GitHub Actions</td><td>CI、python-runtime.yml、桌面端建置、伺服器分發包</td><td>運行環境四個平台（建置、自我測試、真的運行環境跑 Python 節點測試、Linux 在 Rocky 8 自我測試）通過；伺服器分發包 x64／arm64（Rocky 8 執行範例 Python 節點）通過；RPA Worker（Windows）完整建置與自我測試（含範例 Python 節點）通過；Linux 測試 3.12／3.13、靜態檢查通過。Worker 測試（Windows）兩個 Firefox 的既有測試逾時（<code>test_run</code> 斷言失敗、<code>test_login</code>），重跑失敗的工作後通過（機器慢造成的偶發逾時）</td><td>RPA Worker（macOS）、錄製端在這次沒有跑（指紋沒變或之前已通過）；人工驗收未做</td></tr>
+          <tr><td><code>f620e3a</code>＋P1 工作區差異，Claude 雲端環境（系統 Python 3.13.18、Ruff 0.16.9、Pyright 1.1.414、uv 0.11.32；沒有 .venv，連不到 PyPI）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；Pyright strict（改到的 tools、rpa_runner、桌面自我測試與它們的測試）；<code>pytest -m "not browser"</code>：packages、apps/worker、apps/testsite、apps/desktop、tests/ci、tests/examples；<code>tools/i18n.py stamp</code>、文檔連結檢查</td><td>Ruff 通過；Pyright 0 errors；1321 passed、7 skipped（Windows 專用、keyring、要真的運行環境的 2 個）；<code>test_lock_covers_every_requirement</code> 要 bootstrap 產生的鎖定檔，本機沒有跑；連結 0 個問題。f620e3a 的 CI 兩個失敗（Pyright：本機 Job 的 <code>workspace</code> 參數重複；<code>_macros.html</code> 在 StrictUndefined 下讀不存在的鍵）已修</td><td>運行環境的實際建置、自我測試與四個平台的 Python 節點測試、Worker App 與分發包的打包、Rocky 8：以 CI 為準；伺服器測試要 CI</td></tr>
+          <tr><td>main <code>c9a9d7f</code>，Claude 雲端環境，系統的 Python 3.13.18 直接從原始碼執行（沒有 .venv）</td><td>第 2 節的查證：腳本場景冒煙測試 6 種情況與入參超出範圍；<code>check_workflow</code> 檢查瀏覽器＋Python＋瀏覽器的組合；<code>pytest -k script</code>（rpa_core 與 rpa_runner 不需要瀏覽器的部分）</td><td>全部符合預期；17 passed</td><td>沒有瀏覽器、沒有伺服器的依賴：Portal、Worker、瀏覽器的部分沒有跑</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：依共用流程，只改 handoff/ 的推送沿用上一次的結果（第一版 <code>3c7df35</code> 的 CI 通過）；人工驗收：未執行（只有設計）；審閱：等使用者。</p></div>
+      <div class="panel-body"><p>CI：見上表，最新是 <code>abe1d9e</code> 全部通過。人工驗收：未執行，照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>做。審閱：等使用者。</p></div>
     </section>
 
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
-      <div class="panel-body"><p>2026-10-25 16:55 America/Los_Angeles（PDT，UTC−07:00），Codex 依使用者本次要求接收 <code>6fd8667</code>，在獨立 Windows 工作區核對遠端與差異，合入 main <code>c587cda</code>。衝突僅有任務索引，保留雙方全部任務連結；本次接收只涵蓋衝突整合，不代表設計已確認或開始實作。</p></div>
+      <div class="panel-body"><p>2026-10-25 16:55 America/Los_Angeles（PDT，UTC−07:00），Codex 依使用者本次要求接收 <code>6fd8667</code>，在獨立 Windows 工作區核對遠端與差異，合入 main <code>c587cda</code>。衝突僅有任務索引，保留雙方全部任務連結；本次接收只涵蓋衝突整合，不代表設計已確認或開始實作。第三版由 Claude 從 main <code>e5b585e</code> 接續，不使用 PR #82 的分支。</p>
+      <p>2026-10-30 00:24 America/Los_Angeles（PDT，UTC−07:00），Claude（新的雲端 session）依使用者要求審閱 PR #109，接收 <code>feat/python-nodes</code> 的 <code>b6ecfdb</code>（和遠端相同、沒有未提交的修改）；00:35 依使用者要求接續實作第 15 節的未完成項目，提交仍在 <code>feat/python-nodes</code>（PR #109）。</p></div>
     </section>
 
     <section class="panel" id="log">
@@ -565,6 +433,12 @@ def check(c: Check) -&gt; dict[str, object]:
         <li>2026-10-24 20:40 America/Los_Angeles（PDT，UTC−07:00），Claude：更正本頁的時間：更新時間、技術驗證的時段與前兩條紀錄原本多寫了約 30 分鐘，改成提交與實測的實際時間（<code>c9d34cc</code>、<code>3cb3ef0</code> 的提交時間）。</li>
         <li>2026-10-24 22:52 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 22:34 的修訂改寫成第二版：腳本場景改成本機自動化（Excel、檔案），舊的 Python＋Playwright 腳本場景封存，運行環境改成專門建置的 RPA Python 運行環境，錄製改成腳本工作台，回看改成步驟時間軸；待決定事項改成 D1～D11。第一版的內容留在 <code>3c7df35</code>。仍然只有設計，沒有實作。</li>
         <li>2026-10-25 16:55 America/Los_Angeles（PDT，UTC−07:00），Codex：依使用者要求處理 PR #82 衝突，從 <code>6fd8667</code> 合入 <code>origin/main</code>（<code>c587cda</code>），保留 Python 腳本設計、Windows 寫入修復、排程測試修復與 Agent API 的任務連結，不重寫既有提交。驗證環境 Windows、Python 3.12.10、Git 2.54.0.windows.1；檢查 <code>git diff --check</code>、本 PR 三份交接頁的本地連結與錨點、索引涵蓋雙親全部連結，以及設計正文與 D1～D11 未變。只手動整合交接文件，本機不重跑程式測試；推送後核對 CI。PR 保持草稿，不合併、不發布。</li>
+        <li>2026-10-29 06:52 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 06:19 的命題查證（第 2 節）並提出統一方案，06:39 使用者決定 D1～D4 與分期；改寫成第三版，第二版的內容留在 <code>e5b585e</code>。從 main <code>e5b585e</code> 開 <code>feat/python-nodes</code> 開始實作 P0。</li>
+        <li>2026-10-29 18:19 America/Los_Angeles（PDT，UTC−07:00），Claude：P0 與 P1 執行端：DSL 的 <code>script.runtime</code>、<code>files</code>、<code>platforms</code>、運行環境模式的 <code>verify</code> 與 file 入參、array／object 入參與擴充 <code>pythonNodes</code>、<code>jsonInputs</code>；<code>rpa_runner.pyruntime</code>（找到、解壓、沿用、鎖檔、自我檢查）、runtime 階段與 <code>result.json</code> 的 <code>python</code>；新套件 <code>rpa_script</code>；組合運行的共用工作資料夾（本機與遠端，結束時清除）；派工依運行環境與平台、等待說明、裝置頁；場景頁、完整場景檔（新增、移除檔案）、執行表單、組合場景畫布的 array／object 值；ADR 0020、場景 DSL 文件（繁中、英文）。本機驗證見下方；伺服器的測試要 FastAPI 與 SQLAlchemy，這個環境裝不了，以 CI 為準。</li>
+        <li>2026-10-29 18:44 America/Los_Angeles（PDT，UTC−07:00），Claude：P1：<code>runtimes/python/</code>（runtime.toml 固定 CPython 3.13.14 與四個平台、requirements.in、smoke.py）、<code>tools/build_python_runtime.py</code>（lock、build、--install）、bootstrap 產生 requirements.lock、<code>python-runtime.yml</code>（四個平台建置、自我測試、用真的運行環境跑 Python 節點的測試、Linux 在 Rocky 8 解壓與自我測試）；Worker App（spec 收進壓縮檔與 <code>rpa_script</code> 原始碼，自我測試執行範例 Python 節點）與 Linux 分發包（<code>python/runtimes/</code>，檔名算進環境代號，Rocky 8 執行範例）附帶運行環境；外殼鍵與指紋加上運行環境的輸入；範例 <code>scenarios/examples/python-node</code>。實作時改成 <code>rpa_script</code> 由 Runner 提供、不裝在運行環境裡（6.2 的原因）。另修 f620e3a 的兩個 CI 失敗。</li>
+        <li>2026-10-29 23:40 America/Los_Angeles（PDT，UTC−07:00），Claude：P2 主要程式（見第 15 節「P2 已做」）與交接清單；使用者提醒每週用量快到上限，先把剩下的工作與已知的 CI 失敗寫進第 15 節，方便接手。本機驗證：Ruff、Pyright（改到的套件）通過；<code>pytest -m "not browser"</code>（packages、apps/worker、apps/testsite、apps/desktop、tests/ci、tests/examples、tests/docs）只剩要 bootstrap 的 JSON Schema；瀏覽器測試 <code>test_download_browser.py</code> 本機 Chromium 通過。</li>
+        <li>2026-10-30 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 00:35 的要求補完 PR #109 剩下的功能、測試與文件（第 15 節「10-30 補完」）：合併回看裡 Python 節點的步驟時間軸、主控台逐步對應（改了設計 6.2 的寫法，原因見該列）、經過 Portal 的瀏覽器＋Python 組合運行、Firefox 下載、檔案上限與取消的測試、Portal／ADR 0020／場景 DSL／路線圖。本機驗證見第 16 節；推送到 <code>feat/python-nodes</code> 後核對 CI。PR 保持草稿，不合併。</li>
+        <li>2026-10-30 02:00 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>abe1d9e</code> 的 CI 全部通過（第 16 節），PR #109 的說明已更新；依使用者 01:31 的要求寫了<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>（Python 節點的人工驗收，附結果勾選表）。PR 的 CI 訂閱沒有成功（工具回應無法訂閱），之後的 CI 要手動查。</li>
       </ul></div>
     </section>
   </div>

@@ -7,6 +7,7 @@ import base64
 import hashlib
 import io
 import json
+import os
 import threading
 import time
 import zipfile
@@ -49,6 +50,8 @@ class FakeApi:
     """上傳檔（M7c）：代號 → 內容；GET /runs/<執行>/files/<代號> 回傳它。"""
     reject_token: bool = False
     fingerprint: str = "same"
+    cleanup: list[str] = field(default_factory=list[str])
+    """心跳回應裡要 worker 刪掉的共用工作資料夾（ADR 0020）。"""
     done: threading.Event = field(default_factory=threading.Event)
 
     def handle(self, method: str, path: str, body: bytes, token: str) -> tuple[int, object]:
@@ -74,7 +77,7 @@ class FakeApi:
             return 200, content
         if action == "heartbeat":
             self.heartbeats.append((run_id, json.loads(body).get("stage")))
-            return 200, {"cancel": run_id in self.cancel}
+            return 200, {"cancel": run_id in self.cancel, "cleanup": self.cleanup}
         if action == "artifacts":
             with zipfile.ZipFile(io.BytesIO(body)) as archive:
                 self.artifacts[run_id] = {name: archive.read(name) for name in archive.namelist()}
@@ -482,3 +485,76 @@ def test_input_file_that_does_not_match_fails_the_run(tmp_path: Path) -> None:
     assert "sha256" in str(api.failed["ba-001-files-2"]["detail"])
     assert api.failed["ba-001-files-3"]["kind"] == "input_files"
     assert not list((tmp_path / "work" / "jobs").glob("*/inputs/*"))
+
+
+class WorkspaceExecutor(SlowExecutor):
+    """假的執行器：記下拿到的共用工作資料夾，在裡面留一個檔案，回報一次階段就結束。"""
+
+    def __init__(self, tmp: Path) -> None:
+        super().__init__(tmp)
+        self.workspaces: list[Path | None] = []
+
+    def __call__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+        path: Path,
+        inputs: Mapping[str, object],
+        *,
+        out_root: Path,
+        run_id: str | None = None,
+        on_stage: Callable[[StageName], None] | None = None,
+        workspace: Path | None = None,
+        **_: object,
+    ) -> RunResult:
+        assert run_id is not None
+        self.workspaces.append(workspace)
+        if workspace is not None:
+            (workspace / "report.csv").write_text("a,b\n", encoding="utf-8")
+        if on_stage is not None:
+            on_stage("automation")
+        time.sleep(0.3)  # 讓心跳送出去
+        folder = out_root / run_id
+        folder.mkdir(parents=True)
+        (folder / "result.json").write_text("{}", encoding="utf-8")
+        return RunResult(
+            run_id=run_id,
+            scenario_id="node",
+            scenario_name="x",
+            scenario_hash="h",
+            kind="script",
+            engine="chromium",
+            directory=folder,
+            started_at="2026-10-29T00:00:00+00:00",
+            status="passed",
+        )
+
+
+def test_composite_nodes_share_a_workspace_until_the_server_says_done(tmp_path: Path) -> None:
+    api = FakeApi(jobs=[job_json("node-1", workspace="wf-1"), job_json("node-2", workspace="wf-1")])
+    executor = WorkspaceExecutor(tmp_path)
+    old = tmp_path / "work" / "workspaces" / "wf-old"
+    old.mkdir(parents=True)
+    with serving(api) as url:
+        source = make_source(url, tmp_path, [])
+        worker = Worker(source, executor=executor)
+        assert worker.run_once()
+        assert worker.run_once()
+        shared = tmp_path / "work" / "workspaces" / "wf-1"
+        assert executor.workspaces == [shared, shared]
+        assert (shared / "report.csv").is_file()  # 跨節點保留
+        api.cleanup.append("wf-1")
+        api.jobs.append(job_json("solo-1"))
+        assert worker.run_once()
+    assert executor.workspaces[-1] is None  # 單獨執行沒有共用工作資料夾
+    assert not shared.exists()  # 管理 Portal 說組合運行結束了：刪掉
+    assert old.exists()  # 還不到一天：上線時不刪
+
+
+def test_old_workspaces_are_swept_when_going_online(tmp_path: Path) -> None:
+    api = FakeApi()
+    old = tmp_path / "work" / "workspaces" / "wf-old"
+    old.mkdir(parents=True)
+    os.utime(old, (time.time() - 3 * 86400, time.time() - 3 * 86400))
+    with serving(api) as url:
+        source = make_source(url, tmp_path, [])
+        source.hello()
+    assert not old.exists()

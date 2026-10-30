@@ -1,0 +1,29 @@
+# RPA Python 運行環境（ADR 0020）：Python 節點的運行環境模式（script.runtime）用它執行。
+# tools/build_python_runtime.py 依這份與 requirements.lock 建置；改了就是新的運行環境版本。
+#
+# 版本號 主.次.修：場景寫主版本（runtime: "1"）。同一個主版本只加套件、做相容的升級（次版本）
+# 或安全修正（修訂版）；換 Python 的次版本、拿掉套件、套件有不相容的大改版才升主版本。
+
+version = "1.0.0"
+
+# python-build-standalone 的 CPython，由 uv 下載並核對 sha256（uv python install），固定修訂版：
+# 所有 Worker 用的是同一份直譯器，結果才會相同
+python = "3.13.14"
+
+# 建置的平台：運行環境代號 → uv 的 Python 下載代號（os-arch-libc）與 wheel 的平台
+[platforms.windows-x86_64]
+uv = "windows-x86_64-none"
+wheels = "x86_64-pc-windows-msvc"
+
+[platforms.macos-arm64]
+uv = "macos-aarch64-none"
+wheels = "aarch64-apple-darwin"
+
+[platforms.linux-x86_64]
+uv = "linux-x86_64-gnu"
+# 公司的 Linux 伺服器是 RHEL 8 系列（glibc 2.28），和伺服器分發包相同
+wheels = "x86_64-manylinux_2_28"
+
+[platforms.linux-aarch64]
+uv = "linux-aarch64-gnu"
+wheels = "aarch64-manylinux_2_28"

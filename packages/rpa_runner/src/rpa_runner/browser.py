@@ -10,6 +10,8 @@
   選擇檔案視窗（``trigger``），或拖放到元素上（``dropzone``）。每個分頁一開始就監聽選擇檔案的
   視窗（:class:`Tabs`）：有頭模式不會跳出系統的視窗卡在畫面上；不是 upload 開出的，這一步照樣
   通過，紀錄多一條提醒（D6）。
+- 下載檔案（ADR 0020）：``download`` 點擊並等待下載完成，存到共用工作資料夾的 ``downloads/``
+  （``workspace``），事實是 ``{"workspace", "name", "size", "sha256"}``。
 """
 
 import base64
@@ -31,6 +33,7 @@ from pydantic import TypeAdapter
 from rpa_core.dsl import (
     CheckStep,
     ClickStep,
+    DownloadStep,
     ExpectStep,
     ExtractField,
     ExtractStep,
@@ -45,8 +48,15 @@ from rpa_core.dsl import (
     UploadStep,
     WaitForStep,
 )
-from rpa_core.dsl.files import MAX_DROP_BYTES, format_size, guess_media_type
+from rpa_core.dsl.files import (
+    MAX_DROP_BYTES,
+    clean_name,
+    file_meta,
+    format_size,
+    guess_media_type,
+)
 from rpa_core.dsl.steps import upload_input_names
+from rpa_runner.files import DOWNLOADS_DIR
 from rpa_runner.i18n import t
 from rpa_runner.templates import Context, render_tree
 
@@ -415,6 +425,8 @@ class _Run:
     facts: dict[str, object]
     files: Mapping[str, Sequence[Path]] = field(default_factory=dict[str, Sequence[Path]])
     """檔案入參 → 準備好的檔案（M7c）。"""
+    workspace: Path | None = None
+    """共用工作資料夾（ADR 0020）：download 步驟存檔的地方。"""
 
     def execute(self, step: Step, timeout: int, record: StepRecord) -> None:
         page = self.tabs.get(step.page)
@@ -487,6 +499,25 @@ class _Run:
                 raise
             raise ValueError(friendly) from error
 
+    def _download(self, page: Page, step: DownloadStep, timeout: int, record: StepRecord) -> None:
+        """點擊並等待下載完成，存到共用工作資料夾的 downloads/；事實是檔案的說明。"""
+        if self.workspace is None:
+            raise LookupError(t("browser.download_no_workspace"))
+        with page.expect_download(timeout=timeout) as info:
+            locate(page, step.target, timeout).click(timeout=timeout)
+        download = info.value
+        folder = self.workspace / DOWNLOADS_DIR
+        folder.mkdir(parents=True, exist_ok=True)
+        name = clean_name(step.file_name or download.suggested_filename or "download")
+        target = _unique_path(folder, name)
+        download.save_as(target)  # 等到下載完成；失敗時拋出
+        meta = file_meta(target, target.name)
+        record.files = [target.name]
+        self.facts[step.as_] = {
+            "workspace": target.relative_to(self.workspace).as_posix(),
+            **meta.to_json(),
+        }
+
     def _act(self, page: Page, step: Step, timeout: int, record: StepRecord) -> None:
         match step:
             case GotoStep():
@@ -531,6 +562,8 @@ class _Run:
                 self.facts[step.as_] = _extract(page, step, timeout)
             case UploadStep():
                 self._upload(page, step, timeout, record)
+            case DownloadStep():
+                self._download(page, step, timeout, record)
             case ScreenshotStep():
                 name = f"{step.file or step.id}.png"
                 path = self.artifacts / name
@@ -554,6 +587,17 @@ _DROP_JS: Final = """
   }
 }
 """
+
+
+def _unique_path(folder: Path, name: str) -> Path:
+    """``folder/name``；已經有同名的檔案（例如同一次組合運行下載過）時加上 -2、-3…。"""
+    target = folder / name
+    stem, suffix = Path(name).stem, Path(name).suffix
+    number = 2
+    while target.exists():
+        target = folder / f"{stem}-{number}{suffix}"
+        number += 1
+    return target
 
 
 def _drop(element: PwLocator, paths: Sequence[Path], timeout: int) -> None:
@@ -601,16 +645,18 @@ def run_steps(
     tabs: Tabs | None = None,
     files: Mapping[str, Sequence[Path]] | None = None,
     after_step: Callable[[Page, StepRecord, int], None] | None = None,
+    workspace: Path | None = None,
 ) -> dict[str, object]:
     """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。
 
     ``tabs`` 給了時用它（呼叫的人之後要知道最後在哪個分頁，例如失敗截圖）；``page`` 是一開始的分頁。
-    ``files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）。
+    ``files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）；``workspace`` 是共用工作資料夾
+    （download 步驟存檔的地方，ADR 0020）。
     ``after_step`` 在每一步（通過或失敗）之後、寫出進度之前呼叫：(最後用到的分頁, 紀錄, 第幾步)，
     錄影時拍那一步做完的截圖（見 stepshots.py）；它出錯不影響步驟的結果。
     """
     facts: dict[str, object] = {}
-    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {})
+    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {}, workspace)
     steps = zip(scenario.steps or [], records, strict=True)
     for index, (step, record) in enumerate(steps, start=1):
         try:
@@ -660,13 +706,15 @@ def run_step(
     deadline: Deadline,
     tabs: Tabs | None = None,
     files: Mapping[str, Sequence[Path]] | None = None,
+    workspace: Path | None = None,
 ) -> StepRecord:
     """只執行一步（調試工作階段用）：facts 就地更新；失敗不拋出，記在回傳的紀錄裡。
 
-    ``tabs`` 是整個工作階段的分頁（M7b），新分頁在步驟之間一直都在；``files`` 見 run_steps。
+    ``tabs`` 是整個工作階段的分頁（M7b），新分頁在步驟之間一直都在；``files``、``workspace``
+    見 run_steps。
     """
     record = StepRecord(step.id, step.action, step.name)
-    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {})
+    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {}, workspace)
     with contextlib.suppress(Exception):
         _execute_step(run, step, record, context, deadline)
     return record

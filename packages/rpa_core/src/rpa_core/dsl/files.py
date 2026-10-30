@@ -13,6 +13,9 @@
   命令列 ``rpa run`` 不限位置；管理 Portal 與 API 交給 Worker 時，只能在 Worker App 設定的
   允許資料夾裡（見 :func:`inside_folders`），不然能執行場景的人就能把那台電腦上的任何檔案
   上傳到外部網站。
+- **組合運行的共用工作資料夾裡的檔案**（ADR 0020）：``{"workspace": "downloads/報表.xlsx",
+  "name": …, "size": …, "sha256": …}``。這是上游節點 ``type: file`` 出參的值，組合場景把它直接
+  接到下游的檔案入參；路徑相對於共用工作資料夾（同一次組合運行都在同一台 Worker 上）。
 
 執行時 Runner 把每個值換成真的檔案，交給瀏覽器；表達式與 input.json 裡只有
 ``{"name", "size", "sha256"}``，沒有本機路徑。
@@ -51,8 +54,10 @@ __all__ = [
     "guess_media_type",
     "inside_folders",
     "is_attachment_path",
+    "is_workspace_ref",
     "parse_size",
     "uploaded_ids",
+    "workspace_refs",
 ]
 
 FILE_ID: Final = re.compile(r"[0-9a-f]{32}")
@@ -93,8 +98,10 @@ _WINDOWS_RESERVED: Final = frozenset(
     }
 )
 _UNSAFE_CHARS: Final = re.compile(r'[\x00-\x1f\x7f<>:"/\\|?*]')
+_CONTROL: Final = re.compile(r"[\x00-\x1f\x7f]")
 
-Source = Literal["upload", "attachment", "path"]
+Source = Literal["upload", "attachment", "path", "workspace"]
+_MAX_WORKSPACE_REF: Final = 400
 
 
 class FileValueError(ValueError):
@@ -113,7 +120,8 @@ class FileValue:
 
     source: Source
     ref: str
-    """上傳檔的代號、附件的路徑，或那台電腦上的路徑（可能有動態值）。"""
+    """上傳檔的代號、附件的路徑、那台電腦上的路徑（可能有動態值），或共用工作資料夾裡的
+    相對路徑。"""
     name: str | None = None
     """網頁看到的檔名；沒寫時用附件或路徑的檔名。"""
     size: int | None = None
@@ -135,6 +143,15 @@ class FileValue:
                 if self.name is None:
                     return self.ref
                 return {"attachment": self.ref, "name": self.name}
+            case "workspace":
+                data = {"workspace": self.ref}
+                if self.name is not None:
+                    data["name"] = self.name
+                if self.size is not None:
+                    data["size"] = self.size
+                if self.sha256 is not None:
+                    data["sha256"] = self.sha256
+                return data
             case _:
                 data = {"path": self.ref}
                 if self.name is not None:
@@ -167,6 +184,27 @@ def is_attachment_path(text: str) -> bool:
     return _ATTACHMENT.fullmatch(text) is not None
 
 
+def is_workspace_ref(text: str) -> bool:
+    """是不是共用工作資料夾裡的相對路徑：用 / 分隔，不能是絕對路徑，也不能有 ``..``。"""
+    if not text or len(text) > _MAX_WORKSPACE_REF or "\\" in text or text.startswith("/"):
+        return False
+    if re.match(r"^[A-Za-z]:", text) or _CONTROL.search(text):
+        return False
+    return all(part not in ("", ".", "..") for part in text.split("/"))
+
+
+def _size_and_digest(data: Mapping[str, object]) -> tuple[int | None, str | None]:
+    size = data.get("size")
+    digest = data.get("sha256")
+    if size is not None and (not isinstance(size, int) or isinstance(size, bool) or size < 0):
+        raise FileValueError("shape")
+    if digest is not None and (
+        not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+    ):
+        raise FileValueError("shape")
+    return size, digest
+
+
 def _one(value: object) -> FileValue:
     if isinstance(value, str):
         if not is_attachment_path(value):
@@ -185,15 +223,16 @@ def _one(value: object) -> FileValue:
         ref = data["file"]
         if not isinstance(ref, str) or not FILE_ID.fullmatch(ref):
             raise FileValueError("id", value=str(ref))
-        size = data.get("size")
-        digest = data.get("sha256")
-        if size is not None and (not isinstance(size, int) or isinstance(size, bool) or size < 0):
-            raise FileValueError("shape")
-        if digest is not None and (
-            not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
-        ):
-            raise FileValueError("shape")
+        size, digest = _size_and_digest(data)
         return FileValue("upload", ref, name, size, digest)
+    if "workspace" in keys:
+        if not keys <= {"workspace", "name", "size", "sha256"}:
+            raise FileValueError("shape")
+        ref = data["workspace"]
+        if not isinstance(ref, str) or not is_workspace_ref(ref):
+            raise FileValueError("workspace_ref", value=str(ref))
+        size, digest = _size_and_digest(data)
+        return FileValue("workspace", ref, name, size, digest)
     if "attachment" in keys:
         if not keys <= {"attachment", "name"}:
             raise FileValueError("shape")
@@ -239,6 +278,21 @@ def uploaded_ids(values: Iterable[object]) -> list[str]:
         elif isinstance(item, Mapping):
             ref = cast("Mapping[str, object]", item).get("file")
             if isinstance(ref, str) and FILE_ID.fullmatch(ref):
+                found[ref] = None
+    return list(found)
+
+
+def workspace_refs(values: Iterable[object]) -> list[str]:
+    """一組入參值裡用到的共用工作資料夾檔案（上游節點的 file 出參；看不懂的值略過）。"""
+    found: dict[str, None] = {}
+    pending = list(values)
+    while pending:
+        item = pending.pop(0)
+        if isinstance(item, list):
+            pending[0:0] = cast("list[object]", item)
+        elif isinstance(item, Mapping):
+            ref = cast("Mapping[str, object]", item).get("workspace")
+            if isinstance(ref, str) and is_workspace_ref(ref):
                 found[ref] = None
     return list(found)
 

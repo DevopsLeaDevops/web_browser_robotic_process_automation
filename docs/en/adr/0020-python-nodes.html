@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:e1573d6c90698416">
+<title>ADR 0020 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0020" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0020: Python script scenarios become Python nodes that run with browser scenarios in composite scenarios</h1>
+      <p>No new kind of scenario: the existing <code>script:</code> gains <code>runtime</code>, which runs it in the platform-built RPA Python runtime without a browser; without <code>runtime</code> it runs as before. A composite scenario's nodes can be browser scenarios or Python nodes; data passes through array and object inputs and outputs, files through a shared workspace on the same Worker.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-10-29</dd>
+        <dt>Status</dt><dd>Decided by the user on 2026-10-29 (one Python node; runtime mode opens no browser; the shared workspace and model packages as recommended; P0–P2 together; see the <a href="../../../handoff/decisions.html#decisions">decision log</a>). Replaces the second design of 10-24, which archived <code>script:</code> and added <code>python:</code>.</dd>
+        <dt>Scope</dt><dd>rpa-core (DSL, composite scenarios), the new rpa-script, rpa-runner (runtime, execution), rpa-worker (reporting, shared workspace), rpa-server (dispatch, pages), the desktop apps and the Linux package (which carry the runtime)</dd>
+        <dt>Related</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a> (scenario contract: independent assertion, outputs published only after it passes), <a href="0012-remote-workers.html">ADR 0012</a> (remote Workers), <a href="0014-desktop-apps.html">ADR 0014</a> (desktop apps and packaged child processes), <a href="0018-layered-updates.html">ADR 0018</a> (layered updates); <a href="../design/dsl.html#python">Scenario DSL › Python nodes</a>; <a href="../../../handoff/tasks/20261024-python-scripts.html">task record</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Much work is out of a browser's reach: reading and writing Excel, merging files, cleaning data, calling APIs, building models. Since M1.1 there have been “Python script scenarios” (<code>script: { automation, assertion }</code>), but a packaged app runs them with its own bundled Python, which has only the standard library and the app's packages, and dispatch always treats them as needing a browser.</p>
+          <p>The second design of 10-24 would have archived them and added a <code>python:</code> scenario. Checking on 10-29 showed that the script contract never depended on a browser (the Runner hands over <code>input.json</code> and collects <code>facts.json</code> and candidate outputs); composite nodes record only “scenario + pinned version + input bindings”, whatever the kind; and a composite run already stays on one Worker. What was missing were packages, dispatch, structured inputs and a way to pass files.</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>One node, two modes.</strong> Without <code>script.runtime</code> it is compatible mode, exactly as before (same hash, may open its own browser). With <code>"1"</code> it is runtime mode: RPA Python runtime 1, no <code>browser</code> or <code>login</code>, the assertion is either <code>assertion.py</code> or DSL <code>verify</code> (with verify, outputs have a <code>from</code>), and file inputs are allowed. Both modes may list <code>files</code> (other text files the scripts use, included in the hash) and <code>platforms</code>.</li>
+            <li><strong>RPA Python runtime.</strong> A platform-built and tested Python 3.13 with fixed packages, built per platform in CI and shipped with the Worker app and the Linux package; extracted to the cache on first use, self-checked and reused. Runs use <code>-E -s</code> to keep the computer's Python and <code>PYTHON*</code> variables out. Model packages stay out of the base runtime and become an optional layer later (D4).</li>
+            <li><strong>Dispatch.</strong> Runtime-mode jobs go only to devices that report that major version on a platform listed in <code>platforms</code>; browsers and displays do not matter. Otherwise the run page explains what it waits for. Older apps are held back by the M7a <code>features</code> (<code>pythonNodes</code>, <code>jsonInputs</code>).</li>
+            <li><strong>Data and files in composite scenarios.</strong> Inputs gain <code>array</code> and <code>object</code>, so an upstream output of the same type connects directly. Each composite run has a shared workspace on its Worker, which is also the Python nodes' working directory; it is deleted when the composite run ends, and only declared produced files are uploaded (D3).</li>
+            <li><strong><code>rpa_script</code>.</strong> Runtime mode runs scripts through the <code>rpa_script</code> launcher: scripts that read and write the contract's files themselves need no change; scripts with <code>@automation</code> get steps, facts, produced files and data previews, written as a <code>steps.json</code> in the DSL format. <code>rpa_script</code> is not installed in the runtime: the Runner appends its own copy (standard library only) to the import path, so it belongs to the code layer, follows update files and never drifts from the runtime's version (settled during implementation on 2026-10-29).</li>
+            <li><strong>A <code>runtime</code> stage.</strong> After the inputs and before the automation the runtime is prepared, not counted against the deadline; <code>result.json</code> gains <code>python</code> (mode, version, platform, reused or freshly extracted).</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>Browser scenarios and Python nodes share one composite scenario, one set of inputs and outputs and one publishing gate; there is no second model to learn.</li>
+            <li>Existing script scenarios need no migration; ADR 0009's “script scenarios have no verify” holds only for compatible mode, as does ADR 0014's “packaged scripts can use only the app's bundled packages”.</li>
+            <li>The Worker app and the Linux package carry a runtime (about 60–75 MB compressed); the first use spends a few seconds extracting it.</li>
+            <li>Computers without browsers or a display can be Workers for Python nodes.</li>
+            <li>A Python node is not a sandbox: it runs arbitrary code on the Worker as that user, so only trusted people edit it and reviews flag it.</li>
+            <li>Intermediate files in the shared workspace are not kept; files people need go to produced files. If a remote Worker missed the end notice, it removes the workspace a day later when it goes online.</li>
+            <li>Passing files between nodes (settled during implementation on 2026-10-29): the DSL gains a <code>download</code> step and <code>type: file</code> outputs, and a file value can be <code>{"workspace": relative path}</code> (not <code>path</code>, so it is not mistaken for a path on that computer); files a Python node writes to <code>outputs/</code> are produced files, uploaded with the run folder and downloadable from the run details, and also copied into the shared workspace under <code>.outputs/&lt;run ID&gt;/</code> for downstream nodes. File names in the run folder can be Chinese; names the server would reject are skipped when the folder is packed for upload.</li>
+            <li>Reports and replay: Python nodes are not recorded; a script that uses <code>run.step()</code> has a step timeline, which is the chapter axis in a single run's replay and, in the combined replay of a composite run, a segment with one cell per step (1.5 to 6 seconds each depending on the real duration) that plays alongside the browser nodes' recordings (2026-10-30). The console is mapped to steps by byte offsets: <code>rpa_script</code> records how far <code>automation.log</code> had been written when each step started and ended, instead of adding a time and step to every <code>print()</code> line, so the script's output stays as written and output from subprocesses the script starts lines up too (replacing what section 6.2 of the design first said).</li>
+            <li>Later (P3): an optional model package layer, the script workbench, composite fan-out (foreach), and Python nodes using login roles (to be decided).</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Alternative</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Archive <code>script:</code> and add <code>python:</code> (second design)</td><td>A second model, dispatch path and report, plus migrating old scenarios; the user chose one node on 10-29.</td></tr>
+              <tr><td>Runtime mode may open a browser</td><td>The user chose no: web work stays in the DSL, and the runtime's Playwright would have to match each Worker's downloaded browsers.</td></tr>
+              <tr><td>The computer's Python, conda, or per-scenario locked packages</td><td>Results differ per computer and Workers need a package index: the version and dependency trouble this avoids.</td></tr>
+              <tr><td>Passing files between nodes through the server</td><td>A composite run already stays on one Worker, so local paths are fastest; only declared produced files are uploaded.</td></tr>
+              <tr><td>A composite node that holds a bit of transformation code directly</td><td>No version, publishing gate or independent assertion; Python nodes already cover it.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

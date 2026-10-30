@@ -30,7 +30,7 @@ POLL_SECONDS: Final = 2.0
 
 
 class FileOptions(TypedDict, total=False):
-    """檔案入參的執行選項（M7c，見 :func:`rpa_runner.run.execute`）。"""
+    """檔案入參（M7c）與共用工作資料夾（ADR 0020）的執行選項，見 :func:`rpa_runner.run.execute`。"""
 
     uploads: Mapping[str, Path]
     """上傳檔代號 → 這台電腦上的檔案。"""
@@ -38,6 +38,8 @@ class FileOptions(TypedDict, total=False):
     """path 值可以讀的資料夾；None 時用環境變數 RPA_INPUT_FOLDERS。"""
     max_file_bytes: int
     max_run_bytes: int
+    workspace: Path
+    """組合運行的共用工作資料夾（同一次組合運行的節點共用）。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +69,8 @@ class Job:
     """檔案入參的 path 可以讀的資料夾；None 時用環境變數 RPA_INPUT_FOLDERS。"""
     max_file_bytes: int | None = None
     max_run_bytes: int | None = None
+    workspace: Path | None = None
+    """組合運行的共用工作資料夾（ADR 0020）；單獨執行時是 None。"""
 
     def file_options(self) -> FileOptions:
         """有設定的檔案選項（沒有的不放，執行器用自己的預設）。"""
@@ -79,6 +83,8 @@ class Job:
             options["max_file_bytes"] = self.max_file_bytes
         if self.max_run_bytes is not None:
             options["max_run_bytes"] = self.max_run_bytes
+        if self.workspace is not None:
+            options["workspace"] = self.workspace
         return options
 
 
@@ -125,6 +131,7 @@ class Executor(Protocol):
         input_folders: Sequence[Path] | None = None,
         max_file_bytes: int = ...,
         max_run_bytes: int = ...,
+        workspace: Path | None = None,
     ) -> RunResult: ...
 
 

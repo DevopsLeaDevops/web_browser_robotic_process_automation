@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:7ff2ca6f3e76a70e">
+<meta name="translation-source" content="sha256:b890ffb9f1f8d0d1">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -72,6 +72,8 @@ uv run rpa --version</pre>
             <tr><td>All pre-commit checks</td><td><code>uv run pre-commit run --all-files</code></td></tr>
             <tr><td>Add a dependency to a package</td><td><code>uv add --package rpa-core package-name</code> (also updates <code>uv.lock</code>; commit both files together)</td></tr>
             <tr><td>Show <code>rpa</code> in another language</td><td><code>uv run rpa --lang en -h</code>, or set the environment variable <code>RPA_LANG=zh-Hans</code></td></tr>
+            <tr><td>Build the RPA Python runtime (runtime mode of Python nodes, <a href="../adr/0020-python-nodes.html">ADR 0020</a>) and extract it to this computer's cache</td><td><code>uv run python tools/build_python_runtime.py build --install</code> (needs GitHub and PyPI; <code>rpa run</code> and the local worker then use it)</td></tr>
+            <tr><td>Changed the runtime's packages (<code>runtimes/python/requirements.in</code>)</td><td><code>uv run python tools/build_python_runtime.py lock</code>, or add <code>[bootstrap]</code> to the commit message so CI generates <code>requirements.lock</code>; also raise <code>version</code> in <code>runtime.toml</code></td></tr>
             <tr><td>Regenerate Simplified Chinese, check translations</td><td><code>uv run python tools/i18n.py sync</code>, <code>uv run python tools/i18n.py check</code>; see <a href="writing-docs.html#i18n">Three languages</a></td></tr>
             <tr><td>Browse the docs</td><td>Open <code>docs/index.html</code> directly, or <code>python -m http.server -d docs 8000</code></td></tr>
           </tbody>
@@ -105,7 +107,7 @@ bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
           <dt>System packages</dt><dd>Only a missing <code>libstdc++</code> or <code>git</code> is installed (git is only needed for git sync of domain folders), so upgrades rarely need sudo for packages; add <code>--skip-system-packages</code> when an administrator has prepared them. Installing the unit and restarting the service need sudo.</dd>
           <dt>If an upgrade fails</dt><dd>If the admin port does not answer within about 60 seconds after the new version starts, the installer stops and explains how to go back (point <code>current</code> at <code>releases/PREVIOUS</code> and restart). Database migrations run when the new version starts: back up the whole data folder before upgrading as described below, and restore it before going back.</dd>
         </dl>
-        <p>CI builds the packages (<code>tools/build_server.py</code>, the "伺服器分發包" workflow): only packages at <code>manylinux_2_28</code> or older are chosen and the result is run with its own Python; then it is really installed in a Rocky Linux 8 container of the same architecture (glibc 2.28, a company-style os-release, a regular account), reusing old settings, smoke-tested, reinstalled and upgraded. The container has no systemd, so starting and stopping the real service and the company hosts still need checking by hand. First-time administration, SSH forwarding and the firewall are the same as below.</p>
+        <p>The package also carries the RPA Python runtime (<code>python/runtimes/</code>, <a href="../adr/0020-python-nodes.html">ADR 0020</a>): when the server itself (the local worker) runs a Python node, it is extracted to the cache the first time and reused afterwards. CI builds the packages (<code>tools/build_server.py</code>, the "伺服器分發包" workflow): only packages at <code>manylinux_2_28</code> or older are chosen and the result is run with its own Python; then it is really installed in a Rocky Linux 8 container of the same architecture (glibc 2.28, a company-style os-release, a regular account), reusing old settings, smoke-tested, reinstalled and upgraded. The container has no systemd, so starting and stopping the real service and the company hosts still need checking by hand. First-time administration, SSH forwarding and the firewall are the same as below.</p>
       </div>
     </section>
     <section class="panel" id="linux-server">

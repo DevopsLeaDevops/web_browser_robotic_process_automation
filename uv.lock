@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [manifest]
@@ -8,6 +8,7 @@ members = [
     "rpa-core",
     "rpa-desktop",
     "rpa-runner",
+    "rpa-script",
     "rpa-server",
     "rpa-testsite",
     "rpa-update",
@@ -27,6 +28,7 @@ dev = [
     { name = "rpa-core", editable = "packages/rpa_core" },
     { name = "rpa-desktop", editable = "apps/desktop" },
     { name = "rpa-runner", editable = "packages/rpa_runner" },
+    { name = "rpa-script", editable = "packages/rpa_script" },
     { name = "rpa-server", editable = "apps/server" },
     { name = "rpa-testsite", editable = "apps/testsite" },
     { name = "rpa-update", editable = "packages/rpa_update" },
@@ -1389,13 +1391,20 @@ source = { editable = "packages/rpa_runner" }
 dependencies = [
     { name = "playwright" },
     { name = "rpa-core" },
+    { name = "rpa-script" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "playwright", specifier = ">=1.64.0" },
     { name = "rpa-core", editable = "packages/rpa_core" },
+    { name = "rpa-script", editable = "packages/rpa_script" },
 ]
+
+[[package]]
+name = "rpa-script"
+version = "0.8.0"
+source = { editable = "packages/rpa_script" }
 
 [[package]]
 name = "rpa-server"

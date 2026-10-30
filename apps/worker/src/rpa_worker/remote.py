@@ -6,6 +6,10 @@ worker 機器只需要連得到管理 Portal 的 Worker API（HTTP＋權杖）�
       → 執行中每 5 秒 heartbeat（回應要求取消就取消）
       → 上傳執行目錄（zip）→ 登入狀態有變就傳回 → finish（結果）→ 刪除本機的暫存
 
+- 組合運行的共用工作資料夾（ADR 0020）：``workspaces/<組合運行編號>/``，同一次組合運行的節點
+  共用。管理 Portal 在心跳與 finish 的回應裡附上已經結束的組合運行（``cleanup``），收到就刪；
+  上線時另外刪掉超過一天沒動的（例如 worker 關機錯過了通知）。
+
 - 連不上管理 Portal 時逐步拉長間隔重試（最多 30 秒），恢復後重新上線；只在狀態改變時通知一次。
 - 權杖被拒（401／403）或協定版本不同時，呼叫 ``on_fatal``，由命令列停止 worker。
 - 回報結果時連不上就一直重試（最多 10 分鐘，心跳照常，租約不會過期）；
@@ -50,6 +54,10 @@ __all__ = [
 logger = logging.getLogger("rpa_worker.remote")
 
 MAX_BACKOFF_SECONDS: Final = 30.0
+WORKSPACES: Final = "workspaces"
+"""組合運行的共用工作資料夾放在 worker 資料夾的這裡（ADR 0020）。"""
+WORKSPACE_MAX_AGE: Final = 24 * 3600.0
+"""超過這麼久沒動的工作資料夾，上線時刪掉。"""
 DELIVERY_SECONDS: Final = 600.0
 """回報結果最多重試這麼久。"""
 
@@ -273,6 +281,39 @@ class RemoteJobSource:
     def jobs_dir(self) -> Path:
         return self.work_dir / "jobs"
 
+    @property
+    def workspaces_dir(self) -> Path:
+        return self.work_dir / WORKSPACES
+
+    def workspace(self, key: str) -> Path:
+        """組合運行的共用工作資料夾。"""
+        return self.workspaces_dir / key
+
+    def cleanup_workspaces(self, keys: object) -> None:
+        """刪掉已經結束的組合運行的工作資料夾（管理 Portal 回應裡的 ``cleanup``）。"""
+        if not isinstance(keys, list):
+            return
+        for key in cast("list[object]", keys):
+            if isinstance(key, str) and is_safe_path(key) and "/" not in key:
+                shutil.rmtree(self.workspace(key), ignore_errors=True)
+
+    def sweep_workspaces(
+        self, max_age: float = WORKSPACE_MAX_AGE, now: float | None = None
+    ) -> None:
+        """刪掉超過 max_age 秒沒有動過的工作資料夾（錯過了結束通知的保險）。"""
+        moment = time.time() if now is None else now
+        try:
+            folders = list(self.workspaces_dir.iterdir())
+        except OSError:
+            return
+        for folder in folders:
+            try:
+                age = moment - folder.stat().st_mtime
+            except OSError:
+                continue
+            if folder.is_dir() and age > max_age:
+                shutil.rmtree(folder, ignore_errors=True)
+
     def close(self) -> None:
         """停止重試與等待（命令列結束時）。"""
         self._closing.set()
@@ -282,6 +323,7 @@ class RemoteJobSource:
     def hello(self) -> dict[str, object]:
         """上線：告訴管理 Portal 這台 worker 的資訊。被拒時拋出 WorkerApiError。"""
         reply = self.client.call("POST", "/hello", self.info.to_json())
+        self.sweep_workspaces()
         same = reply.get("fingerprint") in (None, self.info.fingerprint)
         self._online = True
         self._offline_reported = False
@@ -351,6 +393,9 @@ class RemoteJobSource:
             return None
         if not reply:
             return None
+        self.cleanup_workspaces(reply.get("cleanup"))
+        if "runId" not in reply:  # 只有要刪的共用工作資料夾，沒有任務
+            return None
         return self._accept(reply)
 
     def _accept(self, reply: Mapping[str, object]) -> Job | None:
@@ -378,6 +423,10 @@ class RemoteJobSource:
         # 上傳檔（M7c）：位置先決定，心跳開始之後才下載（大檔下載時租約不會過期）
         inputs_dir = folder / "inputs"
         folders = tuple(self.input_folders()) if self.input_folders is not None else ()
+        workspace = self.workspace(payload.workspace) if payload.workspace else None
+        if workspace is not None:
+            workspace.mkdir(parents=True, exist_ok=True)
+            os.utime(workspace)  # 組合運行還在進行：別被「超過一天沒動」清掉
         job = Job(
             run_id=payload.run_id,
             scenario=scenario_dir / payload.scenario_file,
@@ -395,6 +444,7 @@ class RemoteJobSource:
             input_folders=folders or None,
             max_file_bytes=payload.max_file_bytes,
             max_run_bytes=payload.max_run_bytes,
+            workspace=workspace,
         )
         active = _Active(job, folder, state_path, _digest(state_path))
         active.thread = threading.Thread(
@@ -506,6 +556,7 @@ class RemoteJobSource:
                 self.on_cancel(run_id)
                 self._rejected(error)
             return
+        self.cleanup_workspaces(reply.get("cleanup"))
         if reply.get("cancel") is True:
             self.on_cancel(run_id)
 

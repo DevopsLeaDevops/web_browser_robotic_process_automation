@@ -60,8 +60,13 @@ def validate_data(
     if base_dir is not None and scenario.script is not None:
         for key in ("automation", "assertion"):
             script = getattr(scenario.script, key)
-            if not (base_dir / script).is_file():
+            if script is not None and not (base_dir / script).is_file():
                 cross.append(CrossIssue(("script", key), "script.missing", {"value": script}))
+        for index, name in enumerate(scenario.script.files or ()):
+            if not (base_dir / name).is_file():
+                cross.append(
+                    CrossIssue(("script", "files", index), "script.file_missing", {"value": name})
+                )
     issues = tuple(
         sorted(
             (issue_from_cross(issue, data, source) for issue in cross),

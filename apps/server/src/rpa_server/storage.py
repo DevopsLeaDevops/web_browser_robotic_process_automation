@@ -49,6 +49,7 @@ from rpa_core.dsl.files import (
 from rpa_core.dsl.sources import attachment_files, scenario_digest, scenario_sources
 from rpa_core.pack import COMPOSITES_DIR, REVISIONS_DIR, SCENES_DIR
 from rpa_server.i18n import t
+from rpa_worker.protocol import is_artifact_path
 
 __all__ = [
     "SCENARIO_FILE",
@@ -112,6 +113,9 @@ class Storage:
         """本機執行中的版本檔案快照（M11 收尾）：work/<執行編號>/，結束就刪。"""
         self.workflow_runs = root / "workflow-runs"
         """組合場景的執行紀錄（M11 PR 2）：workflow-runs/<編號>/run.json。"""
+        self.workspaces = root / "workspaces"
+        """本機執行的組合運行的共用工作資料夾（ADR 0020）：workspaces/<組合運行編號>/，
+        組合運行結束就刪。"""
         self._places: dict[str, str] = {}
         self._composites: dict[str, str] = {}
         self._places_lock = threading.Lock()
@@ -121,6 +125,8 @@ class Storage:
             folder.mkdir(parents=True, exist_ok=True)
         # 上次沒刪掉的快照（伺服器在執行中停了）：啟動時沒有執行中的任務，整個清掉
         _remove_tree(self.work)
+        # 共用工作資料夾也一樣：重新啟動時還在進行的組合運行會停在目前的節點，之後重跑
+        _remove_tree(self.workspaces)
         if os.name != "nt":
             self.roles.chmod(0o700)
 
@@ -234,6 +240,13 @@ class Storage:
 
     def drop_snapshot(self, run_id: str) -> None:
         _remove_tree(self.work / run_id)
+
+    def workspace(self, workflow_run_id: str) -> Path:
+        """組合運行的共用工作資料夾（本機執行，ADR 0020）。"""
+        return self.workspaces / workflow_run_id
+
+    def drop_workspace(self, workflow_run_id: str) -> None:
+        _remove_tree(self.workspaces / workflow_run_id)
 
     def check(
         self,
@@ -366,8 +379,11 @@ class Storage:
         return self.runs / run_id
 
     def run_file(self, run_id: str, relative: str) -> Path | None:
-        """執行目錄裡的檔案；路徑不合規則、跳出執行目錄或不存在時回傳 None。"""
-        if not _FILE_PATH.fullmatch(relative):
+        """執行目錄裡的檔案；路徑不合規則、跳出執行目錄或不存在時回傳 None。
+
+        路徑的規則和 Worker 上傳的執行目錄相同（檔名可以是中文，ADR 0020 的產出檔案）。
+        """
+        if not is_artifact_path(relative):
             return None
         folder = self.run_dir(run_id).resolve()
         path = (folder / relative).resolve()

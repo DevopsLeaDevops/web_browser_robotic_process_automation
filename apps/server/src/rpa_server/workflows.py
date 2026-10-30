@@ -956,7 +956,12 @@ class WorkflowService:
             row.failed_node = node
             row.error = error
             row.finished_at = now()
+            worker = row.worker_id
             session.commit()
+        # 共用工作資料夾（ADR 0020）：本機的直接刪；遠端的請那台 worker 下次領取或心跳時刪
+        self.services.storage.drop_workspace(run_id)
+        if worker is not None and worker != LOCAL_WORKER:
+            self.services.workers.queue_cleanup(worker, run_id)
         # run.json；驗證另外寫進領域資料夾的驗證紀錄（M11 PR 2）
         self.services.packs.record_workflow_run(run_id)
 

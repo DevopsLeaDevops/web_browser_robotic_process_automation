@@ -556,6 +556,7 @@ def js_messages() -> dict[str, str]:
         "js.composite_validate_body",
         "js.composite_validate_action",
         "js.scripts_state",
+        "js.file_name_invalid",
         "js.scripts_unsaved",
         "js.script_steps",
         "js.script_verify",
@@ -665,6 +666,7 @@ _FILE_NOTES: Final = {
     "login.png": "login_png",
     "video.json": "video_info",
     "run.json": "manifest",
+    "files.json": "file_changes",
 }
 """運行檔案的說明（runfile.<說明> 的訊息）；也是檔案清單的順序，先列最常看的。"""
 
@@ -685,6 +687,10 @@ def run_file_rows(files: Sequence[str]) -> list[dict[str, str]]:
             note = _FILE_NOTES[path]
         elif path.startswith("scenario/"):
             note = "scenario"
+        elif path.startswith("outputs/"):
+            note = "produced"
+        elif path.startswith("previews/"):
+            note = "preview"
         elif name.endswith(".webm"):
             note = "video_page"
         elif name.endswith(".png"):

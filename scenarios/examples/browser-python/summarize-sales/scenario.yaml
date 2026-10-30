@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../../../schema/scenario.v1.json
+#
+# 「瀏覽器＋Python」組合場景的第 2 個節點（ADR 0020）：Python 節點（運行環境模式）讀上游下載的
+# CSV（file 入參），依分店加總，寫出彙總檔（file 出參，交給下游上傳），另外給出總額（number）與
+# 各分店的金額（object）。只用標準函式庫（csv），不需要運行環境的其他套件。
+
+schemaVersion: 1
+id: summarize-sales
+name: 分店彙總
+category: 範例
+description: 讀銷售明細 CSV，依分店加總，產出彙總檔與總額。
+
+inputs:
+  report:
+    type: file
+    description: 銷售明細（CSV，欄位：日期、分店、品項、金額）
+    accept: [.csv]
+
+outputs:
+  total:
+    type: number
+    from: '{{ facts.total }}'
+  byBranch:
+    type: object
+    from: '{{ facts.byBranch }}'
+  summary:
+    type: file
+    description: 分店彙總（CSV）
+    from: '{{ facts.summary }}'
+
+deadline: 60000
+
+script:
+  runtime: '1'
+  automation: automation.py
+
+verify:
+  - name: 有加總到金額
+    value: '{{ facts.total }}'
+    matches: '^[1-9]'

@@ -1,0 +1,92 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0020-python-nodes.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0020 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0020" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0020：Python 脚本场景演进成 Python 节点，和浏览器场景串在组合场景里</h1>
+      <p>不另开新的场景种类：现有的 <code>script:</code> 加上 <code>runtime</code>，就跑在平台建置的 RPA Python 运行环境、不开浏览器；没写 <code>runtime</code> 的照旧运行。组合场景的节点可以是浏览器场景，也可以是 Python 节点，数据以 array／object 出入参传递，文件经由同一台 Worker 上的共用工作文件夹传递。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-29</dd>
+        <dt>状态</dt><dd>2026-10-29 用户决定（统一成 Python 节点、运行环境模式不开浏览器、共用工作文件夹与模型包照建议；P0～P2 一起做，见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）。取代 10-24 第二版设计的「封存 <code>script:</code>、另开 <code>python:</code>」。</dd>
+        <dt>影响范围</dt><dd>rpa-core（DSL、组合场景）、新的 rpa-script、rpa-runner（运行环境、运行）、rpa-worker（回报、共用工作文件夹）、rpa-server（派工、页面）、桌面 App 与 Linux 分发包（附带运行环境）</dd>
+        <dt>相关</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（场景契约：独立断言、出参在断言通过后才发布）、<a href="0012-remote-workers.html">ADR 0012</a>（远程 Worker）、<a href="0014-desktop-apps.html">ADR 0014</a>（桌面 App 与打包后的子进程）、<a href="0018-layered-updates.html">ADR 0018</a>（分层更新）；<a href="../design/dsl.html#python">场景 DSL › Python 节点</a>；<a href="../../../handoff/tasks/20261024-python-scripts.html">任务记录</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>浏览器场景做不到的事很多：读写 Excel、合并文件、整理数据、调用 API、建模型。M1.1 起有「Python 脚本场景」（<code>script: { automation, assertion }</code>），但打包后的 App 用自己内附的 Python 运行它，只有标准函数库与 App 带的包，派工也一律当成要开浏览器。</p>
+          <p>10-24 的第二版设计打算封存它、另开一种 <code>python:</code> 场景。10-29 查证后发现：脚本场景的契约本来就不依赖浏览器（Runner 交 <code>input.json</code>、收 <code>facts.json</code> 与候选出参）；组合场景的节点只记「场景＋固定版本＋入参绑定」，不分种类；同一次组合运行本来就固定在同一台 Worker。缺的是包、派工、结构化入参与文件的传递。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>决策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>一种节点、两种模式。</strong><code>script.runtime</code> 没写是兼容模式，和以前完全相同（哈希不变、可以自己开浏览器）；写了 <code>"1"</code> 是运行环境模式：用 RPA Python 运行环境 1，不能写 <code>browser</code>、<code>login</code>，断言可以是 <code>assertion.py</code> 或 DSL 的 <code>verify</code>（用 verify 时出参写 <code>from</code>），可以有 file 入参。两种模式都可以写 <code>files</code>（脚本会用到的其他文字档，纳入哈希）与 <code>platforms</code>。</li>
+            <li><strong>RPA Python 运行环境。</strong>平台建置、测试的一套 Python 3.13 加固定的包，CI 为每个平台建好，附在 Worker App 与 Linux 分发包；第一次用到时解压到缓存文件夹、自我检查后沿用。运行时以 <code>-E -s</code> 隔开电脑上的 Python 与 <code>PYTHON*</code> 环境变量。模型包不放进基本版，之后另做选用层（D4）。</li>
+            <li><strong>派工。</strong>运行环境模式的任务只交给回报了这个主版本、平台在 <code>platforms</code> 里的设备，不看浏览器与窗口；没有时运行页说明在等什么。旧版 App 由 M7a 的 <code>features</code>（<code>pythonNodes</code>、<code>jsonInputs</code>）挡下。</li>
+            <li><strong>组合场景里的数据与文件。</strong>入参多 <code>array</code>、<code>object</code>，上游的同类型出参可以直接接；同一次组合运行在那台 Worker 上有一个共用工作文件夹，也是 Python 节点的工作目录，组合运行结束就删，只有声明的产出文件上传（D3）。</li>
+            <li><strong><code>rpa_script</code>。</strong>运行环境模式由 <code>rpa_script</code> 的启动器运行脚本：照契约自己读写文件的脚本不用改；用 <code>@automation</code> 的脚本有步骤、事实、产出文件与数据预览，写成和 DSL 相同格式的 <code>steps.json</code>。<code>rpa_script</code> 不装在运行环境里，由 Runner 把自己的那份（只用标准函数库）加在 import 路径最后：它属于代码层，跟着更新档更新，不会和运行环境的版本错开（2026-10-29 实现时确定）。</li>
+            <li><strong>运行的 <code>runtime</code> 阶段。</strong>入参之后、自动化之前准备运行环境，不算进总期限；<code>result.json</code> 多一个 <code>python</code>（模式、版本、平台、沿用或新解压）。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>浏览器场景与 Python 节点在同一个组合场景、同一套入参出参、同一个发布门槛；不需要学另一种模型。</li>
+            <li>既有的脚本场景不用迁移；ADR 0009「脚本场景不写 verify」只对兼容模式成立。ADR 0014「打包后的脚本只能用 App 内附的包」也只对兼容模式成立。</li>
+            <li>Worker App 与 Linux 分发包多带一个运行环境（压缩后约 60～75 MB），第一次用到时多几秒解压。</li>
+            <li>没有下载浏览器、没有屏幕的电脑也能当 Python 节点的 Worker。</li>
+            <li>Python 节点不是沙箱：等于在 Worker 上以那位用户的身分运行任意程序，只给信任的人编辑，审核时特别标示。</li>
+            <li>共用工作文件夹里的中间文件不会留下；要看的文件写到产出文件。远程 Worker 错过了结束通知时，一天后在上线时清掉。</li>
+            <li>文件在节点之间传递（2026-10-29 实现时确定）：DSL 多了 <code>download</code> 步骤与 <code>type: file</code> 出参，文件值多一种 <code>{"workspace": 相对路径}</code>（不用 <code>path</code>，免得和「那台电脑上的路径」混淆）；Python 节点写在 <code>outputs/</code> 的文件是产出文件，跟着运行目录上传、运行详情可以下载，另外拷贝一份到共用工作文件夹的 <code>.outputs/&lt;运行编号&gt;/</code> 给下游。运行目录的文件名可以是中文，打包上传时跳过服务器会拒绝的文件名。</li>
+            <li>报告与回看：Python 节点不录像；用 <code>run.step()</code> 的脚本有步骤时间轴，单一运行的回看是章节轴，组合运行的合并回看里是一段一步一格的时间轴（依实际耗时占 1.5～6 秒），和浏览器节点的录像接在一起播（2026-10-30）。主控台以字节位置逐步对应：<code>rpa_script</code> 记下每一步开始、结束时 <code>automation.log</code> 写到哪里，不在 <code>print()</code> 的每一行加上时间与步骤；脚本的输出照原样保留，脚本开的子进程写的也对得上（取代设计第 6.2 节原本的写法）。</li>
+            <li>之后（P3）：模型包的选用层、脚本工作台、组合场景的扇出（foreach）、Python 节点使用登录角色（待决定）。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>为什么不选</th></tr></thead>
+            <tbody>
+              <tr><td>封存 <code>script:</code>、另开 <code>python:</code>（第二版）</td><td>多一套模型、派工与报告，旧场景要迁移；用户 10-29 选择统一。</td></tr>
+              <tr><td>运行环境模式也能开浏览器</td><td>用户选择不能：网页操作留在 DSL；运行环境的 Playwright 版本要和 Worker 下载的浏览器绑在一起，容易出错。</td></tr>
+              <tr><td>用电脑上的 Python、conda 或场景自己锁定包</td><td>每台结果不同、Worker 要连得到包来源；正是要避免的版本与倚赖问题。</td></tr>
+              <tr><td>文件经由服务器在节点之间传递</td><td>同一次组合运行已经在同一台 Worker，走本机路径最快；只有声明的产出文件上传。</td></tr>
+              <tr><td>组合场景里直接写一段转换程序的节点</td><td>少了版本、发布门槛与独立断言；Python 节点已经涵盖。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

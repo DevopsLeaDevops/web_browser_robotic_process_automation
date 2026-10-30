@@ -86,7 +86,9 @@ def test_inputs_with_constraints() -> None:
             "inputs.x.default",
         ),
         ("{ enum: [甲], default: 乙 }", "value.default_invalid", "inputs.x.default"),
-        ("{ type: array }", "choice", "inputs.x.type"),
+        ("{ type: list }", "choice", "inputs.x.type"),
+        ("{ type: object, enum: [{}] }", "value.not_applicable", "inputs.x.enum"),
+        ("{ type: array, default: 甲 }", "value.default_invalid", "inputs.x.default"),
     ],
 )
 def test_input_rules(spec: str, code: str, field: str) -> None:

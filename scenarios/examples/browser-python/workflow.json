@@ -1,0 +1,7 @@
+{
+  "nodes": [
+    { "id": "download", "sceneId": "download-sales", "revision": 1, "inputs": { "month": { "value": "2026-10" } } },
+    { "id": "summarize", "sceneId": "summarize-sales", "revision": 1, "inputs": { "report": { "node": "download", "output": "report" } } },
+    { "id": "upload", "sceneId": "upload-summary", "revision": 1, "inputs": { "summary": { "node": "summarize", "output": "summary" } } }
+  ]
+}
