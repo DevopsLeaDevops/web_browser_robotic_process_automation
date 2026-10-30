@@ -527,6 +527,9 @@ def execute(
     validated = validate_file(path)
     if validated.scenario is None:
         raise ScenarioInvalidError(validated.issues)
+    # 子程序的工作目錄不一定是這裡（Python 節點在共用工作資料夾）：路徑一律用絕對路徑
+    # （rpa run 預設 --out runs，2026-10-29 Rocky 8 找不到 runs/…/automation.py）
+    out_root = out_root.absolute()
     scenario = validated.scenario
     started = time.monotonic()
     now = datetime.now(UTC)

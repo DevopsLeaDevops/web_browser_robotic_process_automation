@@ -384,8 +384,7 @@ def main(run: Run) -&gt; None:
         </li>
         <li><strong>未完成（接手的人照這個順序）：</strong>
           <ol>
-            <li><strong>Windows 的運行環境建置失敗</strong>（<code>python-runtime.yml</code> 的 windows-x86_64 與 RPA Worker（Windows）的「建置」都在建運行環境時失敗）。完整日誌在這個環境讀不到；已讓 <code>tools/build_python_runtime.py</code> 失敗時寫出 annotation（命令與輸出的最後 25 行），下一次 CI 就看得到原因。可疑處：<code>stage_python</code> 在 Windows 的 <code>sys.base_prefix</code>、<code>slim()</code> 刪 <code>tcl</code>／<code>DLLs</code>、<code>smoke.py</code> 在 Windows 的編碼。</li>
-            <li><strong>伺服器分發包的 Rocky 8 步驟失敗</strong>（建置本身通過）。已在那段腳本加上 <code>trap … ERR</code> 寫出失敗的行與命令；最可能是新加的「執行範例 Python 節點」（<code>rpa run py-node/scenario.yaml</code>）。</li>
+            <li><strong>CI 修正（<code>3273a15</code> 之後）</strong>：Windows 建運行環境時 <code>lib/thread*</code> 因為不分大小寫刪到 <code>Lib/threading.py</code>（已修，Windows 建置與自我測試通過）；Rocky 8 的範例 Python 節點因為 <code>rpa run --out runs</code> 是相對路徑、腳本在共用工作資料夾執行而找不到快照（已改成一律用絕對路徑）；Linux 的 Rocky 8 步驟 <code>ldd | head</code> 的 SIGPIPE（已改用 sed）。下一次推送要確認：<code>python-runtime.yml</code> 四個平台、RPA Worker（Windows）完整建置與自我測試的 Python 節點、伺服器分發包的 Rocky 8。</li>
             <li>bootstrap 會重新產生 <code>schema/scenario.v1.json</code>（download 步驟、file 出參）與簡中；這次提交帶 <code>[bootstrap]</code>。之後推一個自己的提交觸發 CI，核對伺服器測試（<code>apps/server/tests/test_python_nodes.py</code> 的運行詳情與步驟時間軸、<code>test_remote_worker_api</code>）——這個環境沒有 FastAPI／SQLAlchemy，伺服器的頁面與模板只在 CI 驗證過語法。</li>
             <li>文件（繁中與英文，改完執行 <code>tools/i18n.py stamp</code>）：<code>docs/design/dsl.html#files-between-nodes</code> 已補 download 步驟、file 出參、檔案值與範例；還要 <code>docs/design/portal.html</code> 補運行詳情的產出檔案／檔案變化／資料預覽與步驟時間軸；ADR 0020 的結果補「執行目錄的檔名可以是中文」。</li>
             <li>組合運行的合併回看：Python 節點的步驟已帶腳本、預覽等資料，清單與詳情可以看；合併回看的主畫面對 Python 節點仍是「沒有影片」的卡片，沒有做步驟時間軸的主畫面（設計第 9 節）。</li>

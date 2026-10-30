@@ -397,7 +397,7 @@ from rpa_script import automation
 def main(run):
     with run.step("write", "寫出彙總"):
         target = run.output_dir / "彙總.csv"
-        target.write_text("分店,金額\\n台北,10\\n", encoding="utf-8")
+        target.write_text("分店,金額\\n台北,10\\n", encoding="utf-8", newline="\\n")
         (run.workspace / "notes").mkdir(exist_ok=True)
         (run.workspace / "notes" / "log.txt").write_text("ok", encoding="utf-8")
     run.facts["summary"] = str(target)
@@ -497,3 +497,17 @@ def test_bad_file_outputs_publish_nothing(tmp_path: Path, fact: str, message: st
     assert result.stage("output").status == "failed"
     assert message in " ".join(result.problems or [])
     assert not (result.directory / OUTPUT).exists()
+
+
+def test_relative_out_folder_works_from_the_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """rpa run 預設 --out runs（相對路徑）：腳本在共用工作資料夾執行，仍找得到快照裡的腳本。"""
+    script = (
+        "from rpa_script import automation\n@automation\ndef main(run):\n    run.facts['ok'] = 1\n"
+    )
+    path = node(tmp_path / "scene", script)
+    monkeypatch.chdir(tmp_path)
+    result = execute(path, {}, out_root=Path("runs"))
+    assert result.status == "passed", (result.error, result.problems)
+    assert result.directory.is_absolute()

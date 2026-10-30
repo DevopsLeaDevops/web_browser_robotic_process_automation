@@ -92,7 +92,7 @@ jobs:
           docker run --rm -i -v "$GITHUB_WORKSPACE:/source:ro" \
             -e ARCHIVE="/source/${ARCHIVE#"$GITHUB_WORKSPACE"/}" rockylinux:8 bash -s <<'BASH'
           set -Eeuo pipefail
-          ldd --version | head -n 1
+          ldd --version | sed -n 1p  # head 先結束時 ldd 收到 SIGPIPE，pipefail 讓這行失敗
           mkdir /opt/runtime
           tar -xzf "$ARCHIVE" -C /opt/runtime
           cat /opt/runtime/rpa-runtime.json
