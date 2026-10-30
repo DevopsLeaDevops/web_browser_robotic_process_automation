@@ -3559,3 +3559,7 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 11.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 40985192142, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "failure", "duration_s": 9.0, "job": "分發包（x64）", "os": "linux", "queue_s": 2.0, "run_id": 40985192142, "workflow": "伺服器分發包"}
 {"attempt": 1, "conclusion": "failure", "duration_s": 9.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 5.0, "run_id": 40985192142, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 10.0, "job": "執行範圍", "os": "linux", "queue_s": 3.0, "run_id": 40985192155, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 14.0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 2.0, "run_id": 40985192155, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 21.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 40985192155, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 13.0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 40985192155, "workflow": "桌面端建置"}
