@@ -384,7 +384,7 @@ def main(run: Run) -&gt; None:
         </li>
         <li><strong>未完成（接手的人照這個順序）：</strong>
           <ol>
-            <li><strong>CI 修正（<code>3273a15</code> 之後）</strong>：Windows 建運行環境時 <code>lib/thread*</code> 因為不分大小寫刪到 <code>Lib/threading.py</code>（已修，Windows 建置與自我測試通過）；Rocky 8 的範例 Python 節點因為 <code>rpa run --out runs</code> 是相對路徑、腳本在共用工作資料夾執行而找不到快照（已改成一律用絕對路徑）；Linux 的 Rocky 8 步驟 <code>ldd | head</code> 的 SIGPIPE（已改用 sed）。下一次推送要確認：<code>python-runtime.yml</code> 四個平台、RPA Worker（Windows）完整建置與自我測試的 Python 節點、伺服器分發包的 Rocky 8。</li>
+            <li><strong>CI 修正（<code>3273a15</code> 之後）</strong>：Windows 建運行環境時 <code>lib/thread*</code> 因為不分大小寫刪到 <code>Lib/threading.py</code>（已修，Windows 建置與自我測試通過）；Rocky 8 的範例 Python 節點因為 <code>rpa run --out runs</code> 是相對路徑、腳本在共用工作資料夾執行而找不到快照（已改成一律用絕對路徑）；Linux 的 Rocky 8 步驟 <code>ldd | head</code> 的 SIGPIPE（已改用 sed）。<code>7f7d14e</code> 的 CI 已確認這三項都通過（第 16 節）。</li>
             <li>bootstrap 會重新產生 <code>schema/scenario.v1.json</code>（download 步驟、file 出參）與簡中；這次提交帶 <code>[bootstrap]</code>。之後推一個自己的提交觸發 CI，核對伺服器測試（<code>apps/server/tests/test_python_nodes.py</code> 的運行詳情與步驟時間軸、<code>test_remote_worker_api</code>）——這個環境沒有 FastAPI／SQLAlchemy，伺服器的頁面與模板只在 CI 驗證過語法。</li>
             <li>文件（繁中與英文，改完執行 <code>tools/i18n.py stamp</code>）：<code>docs/design/dsl.html#files-between-nodes</code> 已補 download 步驟、file 出參、檔案值與範例；還要 <code>docs/design/portal.html</code> 補運行詳情的產出檔案／檔案變化／資料預覽與步驟時間軸；ADR 0020 的結果補「執行目錄的檔名可以是中文」。</li>
             <li>組合運行的合併回看：Python 節點的步驟已帶腳本、預覽等資料，清單與詳情可以看；合併回看的主畫面對 Python 節點仍是「沒有影片」的卡片，沒有做步驟時間軸的主畫面（設計第 9 節）。</li>
@@ -393,7 +393,7 @@ def main(run: Run) -&gt; None:
           </ol>
         </li>
         <li><strong>決定：</strong>見第 13 節；寫進<a href="../decisions.html">決定</a>。D5 待決定。實作時確定（使用者授權「按建議」的細節）：<code>rpa_script</code> 不裝在運行環境裡，由 Runner 提供（6.2）；file 出參的值用 <code>{"workspace", …}</code>（不用 <code>path</code>，避免和「那台電腦上的路徑」混淆），Python 節點 outputs/ 的檔案複製到共用工作資料夾的 <code>.outputs/</code> 給下游。</li>
-        <li><strong>下一個具體動作：</strong>看這次推送的 CI annotation，修 Windows 運行環境與 Rocky 8；再做上面第 4 項文件。</li>
+        <li><strong>下一個具體動作：</strong>上面「未完成」的文件（Portal）；之後由使用者決定 PR #109 要不要轉成可審閱、合併。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -405,6 +405,7 @@ def main(run: Run) -&gt; None:
         <tbody>
           <tr><td>a8cde7f＋本頁、任務索引、決定（Claude 雲端環境）</td><td><code>git diff --check</code>；handoff 的相對連結與錨點檢查</td><td>第一版、第二版都通過</td><td>只改 handoff/，不跑程式測試</td></tr>
           <tr><td><code>408f135</code>＋P0 工作區差異，Claude 雲端環境（系統 Python 3.13.18、Ruff 0.16.9、Pyright 1.1.414；沒有 .venv）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；Pyright strict（packages、apps/worker、tools；伺服器另外確認沒有新的型別錯誤）；<code>pytest -m "not browser"</code>：packages、apps/worker、apps/testsite</td><td>Ruff 通過；Pyright 0 errors；854 passed、2 skipped（Windows 專用）</td><td>伺服器、命令列（serve、update）、tests/docs 的簡中與 test_release_version 要 bootstrap 與 CI；瀏覽器測試未跑</td></tr>
+          <tr><td><code>7f7d14e</code>，GitHub Actions</td><td>CI、python-runtime.yml、桌面端建置、伺服器分發包</td><td>運行環境四個平台（建置、自我測試、真的運行環境跑 Python 節點測試、Linux 在 Rocky 8 自我測試）通過；伺服器分發包 x64／arm64（Rocky 8 執行範例 Python 節點）通過；RPA Worker（Windows）完整建置與自我測試（含範例 Python 節點）通過；Linux 測試 3.12／3.13、靜態檢查通過。Worker 測試（Windows）兩個 Firefox 的既有測試逾時（<code>test_run</code> 斷言失敗、<code>test_login</code>），重跑失敗的工作後通過（機器慢造成的偶發逾時）</td><td>RPA Worker（macOS）、錄製端在這次沒有跑（指紋沒變或之前已通過）；人工驗收未做</td></tr>
           <tr><td><code>f620e3a</code>＋P1 工作區差異，Claude 雲端環境（系統 Python 3.13.18、Ruff 0.16.9、Pyright 1.1.414、uv 0.11.32；沒有 .venv，連不到 PyPI）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；Pyright strict（改到的 tools、rpa_runner、桌面自我測試與它們的測試）；<code>pytest -m "not browser"</code>：packages、apps/worker、apps/testsite、apps/desktop、tests/ci、tests/examples；<code>tools/i18n.py stamp</code>、文檔連結檢查</td><td>Ruff 通過；Pyright 0 errors；1321 passed、7 skipped（Windows 專用、keyring、要真的運行環境的 2 個）；<code>test_lock_covers_every_requirement</code> 要 bootstrap 產生的鎖定檔，本機沒有跑；連結 0 個問題。f620e3a 的 CI 兩個失敗（Pyright：本機 Job 的 <code>workspace</code> 參數重複；<code>_macros.html</code> 在 StrictUndefined 下讀不存在的鍵）已修</td><td>運行環境的實際建置、自我測試與四個平台的 Python 節點測試、Worker App 與分發包的打包、Rocky 8：以 CI 為準；伺服器測試要 CI</td></tr>
           <tr><td>main <code>c9a9d7f</code>，Claude 雲端環境，系統的 Python 3.13.18 直接從原始碼執行（沒有 .venv）</td><td>第 2 節的查證：腳本場景冒煙測試 6 種情況與入參超出範圍；<code>check_workflow</code> 檢查瀏覽器＋Python＋瀏覽器的組合；<code>pytest -k script</code>（rpa_core 與 rpa_runner 不需要瀏覽器的部分）</td><td>全部符合預期；17 passed</td><td>沒有瀏覽器、沒有伺服器的依賴：Portal、Worker、瀏覽器的部分沒有跑</td></tr>
         </tbody>
