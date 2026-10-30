@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude。審閱與合併：使用者。Codex 先前接手的 PR #82（只有第二版設計）不再延續；第三版與實作在新分支，見下。</dd>
         <dt>修改檔案／整合者</dt><dd>本任務分支整合以下檔案：<code>packages/rpa_core</code>（DSL、組合場景）、新的 <code>packages/rpa_script</code>、<code>packages/rpa_runner</code>、<code>apps/worker</code>、<code>apps/server</code>、<code>apps/cli</code>、<code>apps/desktop</code>、<code>runtimes/python/</code>、<code>tools/</code>、<code>.github/workflows</code>、<code>docs/</code>、<code>scenarios/</code>、<code>schema/</code>、<code>handoff/</code>。共用檔案（<code>uv.lock</code>、多語言目錄、<code>docs/assets/nav.js</code>、任務索引、ADR 與遷移編號）由本分支整合；<code>uv.lock</code> 與簡中由 bootstrap 產生。</dd>
         <dt>狀態</dt><dd>第三版設計已依使用者決定定稿。P0 與 P1 的執行端（運行環境的找到、解壓與沿用、<code>rpa_script</code>、runtime 階段）已提交；P1 的運行環境建置與打包、P2 實作中。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>feat/python-nodes</code>，從 <code>e5b585e</code>（origin/main，v0.8.0，#107）開；PR 建立後回填。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/python-nodes</code>，從 <code>e5b585e</code>（origin/main，v0.8.0，#107）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/109">PR #109</a>（草稿，base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>推送到 <code>feat/python-nodes</code>；<code>uv.lock</code>、簡中、JSON Schema 由 bootstrap 產生（提交訊息含 [bootstrap]）。PR 與 CI 結果建立後回填。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。這個環境連不到 PyPI 與瀏覽器下載站（代理回 403），所以不能 <code>uv sync</code>：<code>uv.lock</code>、簡中、JSON Schema 交給 bootstrap 產生，完整測試以 CI 為準；本機只跑得了用系統已有套件（Pydantic、PyYAML、Jinja2、click、Playwright 1.63，沒有瀏覽器）的測試。</dd>
       </dl></div>
