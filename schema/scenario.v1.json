@@ -279,6 +279,88 @@
       "title": "Defaults",
       "type": "object"
     },
+    "DownloadStep": {
+      "additionalProperties": false,
+      "description": "點擊並等待下載（ADR 0020）。\n\n檔案存到共用工作資料夾的 ``downloads/``（單獨執行時是這次執行的暫存資料夾），事實\n``facts.名稱`` 是 ``{\"workspace\", \"name\", \"size\", \"sha256\"}``：出參寫\n``{ type: file, from: '{{ facts.名稱 }}' }`` 就能交給下游的 Python 節點或上傳步驟，也會出現在\n報告的產出檔案。下載完成才算這一步完成。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "action": {
+          "const": "download",
+          "title": "Action",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Locator"
+        },
+        "as": {
+          "title": "As",
+          "type": "string"
+        },
+        "fileName": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Filename"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "target",
+        "as"
+      ],
+      "title": "DownloadStep",
+      "type": "object"
+    },
     "ExpectStep": {
       "additionalProperties": false,
       "description": "斷言：條件不成立時這一步失敗（會等到 timeout 才判定）。\n\n有 target 時檢查元素：state、text、value、count 其一；\n沒有 target 時檢查頁面：url、title 其一。",
@@ -1251,7 +1333,8 @@
             "integer",
             "boolean",
             "array",
-            "object"
+            "object",
+            "file"
           ],
           "title": "Type",
           "type": "string"
@@ -2146,6 +2229,7 @@
               "mapping": {
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
+                "download": "#/$defs/DownloadStep",
                 "expect": "#/$defs/ExpectStep",
                 "extract": "#/$defs/ExtractStep",
                 "fill": "#/$defs/FillStep",
@@ -2191,6 +2275,9 @@
               },
               {
                 "$ref": "#/$defs/UploadStep"
+              },
+              {
+                "$ref": "#/$defs/DownloadStep"
               }
             ]
           },
