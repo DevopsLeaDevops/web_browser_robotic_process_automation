@@ -2,7 +2,9 @@
 
 用 scenarios/examples/browser-python 的三個場景，照組合運行的方式依序執行：同一個共用工作資料夾，
 上游的出參直接當下游的入參。Python 節點用假的運行環境（標準函式庫的 venv），和
-test_python_nodes.py 相同；要瀏覽器（Chromium）與本機測試網站。
+test_python_nodes.py 相同；要瀏覽器與本機測試網站。download 步驟在 Chromium 與 Firefox 各跑一次
+（Firefox 的下載走不同的路徑：設定檔的下載偏好、檔名）；經過管理 Portal 的組合運行在
+apps/server/tests/test_browser_python_flow.py。
 """
 
 import json
@@ -17,7 +19,7 @@ import pytest
 from rpa_core.i18n import use_locale
 from rpa_runner.pyruntime import ENV_RUNTIME, MANIFEST, platform_tag
 from rpa_runner.run import execute
-from testsite.browsers import require_engine
+from testsite.browsers import ENGINES, require_engine
 from testsite.server import export_csv, running
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -39,8 +41,9 @@ def _runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 @pytest.mark.usefixtures("_runtime")
-def test_download_summarize_upload(tmp_path: Path) -> None:
-    require_engine("chromium")
+@pytest.mark.parametrize("engine", ENGINES)
+def test_download_summarize_upload(tmp_path: Path, engine: str) -> None:
+    require_engine(engine)
     workspace = tmp_path / "workspace"
     runs = tmp_path / "runs"
     with running() as url:
@@ -49,7 +52,7 @@ def test_download_summarize_upload(tmp_path: Path) -> None:
             {"month": "2026-11"},
             out_root=runs,
             base_url=url,
-            engine="chromium",
+            engine=engine,
             workspace=workspace,
         )
         assert download.status == "passed", (download.error, download.problems)
@@ -83,7 +86,7 @@ def test_download_summarize_upload(tmp_path: Path) -> None:
             {"summary": produced},
             out_root=runs,
             base_url=url,
-            engine="chromium",
+            engine=engine,
             workspace=workspace,
         )
         assert upload.status == "passed", (upload.error, upload.problems)

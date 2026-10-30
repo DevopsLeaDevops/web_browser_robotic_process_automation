@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -511,3 +512,80 @@ def test_relative_out_folder_works_from_the_workspace(
     result = execute(path, {}, out_root=Path("runs"))
     assert result.status == "passed", (result.error, result.problems)
     assert result.directory.is_absolute()
+
+
+TWO_FILES = """\
+from rpa_script import automation
+
+
+@automation
+def main(run):
+    for name in ("a", "b"):
+        target = run.output_dir / f"{name}.bin"
+        target.write_bytes(b"x" * 2000)
+        run.facts[name] = str(target)
+"""
+TWO_FILES_EXTRA = (
+    "outputs:\n"
+    "  a: { type: file, from: '{{ facts.a }}' }\n"
+    "  b: { type: file, from: '{{ facts.b }}' }\n"
+    "verify:\n  - { value: '{{ facts.a }}', notEmpty: true }\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("max_file", "max_run", "message"),
+    [
+        (1000, 10_000, "出參 a 的檔案「a.bin」太大"),
+        (5000, 3000, "這次執行的檔案合計太大"),
+    ],
+)
+def test_file_outputs_over_the_limits_publish_nothing(
+    tmp_path: Path, max_file: int, max_run: int, message: str
+) -> None:
+    """file 出參沿用檔案入參的上限（M7c）：單檔與這次執行的合計，超過時不發布任何出參。"""
+    path = node(tmp_path / "scene", TWO_FILES, extra=TWO_FILES_EXTRA)
+    runs = tmp_path / "runs"
+    result = execute(path, {}, out_root=runs, max_file_bytes=max_file, max_run_bytes=max_run)
+    assert result.status == "failed"
+    assert result.stage("output").status == "failed"
+    assert message in " ".join(result.problems or [])
+    assert not (result.directory / OUTPUT).exists()
+    allowed = execute(path, {}, out_root=tmp_path / "runs", max_file_bytes=2000)
+    assert allowed.status == "passed", (allowed.error, allowed.problems)
+
+
+def test_cancel_stops_the_script_and_its_children(tmp_path: Path) -> None:
+    """取消（同 M2）：結束整個程序群組，腳本開的子程序一起結束，不會繼續寫檔案。"""
+    beat = tmp_path / "beat.txt"
+    child = (
+        "import sys, time\n"
+        "while True:\n"
+        "    open(sys.argv[1], 'w').write(str(time.time()))\n"
+        "    time.sleep(0.1)\n"
+    )
+    path = node(
+        tmp_path / "scene",
+        "import subprocess, sys, time\n"
+        f"subprocess.Popen([sys.executable, '-c', {child!r}, {str(beat)!r}])\n"
+        "time.sleep(60)\n",
+    )
+    cancel = threading.Event()
+    results: list[RunResult] = []
+    runner = threading.Thread(
+        target=lambda: results.append(execute(path, {}, out_root=tmp_path / "runs", cancel=cancel))
+    )
+    started = time.monotonic()
+    runner.start()
+    while not beat.exists():
+        assert time.monotonic() - started < 30, "腳本開的子程序沒有啟動"
+        time.sleep(0.05)
+    cancel.set()
+    runner.join(timeout=30)
+    assert not runner.is_alive()
+    assert results[0].status == "cancelled"
+    assert results[0].stage("automation").status == "cancelled"
+    time.sleep(0.5)
+    before = beat.read_text(encoding="utf-8")
+    time.sleep(0.6)
+    assert beat.read_text(encoding="utf-8") == before  # 子程序也結束了
