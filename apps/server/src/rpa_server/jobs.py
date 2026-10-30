@@ -9,8 +9,12 @@
 - 場景有 login 時，任務帶著角色的登入設定與 Secrets；結束後依登入檢查的結果更新角色狀態（M4）。
 - 每個任務結束後呼叫 ``on_finished``：試驗場序列的節點由它接著排下一個節點（M6）。
 - 錄影（M12）：任務依錄影設定決定要不要錄；結束時把錄影的長度與大小記在 runs。
+- Python 節點（ADR 0020）：執行位置是 any 的運行環境模式節點，這台伺服器沒有那個運行環境時
+  不領，留給有的遠端 worker；指定在本機執行的照樣領，由 runtime 階段說明缺什麼。組合運行的
+  節點帶著共用工作資料夾（storage.workspace）。
 """
 
+import time
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -24,6 +28,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from rpa_core.dsl import Scenario, validate_file
 from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES, uploaded_ids
 from rpa_runner.login import LoginSettings
+from rpa_runner.pyruntime import available_versions, platform_tag
 from rpa_runner.run import RunResult, ScenarioInvalidError, StageName
 from rpa_server.domain import LOCAL_WORKER, now
 from rpa_server.i18n import t
@@ -39,6 +44,20 @@ __all__ = ["Outcome", "RunQueue"]
 
 _BATCH: Final = 50
 """領取時一次看這麼多筆排隊中的執行（其中可能有這台 worker 不能跑的）。"""
+
+
+_RUNTIME_CACHE_SECONDS: Final = 60.0
+_runtime_cache: list[tuple[float, tuple[str, ...]]] = []
+
+
+def _local_runtimes() -> tuple[str, ...]:
+    """這台電腦的運行環境版本；領取時每兩秒問一次，結果快取一分鐘（只是列資料夾）。"""
+    moment = time.monotonic()
+    if _runtime_cache and moment - _runtime_cache[0][0] < _RUNTIME_CACHE_SECONDS:
+        return _runtime_cache[0][1]
+    versions = tuple(available_versions())
+    _runtime_cache[:] = [(moment, versions)]
+    return versions
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +134,8 @@ class RunQueue:
         """本機執行時檔案入參的 path 可以讀的資料夾（RPA_INPUT_FOLDERS）。"""
         self.on_finished: Callable[[str], None] = lambda run_id: None
         """任務結束（資料庫已更新）之後呼叫，參數是執行編號。"""
+        self.runtimes: Callable[[], Collection[str]] = _local_runtimes
+        """這台伺服器有的 RPA Python 運行環境版本（測試可以換掉）。"""
 
     # ------------------------------------------------------------ 場景與登入
 
@@ -202,9 +223,20 @@ class RunQueue:
                 session.rollback()
             return None
 
+    def local_accepts(self, run: Run) -> bool:
+        """本機 worker 能不能領這個執行：執行位置是 any 的運行環境模式 Python 節點，
+        這台沒有那個運行環境或平台不符時留給遠端 worker。"""
+        if run.target != "any":
+            return True
+        scenario = self.scenario(run.scene_id, run.revision_number)
+        script = scenario.script if scenario is not None else None
+        if script is None or not script.uses_runtime:
+            return True
+        return script.runs_on(self.runtimes(), platform_tag())
+
     def claim(self) -> Job | None:
         """本機 worker 的任務來源。"""
-        run = self.claim_run(LOCAL_WORKER, ("local", "any"))
+        run = self.claim_run(LOCAL_WORKER, ("local", "any"), accepts=self.local_accepts)
         if run is None:
             return None
         # 從快照執行：執行中拉取或重新載入領域資料夾不影響這次執行（M11 收尾）
@@ -221,6 +253,9 @@ class RunQueue:
             login=login,
             secrets=secrets,
             record_video=self.record_video(),
+            workspace=self.storage.workspace(run.workflow_run_id)
+            if run.workflow_run_id is not None
+            else None,
             **self.file_options(run.input),
         )
 

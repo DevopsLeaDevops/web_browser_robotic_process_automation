@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:cbb5cdb642f0cbcf">
+<meta name="translation-source" content="sha256:705c624a10e7e15c">
 <title>ADR 0014 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -72,7 +72,7 @@
             <li>An extra CI build (macOS, Windows); each release ships two installers, and app and server versions must match.</li>
             <li>Without signing, the first launch has to be allowed by hand (macOS Privacy &amp; Security, Windows SmartScreen).</li>
             <li>Recording and debugging send output and screenshots over the network; with HTTP, device tokens, secrets and sign-in states travel in clear text, so this suits trusted LANs only (as in ADR 0012).</li>
-            <li>In the packaged app, Python script scenarios can import only the standard library and the packages shipped inside the app.</li>
+            <li>In the packaged app, Python script scenarios can import only the standard library and the packages shipped inside the app (revised 2026-10-29: this holds only for compatible mode; Python nodes in runtime mode use the RPA Python runtime shipped with the app, see <a href="0020-python-nodes.html">ADR 0020</a>).</li>
             <li>The system WebView depends on the OS: Windows needs WebView2 (built into Windows 11); macOS uses the system Safari engine.</li>
           </ul>
         </div>

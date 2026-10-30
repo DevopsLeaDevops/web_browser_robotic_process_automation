@@ -308,13 +308,22 @@ def test_upload_step_rules(step: str, expected: str) -> None:
     assert any(expected in message for message in found), found
 
 
-def test_script_scenes_cannot_have_file_inputs() -> None:
+def test_compatible_python_nodes_cannot_have_file_inputs() -> None:
     text = (
         HEADER
         + "inputs:\n  f: { type: file }\n"
         + "script: { automation: automation.py, assertion: assertion.py }\n"
     )
-    assert any("Python 腳本場景還不能有檔案入參（f）" in m for m in messages(text))
+    assert any("沒有 runtime 的 Python 節點不能有檔案入參（f）" in m for m in messages(text))
+
+
+def test_runtime_python_nodes_can_have_file_inputs() -> None:
+    text = (
+        HEADER
+        + "inputs:\n  f: { type: file }\n"
+        + "script: { runtime: '1', automation: automation.py }\n"
+    )
+    assert validate_text(text).ok
 
 
 def test_input_features_for_file_values() -> None:

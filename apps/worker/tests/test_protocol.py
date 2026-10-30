@@ -243,6 +243,8 @@ def test_worker_info_to_json() -> None:
         browsers=("chromium",),
         display=True,
         version="0.1.0",
+        runtimes=("1.0.0",),
+        platform="windows-x86_64",
     )
 
     assert info.to_json() == {
@@ -261,13 +263,27 @@ def test_worker_info_to_json() -> None:
             "dynamicValues",
             "fileInputs",
             "frame",
+            "jsonInputs",
             "page",
             "popup",
+            "pythonNodes",
             "upload",
         ],
         # 調試時讀頁面結構（M14）：錄製端的 App 要支援，Agent 才能用
         "capabilities": ["debugInlineLoad", "debugSnapshot"],
+        # Python 節點（ADR 0020）：運行環境模式的節點只交給有那個主版本、平台符合的 worker
+        "runtimes": ["1.0.0"],
+        "platform": "windows-x86_64",
     }
+
+
+def test_job_payload_carries_the_composite_workspace(tmp_path: Path) -> None:
+    payload = JobPayload(run_id="r1", files={"scenario.yaml": b"x"}, workspace="wf-20261029-1")
+    again = JobPayload.from_json(payload.to_json(), state_path=tmp_path / "state.json")
+    assert again.workspace == "wf-20261029-1"
+    data = payload.to_json() | {"workspace": "../escape"}
+    with pytest.raises(ValueError, match="workspace"):
+        JobPayload.from_json(data, state_path=tmp_path / "state.json")
 
 
 def test_worker_info_reports_the_package_version() -> None:

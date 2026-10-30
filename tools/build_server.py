@@ -52,7 +52,15 @@ WORK: Final = ROOT / "build" / "server"
 PACKAGING: Final = ROOT / "apps" / "server" / "packaging"
 EXAMPLES: Final = ROOT / "scenarios" / "demo"
 
-PACKAGES: Final = ("rpa-core", "rpa-runner", "rpa-worker", "rpa-testsite", "rpa-server", "rpa-cli")
+PACKAGES: Final = (
+    "rpa-core",
+    "rpa-script",
+    "rpa-runner",
+    "rpa-worker",
+    "rpa-testsite",
+    "rpa-server",
+    "rpa-cli",
+)
 """裝進分發包 app/ 的工作區套件（rpa-cli 與它的相依）；桌面端（rpa-desktop）不裝。"""
 RUNTIME_PACKAGE: Final = "rpa-update"
 RUNTIME_FILE: Final = "runtime.json"

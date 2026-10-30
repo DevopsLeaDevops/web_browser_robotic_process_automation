@@ -71,7 +71,7 @@
             <li>多一個 CI 建置流程（macOS、Windows），每次發布要附兩個安裝檔；App 與伺服器版本要對齊。</li>
             <li>沒有簽章時，第一次開啟要手動允許（macOS「隱私權與安全性」、Windows SmartScreen）。</li>
             <li>錄製、調試要經過網路傳輸輸出與截圖；裝置權杖、Secrets 與登入狀態在 HTTP 下是明文，只適合信任的區網（同 ADR 0012）。</li>
-            <li>打包後的 Python 腳本場景只能 import 標準函式庫與 App 內附的套件。</li>
+            <li>打包後的 Python 腳本場景只能 import 標準函式庫與 App 內附的套件（2026-10-29 修訂：只對相容模式成立；運行環境模式的 Python 節點用 App 附帶的 RPA Python 運行環境，見 <a href="0020-python-nodes.html">ADR 0020</a>）。</li>
             <li>系統 WebView 依賴作業系統版本：Windows 要有 WebView2（Windows 11 內建），macOS 依系統的 Safari 核心。</li>
           </ul>
         </div>

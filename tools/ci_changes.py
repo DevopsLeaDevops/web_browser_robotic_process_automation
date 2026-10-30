@@ -306,6 +306,7 @@ WORKER_WINDOWS: Final = (
     *SHELL,
     *DESKTOP_TOOLS,
     "packages/rpa_core/src/*",
+    "packages/rpa_script/src/*",
     "packages/rpa_runner/src/*",
     "apps/worker/src/*",
     "apps/desktop/src/*",

@@ -34,6 +34,7 @@
           {% if worker.current_run %}<span class="cell-sub">{{ t("workers.current") }} <a class="mono" href="/runs/{{ worker.current_run }}">{{ worker.current_run }}</a></span>{% endif %}</td>
         <td>{% if worker.last_seen_at %}{{ worker.host or "—" }}<span class="cell-sub">{{ worker.os or "" }}{% if worker.python %} · Python {{ worker.python }}{% endif %}</span>
           <span class="cell-sub">{{ t("workers.browsers", browsers=(worker.browsers | join(t("js.list_separator"))) or "—") }} · {{ t("workers.display_yes") if worker.display else t("workers.display_no") }}</span>
+          <span class="cell-sub">{{ t("workers.runtimes", runtimes=(worker.runtimes | join(t("js.list_separator"))) or "—") }}{% if worker.platform %} · <span class="mono">{{ worker.platform }}</span>{% endif %}</span>
           {% else %}<span class="muted">{{ t("workers.never_seen") }}</span>{% endif %}</td>
         <td>{% if worker.version %}{{ t("workers.app_version", version=worker.version) }}{% endif %}
           {% if worker.fingerprint %}<span class="cell-sub"><code class="mono">{{ worker.fingerprint }}</code></span>

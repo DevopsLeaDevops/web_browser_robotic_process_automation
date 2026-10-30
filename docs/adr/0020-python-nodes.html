@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0020 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0020" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0020：Python 腳本場景演進成 Python 節點，和瀏覽器場景串在組合場景裡</h1>
+      <p>不另開新的場景種類：現有的 <code>script:</code> 加上 <code>runtime</code>，就跑在平台建置的 RPA Python 運行環境、不開瀏覽器；沒寫 <code>runtime</code> 的照舊執行。組合場景的節點可以是瀏覽器場景，也可以是 Python 節點，資料以 array／object 出入參傳遞，檔案經由同一台 Worker 上的共用工作資料夾傳遞。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-10-29</dd>
+        <dt>狀態</dt><dd>2026-10-29 使用者決定（統一成 Python 節點、運行環境模式不開瀏覽器、共用工作資料夾與模型套件照建議；P0～P2 一起做，見<a href="../../handoff/decisions.html#decisions">決定紀錄</a>）。取代 10-24 第二版設計的「封存 <code>script:</code>、另開 <code>python:</code>」。</dd>
+        <dt>影響範圍</dt><dd>rpa-core（DSL、組合場景）、新的 rpa-script、rpa-runner（運行環境、執行）、rpa-worker（回報、共用工作資料夾）、rpa-server（派工、頁面）、桌面 App 與 Linux 分發包（附帶運行環境）</dd>
+        <dt>相關</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（場景契約：獨立斷言、出參在斷言通過後才發布）、<a href="0012-remote-workers.html">ADR 0012</a>（遠端 Worker）、<a href="0014-desktop-apps.html">ADR 0014</a>（桌面 App 與打包後的子程序）、<a href="0018-layered-updates.html">ADR 0018</a>（分層更新）；<a href="../design/dsl.html#python">場景 DSL › Python 節點</a>；<a href="../../handoff/tasks/20261024-python-scripts.html">任務紀錄</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>瀏覽器場景做不到的事很多：讀寫 Excel、合併檔案、整理資料、呼叫 API、建模型。M1.1 起有「Python 腳本場景」（<code>script: { automation, assertion }</code>），但打包後的 App 用自己內附的 Python 執行它，只有標準函式庫與 App 帶的套件，派工也一律當成要開瀏覽器。</p>
+          <p>10-24 的第二版設計打算封存它、另開一種 <code>python:</code> 場景。10-29 查證後發現：腳本場景的契約本來就不依賴瀏覽器（Runner 交 <code>input.json</code>、收 <code>facts.json</code> 與候選出參）；組合場景的節點只記「場景＋固定版本＋入參綁定」，不分種類；同一次組合運行本來就固定在同一台 Worker。缺的是套件、派工、結構化入參與檔案的傳遞。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>一種節點、兩種模式。</strong><code>script.runtime</code> 沒寫是相容模式，和以前完全相同（雜湊不變、可以自己開瀏覽器）；寫了 <code>"1"</code> 是運行環境模式：用 RPA Python 運行環境 1，不能寫 <code>browser</code>、<code>login</code>，斷言可以是 <code>assertion.py</code> 或 DSL 的 <code>verify</code>（用 verify 時出參寫 <code>from</code>），可以有 file 入參。兩種模式都可以寫 <code>files</code>（腳本會用到的其他文字檔，納入雜湊）與 <code>platforms</code>。</li>
+            <li><strong>RPA Python 運行環境。</strong>平台建置、測試的一套 Python 3.13 加固定的套件，CI 為每個平台建好，附在 Worker App 與 Linux 分發包；第一次用到時解壓到快取資料夾、自我檢查後沿用。執行時以 <code>-E -s</code> 隔開電腦上的 Python 與 <code>PYTHON*</code> 環境變數。模型套件不放進基本版，之後另做選用層（D4）。</li>
+            <li><strong>派工。</strong>運行環境模式的任務只交給回報了這個主版本、平台在 <code>platforms</code> 裡的裝置，不看瀏覽器與視窗；沒有時執行頁說明在等什麼。舊版 App 由 M7a 的 <code>features</code>（<code>pythonNodes</code>、<code>jsonInputs</code>）擋下。</li>
+            <li><strong>組合場景裡的資料與檔案。</strong>入參多 <code>array</code>、<code>object</code>，上游的同型別出參可以直接接；同一次組合運行在那台 Worker 上有一個共用工作資料夾，也是 Python 節點的工作目錄，組合運行結束就刪，只有宣告的產出檔案上傳（D3）。</li>
+            <li><strong><code>rpa_script</code>。</strong>運行環境模式由 <code>python -m rpa_script</code> 啟動：照契約自己讀寫檔案的腳本不用改；用 <code>@automation</code> 的腳本有步驟、事實、產出檔案與資料預覽，寫成和 DSL 相同格式的 <code>steps.json</code>。</li>
+            <li><strong>執行的 <code>runtime</code> 階段。</strong>入參之後、自動化之前準備運行環境，不算進總期限；<code>result.json</code> 多一個 <code>python</code>（模式、版本、平台、沿用或新解壓）。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>瀏覽器場景與 Python 節點在同一個組合場景、同一套入參出參、同一個發布門檻；不需要學另一種模型。</li>
+            <li>既有的腳本場景不用遷移；ADR 0009「腳本場景不寫 verify」只對相容模式成立。ADR 0014「打包後的腳本只能用 App 內附的套件」也只對相容模式成立。</li>
+            <li>Worker App 與 Linux 分發包多帶一個運行環境（壓縮後約 60～75 MB），第一次用到時多幾秒解壓。</li>
+            <li>沒有下載瀏覽器、沒有螢幕的電腦也能當 Python 節點的 Worker。</li>
+            <li>Python 節點不是沙箱：等於在 Worker 上以那位使用者的身分執行任意程式，只給信任的人編輯，審核時特別標示。</li>
+            <li>共用工作資料夾裡的中間檔案不會留下；要看的檔案寫到產出檔案。遠端 Worker 錯過了結束通知時，一天後在上線時清掉。</li>
+            <li>之後（P3）：模型套件的選用層、腳本工作台、組合場景的扇出（foreach）、Python 節點使用登入角色（待決定）。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>封存 <code>script:</code>、另開 <code>python:</code>（第二版）</td><td>多一套模型、派工與報告，舊場景要遷移；使用者 10-29 選擇統一。</td></tr>
+              <tr><td>運行環境模式也能開瀏覽器</td><td>使用者選擇不能：網頁操作留在 DSL；運行環境的 Playwright 版本要和 Worker 下載的瀏覽器綁在一起，容易出錯。</td></tr>
+              <tr><td>用電腦上的 Python、conda 或場景自己鎖定套件</td><td>每台結果不同、Worker 要連得到套件來源；正是要避免的版本與倚賴問題。</td></tr>
+              <tr><td>檔案經由伺服器在節點之間傳遞</td><td>同一次組合運行已經在同一台 Worker，走本機路徑最快；只有宣告的產出檔案上傳。</td></tr>
+              <tr><td>組合場景裡直接寫一段轉換程式的節點</td><td>少了版本、發布門檻與獨立斷言；Python 節點已經涵蓋。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

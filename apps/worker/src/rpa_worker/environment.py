@@ -2,6 +2,8 @@
 M10.1 加上 App 版本，管理 Portal 的裝置頁顯示。M7a 加上看得懂的 DSL 擴充（``features``）：
 管理 Portal 交出場景之前比對，舊的 App 缺少時直接說明要更新（見 :mod:`rpa_core.dsl.features`）。
 M14 加上支援的功能（``capabilities``）：例如調試時讀頁面結構，舊的錄製端 App 沒有。
+Python 節點（ADR 0020）加上有哪些 RPA Python 運行環境（``runtimes``）與平台（``platform``）：
+運行環境模式的節點只交給有那個主版本、平台在場景的 ``script.platforms`` 裡的裝置。
 
 遠端 worker 上線時把這些告訴管理 Portal，Portal 只把它能跑的任務交給它；
 管理 Portal 自己（本機 worker）也用同一套判斷。
@@ -20,6 +22,7 @@ from pathlib import Path
 from typing import Final
 
 from rpa_core.dsl.features import FEATURES
+from rpa_runner.pyruntime import available_versions, platform_tag
 
 __all__ = [
     "CAPABILITIES",
@@ -139,6 +142,10 @@ class WorkerInfo:
     """看得懂的 DSL 擴充（M7a）；和程式碼一起打包，所以就是這份程式的 :data:`FEATURES`。"""
     capabilities: tuple[str, ...] = tuple(sorted(CAPABILITIES))
     """支援的功能（M14，:data:`CAPABILITIES`）。"""
+    runtimes: tuple[str, ...] = ()
+    """這台能用的 RPA Python 運行環境版本，由新到舊（ADR 0020）。"""
+    platform: str = ""
+    """平台代號，例如 ``windows-x86_64``（運行環境與 ``script.platforms`` 比對用）。"""
 
     @classmethod
     def detect(
@@ -155,6 +162,8 @@ class WorkerInfo:
             browsers=tuple(installed_browsers()),
             display=has_display(),
             version=package_version() if version is None else version,
+            runtimes=tuple(available_versions()),
+            platform=platform_tag(),
         )
 
     def to_json(self) -> dict[str, object]:
@@ -170,4 +179,6 @@ class WorkerInfo:
             "version": self.version,
             "features": list(self.features),
             "capabilities": list(self.capabilities),
+            "runtimes": list(self.runtimes),
+            "platform": self.platform,
         }

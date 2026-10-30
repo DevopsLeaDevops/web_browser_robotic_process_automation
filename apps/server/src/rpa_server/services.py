@@ -30,7 +30,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from rpa_core.dsl import GotoStep, Scenario, validate_file
+from rpa_core.dsl import GotoStep, Scenario, ScriptConfig, validate_file
 from rpa_core.dsl.editing import (
     SECTION_KEYS,
     contract_section,
@@ -44,6 +44,7 @@ from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_core.pack import PackSource, PublishedRef, SceneManifest, parse_timestamp, timestamp
 from rpa_runner.contract import prepare_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
+from rpa_runner.pyruntime import platform_tag
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
@@ -825,24 +826,48 @@ class Services:
 
         回傳 ``{"worker": 名稱}``（指定給某台 worker，例如序列固定的那台）或 ``{"worker": None}``
         （任何一台遠端 worker）；本機會執行、已經有人領取或不是排隊中時回傳 None。
+        運行環境模式的 Python 節點（ADR 0020）沒有線上的 worker 有那個運行環境、平台時，另外帶
+        ``runtime``（主版本）與 ``platforms``（逗號分隔，沒有限制時是 None）。
         """
         with self.sessions() as session:
             run = session.get(Run, run_id)
             if run is None or run.status != "queued" or run.worker_id is not None:
                 return None
             target, required = run.target, run.required_worker
+            scene_id, number = run.scene_id, run.revision_number
         if target == "local" or required == LOCAL_WORKER:
             return None
-        if required is None and target == "any" and self.local_worker:
+        script = self._runtime_script(scene_id, number)
+        local_runs = script is None or script.runs_on(self.queue.runtimes(), platform_tag())
+        if required is None and target == "any" and self.local_worker and local_runs:
             return None
         records = self.workers.list_workers()
         ready = {record.id for record in records if record.status in ("online", "busy")}
+        if script is not None:
+            capable = {
+                record.id for record in records if script.runs_on(record.runtimes, record.platform)
+            }
+            if not (ready & capable) and (required is None or required in ready):
+                platforms = ", ".join(script.platforms) if script.platforms else None
+                worker = None
+                if required is not None:
+                    worker = next((r.name for r in records if r.id == required), required)
+                return {"worker": worker, "runtime": script.runtime, "platforms": platforms}
         if required is not None:
             if required in ready:
                 return None
             names = {record.id: record.name for record in records}
             return {"worker": names.get(required, required)}
         return None if ready else {"worker": None}
+
+    def _runtime_script(self, scene_id: str, number: int) -> ScriptConfig | None:
+        """運行環境模式的 Python 節點的 script 設定；其他場景（或讀不到）是 None。"""
+        try:
+            scenario = self._load_scenario(scene_id, number)
+        except (ServiceError, OSError):
+            return None
+        script = scenario.script
+        return script if script is not None and script.uses_runtime else None
 
     def run_locations(self) -> list[tuple[str, str]]:
         """執行報告「執行位置」篩選的選項：本機、登記的 worker，以及執行過但已刪除的 worker。
@@ -2007,7 +2032,9 @@ class Services:
         if key not in SECTION_KEYS:
             raise _not_found("section_unknown", t("error.section_unknown", key=key))
         files = dict(files if files is not None else self.revision_files(scene_id, base))
-        if self._load_scenario(scene_id, base).script is not None and key in ("steps", "verify"):
+        script = self._load_scenario(scene_id, base).script
+        # Python 節點沒有 steps；verify 只有運行環境模式可以寫（ADR 0020）
+        if script is not None and (key == "steps" or (key == "verify" and not script.uses_runtime)):
             raise _invalid("section_script", t("error.section_script"))
         section = text.replace("\r\n", "\n").strip("\n")
         _check_section(key, section)

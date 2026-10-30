@@ -78,9 +78,11 @@
   <div class="notice contract-next" id="contract-next" hidden><span></span> <a class="button" data-validate-contract href="/scenes/{{ scene.id }}/run?purpose=validation">{{ t("contract.validate_next") }}</a></div>
   <ul class="checklist form-issues" id="contract-issues" role="alert" hidden></ul>
   <div class="contract-editors">
-    {#- file：檔案入參（M7c）。Python 腳本場景還不能用（校驗會說明），仍列出來，已有的檔案入參才不會被改掉 #}
-    {{ editor("inputs", ("string", "number", "integer", "boolean", "file"), scenario.script) }}
-    {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object"), scenario.script) }}
+    {#- file：檔案入參（M7c）。沒有 runtime 的 Python 節點不能用（校驗會說明），仍列出來，已有的檔案入參才不會被改掉。
+        出參由 assertion.py 產生的 Python 節點不寫 from；用 verify 的運行環境模式照 DSL 寫 from（ADR 0020） #}
+    {% set from_script = scenario.script is not none and scenario.script.assertion is not none %}
+    {{ editor("inputs", ("string", "number", "integer", "boolean", "array", "object", "file"), from_script) }}
+    {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object"), from_script) }}
   </div>
   <div class="contract-previews">
     {% for preview in ("defaults", "sample", "mapping") %}

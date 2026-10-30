@@ -120,6 +120,9 @@ class JobPayload:
     max_file_bytes: int | None = None
     max_run_bytes: int | None = None
     """檔案入參的上限（管理 Portal 的設定）；沒有時用 runner 的預設。"""
+    workspace: str | None = None
+    """組合運行的編號（ADR 0020）：同一次組合運行的節點在 worker 上共用一個工作資料夾。
+    舊版管理 Portal 不會送；單獨執行時是 None。"""
 
     def to_json(self) -> dict[str, object]:
         login = None
@@ -143,6 +146,7 @@ class JobPayload:
             "inputFiles": [item.to_json() for item in self.input_files],
             "maxFileBytes": self.max_file_bytes,
             "maxRunBytes": self.max_run_bytes,
+            "workspace": self.workspace,
         }
 
     @classmethod
@@ -181,6 +185,11 @@ class JobPayload:
         )
         max_file = data.get("maxFileBytes")
         max_run = data.get("maxRunBytes")
+        workspace = data.get("workspace")
+        if workspace is not None and (
+            not isinstance(workspace, str) or not is_safe_path(workspace) or "/" in workspace
+        ):
+            raise ValueError("invalid workspace")
         return cls(
             run_id=run_id,
             files=files,
@@ -202,6 +211,7 @@ class JobPayload:
             input_files=input_files,
             max_file_bytes=max_file if isinstance(max_file, int) and max_file > 0 else None,
             max_run_bytes=max_run if isinstance(max_run, int) and max_run > 0 else None,
+            workspace=workspace,
         )
 
 

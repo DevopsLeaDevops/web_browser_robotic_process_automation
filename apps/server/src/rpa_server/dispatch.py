@@ -36,7 +36,9 @@ from typing import Any, Final, cast
 from sqlalchemy import CursorResult, delete, or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+from rpa_core.dsl.contract import ScriptConfig
 from rpa_core.dsl.features import (
+    PYTHON_NODES,
     data_features,
     input_features,
     missing_features,
@@ -78,7 +80,7 @@ logger = logging.getLogger("rpa_server.dispatch")
 ONLINE_SECONDS: Final = CLAIM_WAIT_SECONDS + 35
 """這麼久內有報到（領取、心跳）就算線上。"""
 REAP_SECONDS: Final = 5.0
-_STAGES: Final = frozenset({"input", "login", "automation", "verify", "output"})
+_STAGES: Final = frozenset({"input", "login", "runtime", "automation", "verify", "output"})
 _DEFAULT_TARGET: Final = "default_target"
 
 
@@ -95,6 +97,31 @@ def reported_names(value: object) -> tuple[str, ...]:
     if not isinstance(value, list):
         return ()
     return tuple(str(item) for item in cast("list[object]", value))
+
+
+@dataclass(frozen=True, slots=True)
+class _Capabilities:
+    """一台 worker 上線時回報的能力（派工用）。"""
+
+    engines: set[str] | None
+    """下載了的瀏覽器；沒有回報時是 None（判斷不了，當作都有）。"""
+    display: bool
+    features: object
+    """看得懂的 DSL 擴充（原樣，見 missing_features）。"""
+    name: str
+    runtimes: frozenset[str]
+    """RPA Python 運行環境的版本（ADR 0020）。"""
+    platform: str
+
+    def browser_ok(self, headless: bool, engine: str) -> bool:
+        """瀏覽器場景：有頭模式要能顯示視窗，瀏覽器要下載過（沒有回報時當作都有）。"""
+        if not headless and not self.display:
+            return False
+        return self.engines is None or engine in self.engines
+
+    def runs(self, script: ScriptConfig) -> bool:
+        """能不能執行這個運行環境模式的 Python 節點：有那個主版本，平台在 platforms 裡。"""
+        return script.runs_on(self.runtimes, self.platform)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +159,8 @@ class WorkerHub:
         self.local_worker = local_worker
         """這台伺服器自己也執行（rpa serve 沒有 --no-local-worker）。"""
         self._needs: dict[tuple[str, int], frozenset[str]] = {}
+        self._cleanup: dict[str, set[str]] = {}
+        """worker → 要它刪掉的共用工作資料夾（已經結束的組合運行，ADR 0020）。"""
         self._condition = threading.Condition()
         self._generation = 0
         self._closing = threading.Event()
@@ -222,6 +251,8 @@ class WorkerHub:
             display=info.get("display") is True,
             version=text("version"),
             features=reported_names(info.get("features")),
+            runtimes=reported_names(info.get("runtimes")),
+            platform=text("platform"),
         )
 
     def list_workers(self) -> list[WorkerRecord]:
@@ -468,6 +499,8 @@ class WorkerHub:
             "display",
             "version",
             "features",
+            "runtimes",
+            "platform",
         )
         with self.sessions() as session:
             row = self._touch(session, worker_id)
@@ -488,8 +521,9 @@ class WorkerHub:
             "leaseSeconds": self.lease_seconds,
         }
 
-    def _capabilities(self, worker_id: str) -> tuple[set[str] | None, bool, object, str]:
-        """瀏覽器、能不能顯示視窗、看得懂的 DSL 擴充（原樣，見 missing_features）、名稱。"""
+    def _capabilities(self, worker_id: str) -> "_Capabilities":
+        """瀏覽器、能不能顯示視窗、看得懂的 DSL 擴充（原樣，見 missing_features）、名稱，
+        以及 RPA Python 運行環境與平台（ADR 0020）。"""
         with self.sessions() as session:
             row = self._touch(session, worker_id)
             info, name = _info(row), row.name
@@ -500,7 +534,21 @@ class WorkerHub:
             if isinstance(browsers, list) and browsers
             else None
         )
-        return engines, info.get("display") is not False, info.get("features"), name
+        platform = info.get("platform")
+        return _Capabilities(
+            engines=engines,
+            display=info.get("display") is not False,
+            features=info.get("features"),
+            name=name,
+            runtimes=frozenset(reported_names(info.get("runtimes"))),
+            platform=platform if isinstance(platform, str) else "",
+        )
+
+    def _python_node(self, run: Run) -> ScriptConfig | None:
+        """運行環境模式的 Python 節點的 script 設定；其他場景是 None。"""
+        scenario = self.queue.scenario(run.scene_id, run.revision_number)
+        script = scenario.script if scenario is not None else None
+        return script if script is not None and script.uses_runtime else None
 
     def _needed(self, run: Run) -> frozenset[str]:
         """這次執行用到的 DSL 擴充：場景，加上它的登入設定（檢查與自動登入在 worker 上跑），
@@ -525,28 +573,32 @@ class WorkerHub:
     def claim(
         self, worker_id: str, wait_seconds: float = CLAIM_WAIT_SECONDS
     ) -> dict[str, object] | None:
-        """長輪詢領取一個任務；等到 wait_seconds 都沒有就回傳 None。"""
+        """長輪詢領取一個任務；等到 wait_seconds 都沒有就回傳 None。
+
+        有要這台刪掉的共用工作資料夾（ADR 0020）時，沒有任務也立刻回 ``{"cleanup": […]}``。
+        """
         deadline = time.monotonic() + max(0.0, min(wait_seconds, CLAIM_WAIT_SECONDS))
         while not self._closing.is_set():
             with self._condition:
                 generation = self._generation
-            engines, display, features, name = self._capabilities(worker_id)
+            capabilities = self._capabilities(worker_id)
+            features, name = capabilities.features, capabilities.name
 
-            def accepts(
-                run: Run,
-                engines: set[str] | None = engines,
-                display: bool = display,
-                features: object = features,
-            ) -> bool:
-                if not run.headless and not display:
-                    return False
-                if engines is not None and self.queue.engine_of(run) not in engines:
+            def accepts(run: Run, capabilities: _Capabilities = capabilities) -> bool:
+                features = capabilities.features
+                script = self._python_node(run)
+                if script is not None:
+                    # 運行環境模式不開瀏覽器：不看瀏覽器與視窗，要有那個主版本、平台在清單裡
+                    if not capabilities.runs(script):
+                        return False
+                elif not capabilities.browser_ok(run.headless, self.queue.engine_of(run)):
                     return False
                 # App 太舊、而這台伺服器自己會執行：留給本機（領取後才標失敗的只有沒有別處可跑的）
                 return not (
                     run.target == "any"
                     and run.required_worker is None
                     and self.local_worker
+                    and self.queue.local_accepts(run)
                     and missing_features(self._needed(run), features)
                 )
 
@@ -564,8 +616,12 @@ class WorkerHub:
                 payload = self._payload(run)
                 if payload is not None:
                     self._set_current(worker_id, run.id)
+                    payload["cleanup"] = self.take_cleanup(worker_id)
                     return payload
                 continue
+            pending = self.take_cleanup(worker_id)
+            if pending:
+                return {"cleanup": pending}
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return None
@@ -612,6 +668,7 @@ class WorkerHub:
                 login_state=state,
                 secrets=values,
                 record_video=self.queue.record_video(),
+                workspace=run.workflow_run_id,
             )
         except Exception as error:
             logger.exception("無法打包任務 %s", run.id)
@@ -667,7 +724,24 @@ class WorkerHub:
                 run.stage = stage
             cancel = run.cancel_requested
             session.commit()
-        return {"cancel": cancel}
+        return {"cancel": cancel, "cleanup": self.take_cleanup(worker_id)}
+
+    def queue_cleanup(self, worker_id: str, key: str) -> None:
+        """組合運行結束了：下一次這台 worker 領取任務或心跳時，叫它刪掉共用工作資料夾。
+
+        只記給看得懂的 worker（回報了 ``pythonNodes``）；舊版 App 不建共用工作資料夾。
+        """
+        if PYTHON_NODES not in reported_names(self._capabilities(worker_id).features):
+            return
+        with self._condition:
+            self._cleanup.setdefault(worker_id, set()).add(key)
+            self._generation += 1
+            self._condition.notify_all()
+
+    def take_cleanup(self, worker_id: str) -> list[str]:
+        """要這台 worker 刪掉的共用工作資料夾（取出後清空）。"""
+        with self._condition:
+            return sorted(self._cleanup.pop(worker_id, set()))
 
     def store_artifacts(self, worker_id: str, run_id: str, archive: Path) -> list[str]:
         """上傳的執行目錄：先解到暫存資料夾，成功了才換上（重送時覆蓋上一次的）。"""

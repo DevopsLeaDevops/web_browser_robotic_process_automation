@@ -664,15 +664,51 @@
     const form = qs('#revision-form');
     if (!form) return;
     const markSaved = watchEditor(form);
-    qsa('[data-file-tab]').forEach(tab => {
-      tab.addEventListener('click', () => {
-        qsa('[data-file-tab]').forEach(other => {
-          const active = other === tab;
-          other.classList.toggle('active', active);
-          other.setAttribute('aria-selected', String(active));
-        });
-        qsa('[data-file]', form).forEach(section => { section.hidden = section.dataset.file !== tab.dataset.fileTab; });
+    const tabList = qs('#file-tabs', form);
+    const select = name => {
+      qsa('[data-file-tab]', form).forEach(other => {
+        const active = other.dataset.fileTab === name;
+        other.classList.toggle('active', active);
+        other.setAttribute('aria-selected', String(active));
       });
+      qsa('[data-file]', form).forEach(section => { section.hidden = section.dataset.file !== name; });
+    };
+    tabList?.addEventListener('click', event => {
+      const tab = event.target.closest('[data-file-tab]');
+      if (tab) select(tab.dataset.fileTab);
+    });
+    // Python 節點（ADR 0020）：新增 script.files 列的檔案、移除不用的檔案；存檔時一起校驗
+    const newName = form.elements.namedItem('new-file');
+    qs('[data-action="add-file"]', form)?.addEventListener('click', () => {
+      const name = newName.value.trim();
+      if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]*(\/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$/.test(name) || name.startsWith('files/')) {
+        return toast(messages.file_name_invalid);
+      }
+      if (!qs('[data-file="' + CSS.escape(name) + '"]', form)) {
+        const section = qs('#file-template').content.firstElementChild.cloneNode(true);
+        section.dataset.file = name;
+        qs('h2', section).textContent = name;
+        const area = qs('textarea', section);
+        area.name = name;
+        area.setAttribute('aria-label', name);
+        qs('#file-template').before(section);
+        const tab = document.createElement('button');
+        tab.type = 'button'; tab.setAttribute('role', 'tab'); tab.dataset.fileTab = name; tab.textContent = name;
+        tabList.append(tab);
+      }
+      newName.value = '';
+      select(name);
+      form.dispatchEvent(new Event('input', {bubbles: true}));
+    });
+    form.addEventListener('click', event => {
+      const button = event.target.closest('[data-action="remove-file"]');
+      if (!button) return;
+      const section = button.closest('[data-file]');
+      const name = section.dataset.file;
+      section.remove();
+      qs('[data-file-tab="' + CSS.escape(name) + '"]', form)?.remove();
+      select('scenario.yaml');
+      form.dispatchEvent(new Event('input', {bubbles: true}));
     });
     // 從卡片的「斷言腳本」等連結進來：跳到 YAML 裡對應的段落
     const focus = form.dataset.focus;
@@ -1562,6 +1598,10 @@
     const form = qs('#script-form');
     const tabs = qsa('[data-script-tab]', panel);
     const show = part => {
+      // Python 節點的分頁是檔案：卡片的「自動化腳本」「斷言腳本」連結對到那支腳本的分頁
+      const roles = {steps: 'automation', verify: 'assertion'};
+      const byRole = tabs.find(tab => tab.dataset.scriptRole && tab.dataset.scriptRole === roles[part]);
+      if (byRole) part = byRole.dataset.scriptTab;
       if (!tabs.some(tab => tab.dataset.scriptTab === part)) return;
       tabs.forEach(tab => {
         const active = tab.dataset.scriptTab === part;
@@ -1722,6 +1762,10 @@
     if (type === 'integer' && /^[-+]?\d+$/.test(value)) return Number(value);
     if (type === 'number' && !Number.isNaN(Number(value))) return Number(value);
     if (type === 'boolean' && (value === 'true' || value === 'false')) return value === 'true';
+    if (type === 'array' || type === 'object') {
+      // array、object 入參（ADR 0020）：預設值寫 JSON
+      try { return JSON.parse(value); } catch { /* 交給伺服器說明哪裡不對 */ }
+    }
     return value;
   }
 
@@ -1754,7 +1798,10 @@
     const fallback = qs('[name="default"]', row);
     if (fallback) {
       fallback.inputMode = type === 'integer' || type === 'number' ? 'decimal' : 'text';
-      fallback.placeholder = type === 'boolean' ? 'true / false' : fallback.dataset.placeholder;
+      fallback.placeholder = type === 'boolean' ? 'true / false'
+        : type === 'array' ? '["甲", "乙"]'
+        : type === 'object' ? '{"key": "value"}'
+        : fallback.dataset.placeholder;
     }
     qs('[data-rule-summary]', row).textContent = ruleSummary(row);
   }
@@ -2512,6 +2559,11 @@
         return '<select' + attrs + '>' + values.map((value, index) =>
           '<option value="' + index + '"' + (json(value) === json(current) ? ' selected' : '') + '>' + esc(json(value)) + '</option>').join('') + '</select>';
       }
+      if (spec.type === 'array' || spec.type === 'object') {
+        const shown = current === '' ? '' : typeof current === 'string' ? current : JSON.stringify(current);
+        return '<input type="text" class="mono"' + attrs + ' placeholder="' + (spec.type === 'array' ? '[…]' : '{…}') +
+          '" value="' + esc(shown) + '">';
+      }
       // 數字與枚舉也能填動態值；普通數字在 input 事件中按契約轉型。
       const listId = 'fixed-options-' + name;
       const options = Array.isArray(spec.enum) ? '<datalist id="' + esc(listId) + '">' +
@@ -2904,6 +2956,8 @@
       } else if (value === 'value') {
         const initial = hasDefault(spec) ? spec.default
           : spec.type === 'boolean' ? false
+          : spec.type === 'array' ? []
+          : spec.type === 'object' ? {}
           : Array.isArray(spec.enum) ? spec.enum[0]
           : spec.type === 'integer' || spec.type === 'number' ? 0 : '';
         node.inputs[name] = {value: initial};
@@ -2959,6 +3013,10 @@
       let value = target.value;
       if (spec.type === 'integer' && /^-?\d+$/.test(value.trim())) value = parseInt(value, 10);
       else if (spec.type === 'number' && value.trim() !== '' && !Number.isNaN(Number(value))) value = Number(value);
+      else if (spec.type === 'array' || spec.type === 'object') {
+        // array、object 入參（ADR 0020）的固定值寫 JSON；還沒寫完時保留文字，檢查會說明
+        try { value = JSON.parse(value); } catch { /* 保留文字 */ }
+      }
       node.inputs[name] = {value};
       changed({settings: false});
     });

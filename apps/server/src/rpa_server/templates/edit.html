@@ -16,16 +16,25 @@
     <div class="panel-header"><h2>{{ t("edit.issues") }}</h2></div>
     <ul class="panel-body checklist" id="issue-list"></ul>
   </section>
-  {% if files | length > 1 %}
-  <div class="segmented" role="tablist">
-    {% for path in files %}
-    <button type="button" role="tab" data-file-tab="{{ path }}"{% if path == selected %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ path }}</button>
-    {% endfor %}
+  <div class="field-row file-tabs">
+    <div class="segmented" role="tablist" id="file-tabs">
+      {% for path in files %}
+      <button type="button" role="tab" data-file-tab="{{ path }}"{% if path == selected %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ path }}</button>
+      {% endfor %}
+    </div>
+    {#- Python 節點（ADR 0020）：script.files 列的檔案在這裡新增 -#}
+    <label class="field compact">{{ t("edit.new_file") }}<input name="new-file" placeholder="helpers.py" pattern="[A-Za-z0-9_][A-Za-z0-9_.\-/]*" autocomplete="off"></label>
+    <button class="button" type="button" data-action="add-file">{{ t("edit.add_file") }}</button>
   </div>
-  {% endif %}
+  <template id="file-template">
+  <section class="panel" data-file="">
+    <div class="panel-header"><h2 class="mono"></h2><button class="text-btn" type="button" data-action="remove-file">{{ t("edit.remove_file") }}</button></div>
+    <div class="panel-body"><textarea class="code-editor" name="" rows="28" spellcheck="false"></textarea></div>
+  </section>
+  </template>
   {% for path, text in files.items() %}
   <section class="panel" data-file="{{ path }}"{% if path != selected %} hidden{% endif %}>
-    <div class="panel-header"><h2 class="mono">{{ path }}</h2></div>
+    <div class="panel-header"><h2 class="mono">{{ path }}</h2>{% if path != "scenario.yaml" %}<button class="text-btn" type="button" data-action="remove-file">{{ t("edit.remove_file") }}</button>{% endif %}</div>
     <div class="panel-body">
       <textarea class="code-editor" name="{{ path }}" rows="28" spellcheck="false" aria-label="{{ path }}">
 {{ text }}</textarea>

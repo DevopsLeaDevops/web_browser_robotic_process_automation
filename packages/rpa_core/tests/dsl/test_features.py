@@ -88,6 +88,8 @@ def test_missing_features() -> None:
         "dynamicValues",
         "upload",
         "fileInputs",
+        "pythonNodes",
+        "jsonInputs",
     } == FEATURES
     # M7a 之前的 App 沒有回報 features：一個都不懂
     assert missing_features({"frame"}, None) == ["frame"]

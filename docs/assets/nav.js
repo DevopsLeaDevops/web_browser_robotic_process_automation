@@ -192,6 +192,11 @@ window.DOCS_NAV = {
             "zh-Hans": "0019 组合运行的报告与回看",
             "en": "0019 Composite run report and replay"
           }
+        },
+        {
+          "id": "adr-0020",
+          "href": "adr/0020-python-nodes.html",
+          "name": {"zh-Hant": "0020 Python 節點", "zh-Hans": "0020 Python 节点", "en": "0020 Python nodes"}
         }
       ]
     },

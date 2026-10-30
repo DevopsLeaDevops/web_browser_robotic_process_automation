@@ -1,4 +1,4 @@
-"""場景契約：入參、出參、獨立斷言與 Python 腳本逃生門。決策背景見 ADR 0009。
+"""場景契約：入參、出參、獨立斷言與 Python 節點（``script``）。決策背景見 ADR 0009、0020。
 
 一次成功的執行是：入參通過校驗 → 自動化（DSL 步驟或 automation.py）→ 留下頁面事實 facts
 → 獨立斷言（verify 或 assertion.py）→ 出參通過校驗 → 才發布 output.json。
@@ -10,29 +10,40 @@
 
 import math
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import Annotated, Final, Literal, Self
 
 from pydantic import AfterValidator, Field, model_validator
 
 from rpa_core.dsl.dynamic import DynamicValueError, has_dynamic, parse
 from rpa_core.dsl.fields import DslModel, NonEmptyStr, dsl_error
-from rpa_core.dsl.files import FileValueError, accept_rule_ok, file_values, parse_size
+from rpa_core.dsl.files import (
+    ATTACHMENT_DIR,
+    FileValueError,
+    accept_rule_ok,
+    file_values,
+    parse_size,
+)
 
 __all__ = [
+    "PLATFORMS",
+    "RUNTIMES",
     "InputSpec",
     "InputType",
     "OutputSpec",
     "OutputType",
+    "Platform",
     "ScriptConfig",
+    "ScriptFile",
     "ScriptPath",
     "ValueSpec",
     "VerifyCheck",
     "spec_json_schema",
 ]
 
-InputType = Literal["string", "number", "integer", "boolean", "file"]
-"""``file``（M7c）：要上傳的檔案，值的寫法見 :mod:`rpa_core.dsl.files`。"""
+InputType = Literal["string", "number", "integer", "boolean", "array", "object", "file"]
+"""``file``（M7c）：要上傳的檔案，值的寫法見 :mod:`rpa_core.dsl.files`。
+``array``、``object``（Python 節點）：JSON 的陣列與物件，上游的同型別出參可以直接接進來。"""
 OutputType = Literal["string", "number", "integer", "boolean", "array", "object"]
 
 _STRING_ONLY: Final = (
@@ -44,6 +55,14 @@ _NUMBER_ONLY: Final = (("minimum", "minimum"), ("maximum", "maximum"))
 _SCRIPT_PATH: Final = re.compile(
     r"(?:[A-Za-z0-9_][A-Za-z0-9_.-]*/)*[A-Za-z0-9_][A-Za-z0-9_.-]*\.py"
 )
+_SCRIPT_FILE: Final = re.compile(r"(?:[A-Za-z0-9_][A-Za-z0-9_.-]*/)*[A-Za-z0-9_][A-Za-z0-9_.-]*")
+MAX_SCRIPT_FILES: Final = 16
+"""``script.files`` 最多幾個（加上場景檔與兩支腳本，不超過管理 Portal 一個版本的 20 個檔案）。"""
+RUNTIMES: Final = ("1",)
+"""這份程式認得的 RPA Python 運行環境主版本（``script.runtime``）。"""
+Platform = Literal["windows", "macos", "linux"]
+PLATFORMS: Final[tuple[Platform, ...]] = ("windows", "macos", "linux")
+"""``script.platforms`` 可以寫的系統。"""
 
 
 def matches_type(value: object, value_type: str) -> bool:
@@ -231,7 +250,7 @@ class OutputSpec(ValueSpec):
     from_: NonEmptyStr | None = Field(default=None, alias="from")
     """取值的運算式，例如 ``{{ facts.record.recordId }}``。
 
-    Python 腳本場景的出參由 assertion.py 產生，不寫 from。
+    Python 節點用 assertion.py 斷言時，出參由它產生，不寫 from；用 verify 時同 DSL。
     """
 
 
@@ -284,17 +303,73 @@ ScriptPath = Annotated[str, AfterValidator(_check_script_path)]
 """Python 腳本的相對路徑（相對於場景檔所在目錄），不能用 .. 或絕對路徑。"""
 
 
-class ScriptConfig(DslModel):
-    """Python 腳本逃生門：DSL 表達不了的場景，用原型的檔案契約執行。
+def _check_script_file(value: str) -> str:
+    if not _SCRIPT_FILE.fullmatch(value) or len(value) > 200:
+        raise dsl_error("format.script_file", value=value)
+    if value == ATTACHMENT_DIR or value.startswith(f"{ATTACHMENT_DIR}/"):
+        raise dsl_error("script.file_in_attachments", value=value, folder=ATTACHMENT_DIR)
+    return value
 
-    - automation.py 接受 ``--input --facts --screenshot --target-url``，把頁面事實寫進 facts
+
+ScriptFile = Annotated[str, AfterValidator(_check_script_file)]
+"""腳本會用到的其他文字檔（相對於場景檔所在目錄），任何副檔名；二進位檔放場景附件 ``files/``。"""
+
+
+class ScriptConfig(DslModel):
+    """Python 節點：DSL 表達不了、或瀏覽器做不到的事（檔案、資料、網路），沿用同一份檔案契約。
+
+    - automation.py 接受 ``--input --facts --screenshot --target-url``，把觀察到的事實寫進 facts
     - assertion.py 接受 ``--input --facts --output``，獨立比對事實與入參，寫出候選出參
+
+    兩種模式（ADR 0020）：
+
+    - **相容模式**（沒寫 ``runtime``）：和 M1.1 起的腳本場景完全相同，用執行端自己的 Python，
+      腳本可以自己用 Playwright 開瀏覽器；``assertion`` 必要。
+    - **運行環境模式**（``runtime: "1"``）：跑在平台建置的 RPA Python 運行環境，不開瀏覽器；
+      斷言可以是 ``assertion`` 或場景的 ``verify``。
 
     審核時特別標示；錄製與 AI 不會產生這種場景。
     """
 
+    runtime: Literal["1"] | None = None
+    """RPA Python 運行環境的主版本；沒寫是相容模式。"""
     automation: ScriptPath
-    assertion: ScriptPath
+    assertion: ScriptPath | None = None
+    """獨立斷言的腳本；相容模式必要，運行環境模式可以改用場景的 ``verify``。"""
+    files: Annotated[list[ScriptFile], Field(max_length=MAX_SCRIPT_FILES)] | None = None
+    """腳本會用到的其他文字檔（例如 helpers.py、SQL、JSON 範本），跟著版本存放、納入雜湊。"""
+    platforms: Annotated[list[Platform], Field(min_length=1)] | None = None
+    """只在這些系統執行；沒寫是不限。"""
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        scripts = {self.automation, *([self.assertion] if self.assertion else [])}
+        seen: set[str] = set()
+        for index, name in enumerate(self.files or ()):
+            if name in seen or name in scripts:
+                raise dsl_error("script.file_duplicate", at=["files", index], value=name)
+            seen.add(name)
+        if self.platforms is not None and len(set(self.platforms)) != len(self.platforms):
+            raise dsl_error("script.platform_duplicate", at=["platforms"])
+        return self
+
+    @property
+    def uses_runtime(self) -> bool:
+        """運行環境模式：用 RPA Python 運行環境、不開瀏覽器。"""
+        return self.runtime is not None
+
+    def runs_on(self, runtimes: Iterable[str], platform: str | None) -> bool:
+        """一台裝置能不能執行這個運行環境模式的節點（派工用）。
+
+        ``runtimes`` 是裝置有的運行環境版本（例如 ``1.0.0``），要有這個主版本；``platform`` 是
+        平台代號（例如 ``windows-x86_64``），系統要在 ``platforms`` 裡（沒寫是不限）。
+        """
+        if self.runtime is None:
+            return True
+        if not any(version.split(".", 1)[0] == self.runtime for version in runtimes):
+            return False
+        family = (platform or "").split("-", 1)[0]
+        return self.platforms is None or family in self.platforms
 
 
 def spec_json_schema(spec: ValueSpec) -> dict[str, object]:

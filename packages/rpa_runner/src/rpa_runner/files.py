@@ -20,6 +20,8 @@ __all__ = [
     "LOGIN_LOG",
     "LOGIN_SCREENSHOT",
     "OUTPUT",
+    "OUTPUTS_DIR",
+    "PREVIEWS_DIR",
     "REPLACE_ATTEMPTS",
     "REPLACE_DELAY",
     "REPORT",
@@ -43,7 +45,7 @@ FACTS: Final = "facts.json"
 OUTPUT: Final = "output.json"
 """只有獨立斷言與出參校驗都通過才會產生。"""
 CANDIDATE: Final = "candidate-output.json"
-"""Python 腳本場景：assertion.py 寫出的候選出參，校驗後改名為 output.json。"""
+"""Python 節點：assertion.py 寫出的候選出參，校驗後改名為 output.json。"""
 STEPS: Final = "steps.json"
 DIAGNOSTIC: Final = "diagnostic.json"
 SCREENSHOT: Final = "screenshot.png"
@@ -64,6 +66,10 @@ VIDEO_INFO: Final = "video.json"
 """錄影的說明：開始時間、長度、大小、是否修復過（見 video.py）。"""
 VIDEO_TMP: Final = ".video"
 """錄影時 Playwright 寫入的暫存資料夾；執行結束時整理成 video.webm 後刪掉。"""
+OUTPUTS_DIR: Final = "outputs"
+"""Python 節點的產出檔案（ADR 0020）：腳本寫進來的檔案跟著執行目錄上傳，報告可以下載。"""
+PREVIEWS_DIR: Final = "previews"
+"""Python 節點的資料預覽（``rpa_script`` 的 ``run.preview()``，每份一個 JSON）。"""
 STEP_SHOTS: Final = "steps"
 """錄影時每一步做完的縮小截圖（``steps/001.jpg``…，見 stepshots.py）；跟著執行紀錄保存。"""
 

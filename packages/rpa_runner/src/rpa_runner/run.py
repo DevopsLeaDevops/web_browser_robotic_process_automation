@@ -5,12 +5,17 @@
   （必要時自動登入）；沒登入就停在 needs_login，不執行任何步驟。登入狀態檔不複製進執行目錄。
 - 自動化在子程序執行：DSL 場景是 ``python -m rpa_runner.child``，Python 腳本場景是 automation.py。
   子程序超過總期限（加上短暫的收尾時間）就終止整個程序群組。
-- 獨立斷言：DSL 場景在本程序比對 verify；腳本場景再啟動一個 assertion.py 子程序。
+- 獨立斷言：DSL 場景與用 verify 的 Python 節點在本程序比對 verify；用 assertion.py 的
+  Python 節點再啟動一個 assertion.py 子程序（ADR 0020）。
 - 只有每個階段都通過，才寫出 output.json；任何失敗都沒有成功出參。
 - 每次執行一個目錄（見 files.py），最後一定寫出 result.json 與 report.html。
 - 可以從別的執行緒取消（``cancel``，例如管理介面的 worker）：立即終止程序群組，狀態為 cancelled。
 - ``record_video`` 時 DSL 場景的自動化階段錄影（M12，見 video.py）：終止時讓錄影寫完
   （:func:`_stop_gracefully`），結束後整理成 video.webm 與 video.json。
+- 運行環境模式的 Python 節點（``script.runtime``，ADR 0020）：自動化之前多一個 runtime 階段，
+  準備 RPA Python 運行環境（見 pyruntime.py；準備的時間不算進總期限）。腳本由
+  ``python -E -s -X utf8 -m rpa_script`` 啟動，工作目錄是共用工作資料夾（``workspace``，組合運行
+  的節點共用；單獨執行時是執行目錄旁邊的暫存資料夾，結束就刪），產出檔案在執行目錄的 outputs/。
 - 檔案入參（M7c）：入參階段把檔案準備在執行目錄旁邊的暫存資料夾（見 inputfiles.py），
   input.json 只有名稱、大小與 sha256；結束時刪掉暫存資料夾。場景附件不複製進執行目錄的快照，
   雜湊照場景資料夾裡的原檔計算。
@@ -55,6 +60,7 @@ from rpa_runner.files import (
     LOGIN,
     LOGIN_LOG,
     OUTPUT,
+    OUTPUTS_DIR,
     REPORT,
     RESULT,
     SCENARIO_DIR,
@@ -76,6 +82,14 @@ from rpa_runner.inputfiles import (
 from rpa_runner.installed import missing_browser_hint
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_runner.proctree import descendants, terminate, wait_exit
+from rpa_runner.pyruntime import (
+    PreparedRuntime,
+    RuntimeUnavailableError,
+    clean_environment,
+    platform_family,
+    platform_tag,
+)
+from rpa_runner.pyruntime import prepare as prepare_runtime
 from rpa_runner.report import render_report
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
 from rpa_runner.video import VIDEO_STOP
@@ -114,7 +128,7 @@ _LOG_TAIL_BYTES: Final = 64 * 1024
 """自動化失敗時，讀日誌最後這麼多位元組，找「瀏覽器還沒下載」的錯誤。"""
 
 RunStatus = Literal["passed", "failed", "timed_out", "cancelled", "needs_login"]
-StageName = Literal["input", "login", "automation", "verify", "output"]
+StageName = Literal["input", "login", "runtime", "automation", "verify", "output"]
 StageStatus = Literal["passed", "failed", "timed_out", "cancelled", "needs_login", "skipped"]
 ENV_STORAGE_STATE: Final = "RPA_STORAGE_STATE"
 """Python 腳本場景從這個環境變數得知登入狀態檔（場景有 login 時）。"""
@@ -169,6 +183,8 @@ class RunResult:
     """以哪個角色登入（場景的 login.role）。"""
     login: dict[str, object] | None = None
     """登入檢查的結果（login.json）。"""
+    python: dict[str, object] | None = None
+    """Python 節點（ADR 0020）：模式（compatible／runtime）、運行環境版本、平台、沿用或新解壓。"""
 
     def stage(self, name: StageName) -> Stage:
         return next(stage for stage in self.stages if stage.name == name)
@@ -211,6 +227,7 @@ class RunResult:
             "error": self.error,
             "role": self.role,
             "login": self.login,
+            "python": self.python,
         }
 
 
@@ -379,6 +396,7 @@ def _run_process(
     special: Mapping[int, _StageFailedError] | None = None,
     *,
     video: Path | None = None,
+    cwd: Path | None = None,
 ) -> None:
     """執行子程序直到結束；``special`` 是有特別意義的結束碼（例如需要登入）。
 
@@ -396,6 +414,7 @@ def _run_process(
             env=dict(env),
             start_new_session=os.name != "nt",
             creationflags=no_window_flags(),
+            cwd=cwd,
         )
         grace = _VIDEO_GRACE_SECONDS if video is not None else _GRACE_SECONDS
         try:
@@ -486,6 +505,7 @@ def execute(
     any_path: bool = False,
     max_file_bytes: int = MAX_FILE_BYTES,
     max_run_bytes: int = MAX_RUN_BYTES,
+    workspace: Path | None = None,
 ) -> RunResult:
     """執行場景檔，回傳結果；場景本身沒通過校驗時拋出 ScenarioInvalidError。
 
@@ -498,6 +518,8 @@ def execute(
     - 檔案入參（M7c）：``uploads`` 是上傳檔代號 → 這台電腦上的檔案；``path`` 值只能在
       ``input_folders`` 裡（沒給時用環境變數 RPA_INPUT_FOLDERS），``any_path`` 時不限（命令列）；
       ``max_file_bytes``、``max_run_bytes`` 是單檔與合計的上限。
+    - ``workspace``：組合運行的共用工作資料夾（ADR 0020）；沒給時 Python 節點用執行目錄旁邊的
+      暫存資料夾，結束就刪除。
     """
     validated = validate_file(path)
     if validated.scenario is None:
@@ -509,16 +531,22 @@ def execute(
     folder = out_root / run_id
     folder.mkdir(parents=True)
     staging = out_root / f".files-{run_id}"
+    # 組合運行的共用工作資料夾也算允許的資料夾：上一個節點下載、產出的檔案可以當 path 入參
+    shared = (workspace,) if workspace is not None else ()
     sources = FileSources(
         scenario_dir=path.parent,
         uploads=uploads or {},
         folders=None
         if any_path
-        else tuple(input_folders if input_folders is not None else env_folders()),
+        else (*(input_folders if input_folders is not None else env_folders()), *shared),
         max_file=max_file_bytes,
         max_total=max_run_bytes,
     )
     snapshot, digest = _snapshot(path, scenario, folder)
+    script = scenario.script
+    uses_runtime = script is not None and script.uses_runtime
+    own_workspace = uses_runtime and workspace is None
+    work = workspace if workspace is not None else out_root / f".work-{run_id}"
     result = RunResult(
         run_id=run_id,
         scenario_id=scenario.id,
@@ -531,11 +559,13 @@ def execute(
         stages=[
             Stage("input"),
             *([Stage("login")] if scenario.login is not None else []),
+            *([Stage("runtime")] if uses_runtime else []),
             Stage("automation"),
             Stage("verify"),
             Stage("output"),
         ],
         role=scenario.login.role if scenario.login is not None else None,
+        python=None if script is None else {"mode": "runtime" if uses_runtime else "compatible"},
     )
     environ = {**os.environ, **(secrets or {})}
     login_secrets = {
@@ -553,6 +583,7 @@ def execute(
         if on_stage is not None:
             on_stage(name)
 
+    node: _PythonNode | None = None
     try:
         enter("input")
         _input_stage(scenario, inputs, result, folder, environ, sources, staging)
@@ -568,6 +599,9 @@ def execute(
                 cancel,
                 result,
             )
+        if uses_runtime:
+            enter("runtime")
+            node, deadline = _runtime_stage(scenario, result, deadline, work, folder, staging)
         enter("automation")
         _automation_stage(
             scenario,
@@ -583,9 +617,10 @@ def execute(
             state,
             video=video,
             files=staging / PATHS_FILE,
+            node=node,
         )
         enter("verify")
-        _verify_stage(scenario, snapshot, folder, deadline, secrets, cancel, result)
+        _verify_stage(scenario, snapshot, folder, deadline, secrets, cancel, result, node)
         enter("output")
         _output_stage(scenario, folder, deadline, secrets, result)
         result.status = "passed"
@@ -607,6 +642,8 @@ def execute(
         result.error = current.message
     finally:
         remove_staging(staging)
+        if own_workspace:
+            shutil.rmtree(work, ignore_errors=True)
         if video:
             finalize_video(folder, engine=result.engine)
         (folder / CANDIDATE).unlink(missing_ok=True)
@@ -652,7 +689,8 @@ def _input_stage(
     _timed(result.stage("input"), started)
     if problems:
         result.problems = [problem.message for problem in problems]
-        raise _StageFailedError("failed", t("run.input_failed", count=len(problems)))
+        key = "run.input_failed_script" if scenario.script is not None else "run.input_failed"
+        raise _StageFailedError("failed", t(key, count=len(problems)))
     result.stage("input").status = "passed"
 
 
@@ -715,6 +753,94 @@ def _login_stage(
     return login.state
 
 
+@dataclass(frozen=True, slots=True)
+class _PythonNode:
+    """運行環境模式的 Python 節點這次執行要用的：運行環境、共用工作資料夾、產出檔案、file 入參。"""
+
+    runtime: PreparedRuntime
+    workspace: Path
+    outputs: Path
+    input_files: Path | None
+
+    def command(self, script: Path, args: Sequence[str], *, launcher: bool) -> list[str]:
+        """運行環境的 Python 執行腳本：自動化經由 rpa_script 的啟動器，斷言直接執行。"""
+        # -E -s：不讀 PYTHON* 環境變數與使用者的 site-packages；-B：不在快照裡寫 __pycache__
+        base = [str(self.runtime.python), "-E", "-s", "-B", "-X", "utf8"]
+        return [*base, *(["-m", "rpa_script"] if launcher else []), str(script), *args]
+
+    def environment(
+        self, scenario: Scenario, secrets: Mapping[str, str], deadline: Deadline, folder: Path
+    ) -> dict[str, str]:
+        """子程序的環境：拿掉會影響 Python 的變數，加上 Python 節點的 RPA_* 與這次的 Secrets。"""
+        env = clean_environment({**os.environ, **secrets}, keep=list(secrets))
+        env.pop(ENV_STORAGE_STATE, None)
+        env.pop(ENV_LOGIN, None)
+        tmp = self.workspace / ".tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        env.update(
+            {
+                ENV_VAR: get_locale(),
+                "PYTHONUTF8": "1",
+                "PYTHONIOENCODING": "utf-8",
+                "RPA_DEADLINE_SECONDS": f"{max(0, deadline.remaining_ms()) / 1000:.3f}",
+                "RPA_WORKSPACE": str(self.workspace),
+                "RPA_OUTPUT_DIR": str(self.outputs),
+                "RPA_STEPS": str(folder / STEPS),
+                "RPA_RUNTIME": self.runtime.version,
+                "RPA_PLATFORM": self.runtime.platform,
+                "RPA_SECRET_NAMES": json.dumps(list(scenario.secrets)),
+                "TMPDIR": str(tmp),
+                "TEMP": str(tmp),
+                "TMP": str(tmp),
+            }
+        )
+        if self.input_files is not None:
+            env["RPA_INPUT_FILES"] = str(self.input_files)
+        return env
+
+
+def _runtime_stage(
+    scenario: Scenario,
+    result: RunResult,
+    deadline: Deadline,
+    workspace: Path,
+    folder: Path,
+    staging: Path,
+) -> tuple[_PythonNode, Deadline]:
+    """準備 RPA Python 運行環境（ADR 0020）。準備的時間不算進總期限：回傳順延後的期限。"""
+    started = time.monotonic()
+    stage = result.stage("runtime")
+    script = scenario.script
+    assert script is not None
+    assert script.runtime is not None
+    platforms = script.platforms
+    tag = platform_tag()
+    try:
+        if platforms is not None and platform_family(tag) not in platforms:
+            raise _StageFailedError(
+                "failed", t("run.runtime_platform", platform=tag, platforms=", ".join(platforms))
+            )
+        try:
+            runtime = prepare_runtime(script.runtime)
+        except RuntimeUnavailableError as error:
+            raise _StageFailedError(
+                "failed", t("run.runtime_failed", major=script.runtime, detail=str(error))
+            ) from error
+    finally:
+        _timed(stage, started)
+    result.python = {"mode": "runtime", **runtime.to_json()}
+    key = "run.runtime_reused" if runtime.reused else "run.runtime_prepared"
+    stage.message = t(key, version=runtime.version, ms=runtime.prepared_ms)
+    stage.status = "passed"
+    workspace.mkdir(parents=True, exist_ok=True)
+    outputs = folder / OUTPUTS_DIR
+    outputs.mkdir(exist_ok=True)
+    paths = staging / PATHS_FILE
+    node = _PythonNode(runtime, workspace, outputs, paths if paths.is_file() else None)
+    spent = time.monotonic() - started
+    return node, Deadline(deadline.expires_at + spent)
+
+
 def _automation_stage(
     scenario: Scenario,
     snapshot: Path,
@@ -730,24 +856,27 @@ def _automation_stage(
     *,
     video: bool = False,
     files: Path | None = None,
+    node: _PythonNode | None = None,
 ) -> None:
     started = time.monotonic()
     stage = result.stage("automation")
-    url = base_url or scenario.browser.base_url
-    if scenario.script is not None:
-        command = script_command(
-            str(snapshot.parent / scenario.script.automation),
-            [
-                "--input",
-                str(folder / INPUT),
-                "--facts",
-                str(folder / FACTS),
-                "--screenshot",
-                str(folder / SCREENSHOT),
-                "--target-url",
-                url or "",
-            ],
-        )
+    # 運行環境模式不開瀏覽器：沒有起始網址
+    url = None if node is not None else base_url or scenario.browser.base_url
+    arguments = [
+        "--input",
+        str(folder / INPUT),
+        "--facts",
+        str(folder / FACTS),
+        "--screenshot",
+        str(folder / SCREENSHOT),
+        "--target-url",
+        url or "",
+    ]
+    if node is not None and scenario.script is not None:
+        script = snapshot.parent / scenario.script.automation
+        command = node.command(script, arguments, launcher=True)
+    elif scenario.script is not None:
+        command = script_command(str(snapshot.parent / scenario.script.automation), arguments)
     else:
         command = module_command(
             "rpa_runner.child",
@@ -771,8 +900,14 @@ def _automation_stage(
     hint: str | None = None
     record = folder / VIDEO_TMP / VIDEO_STOP if video else None
     try:
-        env = _environment(secrets, deadline, engine or scenario.browser.engine, headed, state)
-        _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel, video=record)
+        if node is not None:
+            env = node.environment(scenario, secrets, deadline, folder)
+            _run_process(
+                command, folder / AUTOMATION_LOG, deadline, env, cancel, cwd=node.workspace
+            )
+        else:
+            env = _environment(secrets, deadline, engine or scenario.browser.engine, headed, state)
+            _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel, video=record)
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌
         if failure.status == "failed":
@@ -788,12 +923,28 @@ def _automation_stage(
         if hint is None and not stopped and isinstance(details, dict):
             error = cast("dict[str, object]", details).get("error", "")
             result.error = mask(str(error), secrets) or None
+        elif scenario.script is not None:
+            result.error = _failed_step(folder, secrets) or result.error
     if hint is not None:
         # 不附上子程序結束碼與英文提示框，只說怎麼修；原始錯誤仍在 automation.log
         raise _StageFailedError("failed", hint)
     if not (folder / FACTS).exists():
         raise _StageFailedError("failed", t("run.facts_missing"))
     stage.status = "passed"
+
+
+def _failed_step(folder: Path, secrets: Mapping[str, str]) -> str | None:
+    """Python 節點用 rpa_script 記了步驟時：失敗的那一步與錯誤（給報告的錯誤摘要）。"""
+    steps = read_json_or(folder / STEPS, [])
+    if not isinstance(steps, list):
+        return None
+    for item in reversed(cast("list[object]", steps)):
+        if isinstance(item, dict):
+            step = cast("dict[str, object]", item)
+            if step.get("status") == "failed" and step.get("error"):
+                label = step.get("name") or step.get("id")
+                return mask(f"{label}：{step['error']}", secrets)
+    return None
 
 
 def _verify_stage(
@@ -804,24 +955,31 @@ def _verify_stage(
     secrets: Mapping[str, str],
     cancel: threading.Event | None,
     result: RunResult,
+    node: _PythonNode | None = None,
 ) -> None:
     started = time.monotonic()
     stage = result.stage("verify")
-    if scenario.script is not None:
-        command = script_command(
-            str(snapshot.parent / scenario.script.assertion),
-            [
-                "--input",
-                str(folder / INPUT),
-                "--facts",
-                str(folder / FACTS),
-                "--output",
-                str(folder / CANDIDATE),
-            ],
-        )
+    if scenario.script is not None and scenario.script.assertion is not None:
+        arguments = [
+            "--input",
+            str(folder / INPUT),
+            "--facts",
+            str(folder / FACTS),
+            "--output",
+            str(folder / CANDIDATE),
+        ]
+        assertion = snapshot.parent / scenario.script.assertion
         try:
-            env = _environment(secrets, deadline)
-            _run_process(command, folder / ASSERTION_LOG, deadline, env, cancel)
+            if node is not None:
+                command = node.command(assertion, arguments, launcher=False)
+                env = node.environment(scenario, secrets, deadline, folder)
+                _run_process(
+                    command, folder / ASSERTION_LOG, deadline, env, cancel, cwd=node.workspace
+                )
+            else:
+                command = script_command(str(assertion), arguments)
+                env = _environment(secrets, deadline)
+                _run_process(command, folder / ASSERTION_LOG, deadline, env, cancel)
         finally:
             _timed(stage, started)
         stage.status = "passed"
@@ -854,7 +1012,7 @@ def _output_stage(
 ) -> None:
     started = time.monotonic()
     stage = result.stage("output")
-    if scenario.script is not None:
+    if scenario.script is not None and scenario.script.assertion is not None:
         candidate = folder / CANDIDATE
         if not candidate.exists():
             raise _StageFailedError("failed", t("run.candidate_missing"))

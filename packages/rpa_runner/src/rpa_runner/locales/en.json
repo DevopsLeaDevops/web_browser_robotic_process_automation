@@ -12,7 +12,7 @@
   "stage.verify": "Independent assertions",
   "stage.output": "Output validation and publishing",
   "kind.dsl": "DSL scenario",
-  "kind.script": "Python script scenario",
+  "kind.script": "Python node",
   "contract.input_unknown": "Unknown input {name}",
   "contract.input_missing": "Missing input {name}",
   "contract.input_invalid": "Input {name} does not satisfy {rule}",
@@ -61,6 +61,7 @@
   "report.none": "None.",
   "status.needs_login": "Login required",
   "stage.login": "Login check",
+  "stage.runtime": "Runtime",
   "run.login_missing": "This scenario logs in as role {role}, which is not registered yet; add it under \"Logins & secrets\" in the Portal",
   "run.login_state_missing": "The login state file of role \"{role}\" does not exist",
   "run.login_not_checked": "Login state loaded (not checked whether it is still valid)",
@@ -119,5 +120,10 @@
   "browser.drop_too_large": "The dropped files total {size}, more than the drop zone limit of {limit}; use target or trigger instead",
   "report.step_files": "Files: {files}",
   "report.shot": "After the step",
-  "report.step_shots": "steps/ (screenshot after each step, {count})"
+  "report.step_shots": "steps/ (screenshot after each step, {count})",
+  "run.input_failed_script": "{count} input problem(s); the script was not run",
+  "run.runtime_failed": "Could not prepare RPA Python runtime {major}: {detail}",
+  "run.runtime_platform": "This Python node runs only on {platforms}; this computer is {platform}",
+  "run.runtime_reused": "Reused the prepared runtime {version} ({ms} ms)",
+  "run.runtime_prepared": "Prepared runtime {version} for the first time in {ms} ms"
 }

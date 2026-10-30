@@ -556,6 +556,7 @@ def js_messages() -> dict[str, str]:
         "js.composite_validate_body",
         "js.composite_validate_action",
         "js.scripts_state",
+        "js.file_name_invalid",
         "js.scripts_unsaved",
         "js.script_steps",
         "js.script_verify",

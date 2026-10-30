@@ -72,9 +72,9 @@ NAMES = {
 }[APP]
 
 # 自己的套件全部收進來：子程序以 runpy 執行模組，靜態分析看不到這些匯入
-CODE_PACKAGES = ["rpa_core", "rpa_runner", "rpa_worker", "rpa_desktop", "testsite"]
+CODE_PACKAGES = ["rpa_core", "rpa_script", "rpa_runner", "rpa_worker", "rpa_desktop", "testsite"]
 """程式碼層：更新檔會換掉的部分。"""
-CODE_DISTRIBUTIONS = ["rpa-core", "rpa-runner", "rpa-worker", "rpa-desktop", "rpa-testsite"]
+CODE_DISTRIBUTIONS = ["rpa-core", "rpa-script", "rpa-runner", "rpa-worker", "rpa-desktop", "rpa-testsite"]
 PACKAGES = [*CODE_PACKAGES, "rpa_update"]
 # importlib.metadata.version() 要用到的套件資訊
 DISTRIBUTIONS = [*CODE_DISTRIBUTIONS, "rpa-update", "playwright"]
