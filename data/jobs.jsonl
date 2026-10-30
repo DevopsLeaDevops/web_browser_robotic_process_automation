@@ -3591,3 +3591,6 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 428.0, "job": "RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 40985373809, "workflow": "桌面端建置"}
 {"attempt": 1, "conclusion": "success", "duration_s": 311.0, "job": "RPA Worker（macOS）", "os": "macos", "queue_s": 7.0, "run_id": 40985373809, "workflow": "桌面端建置"}
 {"attempt": 1, "conclusion": "success", "duration_s": 293.0, "job": "RPA Worker（Windows）", "os": "windows", "queue_s": 1.0, "run_id": 40985373809, "workflow": "桌面端建置"}
+{"attempt": 1, "conclusion": "success", "duration_s": 10.0, "job": "執行範圍", "os": "linux", "queue_s": 3.0, "run_id": 40987682464, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 13.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 4.0, "run_id": 40987682464, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "failure", "duration_s": 12.0, "job": "分發包（x64）", "os": "linux", "queue_s": 2.0, "run_id": 40987682464, "workflow": "伺服器分發包"}
