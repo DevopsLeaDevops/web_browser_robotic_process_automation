@@ -44,7 +44,10 @@ __all__ = [
 InputType = Literal["string", "number", "integer", "boolean", "array", "object", "file"]
 """``file``（M7c）：要上傳的檔案，值的寫法見 :mod:`rpa_core.dsl.files`。
 ``array``、``object``（Python 節點）：JSON 的陣列與物件，上游的同型別出參可以直接接進來。"""
-OutputType = Literal["string", "number", "integer", "boolean", "array", "object"]
+OutputType = Literal["string", "number", "integer", "boolean", "array", "object", "file"]
+"""``file``（ADR 0020）：產出的檔案。``from`` 或 assertion.py 給出共用工作資料夾、或 Python 節點
+``outputs/`` 裡的一個檔案（路徑，或 download 步驟的事實）；出參階段把它複製進執行目錄的
+``outputs/``，值是 ``{"workspace", "name", "size", "sha256"}``，可以接到下游的 file 入參。"""
 
 _STRING_ONLY: Final = (
     ("min_length", "minLength"),

@@ -93,6 +93,7 @@ class _Step:
     error: str | None = None
     ended: float | None = None
     previews: list[str] = field(default_factory=list[str])
+    files: dict[str, list[str]] | None = None
 
     def to_json(self) -> dict[str, object]:
         def moment(value: float | None) -> str | None:
@@ -115,6 +116,7 @@ class _Step:
             "parent": self.parent,
             "source": self.source,
             "previews": self.previews,
+            **({"files": self.files} if self.files else {}),
         }
 
 
@@ -143,10 +145,10 @@ class Run:
         """產出檔案的資料夾：裡面的檔案跟著執行目錄上傳，報告可以下載。"""
         self.workspace = workspace
         """共用工作資料夾：同一次組合運行的節點都看得到，運行結束就清掉。"""
-        self.input_files: Mapping[str, list[str]] = {
-            name: list(paths) for name, paths in input_files.items()
+        self.input_files: Mapping[str, list[Path]] = {
+            name: [Path(path) for path in paths] for name, paths in input_files.items()
         }
-        """file 入參名稱 → 這台電腦上的實際路徑清單。"""
+        """file 入參名稱 → 這台電腦上的檔案清單（單檔的入參也是只有一個的清單）。"""
         self.secrets: Mapping[str, str] = dict(secrets)
         self.facts_path = facts_path
         self.steps_path = steps_path
@@ -269,6 +271,7 @@ class Run:
         self._steps.append(record)
         self._stack.append(record)
         self._write_steps()
+        before = self._scan()
         try:
             yield
         except BaseException as error:
@@ -281,8 +284,29 @@ class Run:
         finally:
             record.ended = self._clock()
             record.duration_ms = int((record.ended - record.started) * 1000)
+            record.files = _file_changes(before, self._scan()) or None
             self._stack.pop()
             self._write_steps()
+
+    def _scan(self) -> dict[str, tuple[int, int]]:
+        """共用工作資料夾與產出檔案資料夾裡的檔案（步驟前後比較，報告的「檔案變化」）。"""
+        found: dict[str, tuple[int, int]] = {}
+        for where, root in (("workspace", self.workspace), ("outputs", self.output_dir)):
+            count = 0
+            for current, dirs, files in os.walk(root):
+                dirs[:] = sorted(item for item in dirs if item not in _SKIPPED_DIRS)
+                for file_name in sorted(files):
+                    if count >= MAX_SCANNED_FILES:
+                        break
+                    path = Path(current) / file_name
+                    try:
+                        info = path.stat()
+                    except OSError:
+                        continue
+                    count += 1
+                    relative = path.relative_to(root).as_posix()
+                    found[f"{where}/{relative}"] = (info.st_size, info.st_mtime_ns)
+        return found
 
     def preview(self, name: str, value: object) -> None:
         """留一份資料預覽（前 50 列、30 欄，每格 200 字），報告與回看會顯示。"""
@@ -449,6 +473,25 @@ def _preview(value: object, mask: Callable[[str], str]) -> dict[str, object]:
         shown = json.dumps(value, ensure_ascii=False, indent=2, default=str)
         return {"kind": "json", "text": mask(shown[:20000])}
     return {"kind": "text", "text": mask(str(value)[:20000])}
+
+
+MAX_SCANNED_FILES: Final = 2000
+"""比較一步前後的檔案時，每個資料夾最多看幾個檔案。"""
+MAX_LISTED_CHANGES: Final = 50
+"""每一步的每種變化（新增、改變、刪除）最多列幾個檔案。"""
+_SKIPPED_DIRS: Final = frozenset({".tmp", "__pycache__", ".outputs"})
+
+
+def _file_changes(
+    before: Mapping[str, tuple[int, int]], after: Mapping[str, tuple[int, int]]
+) -> dict[str, list[str]]:
+    """一步前後新增、改變、刪除的檔案（``workspace/…``、``outputs/…``）；沒有變化的種類不列。"""
+    found = {
+        "added": sorted(after.keys() - before.keys()),
+        "changed": sorted(key for key in after.keys() & before.keys() if after[key] != before[key]),
+        "removed": sorted(before.keys() - after.keys()),
+    }
+    return {kind: items[:MAX_LISTED_CHANGES] for kind, items in found.items() if items}
 
 
 def _write_json(path: Path, data: object) -> None:

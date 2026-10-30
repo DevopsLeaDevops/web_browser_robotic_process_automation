@@ -30,6 +30,24 @@
       {{ p.player(video, data, run.id ~ ".webm") }}
       <p class="notice warn" id="replay-beyond" hidden></p>
       {% if video.complete is false %}<p class="notice warn">{{ t("replay.not_seekable") }}</p>{% elif video.repaired %}<p class="notice">{{ t("replay.repaired") }}</p>{% endif %}
+      {% elif data.python %}
+      {#- Python 節點（ADR 0020）：沒有錄影，步驟當章節；點一個章節看那一步的腳本、檔案變化與資料預覽 #}
+      <section class="panel replay-python" id="replay-python">
+        <div class="panel-header"><h2>{{ t("replay.python_title") }}</h2><span class="muted">{{ t("replay.python_hint") }}</span></div>
+        <div class="replay-chapters" role="list" aria-label="{{ t('replay.python_title') }}">
+          {% for chapter in data.python.chapters %}
+          <button type="button" role="listitem" class="replay-chapter {{ chapter.status }}" data-python-step="{{ chapter.index }}" style="flex-grow:{{ chapter.weight }}" title="{{ chapter.label }}{% if chapter.durationMs is not none %} · {{ '%.2f' | format(chapter.durationMs / 1000) }} s{% endif %}"><span>{{ chapter.label }}</span></button>
+          {% else %}
+          <p class="muted">{{ t("replay.python_no_steps") }}</p>
+          {% endfor %}
+        </div>
+        {% if data.python.facts %}
+        <div class="panel-body"><h3>{{ t("replay.python_facts") }}</h3><pre class="source">{{ data.python.facts | pretty_json }}</pre></div>
+        {% endif %}
+        {% if data.python.console %}
+        <div class="panel-body"><h3>{{ t("replay.python_console") }}</h3><pre class="source replay-console">{{ data.python.console }}</pre></div>
+        {% endif %}
+      </section>
       {% else %}
       <section class="panel"><div class="empty replay-empty">{{ no_video_reason }}</div></section>
       {% endif %}

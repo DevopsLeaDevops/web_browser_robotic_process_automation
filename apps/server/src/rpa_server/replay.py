@@ -8,6 +8,9 @@
   的那一刻在影片裡的毫秒；錄影刪了截圖還在，回看頁照樣顯示步驟的縮圖。
 - 斷言與階段：result.json。影片只涵蓋自動化階段，斷言與出參在瀏覽器關閉後才執行。
 - 前後：同一個場景的上一次、下一次、上一次沒通過的運行；組合場景的各個節點。
+- Python 節點（ADR 0020）沒有錄影：用 rpa_script 記下的步驟當章節（步驟時間軸）。每一步附上腳本
+  那幾行（標出那一步的行號）、第幾次、那一步的檔案變化與資料預覽；另外有主控台（automation.log
+  的最後幾行）與事實。
 """
 
 import contextlib
@@ -17,6 +20,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Final, cast
+from urllib.parse import quote
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,7 +28,16 @@ from sqlalchemy.orm import Session
 from rpa_core.dsl import validate_file
 from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.dsl.yaml_writer import flow
-from rpa_runner.files import FACTS, RESULT, SCENARIO_DIR, STEP_SHOTS, STEPS, read_json_or
+from rpa_runner.files import (
+    AUTOMATION_LOG,
+    FACTS,
+    PREVIEWS_DIR,
+    RESULT,
+    SCENARIO_DIR,
+    STEP_SHOTS,
+    STEPS,
+    read_json_or,
+)
 from rpa_runner.video import clips, read_info
 from rpa_server.models import Run
 from rpa_server.storage import Storage
@@ -138,6 +151,115 @@ def step_targets(folder: Path) -> list[str | None]:
     return [_describe(definition)[0] for definition in definitions]
 
 
+_PYTHON_SOURCE: Final = re.compile(
+    r"(?P<file>(?:[A-Za-z0-9_][A-Za-z0-9_.-]*/)*[A-Za-z0-9_][A-Za-z0-9_.-]*\.py):(?P<line>\d+)"
+)
+"""rpa_script 記的步驟位置（``automation.py:12``）。"""
+_CONTEXT_LINES: Final = 4
+"""Python 節點的步驟顯示那一行前後各幾行（後面多一倍）。"""
+_PREVIEW_ROWS: Final = 10
+"""回看裡每份資料預覽顯示幾列。"""
+_PREVIEW: Final = re.compile(rf"{PREVIEWS_DIR}/\d{{3,4}}\.json")
+_CONSOLE_LINES: Final = 200
+"""Python 節點的主控台顯示最後幾行。"""
+
+
+def _script_lines(folder: Path, name: str, cache: dict[str, list[str]]) -> list[str]:
+    """場景快照裡的腳本（每一行）；不在快照裡或讀不到時是空的。"""
+    if name not in cache:
+        root = (folder / SCENARIO_DIR).resolve()
+        path = (root / name).resolve()
+        lines: list[str] = []
+        if path.is_relative_to(root) and path.is_file():
+            with contextlib.suppress(OSError, UnicodeDecodeError):
+                lines = path.read_text(encoding="utf-8").splitlines()
+        cache[name] = lines
+    return cache[name]
+
+
+def _preview(folder: Path, relative: object) -> dict[str, object] | None:
+    if not isinstance(relative, str) or not _PREVIEW.fullmatch(relative):
+        return None
+    data = read_json_or(folder / relative, None)
+    if not isinstance(data, dict):
+        return None
+    preview = dict(cast("dict[str, object]", data))
+    rows = preview.get("rows")
+    if isinstance(rows, list):
+        preview["rows"] = cast("list[object]", rows)[:_PREVIEW_ROWS]
+    text = preview.get("text")
+    if isinstance(text, str):
+        preview["text"] = text[:4000]
+    return preview
+
+
+def _python_step(
+    folder: Path, record: Mapping[str, object], cache: dict[str, list[str]]
+) -> dict[str, object]:
+    """Python 節點的一步（rpa_script）：腳本那幾行、第幾次、檔案變化、資料預覽。"""
+    details: dict[str, object] = {"files": [], "previews": []}
+    source = record.get("source")
+    match = _PYTHON_SOURCE.fullmatch(source) if isinstance(source, str) else None
+    if isinstance(source, str):
+        details["target"] = source
+    if match is not None:
+        lines = _script_lines(folder, match["file"], cache)
+        focus = int(match["line"])
+        if 1 <= focus <= len(lines):
+            start = max(1, focus - _CONTEXT_LINES)
+            end = min(len(lines), focus + _CONTEXT_LINES * 2)
+            details.update(
+                line=start,
+                focusLine=focus,
+                source="\n".join(lines[start - 1 : end]),
+                editFile=match["file"],
+            )
+    occurrence = record.get("occurrence")
+    if isinstance(occurrence, int) and occurrence > 1:
+        details["occurrence"] = occurrence
+    changes = record.get("files")
+    if isinstance(changes, dict):
+        details["changes"] = {
+            kind: [str(item) for item in cast("list[object]", items)]
+            for kind, items in cast("dict[str, object]", changes).items()
+            if kind in ("added", "changed", "removed") and isinstance(items, list)
+        }
+    previews = record.get("previews")
+    if isinstance(previews, list):
+        found = [_preview(folder, item) for item in cast("list[object]", previews)]
+        details["previews"] = [item for item in found if item is not None]
+    return details
+
+
+def _chapters(steps: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
+    """步驟時間軸的章節：最外層的步驟，寬度依耗時（太短的至少佔總長的 1/40）。"""
+    top = [step for step in steps if step.get("parent") is None]
+    durations = [
+        value if isinstance(value := step.get("durationMs"), int) and value > 0 else 0
+        for step in top
+    ]
+    floor = max(sum(durations), 1) / 40
+    return [
+        {
+            "index": step.get("index"),
+            "label": step.get("name") or step.get("id"),
+            "status": step.get("status"),
+            "durationMs": step.get("durationMs"),
+            "weight": round(max(duration, floor), 1),
+        }
+        for step, duration in zip(top, durations, strict=True)
+    ]
+
+
+def _console(folder: Path) -> str | None:
+    """主控台（automation.log）的最後幾行。"""
+    try:
+        text = (folder / AUTOMATION_LOG).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return "\n".join(text.splitlines()[-_CONSOLE_LINES:])
+
+
 _SHOT: Final = re.compile(rf"{STEP_SHOTS}/\d{{3,4}}\.jpg")
 """steps.json 的 shot 只接受 Runner 產生的檔名（遠端 Worker 上傳的執行目錄不完全可信）。"""
 
@@ -163,7 +285,32 @@ def _steps(
     facts_raw = read_json_or(folder / FACTS, {})
     facts = cast("dict[str, object]", facts_raw) if isinstance(facts_raw, dict) else {}
     steps: list[dict[str, object]] = []
+    scripts: dict[str, list[str]] = {}
     for index, record in enumerate(records):
+        if record.get("action") == "python":
+            steps.append(
+                {
+                    "index": index + 1,
+                    "id": record.get("id"),
+                    "name": record.get("name"),
+                    "action": "python",
+                    "status": record.get("status"),
+                    "durationMs": record.get("durationMs"),
+                    "error": record.get("error"),
+                    "startedAt": record.get("startedAt"),
+                    "endedAt": record.get("endedAt"),
+                    "startMs": None,
+                    "endMs": None,
+                    "shot": None,
+                    "shotMs": None,
+                    "parent": record.get("parent"),
+                    "pageId": "page-1",
+                    "notes": [],
+                    "artifacts": [],
+                    **_python_step(folder, record, scripts),
+                }
+            )
+            continue
         definition = definitions[index] if index < len(definitions) else {}
         line, text = sources[index] if index < len(sources) else (None, None)
         where, detail = _describe(definition)
@@ -324,7 +471,22 @@ def build_replay(
             s.get("pageId") not in page_ids for s in steps if s.get("startedAt")
         )
     failed = next((step["index"] for step in steps if step["status"] == "failed"), None)
+    python = any(step.get("action") == "python" for step in steps)
+    if python:
+        base = f"/scenes/{run.scene_id}/edit?revision={run.revision_number}&file="
+        for step in steps:
+            name = step.pop("editFile", None)
+            if isinstance(name, str):
+                step["editUrl"] = base + quote(name)
+    facts_raw = read_json_or(folder / FACTS, None) if python else None
     return {
+        "python": {
+            "console": _console(folder),
+            "facts": facts_raw if isinstance(facts_raw, dict) else None,
+            "chapters": _chapters(steps),
+        }
+        if python
+        else None,
         "video": video,
         "steps": steps,
         "failedStep": failed,

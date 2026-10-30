@@ -16,6 +16,7 @@ from rpa_worker.environment import (
 from rpa_worker.protocol import (
     ArtifactError,
     JobPayload,
+    is_artifact_path,
     is_safe_path,
     pack_directory,
     unpack_directory,
@@ -142,6 +143,37 @@ def test_safe_paths(name: str, safe: bool) -> None:
     assert is_safe_path(name) is safe
 
 
+@pytest.mark.parametrize(
+    ("name", "ok"),
+    [
+        ("result.json", True),
+        ("outputs/分店彙總.csv", True),  # Python 節點與下載步驟的產出檔案（ADR 0020）
+        ("outputs/銷售 2026-10.xlsx", True),
+        ("../x", False),
+        ("outputs/../x", False),
+        ("/abs", False),
+        (".video/x.webm", False),
+        ("outputs/a:b.csv", False),
+        ("outputs/a\\b.csv", False),
+        ("a//b", False),
+        ("outputs/" + "長" * 70 + ".csv", False),  # 一段超過 200 個位元組
+    ],
+)
+def test_artifact_paths(name: str, ok: bool) -> None:
+    assert is_artifact_path(name) is ok
+
+
+def test_pack_skips_names_the_portal_would_reject(tmp_path: Path) -> None:
+    source = tmp_path / "run"
+    (source / "outputs").mkdir(parents=True)
+    (source / "result.json").write_text("{}", encoding="utf-8")
+    (source / "outputs" / "彙總.csv").write_text("a", encoding="utf-8")
+    (source / "outputs" / "a:b.csv").write_text("b", encoding="utf-8")
+    archive = tmp_path / "run.zip"
+    assert pack_directory(source, archive) == 2
+    assert unpack_directory(archive, tmp_path / "out") == ["outputs/彙總.csv", "result.json"]
+
+
 def test_pack_and_unpack_directory(tmp_path: Path) -> None:
     source = tmp_path / "run"
     (source / "scenario").mkdir(parents=True)
@@ -260,8 +292,10 @@ def test_worker_info_to_json() -> None:
         # 管理 Portal 交出用到 iframe、新分頁、動態值的場景之前比對擴充能力
         "features": [
             "anyFrame",
+            "download",
             "dynamicValues",
             "fileInputs",
+            "fileOutputs",
             "frame",
             "jsonInputs",
             "page",

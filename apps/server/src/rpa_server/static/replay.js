@@ -174,13 +174,33 @@
     add(messages.target, step.target, true);
     add(messages.detail, step.detail, true);
     if (step.files && step.files.length) add(messages.files, step.files.join(messages.list_separator));
+    if (step.occurrence) add(messages.occurrence, fill(messages.occurrence_value, {n: step.occurrence}));
+    if (step.changes) {
+      for (const kind of ['added', 'changed', 'removed']) {
+        const items = step.changes[kind] || [];
+        if (items.length) add(messages['change_' + kind], items.join(messages.list_separator), true);
+      }
+    }
     if (step.hasFact) add(messages.fact, JSON.stringify(step.fact), true);
     add(messages.url_after, step.url, true);
+    // Python 節點（ADR 0020）：腳本的那幾行，標出這一步的那一行
+    const label = step.action === 'python' ? messages.source_script : messages.source;
     const source = step.source
-      ? '<pre class="replay-source" aria-label="' + esc(fill(messages.source, {line: step.line})) + '">' +
+      ? '<pre class="replay-source" aria-label="' + esc(fill(label, {line: step.line, file: step.target || ''})) + '">' +
         step.source.split('\n').map((text, offset) =>
-          '<span><i>' + (step.line + offset) + '</i>' + esc(text) + '</span>').join('') + '</pre>'
+          '<span' + (step.focusLine === step.line + offset ? ' class="focus"' : '') + '><i>' + (step.line + offset) + '</i>' + esc(text) + '</span>').join('') + '</pre>'
       : '';
+    const previews = (step.previews || []).map(preview => {
+      const head = '<div class="replay-preview-name">' + esc(fill(messages.preview, {name: preview.name || ''})) +
+        (preview.rowCount != null ? ' <span class="muted">' + esc(fill(messages.preview_rows, {shown: (preview.rows || []).length, total: preview.rowCount})) + '</span>' : '') + '</div>';
+      if (preview.kind === 'table' && Array.isArray(preview.columns) && Array.isArray(preview.rows)) {
+        return '<div class="replay-preview">' + head + '<div class="table-scroll"><table class="wrap"><thead><tr>' +
+          preview.columns.map(column => '<th>' + esc(column) + '</th>').join('') + '</tr></thead><tbody>' +
+          preview.rows.map(row => '<tr>' + (Array.isArray(row) ? row : []).map(cell => '<td>' + esc(cell == null ? '' : cell) + '</td>').join('') + '</tr>').join('') +
+          '</tbody></table></div></div>';
+      }
+      return '<div class="replay-preview">' + head + '<pre class="source">' + esc(preview.text || '') + '</pre></div>';
+    }).join('');
     const actions = [];
     if (playable && step.start != null) {
       actions.push('<button class="button primary" type="button" data-act="play">' + esc(messages.play_from) + '</button>');
@@ -197,7 +217,7 @@
         '<img src="' + esc(step.shot) + '" alt="' + esc(messages.shot_alt) + '" loading="lazy"></a>'
       : '';
     box.innerHTML = (step.error ? '<div class="replay-error">' + esc(step.error) + '</div>' : '') + notes + shot +
-      '<dl class="replay-kv">' + rows.join('') + '</dl>' + source +
+      '<dl class="replay-kv">' + rows.join('') + '</dl>' + source + previews +
       (actions.length ? '<div class="actions">' + actions.join('') + '</div>' : '');
     return box;
   }
@@ -454,9 +474,21 @@
   }
 
   if (!playable) {
-    if (failedStep) shown = failedStep;
+    // Python 節點的步驟時間軸（ADR 0020）：點章節看那一步；失敗的運行打開就停在失敗的那一步
+    const chapters = document.querySelectorAll('[data-python-step]');
+    const markChapter = index => chapters.forEach(button => button.classList.toggle('selected', Number(button.dataset.pythonStep) === index));
+    chapters.forEach(button => button.addEventListener('click', () => {
+      choose(Number(button.dataset.pythonStep), {focus: false});
+      markChapter(Number(button.dataset.pythonStep));
+    }));
+    list.addEventListener('click', () => markChapter(selected));
+    const first = failedStep || (chapters.length ? steps[Number(chapters[0].dataset.pythonStep) - 1] : null);
+    if (first) shown = first;
     renderSteps();
-    if (failedStep) openDetail(failedStep, {focus: false});
+    if (first && (failedStep || chapters.length)) {
+      openDetail(first, {focus: false});
+      markChapter(first.index);
+    }
     return;
   }
 

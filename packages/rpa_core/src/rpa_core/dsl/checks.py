@@ -4,13 +4,13 @@
   不寫 verify 與 outputs 的 from；運行環境模式不寫 browser、login，assertion 與 verify 二擇一
   （沒有出參時可以都不寫），用 verify 時出參要有 from
 - 出參：DSL 場景的每個出參都要有 from，有出參就要有 verify（獨立斷言通過才發布）
-- 步驟 id、secrets 名稱、extract 的 as 不能重複
+- 步驟 id、secrets 名稱、extract 與 download 的 as 不能重複
 - goto 的網址以 / 開頭時，要有 browser.baseUrl
 - 新分頁（M7b）：page 要是「之前」某一步的 popup 開出來的分頁；popup 的名稱不能重複
 - 上傳（M7c）：upload 的 files 要引用 type: file 的入參；沒有 runtime 的 Python 節點不能有
-  file 入參
+  file 入參，也不能有 file 出參（ADR 0020）
 - ``{{ }}``：以 Jinja2 解析，語法要正確；只能用 inputs、secrets、facts、env；
-  inputs、secrets 要宣告，facts 要由「之前」的 extract 產生；
+  inputs、secrets 要宣告，facts 要由「之前」的 extract 或 download 產生；
   寫了入參值的動態值（today、now、random）時，說明要改寫在入參
 
 ``{{ }}`` 的求值在 M2 的執行引擎；這裡只做不需要執行就能發現的檢查。
@@ -26,7 +26,7 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from rpa_core.dsl.dynamic import NAMES as DYNAMIC_NAMES
 from rpa_core.dsl.dynamic import dynamic_expression
-from rpa_core.dsl.steps import upload_input_names
+from rpa_core.dsl.steps import fact_name, upload_input_names
 from rpa_core.dsl.yaml_loader import DataPath
 
 if TYPE_CHECKING:
@@ -136,16 +136,17 @@ def _duplicate_names(scenario: "Scenario") -> Iterator[CrossIssue]:
             )
         else:
             seen_steps[step.id] = index
-        if step.action == "extract":
-            if step.as_ in seen_facts:
-                first = seen_facts[step.as_] + 1
+        fact = fact_name(step)
+        if fact is not None:
+            if fact in seen_facts:
+                first = seen_facts[fact] + 1
                 yield CrossIssue(
                     ("steps", index, "as"),
                     "extract.duplicate_as",
-                    {"name": step.as_, "first": first},
+                    {"name": fact, "first": first},
                 )
             else:
-                seen_facts[step.as_] = index
+                seen_facts[fact] = index
 
 
 def _relative_urls(scenario: "Scenario") -> Iterator[CrossIssue]:
@@ -181,6 +182,9 @@ def _uploads(scenario: "Scenario") -> Iterator[CrossIssue]:
         for name, spec in scenario.inputs.items():
             if spec.type == "file":
                 yield CrossIssue(("inputs", name, "type"), "script.file_input", {"name": name})
+        for name, spec in scenario.outputs.items():
+            if spec.type == "file":
+                yield CrossIssue(("outputs", name, "type"), "script.file_output", {"name": name})
     for index, step in enumerate(scenario.steps or ()):
         if step.action != "upload":
             continue
@@ -215,7 +219,7 @@ def _templates(scenario: "Scenario") -> Iterator[CrossIssue]:
     all_facts: Set[str] | None = (
         None
         if scenario.script is not None
-        else {step.as_ for step in scenario.steps or () if step.action == "extract"}
+        else {name for step in scenario.steps or () if (name := fact_name(step)) is not None}
     )
 
     def scope(facts_before: Set[str] | None) -> _Scope:
@@ -233,8 +237,9 @@ def _templates(scenario: "Scenario") -> Iterator[CrossIssue]:
         for path, text in _strings(raw, ("steps", index)):
             if path[2:] != ("name",):
                 yield from _check_template(path, text, scope(frozenset(produced)))
-        if step.action == "extract":
-            produced.add(step.as_)
+        fact = fact_name(step)
+        if fact is not None:
+            produced.add(fact)
     for index, raw in enumerate(_list(data, "verify")):
         for path, text in _strings(raw, ("verify", index)):
             if path[2:] != ("name",):

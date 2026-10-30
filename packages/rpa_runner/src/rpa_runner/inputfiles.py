@@ -4,7 +4,8 @@
 
 1. 找到檔案：上傳檔由呼叫的人給（Worker 下載好、管理 Portal 本機執行時是伺服器的檔案區）；
    場景附件在場景資料夾的 ``files/``；``path`` 是那台電腦上的路徑，管理 Portal 交來的只能在
-   允許的資料夾裡（``folders``），命令列不限。
+   允許的資料夾裡（``folders``），命令列不限；``workspace`` 是上游節點產出、在組合運行的共用
+   工作資料夾裡的檔案（ADR 0020）。
 2. 檢查：存在、單檔大小（場景的 maxSize 與上限取小的）、類型（accept）、合計大小。
 3. 以網頁要看到的檔名放進暫存資料夾（硬連結，不行就複製），算 sha256。
 
@@ -76,6 +77,8 @@ class FileSources:
     """``path`` 值可以讀的資料夾；None 不限（命令列 rpa run，使用者自己的電腦）。"""
     max_file: int = MAX_FILE_BYTES
     max_total: int = MAX_RUN_BYTES
+    workspace: Path | None = None
+    """組合運行的共用工作資料夾（ADR 0020）：``workspace`` 值在這裡找；None 時不能用。"""
 
 
 @dataclass(slots=True)
@@ -107,6 +110,13 @@ def _locate(item: FileValue, sources: FileSources) -> tuple[Path | None, str | N
         case "attachment":
             path = sources.scenario_dir / item.ref
             return (path, None) if path.is_file() else (None, "attachment")
+        case "workspace":
+            if sources.workspace is None:
+                return None, "no_workspace"
+            path = sources.workspace / item.ref
+            if not inside_folders(path, [sources.workspace]):
+                return None, "not_found"
+            return (path, None) if path.is_file() else (None, "not_found")
         case _:
             path = Path(item.ref).expanduser()
             if not path.is_absolute():

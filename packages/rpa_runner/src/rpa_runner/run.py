@@ -81,6 +81,7 @@ from rpa_runner.inputfiles import (
 )
 from rpa_runner.installed import missing_browser_hint
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
+from rpa_runner.outputfiles import FILE_CHANGES, changes, publish_file_outputs, scan
 from rpa_runner.proctree import descendants, terminate, wait_exit
 from rpa_runner.pyruntime import (
     PreparedRuntime,
@@ -519,8 +520,9 @@ def execute(
     - 檔案入參（M7c）：``uploads`` 是上傳檔代號 → 這台電腦上的檔案；``path`` 值只能在
       ``input_folders`` 裡（沒給時用環境變數 RPA_INPUT_FOLDERS），``any_path`` 時不限（命令列）；
       ``max_file_bytes``、``max_run_bytes`` 是單檔與合計的上限。
-    - ``workspace``：組合運行的共用工作資料夾（ADR 0020）；沒給時 Python 節點用執行目錄旁邊的
-      暫存資料夾，結束就刪除。
+    - ``workspace``：組合運行的共用工作資料夾（ADR 0020）；沒給時用執行目錄旁邊的暫存資料夾
+      （Python 節點的工作目錄、download 步驟存檔），結束就刪除。``type: file`` 的出參複製進
+      執行目錄的 ``outputs/``；自動化前後的檔案變化寫在 ``files.json``。
     """
     validated = validate_file(path)
     if validated.scenario is None:
@@ -542,12 +544,15 @@ def execute(
         else (*(input_folders if input_folders is not None else env_folders()), *shared),
         max_file=max_file_bytes,
         max_total=max_run_bytes,
+        workspace=workspace,
     )
     snapshot, digest = _snapshot(path, scenario, folder)
     script = scenario.script
     uses_runtime = script is not None and script.uses_runtime
-    own_workspace = uses_runtime and workspace is None
+    own_workspace = workspace is None
     work = workspace if workspace is not None else out_root / f".work-{run_id}"
+    tracked = uses_runtime or _uses_files(scenario)
+    """要記檔案變化（files.json）：Python 節點、有 download 步驟或 file 出參的場景。"""
     result = RunResult(
         run_id=run_id,
         scenario_id=scenario.id,
@@ -585,6 +590,7 @@ def execute(
             on_stage(name)
 
     node: _PythonNode | None = None
+    before: tuple[dict[tuple[str, str], tuple[int, int]], bool] | None = None
     try:
         enter("input")
         _input_stage(scenario, inputs, result, folder, environ, sources, staging)
@@ -604,6 +610,8 @@ def execute(
             enter("runtime")
             node, deadline = _runtime_stage(scenario, result, deadline, work, folder, staging)
         enter("automation")
+        if tracked:
+            before = scan(work, folder / OUTPUTS_DIR)
         _automation_stage(
             scenario,
             snapshot,
@@ -619,11 +627,20 @@ def execute(
             video=video,
             files=staging / PATHS_FILE,
             node=node,
+            workspace=work,
         )
         enter("verify")
         _verify_stage(scenario, snapshot, folder, deadline, secrets, cancel, result, node)
         enter("output")
-        _output_stage(scenario, folder, deadline, secrets, result)
+        _output_stage(
+            scenario,
+            folder,
+            deadline,
+            secrets,
+            result,
+            work,
+            limits=(max_file_bytes, max_run_bytes),
+        )
         result.status = "passed"
     except _StageFailedError as failure:
         current.status = failure.status
@@ -643,6 +660,10 @@ def execute(
         result.error = current.message
     finally:
         remove_staging(staging)
+        if before is not None:
+            after, truncated = scan(work, folder / OUTPUTS_DIR)
+            diff = changes(before[0], after, truncated=before[1] or truncated)
+            write_json(folder / FILE_CHANGES, diff)
         if own_workspace:
             shutil.rmtree(work, ignore_errors=True)
         if video:
@@ -660,6 +681,13 @@ def execute(
         write_json(folder / RESULT, result.to_json())
         (folder / REPORT).write_text(render_report(result), encoding="utf-8")
     return result
+
+
+def _uses_files(scenario: Scenario) -> bool:
+    """場景會下載或產出檔案（ADR 0020）。"""
+    return any(spec.type == "file" for spec in scenario.outputs.values()) or any(
+        step.action == "download" for step in scenario.steps or ()
+    )
 
 
 def _timed(stage: Stage, started: float) -> None:
@@ -871,6 +899,7 @@ def _automation_stage(
     video: bool = False,
     files: Path | None = None,
     node: _PythonNode | None = None,
+    workspace: Path | None = None,
 ) -> None:
     started = time.monotonic()
     stage = result.stage("automation")
@@ -911,6 +940,7 @@ def _automation_stage(
         command += ["--storage-state", str(state)] if state is not None else []
         command += ["--video"] if video else []
         command += ["--files", str(files)] if files is not None and files.is_file() else []
+        command += ["--workspace", str(workspace)] if workspace is not None else []
     hint: str | None = None
     record = folder / VIDEO_TMP / VIDEO_STOP if video else None
     try:
@@ -1023,6 +1053,9 @@ def _output_stage(
     deadline: Deadline,
     secrets: Mapping[str, str],
     result: RunResult,
+    workspace: Path,
+    *,
+    limits: tuple[int, int] = (MAX_FILE_BYTES, MAX_RUN_BYTES),
 ) -> None:
     started = time.monotonic()
     stage = result.stage("output")
@@ -1040,6 +1073,16 @@ def _output_stage(
             "env": dict(os.environ),
         }
         outputs, problems = build_outputs(scenario, context)
+    if not problems and any(spec.type == "file" for spec in scenario.outputs.values()):
+        problems = publish_file_outputs(
+            scenario,
+            outputs,
+            folder,
+            workspace,
+            folder.name,
+            max_file=limits[0],
+            max_total=limits[1],
+        )
     _timed(stage, started)
     if problems:
         result.problems = [problem.message for problem in problems]

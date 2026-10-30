@@ -1,16 +1,21 @@
 {#- 入參、出參的編輯器（場景頁）：表格或 YAML 兩種檢視，存檔只改寫那一段，建立新版本。
     表格的列由 portal.js 依 contract-data 產生（YAML 切回表格時也用同一份程式）。 -#}
-{% macro rule_fields() -%}
+{% macro rule_fields(kind) -%}
 <label data-types="string">minLength<input name="minLength" type="number" min="0" step="1"></label>
 <label data-types="string">maxLength<input name="maxLength" type="number" min="0" step="1"></label>
 <label data-types="string" class="wide">pattern<input name="pattern" class="mono" placeholder="^[A-Z0-9-]+$"></label>
 <label data-types="number integer">minimum<input name="minimum" type="number" step="any"></label>
 <label data-types="number integer">maximum<input name="maximum" type="number" step="any"></label>
 <label data-types="string number integer" class="wide">enum<input name="enum" class="mono" placeholder="a, b, c"></label>
+{% if kind == "inputs" %}
 <label data-types="file" class="wide">accept<input name="accept" class="mono" placeholder=".xlsx, .csv, image/*"></label>
 <label data-types="file">maxSize<input name="maxSize" class="mono" placeholder="20MB"></label>
 <label data-types="file" class="check">multiple<input name="multiple" type="checkbox"></label>
 <span data-types="boolean array object" class="muted">{{ t("contract.no_rules") }}</span>
+{% else %}
+{#- 檔案出參（ADR 0020）沒有限制可以寫：檔案的位置與大小由出參階段檢查 #}
+<span data-types="boolean array object file" class="muted">{{ t("contract.no_rules") }}</span>
+{% endif %}
 {%- endmacro %}
 
 {% macro editor(kind, types, script) %}
@@ -63,7 +68,7 @@
         <button class="icon-btn danger" type="button" data-action="remove-row" title="{{ t('contract.remove') }}" aria-label="{{ t('contract.remove') }}">✕</button>
       </td>
     </tr>
-    <tr class="rule-row sub-row" hidden><td colspan="{{ 7 if kind == 'inputs' else (6 if not script else 5) }}"><div class="inline-fields">{{ rule_fields() }}</div></td></tr>
+    <tr class="rule-row sub-row" hidden><td colspan="{{ 7 if kind == 'inputs' else (6 if not script else 5) }}"><div class="inline-fields">{{ rule_fields(kind) }}</div></td></tr>
   </template>
 </section>
 {% endmacro %}
@@ -79,10 +84,11 @@
   <ul class="checklist form-issues" id="contract-issues" role="alert" hidden></ul>
   <div class="contract-editors">
     {#- file：檔案入參（M7c）。沒有 runtime 的 Python 節點不能用（校驗會說明），仍列出來，已有的檔案入參才不會被改掉。
-        出參由 assertion.py 產生的 Python 節點不寫 from；用 verify 的運行環境模式照 DSL 寫 from（ADR 0020） #}
+        出參由 assertion.py 產生的 Python 節點不寫 from；用 verify 的運行環境模式照 DSL 寫 from（ADR 0020）。
+        file 出參：download 步驟的事實或 Python 節點產出的檔案（ADR 0020） #}
     {% set from_script = scenario.script is not none and scenario.script.assertion is not none %}
     {{ editor("inputs", ("string", "number", "integer", "boolean", "array", "object", "file"), from_script) }}
-    {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object"), from_script) }}
+    {{ editor("outputs", ("string", "number", "integer", "boolean", "array", "object", "file"), from_script) }}
   </div>
   <div class="contract-previews">
     {% for preview in ("defaults", "sample", "mapping") %}

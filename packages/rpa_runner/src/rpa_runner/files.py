@@ -14,6 +14,7 @@ __all__ = [
     "AUTOMATION_LOG",
     "CANDIDATE",
     "DIAGNOSTIC",
+    "DOWNLOADS_DIR",
     "FACTS",
     "INPUT",
     "LOGIN",
@@ -68,6 +69,8 @@ VIDEO_TMP: Final = ".video"
 """錄影時 Playwright 寫入的暫存資料夾；執行結束時整理成 video.webm 後刪掉。"""
 OUTPUTS_DIR: Final = "outputs"
 """Python 節點的產出檔案（ADR 0020）：腳本寫進來的檔案跟著執行目錄上傳，報告可以下載。"""
+DOWNLOADS_DIR: Final = "downloads"
+"""共用工作資料夾裡 DSL 的 download 步驟存檔的資料夾（ADR 0020）。"""
 PREVIEWS_DIR: Final = "previews"
 """Python 節點的資料預覽（``rpa_script`` 的 ``run.preview()``，每份一個 JSON）。"""
 STEP_SHOTS: Final = "steps"

@@ -49,6 +49,7 @@ from rpa_core.dsl.files import (
 from rpa_core.dsl.sources import attachment_files, scenario_digest, scenario_sources
 from rpa_core.pack import COMPOSITES_DIR, REVISIONS_DIR, SCENES_DIR
 from rpa_server.i18n import t
+from rpa_worker.protocol import is_artifact_path
 
 __all__ = [
     "SCENARIO_FILE",
@@ -378,8 +379,11 @@ class Storage:
         return self.runs / run_id
 
     def run_file(self, run_id: str, relative: str) -> Path | None:
-        """執行目錄裡的檔案；路徑不合規則、跳出執行目錄或不存在時回傳 None。"""
-        if not _FILE_PATH.fullmatch(relative):
+        """執行目錄裡的檔案；路徑不合規則、跳出執行目錄或不存在時回傳 None。
+
+        路徑的規則和 Worker 上傳的執行目錄相同（檔名可以是中文，ADR 0020 的產出檔案）。
+        """
+        if not is_artifact_path(relative):
             return None
         folder = self.run_dir(run_id).resolve()
         path = (folder / relative).resolve()

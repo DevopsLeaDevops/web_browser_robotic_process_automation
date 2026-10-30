@@ -1,7 +1,7 @@
 """自動化子程序：開瀏覽器、執行 DSL 步驟、寫出頁面事實。由 run.py 以子程序啟動。
 
     python -m rpa_runner.child --scenario 快照.yaml --input input.json \
-        --out 執行目錄 --deadline 秒數 [--video] [--files paths.json]
+        --out 執行目錄 --deadline 秒數 [--video] [--files paths.json] [--workspace 資料夾]
 
 寫出 facts.json、steps.json、screenshot.png；失敗時另寫 diagnostic.json。標準輸出是給人讀的逐步紀錄
 （父程序存成 automation.log，格式見 steplog.py）。
@@ -10,7 +10,8 @@
 （2026-10-29，見 stepshots.py）。
 Firefox 從預熱設定檔的複本啟動，避免每次初始化全新設定檔而卡住（見 profiles.py）。
 場景有 login 時，``--storage-state`` 是角色的登入狀態檔（已在登入檢查階段確認過）。
-``--files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）。
+``--files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）；``--workspace`` 是共用工作資料夾，
+download 步驟存檔的地方（ADR 0020）。
 退出碼：0 成功、1 步驟失敗、3 總期限已到。父程序另外設有硬期限，逾時會終止整個程序群組。
 """
 
@@ -154,6 +155,7 @@ def run(args: argparse.Namespace) -> int:
                 tabs=tabs,
                 files=read_paths(Path(args.files) if args.files else None),
                 after_step=shots.take if shots is not None else None,
+                workspace=Path(args.workspace) if args.workspace else None,
             )
             write_json(out / FACTS, facts)
             # 最後一步所在的分頁（M7b：可能是新分頁）
@@ -197,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--storage-state", help="要載入的登入狀態檔（場景有 login 時）")
     parser.add_argument("--video", action="store_true", help="錄影（M12）")
     parser.add_argument("--files", help="檔案入參準備好的檔案（M7c，paths.json）")
+    parser.add_argument("--workspace", help="共用工作資料夾（download 步驟存檔，ADR 0020）")
     return run(parser.parse_args(argv))
 
 

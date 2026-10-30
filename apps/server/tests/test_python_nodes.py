@@ -3,9 +3,13 @@
 不需要瀏覽器；遠端 worker 用 Worker API 的 TestClient（同 test_remote_worker_api.py）。
 """
 
+import io
+import json
+import zipfile
 from collections.abc import Iterator
 from dataclasses import replace
 from typing import cast
+from urllib.parse import quote
 
 import pytest
 from fastapi import FastAPI
@@ -245,3 +249,129 @@ def test_finished_composite_tells_its_worker_to_clean_up(
     # 沒有任務了也立刻回覆要刪的共用工作資料夾，只回一次
     assert claim(remote, token) == {"cleanup": [started["id"]]}
     assert claim(remote, token) is None
+
+
+def zipped(files: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, data in files.items():
+            archive.writestr(name, data)
+    return buffer.getvalue()
+
+
+def test_run_page_shows_produced_files_changes_and_previews(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    """Python 節點的運行詳情（ADR 0020）：運行環境、產出檔案、檔案變化、資料預覽。"""
+    body(create_node(client), 201)
+    token = register(client, "py-box")
+    hello(remote, token, runtimes=["1.0.0"], platform="linux-x86_64")
+    validate(client)
+    job = claim(remote, token)
+    assert job is not None
+    run_id = str(job["runId"])
+    python = {
+        "mode": "runtime",
+        "runtime": "1.0.0",
+        "platform": "linux-x86_64",
+        "python": "3.13.14",
+        "reused": False,
+        "preparedMs": 1234,
+    }
+    steps = [
+        {
+            "id": "write",
+            "action": "python",
+            "name": "寫出",
+            "status": "passed",
+            "durationMs": 20,
+            "error": None,
+            "artifacts": [],
+            "startedAt": "2026-10-29T10:00:00.000Z",
+            "endedAt": "2026-10-29T10:00:00.020Z",
+            "occurrence": 1,
+            "parent": None,
+            "source": "automation.py:7",
+            "previews": ["previews/001.json"],
+            "files": {"added": ["outputs/彙總.csv"]},
+        }
+    ]
+    result = {
+        "runId": run_id,
+        "status": "passed",
+        "kind": "script",
+        "engine": "chromium",
+        "input": {"rows": [1, 2, 3]},
+        "stages": [{"name": "runtime", "status": "passed", "durationMs": 1234, "message": None}],
+        "problems": [],
+        "checks": [],
+        "steps": steps,
+        "python": python,
+    }
+    preview = {
+        "name": "資料",
+        "kind": "table",
+        "columns": ["分店", "金額"],
+        "rows": [["台北", 10], ["高雄", 20]],
+        "rowCount": 2,
+        "columnCount": 2,
+        "truncated": False,
+    }
+    changes = {
+        "added": [{"where": "workspace", "path": "notes/log.txt", "size": 2}],
+        "changed": [],
+        "removed": [],
+        "truncated": False,
+    }
+    archive = zipped(
+        {
+            "result.json": json.dumps(result).encode(),
+            "outputs/彙總.csv": "分店,金額\n".encode(),
+            "previews/001.json": json.dumps(preview, ensure_ascii=False).encode(),
+            "files.json": json.dumps(changes).encode(),
+            "steps.json": json.dumps(steps, ensure_ascii=False).encode(),
+            "scenario/automation.py": AUTOMATION.encode(),
+            "automation.log": b"token ***\n",
+        }
+    )
+    uploaded = remote.put(
+        f"{API}/runs/{run_id}/artifacts",
+        content=archive,
+        headers={**auth(token), "Content-Type": "application/zip"},
+    )
+    assert uploaded.status_code == 204, uploaded.text
+    digest = services(app).get_revision("py-sum", 2).content_hash
+    finished = remote.post(
+        f"{API}/runs/{run_id}/finish",
+        json={
+            "result": {
+                "runId": run_id,
+                "status": "passed",
+                "scenarioHash": digest,
+                "durationSeconds": 1.5,
+                "output": {"total": 6},
+                "error": None,
+            }
+        },
+        headers=auth(token),
+    )
+    assert finished.status_code == 204, finished.text
+
+    page = client.get(f"/runs/{run_id}").text
+    assert "RPA Python 運行環境 1.0.0（linux-x86_64）" in page
+    assert "第一次準備，1234 ms" in page
+    assert 'data-produced="outputs/彙總.csv"' in page
+    assert "資料預覽：資料" in page
+    assert "<td>高雄</td>" in page
+    assert "notes/log.txt" in page
+    download = client.get(f"/runs/{run_id}/files/outputs/{quote('彙總.csv')}?download=1")
+    assert download.status_code == 200
+    assert download.content == "分店,金額\n".encode()
+
+    # 步驟時間軸（回看）：章節、腳本那幾行（標出第 7 行）、資料預覽、主控台
+    assert 'data-action="timeline"' in page
+    timeline = client.get(f"/runs/{run_id}/replay").text
+    assert 'data-python-step="1"' in timeline
+    assert "步驟時間軸" in timeline
+    assert '"focusLine": 7' in timeline
+    assert "token ***" in timeline

@@ -32,6 +32,7 @@ __all__ = [
     "ArtifactError",
     "InputFile",
     "JobPayload",
+    "is_artifact_path",
     "is_safe_path",
     "pack_directory",
     "unpack_directory",
@@ -49,6 +50,7 @@ MAX_ARTIFACT_BYTES: Final = 512 * 1024 * 1024
 MAX_ARTIFACT_FILES: Final = 2000
 
 _SAFE_PART: Final = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,199}$")
+_ARTIFACT_UNSAFE: Final = re.compile(r'[\x00-\x1f\x7f<>:"|?*\\]')
 
 
 def is_safe_path(name: str) -> bool:
@@ -56,6 +58,21 @@ def is_safe_path(name: str) -> bool:
     if not name or len(name) > 400 or "\\" in name or name.startswith("/"):
         return False
     return all(_SAFE_PART.match(part) for part in PurePosixPath(name).parts)
+
+
+def is_artifact_path(name: str) -> bool:
+    """執行目錄裡可以上傳、下載的檔案路徑：比 :func:`is_safe_path` 寬，檔名可以是中文
+    （Python 節點與下載步驟產出的檔案，ADR 0020）。
+
+    相對路徑、用 / 分隔；每一段不能是空的、不能以 . 開頭（含 . 與 ..），不能有控制字元與
+    Windows 不允許的 ``<>:"|?*`` 與反斜線，每一段最多 200 個位元組（UTF-8）。
+    """
+    if not name or len(name) > 600 or name.startswith("/") or _ARTIFACT_UNSAFE.search(name):
+        return False
+    parts = name.split("/")
+    return all(
+        part and not part.startswith(".") and len(part.encode("utf-8")) <= 200 for part in parts
+    )
 
 
 def _b64(data: bytes) -> str:
@@ -220,12 +237,19 @@ class ArtifactError(ValueError):
 
 
 def pack_directory(folder: Path, target: Path) -> int:
-    """把執行目錄打包成 zip，回傳檔案數。只放一般檔案，路徑用 / 分隔。"""
+    """把執行目錄打包成 zip，回傳檔案數。只放一般檔案，路徑用 / 分隔。
+
+    路徑不符合 :func:`is_artifact_path` 的檔案（例如腳本寫到 outputs/ 的檔名有 ``:``）不放：
+    管理 Portal 會拒絕整個 zip，這次執行的報告就送不到。
+    """
     count = 0
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(folder.rglob("*")):
             if path.is_file() and not path.is_symlink():
-                archive.write(path, path.relative_to(folder).as_posix())
+                relative = path.relative_to(folder).as_posix()
+                if not is_artifact_path(relative):
+                    continue
+                archive.write(path, relative)
                 count += 1
     return count
 
@@ -247,7 +271,7 @@ def unpack_directory(source: Path, folder: Path) -> list[str]:
             raise ArtifactError("artifacts too large")
         names = [item.filename for item in members]
         for name in names:
-            if not is_safe_path(name):
+            if not is_artifact_path(name):
                 raise ArtifactError(f"unsafe path: {name!r}")
         if len(set(names)) != len(names):
             raise ArtifactError("duplicate file names")

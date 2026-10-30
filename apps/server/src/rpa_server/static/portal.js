@@ -1847,6 +1847,8 @@
     };
     const number = name => (get(rules, name).trim() === '' ? null : Number(get(rules, name)));
     const type = get(row, 'type');
+    // 出參沒有 multiple（檔案出參是一個檔案，ADR 0020）
+    const multiple = qs('[name="multiple"]', rules);
     const item = {
       name: get(row, 'name').trim(),
       previous: row.dataset.previous || null,
@@ -1861,7 +1863,7 @@
       // 檔案入參（M7c）：accept 是清單，multiple 沒勾就不寫
       accept: get(rules, 'accept').split(/[,，\s]+/).map(item => item.trim()).filter(Boolean),
       maxSize: get(rules, 'maxSize').trim() || null,
-      multiple: type === 'file' && qs('[name="multiple"]', rules).checked ? true : null,
+      multiple: type === 'file' && multiple && multiple.checked ? true : null,
     };
     if (!item.accept.length) item.accept = null;
     const required = qs('[name="required"]', row);

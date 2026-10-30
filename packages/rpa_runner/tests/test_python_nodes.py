@@ -385,3 +385,115 @@ def test_real_runtime_is_isolated(tmp_path: Path) -> None:
     result = execute(path, {}, out_root=tmp_path / "runs")
     assert result.status == "passed", (result.error, result.problems)
     assert read(result, FACTS) == {"pip": False, "rpa_core": False, "flags": [1, 1]}
+
+
+# ---------------------------------------------------------------- 產出的檔案（file 出參與檔案變化）
+
+SUMMARY = """\
+from rpa_script import automation
+
+
+@automation
+def main(run):
+    with run.step("write", "寫出彙總"):
+        target = run.output_dir / "彙總.csv"
+        target.write_text("分店,金額\\n台北,10\\n", encoding="utf-8")
+        (run.workspace / "notes").mkdir(exist_ok=True)
+        (run.workspace / "notes" / "log.txt").write_text("ok", encoding="utf-8")
+    run.facts["summary"] = str(target)
+"""
+SUMMARY_EXTRA = (
+    "outputs:\n  summary: { type: file, from: '{{ facts.summary }}' }\n"
+    "verify:\n  - { value: '{{ facts.summary }}', matches: 'csv$' }\n"
+)
+
+
+def test_file_output_is_published_with_its_description(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    path = node(tmp_path / "scene", SUMMARY, extra=SUMMARY_EXTRA)
+    result = execute(path, {}, out_root=tmp_path / "runs", workspace=workspace)
+
+    assert result.status == "passed", (result.error, result.problems)
+    assert result.output is not None
+    value = cast("dict[str, object]", result.output["summary"])
+    content = "分店,金額\n台北,10\n".encode()
+    assert value["name"] == "彙總.csv"
+    assert value["size"] == len(content)
+    assert value["workspace"] == f".outputs/{result.run_id}/彙總.csv"
+    assert (result.directory / "outputs" / "彙總.csv").read_bytes() == content
+    assert (workspace / str(value["workspace"])).read_bytes() == content  # 下游節點拿得到
+    changes = cast("dict[str, object]", read(result, "files.json"))
+    added = cast("list[dict[str, object]]", changes["added"])
+    assert {(item["where"], item["path"]) for item in added} == {
+        ("outputs", "彙總.csv"),
+        ("workspace", "notes/log.txt"),
+    }
+    assert changes["truncated"] is False
+    # 每一步前後的變化（rpa_script）
+    step = steps_of(result)[0]
+    assert step["files"] == {"added": ["outputs/彙總.csv", "workspace/notes/log.txt"]}
+    report = (result.directory / "report.html").read_text(encoding="utf-8")
+    assert "產出檔案" in report
+    assert 'href="outputs/%E5%BD%99%E7%B8%BD.csv"' in report
+    assert "檔案變化" in report
+    assert "notes/log.txt" in report
+    assert "檔案：新增 2、改變 0、刪除 0" in report
+
+
+def test_file_outputs_pass_through_the_shared_workspace(tmp_path: Path) -> None:
+    """上游的 file 出參直接當下游的 file 入參（同一次組合運行、同一個共用工作資料夾）。"""
+    workspace = tmp_path / "workspace"
+    first = node(
+        tmp_path / "first",
+        "from rpa_script import automation\n@automation\ndef main(run):\n"
+        "    (run.workspace / 'data').mkdir()\n"
+        "    (run.workspace / 'data' / '明細.txt').write_text('甲乙丙', encoding='utf-8')\n"
+        "    run.facts['data'] = 'data/明細.txt'\n",
+        extra="outputs:\n  data: { type: file, from: '{{ facts.data }}' }\n"
+        "verify:\n  - { value: '{{ facts.data }}', notEmpty: true }\n",
+        name="first",
+    )
+    second = node(
+        tmp_path / "second",
+        "from rpa_script import automation\n@automation\ndef main(run):\n"
+        "    [path] = run.input_files['data']\n"
+        "    run.facts['text'] = path.read_text(encoding='utf-8')\n"
+        "    run.facts['name'] = run.inputs['data']['name']\n",
+        extra="inputs:\n  data: { type: file }\n",
+        name="second",
+    )
+    one = execute(first, {}, out_root=tmp_path / "runs", workspace=workspace)
+    assert one.status == "passed", (one.error, one.problems)
+    assert one.output is not None
+    value = one.output["data"]
+    assert cast("dict[str, object]", value)["workspace"] == "data/明細.txt"
+    two = execute(second, {"data": value}, out_root=tmp_path / "runs", workspace=workspace)
+    assert two.status == "passed", (two.error, two.problems)
+    assert read(two, FACTS) == {"text": "甲乙丙", "name": "明細.txt"}
+    # 單獨執行沒有共用工作資料夾：說明這個檔案只有組合運行裡才拿得到
+    alone = execute(second, {"data": value}, out_root=tmp_path / "runs")
+    assert alone.status == "failed"
+    assert "只有在組合運行裡才拿得到" in " ".join(alone.problems or [])
+
+
+@pytest.mark.parametrize(
+    ("fact", "message"),
+    [
+        ("'/'", "要在共用工作資料夾或這次執行的 outputs/ 裡"),
+        ("'missing.csv'", "不存在"),
+        ("['a.csv', 'b.csv']", "只能是一個檔案"),
+    ],
+)
+def test_bad_file_outputs_publish_nothing(tmp_path: Path, fact: str, message: str) -> None:
+    path = node(
+        tmp_path / "scene",
+        f"from rpa_script import automation\n@automation\ndef main(run):\n"
+        f"    run.facts['f'] = {fact}\n",
+        extra="outputs:\n  f: { type: file, from: '{{ facts.f }}' }\n"
+        "verify:\n  - { value: '{{ facts.f }}', notEmpty: true }\n",
+    )
+    result = execute(path, {}, out_root=tmp_path / "runs")
+    assert result.status == "failed"
+    assert result.stage("output").status == "failed"
+    assert message in " ".join(result.problems or [])
+    assert not (result.directory / OUTPUT).exists()

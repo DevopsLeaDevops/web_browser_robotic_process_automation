@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-29 18:44 America/Los_Angeles（PDT，UTC−07:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-10-29 23:40 America/Los_Angeles（PDT，UTC−07:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>2026-10-24 的兩次需求見<a href="#revision">修訂說明</a>。第三版來自使用者在 Claude 專案對話的兩則訊息：2026-10-29 06:19 America/Los_Angeles（PDT，UTC−07:00）提出命題「本機自動化 Python 腳本場景能不能和現有的場景模型相容，已實作的 Python 腳本場景最好也能適配；非瀏覽器的普通自動化節點也能運行在組合場景裡，讓瀏覽器場景和 Python 結合，補足檔案操作、資料處理、模型構建、網路操作」；06:39 回覆四項決定與分期（原文見<a href="#decisions">第 13 節</a>）。驗收條件見<a href="#goal">第 1 節</a>。</dd>
         <dt>範圍／不包含</dt><dd>這次實作 P0～P2（<a href="#phases">第 11 節</a>）：場景模型、入參與出參型別、組合場景的共用工作資料夾、派工、RPA Python 運行環境、<code>rpa_script</code>、file 出參、DSL 的下載步驟、報告與回看。規劃保留但這次不做（P3）：模型套件的選用運行環境層、腳本工作台、組合場景的扇出（foreach）、Python 節點使用登入角色（待決定 D5）。不包含：Python 節點開瀏覽器、錄製桌面操作、AI 生成腳本（M5）、使用者權限（M8）、Python 以外的語言。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude。審閱與合併：使用者。Codex 先前接手的 PR #82（只有第二版設計）不再延續；第三版與實作在新分支，見下。</dd>
         <dt>修改檔案／整合者</dt><dd>本任務分支整合以下檔案：<code>packages/rpa_core</code>（DSL、組合場景）、新的 <code>packages/rpa_script</code>、<code>packages/rpa_runner</code>、<code>apps/worker</code>、<code>apps/server</code>、<code>apps/cli</code>、<code>apps/desktop</code>、<code>runtimes/python/</code>、<code>tools/</code>、<code>.github/workflows</code>、<code>docs/</code>、<code>scenarios/</code>、<code>schema/</code>、<code>handoff/</code>。共用檔案（<code>uv.lock</code>、多語言目錄、<code>docs/assets/nav.js</code>、任務索引、ADR 與遷移編號）由本分支整合；<code>uv.lock</code> 與簡中由 bootstrap 產生。</dd>
-        <dt>狀態</dt><dd>第三版設計已依使用者決定定稿。P0 與 P1（運行環境的建置、CI、放進 Worker App 與 Linux 分發包、範例 Python 節點）已提交，P1 的建置以 CI 為準；P2 實作中。</dd>
+        <dt>狀態</dt><dd>第三版設計已依使用者決定定稿。P0、P1 已提交；P2 的主要程式已提交（file 出參、download 步驟、檔案變化、報告與運行詳情、步驟時間軸、瀏覽器＋Python 範例）。剩下的工作與已知的 CI 失敗列在<a href="#progress">第 15 節</a>，任何人都可以接手。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>feat/python-nodes</code>，從 <code>e5b585e</code>（origin/main，v0.8.0，#107）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/109">PR #109</a>（草稿，base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>推送到 <code>feat/python-nodes</code>；<code>uv.lock</code>、簡中、JSON Schema 由 bootstrap 產生（提交訊息含 [bootstrap]）。PR 與 CI 結果建立後回填。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。這個環境連不到 PyPI 與瀏覽器下載站（代理回 403），所以不能 <code>uv sync</code>：<code>uv.lock</code>、簡中、JSON Schema 交給 bootstrap 產生，完整測試以 CI 為準；本機只跑得了用系統已有套件（Pydantic、PyYAML、Jinja2、click、Playwright 1.63，沒有瀏覽器）的測試。</dd>
@@ -373,10 +373,28 @@ def main(run: Run) -&gt; None:
     <section class="panel" id="progress">
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>已完成：</strong>第一、二版設計（只有設計）；10-29 查證統一的可行性；依使用者決定寫成第三版；P0；P1（<code>runtimes/python/</code>、<code>tools/build_python_runtime.py</code>、bootstrap 產生鎖定檔、<code>python-runtime.yml</code> 四個平台建置與測試、Worker App 與 Linux 分發包附帶運行環境、桌面自我測試與 Rocky 8 執行範例 Python 節點）。</li>
-        <li><strong>未完成／阻礙：</strong>P2（file 出參、DSL 下載步驟、報告的產出檔案／預覽／檔案變化、步驟時間軸回看、瀏覽器＋Python 的組合範例）。這個環境連不到 PyPI 與 python-build-standalone，不能 <code>uv sync</code>，也不能在本機建運行環境：<code>uv.lock</code>、簡中、JSON Schema 與運行環境的鎖定檔靠 bootstrap 產生，運行環境的建置與完整測試靠 CI。</li>
-        <li><strong>決定：</strong>見第 13 節；寫進<a href="../decisions.html">決定</a>。D5 待決定。實作時確定（使用者授權「按建議」的細節）：<code>rpa_script</code> 不裝在運行環境裡，由 Runner 提供（6.2）。</li>
-        <li><strong>下一個具體動作：</strong>核對 bootstrap、<code>python-runtime.yml</code>、桌面端建置與伺服器分發包的 CI；P2。</li>
+        <li><strong>已完成：</strong>第一、二版設計（只有設計）；10-29 查證統一的可行性；依使用者決定寫成第三版；P0；P1（<code>runtimes/python/</code>、<code>tools/build_python_runtime.py</code>、bootstrap 產生鎖定檔、<code>python-runtime.yml</code> 四個平台建置與測試、Worker App 與 Linux 分發包附帶運行環境、桌面自我測試與 Rocky 8 執行範例 Python 節點）；P2 的主要程式（下面「P2 已做」）。<code>79e0644</code> 的 CI：運行環境在 Linux x64、Linux arm64、macOS 建置與測試通過，RPA Worker（macOS）完整建置（含運行環境與自我測試的範例 Python 節點）通過，CI 的 Linux 測試（3.12、3.13）與靜態檢查通過。</li>
+        <li><strong>P2 已做：</strong>
+          <ul>
+            <li>DSL：出參 <code>type: file</code>；<code>download</code> 步驟（<code>target</code>、<code>as</code>、選用的 <code>fileName</code>），事實 <code>{"workspace","name","size","sha256"}</code>；檔案值多一種 <code>{"workspace": 相對路徑}</code>（上游節點產出的檔案）；擴充 <code>fileOutputs</code>、<code>download</code>；相容模式不能有 file 出參；錄製稿的 <code>expect_download</code> 轉成 download 步驟加 file 出參與 verify。</li>
+            <li>Runner：<code>outputfiles.py</code>（file 出參複製進 <code>outputs/</code>，Python 節點 outputs/ 的檔案另放一份到共用工作資料夾的 <code>.outputs/&lt;執行編號&gt;/</code>，值換成檔案說明；上限沿用 M7c）；<code>files.json</code>（自動化前後的檔案變化）；檔案入參的 <code>workspace</code> 來源；download 步驟（子程序 <code>--workspace</code>，單獨執行也有暫存的工作資料夾）；報告多了產出檔案、檔案變化、資料預覽、步驟的原始碼行號與檔案變化。<code>rpa_script</code>：每一步記檔案變化；<code>run.input_files</code> 改成 Path。</li>
+            <li>Worker／伺服器：執行目錄的檔名可以是中文（<code>is_artifact_path</code>，打包時跳過會被拒絕的檔名）；運行詳情多了運行環境、產出檔案（可下載）、檔案變化、資料預覽；回看頁的 Python 節點是步驟時間軸（章節、腳本那幾行標出行號、第幾次、檔案變化、資料預覽、事實、主控台）；場景頁的出參可以選 file；心跳只在有要清的資料夾時附上 cleanup。</li>
+            <li>測試網站 <code>/download</code> 與 <code>GET /api/export.csv</code>；範例 <code>scenarios/examples/browser-python/</code>（下載 → Python 彙總 → 上傳，<code>workflow.json</code>）與瀏覽器測試 <code>packages/rpa_runner/tests/test_download_browser.py</code>（本機 Chromium 通過）。</li>
+          </ul>
+        </li>
+        <li><strong>未完成（接手的人照這個順序）：</strong>
+          <ol>
+            <li><strong>Windows 的運行環境建置失敗</strong>（<code>python-runtime.yml</code> 的 windows-x86_64 與 RPA Worker（Windows）的「建置」都在建運行環境時失敗）。完整日誌在這個環境讀不到；已讓 <code>tools/build_python_runtime.py</code> 失敗時寫出 annotation（命令與輸出的最後 25 行），下一次 CI 就看得到原因。可疑處：<code>stage_python</code> 在 Windows 的 <code>sys.base_prefix</code>、<code>slim()</code> 刪 <code>tcl</code>／<code>DLLs</code>、<code>smoke.py</code> 在 Windows 的編碼。</li>
+            <li><strong>伺服器分發包的 Rocky 8 步驟失敗</strong>（建置本身通過）。已在那段腳本加上 <code>trap … ERR</code> 寫出失敗的行與命令；最可能是新加的「執行範例 Python 節點」（<code>rpa run py-node/scenario.yaml</code>）。</li>
+            <li>bootstrap 會重新產生 <code>schema/scenario.v1.json</code>（download 步驟、file 出參）與簡中；這次提交帶 <code>[bootstrap]</code>。之後推一個自己的提交觸發 CI，核對伺服器測試（<code>apps/server/tests/test_python_nodes.py</code> 的運行詳情與步驟時間軸、<code>test_remote_worker_api</code>）——這個環境沒有 FastAPI／SQLAlchemy，伺服器的頁面與模板只在 CI 驗證過語法。</li>
+            <li>文件（繁中與英文，改完執行 <code>tools/i18n.py stamp</code>）：<code>docs/design/dsl.html#python</code> 補 download 步驟、file 出參、<code>{"workspace": …}</code> 檔案值、瀏覽器＋Python 範例；<code>docs/design/portal.html</code> 補運行詳情的產出檔案／檔案變化／資料預覽與步驟時間軸；ADR 0020 的結果補「執行目錄的檔名可以是中文」。</li>
+            <li>組合運行的合併回看：Python 節點的步驟已帶腳本、預覽等資料，清單與詳情可以看；合併回看的主畫面對 Python 節點仍是「沒有影片」的卡片，沒有做步驟時間軸的主畫面（設計第 9 節）。</li>
+            <li>「到那一刻為止的主控台」：rpa_script 的輸出沒有時間戳記，現在只顯示整份主控台的最後 200 行；要逐步對應需要 <code>run.log()</code> 記下所在步驟。</li>
+            <li>PR #109 轉為可審閱之前：整個 CI 綠燈、更新 PR 說明與第 16 節的驗證表；合併由使用者決定。P3（模型套件層、腳本工作台、foreach、D5）只規劃不做。</li>
+          </ol>
+        </li>
+        <li><strong>決定：</strong>見第 13 節；寫進<a href="../decisions.html">決定</a>。D5 待決定。實作時確定（使用者授權「按建議」的細節）：<code>rpa_script</code> 不裝在運行環境裡，由 Runner 提供（6.2）；file 出參的值用 <code>{"workspace", …}</code>（不用 <code>path</code>，避免和「那台電腦上的路徑」混淆），Python 節點 outputs/ 的檔案複製到共用工作資料夾的 <code>.outputs/</code> 給下游。</li>
+        <li><strong>下一個具體動作：</strong>看這次推送的 CI annotation，修 Windows 運行環境與 Rocky 8；再做上面第 4 項文件。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -411,6 +429,7 @@ def main(run: Run) -&gt; None:
         <li>2026-10-29 06:52 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 06:19 的命題查證（第 2 節）並提出統一方案，06:39 使用者決定 D1～D4 與分期；改寫成第三版，第二版的內容留在 <code>e5b585e</code>。從 main <code>e5b585e</code> 開 <code>feat/python-nodes</code> 開始實作 P0。</li>
         <li>2026-10-29 18:19 America/Los_Angeles（PDT，UTC−07:00），Claude：P0 與 P1 執行端：DSL 的 <code>script.runtime</code>、<code>files</code>、<code>platforms</code>、運行環境模式的 <code>verify</code> 與 file 入參、array／object 入參與擴充 <code>pythonNodes</code>、<code>jsonInputs</code>；<code>rpa_runner.pyruntime</code>（找到、解壓、沿用、鎖檔、自我檢查）、runtime 階段與 <code>result.json</code> 的 <code>python</code>；新套件 <code>rpa_script</code>；組合運行的共用工作資料夾（本機與遠端，結束時清除）；派工依運行環境與平台、等待說明、裝置頁；場景頁、完整場景檔（新增、移除檔案）、執行表單、組合場景畫布的 array／object 值；ADR 0020、場景 DSL 文件（繁中、英文）。本機驗證見下方；伺服器的測試要 FastAPI 與 SQLAlchemy，這個環境裝不了，以 CI 為準。</li>
         <li>2026-10-29 18:44 America/Los_Angeles（PDT，UTC−07:00），Claude：P1：<code>runtimes/python/</code>（runtime.toml 固定 CPython 3.13.14 與四個平台、requirements.in、smoke.py）、<code>tools/build_python_runtime.py</code>（lock、build、--install）、bootstrap 產生 requirements.lock、<code>python-runtime.yml</code>（四個平台建置、自我測試、用真的運行環境跑 Python 節點的測試、Linux 在 Rocky 8 解壓與自我測試）；Worker App（spec 收進壓縮檔與 <code>rpa_script</code> 原始碼，自我測試執行範例 Python 節點）與 Linux 分發包（<code>python/runtimes/</code>，檔名算進環境代號，Rocky 8 執行範例）附帶運行環境；外殼鍵與指紋加上運行環境的輸入；範例 <code>scenarios/examples/python-node</code>。實作時改成 <code>rpa_script</code> 由 Runner 提供、不裝在運行環境裡（6.2 的原因）。另修 f620e3a 的兩個 CI 失敗。</li>
+        <li>2026-10-29 23:40 America/Los_Angeles（PDT，UTC−07:00），Claude：P2 主要程式（見第 15 節「P2 已做」）與交接清單；使用者提醒每週用量快到上限，先把剩下的工作與已知的 CI 失敗寫進第 15 節，方便接手。本機驗證：Ruff、Pyright（改到的套件）通過；<code>pytest -m "not browser"</code>（packages、apps/worker、apps/testsite、apps/desktop、tests/ci、tests/examples、tests/docs）只剩要 bootstrap 的 JSON Schema；瀏覽器測試 <code>test_download_browser.py</code> 本機 Chromium 通過。</li>
       </ul></div>
     </section>
   </div>

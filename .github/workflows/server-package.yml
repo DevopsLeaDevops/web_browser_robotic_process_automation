@@ -120,6 +120,8 @@ jobs:
           chown rpa-test:rpa-test /home/rpa-test/*.tar.gz
           sudo -H -u rpa-test bash -s <<'CHECK'
           set -Eeuo pipefail
+          # 看不到完整日誌時（例如只讀得到 annotation），也知道是哪一行失敗
+          trap 'echo "::error title=Rocky 8 安裝檢查失敗::第 $LINENO 行：$BASH_COMMAND"' ERR
           cd "$HOME"
           # 之前用 setup-linux.sh（clone）裝過：設定要沿用
           legacy="$HOME/code/web_browser_robotic_process_automation"

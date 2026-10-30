@@ -12,6 +12,8 @@
 - 上傳檔案（M7c）：``/upload`` 有常見的上傳元件（原生上傳框、隱藏的多檔上傳框、點擊時才建立的
   上傳框、只有拖拽區），``/upload/frame`` 是 iframe 裡的上傳框。``POST /api/uploads``
   （multipart）回傳收到的檔名、大小與 sha256，頁面顯示出來；檔案本身不保存
+- 下載檔案（ADR 0020）：``/download`` 選月份按「匯出 CSV」，``GET /api/export.csv?month=2026-10``
+  回傳那個月三個分店每天的銷售明細（UTF-8 CSV，以附件下載）；內容由月份決定，同一個月每次相同
 - ``GET /api/about``：回傳 ``{"name": "rpa-testsite"}``，讓 ``rpa serve`` 認出已經在執行的測試網站
 - 預設只綁定 127.0.0.1；``rpa serve --testsite-host 0.0.0.0`` 可以讓其他電腦（錄製端、Worker）
   連到同一個測試網站，資料與登入共用。不連線任何外部系統
@@ -54,6 +56,7 @@ __all__ = [
     "WILDCARD_HOSTS",
     "StartState",
     "create_server",
+    "export_csv",
     "is_testsite",
     "running",
     "start_in_background",
@@ -84,6 +87,9 @@ UPLOAD_PAGES: Final = {
     "/upload/frame": Path(__file__).with_name("upload-frame.html"),
 }
 """上傳檔案範例頁（M7c）。"""
+DOWNLOAD_PAGE: Final = Path(__file__).with_name("download.html")
+"""下載檔案範例頁（ADR 0020）。"""
+BRANCHES: Final = ("台北", "高雄", "台中")
 MAX_UPLOAD: Final = 64 * 1024 * 1024
 """``POST /api/uploads`` 一次最多收這麼多。"""
 MAX_QUANTITY: Final = 30
@@ -127,6 +133,26 @@ ACCOUNTS: Final = {
 """帳號 → 示範資料。主管的待辦比一般使用者多，用來確認兩個角色的登入狀態沒有混用。"""
 
 ACCOUNT_PAGE: Final = Path(__file__).with_name("account.html")
+
+
+def export_csv(month: str) -> tuple[str, bytes]:
+    """``/api/export.csv`` 的檔名與內容：那個月（``YYYY-MM``）三個分店每天的銷售明細。
+
+    金額由月份、分店與日期算出來，同一個月每次都一樣（測試可以比對總額）。月份寫錯時拋出
+    ValueError。
+    """
+    if len(month) != 7 or month[4] != "-" or not (month[:4] + month[5:]).isdigit():
+        raise ValueError("月份要寫成 YYYY-MM")
+    year, number = int(month[:4]), int(month[5:])
+    if not 1 <= number <= 12:
+        raise ValueError("月份要寫成 YYYY-MM")
+    days = 31 if number in (1, 3, 5, 7, 8, 10, 12) else 30 if number != 2 else 28
+    lines = ["日期,分店,品項,金額"]
+    for day in range(1, days + 1):
+        for index, branch in enumerate(BRANCHES, start=1):
+            amount = (year % 100) * 10 + number * index + day
+            lines.append(f"{month}-{day:02d},{branch},品項{(day + index) % 5 + 1},{amount}")
+    return f"銷售-{month}.csv", ("\n".join(lines) + "\n").encode("utf-8")
 
 
 class _Server(ThreadingHTTPServer):
@@ -250,6 +276,18 @@ def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
                 200, body.encode(), "application/json; charset=utf-8", {"Set-Cookie": cookie}
             )
 
+        def _export(self) -> None:
+            query = dict(
+                item.split("=", 1) for item in urlsplit(self.path).query.split("&") if "=" in item
+            )
+            try:
+                name, body = export_csv(unquote(query.get("month", "")))
+            except ValueError as error:
+                self._json(400, {"error": str(error)})
+                return
+            disposition = f"attachment; filename=\"export.csv\"; filename*=UTF-8''{quote(name)}"
+            self._reply(200, body, "text/csv; charset=utf-8", {"Content-Disposition": disposition})
+
         def _json(self, status: int, data: dict[str, object]) -> None:
             body = json.dumps(data, ensure_ascii=False).encode()
             self._reply(status, body, "application/json; charset=utf-8")
@@ -268,6 +306,10 @@ def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
                 self._reply(200, POPUP_PAGES[path].read_bytes(), "text/html; charset=utf-8")
             elif path in UPLOAD_PAGES:
                 self._reply(200, UPLOAD_PAGES[path].read_bytes(), "text/html; charset=utf-8")
+            elif path == "/download":
+                self._reply(200, DOWNLOAD_PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif path == "/api/export.csv":
+                self._export()
             elif path == "/api/about":
                 self._json(200, {"name": NAME})
             elif path.startswith("/api/records/"):

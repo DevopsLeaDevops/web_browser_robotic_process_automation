@@ -136,8 +136,18 @@ def _run(command: Sequence[str | Path], env: Mapping[str, str] | None = None) ->
         print(completed.stderr.rstrip(), file=sys.stderr, flush=True)
     if completed.returncode != 0:
         print(completed.stdout.rstrip(), flush=True)
+        _annotate(printable, completed.stdout + completed.stderr)
         raise SystemExit(f"命令失敗（結束碼 {completed.returncode}）：{printable}")
     return completed.stdout
+
+
+def _annotate(command: str, output: str) -> None:
+    """在 GitHub Actions 裡把失敗的命令與輸出的最後幾行寫成 annotation。"""
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    tail = "\n".join(output.strip().splitlines()[-25:])
+    text = f"{command}\n{tail}".replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::error title=RPA Python 運行環境的建置失敗::{text}", flush=True)
 
 
 def find_uv() -> str:

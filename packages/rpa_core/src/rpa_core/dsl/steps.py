@@ -7,7 +7,8 @@
 retry、onError、download、條件與迴圈在 M7 加入（路線圖 v2）；
 iframe 在 M7a 以定位器的 frame 支援（見 locators.py）；新分頁（彈出視窗）在 M7b 以步驟的
 ``popup``（這一步開出新分頁，取個名稱）與 ``page``（在哪個分頁執行）支援，
-名稱的前後關係在 checks.py 檢查；上傳檔案在 M7c 以 ``upload`` 步驟與 ``type: file`` 的入參支援。
+名稱的前後關係在 checks.py 檢查；上傳檔案在 M7c 以 ``upload`` 步驟與 ``type: file`` 的入參支援；
+下載檔案以 ``download`` 步驟支援（ADR 0020），檔案存到共用工作資料夾，事實可以當 file 出參。
 """
 
 import re
@@ -32,8 +33,10 @@ from rpa_core.dsl.locators import Locator
 
 __all__ = [
     "ACTIONS",
+    "FACT_ACTIONS",
     "CheckStep",
     "ClickStep",
+    "DownloadStep",
     "ExpectStep",
     "ExtractField",
     "ExtractStep",
@@ -47,6 +50,7 @@ __all__ = [
     "StepBase",
     "UploadStep",
     "WaitForStep",
+    "fact_name",
     "upload_input_names",
 ]
 
@@ -383,6 +387,24 @@ class UploadStep(StepBase):
         return self
 
 
+class DownloadStep(StepBase):
+    """點擊並等待下載（ADR 0020）。
+
+    檔案存到共用工作資料夾的 ``downloads/``（單獨執行時是這次執行的暫存資料夾），事實
+    ``facts.名稱`` 是 ``{"workspace", "name", "size", "sha256"}``：出參寫
+    ``{ type: file, from: '{{ facts.名稱 }}' }`` 就能交給下游的 Python 節點或上傳步驟，也會出現在
+    報告的產出檔案。下載完成才算這一步完成。
+    """
+
+    action: Literal["download"]
+    target: Locator
+    """點了會開始下載的元素（按鈕、連結）。"""
+    as_: Identifier = Field(alias="as")
+    """存成頁面事實 ``facts.名稱``。"""
+    file_name: NonEmptyStr | None = None
+    """存檔的檔名；沒寫用網站給的檔名。可以用 ``{{ }}``，例如 ``報表-{{ inputs.month }}.xlsx``。"""
+
+
 Step = Annotated[
     GotoStep
     | ClickStep
@@ -394,7 +416,8 @@ Step = Annotated[
     | ExpectStep
     | ExtractStep
     | ScreenshotStep
-    | UploadStep,
+    | UploadStep
+    | DownloadStep,
     Field(discriminator="action"),
 ]
 """任一種步驟，依 action 區分。"""
@@ -411,5 +434,17 @@ ACTIONS: Final = (
     "extract",
     "screenshot",
     "upload",
+    "download",
 )
 """支援的動作。"""
+
+FACT_ACTIONS: Final = ("extract", "download")
+"""會產生頁面事實（``as``）的動作。"""
+
+
+def fact_name(step: object) -> str | None:
+    """這一步產生的頁面事實名稱（extract、download 的 ``as``）；其他步驟是 None。"""
+    if getattr(step, "action", None) in FACT_ACTIONS:
+        name = getattr(step, "as_", None)
+        return name if isinstance(name, str) else None
+    return None

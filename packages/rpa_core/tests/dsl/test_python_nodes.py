@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from rpa_core.dsl import Scenario, validate_file, validate_text
-from rpa_core.dsl.features import JSON_INPUTS, PYTHON_NODES, scenario_features
+from rpa_core.dsl.features import JSON_INPUTS, PYTHON_NODES, input_features, scenario_features
+from rpa_core.dsl.files import FileValueError, file_values
 from rpa_core.dsl.sources import scenario_digest, scenario_sources
 from rpa_core.i18n import use_locale
 from rpa_core.workflow import Workflow, check_workflow
@@ -248,3 +249,78 @@ def test_browser_and_python_nodes_in_one_composite() -> None:
         }
     )
     assert check_workflow(workflow, {"web": web, "py": node}) == []
+
+
+# ---------------------------------------------------------------- 檔案：download 步驟與 file 出參
+
+
+DOWNLOAD = """\
+schemaVersion: 1
+id: dl
+name: 下載
+outputs:
+  report: { type: file, from: '{{ facts.report }}' }
+browser: { baseUrl: http://127.0.0.1:8765 }
+steps:
+  - { id: open, action: goto, url: /download }
+  - id: export
+    action: download
+    target: { role: button, name: 匯出 CSV }
+    as: report
+    fileName: '銷售-{{ facts.month }}.csv'
+  - { id: month, action: extract, target: { css: h1 }, as: month }
+verify:
+  - { value: '{{ facts.report.name }}', notEmpty: true }
+"""
+
+
+def test_download_step_produces_a_fact_for_file_outputs() -> None:
+    checked = validate_text(DOWNLOAD.replace("    fileName: '銷售-{{ facts.month }}.csv'\n", ""))
+    assert checked.ok, checked.issues
+    assert checked.scenario is not None
+    assert scenario_features(checked.scenario) == {"download", "fileOutputs"}
+    # fileName 只能用前面步驟產生的事實；download 與 extract 的 as 不能重複
+    later = validate_text(DOWNLOAD)
+    assert [issue.code for issue in later.issues] == ["template.fact_not_yet"]
+    twice = validate_text(DOWNLOAD.replace("as: month", "as: report"))
+    assert "extract.duplicate_as" in [issue.code for issue in twice.issues]
+
+
+def test_file_outputs_need_the_runtime_in_python_nodes() -> None:
+    compatible = validate_text(
+        "schemaVersion: 1\nid: s\nname: s\noutputs:\n  f: { type: file }\n"
+        "script: { automation: a.py, assertion: b.py }\n"
+    )
+    assert [issue.code for issue in compatible.issues] == ["script.file_output"]
+    runtime = validate_text(
+        "schemaVersion: 1\nid: s\nname: s\noutputs:\n  f: { type: file }\n"
+        "script: { runtime: '1', automation: a.py, assertion: b.py }\n"
+    )
+    assert runtime.ok, runtime.issues
+
+
+@pytest.mark.parametrize(
+    ("value", "ok"),
+    [
+        (
+            {"workspace": "downloads/報表.csv", "name": "報表.csv", "size": 3, "sha256": "a" * 64},
+            True,
+        ),
+        ({"workspace": ".outputs/run-1/x.xlsx"}, True),
+        ({"workspace": "../x.csv"}, False),
+        ({"workspace": "/etc/passwd"}, False),
+        ({"workspace": "C:/x.csv"}, False),
+        ({"workspace": "a\\b.csv"}, False),
+        ({"workspace": "a.csv", "path": "/x"}, False),
+    ],
+)
+def test_workspace_file_values(value: dict[str, object], ok: bool) -> None:
+    """上游節點產出的檔案（ADR 0020）：共用工作資料夾裡的相對路徑。"""
+    if not ok:
+        with pytest.raises(FileValueError):
+            file_values(value, multiple=False)
+        return
+    [item] = file_values(value, multiple=False)
+    assert item.source == "workspace"
+    assert item.to_json() == value
+    assert input_features({"report": value}) == {"fileOutputs"}
