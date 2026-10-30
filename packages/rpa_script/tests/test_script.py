@@ -1,6 +1,8 @@
 """rpa_script 的單元測試：步驟、事實、預覽、遮罩與啟動器（ADR 0020）。"""
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -8,7 +10,11 @@ import pytest
 
 from rpa_script import Run, StepError
 from rpa_script.__main__ import main
-from rpa_script.core import _preview, describe  # pyright: ignore[reportPrivateUsage]
+from rpa_script.core import (
+    _preview,  # pyright: ignore[reportPrivateUsage]
+    console_offset,
+    describe,
+)
 
 
 def make_run(tmp_path: Path) -> Run:
@@ -121,3 +127,43 @@ def test_launcher_runs_plain_and_decorated_scripts(
     assert code == 0
     assert json.loads((tmp_path / "f.json").read_text(encoding="utf-8")) == {"x": 42}
     assert "argv ['--input'" in capsys.readouterr().out
+
+
+def test_steps_remember_where_their_console_output_is(tmp_path: Path) -> None:
+    """每一步記下主控台輸出的位置：print()、run.log() 與腳本開的子程序寫的都算在那一步。"""
+    script = tmp_path / "automation.py"
+    script.write_text(
+        "import subprocess, sys\nfrom rpa_script import automation\n"
+        "print('before')\n"
+        "@automation\ndef main(run):\n"
+        "    with run.step('one'):\n        print('a')\n        run.log('b')\n"
+        "    with run.step('two'):\n"
+        "        subprocess.run([sys.executable, '-c', 'print(\"child\")'], check=True)\n"
+        "    print('after')\n",
+        encoding="utf-8",
+    )
+    log = tmp_path / "automation.log"
+    env = {**os.environ, "RPA_STEPS": str(tmp_path / "steps.json")}
+    env["RPA_OUTPUT_DIR"] = str(tmp_path / "outputs")
+    with log.open("wb") as output:
+        subprocess.run(
+            [sys.executable, "-m", "rpa_script", str(script), "--facts", str(tmp_path / "f.json")],
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            env=env,
+            cwd=tmp_path,
+            check=True,
+        )
+    data = log.read_bytes()
+    steps = json.loads((tmp_path / "steps.json").read_text(encoding="utf-8"))
+    parts = [data[start:end].decode().splitlines() for start, end in (s["console"] for s in steps)]
+    assert parts[0][0] == "a"
+    assert parts[0][1].endswith("[one]  b")
+    assert parts[1] == ["child"]
+    assert data.decode().splitlines()[0] == "before"
+    assert data.decode().splitlines()[-1] == "after"
+
+
+def test_console_offset_is_none_without_a_file(capsys: pytest.CaptureFixture[str]) -> None:
+    assert console_offset() is None
+    capsys.readouterr()

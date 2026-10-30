@@ -10,6 +10,9 @@
 // 依步驟的章節軸（2026-10-29，任務 20261029-replay-chapters）：時間軸預設一格一步，沒有動作的空檔
 // 折疊成窄格（播放時 4× 快轉），卡片固定寬；縮圖是執行端每一步做完拍的截圖（步驟的 shot），沒有時
 // 退回錄影裡那一步做完的畫面。「依時間」是原本的等比例時間軸。兩種排法都用 axis（時間 ↔ 位置）畫。
+// Python 節點（ADR 0020）：單一運行沒有播放器，是章節列與步驟詳情；合併回看裡是一段 kind 為 python
+// 的「卡片」（ReplayMedia 的時鐘照走），一步一格，畫面顯示目前那一步的腳本、檔案變化、資料預覽與到那
+// 一步為止的主控台（步驟的 console）。
 (() => {
   const root = document.getElementById('replay');
   if (!root) return;
@@ -201,6 +204,16 @@
       }
       return '<div class="replay-preview">' + head + '<pre class="source">' + esc(preview.text || '') + '</pre></div>';
     }).join('');
+    // Python 節點：到這一步為止的主控台，這一步自己寫的那幾行標出來
+    const output = step.console;
+    const outputBox = output && output.text
+      ? '<div class="replay-preview"><div class="replay-preview-name">' + esc(messages.console_upto) + '</div>' +
+        '<pre class="replay-source replay-console">' + output.text.split('\n').map((text, offset) => {
+          const number = output.line + offset;
+          const own = output.own && number >= output.own[0] && number <= output.own[1];
+          return '<span' + (own ? ' class="focus"' : '') + '><i>' + number + '</i>' + esc(text) + '</span>';
+        }).join('') + '</pre></div>'
+      : '';
     const actions = [];
     if (playable && step.start != null) {
       actions.push('<button class="button primary" type="button" data-act="play">' + esc(messages.play_from) + '</button>');
@@ -217,7 +230,7 @@
         '<img src="' + esc(step.shot) + '" alt="' + esc(messages.shot_alt) + '" loading="lazy"></a>'
       : '';
     box.innerHTML = (step.error ? '<div class="replay-error">' + esc(step.error) + '</div>' : '') + notes + shot +
-      '<dl class="replay-kv">' + rows.join('') + '</dl>' + source + previews +
+      '<dl class="replay-kv">' + rows.join('') + '</dl>' + source + previews + outputBox +
       (actions.length ? '<div class="actions">' + actions.join('') + '</div>' : '');
     return box;
   }
@@ -510,7 +523,8 @@
   });
   // 卡片那段時間沒有影片：縮圖與預覽畫成淺色的卡片（「n1 → n2」），不是黑的，免得看起來像黑屏
   // （2026-10-28 驗收）
-  function cardFrame(card) {
+  // Python 節點的步驟時間軸：每一步一張，寫上步驟編號與名稱
+  function cardFrame(card, step = null) {
     const canvas = document.createElement('canvas');
     canvas.width = 384;
     canvas.height = 216;
@@ -518,7 +532,7 @@
     const segment = composite ? composite.segments[card.index] : null;
     const label = card.kind === 'transition'
       ? [segment && segment.prev, card.node].filter(Boolean).join(' → ')
-      : card.node || ((segment && segment.nodes) || []).join(', ');
+      : step ? numberOf(step) : card.node || ((segment && segment.nodes) || []).join(', ');
     context.fillStyle = '#f4f7fb';
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = nodeColor(card.node) || '#546479';
@@ -526,15 +540,25 @@
     context.font = '600 52px ui-monospace, SFMono-Regular, Consolas, monospace';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(label, canvas.width / 2 + 5, canvas.height / 2);
+    context.fillText(label, canvas.width / 2 + 5, canvas.height / 2 - (step ? 22 : 0));
+    if (step) {
+      const name = title(step);
+      context.font = '500 28px system-ui, sans-serif';
+      context.fillStyle = step.status === 'failed' ? '#c0362c' : '#334155';
+      context.fillText(name.length > 20 ? name.slice(0, 19) + '…' : name, canvas.width / 2 + 5, canvas.height / 2 + 36);
+    }
     return canvas;
   }
   // 錄影裡某一刻的畫面。快取依影片的格（每秒 25 格），不是 0.1 秒取整：相鄰的兩步不會共用同一張
   function grab(seconds, pageId) {
-    const card = !pageId && video.cardAt ? video.cardAt(seconds) : null;
+    const found = video.cardAt ? video.cardAt(seconds) : null;
+    const card = found && (!pageId || found.kind === 'python') ? found : null;
     if (card) {
-      const key = 'card:' + card.index;
-      if (!frames.has(key)) frames.set(key, cardFrame(card));
+      // 那一格裡的步驟：不用 stepAt 的容差，一步的最後一刻（frameTime）不能算成下一步
+      const step = card.kind === 'python'
+        ? timed.filter(each => each.node === card.node && each.start <= seconds).pop() || null : null;
+      const key = 'card:' + card.index + (step ? ':' + step.index : '');
+      if (!frames.has(key)) frames.set(key, cardFrame(card, step));
       return Promise.resolve(frames.get(key));
     }
     const clip = video.clipAt(seconds, pageId);
@@ -596,12 +620,31 @@
   // ---------------------------------------------------------------- 卡片（合併回看）
 
   const cardBox = $('replay-card');
+  let cardStep = null;
   const showCard = card => {
     if (!cardBox) return;
     const source = card && document.getElementById('replay-card-' + card.index);
     cardBox.hidden = !source;
     cardBox.textContent = '';
+    cardStep = null;
     if (source) cardBox.appendChild(source.content.cloneNode(true));
+  };
+  // Python 節點的那一段：卡片內容換成目前那一步（sync 呼叫，步驟沒換時不重畫）
+  const fillPythonCard = step => {
+    const body = cardBox && cardBox.querySelector('[data-python-card]');
+    if (!body || step === cardStep) return;
+    cardStep = step;
+    body.textContent = '';
+    if (!step) return;
+    const head = document.createElement('div');
+    head.className = 'creplay-python-step';
+    head.innerHTML = '<span class="replay-n ' + esc(step.status || '') + '">' + esc(numberOf(step)) + '</span><strong></strong>';
+    head.querySelector('strong').textContent = title(step);
+    body.appendChild(head);
+    const box = detail(step);
+    const actions = box.querySelector('.actions');
+    if (actions) actions.remove();
+    body.appendChild(box);
   };
   video.addEventListener('card', event => { showCard(event.detail); sync(); });
   showCard(video.card);
@@ -631,7 +674,7 @@
       const start = Math.max(range.start, from);
       const end = Math.min(range.end, to);
       if (end - start <= 0.0005) continue;
-      if (range.kind !== 'video') {
+      if (range.kind !== 'video' && range.kind !== 'python') {
         push({kind: 'card', t0: start, t1: end, range});
         continue;
       }
@@ -723,7 +766,7 @@
   function chapters() {
     if (axis.mode !== 'steps' || !axis.dense) return [];
     if (composite && !zooms.length) {
-      return ranges().filter(range => range.kind === 'video').map(range => {
+      return ranges().filter(range => range.kind === 'video' || range.kind === 'python').map(range => {
         const node = composite.nodes.find(each => each.id === range.node);
         return {t0: range.start, t1: range.end, label: range.node + (node ? ' ' + node.sceneName : '')};
       });
@@ -964,8 +1007,9 @@
         const t0 = segment.startMs / 1000;
         const t1 = (segment.startMs + segment.durationMs) / 1000;
         if (t1 <= range.t0 + 0.0005 || t0 >= range.t1 - 0.0005) continue;
-        const chapter = segment.kind === 'video' ? groups.find(each => !each.group && Math.abs(each.t0 - t0) < 0.001) : null;
-        const text = segment.kind === 'video' || segment.kind === 'reused' || segment.kind === 'no_video' ? segment.node : '';
+        const chapter = segment.kind === 'video' || segment.kind === 'python'
+          ? groups.find(each => !each.group && Math.abs(each.t0 - t0) < 0.001) : null;
+        const text = ['video', 'python', 'reused', 'no_video'].includes(segment.kind) ? segment.node : '';
         const hint = (segment.kind === 'video' ? segment.node
           : fill(messages['card_' + segment.kind] || '', {node: segment.node || '', prev: segment.prev || '', nodes: (segment.nodes || []).join(', ')}))
           + (chapter ? ' · ' + (messages.zoom_hint || '') : '');
@@ -1093,7 +1137,8 @@
     preview.style.left = Math.min(rect.width - preview.offsetWidth - 6, Math.max(6, x - preview.offsetWidth / 2)) + 'px';
     $('replay-preview-time').textContent = fmt(seconds);
     const piece = pieceAt(seconds);
-    const card = video.cardAt ? video.cardAt(seconds) : null;
+    const found = video.cardAt ? video.cardAt(seconds) : null;
+    const card = found && found.kind !== 'python' ? found : null;
     const step = piece && piece.kind === 'step' ? piece.step : piece && piece.kind === 'gap' ? null : stepAt(seconds);
     const first = piece && piece.kind === 'step' ? (piece.x1 - piece.x0) / Math.max(1, Math.round((piece.x1 - piece.x0) / TILE_W)) : 0;
     const onShot = Boolean(piece && piece.kind === 'step' && step.shot && clientX - filmLeft < piece.x0 + first);
@@ -1144,8 +1189,11 @@
     playhead.hidden = !axis;
     playhead.style.left = (film.offsetLeft + x) + 'px';
     past.style.width = x + 'px';
-    const card = video.card;
+    // Python 節點的那一段也是卡片，但有步驟：照步驟顯示，卡片內容換成目前那一步
+    const python = video.card && video.card.kind === 'python' ? video.card : null;
+    const card = python ? null : video.card;
     const step = card ? null : shownAt(seconds);
+    if (python) fillPythonCard(step && step.node === python.node ? step : null);
     const state = step ? stateOf(step, seconds) : 'upcoming';
     $('replay-chip-n').textContent = step ? numberOf(step) : '—';
     $('replay-chip-n').style.background = composite && step ? nodeColor(step.node) : '';
@@ -1157,7 +1205,9 @@
       ? fill(messages.step_of, {n: step.index, total: steps.length})
       : card ? '' : messages.open_browser;
     let url = 'about:blank';
-    if (step) {
+    if (step && step.action === 'python') {
+      url = step.target || '—';
+    } else if (step) {
       const before = timed[timed.indexOf(step) - 1];
       const same = before && before.node === step.node ? before : null;
       url = seconds < (step.end != null ? step.end : step.start) ? (same ? same.url : 'about:blank') : step.url;

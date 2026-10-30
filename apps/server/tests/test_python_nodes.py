@@ -294,6 +294,7 @@ def test_run_page_shows_produced_files_changes_and_previews(
             "source": "automation.py:7",
             "previews": ["previews/001.json"],
             "files": {"added": ["outputs/彙總.csv"]},
+            "console": [0, len(b"token ***\n")],
         }
     ]
     result = {
@@ -375,3 +376,5 @@ def test_run_page_shows_produced_files_changes_and_previews(
     assert "步驟時間軸" in timeline
     assert '"focusLine": 7' in timeline
     assert "token ***" in timeline
+    # 到這一步為止的主控台：這一步寫的是第 1 行
+    assert '"console": {"line": 1, "text": "token ***", "own": [1, 1]}' in timeline

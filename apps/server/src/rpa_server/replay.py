@@ -9,10 +9,11 @@
 - 斷言與階段：result.json。影片只涵蓋自動化階段，斷言與出參在瀏覽器關閉後才執行。
 - 前後：同一個場景的上一次、下一次、上一次沒通過的運行；組合場景的各個節點。
 - Python 節點（ADR 0020）沒有錄影：用 rpa_script 記下的步驟當章節（步驟時間軸）。每一步附上腳本
-  那幾行（標出那一步的行號）、第幾次、那一步的檔案變化與資料預覽；另外有主控台（automation.log
-  的最後幾行）與事實。
+  那幾行（標出那一步的行號）、第幾次、那一步的檔案變化與資料預覽，以及到那一步為止的主控台
+  （rpa_script 記下每一步開始、結束時 automation.log 寫到哪裡）；另外有整份主控台的最後幾行與事實。
 """
 
+import bisect
 import contextlib
 import json
 import re
@@ -162,6 +163,11 @@ _PREVIEW_ROWS: Final = 10
 _PREVIEW: Final = re.compile(rf"{PREVIEWS_DIR}/\d{{3,4}}\.json")
 _CONSOLE_LINES: Final = 200
 """Python 節點的主控台顯示最後幾行。"""
+_STEP_CONSOLE_LINES: Final = 40
+"""每一步顯示到那一步為止的最後幾行主控台。"""
+_CONSOLE_LINE_CHARS: Final = 500
+_CONSOLE_MAX_BYTES: Final = 16 * 1024 * 1024
+"""比這大的 automation.log 不逐步對應（只顯示整份的最後幾行）。"""
 
 
 def _script_lines(folder: Path, name: str, cache: dict[str, list[str]]) -> list[str]:
@@ -193,11 +199,82 @@ def _preview(folder: Path, relative: object) -> dict[str, object] | None:
     return preview
 
 
+class _Console:
+    """Python 節點的主控台（automation.log），依位元組位置找出每一步的輸出。
+
+    用到時才讀（DSL 場景的回看不需要）。
+    """
+
+    def __init__(self, folder: Path) -> None:
+        self._path = folder / AUTOMATION_LOG
+        self._loaded = False
+        self.exists = False
+        self.size = 0
+        self.mapped = False
+        self._breaks: list[int] = []
+        self.lines: list[str] = []
+
+    def _load(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True
+        try:
+            data = self._path.read_bytes()
+        except OSError:
+            return
+        self.exists = True
+        self.size = len(data)
+        self.mapped = self.size <= _CONSOLE_MAX_BYTES
+        text = data.decode("utf-8", errors="replace")
+        self.lines = [line.removesuffix("\r") for line in text.split("\n")]
+        if self.mapped:
+            self._breaks = [match.start() for match in re.finditer(b"\n", data)]
+
+    def tail(self) -> str | None:
+        """整份的最後幾行。"""
+        self._load()
+        if not self.exists:
+            return None
+        lines = self.lines[:-1] if self.lines and not self.lines[-1] else self.lines
+        return "\n".join(lines[-_CONSOLE_LINES:])
+
+    def step(self, span: object) -> dict[str, object] | None:
+        """到這一步為止的最後幾行；``own`` 是這一步自己寫的那幾行（從 1 起算，含頭尾）。
+
+        ``span`` 是 rpa_script 記的 ``[開始, 結束]``（位元組）；遠端 Worker 上傳的執行目錄不完全
+        可信，不合理的值不採用。
+        """
+        self._load()
+        if not self.mapped or not isinstance(span, list):
+            return None
+        bounds = cast("list[object]", span)
+        if len(bounds) != 2 or not all(type(value) is int for value in bounds):
+            return None
+        start, end = cast("list[int]", bounds)
+        if not 0 <= start <= end <= self.size:
+            return None
+        first = bisect.bisect_left(self._breaks, start)
+        upto = bisect.bisect_left(self._breaks, end - 1) + 1 if end > 0 else 0
+        shown = max(0, upto - _STEP_CONSOLE_LINES)
+        return {
+            "line": shown + 1,
+            "text": "\n".join(line[:_CONSOLE_LINE_CHARS] for line in self.lines[shown:upto]),
+            "own": [first + 1, upto] if end > start else None,
+        }
+
+
 def _python_step(
-    folder: Path, record: Mapping[str, object], cache: dict[str, list[str]]
+    folder: Path,
+    record: Mapping[str, object],
+    cache: dict[str, list[str]],
+    console: _Console,
 ) -> dict[str, object]:
-    """Python 節點的一步（rpa_script）：腳本那幾行、第幾次、檔案變化、資料預覽。"""
-    details: dict[str, object] = {"files": [], "previews": []}
+    """Python 節點的一步（rpa_script）：腳本那幾行、第幾次、檔案變化、資料預覽、主控台。"""
+    details: dict[str, object] = {
+        "files": [],
+        "previews": [],
+        "console": console.step(record.get("console")),
+    }
     source = record.get("source")
     match = _PYTHON_SOURCE.fullmatch(source) if isinstance(source, str) else None
     if isinstance(source, str):
@@ -251,15 +328,6 @@ def _chapters(steps: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
     ]
 
 
-def _console(folder: Path) -> str | None:
-    """主控台（automation.log）的最後幾行。"""
-    try:
-        text = (folder / AUTOMATION_LOG).read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    return "\n".join(text.splitlines()[-_CONSOLE_LINES:])
-
-
 _SHOT: Final = re.compile(rf"{STEP_SHOTS}/\d{{3,4}}\.jpg")
 """steps.json 的 shot 只接受 Runner 產生的檔名（遠端 Worker 上傳的執行目錄不完全可信）。"""
 
@@ -271,7 +339,11 @@ def _shot(folder: Path, run_id: str, value: object) -> str | None:
 
 
 def _steps(
-    folder: Path, run_id: str, result: Mapping[str, object] | None, start: datetime | None
+    folder: Path,
+    run_id: str,
+    result: Mapping[str, object] | None,
+    start: datetime | None,
+    console: _Console,
 ) -> list[dict[str, object]]:
     raw = result.get("steps") if result is not None else None
     if not isinstance(raw, list):
@@ -307,7 +379,7 @@ def _steps(
                     "pageId": "page-1",
                     "notes": [],
                     "artifacts": [],
-                    **_python_step(folder, record, scripts),
+                    **_python_step(folder, record, scripts, console),
                 }
             )
             continue
@@ -438,7 +510,8 @@ def build_replay(
     elif info:
         # 有錄但沒存下來（例如還沒開瀏覽器就取消）：頁面照樣顯示原因，不能因為少了 url 出錯
         video = {"playable": False, "url": None, "error": info.get("error")}
-    steps = _steps(folder, run.id, result, start)
+    console = _Console(folder)
+    steps = _steps(folder, run.id, result, start, console)
     if video is not None and playable:
         # 開頁步驟可能比第一格畫面更早；保留這段等待，不把它壓到零點。
         moments = [
@@ -480,8 +553,9 @@ def build_replay(
                 step["editUrl"] = base + quote(name)
     facts_raw = read_json_or(folder / FACTS, None) if python else None
     return {
+        "kind": (result or {}).get("kind"),
         "python": {
-            "console": _console(folder),
+            "console": console.tail(),
             "facts": facts_raw if isinstance(facts_raw, dict) else None,
             "chapters": _chapters(steps),
         }

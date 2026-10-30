@@ -33,6 +33,7 @@ __all__ = [
     "StepError",
     "activate",
     "automation",
+    "console_offset",
     "current",
     "registered",
     "text",
@@ -94,6 +95,9 @@ class _Step:
     ended: float | None = None
     previews: list[str] = field(default_factory=list[str])
     files: dict[str, list[str]] | None = None
+    console_start: int | None = None
+    """這一步開始時主控台輸出（automation.log）寫到第幾個位元組；見 :func:`console_offset`。"""
+    console_end: int | None = None
 
     def to_json(self) -> dict[str, object]:
         def moment(value: float | None) -> str | None:
@@ -117,6 +121,11 @@ class _Step:
             "source": self.source,
             "previews": self.previews,
             **({"files": self.files} if self.files else {}),
+            **(
+                {"console": [self.console_start, self.console_end]}
+                if self.console_start is not None and self.console_end is not None
+                else {}
+            ),
         }
 
 
@@ -267,6 +276,7 @@ class Run:
             parent=self._stack[-1].id if self._stack else None,
             source=_caller_source(self.script),
             started=self._clock(),
+            console_start=console_offset(),
         )
         self._steps.append(record)
         self._stack.append(record)
@@ -284,6 +294,7 @@ class Run:
         finally:
             record.ended = self._clock()
             record.duration_ms = int((record.ended - record.started) * 1000)
+            record.console_end = console_offset()
             record.files = _file_changes(before, self._scan()) or None
             self._stack.pop()
             self._write_steps()
@@ -326,6 +337,7 @@ class Run:
     def outside_failure(self, error: BaseException) -> None:
         """步驟以外的程式拋出的錯誤：記成一個失敗的「步驟外的程式」，附行號。"""
         moment = self._clock()
+        offset = console_offset()
         self._steps.append(
             _Step(
                 id="script",
@@ -337,6 +349,8 @@ class Run:
                 status="failed",
                 error=self.mask(describe(error)),
                 ended=moment,
+                console_start=offset,
+                console_end=offset,
             )
         )
         self._write_steps()
@@ -362,6 +376,21 @@ class Run:
             merged.update(cast("dict[str, object]", existing))
         merged.update(self.facts)
         _write_json(self.facts_path, merged)
+
+
+def console_offset() -> int | None:
+    """主控台輸出目前寫到第幾個位元組（回看的「到這一步為止的主控台」，ADR 0020）。
+
+    Runner 把標準輸出與標準錯誤接到同一個 automation.log：先清空緩衝，再問檔案現在的位置，
+    腳本 ``print()``、``run.log()`` 與它開的子程序寫的都算在內。輸出不是檔案（終端機、管線、
+    測試換掉的 ``sys.stdout``）時是 None。
+    """
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        return os.lseek(sys.stdout.fileno(), 0, os.SEEK_CUR)
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def describe(error: BaseException) -> str:

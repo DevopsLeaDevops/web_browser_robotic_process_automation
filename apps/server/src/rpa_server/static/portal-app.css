@@ -590,6 +590,12 @@ details.creport-node.anchor-hit{animation:anchor-hit 1.6s ease-out}
 .creplay-card-flow small{display:block;color:var(--muted);margin-bottom:4px}
 .creplay-card-note{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:8px;margin-top:12px!important}
 .creplay-card.no_video .creport-error{margin-top:8px}
+/* Python 節點的步驟時間軸（ADR 0020）：卡片換成目前那一步；內容可能比畫面高，從上方排起 */
+.replay-card:has(.creplay-card.python){place-items:start center}
+.creplay-card.python{width:min(820px,100%)}
+.creplay-python-step{display:flex;gap:8px;align-items:center;margin:2px 0 8px;font-size:14px}
+.creplay-python .replay-detail{margin:0}
+.replay-detail .replay-console{max-height:220px;overflow:auto}
 .creplay-hint{margin:2px 2px 0}
 /* 合併回看的步驟清單（2026-10-28）：每個節點一組，標題列用節點的顏色打底，下面的步驟左側一條同色的
    色條，組和組之間留空；顏色和時間軸的節點色帶、畫面上的步驟編號相同 */

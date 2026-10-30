@@ -10,7 +10,7 @@
 {% block description %}{{ run.workflow_name }} · v{{ run.workflow_version }} · {{ t("workflow_run.purpose_" + run.purpose) }} · {{ m.run_badge(run.status) }} · {{ t("composites.node_count", count=run.nodes | length) }}{% if run.duration_seconds is not none %} · {{ run.duration_seconds | duration }}{% endif %}{% endblock %}
 {% block actions %}
 <a class="button" href="/playground/runs/{{ run.id }}">{{ t("creplay.report") }}</a>
-{% if playable %}<a class="button" href="/playground/runs/{{ run.id }}/videos.zip" download="{{ run.id }}-videos.zip" title="{{ t('creplay.download_all_title') }}">{{ t("creplay.download_all") }}</a>{% endif %}
+{% if video_state.count %}<a class="button" href="/playground/runs/{{ run.id }}/videos.zip" download="{{ run.id }}-videos.zip" title="{{ t('creplay.download_all_title') }}">{{ t("creplay.download_all") }}</a>{% endif %}
 {% endblock %}
 {% block content %}
 {% set composite = data.composite %}
@@ -86,7 +86,7 @@
   </div>
 </div>
 
-{#- 卡片：沒有影片的那段時間顯示（轉場、沒有錄影、沿用、沒有執行、還沒結束） -#}
+{#- 卡片：沒有影片的那段時間顯示（轉場、Python 節點的步驟時間軸、沒有錄影、沿用、沒有執行、還沒結束） -#}
 {% for segment in composite.segments if segment.kind != "video" %}
 {% set node = nodes.get(segment.get("node")) if segment.get("node") else none %}
 {% set before = nodes.get(segment.get("prev")) if segment.get("prev") else none %}
@@ -112,6 +112,10 @@
     <p>{{ t("creplay.reused", run=node.reusedFrom or "—") }}</p>
     <ul>{% for item in node.outputs %}<li><code>{{ item.name }}</code> = {{ r.value(item) }}{% if item.to %} <span class="muted">→ {{ item.to | join(", ") }}</span>{% endif %}</li>{% endfor %}</ul>
     {% if node.reusedFrom %}<a class="button" href="/playground/runs/{{ node.reusedFrom }}/replay?node={{ node.id }}">▶ {{ t("creplay.reused_replay") }}</a>{% endif %}
+    {% elif segment.kind == "python" and node %}
+    {#- Python 節點的步驟時間軸（ADR 0020）：replay.js 依目前的步驟填入腳本、檔案變化、資料預覽與主控台 #}
+    <div class="creplay-card-head"><span class="tag mono">{{ node.id }}</span> <strong>{{ node.sceneName }}</strong> {{ r.status_badge(node.status) }} <span class="tag">{{ t("creplay.python_tag") }}</span></div>
+    <div class="creplay-python" data-python-card></div>
     {% elif segment.kind == "no_video" and node %}
     <div class="creplay-card-head"><span class="tag mono">{{ node.id }}</span> <strong>{{ node.sceneName }}</strong> {{ r.status_badge(node.status) }}</div>
     <p>{{ segment.reason }}</p>

@@ -6,7 +6,7 @@
     <section class="panel replay-viewer" aria-label="{{ t('replay.video') }}">
       <div class="replay-address"><span class="replay-dots" aria-hidden="true"><i></i><i></i><i></i></span><div class="replay-url mono" id="replay-url" title="{{ t('replay.url_hint') }}">about:blank</div><small id="replay-step-of"></small></div>
       <div class="replay-stage" id="replay-stage"{% if video.width and video.height %} style="aspect-ratio: {{ video.width }} / {{ video.height }}"{% endif %}>
-        <video id="replay-video" src="{{ video.url }}" playsinline muted preload="auto"></video>
+        <video id="replay-video"{% if video.url %} src="{{ video.url }}"{% endif %} playsinline muted preload="auto"></video>
         <div class="replay-chip" aria-live="polite"><span class="replay-chip-n" id="replay-chip-n">—</span><span class="replay-chip-state" id="replay-chip-state"></span><span id="replay-chip-text"></span></div>
         <div class="replay-gap" id="replay-gap" role="status" hidden>{{ t("replay.missing_clip") }}</div>
         <div class="replay-located" id="replay-located" hidden></div>
