@@ -42,7 +42,7 @@
         <dl class="spec-list">
           <dt>输入指纹</dt><dd>一个工作的输入文件（路径与内容）加上工作名称的 SHA-256 前 16 个字符。清单在 <code>tools/ci_changes.py</code> 的 <code>GROUPS</code>，每个工作都包含依赖（版本号不算）、自己的 workflow 档与 <code>tools/ci_changes.py</code> 本身。</dd>
           <dt>通过记录</dt><dd>工作成功时上传的小产物 <code>pass-&lt;工作&gt;-&lt;指纹&gt;</code>，保留 30 天。只认这个仓库自己的运行，fork 的 PR 不能替别人声明通过。</dd>
-          <dt>外壳键</dt><dd>外壳的输入（依赖、<code>.python-version</code>、<code>packages/rpa_update/src</code>、<code>apps/desktop/packaging</code>、<code>tools/build_desktop.py</code>）加上目标的哈希。缓存键是 <code>desktop-shell-v1-&lt;目标&gt;-&lt;外壳键&gt;-&lt;CI 密钥代号&gt;</code>，内容是 DMG 或 zip、<code>runtime.json</code> 与下载好的浏览器。</dd>
+          <dt>外壳键</dt><dd>外壳的输入（依赖、<code>.python-version</code>、<code>packages/rpa_update/src</code>、<code>apps/desktop/packaging</code>、<code>tools/build_desktop.py</code>；RPA Worker 另加它附带的 RPA Python 运行环境：<code>runtimes/python/</code>、<code>tools/build_python_runtime.py</code>）加上目标的哈希。缓存键是 <code>desktop-shell-v1-&lt;目标&gt;-&lt;外壳键&gt;-&lt;CI 密钥代号&gt;</code>，内容是 DMG 或 zip、<code>runtime.json</code> 与下载好的浏览器。</dd>
           <dt>代码层路径</dt><dd>从缓存取出 App（<code>tools/desktop_shell.py restore</code>），用这次的程序建更新档（<code>tools/build_update.py</code>，CI 密钥签章），装进 App 的文件夹；自我测试、窗口自我测试、端到端都用这一层，跑完确认这一层已经确认、没有被退回。不建安装档，也不上传试用包。</dd>
           <dt>完整建置路径</dt><dd>原本的全部步骤，外加「下一个提交」的更新与自动退回。成功时把 DMG 或 zip 存进缓存（推版本标签时不存）。</dd>
         </dl>
@@ -54,7 +54,8 @@
             <tr><td>RPA 录制端（macOS）</td><td>外壳；录制端的程序（<code>recorder_*</code>、本机闸道、交互子进程、配对、<code>debug.py</code>、<code>record.py</code>、<code>commands.py</code>）；两个 App 共用、有系统分支的程序（入口、自我测试、更新、下载浏览器、钥匙串）；<code>macos.py</code>；Client API 与设备更新端点；测试网站与示例；端到端</td><td>窄的范围（2026-10-27 决定）：其他代码的改动交给 Linux 的 <code>role_recorder</code> 测试、Windows 的代码层测试与每晚的 macOS 检查</td></tr>
             <tr><td>RPA Worker（Windows）</td><td>外壳；它会运行的全部代码（<code>rpa_core</code>、<code>rpa_runner</code>、<code>rpa_worker</code>、<code>rpa_desktop</code> 的源代码、测试网站）；Worker API、Client API、设备管理与更新端点；示例；建置前的单元测试</td><td>生产角色：代码一改就跑（大多走代码层路径）</td></tr>
             <tr><td>RPA Worker（macOS）</td><td>外壳；菜单栏、LaunchAgent、钥匙串、窗口（<code>macos.py</code>、<code>autostart.py</code>、<code>credentials.py</code>、<code>gui.py</code>）；建置前的单元测试</td><td>不是生产角色；每晚的 macOS 检查也跑它</td></tr>
-            <tr><td>服务器分发包（x64、arm64）</td><td>原本的路径：服务器、命令行、Worker、测试网站与包的源代码、示例、建置工具</td><td>Linux，约 2 分</td></tr>
+            <tr><td>服务器分发包（x64、arm64）</td><td>原本的路径：服务器、命令行、Worker、测试网站与包的源代码、示例、建置工具；RPA Python 运行环境（分发包附带一份）</td><td>Linux，约 2 分；在 Rocky 8 另外运行示例 Python 节点</td></tr>
+            <tr><td>RPA Python 运行环境（Linux x64、arm64、Windows、macOS）</td><td><code>runtimes/python/</code>、<code>tools/build_python_runtime.py</code>、<code>rpa_script</code>、<code>rpa_runner</code>、<code>rpa_core</code> 的源代码与 Python 节点的测试（2026-10-29 起，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）</td><td>每个平台建一份、跑自我测试、解压到缓存，再用它跑 Python 节点的测试；Linux 另在 Rocky 8 容器解压、自我测试</td></tr>
             <tr><td>一键安装脚本（Rocky 8 两种、三个系统的项目内运行）</td><td>原本的路径：脚本、依赖、Python 版本、相关工具与测试</td><td>调度时照常跑完整范围</td></tr>
             <tr><td>CI 的 Worker 测试（Windows）</td><td>原本的 Worker 路径（<code>packages/</code>、<code>apps/worker</code>、<code>apps/cli</code>、<code>apps/testsite</code>、<code>apps/desktop</code>、<code>scenarios/</code> 等）</td><td>CI 的 Linux 测试每次照跑</td></tr>
           </tbody>
@@ -70,7 +71,7 @@
           <li><strong>不想沿用、重新验证一次：</strong>手动触发那个流程（手动触发一律运行）。</li>
           <li><strong>改了 <code>desktop.yml</code> 的建置步骤：</strong>把 <code>tools/ci_changes.py</code> 的 <code>SHELL_EPOCH</code> 加 1，缓存的外壳全部重建一次。改了指纹的算法或输入的写法时，把 <code>EPOCH</code> 加 1，所有通过记录失效。</li>
           <li><strong>添加文件：</strong>放在已登记的文件夹下就自动算进去。新的 macOS 专属模块要加到 <code>RECORDER</code> 或 <code>WORKER_MACOS</code>；<code>tests/ci/test_ci_changes.py</code> 会检查每个模式都还对得到文件（改名不会悄悄失效），以及桌面 App 的源代码都在 Windows Worker 的输入里。</li>
-          <li><strong>本机看指纹：</strong><code>python3 tools/ci_changes.py --workflow desktop.yml --show</code>（另有 <code>server-package.yml</code>、<code>setup-scripts.yml</code>、<code>ci.yml</code>）。</li>
+          <li><strong>本机看指纹：</strong><code>python3 tools/ci_changes.py --workflow desktop.yml --show</code>（另有 <code>server-package.yml</code>、<code>setup-scripts.yml</code>、<code>ci.yml</code>、<code>python-runtime.yml</code>）。</li>
         </ul>
         <h3>代码层路径失败时</h3>
         <ul class="points">
@@ -150,7 +151,9 @@ gh workflow run desktop.yml --ref 分支名称
 # 只建录制端，外壳在缓存里就只换代码层（不产生试用包）
 gh workflow run desktop.yml --ref 分支名称 -f targets=recorder-macos-arm64 -f build=auto
 # 服务器分发包（Linux x64、arm64）
-gh workflow run server-package.yml --ref 分支名称</pre>
+gh workflow run server-package.yml --ref 分支名称
+# RPA Python 运行环境（四个平台建置、自我测试、Python 节点的测试）
+gh workflow run python-runtime.yml --ref 分支名称</pre>
       <div class="panel-body prose">
         <p>本机照角色跑：<code>uv run pytest -m "browser and (role_worker or smoke)"</code>（Worker）、<code>uv run pytest -m "not browser or ((smoke or role_server or role_recorder) and not firefox)"</code>（同 CI 的 Linux）。</p>
       </div>
