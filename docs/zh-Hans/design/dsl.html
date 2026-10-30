@@ -189,7 +189,22 @@ def main(run: Run) -&gt; None:
         merged.to_excel(run.output_dir / "merged.xlsx", index=False)
         run.facts.update(fileCount=len(paths), total=float(merged["金额"].sum()),
                          byBranch=merged.groupby("分店")["金额"].sum().to_dict())</pre>
-        <p class="muted"><code>run.inputs</code>（运行态入参）、<code>run.input_files</code>、<code>run.secrets</code>、<code>run.facts</code>、<code>with run.step(id, 名称)</code>（循环里同一个 id 记成第 n 次）、<code>run.output_dir</code>、<code>run.workspace</code>、<code>run.preview(名称, 值)</code>、<code>run.log(消息)</code>、<code>StepError</code>、<code>run.remaining_seconds</code>、<code>run.platform</code>、<code>run.runtime</code>、<code>run.lang</code>。主控台输出与错误里的 Secrets 值自动遮罩。</p>
+        <p class="muted"><code>run.inputs</code>（运行态入参）、<code>run.input_files</code>、<code>run.secrets</code>、<code>run.facts</code>、<code>with run.step(id, 名称)</code>（循环里同一个 id 记成第 n 次）、<code>run.output_dir</code>、<code>run.workspace</code>、<code>run.preview(名称, 值)</code>、<code>run.log(消息)</code>、<code>StepError</code>、<code>run.remaining_seconds</code>、<code>run.platform</code>、<code>run.runtime</code>、<code>run.lang</code>。主控台输出与错误里的 Secrets 值自动遮罩。<code>run.input_files[名称]</code> 是文件（Path）的清单；每一步前后的文件变化记在步骤里。</p>
+        <h3 id="files-between-nodes">节点之间传文件：download 步骤与 file 出参</h3>
+<pre class="source">steps:                                   # 浏览器节点：下载
+  - id: export
+    action: download                     # 点击并等待下载完成
+    target: { role: button, name: 导出 CSV }
+    as: report                           # facts.report = {"workspace", "name", "size", "sha256"}
+    fileName: '销售-{{ inputs.month }}.csv'   # 选用：保存的文件名
+outputs:
+  report: { type: file, from: '{{ facts.report }}' }</pre>
+        <ul class="points">
+          <li><strong>download</strong> 把文件存到组合运行的共用工作文件夹的 <code>downloads/</code>（单独运行时是这次运行的暂存文件夹）。录制稿的 <code>expect_download</code> 自动转成这个步骤。</li>
+          <li><strong><code>type: file</code> 出参</strong>：<code>from</code>（或 assertion.py）给一个路径（相对路径是相对于共用工作文件夹）或 download 的事实；文件要在共用工作文件夹或这次运行的 <code>outputs/</code>。出参阶段把它拷贝进运行目录的 <code>outputs/</code>（报告可以下载），值是 <code>{"workspace", "name", "size", "sha256"}</code>。单档与合计的上限沿用文件入参。兼容模式的 Python 节点不能用。</li>
+          <li><strong>接到下游</strong>：组合场景把 file 出参直接接到下游的 file 入参（同一台 Worker、同一个共用工作文件夹）；下游的 Python 节点从 <code>run.input_files</code> 拿到文件，浏览器节点用 <code>upload</code> 交给网页。单独运行时这种值会说明「只有在组合运行里才拿得到」。</li>
+          <li><strong>报告</strong>：产出文件、文件变化（<code>files.json</code>）、数据预览；Python 节点的回看是步骤时间轴。示例：<code>scenarios/examples/browser-python/</code>（下载 → Python 汇总 → 上传，<code>workflow.json</code>）。</li>
+        </ul>
       </div>
     </section>
 
