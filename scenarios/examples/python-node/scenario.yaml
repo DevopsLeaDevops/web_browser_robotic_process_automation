@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# Python 節點（運行環境模式，ADR 0020）的範例：把各分店的銷售明細合併成一份 Excel，
+# 出參是列數與總額，Excel 是產出檔案（outputs/）。用 RPA Python 運行環境 1 附帶的
+# pandas、openpyxl、xlsxwriter；不開瀏覽器，不需要 assertion.py：獨立斷言用 DSL 的 verify。
+# 在組合場景裡，上游節點的 object 出參（例如從網頁抽出的明細）可以直接接 branches。
+# 桌面 RPA Worker 的自我測試也執行它（rpa_desktop.selftest）。
+
+schemaVersion: 1
+id: python-node-report
+name: 合併分店銷售（Python 節點）
+category: 範例資料
+
+inputs:
+  branches:
+    type: object
+    default:
+      台北: [[筆電, 100], [滑鼠, 5]]
+      高雄: [[螢幕, 30]]
+
+outputs:
+  rows:
+    type: integer
+    minimum: 1
+    from: '{{ facts.rows }}'
+  total:
+    type: number
+    from: '{{ facts.total }}'
+
+deadline: 60000
+
+script:
+  runtime: '1'
+  automation: automation.py
+  files: [report.py]
+
+verify:
+  - { value: '{{ facts.rows }}', matches: '^[1-9][0-9]*$' }
+  - { value: '{{ facts.sheet }}', equals: 合併 }

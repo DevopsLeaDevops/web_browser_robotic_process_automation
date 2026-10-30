@@ -236,7 +236,7 @@
 {% macro worker_wait_notice(wait) -%}
 {% if wait %}
 <div class="notice warn" role="status" data-worker-wait>
-  {% if wait.runtime %}{{ t("run.waiting_python_platforms" if wait.platforms else "run.waiting_python", runtime=wait.runtime, platforms=wait.platforms) }}
+  {% if wait.get("runtime") %}{{ t("run.waiting_python_platforms" if wait.get("platforms") else "run.waiting_python", runtime=wait.runtime, platforms=wait.get("platforms")) }}
   {% elif wait.worker %}{{ t("run.waiting_worker_named", name=wait.worker) }}{% else %}{{ t("run.waiting_worker") }}{% endif %}
   {% if menu_shown("cluster") %}<span class="actions"><a class="button" href="/devices">{{ t("run.waiting_worker_devices") }}</a></span>{% endif %}
 </div>

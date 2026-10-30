@@ -16,6 +16,10 @@
 
 壓縮檔的內容：最上層就是運行環境的根目錄（``rpa-runtime.json``、``bin/python3`` 或
 ``python.exe``、標準函式庫與 site-packages）。
+
+``rpa_script`` 不裝在運行環境裡：:func:`script_library` 把 Runner 自己的那份（只用標準函式庫）
+放到快取，啟動時加在 import 路徑的最後。程式碼層（ADR 0018）更新後腳本介面跟著更新，不會和
+運行環境的版本錯開；運行環境只在 Python 或套件改變時才換。
 """
 
 import contextlib
@@ -52,6 +56,7 @@ __all__ = [
     "prepare",
     "python_path",
     "read_manifest",
+    "script_library",
 ]
 
 ENV_RUNTIME: Final = "RPA_PYTHON_RUNTIME"
@@ -67,9 +72,11 @@ ARCHIVE_PATTERN: Final = re.compile(
 )
 LOCK_SECONDS: Final = 600.0
 """鎖檔超過這麼久沒有更新，當成前一個程序已經不在了。"""
-_SELF_CHECK: Final = (
-    "import json, sqlite3, ssl, rpa_script; print(json.dumps(rpa_script.selfcheck()))"
-)
+_SELF_CHECK: Final = "import json, sqlite3, ssl, zoneinfo; print(json.dumps({'ok': True}))"
+SCRIPT_LIBRARY_PREFIX: Final = "rpa-script-"
+"""快取裡 Runner 的 rpa_script（:func:`script_library`）的資料夾名稱開頭，後面接內容的雜湊。"""
+SCRIPT_LIBRARY_DAYS: Final = 7
+"""別的版本的 rpa_script 超過這麼多天沒有更新就刪掉（程式碼層更新後留下的）。"""
 
 
 class RuntimeUnavailableError(Exception):
@@ -153,6 +160,9 @@ def archive_dirs(environ: Mapping[str, str] | None = None) -> list[Path]:
     env = os.environ if environ is None else environ
     found = [Path(item) for item in env.get(ENV_ARCHIVES, "").split(os.pathsep) if item]
     if is_frozen():
+        bundled = getattr(sys, "_MEIPASS", None)  # PyInstaller 的資料檔（Windows 的 _internal）
+        if isinstance(bundled, str):
+            found.append(Path(bundled) / "runtimes")
         here = Path(sys.executable).resolve().parent
         found += [here / "runtimes", here.parent / "Resources" / "runtimes"]
     found += [Path(sys.prefix) / "runtimes", Path(sys.prefix).parent / "runtimes"]
@@ -368,6 +378,65 @@ def prepare(
         if _major(version) == major and _usable(folder, None):
             return done(folder, reused=True)
     raise RuntimeUnavailableError(f"no RPA Python runtime {major} for {tag}")
+
+
+def _library_files(source: Path) -> list[Path]:
+    return sorted(
+        path for path in source.rglob("*.py") if "__pycache__" not in path.relative_to(source).parts
+    )
+
+
+def script_library(environ: Mapping[str, str] | None = None) -> Path:
+    """把 Runner 的 ``rpa_script``（.py 檔）放到快取，回傳要加進 import 路徑的資料夾。
+
+    資料夾名稱帶內容的雜湊：同一份程式只複製一次，不同版本（程式碼層更新前後）各一份，舊的
+    一段時間後刪掉。打包後的 App 在建置時把 rpa_script 的原始碼收進來（rpa_desktop.spec）。
+    找不到原始碼時拋出 RuntimeUnavailableError。
+    """
+    import rpa_script  # 只有運行環境模式用到
+
+    source = Path(rpa_script.__file__).resolve().parent
+    files = _library_files(source)
+    if source / "__init__.py" not in files or source / "__main__.py" not in files:
+        raise RuntimeUnavailableError(f"{source}: rpa_script source files not found")
+    hasher = hashlib.sha256()
+    contents: dict[str, bytes] = {}
+    for path in files:
+        relative = path.relative_to(source).as_posix()
+        contents[relative] = path.read_bytes()
+        hasher.update(f"{relative}\0".encode())
+        hasher.update(hashlib.sha256(contents[relative]).digest())
+    cache = cache_dir(os.environ if environ is None else environ) / "python"
+    root = cache / f"{SCRIPT_LIBRARY_PREFIX}{hasher.hexdigest()[:16]}"
+    if (root / "rpa_script" / "__main__.py").is_file():
+        return root
+    temp = cache / f".tmp-{root.name}-{uuid.uuid4().hex[:8]}"
+    try:
+        for relative, data in contents.items():
+            target = temp / "rpa_script" / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        try:
+            temp.rename(root)
+        except OSError:  # 別的程序剛好也放好了
+            if not (root / "rpa_script" / "__main__.py").is_file():
+                raise
+    except OSError as error:
+        raise RuntimeUnavailableError(f"{root}: {error}") from error
+    finally:
+        shutil.rmtree(temp, ignore_errors=True)
+    _prune_libraries(cache, keep=root)
+    return root
+
+
+def _prune_libraries(cache: Path, keep: Path) -> None:
+    limit = time.time() - SCRIPT_LIBRARY_DAYS * 86400
+    for path in cache.glob(f"{SCRIPT_LIBRARY_PREFIX}*"):
+        if path == keep:
+            continue
+        with contextlib.suppress(OSError):
+            if path.stat().st_mtime < limit:
+                shutil.rmtree(path, ignore_errors=True)
 
 
 _DROPPED_PREFIXES: Final = ("PYTHON", "CONDA_", "PLAYWRIGHT_", "RPA_WORKER_", "PIP_", "UV_")

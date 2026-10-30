@@ -12,6 +12,11 @@
 在 GitHub Actions 裡同時寫進步驟的輸出。
 RPA Worker 的執行檔圖示在建置時由 ``rpa_desktop.icon`` 畫出（倉庫不放二進位圖檔）。
 
+RPA Worker 附帶 RPA Python 運行環境（ADR 0020，Python 節點的運行環境模式用）：環境變數
+``RPA_PYTHON_RUNTIME_ARCHIVE`` 指向已經建好的壓縮檔時用它，否則先用
+``tools/build_python_runtime.py`` 建這台電腦平台的一份。壓縮檔放進 App 的 ``runtimes/``，
+第一次執行 Python 節點時解壓到快取。環境代號只算它的檔名（含運行環境的版本）。
+
 Windows 上另外用 Inno Setup 建安裝檔（M10.1 PR 3，``apps/desktop/packaging/rpa_worker.iss``），
 步驟的輸出多一行 ``installer: …``：
 
@@ -69,6 +74,8 @@ WEBVIEW2_URL: Final = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
 檔案會更新，所以不釘 SHA-256，改為核對 Microsoft 的數位簽章。"""
 WEBVIEW2_FILE: Final = "MicrosoftEdgeWebview2Setup.exe"
+PYTHON_RUNTIME_ENV: Final = "RPA_PYTHON_RUNTIME_ARCHIVE"
+"""已經建好的 RPA Python 運行環境壓縮檔（ADR 0020）；沒設定時建置 RPA Worker 前先建一份。"""
 _MESSAGE_NAME: Final = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 WORKSPACE_METADATA: Final = re.compile(r"^(rpa_\w+|testsite)-[^/]+\.(dist|egg)-info$")
 """工作區套件的套件資訊資料夾（``rpa_update-0.6.1.dist-info``）。"""
@@ -326,6 +333,21 @@ def _zip(app: App, version: str) -> Path:
     return Path(shutil.make_archive(str(base), "zip", root_dir=DIST, base_dir=EXECUTABLES[app]))
 
 
+def python_runtime() -> Path:
+    """RPA Worker 附帶的 RPA Python 運行環境（ADR 0020）：這台電腦平台的壓縮檔。"""
+    given = os.environ.get(PYTHON_RUNTIME_ENV)
+    if given:
+        path = Path(given)
+        if not path.is_file():
+            raise RuntimeError(f"{PYTHON_RUNTIME_ENV} 指的檔案不存在：{path}")
+        return path
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from tools.build_python_runtime import build as build_python_runtime
+
+    return build_python_runtime()
+
+
 def runtime_path(app: App) -> Path:
     """spec 寫出的 runtime.json（ADR 0018），也放進 App 的 rpa_update/。"""
     return WORK / app / "runtime.json"
@@ -353,6 +375,8 @@ def build(app: App) -> tuple[Path, Path, Path | None, Runtime]:
     icon = _icon(app)
     if icon is not None:
         env["RPA_DESKTOP_ICON"] = str(icon)
+    if app == "worker":
+        env["RPA_DESKTOP_PYTHON_RUNTIME"] = str(python_runtime())
     subprocess.run(
         [
             sys.executable,

@@ -18,7 +18,9 @@
 # 完整建置路徑：
 #   用打包後的 App 跑自我測試（rpa_desktop.selftest）：App 用內附的 Playwright driver 把 Chromium
 #   下載到全新的資料夾 → 啟動測試網站 → 無頭執行 BA-001（子程序走 --rpa-module）與它的 Python
-#   腳本版（走 --rpa-script）。
+#   腳本版（走 --rpa-script）。RPA Worker 另外附帶 RPA Python 運行環境（ADR 0020；建置時由
+#   tools/build_python_runtime.py 建這個平台的一份，所以外殼鍵包含 runtimes/python/），自我測試
+#   再執行範例 Python 節點（scenarios/examples/python-node：解壓運行環境、pandas 合併出 Excel）。
 # Worker（Windows）另外：
 #   建置前跑 apps/desktop 的單元測試（登錄檔、單一執行、認證管理員用真的）；
 #   視窗自我測試（rpa-worker.exe --smoke-test）：打開 WebView2 視窗與通知區圖示，確認頁面的腳本跑起來；

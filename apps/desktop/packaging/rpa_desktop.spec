@@ -7,6 +7,7 @@
 #   RPA_DESKTOP_RELEASE  內建的程式是哪一版（版本-提交），寫進 runtime.json
 #   RPA_DESKTOP_RUNTIME  寫出 runtime.json 的路徑（放進 App 的 rpa_update/，ADR 0018）
 #   RPA_DESKTOP_ICON     執行檔的圖示（.ico，Windows；建置時由 rpa_desktop.icon 畫出，可省略）
+#   RPA_DESKTOP_PYTHON_RUNTIME  RPA Worker 附帶的 RPA Python 運行環境壓縮檔（ADR 0020），放進 runtimes/
 #
 # 分層（ADR 0018）：入口是 rpa_update.boot，先選好使用者資料夾裡的程式碼層（更新檔裝的），
 # 排在 import 路徑最前面，再執行 rpa_desktop。App 裡的這份程式是沒有更新、或更新不能用時的
@@ -44,8 +45,10 @@ VERSION = os.environ.get("RPA_DESKTOP_VERSION", "0.0.0")
 RELEASE = os.environ.get("RPA_DESKTOP_RELEASE", VERSION)
 RUNTIME = Path(os.environ["RPA_DESKTOP_RUNTIME"])
 ICON = os.environ.get("RPA_DESKTOP_ICON") or None
+PYTHON_RUNTIME = os.environ.get("RPA_DESKTOP_PYTHON_RUNTIME") or None
 ROOT = Path(SPECPATH).resolve().parents[2]  # SPECPATH 由 PyInstaller 提供
 DEMO = ROOT / "scenarios" / "demo"
+EXAMPLES = ROOT / "scenarios" / "examples"
 
 NAMES = {
     "recorder": {
@@ -164,6 +167,16 @@ if MAC_APP:
 datas.append((str(DEMO / "ba-001.yaml"), "rpa_desktop/scenarios"))
 for name in ("scenario.yaml", "automation.py", "assertion.py"):
     datas.append((str(DEMO / "ba-001-script" / name), "rpa_desktop/scenarios/ba-001-script"))
+# Python 節點（ADR 0020）：Runner 把 rpa_script 的原始碼交給 RPA Python 運行環境，所以 .py 也收進來
+# （程式碼層，不算環境代號）。RPA Worker 另外附帶運行環境的壓縮檔（環境代號只算檔名）與
+# 自我測試用的範例 Python 節點。
+datas += collect_data_files("rpa_script", include_py_files=True)
+if APP == "worker":
+    if PYTHON_RUNTIME is None:
+        raise SystemExit("RPA Worker 要附帶 RPA Python 運行環境：設定 RPA_DESKTOP_PYTHON_RUNTIME")
+    datas.append((PYTHON_RUNTIME, "runtimes"))
+    for name in ("scenario.yaml", "automation.py", "report.py"):
+        datas.append((str(EXAMPLES / "python-node" / name), "rpa_desktop/scenarios/python-node"))
 
 a = Analysis(
     [str(ROOT / "packages" / "rpa_update" / "src" / "rpa_update" / "boot.py")],

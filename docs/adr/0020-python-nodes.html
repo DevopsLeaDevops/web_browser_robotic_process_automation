@@ -45,7 +45,7 @@
             <li><strong>RPA Python 運行環境。</strong>平台建置、測試的一套 Python 3.13 加固定的套件，CI 為每個平台建好，附在 Worker App 與 Linux 分發包；第一次用到時解壓到快取資料夾、自我檢查後沿用。執行時以 <code>-E -s</code> 隔開電腦上的 Python 與 <code>PYTHON*</code> 環境變數。模型套件不放進基本版，之後另做選用層（D4）。</li>
             <li><strong>派工。</strong>運行環境模式的任務只交給回報了這個主版本、平台在 <code>platforms</code> 裡的裝置，不看瀏覽器與視窗；沒有時執行頁說明在等什麼。舊版 App 由 M7a 的 <code>features</code>（<code>pythonNodes</code>、<code>jsonInputs</code>）擋下。</li>
             <li><strong>組合場景裡的資料與檔案。</strong>入參多 <code>array</code>、<code>object</code>，上游的同型別出參可以直接接；同一次組合運行在那台 Worker 上有一個共用工作資料夾，也是 Python 節點的工作目錄，組合運行結束就刪，只有宣告的產出檔案上傳（D3）。</li>
-            <li><strong><code>rpa_script</code>。</strong>運行環境模式由 <code>python -m rpa_script</code> 啟動：照契約自己讀寫檔案的腳本不用改；用 <code>@automation</code> 的腳本有步驟、事實、產出檔案與資料預覽，寫成和 DSL 相同格式的 <code>steps.json</code>。</li>
+            <li><strong><code>rpa_script</code>。</strong>運行環境模式由 <code>rpa_script</code> 的啟動器執行腳本：照契約自己讀寫檔案的腳本不用改；用 <code>@automation</code> 的腳本有步驟、事實、產出檔案與資料預覽，寫成和 DSL 相同格式的 <code>steps.json</code>。<code>rpa_script</code> 不裝在運行環境裡，由 Runner 把自己的那份（只用標準函式庫）加在 import 路徑最後：它屬於程式碼層，跟著更新檔更新，不會和運行環境的版本錯開（2026-10-29 實作時確定）。</li>
             <li><strong>執行的 <code>runtime</code> 階段。</strong>入參之後、自動化之前準備運行環境，不算進總期限；<code>result.json</code> 多一個 <code>python</code>（模式、版本、平台、沿用或新解壓）。</li>
           </ul>
         </div>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:6ecc1588a9b038ca">
+<meta name="translation-source" content="sha256:61685cfc0d3d6983">
 <title>ADR 0020 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -46,7 +46,7 @@
             <li><strong>RPA Python runtime.</strong> A platform-built and tested Python 3.13 with fixed packages, built per platform in CI and shipped with the Worker app and the Linux package; extracted to the cache on first use, self-checked and reused. Runs use <code>-E -s</code> to keep the computer's Python and <code>PYTHON*</code> variables out. Model packages stay out of the base runtime and become an optional layer later (D4).</li>
             <li><strong>Dispatch.</strong> Runtime-mode jobs go only to devices that report that major version on a platform listed in <code>platforms</code>; browsers and displays do not matter. Otherwise the run page explains what it waits for. Older apps are held back by the M7a <code>features</code> (<code>pythonNodes</code>, <code>jsonInputs</code>).</li>
             <li><strong>Data and files in composite scenarios.</strong> Inputs gain <code>array</code> and <code>object</code>, so an upstream output of the same type connects directly. Each composite run has a shared workspace on its Worker, which is also the Python nodes' working directory; it is deleted when the composite run ends, and only declared produced files are uploaded (D3).</li>
-            <li><strong><code>rpa_script</code>.</strong> Runtime mode starts scripts with <code>python -m rpa_script</code>: scripts that read and write the contract's files themselves need no change; scripts with <code>@automation</code> get steps, facts, produced files and data previews, written as a <code>steps.json</code> in the DSL format.</li>
+            <li><strong><code>rpa_script</code>.</strong> Runtime mode runs scripts through the <code>rpa_script</code> launcher: scripts that read and write the contract's files themselves need no change; scripts with <code>@automation</code> get steps, facts, produced files and data previews, written as a <code>steps.json</code> in the DSL format. <code>rpa_script</code> is not installed in the runtime: the Runner appends its own copy (standard library only) to the import path, so it belongs to the code layer, follows update files and never drifts from the runtime's version (settled during implementation on 2026-10-29).</li>
             <li><strong>A <code>runtime</code> stage.</strong> After the inputs and before the automation the runtime is prepared, not counted against the deadline; <code>result.json</code> gains <code>python</code> (mode, version, platform, reused or freshly extracted).</li>
           </ul>
         </div>

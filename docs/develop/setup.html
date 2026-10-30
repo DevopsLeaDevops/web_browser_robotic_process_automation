@@ -71,6 +71,8 @@ uv run rpa --version</pre>
             <tr><td>提交前的全部檢查</td><td><code>uv run pre-commit run --all-files</code></td></tr>
             <tr><td>替某個套件加依賴</td><td><code>uv add --package rpa-core 套件名稱</code>（會一併更新 <code>uv.lock</code>，兩個檔案一起提交）</td></tr>
             <tr><td>以其他語言顯示 <code>rpa</code></td><td><code>uv run rpa --lang en -h</code>，或設定環境變數 <code>RPA_LANG=zh-Hans</code></td></tr>
+            <tr><td>建 RPA Python 運行環境（Python 節點的運行環境模式，<a href="../adr/0020-python-nodes.html">ADR 0020</a>），解壓到這台電腦的快取</td><td><code>uv run python tools/build_python_runtime.py build --install</code>（要連得到 GitHub 與 PyPI；之後 <code>rpa run</code>、本機 worker 都用它）</td></tr>
+            <tr><td>改了運行環境的套件（<code>runtimes/python/requirements.in</code>）</td><td><code>uv run python tools/build_python_runtime.py lock</code>，或提交訊息加 <code>[bootstrap]</code> 由 CI 產生 <code>requirements.lock</code>；同時升 <code>runtime.toml</code> 的 <code>version</code></td></tr>
             <tr><td>重新產生簡中、檢查翻譯</td><td><code>uv run python tools/i18n.py sync</code>、<code>uv run python tools/i18n.py check</code>，見<a href="writing-docs.html#i18n">三種語言</a></td></tr>
             <tr><td>瀏覽文檔</td><td>直接開啟 <code>docs/index.html</code>，或 <code>python -m http.server -d docs 8000</code></td></tr>
           </tbody>
@@ -104,7 +106,7 @@ bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
           <dt>系統套件</dt><dd>只補裝缺少的 <code>libstdc++</code> 與 <code>git</code>（git 只有領域資料夾的 git 同步要用），所以升級通常不用 sudo 裝套件；管理員已備妥時加 <code>--skip-system-packages</code>。安裝 unit 與重新啟動服務需要 sudo。</dd>
           <dt>升級失敗時</dt><dd>新版本啟動後約 60 秒內管理埠沒有回應，安裝程式停下並說明怎麼退回上一版（<code>current</code> 指回 <code>releases/上一版</code> 後重新啟動）。資料庫遷移在新版本啟動時執行：升級前照下方的方式備份整個資料目錄，退回舊版前先還原。</dd>
         </dl>
-        <p>分發包由 CI 建置（<code>tools/build_server.py</code>、「伺服器分發包」流程）：只選 <code>manylinux_2_28</code> 以下的套件，建好後用包內的 Python 執行；再在同架構的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般帳號）實際安裝、沿用舊設定、冒煙測試、重裝與升級。容器沒有 systemd：真實的服務啟停與公司主機仍需驗收。首次管理、SSH 轉發與防火牆和下方相同。</p>
+        <p>分發包另附 RPA Python 運行環境（<code>python/runtimes/</code>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：伺服器自己（本機 worker）執行 Python 節點時，第一次解壓到快取，之後沿用。分發包由 CI 建置（<code>tools/build_server.py</code>、「伺服器分發包」流程）：只選 <code>manylinux_2_28</code> 以下的套件，建好後用包內的 Python 執行；再在同架構的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般帳號）實際安裝、沿用舊設定、冒煙測試、重裝與升級。容器沒有 systemd：真實的服務啟停與公司主機仍需驗收。首次管理、SSH 轉發與防火牆和下方相同。</p>
       </div>
     </section>
     <section class="panel" id="linux-server">

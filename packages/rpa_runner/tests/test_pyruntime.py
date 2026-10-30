@@ -6,8 +6,11 @@
 
 import io
 import json
+import os
+import sys
 import tarfile
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -17,12 +20,14 @@ from rpa_runner.pyruntime import (
     ENV_RUNTIME,
     MANIFEST,
     RuntimeUnavailableError,
+    archive_dirs,
     available_versions,
     clean_environment,
     find_archives,
     platform_family,
     platform_tag,
     prepare,
+    script_library,
 )
 
 PLATFORM = "linux-x86_64"
@@ -182,3 +187,35 @@ def test_clean_environment_drops_other_pythons() -> None:
         "PYTHON_API_KEY": "kept because it is a secret",
         "LANG": "zh_TW.UTF-8",
     }
+
+
+def test_script_library_is_the_runners_rpa_script(tmp_path: Path) -> None:
+    env = {"RPA_CACHE_DIR": str(tmp_path / "cache")}
+    first = script_library(env)
+    assert first.parent == tmp_path / "cache" / "python"
+    assert first.name.startswith("rpa-script-")
+    copied = {path.name for path in (first / "rpa_script").iterdir()}
+    assert {"__init__.py", "__main__.py", "core.py"} <= copied
+    assert "__pycache__" not in copied
+    assert script_library(env) == first  # 同一份程式沿用
+
+
+def test_other_script_libraries_are_removed_after_a_week(tmp_path: Path) -> None:
+    cache = tmp_path / "cache" / "python"
+    old, recent = cache / "rpa-script-0000000000000000", cache / "rpa-script-1111111111111111"
+    for folder in (old, recent):
+        (folder / "rpa_script").mkdir(parents=True)
+    week_ago = time.time() - 8 * 86400
+    os.utime(old, (week_ago, week_ago))
+    script_library({"RPA_CACHE_DIR": str(tmp_path / "cache")})
+    assert not old.exists()
+    assert recent.exists()
+
+
+def test_frozen_app_looks_in_its_bundled_data(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "_internal"), raising=False)
+    found = archive_dirs({})
+    assert found[0] == tmp_path / "_internal" / "runtimes"

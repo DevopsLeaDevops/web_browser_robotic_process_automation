@@ -88,6 +88,7 @@ from rpa_runner.pyruntime import (
     clean_environment,
     platform_family,
     platform_tag,
+    script_library,
 )
 from rpa_runner.pyruntime import prepare as prepare_runtime
 from rpa_runner.report import render_report
@@ -753,11 +754,21 @@ def _login_stage(
     return login.state
 
 
+_LAUNCHER: Final = (
+    "import runpy, sys; sys.path.append(sys.argv.pop(1)); "
+    "runpy.run_module('rpa_script', run_name='__main__', alter_sys=True)"
+)
+"""運行環境模式的自動化：把 Runner 的 rpa_script 加在 import 路徑最後，再執行它的啟動器
+（等於 ``python -m rpa_script 腳本 參數…``）。"""
+
+
 @dataclass(frozen=True, slots=True)
 class _PythonNode:
     """運行環境模式的 Python 節點這次執行要用的：運行環境、共用工作資料夾、產出檔案、file 入參。"""
 
     runtime: PreparedRuntime
+    library: Path
+    """Runner 的 rpa_script 所在的資料夾（:func:`rpa_runner.pyruntime.script_library`）。"""
     workspace: Path
     outputs: Path
     input_files: Path | None
@@ -766,7 +777,9 @@ class _PythonNode:
         """運行環境的 Python 執行腳本：自動化經由 rpa_script 的啟動器，斷言直接執行。"""
         # -E -s：不讀 PYTHON* 環境變數與使用者的 site-packages；-B：不在快照裡寫 __pycache__
         base = [str(self.runtime.python), "-E", "-s", "-B", "-X", "utf8"]
-        return [*base, *(["-m", "rpa_script"] if launcher else []), str(script), *args]
+        if launcher:
+            return [*base, "-c", _LAUNCHER, str(self.library), str(script), *args]
+        return [*base, str(script), *args]
 
     def environment(
         self, scenario: Scenario, secrets: Mapping[str, str], deadline: Deadline, folder: Path
@@ -822,6 +835,7 @@ def _runtime_stage(
             )
         try:
             runtime = prepare_runtime(script.runtime)
+            library = script_library()
         except RuntimeUnavailableError as error:
             raise _StageFailedError(
                 "failed", t("run.runtime_failed", major=script.runtime, detail=str(error))
@@ -836,7 +850,7 @@ def _runtime_stage(
     outputs = folder / OUTPUTS_DIR
     outputs.mkdir(exist_ok=True)
     paths = staging / PATHS_FILE
-    node = _PythonNode(runtime, workspace, outputs, paths if paths.is_file() else None)
+    node = _PythonNode(runtime, library, workspace, outputs, paths if paths.is_file() else None)
     spent = time.monotonic() - started
     return node, Deadline(deadline.expires_at + spent)
 

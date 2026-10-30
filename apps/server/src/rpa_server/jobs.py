@@ -242,6 +242,9 @@ class RunQueue:
         # 從快照執行：執行中拉取或重新載入領域資料夾不影響這次執行（M11 收尾）
         path = self.storage.snapshot(run.scene_id, run.revision_number, run.id)
         login, secrets = self.extras(run.scene_id, run.revision_number)
+        options = self.file_options(run.input)
+        if run.workflow_run_id is not None:
+            options["workspace"] = self.storage.workspace(run.workflow_run_id)
         return Job(
             run_id=run.id,
             scenario=path,
@@ -253,10 +256,7 @@ class RunQueue:
             login=login,
             secrets=secrets,
             record_video=self.record_video(),
-            workspace=self.storage.workspace(run.workflow_run_id)
-            if run.workflow_run_id is not None
-            else None,
-            **self.file_options(run.input),
+            **options,
         )
 
     def file_options(self, inputs: Mapping[str, object]) -> FileOptions:
