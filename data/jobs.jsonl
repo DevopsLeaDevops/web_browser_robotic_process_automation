@@ -3787,3 +3787,11 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 328.0, "job": "從零開始（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 41242687723, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "success", "duration_s": 1001.0, "job": "專案內執行（ubuntu-latest）", "os": "linux", "queue_s": 2.0, "run_id": 41242687723, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 41242687723, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 8.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 9.0, "job": "桌面 App 每週完整建置 / 執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "完整測試（${{ matrix.os }}，Python ${{ matrix.python }}）", "os": "linux", "queue_s": 0.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "macOS 桌面 App（程式碼層）", "os": "linux", "queue_s": 0.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 238.0, "job": "桌面 App 每週完整建置 / RPA Worker（macOS）", "os": "macos", "queue_s": 2.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 417.0, "job": "桌面 App 每週完整建置 / RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 258.0, "job": "桌面 App 每週完整建置 / RPA Worker（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 41251871759, "workflow": "每晚完整測試"}
