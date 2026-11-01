@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-10-31 16:24 America/Los_Angeles（PDT，UTC−07:00）。共 826 次運行。
+更新：2026-11-01 13:42 America/Los_Angeles（PST，UTC−08:00）。共 827 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,17 +9,18 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 138（168） | 66（89） | 4.1 分（3.0 分） | 7.8 分（6.6 分） | 0.1 分（0.0 分） | 952／295／0 分（878／356／0 分） |
-| 桌面端建置 | 106（119） | 84（89） | 5.4 分（4.0 分） | 8.6 分（6.0 分） | 0.0 分（0.1 分） | 14／250／488 分（12／346／364 分） |
-| 伺服器分發包 | 95（18） | 89（14） | 2.0 分（1.9 分） | 4.6 分（7.5 分） | 0.1 分（0.1 分） | 319／0／0 分（70／0／0 分） |
-| 一鍵安裝腳本 | 95（44） | 86（20） | 0.2 分（3.1 分） | 14.3 分（17.1 分） | 0.0 分（0.1 分） | 338／289／247 分（264／207／78 分） |
-| 每晚完整測試 | 20（5） | 2（0） | 47.2 分（47.5 分） | 57.5 分（66.2 分） | 0.1 分（0.0 分） | 778／751／690 分（248／235／107 分） |
+| CI | 115（191） | 54（101） | 4.1 分（3.2 分） | 8.0 分（6.6 分） | 0.1 分（0.0 分） | 832／238／0 分（997／413／0 分） |
+| 桌面端建置 | 92（133） | 72（101） | 3.1 分（4.0 分） | 9.6 分（6.5 分） | 0.0 分（0.1 分） | 13／198／359 分（13／398／493 分） |
+| 伺服器分發包 | 81（32） | 76（27） | 2.0 分（2.0 分） | 3.9 分（6.7 分） | 0.1 分（0.1 分） | 256／0／0 分（133／0／0 分） |
+| 一鍵安裝腳本 | 85（55） | 77（30） | 0.2 分（3.2 分） | 15.2 分（17.1 分） | 0.0 分（0.1 分） | 260／275／225 分（370／255／132 分） |
+| 每晚完整測試 | 17（8） | 2（0） | 46.6 分（47.4 分） | 57.5 分（60.2 分） | 0.1 分（0.0 分） | 630／607／565 分（396／379／232 分） |
 | 發布 | 15（3） | 8（2） | 14.1 分（5.9 分） | 15.2 分（6.8 分） | 0.1 分（0.1 分） | 102／67／71 分（7／13／23 分） |
 
 ## 每天的機器時間（分鐘，洛杉磯日期，最近 14 天）
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
+| 2026-11-01 | 1 | 27 | 34 | 33 | 94 |
 | 2026-10-31 | 3 | 80 | 86 | 97 | 263 |
 | 2026-10-30 | 17 | 178 | 160 | 121 | 458 |
 | 2026-10-29 | 73 | 364 | 228 | 233 | 825 |
@@ -261,6 +262,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 11-01 13:15 | 一鍵安裝腳本 | 排程 | main | success | 26.6 分 | 0.1 分 | [#41351111726](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/41351111726/attempts/1) |
 | 10-31 16:17 | 每晚完整測試 | 排程 | main | success | 7.2 分 | 0.1 分 | [#41251871759](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/41251871759/attempts/1) |
 | 10-31 14:14 | 一鍵安裝腳本 | 排程 | main | success | 26.0 分 | 0.1 分 | [#41242687723](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/41242687723/attempts/1) |
 | 10-31 13:51 | 每晚完整測試 | 排程 | main | failure | 46.6 分 | 0.1 分 | [#41240812130](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/41240812130/attempts/1) |
@@ -300,5 +302,4 @@
 | 10-29 18:59 | 桌面端建置 | PR | feat/python-nodes | failure | 6.2 分 | 0.2 分 | [#40988997655](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40988997655/attempts/1) |
 | 10-29 18:45 | CI | PR | feat/python-nodes | failure | 4.6 分 | 0.0 分 | [#40987682472](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40987682472/attempts/1) |
 | 10-29 18:45 | 伺服器分發包 | PR | feat/python-nodes | failure | 0.5 分 | 0.1 分 | [#40987682464](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40987682464/attempts/1) |
-| 10-29 18:45 | 一鍵安裝腳本 | PR | feat/python-nodes | success | 2.7 分 | 0.1 分 | [#40987682346](https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/40987682346/attempts/1) |
 
