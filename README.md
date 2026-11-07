@@ -72,4 +72,4 @@ M4 場景生產與登入進行中：錄製（`rpa record` 或 Portal）轉成 DS
 
 M10 桌面端分發（設計中，2026-10-15）：錄製端（macOS）與 Worker（Windows；macOS 版 2026-10-22 起）以桌面 App 分發，見 [桌面端分發](docs/design/desktop.html) 與 [ADR 0014](docs/adr/0014-desktop-apps.html)；M5、M8、M9 其餘部分往後放。
 
-M6 DAG 組合場景已完成（#28，2026-10-14 合併）：DAG 畫布、四種入參來源、組合場景卡片管理與舊序列相容。示範場景與舊資料已人工驗收；實際業務系統與兩台電腦的驗收列在[未完成工作](handoff/open-work.html#m6-gaps)。詳見 [任務紀錄](handoff/tasks/20261014-dag-composite-scenes.html) 與 [Portal 設計](docs/design/portal.html#playground)。
+M6 DAG 組合場景已完成（#28，2026-10-14 合併）：DAG 畫布、四種入參來源、組合場景卡片管理與舊序列相容。人工驗收已通過（示範場景與舊資料 2026-10-14；實際業務系統與兩台電腦由使用者 2026-11-06 回報已驗，見[未完成工作](handoff/open-work.html#m6-gaps)）。詳見 [任務紀錄](handoff/tasks/20261014-dag-composite-scenes.html) 與 [Portal 設計](docs/design/portal.html#playground)。

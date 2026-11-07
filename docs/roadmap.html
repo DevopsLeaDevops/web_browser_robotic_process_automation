@@ -29,7 +29,7 @@
     <div class="notice"><strong>插入 M7b（2026-10-21）：</strong>接著把 M7 的多分頁（點擊開出的新分頁）提前：驗證時錄製稿裡 <code>expect_popup</code> 與新分頁上的操作轉不了。步驟加上 <code>popup</code>（這一步開出新分頁）與 <code>page</code>（在哪個分頁執行）；M7 的其餘部分不變。</div>
     <div class="notice"><strong>插入 M7c（2026-10-27）：</strong>把 M7 的上傳提前：業務系統的「匯入 Excel」「上傳圖片」錄得到、轉不了也執行不了。入參多一種 <code>file</code> 型別、步驟多一個 <code>upload</code>，檔案在執行時從管理 Portal 上傳或用場景附件；第一期與第二期一起做（下載步驟與 Python 腳本場景的檔案入參另行排程）。設計見<a href="../handoff/tasks/20261027-m7c-upload.html">任務紀錄</a>。</div>
     <div class="notice"><strong>新增 M14（2026-10-23）：</strong>對外 Agent API：第三方 Agent 系統經由伺服器的 <code>/agent-api/v1</code> 建立與調試場景、交給 Worker 驗證與執行，並取得運行過程。設計已確認，分三期；決策見 <a href="adr/0017-agent-api.html">ADR 0017</a>。</div>
-    <div class="notice success" id="now"><strong>目前（2026-10-28，main <code>a26b929</code>）：</strong>M10、M11、M12、M7a、M7b、M7c 與 M14 第一期的實作都已合併；最新發布是 v0.6.3（2026-10-26 19:20 America/Los_Angeles（PDT，UTC−07:00）），之後合併、還沒發布的有 M7c 上傳檔案、組合運行的匯總報告與合併回看、CI 依層建置（見下方<a href="#beyond">里程碑之外的改動</a>）。這些里程碑的人工驗收紀錄還不完整，所以狀態仍是「進行中」；「已合併」「自動測試通過」「人工驗收通過」是不同的狀態。下一個里程碑 M5 仍等 AI 模型與資料去向的決定。</div>
+    <div class="notice success" id="now"><strong>目前（2026-11-06，main <code>673dc4c</code>）：</strong>M6 的人工驗收全部通過（實際業務系統與兩台電腦由使用者 2026-11-06 回報已驗）。M10、M11、M12、M7a、M7b、M7c 與 M14 第一期的實作都已合併、發布；它們的人工驗收紀錄還不完整，所以狀態仍是「進行中」；「已合併」「自動測試通過」「人工驗收通過」是不同的狀態。最新發布是 v0.8.0（2026-10-29 06:53 America/Los_Angeles（PDT，UTC−07:00）），之後合併、還沒發布的是 Python 節點（見下方<a href="#beyond">里程碑之外的改動</a>）。M7 其餘的流程能力（條件、迴圈、錯誤處理、重試、自己開的新分頁、子場景、資料驅動）在設計中；M5 仍等 AI 模型與資料去向的決定。</div>
 
     <section class="panel">
       <div class="panel-header"><h2>里程碑</h2><span class="muted">狀態隨每個 PR 更新</span></div>
@@ -76,8 +76,9 @@
             <tr><td>分層熱更新</td><td>程式層與執行環境分開打包；伺服器用約 2 MB 的簽章更新檔升級，Worker 與錄製端跟著伺服器更新（<a href="adr/0018-layered-updates.html">ADR 0018</a>）。0.5.0 以前要用 0.6.0 的完整包安裝一次</td><td>#83，10-25；修正 #88（v0.6.2）</td><td>v0.6.0</td></tr>
             <tr><td>在錄製端調試時換版本</td><td>Portal「存成新版本並繼續調試」與 Agent API 的 reload 不再回「場景校驗失敗」</td><td>#90，10-26</td><td>v0.6.3</td></tr>
             <tr><td>CI 依層建置</td><td>同一組輸入只驗證一次，桌面 App 的外殼沒變不重新打包（<a href="develop/ci.html#layered">CI 與流水線</a>）</td><td>#94，10-26</td><td>main（只影響 CI）</td></tr>
-            <tr><td>組合運行的匯總報告與合併回看</td><td>一份報告、一個播放器看完整次組合運行（<a href="adr/0019-composite-report-replay.html">ADR 0019</a>）</td><td>#96，10-27；#98，10-28</td><td>main，尚未發布</td></tr>
-            <tr><td>Python 節點</td><td>現有的 Python 腳本場景演進成統一的 Python 節點，和瀏覽器場景串在組合場景裡：專用的 RPA Python 運行環境、共用工作資料夾、array／object 入參、file 出參、下載步驟、步驟時間軸的回看。2026-10-29 決定；P0～P2 在 #109 做完（含合併回看裡的步驟時間軸與主控台逐步對應，2026-10-30），等人工驗收與合併；模型套件層、腳本工作台、扇出之後做（<a href="../handoff/tasks/20261024-python-scripts.html">任務紀錄</a>）</td><td>#109（草稿），等驗收</td><td>—</td></tr>
+            <tr><td>組合運行的匯總報告與合併回看</td><td>一份報告、一個播放器看完整次組合運行（<a href="adr/0019-composite-report-replay.html">ADR 0019</a>）</td><td>#96，10-27；#98，10-28</td><td>v0.7.0</td></tr>
+            <tr><td>回看的章節軸與每一步的截圖</td><td>依步驟分章的時間軸、錄影時每一步結束後的截圖、等待快轉；步驟詳情從清單上方展開（<a href="design/portal.html">管理 Portal</a>）</td><td>#106，10-29</td><td>v0.8.0</td></tr>
+            <tr><td>Python 節點</td><td>現有的 Python 腳本場景演進成統一的 Python 節點，和瀏覽器場景串在組合場景裡：專用的 RPA Python 運行環境、共用工作資料夾、array／object 入參、file 出參、下載步驟、步驟時間軸的回看。2026-10-29 決定；P0～P2 在 #109 做完（含合併回看裡的步驟時間軸與主控台逐步對應），2026-11-06 合併，等人工驗收；模型套件層、腳本工作台、扇出之後做（<a href="../handoff/tasks/20261024-python-scripts.html">任務紀錄</a>）</td><td>#109，11-06</td><td>main，尚未發布</td></tr>
           </tbody>
         </table>
       </div>
