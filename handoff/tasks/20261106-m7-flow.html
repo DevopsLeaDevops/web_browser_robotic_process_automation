@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261106-m7-flow；2026-11-06 18:40 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261106-m7-flow；2026-11-06 18:13 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 雲端 session（2026-11-06 18:00 America/Los_Angeles（PST，UTC−08:00））：「M6已經驗證過，忘記更新狀態。請繼續M7的功能研發。」路線圖的 M7 驗收方式是「複雜範例場景通過」；各期的驗收條件見<a href="#phases">第 7 節</a>。</dd>
         <dt>範圍／不包含</dt><dd>M7 剩下的七項：條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、自己開的新分頁、子場景、資料驅動。不包含：已提前做完的 iframe（M7a）、點擊開出的新分頁（M7b）、上傳（M7c）、下載（ADR 0020）；組合場景層級的平行節點、條件分支、重複次數（M6 原型的項目，另等決定，見<a href="../open-work.html#m6-gaps">未完成工作</a>）；AI 生成流程（M5）。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）。審閱、決定與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd>設計階段只有本頁與任務索引。實作會改到的檔案見<a href="#files">第 9 節</a>；共用檔案（多語言目錄、<code>schema/scenario.v1.json</code>、<code>docs/assets/nav.js</code>、任務索引、ADR 編號 0021、之後 M7.3 的資料庫遷移編號）由本分支整合，<code>uv.lock</code>、簡中與 JSON Schema 由 bootstrap 產生。</dd>
         <dt>狀態</dt><dd>設計待確認：<a href="#decisions">D1～D9</a> 等使用者決定；尚未開始實作。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>m7/flow</code>，從 <code>673dc4c</code>（origin/main，Merge PR #112）開；草稿 PR 見追加紀錄。M6 狀態的文件更新另在 <code>docs/m6-status</code>（PR #113），兩者沒有共用檔案。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m7/flow</code>，從 <code>673dc4c</code>（origin/main，Merge PR #112）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/115">PR #115</a>（草稿，base main；目前只有設計）。M6 狀態的文件更新另在 <code>docs/m6-status</code>（PR #113），兩者沒有共用檔案。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁與索引推送到 <code>m7/flow</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、系統 Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。連不到 PyPI，<code>uv sync --locked</code> 失敗；調研用系統已有的 Pydantic 2.13.5、Jinja2 3.1.6、Playwright 與 <code>/opt/pw-browsers</code> 的 Chromium，在 <code>/tmp</code> 的虛擬環境以 .pth 指到工作區的套件原始碼。沒有 Firefox、沒有 OpenCC。</dd>
       </dl></div>
@@ -55,7 +55,7 @@
     </section>
 
     <section class="panel" id="research">
-      <div class="panel-header"><h2>3. 調研與實測</h2><span class="muted">2026-11-06 18:15～18:25 America/Los_Angeles（PST，UTC−08:00），本頁的工作環境</span></div>
+      <div class="panel-header"><h2>3. 調研與實測</h2><span class="muted">2026-11-06 18:00～18:10 America/Los_Angeles（PST，UTC−08:00），本頁的工作環境</span></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>問題</th><th>做法</th><th>結果</th></tr></thead>
         <tbody>
@@ -369,7 +369,7 @@ outputs:
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-11-06 18:40 America/Los_Angeles（PST，UTC−08:00），Claude：依使用者 18:00 的要求建立本頁。從 main <code>673dc4c</code> 開 <code>m7/flow</code>；確認 GitHub 上沒有其他開著的 PR、沒有人在做 M7。查證現況、做技術調研，寫成 M7 的設計與 D1～D9；只有設計，沒有實作。同一則訊息裡的 M6 狀態更新另開 <code>docs/m6-status</code>（PR #113）。</li>
+        <li>2026-11-06 18:13 America/Los_Angeles（PST，UTC−08:00），Claude：依使用者 18:00 的要求建立本頁（<code>69df0a6</code>）。從 main <code>673dc4c</code> 開 <code>m7/flow</code>；確認 GitHub 上沒有其他開著的 PR、沒有人在做 M7。查證現況、做技術調研，寫成 M7 的設計與 D1～D9；只有設計，沒有實作。同一則訊息裡的 M6 狀態更新另開 <code>docs/m6-status</code>（PR #113）。推送後開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/115">PR #115</a>；更正本頁的更新時間與調研時段（原本誤寫成 18:40、18:15～18:25）。</li>
       </ul></div>
     </section>
   </div>
