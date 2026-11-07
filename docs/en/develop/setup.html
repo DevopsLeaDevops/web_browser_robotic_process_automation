@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:b890ffb9f1f8d0d1">
+<meta name="translation-source" content="sha256:c807275bd73a50bf">
 <title>Dev environment · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -86,19 +86,19 @@ uv run rpa --version</pre>
       <div class="panel-body">
         <p>Download <code>RPA-Server-VERSION-linux-x64.tar.gz</code> (<code>linux-arm64</code> for aarch64), extract it and run the <code>install.sh</code> inside. The package carries Python 3.13 and every package installed from <code>uv.lock</code>: the server needs no git clone, no uv and no access to GitHub or PyPI. Download one file on a machine with internet access, copy it to the server and install. Supported systems are the same as for <a href="#linux-server">installing from source</a>: RHEL/CentOS derivatives, x86_64 or aarch64, glibc 2.28 or later.</p>
 <pre class="source"># Use the version in the file you downloaded
-tar -xzf RPA-Server-0.6.3-linux-x64.tar.gz
-bash RPA-Server-0.6.3-linux-x64/install.sh --install-service
+tar -xzf RPA-Server-0.8.0-linux-x64.tar.gz
+bash RPA-Server-0.8.0-linux-x64/install.sh --install-service
 sudo systemctl status rpa-server
 
 # Without systemd (for example in a container): run in the foreground
 ~/rpa-server/bin/rpa-server
 
 # Upgrade (from 0.6.0, while the runtime stays the same): use the ~2 MB update file; see Deployment and operations
-~/rpa-server/bin/rpa update RPA-Update-0.6.4.zip
+~/rpa-server/bin/rpa update RPA-Update-0.8.1.zip
 
 # Upgrade (when a full package is needed): extract the new package and run it again; a running service is restarted
-tar -xzf RPA-Server-0.6.4-linux-x64.tar.gz
-bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
+tar -xzf RPA-Server-0.8.1-linux-x64.tar.gz
+bash RPA-Server-0.8.1-linux-x64/install.sh</pre>
         <dl class="spec-list">
           <dt>Download</dt><dd>GitHub Releases carry the x64 and arm64 packages and <code>SHA256SUMS.txt</code> (<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>) in every release from v0.5.0; from 0.6.0 there is also a signed update file <code>RPA-Update-VERSION.zip</code> (<a href="operations.html#update-file">Updating the server with an update file</a>). To try an unreleased build, download the artifact of a "伺服器分發包" (server package) run in GitHub Actions (requires a GitHub sign-in).</dd>
           <dt>Location</dt><dd><code>~/rpa-server</code> by default (change with <code>--prefix</code> or <code>RPA_SERVER_HOME</code>). Each version lives in <code>releases/VERSION-COMMIT/</code> (our code in <code>app/</code>, <code>bin/rpa</code>), Python and third-party packages in <code>runtimes/RUNTIME-ID/</code>, shared by versions with the same runtime ID (<a href="../adr/0018-layered-updates.html">ADR 0018</a>); <code>current</code> points to the one in use; <code>bin/rpa-server</code> is the launcher (systemd uses it too) and <code>bin/rpa</code> the rpa command. A new version is put in place and its Python checked on this machine before <code>current</code> switches to it; the latest 3 versions are kept (<code>--keep</code>).</dd>
@@ -107,7 +107,7 @@ bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
           <dt>System packages</dt><dd>Only a missing <code>libstdc++</code> or <code>git</code> is installed (git is only needed for git sync of domain folders), so upgrades rarely need sudo for packages; add <code>--skip-system-packages</code> when an administrator has prepared them. Installing the unit and restarting the service need sudo.</dd>
           <dt>If an upgrade fails</dt><dd>If the admin port does not answer within about 60 seconds after the new version starts, the installer stops and explains how to go back (point <code>current</code> at <code>releases/PREVIOUS</code> and restart). Database migrations run when the new version starts: back up the whole data folder before upgrading as described below, and restore it before going back.</dd>
         </dl>
-        <p>The package also carries the RPA Python runtime (<code>python/runtimes/</code>, <a href="../adr/0020-python-nodes.html">ADR 0020</a>): when the server itself (the local worker) runs a Python node, it is extracted to the cache the first time and reused afterwards. CI builds the packages (<code>tools/build_server.py</code>, the "伺服器分發包" workflow): only packages at <code>manylinux_2_28</code> or older are chosen and the result is run with its own Python; then it is really installed in a Rocky Linux 8 container of the same architecture (glibc 2.28, a company-style os-release, a regular account), reusing old settings, smoke-tested, reinstalled and upgraded. The container has no systemd, so starting and stopping the real service and the company hosts still need checking by hand. First-time administration, SSH forwarding and the firewall are the same as below.</p>
+        <p>From main (after v0.8.0, not yet released) the package also carries the RPA Python runtime (<code>python/runtimes/</code>, <a href="../adr/0020-python-nodes.html">ADR 0020</a>): when the server itself (the local worker) runs a Python node, it is extracted to the cache (<code>~/.cache/rpa/python/</code>) the first time and reused afterwards. The runtime counts toward the runtime ID, so upgrading from v0.8.0 to the first version that carries it needs the full package, not just the update file. CI builds the packages (<code>tools/build_server.py</code>, the "伺服器分發包" workflow): only packages at <code>manylinux_2_28</code> or older are chosen and the result is run with its own Python; then it is really installed in a Rocky Linux 8 container of the same architecture (glibc 2.28, a company-style os-release, a regular account), reusing old settings, smoke-tested, reinstalled and upgraded. The container has no systemd, so starting and stopping the real service and the company hosts still need checking by hand. First-time administration, SSH forwarding and the firewall are the same as below.</p>
       </div>
     </section>
     <section class="panel" id="linux-server">

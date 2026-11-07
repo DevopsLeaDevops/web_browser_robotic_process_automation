@@ -107,7 +107,7 @@
         <table class="wrap">
           <thead><tr><th>節點</th><th>跑哪些流程</th><th>大約多久</th></tr></thead>
           <tbody>
-            <tr><td>往 PR 推送、合併到 main</td><td>CI（Linux）每次都跑；其他重的工作只在它的輸入指紋還沒通過時跑（<a href="#layered">依層建置</a>）：Windows 的 Worker 測試、三個桌面 App（外殼沒變時只換程式碼層）、伺服器分發包（建置 x64、arm64，在 Rocky 8 容器裡安裝、啟動、升級）、一鍵安裝腳本（只驗證腳本與冒煙測試）</td><td>約 2.5～3 分（CI 是下限）；要建桌面 App 時約 4 分</td></tr>
+            <tr><td>往 PR 推送、合併到 main</td><td>CI（Linux）每次都跑；其他重的工作只在它的輸入指紋還沒通過時跑（<a href="#layered">依層建置</a>）：Windows 的 Worker 測試、三個桌面 App（外殼沒變時只換程式碼層）、伺服器分發包（建置 x64、arm64，在 Rocky 8 容器裡安裝、啟動、升級）、一鍵安裝腳本（只驗證腳本與冒煙測試）、RPA Python 運行環境（四個平台建置、自我測試，再用它跑 Python 節點的測試；Linux 另在 Rocky 8 容器解壓）</td><td>約 2.5～3 分（CI 是下限）；要建桌面 App 時約 4 分</td></tr>
             <tr><td>只改 <code>handoff/</code>、<code>docs/</code> 的推送</td><td>見<a href="#docs-only">下一節</a></td><td>約 1 分</td></tr>
             <tr><td>推版本標籤 <code>v*</code></td><td>發布：確認版本、建桌面 App 與伺服器分發包、產生並簽署更新檔（<a href="#update-key">金鑰</a>）、草稿 Release</td><td>約 4 分</td></tr>
             <tr><td>每天 20:17 UTC</td><td>每晚完整測試：三個系統、兩種瀏覽器、Python 3.12 與 3.13 的全部測試，瀏覽器測試連跑三遍</td><td>約 30 分</td></tr>
@@ -161,7 +161,7 @@ gh workflow run python-runtime.yml --ref 分支名稱</pre>
     <section class="panel" id="artifacts">
       <div class="panel-header"><h2>產物與儲存額度</h2></div>
       <div class="panel-body prose">
-        <p>倉庫自 2026-10-22 起是私有的，Actions 的產物計入帳號方案的儲存額度；額度用完時上傳產物會失敗，發布也建不出草稿 Release（v0.5.0 就是這樣）。所以桌面端建置與伺服器分發包的產物在 PR 與 main 上留 3 天、發布時留 1 天，發布流程建好草稿後刪掉那次執行的產物；測試報告與 Portal 軌跡只是診斷用，上傳失敗不讓工作失敗。</p>
+        <p>倉庫在 2026-10-22 改成私有，Actions 的產物因此計入帳號方案的儲存額度；額度用完時上傳產物會失敗，發布也建不出草稿 Release（v0.5.0 就是這樣）。2026-11-06 查證時倉庫是公開的（何時改回沒有紀錄），公開倉庫的產物不計入額度；下面的保留規則照舊，倉庫再改回私有也不必調整。桌面端建置與伺服器分發包的產物在 PR 與 main 上留 3 天、發布時留 1 天，發布流程建好草稿後刪掉那次執行的產物；測試報告與 Portal 軌跡只是診斷用，上傳失敗不讓工作失敗。</p>
         <p>依層建置另外留下兩種東西：通過紀錄（產物 <code>pass-*</code>，每個不到 1 KB，留 30 天）與外殼快取（Actions 的快取，不計入產物額度；每個倉庫上限 10 GB，7 天沒用到就被清掉，清掉之後下一次完整建置再存）。</p>
         <p>要一次釋放額度時，手動執行「清理產物」（<code>cleanup-artifacts.yml</code>）：預設只列出，摘要裡依名稱統計個數與大小；確認後取消勾選「只列出、不刪」再執行一次。刪除不能復原；正式版的檔案在 Releases 上，不受影響；刪掉 <code>pass-*</code> 只會讓那些輸入再驗證一次。刪完要等 GitHub 重新計算用量，額度才會降下來。</p>
       </div>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a4f95ab93cd71838">
+<meta name="translation-source" content="sha256:2eb496292d471ab9">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -46,7 +46,7 @@
 
 {
   "apiVersion": "1",
-  "serverVersion": "0.6.3",
+  "serverVersion": "0.8.0",
   "server": {"id": "srv-linux-01", "name": "Linux server"},
   "client": {"id": "agent-erp", "name": "ERP assistant"},
   "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
@@ -212,7 +212,7 @@ GET /agent-api/v1/runs/…
     </section>
 
     <section class="panel" id="files">
-      <div class="panel-header"><h2>Uploading files</h2><span class="muted">M7c; on main, not yet released</span></div>
+      <div class="panel-header"><h2>Uploading files</h2><span class="muted">M7c; from v0.7.0</span></div>
       <div class="panel-body">
         <p>When the target system needs “import Excel” or “upload images”, the scenario uses an input of <code>type: file</code> and an <code>upload</code> step (specification: <a href="../design/dsl.html#upload">DSL › File uploads</a>). <code>dslFeatures</code> in <code>GET /meta</code> must include <code>upload</code> and <code>fileInputs</code>; if a recorder or Worker app is too old, the server does not give it such a scenario, so ask a person to update the app.</p>
 <pre class="source">POST /agent-api/v1/files?name=october-orders.xlsx   (needs files:write; the body is the file itself, not multipart)
@@ -225,6 +225,25 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
           <li><strong>A fixed sample file</strong>: make it a scenario attachment. <code>PUT /scenes/{id}/attachments/{name}?base={n}</code> (the body is the file, needs <code>scenes:write</code>) saves a new revision, and the input's <code>default</code> says <code>files/name</code>; <code>GET /scenes/{id}/revisions/{n}/attachments</code> lists them. Attachments count toward the scenario hash, so the file that was validated is the one that is published; names may only use English letters, digits and <code>_ . -</code>, up to 20 MB each and 50 MB per revision.</li>
           <li><strong>Waiting for the upload</strong>: <code>upload</code> is done once the file is handed to the page; wait for the result on screen with a later <code>waitFor</code> or <code>expect</code>. <code>verify</code> can compare <code>{{ inputs.orderFile.sha256 }}</code> with what the page shows. Run records and reports keep only the name, size and sha256, never a path.</li>
           <li><strong>Recordings</strong>: <code>set_input_files</code> becomes an <code>upload</code> step plus a file input, but the recording only has the file name, so the file still has to be supplied as an input or attachment.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="python-nodes">
+      <div class="panel-header"><h2>Python nodes</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>; on main, not yet released</span></div>
+      <div class="panel-body">
+        <p>Work a browser cannot do (merging Excel files, tidying data, calling APIs) is written as a Python node: the scenario file has <code>script:</code> with <code>runtime: "1"</code>, <code>automation.py</code> does the automation, and success is still decided by independent assertions (spec in <a href="../design/dsl.html#python">DSL › Python nodes</a>). When the server supports them, <code>dslFeatures</code> in <code>GET /meta</code> lists <code>pythonNodes</code>, <code>jsonInputs</code>, <code>fileOutputs</code> and <code>download</code>.</p>
+<pre class="source">POST /agent-api/v1/scenes/merge-sales/revisions
+{"baseRevision": 1, "files": {
+   "scenario.yaml": "schemaVersion: 1\nid: merge-sales\n…\nscript:\n  runtime: \"1\"\n  automation: automation.py\n…",
+   "automation.py": "from rpa_script import Run, automation\n…"},
+ "idempotencyKey": "merge-sales-r2"}</pre>
+        <ul class="points">
+          <li><strong>Saving</strong>: put the scenario file, <code>automation.py</code>, <code>assertion.py</code> (unless you use <code>verify</code>) and the files listed in <code>script.files</code> in <code>files</code>, with paths relative to the scenario file; files the scenario file does not use are rejected. <code>POST /dsl/check</code> takes only the scenario file and reports scripts not yet supplied as <code>dsl.script.missing</code>; the check on saving is what counts.</li>
+          <li><strong>No step debugging</strong>: <code>POST /scenes/{id}/debug</code> returns 422 <code>debug_script</code>. Validate directly and read the run's steps, facts and <code>automation.log</code>.</li>
+          <li><strong>Workers with the runtime</strong>: these runs only go to Workers that have RPA Python runtime 1 on a platform listed in <code>platforms</code>; no browser is needed. The runtime ships with RPA Worker and the Linux package from main on; apps up to v0.8.0 do not have it, and their <code>features</code> in <code>GET /workers</code> lack <code>pythonNodes</code>, so such runs stay queued.</li>
+          <li><strong>Data and files</strong>: values of <code>type: array</code> and <code>object</code> inputs are plain JSON, and upstream outputs of the same type can feed downstream inputs. Files the script writes to <code>run.output_dir</code> and file outputs are in the run's file list, downloadable with <code>GET /runs/{id}/files/outputs/…</code>; in a composite scenario a file output can feed the file input of a downstream DSL scenario (through the shared workspace on the same Worker).</li>
+          <li><strong>No login roles</strong>: a runtime-mode scenario with <code>login</code> is rejected by validation (not supported in this version).</li>
         </ul>
       </div>
     </section>

@@ -85,19 +85,19 @@ uv run rpa --version</pre>
       <div class="panel-body">
         <p>下載 <code>RPA-Server-版本-linux-x64.tar.gz</code>（aarch64 用 <code>linux-arm64</code>），解壓後執行裡面的 <code>install.sh</code>。分發包內含 Python 3.13 與照 <code>uv.lock</code> 裝好的所有套件：伺服器不需要 git clone、uv，也不必連到 GitHub 或 PyPI；在能上網的電腦下載一個檔案、複製到伺服器就能安裝。適用的系統和<a href="#linux-server">從原始碼安裝</a>相同：RHEL／CentOS 衍生版、x86_64 或 aarch64、glibc 2.28 以上。</p>
 <pre class="source"># 檔名裡的版本換成實際下載的
-tar -xzf RPA-Server-0.6.3-linux-x64.tar.gz
-bash RPA-Server-0.6.3-linux-x64/install.sh --install-service
+tar -xzf RPA-Server-0.8.0-linux-x64.tar.gz
+bash RPA-Server-0.8.0-linux-x64/install.sh --install-service
 sudo systemctl status rpa-server
 
 # 不用 systemd（例如容器）：前景啟動
 ~/rpa-server/bin/rpa-server
 
 # 升級（0.6.0 起，執行環境沒變時）：用約 2 MB 的更新檔，見部署與操作
-~/rpa-server/bin/rpa update RPA-Update-0.6.4.zip
+~/rpa-server/bin/rpa update RPA-Update-0.8.1.zip
 
 # 升級（要完整的分發包時）：解壓新版的分發包，再執行一次；服務正在執行時自動重新啟動
-tar -xzf RPA-Server-0.6.4-linux-x64.tar.gz
-bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
+tar -xzf RPA-Server-0.8.1-linux-x64.tar.gz
+bash RPA-Server-0.8.1-linux-x64/install.sh</pre>
         <dl class="spec-list">
           <dt>取得</dt><dd>GitHub Release 附 x64、arm64 兩個分發包與 <code>SHA256SUMS.txt</code>（<code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>），v0.5.0 起每個發布都有；0.6.0 起另附簽章的更新檔 <code>RPA-Update-版本.zip</code>（<a href="operations.html#update-file">用更新檔升級伺服器</a>）。要試尚未發布的版本時，從 GitHub Actions「伺服器分發包」那次運行的產物下載（需要登入 GitHub）。</dd>
           <dt>安裝位置</dt><dd>預設 <code>~/rpa-server</code>（<code>--prefix</code> 或 <code>RPA_SERVER_HOME</code> 可改）。每個版本放在 <code>releases/版本-提交/</code>（我們的程式 <code>app/</code>、<code>bin/rpa</code>），Python 與第三方套件放在 <code>runtimes/環境代號/</code>，環境代號相同的版本共用一份（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；<code>current</code> 指向使用中的版本；<code>bin/rpa-server</code> 是啟動器（systemd 也用它），<code>bin/rpa</code> 是 rpa 命令。新版本先放好、確認包內的 Python 在這台能執行，才把 <code>current</code> 換過去；保留最近 3 個版本（<code>--keep</code>）。</dd>
@@ -106,7 +106,7 @@ bash RPA-Server-0.6.4-linux-x64/install.sh</pre>
           <dt>系統套件</dt><dd>只補裝缺少的 <code>libstdc++</code> 與 <code>git</code>（git 只有領域資料夾的 git 同步要用），所以升級通常不用 sudo 裝套件；管理員已備妥時加 <code>--skip-system-packages</code>。安裝 unit 與重新啟動服務需要 sudo。</dd>
           <dt>升級失敗時</dt><dd>新版本啟動後約 60 秒內管理埠沒有回應，安裝程式停下並說明怎麼退回上一版（<code>current</code> 指回 <code>releases/上一版</code> 後重新啟動）。資料庫遷移在新版本啟動時執行：升級前照下方的方式備份整個資料目錄，退回舊版前先還原。</dd>
         </dl>
-        <p>分發包另附 RPA Python 運行環境（<code>python/runtimes/</code>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：伺服器自己（本機 worker）執行 Python 節點時，第一次解壓到快取，之後沿用。分發包由 CI 建置（<code>tools/build_server.py</code>、「伺服器分發包」流程）：只選 <code>manylinux_2_28</code> 以下的套件，建好後用包內的 Python 執行；再在同架構的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般帳號）實際安裝、沿用舊設定、冒煙測試、重裝與升級。容器沒有 systemd：真實的服務啟停與公司主機仍需驗收。首次管理、SSH 轉發與防火牆和下方相同。</p>
+        <p>main 起（v0.8.0 之後，尚未發布）分發包另附 RPA Python 運行環境（<code>python/runtimes/</code>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：伺服器自己（本機 worker）執行 Python 節點時，第一次解壓到快取（<code>~/.cache/rpa/python/</code>），之後沿用。運行環境算進環境代號，所以從 v0.8.0 升到附帶運行環境的版本時要用完整的分發包，不能只用更新檔。分發包由 CI 建置（<code>tools/build_server.py</code>、「伺服器分發包」流程）：只選 <code>manylinux_2_28</code> 以下的套件，建好後用包內的 Python 執行；再在同架構的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般帳號）實際安裝、沿用舊設定、冒煙測試、重裝與升級。容器沒有 systemd：真實的服務啟停與公司主機仍需驗收。首次管理、SSH 轉發與防火牆和下方相同。</p>
       </div>
     </section>
     <section class="panel" id="linux-server">

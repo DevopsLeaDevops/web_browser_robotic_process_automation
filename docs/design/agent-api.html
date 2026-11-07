@@ -34,7 +34,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作，PR #79 於 2026-10-25 合併、隨 v0.6.0 發布（人工驗收未執行）；2026-10-24 使用者要求把專案與組合場景併入第一期，並給 Agent 寫<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>與<a href="../develop/agent-test-report-guide.html">測試報告指南</a>；端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
+    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作，PR #79 於 2026-10-25 合併、隨 v0.6.0 發布（人工驗收未執行）；2026-10-24 使用者要求把專案與組合場景併入第一期，並給 Agent 寫<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>與<a href="../develop/agent-test-report-guide.html">測試報告指南</a>；之後加上的組合運行匯總報告與檔案入參的 <code>files:write</code> 隨 v0.7.0 發布；Python 節點（main，尚未發布，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）的場景與運行沿用同一套端點，見 <a href="../develop/agent-api-guide.html#python-nodes">Agent 使用指南 › Python 節點</a>。端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>範圍</h2><span class="muted">Agent 從空白做到可以正式執行的場景</span></div>

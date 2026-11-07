@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文檔站對齊 main（v0.8.0 與 Python 節點） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>文檔站對齊 main（v0.8.0 與 Python 節點）</h1><p>把 <code>docs/</code> 裡還停在 v0.6.3 的頁面改成和 main <code>673dc4c</code> 一致：v0.7.0、v0.7.1、v0.8.0 三次發布，以及 v0.8.0 之後合併、尚未發布的 Python 節點（PR #109，<a href="../../docs/adr/0020-python-nodes.html">ADR 0020</a>）。只改文件，不改程式。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261106-docs-refresh-v0-8；2026-11-06 18:13 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 對話（2026-11-06 17:51 America/Los_Angeles（PST，UTC−08:00））：「你基於最新的代碼更新文檔到最新的狀態。」完成＝<code>docs/</code> 的各頁和 main 的實作、已合併的 PR、已發布的版本一致；繁中、英文同步並 stamp，簡中由工具產生；文檔測試通過；人工驗收的狀態照各任務紀錄寫，不寫成已驗收。</dd>
+        <dt>範圍／不包含</dt><dd><code>docs/</code> 的繁中與英文頁（簡中由 bootstrap 產生）。已隨各 PR 更新、和程式一致的頁面不動：場景 DSL、ADR 0016／0018／0020、多用戶；管理 Portal 只改開頭的狀態。另外回填 <a href="20261024-python-scripts.html">Python 節點任務</a>在索引的狀態與一條追加紀錄（PR #109 已合併，照共用流程「索引或任務卡尚未回填時，下一個維護者同步更正」）。不包含：<code>handoff/</code> 的狀態總表與驗收紀錄、其他任務紀錄的狀態欄、程式與 <code>schema/</code>。</dd>
+        <dt>主責／審閱／接收方</dt><dd>文檔更新：Claude（Opus 5.5）；審閱與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>docs/index.html</code>、<code>docs/roadmap.html</code>、<code>docs/adr/index.html</code>、<code>docs/assets/nav.js</code>（頁首標籤）；<code>docs/design/</code> 的 architecture、tech-stack、desktop、positioning、portal（開頭）、agent-api（開頭）；<code>docs/develop/</code> 的 setup、quickstart、macos、remote-worker、operations、ci、agent-api-guide；以及 <code>docs/en/</code> 的同一頁；本頁、任務索引、Python 節點任務的追加紀錄。共用檔案（任務索引、<code>nav.js</code>）由本任務整合；開工時沒有開著的 PR。</dd>
+        <dt>狀態</dt><dd>實作完成、待審閱。繁中與英文已 stamp；簡中由本次推送的 <code>[bootstrap]</code> 產生；CI 見追加紀錄與 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-v0-8</code>，從 <code>673dc4c</code>（origin/main，Merge PR #112）開；PR 見追加紀錄（base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>推送到 <code>docs/refresh-v0-8</code>；以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux x86_64、系統 Python 3.13.18、pytest 9.1.1、uv 0.11.32。連不到 PyPI（DNS 查不到），<code>uv sync --locked</code> 沒有完成；沒有 OpenCC，簡中靠提交訊息的 <code>[bootstrap]</code> 產生。GitHub 用 REST API（<code>gh api</code>）查 PR、Release 與標籤。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>盤點（main 673dc4c）：</strong>上一次文檔對齊（PR #100）停在 v0.6.3。之後發布 v0.7.0（2026-10-28 02:41 PDT：M7c 上傳檔案、組合運行的匯總報告與合併回看、CI 依層建置）、v0.7.1（2026-10-29 04:24 PDT：回看的舊快取與互動修正 #103、文檔 #100）、v0.8.0（2026-10-29 06:53 PDT：回看章節軸與每一步截圖 #106、每晚測試的 Windows 連接埠 #105）；v0.8.0 之後合併 Python 節點 #109（2026-11-06 04:55 PST）與兩個 setup-uv 的依賴更新（#110、#112），尚未發布。首頁、路線圖、系統架構、技術選型、桌面端分發、開發環境、本機從零運行、macOS、遠端 Worker、部署與操作、Agent 指南的版本與狀態都還寫 v0.6.3 或「main、尚未發布」；系統架構、技術選型、產品定位沒有 Python 節點與 RPA Python 運行環境；路線圖的 Python 節點仍寫「#109（草稿），等驗收」；ADR 數量寫 18（實際 19）。另外：倉庫在 2026-11-06 查證時是公開的（GitHub API <code>private: false</code>），但桌面端分發與 CI 頁照 2026-10-22 的決定寫「私有」，倉庫的事件紀錄與 <code>handoff/</code> 都查不到改回公開的時間與決定。</li>
+        <li><strong>已完成：</strong>首頁（版本 v0.8.0、ADR 19 項、一句話說明的 Python 節點、套件多 rpa-script 與 RPA Python 運行環境、CI）、路線圖（目前狀態、M10／M12／M7c／M14／M7 的版本與狀態、「里程碑之外的改動」補上 #101、#103、#105、#106 與 #109 已合併）、ADR 索引數量、頁首標籤 v0.8.0；系統架構（部署圖的 runner 與本機 worker、Python 節點的運作、資料目錄的 <code>workspaces/</code>、執行目錄的 <code>outputs/</code>、<code>previews/</code>、<code>files.json</code>、套件表與目錄結構、資料流）；技術選型（運行環境一列、回看縮圖、版本）；產品定位（Python 節點、array／object 入參、file 出參、組合場景的共用工作資料夾）；桌面端分發（發布歷史到 v0.8.0、各版升級只要更新檔的紀錄、下一個版本 RPA Worker 與分發包要完整安裝包、Worker 的共用工作資料夾與運行環境快取、程式層多 rpa-script、倉庫可見度）；管理 Portal 與對外 Agent API 的開頭；Agent 使用指南的新面板「Python 節點」；開發環境、本機從零運行、macOS 的版本範例與 skipped 的說明；遠端 Worker（Python 節點、資料位置、排隊的原因）；部署與操作（角色、升級、常見問題）；CI（運行環境流程、倉庫可見度與產物額度）。英文同一頁同步並 stamp。</li>
+        <li><strong>未完成／阻礙：</strong>簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI（本機沒有 OpenCC）；使用者審閱、合併；倉庫的可見度（2026-10-22 決定維持私有，2026-11-06 查證是公開）要由使用者確認，必要時另記決定。</li>
+        <li><strong>決定：</strong>實作選擇，沿用 20261028-docs-refresh：狀態以 GitHub 的合併紀錄、Release 與各任務紀錄為準；「已合併」「自動測試通過」「人工驗收通過」分開寫，沒有紀錄的人工驗收寫「未執行」或「沒有紀錄」。v0.8.0 之後合併的 Python 節點標為「main 上、尚未發布」；它讓 RPA Worker 與伺服器分發包的外殼多了運行環境（環境代號算壓縮檔的檔名，<code>tools/build_desktop.py</code>、<code>tools/build_server.py</code>），所以文件寫「下一個版本這兩樣要用完整的安裝包，以發布流程的『從 v0.8.0 升級』為準」，不預測版本號。倉庫的可見度只寫查證到的現況與日期，不補寫沒有紀錄的決定，交給使用者確認。</li>
+        <li><strong>下一個具體動作：</strong>確認 bootstrap 產生的簡中與最新 head 的 CI；使用者審閱、合併。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>main <code>673dc4c</code>（開工前基準）；雲端 Linux、系統 Python 3.13.18、pytest 9.1.1</td><td><code>python3 -m pytest -q tests/docs tests/i18n</code></td><td>367 passed；1 failed 是 <code>test_simplified_chinese_is_generated</code>（沒有 OpenCC）</td><td>—</td></tr>
+        <tr><td>本分支 <code>a93123f</code>（文件改完、本頁更新前）；同上</td><td><code>python3 tools/i18n.py stamp</code>（每個改過的英文頁）；<code>python3 -m pytest -q tests/docs tests/i18n</code>；<code>git diff --check origin/main..HEAD</code>；本頁、任務索引、Python 節點任務的相對連結與錨點；Playwright 1.63 的 Chromium 截圖檢查系統架構的部署圖（繁中、英文）與桌面端分發的發布流程圖</td><td>365 passed；3 failed 都是簡中還沒產生：<code>zh-Hans/develop/agent-api-guide.html</code>、<code>zh-Hans/develop/remote-worker.html</code> 少了新錨點 <code>python-nodes</code>，以及 <code>test_simplified_chinese_is_generated</code>；diff 檢查通過；連結 0 個問題；圖的文字沒有超出方框（英文本機 worker 的一行縮短過）</td><td>沒有 OpenCC，簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI；只改文件，不跑程式與瀏覽器測試</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未推送。人工驗收：不適用（只改文件）。審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>尚未交出。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-06 17:54 America/Los_Angeles（PST，UTC−08:00），Claude：開工。clone 後 <code>git fetch --depth=300</code>；沒有開著的 PR；從 <code>673dc4c</code> 開 <code>docs/refresh-v0-8</code>。盤點 <code>docs/</code> 各頁與 main、PR #100～#112 的合併紀錄、Release v0.7.0～v0.8.0（時間依 GitHub 的 merged_at／published_at 換算；包含在哪個版本用 <code>git merge-base --is-ancestor</code> 對標籤確認）。</li>
+        <li>2026-11-06 18:10 America/Los_Angeles（PST，UTC−08:00），Claude：逐頁提交（<code>7506ede</code>～<code>a93123f</code>，每個主題一個提交）。查證時發現的事實：v0.6.3～v0.8.0 每次從上一版升級都只要更新檔（Release 說明的「從 v… 升級」；v0.6.2 的錄製端與 Worker 要完整安裝包）；main 的 RPA Worker 與分發包把運行環境壓縮檔的檔名算進環境代號（<code>tools/build_desktop.py</code>、<code>tools/build_server.py</code>），錄製端只多了程式碼層的 <code>rpa_script</code>；一鍵安裝腳本不建運行環境，<code>packages/rpa_runner/tests/test_python_nodes.py</code> 有 2 項沒有 <code>RPA_TEST_PYTHON_RUNTIME</code> 時略過，加上只在 Windows 測的幾項，本機的 <code>uv run pytest</code> 會有 skipped（本機從零運行與 macOS 頁原本寫「沒有 skipped」，已更正）；Agent API 存 Python 節點的版本用同一個 <code>files</code>，逐步調試回 422 <code>debug_script</code>，<code>/dsl/check</code> 只收場景檔。</li>
+        <li>2026-11-06 18:13 America/Los_Angeles（PST，UTC−08:00），Claude：本頁回填進度與驗證；推送本提交並帶 <code>[bootstrap]</code> 產生簡中，建立 PR。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

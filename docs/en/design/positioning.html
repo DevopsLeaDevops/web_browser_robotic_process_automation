@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:1547864ddfba1d4d">
+<meta name="translation-source" content="sha256:0886cd68345373bd">
 <title>Positioning · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -36,7 +36,7 @@
         <div class="panel-header"><h2>Out of scope</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li>Desktop application automation: only actions inside the browser.</li>
+            <li>Driving the screens of desktop applications: web actions are browser scenarios, and work that needs no screen, such as Excel, files, data and API calls, is done by Python nodes (<a href="../adr/0020-python-nodes.html">ADR 0020</a>); nothing records or clicks desktop program windows.</li>
             <li>Solving CAPTCHAs or bypassing the target system's security measures.</li>
             <li>Large-scale web crawling.</li>
             <li>Replacing test frameworks: it can run checks, but its purpose is business process automation.</li>
@@ -52,7 +52,7 @@
           <div><h3>1　Generate</h3><ul class="points"><li>Record user actions</li><li>Have AI produce it from natural language</li><li>Compose from templates or sub-scenarios</li></ul></div>
           <div><h3>2　Manage</h3><ul class="points"><li>Revisions and the publishing gate</li><li>Inputs, outputs and categories</li><li>Permissions and auditing</li></ul></div>
           <div><h3>3　Run</h3><ul class="points"><li>Triggered manually, on a schedule or by API</li><li>Remote Workers, several running at once</li><li>Retries and timeouts</li></ul></div>
-          <div><h3>4　Report</h3><ul class="points"><li>Screenshots and logs for every step</li><li>Run videos for replay, lined up with the steps (M12)</li><li>Failure location and self-healing selectors</li></ul></div>
+          <div><h3>4　Report</h3><ul class="points"><li>Screenshots and logs for every step</li><li>Run videos for replay, lined up with the steps (M12); a step timeline for Python nodes</li><li>Failure location and self-healing selectors</li></ul></div>
         </div>
       </div>
     </section>
@@ -61,18 +61,19 @@
       <div class="panel-header"><h2>Core concepts</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>Scenario</dt><dd>A repeatable sequence of browser actions described in a declarative DSL (in rare cases a Python script, see <a href="../adr/0009-scenario-contract.html">ADR 0009</a>). The platform's core asset, with a stable id and a category.</dd>
+          <dt>Scenario</dt><dd>A repeatable sequence of browser actions described in a declarative DSL; work a browser cannot do is written as a Python node (below). The platform's core asset, with a stable id and a category; both kinds follow the same scenario contract and publishing gate (<a href="../adr/0009-scenario-contract.html">ADR 0009</a>).</dd>
+          <dt>Python node</dt><dd>A scenario whose scenario file comes with Python scripts (<code>script:</code>). With <code>script.runtime</code> it runs in the RPA Python runtime built by the platform, without a browser, for Excel, files, data and API calls; without it, it is in compatibility mode and can still drive Playwright itself (<a href="../adr/0020-python-nodes.html">ADR 0020</a>; on main, not yet released).</dd>
           <dt>Revision</dt><dd>An immutable version of a scenario: draft → validating → passed or failed → published. Any change requires validating again, and the published revision must be the one that passed.</dd>
           <dt>Step</dt><dd>One action in a scenario, such as opening a URL, clicking, filling in a field or extracting data. Every step has a stable <code>id</code>.</dd>
           <dt>Target</dt><dd>Describes which element on the page to act on. It can have several candidates, tried in order of priority.</dd>
-          <dt>Input</dt><dd>A value given only at run time, such as the month to query; it has a type, constraints and a default, and is validated before the browser starts. It can also be a file to upload (<code>type: file</code>, M7c).</dd>
+          <dt>Input</dt><dd>A value given only at run time, such as the month to query; it has a type, constraints and a default, and is validated before the browser starts. It can also be a file to upload (<code>type: file</code>, M7c), or a JSON array or object (<code>type: array</code>, <code>object</code>, ADR 0020).</dd>
           <dt>Fact</dt><dd>A value extracted from the page during a run. It only describes what was seen and does not mean success.</dd>
           <dt>Verify</dt><dd>Rules that compare facts with inputs after the automation ends. "The script did not fail" is not success.</dd>
-          <dt>Output</dt><dd>A result published only after the independent assertions pass; it can feed the next scenario's inputs.</dd>
+          <dt>Output</dt><dd>A result published only after the independent assertions pass; it can feed the next scenario's inputs. It can also be a file (<code>type: file</code>, for example a downloaded report or an Excel file a Python node produced, ADR 0020).</dd>
           <dt>Secret</dt><dd>Credentials and other sensitive values. Scenarios refer to them by name only; the plain value never appears in scenarios, logs or screenshot captions.</dd>
           <dt>Run</dt><dd>One execution of a revision, recording who triggered it, the inputs, and the result and duration of every step; its status is queued, running, passed, failed, timed out, cancelled or needs login.</dd>
-          <dt>Artifact</dt><dd>Screenshots, videos, reports, logs, downloaded files and extracted data produced by a run, kept in the run directory on the server.</dd>
-          <dt>Composite scenario</dt><dd>Fixed revisions of published scenarios arranged as a DAG (branching and joining); upstream outputs bind to downstream inputs, nodes run in order and it stops on failure (M6, formerly called workflow). It has its own revisions, validation and publishing, and can depend on scenarios from other domains (M11).</dd>
+          <dt>Artifact</dt><dd>Screenshots, videos, reports, logs, downloaded files, output files (<code>outputs/</code>) and extracted data produced by a run, kept in the run directory on the server.</dd>
+          <dt>Composite scenario</dt><dd>Fixed revisions of published scenarios arranged as a DAG (branching and joining); upstream outputs bind to downstream inputs, nodes run in order and it stops on failure (M6, formerly called workflow). It has its own revisions, validation and publishing, and can depend on scenarios from other domains (M11). Nodes can be browser scenarios or Python nodes; one composite run stays on one Worker, and files pass between nodes through that Worker's shared workspace (ADR 0020).</dd>
           <dt>Domain</dt><dd>The unit that owns and stores scenarios, roles and composite scenarios: one folder per domain with immutable revisions and validation and publishing records, which can sync with one folder of a git repository (M11).</dd>
           <dt>Role</dt><dd>One login identity on a target system; each role has its own login state, a scenario declares the role it uses with <code>login: { role }</code>, and when the login has expired the run stops at needs login (M4).</dd>
           <dt>Device</dt><dd>A Recorder or Worker paired with an invitation: the Recorder opens browsers on the recorder's computer, the Worker runs scenarios (M10).</dd>

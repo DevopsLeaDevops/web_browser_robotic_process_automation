@@ -134,12 +134,12 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
     <section class="panel" id="done">
       <div class="panel-header"><h2>成功的樣子</h2></div>
       <div class="panel-body">
-        <p>最後一步印出版本、全部測試只有 <code>passed</code>（測試數量與時間隨版本與電腦不同，目前一千多項，含 Chromium 與 Firefox 的瀏覽器測試），接著是「完成」與接下來可以用的命令：</p>
+        <p>最後一步印出版本、全部測試沒有 <code>failed</code>（測試數量與時間隨版本與電腦不同，目前兩千多項，含 Chromium 與 Firefox 的瀏覽器測試；少數只在 Windows 才測、或要用真的 RPA Python 運行環境的測試顯示為 <code>skipped</code>），接著是「完成」與接下來可以用的命令：</p>
 <pre class="source" translate="no">[7/7] 確認能運行
-  ✓ rpa 0.6.3（rpa-core 0.6.3）
+  ✓ rpa 0.8.0（rpa-core 0.8.0）
   $ env RPA_REQUIRE_BROWSER=1 uv run pytest
 …
-============================= … passed in …s ==============================
+======================== … passed, … skipped in …s =========================
   ✓ 全部測試通過
 
 完成！本機環境已經可以運行。
@@ -152,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
   open docs/index.html                        # 開啟文檔站
   uv run python -m http.server -d docs 8000   # 或用本機伺服器瀏覽文檔</pre>
         <ul class="points">
-          <li>測試數量會隨著程式碼與文檔頁面增加，重點是沒有 <code>failed</code>、也沒有 <code>skipped</code>。</li>
+          <li>測試數量會隨著程式碼與文檔頁面增加，重點是沒有 <code>failed</code>。<code>skipped</code> 只會是只在其他系統才測的（例如 Windows 的登錄檔），以及要用真的 RPA Python 運行環境的 Python 節點測試（CI 的「RPA Python 運行環境」流程建好運行環境後跑，見 <a href="ci.html#layered">CI 與流水線</a>）；缺瀏覽器時是失敗，不是略過。</li>
           <li>中途失敗時，腳本會用 <code>✗</code>（Windows 是 <code>[X]</code>）標出停在哪一步，以及怎麼處理。</li>
           <li>以 <code>!</code>（Windows 是 <code>[!]</code>）開頭的是提醒，不影響運行，但建議看一下。</li>
         </ul>

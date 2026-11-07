@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:a9291a78fcce9755">
+<meta name="translation-source" content="sha256:df695bc48eb938b4">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -108,7 +108,7 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
         <table class="wrap">
           <thead><tr><th>Trigger</th><th>Workflows</th><th>Roughly</th></tr></thead>
           <tbody>
-            <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the other heavy jobs only when their input fingerprint has not passed yet (<a href="#layered">layered builds</a>): the Windows worker tests, the three desktop apps (only the code layer when the shell did not change), the server packages (x64 and arm64 builds, installed, started and upgraded in a Rocky 8 container), the setup scripts (the scripts and smoke tests only)</td><td>About 2.5–3 min (CI is the floor); about 4 min when a desktop app is built</td></tr>
+            <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the other heavy jobs only when their input fingerprint has not passed yet (<a href="#layered">layered builds</a>): the Windows worker tests, the three desktop apps (only the code layer when the shell did not change), the server packages (x64 and arm64 builds, installed, started and upgraded in a Rocky 8 container), the setup scripts (the scripts and smoke tests only), the RPA Python runtime (built and self-tested on four platforms, then used to run the Python node tests; on Linux also unpacked in a Rocky 8 container)</td><td>About 2.5–3 min (CI is the floor); about 4 min when a desktop app is built</td></tr>
             <tr><td>Pushes that only change <code>handoff/</code> or <code>docs/</code></td><td>See <a href="#docs-only">the next section</a></td><td>About 1 min</td></tr>
             <tr><td>Version tag <code>v*</code></td><td>Release: check the version, build the desktop apps and server bundles, build and sign the update file (<a href="#update-key">key</a>), draft release</td><td>About 4 min</td></tr>
             <tr><td>Daily 20:17 UTC</td><td>Nightly full tests: all tests on three systems, both browsers, Python 3.12 and 3.13, with the browser tests run three times</td><td>About 30 min</td></tr>
@@ -162,7 +162,7 @@ gh workflow run python-runtime.yml --ref branch-name</pre>
     <section class="panel" id="artifacts">
       <div class="panel-header"><h2>Artifacts and storage quota</h2></div>
       <div class="panel-body prose">
-        <p>The repository has been private since 2026-10-22, so Actions artifacts count toward the account plan's storage quota. Once the quota is used up, artifact uploads fail and a release cannot create its draft (this is what happened to v0.5.0). Desktop builds and server packages therefore keep their artifacts for 3 days on PRs and main and for 1 day on releases, and the release workflow deletes its run's artifacts after creating the draft. Test reports and Portal traces are only for diagnosis, so a failed upload does not fail the job.</p>
+        <p>The repository was made private on 2026-10-22, so Actions artifacts counted toward the account plan's storage quota. Once the quota is used up, artifact uploads fail and a release cannot create its draft (this is what happened to v0.5.0). When checked on 2026-11-06 the repository was public (when it changed back is not recorded), and artifacts of public repositories do not count toward the quota; the retention rules below stay as they are and need no change if the repository goes private again. Desktop builds and server packages keep their artifacts for 3 days on PRs and main and for 1 day on releases, and the release workflow deletes its run's artifacts after creating the draft. Test reports and Portal traces are only for diagnosis, so a failed upload does not fail the job.</p>
         <p>Layered builds leave two more things behind: pass records (<code>pass-*</code> artifacts, under 1 KB each, kept for 30 days) and the shell cache (the Actions cache, which does not count toward the artifact quota; up to 10 GB per repository, evicted after 7 days without use, and saved again by the next full build).</p>
         <p>To free the quota in one go, run "清理產物" (<code>cleanup-artifacts.yml</code>) by hand. By default it only lists the artifacts, with counts and sizes by name in the summary; after checking, run it again with "只列出、不刪" (list only) unticked. Deleting cannot be undone; the files of published versions live on Releases and are not affected, and deleting <code>pass-*</code> only means those inputs are verified once more. The quota goes down only after GitHub recalculates the usage.</p>
       </div>

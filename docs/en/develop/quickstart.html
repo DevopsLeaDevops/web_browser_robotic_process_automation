@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:c3733682c54c99e4">
+<meta name="translation-source" content="sha256:26006ef25d4ae3c1">
 <title>Run locally from scratch · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -135,12 +135,12 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
     <section class="panel" id="done">
       <div class="panel-header"><h2>What success looks like</h2></div>
       <div class="panel-body">
-        <p>The last step prints the version and all tests report only <code>passed</code> (the number of tests and the time vary by version and computer; currently over a thousand, including browser tests in Chromium and Firefox), followed by "完成" (done) and the commands you can use next. The setup scripts print their messages in Traditional Chinese:</p>
+        <p>The last step prints the version and no test reports <code>failed</code> (the number of tests and the time vary by version and computer; currently over two thousand, including browser tests in Chromium and Firefox; a few tests that only run on Windows or need the real RPA Python runtime show as <code>skipped</code>), followed by "完成" (done) and the commands you can use next. The setup scripts print their messages in Traditional Chinese:</p>
 <pre class="source" translate="no">[7/7] 確認能運行
-  ✓ rpa 0.6.3（rpa-core 0.6.3）
+  ✓ rpa 0.8.0（rpa-core 0.8.0）
   $ env RPA_REQUIRE_BROWSER=1 uv run pytest
 …
-============================= … passed in …s ==============================
+======================== … passed, … skipped in …s =========================
   ✓ 全部測試通過
 
 完成！本機環境已經可以運行。
@@ -153,7 +153,7 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</p
   open docs/index.html                        # 開啟文檔站
   uv run python -m http.server -d docs 8000   # 或用本機伺服器瀏覽文檔</pre>
         <ul class="points">
-          <li>The number of tests grows with the code and docs pages; what matters is no <code>failed</code> and no <code>skipped</code>.</li>
+          <li>The number of tests grows with the code and docs pages; what matters is no <code>failed</code>. The only <code>skipped</code> tests are those that run on other systems only (for example the Windows registry) and the Python node tests that need the real RPA Python runtime (the CI workflow “RPA Python 運行環境” runs them after building the runtime, see <a href="ci.html#layered">CI &amp; pipelines</a>); a missing browser is a failure, not a skip.</li>
           <li>If something fails, the script marks where it stopped and how to fix it with <code>✗</code> (<code>[X]</code> on Windows).</li>
           <li>Lines starting with <code>!</code> (<code>[!]</code> on Windows) are warnings: they do not stop anything, but are worth reading.</li>
           <li><code>rpa</code> itself prints Traditional Chinese by default; add <code>--lang en</code>, or set <code>RPA_LANG=en</code>, for English.</li>
