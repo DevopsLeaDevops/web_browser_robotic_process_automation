@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M7 流程能力 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M7：流程能力（條件、迴圈、錯誤處理、重試、自己開的新分頁、子場景、資料驅動）</h1><p>M7a～M7c 已經把 iframe、點擊開出的新分頁、上傳提前做完，下載由 Python 節點（#109）補上。剩下的都是「場景不再只能從頭到尾直線執行」：看頁面決定走哪條路、對清單逐項做、出錯時補救、偶發失敗再試一次、呼叫另一個場景、用一張表跑很多次。本頁是設計與待你確認的決定；確認後才開始寫程式。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261106-m7-flow；2026-11-06 18:40 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 雲端 session（2026-11-06 18:00 America/Los_Angeles（PST，UTC−08:00））：「M6已經驗證過，忘記更新狀態。請繼續M7的功能研發。」路線圖的 M7 驗收方式是「複雜範例場景通過」；各期的驗收條件見<a href="#phases">第 7 節</a>。</dd>
+        <dt>範圍／不包含</dt><dd>M7 剩下的七項：條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、自己開的新分頁、子場景、資料驅動。不包含：已提前做完的 iframe（M7a）、點擊開出的新分頁（M7b）、上傳（M7c）、下載（ADR 0020）；組合場景層級的平行節點、條件分支、重複次數（M6 原型的項目，另等決定，見<a href="../open-work.html#m6-gaps">未完成工作</a>）；AI 生成流程（M5）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）。審閱、決定與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>設計階段只有本頁與任務索引。實作會改到的檔案見<a href="#files">第 9 節</a>；共用檔案（多語言目錄、<code>schema/scenario.v1.json</code>、<code>docs/assets/nav.js</code>、任務索引、ADR 編號 0021、之後 M7.3 的資料庫遷移編號）由本分支整合，<code>uv.lock</code>、簡中與 JSON Schema 由 bootstrap 產生。</dd>
+        <dt>狀態</dt><dd>設計待確認：<a href="#decisions">D1～D9</a> 等使用者決定；尚未開始實作。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>m7/flow</code>，從 <code>673dc4c</code>（origin/main，Merge PR #112）開；草稿 PR 見追加紀錄。M6 狀態的文件更新另在 <code>docs/m6-status</code>（PR #113），兩者沒有共用檔案。</dd>
+        <dt>交接版本／同步狀態</dt><dd>本頁與索引推送到 <code>m7/flow</code>；以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、系統 Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。連不到 PyPI，<code>uv sync --locked</code> 失敗；調研用系統已有的 Pydantic 2.13.5、Jinja2 3.1.6、Playwright 與 <code>/opt/pw-browsers</code> 的 Chromium，在 <code>/tmp</code> 的虛擬環境以 .pth 指到工作區的套件原始碼。沒有 Firefox、沒有 OpenCC。</dd>
+      </dl></div>
+    </section>
+
+    <section class="panel" id="summary">
+      <div class="panel-header"><h2>1. 結論</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>可以做，不需要新的外部元件。</strong>步驟的資料模型（Pydantic 的 discriminated union）可以直接遞迴：區塊步驟裡再放步驟，校驗、錯誤位置與 JSON Schema 都照常運作（<a href="#research">第 3 節</a>實測）。</li>
+        <li><strong>做法：新增四種區塊步驟和幾個欄位。</strong><code>if</code>（條件）、<code>forEach</code>（對清單逐項做）、<code>repeat</code>（重複，次數或條件）、<code>try</code>（出錯時改走補救步驟）；每一步可以寫 <code>onError: continue</code>、無副作用的步驟可以寫 <code>retry</code>；<code>openPage</code>／<code>closePage</code> 自己開關分頁；<code>extract</code> 多一個 <code>append</code> 讓迴圈累積資料。</li>
+        <li><strong>契約與發布門檻不變。</strong>出參仍只在獨立斷言 <code>verify</code> 通過後發布；沒有用到新欄位的場景，雜湊與執行結果完全不變，<code>schemaVersion</code> 維持 1。舊的錄製端與 Worker 看不懂時，沿用 M7a 起的擴充機制提示更新。</li>
+        <li><strong>分三期（D1）。</strong>M7.1 流程控制（上面那些）；M7.2 子場景（在同一個瀏覽器裡呼叫另一個已發布的場景）；M7.3 資料驅動（一張表的每一列各跑一次、各有報告）。建議先做 M7.1，確認後再細化後兩期。</li>
+        <li><strong>要你決定的有九項（第 11 節），都附了建議。</strong>最需要看的是條件怎麼寫（D2）、迴圈裡的資料怎麼累積（D3）、哪些步驟可以重試（D5）、資料驅動是「批次執行很多次」還是「一次執行裡逐列做」（D9）。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="gaps">
+      <div class="panel-header"><h2>2. 現況與缺口</h2><span class="muted">依 main <span class="mono">673dc4c</span> 查證</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>位置</th><th>現況</th><th>M7 要改的</th></tr></thead>
+        <tbody>
+          <tr><td>DSL 步驟（<code>rpa_core/dsl/steps.py</code>）</td><td>十二種動作，<code>steps</code> 是一層清單；文件字串寫著「retry、onError、條件與迴圈在 M7 加入」。DSL 文件也承諾「重試只用於沒有副作用的步驟」。</td><td>區塊步驟（裡面再放步驟）、條件、<code>retry</code>、<code>onError</code>、<code>openPage</code>／<code>closePage</code>、<code>extract.append</code>。</td></tr>
+          <tr><td>跨步驟檢查（<code>checks.py</code>）</td><td>步驟 id、<code>as</code> 不能重複；<code>{{ }}</code> 只能用 inputs、secrets、facts、env，facts 要「之前」產生；分頁名稱要先開過。全部是線性的「之前／之後」。</td><td>巢狀的範圍：迴圈變數只在迴圈裡能用；分支裡產生的事實之後「可能」有值；<code>append</code> 可以多步寫同一個事實。</td></tr>
+          <tr><td>Runner（<code>rpa_runner/browser.py</code>）</td><td><code>run_steps</code> 依序執行、失敗就拋出；步驟紀錄一開始就一步一筆（<code>plan_records</code>），全部預設「略過」。有副作用的動作不會自動重試。</td><td>遞迴執行區塊；紀錄改成「執行到才新增」，多記所在位置、第幾輪、第幾次嘗試。</td></tr>
+          <tr><td>逐步調試（<code>rpa_runner/debug.py</code>、<code>rpa_server/debugging.py</code>、Agent API <code>/debug/{id}/steps/{index}</code>）</td><td>以第幾步（index）執行；有副作用、執行過的步驟要確認才重跑。</td><td>以路徑執行巢狀的步驟；區塊可以整塊執行；迴圈裡的步驟要知道「目前這一項」。</td></tr>
+          <tr><td>報告、日誌與回看（<code>steplog.py</code>、<code>report.py</code>、<code>rpa_server/replay.py</code>、<code>composite_report.py</code>）</td><td>紀錄與場景快照裡的步驟定義以順序一對一對應（<code>definitions[index]</code>、<code>step_sources</code> 只找 <code>("steps", n)</code>）。Python 節點的步驟已經有 <code>parent</code>，章節只取最外層。</td><td>以定義路徑對應原文與定位器；巢狀的步驟縮排、標出第幾輪；章節仍是最外層的步驟。</td></tr>
+          <tr><td>錄製稿轉換（<code>rpa_core/recording.py</code>）</td><td><code>context.new_page()</code> 自己開的分頁轉不了，上面的操作列為警告；<code>page1.close()</code> 略過。</td><td>轉成 <code>openPage</code>／<code>closePage</code>。條件與迴圈錄不出來，在 YAML 裡寫（之後 M5 的 AI 可以產生）。</td></tr>
+          <tr><td>擴充（<code>features.py</code>）</td><td>M7a 起每個會讓舊 App 看不懂的欄位都有名稱，派工前比對。</td><td>新增 <code>flow</code>。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="research">
+      <div class="panel-header"><h2>3. 調研與實測</h2><span class="muted">2026-11-06 18:15～18:25 America/Los_Angeles（PST，UTC−08:00），本頁的工作環境</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>問題</th><th>做法</th><th>結果</th></tr></thead>
+        <tbody>
+          <tr><td>步驟模型能不能遞迴</td><td>用現有的 <code>DslModel</code>、<code>StepBase</code>、<code>Locator</code> 寫試驗用的 <code>if</code>（<code>then</code>／<code>else</code>）與 <code>forEach</code>（<code>steps</code>），三層巢狀的資料丟進 <code>TypeAdapter</code></td><td>校驗通過（2.0 ms）；轉回 JSON 與原資料相同；第三層填錯型別時，錯誤位置是 <code>(1, 'if', 'else', 0, 'forEach', 'steps', 0, 'fill', 'value')</code>，和現在一層步驟的格式一樣（動作名稱夾在路徑裡），<code>issues.py</code> 的處理可以沿用；JSON Schema 產生 <code>IfStep</code>、<code>ForEachStep</code> 的遞迴參照。</td></tr>
+          <tr><td>元素條件要不要等、等多久</td><td>Chromium 上的測試頁：公告視窗按下後 800 ms 才出現；用 <code>wait_for(state="visible", timeout=…)</code> 加 <code>is_visible()</code> 判斷</td><td>不等（只看當下）：58 ms 判定「沒有」；等 300 ms：302 ms 判定「沒有」；等 2000 ms：880 ms 判定「有」（出現就結束，不必等滿）。所以條件要有「最多等多久」，預設 0 才不會拖慢每一次判斷（D2）。</td></tr>
+          <tr><td>資料條件</td><td>現有的 <code>render_native</code> 求 <code>{{ inputs.mode == 'batch' and facts.n|int &gt; 1 }}</code></td><td>回傳布林值 <code>True</code>；入參、事實、迴圈變數都能用同一套 Jinja 沙箱，不必新的運算語法。</td></tr>
+          <tr><td>表格逐列</td><td>同一頁的 <code>table tr</code> 篩出有 <code>td</code> 的列</td><td>2 列、文字正確；現有的 <code>extract get: table</code> 已經能把表格轉成記錄清單，<code>forEach</code> 直接拿來用。</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>實驗腳本放在工作區的暫存資料夾，不進倉庫；實作時改寫成正式測試（<a href="#test-plan">第 10 節</a>）。</p></div>
+    </section>
+
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>4. 設計：M7.1 流程控制</h2></div>
+      <div class="panel-body">
+        <h3 id="design-overview">4.1 新增的動作與欄位</h3>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>寫法</th><th>做什麼</th><th>關鍵欄位</th></tr></thead>
+        <tbody>
+          <tr><td><code>action: if</code></td><td>條件成立走 <code>then</code>，不成立走 <code>else</code>（可省略）</td><td><code>condition</code>、<code>then</code>、<code>else</code></td></tr>
+          <tr><td><code>action: forEach</code></td><td>對清單的每一項執行一次 <code>steps</code></td><td><code>items</code>（<code>{{ }}</code>，要是清單）、<code>as</code>（迴圈變數名稱）、<code>steps</code></td></tr>
+          <tr><td><code>action: repeat</code></td><td>重複執行 <code>steps</code>：固定次數，或條件成立時（<code>while</code>，每輪之前判斷）、直到條件成立（<code>until</code>，每輪之後判斷）</td><td><code>times</code>／<code>while</code>／<code>until</code> 三選一、<code>max</code>（用條件時必填）、<code>steps</code></td></tr>
+          <tr><td><code>action: try</code></td><td>執行 <code>steps</code>；其中一步失敗就停下、改走 <code>catch</code>，之後繼續後面的步驟</td><td><code>steps</code>、<code>catch</code></td></tr>
+          <tr><td>任何步驟的 <code>onError: continue</code></td><td>這一步失敗時記下失敗，繼續下一步</td><td>—</td></tr>
+          <tr><td>無副作用步驟的 <code>retry</code></td><td>失敗時再試，最多幾次、每次間隔多久</td><td><code>times</code>（1～5）、<code>delay</code>（毫秒，預設 1000）</td></tr>
+          <tr><td><code>action: openPage</code>／<code>closePage</code></td><td>自己開一個新分頁（同一個登入狀態），取名；關掉某個分頁</td><td><code>as</code>、<code>url</code>（選用）；<code>page</code></td></tr>
+          <tr><td><code>extract</code> 的 <code>append: true</code></td><td>每次執行把結果加到同一個事實的清單尾端（<code>multiple</code>、<code>table</code> 的清單攤平加入）</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body">
+        <h3 id="design-condition">4.2 條件（D2）</h3>
+        <p><code>if</code> 的 <code>condition</code>、<code>repeat</code> 的 <code>while</code>／<code>until</code> 用同一種條件，寫法沿用 <code>expect</code>：熟悉 <code>expect</code> 就會寫條件，差別只是「不成立不算失敗」。</p>
+        <ul class="points">
+          <li><strong>元素：</strong><code>target</code> 加上 <code>state</code>（visible、hidden、enabled、disabled、checked、unchecked、editable，另加 attached、detached）、<code>text</code>、<code>value</code>、<code>count</code> 其一，<code>match</code> 同 expect。</li>
+          <li><strong>頁面：</strong>沒有 <code>target</code> 時 <code>url</code> 或 <code>title</code>。</li>
+          <li><strong>資料：</strong><code>expression: '{{ … }}'</code>，結果是真值就成立（入參、事實、迴圈變數都能用）。</li>
+          <li><strong><code>wait</code>：</strong>最多等多久讓條件成立（毫秒）；預設 0，只看當下。成立就馬上結束，不必等滿。</li>
+          <li><strong><code>not: true</code>：</strong>反過來判斷。<strong><code>page</code>：</strong>在哪個分頁判斷，同步驟的 <code>page</code>。</li>
+          <li>判斷本身出錯（例如定位器寫法讓 Playwright 報錯、<code>{{ }}</code> 引用不存在的值）算這個區塊失敗，不當成「不成立」，避免寫錯而默默走錯分支。</li>
+        </ul>
+        <pre class="source">- id: close-notice
+  name: 有系統公告就關掉
+  action: if
+  condition:
+    target: { role: dialog, name: 系統公告 }
+    state: visible
+    wait: 2000                      # 最多等 2 秒；沒出現就走 else（這裡省略）
+  then:
+    - id: close-notice-button
+      action: click
+      target: { role: button, name: 關閉, within: { role: dialog } }</pre>
+
+        <h3 id="design-loops">4.3 迴圈、迴圈變數與事實（D3、D4）</h3>
+        <ul class="points">
+          <li><strong><code>forEach</code> 的 <code>items</code></strong> 求值後要是清單：<code>type: array</code> 的入參、<code>extract</code> 的 <code>multiple</code> 或 <code>get: table</code> 的事實都可以。不是清單時這一步失敗；空清單執行零次、照樣通過。</li>
+          <li><strong>迴圈變數：</strong><code>as: order</code> 之後，迴圈裡用 <code>{{ order.title }}</code>；另外 <code>{{ loop.index }}</code>（第幾項，從 1 開始）、<code>{{ loop.count }}</code>（共幾項，<code>repeat</code> 的條件模式沒有）、<code>{{ loop.first }}</code>、<code>{{ loop.last }}</code> 指最內層的迴圈。名稱不能和 inputs、secrets、facts、env、loop、error 或外層的迴圈變數相同。</li>
+          <li><strong>事實：</strong>迴圈裡 <code>extract</code> 的事實每一輪覆蓋，迴圈結束後是最後一輪的值；要累積就寫 <code>append: true</code>，事實是清單、每輪加在後面。好幾步可以寫同一個 <code>as</code>，條件是它們都寫了 <code>append</code>。</li>
+          <li><strong>分支與迴圈裡產生的事實：</strong>校驗時當成之後「可能」有值，不擋；執行時真的沒有值（例如那個分支沒走到）就在用到它的那一步失敗，錯誤說明是哪一步產生、這次沒有執行。</li>
+          <li><strong>上限（D4）：</strong><code>forEach</code> 最多 1,000 項、<code>repeat</code> 的 <code>times</code> 與 <code>max</code> 最多 1,000；用 <code>while</code>／<code>until</code> 一定要寫 <code>max</code>，到了還沒結束算失敗（不會默默停下）；區塊最多巢狀 5 層；一次執行最多 10,000 筆步驟紀錄，超過算失敗。每一步的截圖沿用現在的 500 張上限，錄影完整。每一輪都受總期限 <code>deadline</code> 限制。</li>
+        </ul>
+        <pre class="source">inputs:
+  orders: { type: array, description: 要建立的訂單，例如 [{"title": "A", "qty": 2}] }
+steps:
+  - id: each-order
+    action: forEach
+    items: '{{ inputs.orders }}'
+    as: order
+    steps:
+      - { id: new-order, action: click, target: { role: button, name: 新增 } }
+      - { id: fill-title, action: fill, target: { label: 標題 }, value: '{{ order.title }}' }
+      - { id: fill-qty, action: fill, target: { label: 數量 }, value: '{{ order.qty }}' }
+      - { id: save-order, action: click, target: { role: button, name: 儲存 } }
+      - { id: read-id, action: extract, target: { testId: record-id }, as: recordIds, append: true }
+outputs:
+  recordIds: { type: array, from: '{{ facts.recordIds }}' }</pre>
+        <pre class="source"># 翻頁抽出全部的列：第一頁先抽，之後「下一頁」可以按就繼續
+  - { id: first-page, action: extract, target: { css: 'table#list' }, get: table, as: rows, append: true }
+  - id: next-pages
+    action: repeat
+    while: { target: { role: button, name: 下一頁 }, state: enabled }
+    max: 50
+    steps:
+      - { id: next, action: click, target: { role: button, name: 下一頁 } }
+      - { id: wait-list, action: waitFor, loadState: networkidle }
+      - { id: more-rows, action: extract, target: { css: 'table#list' }, get: table, as: rows, append: true }</pre>
+
+        <h3 id="design-errors">4.4 錯誤處理與重試（D5、D6）</h3>
+        <ul class="points">
+          <li><strong><code>try</code>／<code>catch</code>：</strong><code>steps</code> 其中一步失敗就停下、執行 <code>catch</code>；<code>catch</code> 裡可以用 <code>{{ error.step }}</code>（失敗那一步的 id）與 <code>{{ error.message }}</code>。<code>catch</code> 全部通過時整個 <code>try</code> 算通過、繼續後面的步驟；<code>catch</code> 也失敗就整次執行失敗。總期限到了、使用者取消不會進 <code>catch</code>。</li>
+          <li><strong><code>onError: continue</code>：</strong>任何步驟（含區塊）都能寫。失敗照樣記成失敗，接著執行下一步。</li>
+          <li><strong>結果怎麼算（D6）：</strong>有「失敗後繼續」或被 <code>catch</code> 接住的步驟時，執行的結果仍由獨立斷言 <code>verify</code> 決定；報告、運行頁與發布前的驗證結果多一行黃色提醒「N 步失敗後繼續」，不擋發布。</li>
+          <li><strong><code>retry</code>（D5）：</strong>只能寫在沒有副作用的動作：<code>goto</code>、<code>waitFor</code>、<code>expect</code>、<code>extract</code>、<code>screenshot</code>。點擊、填寫、選擇、勾選、按鍵、上傳、下載、開關分頁與區塊都不行，寫了校驗時指出——這是路線圖與 DSL 文件原本的規則（Runner 與逐步調試也把填寫、勾選當成有副作用）。<code>times</code> 1～5、<code>delay</code> 預設 1000 ms；每次嘗試各有這一步的逾時，全部都在總期限內。紀錄寫第幾次成功，前幾次的錯誤列在提醒。</li>
+          <li>要「點了沒反應就再點」的情況，用 <code>if</code> 或 <code>try</code> 明確寫出來，讓重複點擊這件事看得到、審得到。</li>
+        </ul>
+        <pre class="source">  - id: optional-survey
+    action: try
+    steps:
+      - { id: open-survey, action: click, target: { text: 填寫滿意度問卷 } }
+      - { id: submit-survey, action: click, target: { role: button, name: 送出 } }
+    catch:
+      - { id: survey-failed-shot, action: screenshot, file: survey-failed }
+      - { id: back-home, action: goto, url: / }
+  - id: wait-report-ready
+    action: expect
+    target: { testId: report-status }
+    text: 已完成
+    timeout: 10000
+    retry: { times: 3, delay: 5000 }</pre>
+
+        <h3 id="design-pages">4.5 自己開的新分頁</h3>
+        <ul class="points">
+          <li><code>openPage</code> 在同一個瀏覽器工作階段（同一個登入狀態）開新分頁，以 <code>as</code> 取名；寫了 <code>url</code> 就順便打開（以 <code>/</code> 開頭時接在 <code>baseUrl</code> 後面）。之後的步驟用 M7b 的 <code>page</code> 指定它。</li>
+          <li><code>closePage</code> 關掉 <code>page</code> 指定的分頁；一開始的分頁不能關。關掉之後的步驟不能再用這個名稱（線性的部分校驗時就指出，分支裡的在執行時指出）。</li>
+          <li>分頁名稱和 M7b 的 <code>popup</code> 共用同一組名稱，不能重複。錄製稿的 <code>page1 = context.new_page()</code> 轉成 <code>openPage</code>，<code>page1.close()</code> 轉成 <code>closePage</code>。</li>
+        </ul>
+        <pre class="source">  - { id: open-report, action: openPage, as: report, url: '/reports?month={{ inputs.month }}' }
+  - { id: read-total, action: extract, page: report, target: { testId: total }, as: total }
+  - { id: close-report, action: closePage, page: report }</pre>
+
+        <h3 id="design-rules">4.6 校驗規則（<code>rpa validate</code>、Portal 存檔、<code>rpa pack check</code> 相同）</h3>
+        <ul class="points">
+          <li>步驟 id 在整個場景（含所有巢狀的步驟）唯一。</li>
+          <li>區塊步驟（<code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code>）不能寫 <code>timeout</code>、<code>page</code>、<code>popup</code>；裡面的步驟各自寫。<code>then</code>、<code>steps</code>、<code>catch</code> 至少一步；<code>else</code> 可省略。</li>
+          <li>條件的欄位規則同 <code>expect</code>（元素檢查與頁面檢查不能混用、<code>match</code> 只用於文字比對、正規表示式要能編譯）；<code>expression</code> 與其他欄位擇一。</li>
+          <li><code>{{ }}</code> 的範圍：迴圈變數與 <code>loop</code> 只在那個迴圈裡；<code>error</code> 只在 <code>catch</code> 裡；facts 的「之前」依執行順序推算，分支與迴圈裡產生的算「之後可能有」。</li>
+          <li><code>retry</code> 只能寫在第 4.4 節列的動作；<code>append</code> 只能寫在 <code>extract</code>；同名事實的每一步都要 <code>append</code>。</li>
+          <li>上限見第 4.3 節；超過時指出那一層、那個欄位。</li>
+        </ul>
+
+        <h3 id="design-runner">4.7 執行（Runner）與紀錄</h3>
+        <ul class="points">
+          <li>Runner 遞迴執行步驟；每一步的逾時、總期限、取消照舊。<code>{{ }}</code> 仍在執行那一步之前才代入，多了迴圈變數與 <code>loop</code>（<code>catch</code> 裡多 <code>error</code>）。</li>
+          <li><strong>步驟紀錄（<code>steps.json</code>）</strong>改成依執行順序：一開始只列最外層的步驟（狀態「略過」），區塊裡的步驟執行到才新增，緊接在它的區塊後面。每筆多幾個欄位，沒用到新語法的場景這幾個欄位都是預設值：
+            <code>path</code>（定義在場景檔的位置，例如 <code>["steps", 2, "steps", 1]</code>，回看用它找原文與定位器）、
+            <code>parent</code>（外層區塊是第幾筆紀錄；Python 節點已經用 <code>parent</code> 表示巢狀，章節只取最外層的規則不變）、
+            <code>iteration</code>（第幾輪）、<code>attempts</code>（重試的次數）、<code>continued</code>（失敗後繼續）、
+            <code>branch</code>（<code>if</code> 走了 then 或 else）、<code>iterations</code>（迴圈共跑幾輪）、<code>caught</code>（<code>try</code> 接住的步驟與錯誤）。</li>
+          <li><strong>自動化日誌</strong>：巢狀的步驟縮排，標出「第 3 步 › 第 2 項 › 第 1 步」；條件寫出判斷結果與等了多久，重試寫出第幾次。</li>
+          <li><strong>報告與回看</strong>：步驟清單依巢狀縮排、迴圈每一輪可以收合；時間軸的章節仍是最外層的步驟，迴圈的章節裡依輪分段；點巢狀的步驟照樣跳到影片的那個時間、顯示那一步的原文。組合運行的匯總報告與合併回看（ADR 0019）用同一份紀錄，不另做。</li>
+          <li><strong>失敗時停在哪</strong>：回看打開時停在第一個「沒有被接住」的失敗步驟之前；被 <code>catch</code> 接住、<code>onError: continue</code> 的失敗標黃色。</li>
+        </ul>
+
+        <h3 id="design-debug">4.8 逐步調試（D7）</h3>
+        <ul class="points">
+          <li>步驟清單變成可以展開的樹。區塊可以整塊執行（照 Runner 的規則判斷條件、跑迴圈），也可以單獨執行裡面的一步。</li>
+          <li>單獨執行迴圈裡的一步時，迴圈變數用「目前這一項」：預設第 1 項，可以在迴圈那一列切換；<code>items</code> 在第一次需要時求值。<code>catch</code> 裡的一步單獨執行時，<code>error</code> 是一個示範值。</li>
+          <li>「有副作用、執行過的步驟要確認才重跑」照舊；區塊裡有任何有副作用的步驟，整塊就算有副作用。「執行到這裡」只用於最外層的步驟。</li>
+          <li>Agent API 的 <code>POST /agent-api/v1/debug/{id}/steps/{index}</code> 保持原意（最外層第幾步）；多一個請求內容 <code>path</code> 執行巢狀的步驟。</li>
+        </ul>
+
+        <h3 id="design-compat">4.9 相容性與 Portal</h3>
+        <ul class="points">
+          <li>新欄位都是增加的，<code>schemaVersion</code> 維持 1；沒用到的場景雜湊不變、不用重新發布。</li>
+          <li>擴充 <code>flow</code>：用到第 4.1 節任何一項的場景標上它；0.8.x 以前的錄製端與 Worker 不會領到這種任務，執行頁說明要更新哪個 App（和 M7a 起的做法相同）。</li>
+          <li>Portal 的場景編輯仍是 YAML（自動化步驟一段），JSON Schema 跟著更新；步驟編輯區多一個「插入」選單，放 <code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code>、<code>openPage</code> 的範本。</li>
+          <li>條件與迴圈錄不出來：先錄成直線的草稿，再把需要的部分包進區塊。之後 M5 的 AI 可以直接產生。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="subscenario">
+      <div class="panel-header"><h2>5. M7.2 子場景（概要，D8）</h2></div>
+      <div class="panel-body">
+        <p>在一個場景的步驟裡呼叫另一個已發布的場景，<strong>在同一個瀏覽器、同一個分頁</strong>裡接著做。和組合場景（M6）的差別：組合場景的每個節點各自開瀏覽器、各自執行；子場景共用登入與畫面，適合「先建客戶、再在同一個畫面建訂單」這種拆開重用的步驟。</p>
+        <pre class="source">  - id: create-customer
+    action: call
+    scenario: CUST-001          # 已發布的場景代號
+    revision: 4                 # 固定版本，只能是發布過的
+    inputs: { name: '{{ order.customer }}' }
+    as: customer                # 子場景的出參 → {{ facts.customer.customerId }}</pre>
+        <ul class="points">
+          <li>契約不變：子場景的入參照它的契約校驗；它的步驟跑完後立刻跑它自己的 <code>verify</code>，通過才把出參交回呼叫的場景。</li>
+          <li>子場景要是 DSL 場景（不是 Python 節點）；登入角色要和呼叫的場景相同，或子場景不需要登入。不能遞迴呼叫，最多 3 層。</li>
+          <li>固定版本的子場景算進呼叫場景的雜湊與快照：子場景出新版本時，呼叫的場景要改 <code>revision</code>、重新驗證才會用到。領域資料夾與 git 同步（ADR 0015）沿用組合場景的跨領域依賴處理。</li>
+          <li>報告與回看裡，子場景的步驟縮排在 <code>call</code> 這一步下面。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="datadriven">
+      <div class="panel-header"><h2>6. M7.3 資料驅動（概要，D9）</h2></div>
+      <div class="panel-body">
+        <p>建議把「資料驅動」做成<strong>批次執行</strong>：選一個已發布的場景（或專案裡的組合場景），上傳 CSV／Excel 或貼一張表，每一列是一組入參，<strong>每一列各自是一次執行</strong>，各有驗證、報告、出參與回看。和 <code>forEach</code>（一次執行裡逐項做）分工：</p>
+      </div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th></th><th>批次執行（M7.3）</th><th><code>forEach</code>（M7.1）</th></tr></thead>
+        <tbody>
+          <tr><td>一列失敗</td><td>只影響那一列，其他照跑；可以只重跑失敗的列</td><td>整次執行看 <code>try</code>／<code>onError</code> 怎麼寫</td></tr>
+          <tr><td>結果</td><td>每列一份報告與出參，加一頁匯總（可以匯出成 CSV／Excel）</td><td>一份報告，出參可以是清單</td></tr>
+          <tr><td>適合</td><td>幾十到幾百筆、每筆都要證據（例如逐筆建單）</td><td>同一個畫面裡逐項處理（例如勾選清單裡的每一項）</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><ul class="points">
+        <li>欄位名稱對應入參名稱，對不上時在畫面上對應；開始前逐列校驗，有問題的列先列出來。</li>
+        <li>選項：失敗時繼續或停下；同時跑幾列（受可用的 Worker 限制，同一台一次一列）。</li>
+        <li>伺服器多兩張表（批次與每一列），要一個資料庫遷移；Agent API 多一個建立批次、讀結果的端點。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="phases">
+      <div class="panel-header"><h2>7. 分期（D1）</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>期</th><th>內容</th><th>驗收（人工）</th></tr></thead>
+        <tbody>
+          <tr><td>M7.1 流程控制（建議先做）</td><td>第 4 節全部：<code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code>、<code>onError</code>、<code>retry</code>、<code>openPage</code>／<code>closePage</code>、<code>extract.append</code>；校驗、Runner、日誌、報告、回看、逐步調試、錄製稿轉換、擴充、JSON Schema、文件（DSL、管理 Portal、Agent API）、ADR 0021、測試網站與範例場景</td><td>在 Mac 錄製端調試並以 Windows Worker 驗證、發布、執行第 8 節的範例：隨機出現的公告有時關、有時略過都通過；翻頁抽出全部的列；批次建立的出參是全部的編號；逾時後重試成功；<code>try</code> 接住失敗後照樣完成；回看看得到巢狀的步驟與每一輪；舊版 App 被提示更新</td></tr>
+          <tr><td>M7.2 子場景</td><td>第 5 節；細節在 M7.1 合併後另寫一版設計</td><td>呼叫場景與子場景在同一個瀏覽器完成；子場景驗證失敗時呼叫的場景停下；子場景出新版本不影響已發布的呼叫場景</td></tr>
+          <tr><td>M7.3 資料驅動</td><td>第 6 節；同上</td><td>一張 20 列的表（含 2 列錯誤資料）批次執行：18 列通過、2 列失敗，只重跑失敗的列後全部通過，匯出的結果和報告一致</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>每一期一個 PR、各自發布。M7.1 的程式、測試與文件在本分支依序提交，草稿 PR 先開、每次推送看 CI；全部完成、CI 全綠後轉成可審閱。</p></div>
+    </section>
+
+    <section class="panel" id="example">
+      <div class="panel-header"><h2>8. M7.1 的範例與測試網站</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>測試網站新增 <code>/flow</code> 系列：隨機跳出的系統公告（可以用網址參數固定出現或不出現，測試才穩定）、分頁的清單（每頁 5 列、共 3 頁）、延遲幾秒才變成「已完成」的狀態、可以逐筆新增的表單、會開新分頁的報表頁。</li>
+        <li>範例場景放在 <code>scenarios/examples/flow/</code>：有公告就關掉（<code>if</code>）、批次建立紀錄（<code>forEach</code> ＋ <code>append</code>，出參是全部的編號）、翻頁抽出全部的列（<code>repeat while</code>）、等報表完成（<code>expect</code> ＋ <code>retry</code>）、選填問卷失敗也繼續（<code>try</code>）、在新分頁查總額（<code>openPage</code>）。</li>
+        <li>「測試網站自動化」領域第一次啟動時匯入，和 BA-001～BA-005 一樣。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="files">
+      <div class="panel-header"><h2>9. M7.1 會改到的檔案</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>位置</th><th>內容</th></tr></thead>
+        <tbody>
+          <tr><td><code>packages/rpa_core</code></td><td><code>dsl/steps.py</code>（區塊步驟、條件、<code>retry</code>、<code>onError</code>、<code>openPage</code>、<code>closePage</code>、<code>append</code>）、<code>dsl/checks.py</code>（巢狀範圍、上限、<code>append</code>、分頁開關）、<code>dsl/features.py</code>（<code>flow</code>）、<code>dsl/issues.py</code>（巢狀的位置說明）、<code>recording.py</code>（<code>new_page</code>、<code>close</code>）、訊息目錄</td></tr>
+          <tr><td><code>packages/rpa_runner</code></td><td><code>browser.py</code>（遞迴執行、條件、重試、紀錄）、<code>child.py</code>、<code>steplog.py</code>、<code>stepshots.py</code>（執行到才新增的紀錄）、<code>report.py</code> 與報告範本、<code>debug.py</code>（以路徑執行、迴圈的目前項）、訊息目錄</td></tr>
+          <tr><td><code>apps/server</code></td><td><code>replay.py</code>、<code>composite_report.py</code>（以路徑對應定義）、<code>debugging.py</code>（樹狀的步驟狀態）、<code>agent_api.py</code>（<code>path</code>）、調試、運行、回看的頁面範本與 <code>portal.js</code>、步驟編輯的「插入」選單、訊息目錄</td></tr>
+          <tr><td><code>apps/testsite</code>、<code>scenarios/examples/flow/</code></td><td>第 8 節</td></tr>
+          <tr><td>文件</td><td><code>docs/design/dsl.html</code>、<code>docs/design/portal.html</code>、<code>docs/design/agent-api.html</code>、<code>docs/develop/agent-api-guide.html</code>、新的 ADR 0021、<code>docs/roadmap.html</code>（繁中、英文；簡中由工具產生）</td></tr>
+          <tr><td>產生的檔案</td><td><code>schema/scenario.v1.json</code>、簡中、<code>uv.lock</code>（bootstrap）；新的瀏覽器測試檔登記在 <code>tools/ci_roles.py</code></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="test-plan">
+      <div class="panel-header"><h2>10. 驗證計畫（M7.1）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>校驗：</strong>每種區塊與欄位的正反例；巢狀的錯誤位置與行號；迴圈變數、<code>error</code>、facts 的範圍；上限；<code>retry</code> 寫在有副作用的動作被擋下；沒用到新語法的既有場景與範例雜湊不變。</li>
+        <li><strong>Runner（Chromium、Firefox，測試網站）：</strong>條件成立／不成立／等待後成立；<code>forEach</code> 空清單、多項、項目不是清單；<code>repeat</code> 三種模式與到達 <code>max</code>；<code>try</code> 接住、<code>catch</code> 也失敗；<code>onError</code>；<code>retry</code> 第幾次成功與全部失敗；迴圈中取消、總期限到了；<code>openPage</code>／<code>closePage</code>；<code>steps.json</code> 的 <code>path</code>、<code>parent</code>、<code>iteration</code> 正確；紀錄上限。</li>
+        <li><strong>伺服器與 Portal：</strong>經過 Portal 的驗證、發布、執行（本機與測試用的遠端 Worker）；回看與報告的巢狀顯示（頁面測試）；逐步調試以路徑執行、迴圈的目前項、整塊執行；舊版 App 沒有 <code>flow</code> 時的提示；Agent API 的 <code>path</code>。</li>
+        <li><strong>錄製稿：</strong><code>context.new_page()</code>、<code>page1.close()</code> 轉換沒有警告。</li>
+        <li><strong>基本檢查：</strong>Ruff、格式、Pyright strict、<code>pytest -m "not browser"</code>、<code>tools/i18n.py check</code>、<code>tests/docs</code>、<code>tests/i18n</code>；CI 的完整矩陣（含 Windows Worker 測試）。</li>
+        <li><strong>人工驗收：</strong>第 7 節 M7.1 那一列，結果回填本頁。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>11. 待決定事項</h2><span class="muted">都附建議；可以回覆「照建議」或指出要改的項目</span></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選擇</th><th>狀態</th></tr></thead>
+        <tbody>
+          <tr><td>D1</td><td>分期與順序</td><td>M7.1 流程控制 → M7.2 子場景 → M7.3 資料驅動，各一個 PR、各自發布；先做 M7.1</td><td>三期一起做（PR 很大、審閱與驗收拖長）；先做資料驅動（業務上若最急）</td><td>待定</td></tr>
+          <tr><td>D2</td><td>條件的寫法</td><td>沿用 <code>expect</code> 的欄位（元素、頁面）加 <code>expression</code>、<code>wait</code>（預設 0）、<code>not</code>；判斷出錯算失敗</td><td>只有 <code>expression</code>（元素狀態要先 extract，寫起來長）；條件預設也等（每次判斷都慢）</td><td>待定</td></tr>
+          <tr><td>D3</td><td>迴圈變數與迴圈裡的事實</td><td><code>as</code> 命名的變數加最內層的 <code>loop</code>；事實每輪覆蓋，<code>append: true</code> 累積成清單</td><td>事實在迴圈裡自動變成清單（不寫 append，但單值也變清單，容易誤用）</td><td>待定</td></tr>
+          <tr><td>D4</td><td>上限</td><td>每個迴圈 1,000 項／輪、條件迴圈必填 <code>max</code>、巢狀 5 層、每次執行 10,000 筆步驟紀錄</td><td>不設上限只靠總期限（紀錄與報告可能大到打不開）；上限更小</td><td>待定</td></tr>
+          <tr><td>D5</td><td>哪些步驟可以 <code>retry</code></td><td>只有 <code>goto</code>、<code>waitFor</code>、<code>expect</code>、<code>extract</code>、<code>screenshot</code>（沿用「填寫、勾選也算有副作用」的現有分類）；<code>times</code> 1～5、<code>delay</code> 預設 1000 ms</td><td>加上 <code>fill</code>、<code>select</code>、<code>check</code>（重複設定同一個值通常無害，但和現有分類不一致）；點擊也可以，但要另寫 <code>unsafe: true</code> 表示知道風險</td><td>待定</td></tr>
+          <tr><td>D6</td><td>有「失敗後繼續」或被接住的失敗時，結果怎麼算</td><td>照樣由 <code>verify</code> 決定；報告、運行頁與驗證結果顯示黃色提醒，不擋發布</td><td>驗證時有這種步驟就不能發布；或結果另標「通過（有警告）」</td><td>待定</td></tr>
+          <tr><td>D7</td><td>逐步調試怎麼處理區塊</td><td>樹狀清單；區塊可整塊執行、也可單獨執行裡面的一步；迴圈的目前項預設第 1 項、可以切換</td><td>只能整塊執行（簡單，但迴圈裡的一步壞了很難調）</td><td>待定</td></tr>
+          <tr><td>D8</td><td>子場景（M7.2）的基本規則</td><td>同一個瀏覽器與分頁；固定已發布的版本；子場景自己的 <code>verify</code> 通過才交回出參；登入角色相同或不需登入；最多 3 層</td><td>子場景另開瀏覽器（那就是組合場景）；跟著子場景最新發布版本（改了會影響已發布的呼叫場景，違反「驗證的版本就是發布的版本」）</td><td>待定（M7.2 開工前可以再確認細節）</td></tr>
+          <tr><td>D9</td><td>「資料驅動」指的是什麼</td><td>M7.3 做批次執行：一列一次執行、各有報告，匯總頁可以匯出、可以只重跑失敗的列；「一次執行裡逐項做」由 M7.1 的 <code>forEach</code> 負責</td><td>只做 <code>forEach</code>（讀 Excel 成清單後逐列做），不做批次執行</td><td>待定</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="rejected">
+      <div class="panel-header"><h2>12. 沒有選的方案</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+        <tbody>
+          <tr><td>流程都寫在 Python 節點</td><td>相容模式的 Python 節點可以用 Playwright 做任何事，但失去 DSL 的校驗、逐步調試、步驟回看與審閱的可讀性；運行環境模式不能開瀏覽器（ADR 0020 的 D2）。仍是逃生門，不是 M7 的做法。</td></tr>
+          <tr><td>用 Jinja 的 <code>{% if %}</code>、<code>{% for %}</code> 在執行前展開步驟</td><td>展開時頁面還沒打開，判斷不了「畫面上有沒有公告」；展開後的步驟和場景檔對不上，回看與調試都難。</td></tr>
+          <tr><td>每一步加 <code>when:</code> 取代 <code>if</code> 區塊</td><td>單一步驟的條件比較短，但多步的分支要每步重寫一次條件。之後若常用，可以另加成 <code>if</code> 的簡寫。</td></tr>
+          <tr><td>只有 <code>onError: continue</code>，沒有 <code>try</code></td><td>做不了「失敗時先截圖、回首頁，再繼續」這類補救。</td></tr>
+          <tr><td>迴圈的 <code>break</code>、<code>continue</code></td><td><code>while</code>／<code>until</code> 與 <code>if</code> 已經寫得出常見的情況（第 4.3 節的翻頁）；之後真的需要再加。</td></tr>
+          <tr><td>點擊也可以自動重試</td><td>違反路線圖「重試只用於無副作用的步驟」；送出表單重複兩次會重複建單（D5 的其他選擇保留明確標示的版本）。</td></tr>
+          <tr><td>組合場景層級的條件、迴圈、平行一起做</td><td>那是 M6 原型留下的另一組問題（節點之間的流程），和場景內的流程不同；另等決定，不放進 M7。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>依 main <code>673dc4c</code> 查證現況（第 2 節）；技術調研（第 3 節）；M7 全部七項的設計（M7.1 詳細，M7.2、M7.3 概要）與待決定事項。</li>
+        <li><strong>未完成／阻礙：</strong>D1～D9 等使用者決定；決定前不寫實作程式。M7.2、M7.3 的細部設計在 M7.1 合併後另寫。</li>
+        <li><strong>決定：</strong>尚無；第 11 節的「建議」都只是建議。</li>
+        <li><strong>下一個具體動作：</strong>使用者回覆 D1～D9 → 依決定改寫本頁的第 4～11 節並記錄原文 → 在本分支開始 M7.1：先寫 <code>rpa_core</code> 的模型與校驗（含測試），再寫 Runner、紀錄與日誌，之後是伺服器、Portal、文件與範例；每一段推送後看 CI。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。調研腳本與虛擬環境在工作區的 <code>/tmp</code>，不進倉庫。</li>
+      </ul></div>
+    </section>
+
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>main <code>673dc4c</code>＋本頁，Claude 雲端環境</td><td>第 3 節的調研；<code>git diff --check</code>；本頁與任務索引的相對連結與錨點檢查</td><td>調研結果見第 3 節；<code>git diff --check</code> 通過；連結 0 個問題</td><td>只有設計，沒有程式與測試的變更；CI 只跑文件相關的檢查</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR；人工驗收：未執行（還沒有實作）；審閱：等使用者。</p></div>
+    </section>
+
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。目前由 Claude 主責；換人接手時由接收方填寫。</p></div>
+    </section>
+
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-06 18:40 America/Los_Angeles（PST，UTC−08:00），Claude：依使用者 18:00 的要求建立本頁。從 main <code>673dc4c</code> 開 <code>m7/flow</code>；確認 GitHub 上沒有其他開著的 PR、沒有人在做 M7。查證現況、做技術調研，寫成 M7 的設計與 D1～D9；只有設計，沒有實作。同一則訊息裡的 M6 狀態更新另開 <code>docs/m6-status</code>（PR #113）。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
