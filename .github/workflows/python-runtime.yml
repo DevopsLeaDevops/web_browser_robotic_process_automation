@@ -63,7 +63,7 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - name: 安裝依賴
         # 工作層級的 env 不能用 runner 這個 context：快取資料夾在這裡設定
         run: |
