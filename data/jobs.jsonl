@@ -4054,3 +4054,6 @@
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 46018662872, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "專案內執行（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 46018662872, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 46018662872, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 9.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 46018662877, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 124.0, "job": "分發包（x64）", "os": "linux", "queue_s": 1.0, "run_id": 46018662877, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "success", "duration_s": 126.0, "job": "分發包（arm64）", "os": "linux", "queue_s": 3.0, "run_id": 46018662877, "workflow": "伺服器分發包"}
